@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import type { IEmbeddingProvider, EmbeddingModelInfo } from "./vector-types";
 
 export interface DeterministicEmbeddingOptions {
@@ -9,8 +8,9 @@ export interface DeterministicEmbeddingOptions {
 
 /**
  * 确定性测试与离线嵌入提供商 (DeterministicEmbeddingProvider)
- * 基于多项式字符哈希与 L2 归一化生成可复现的高维向量。
- * 具备语义相似性投射能力 (相同/重叠词汇具有更高的余弦相似度)，专用于离线/单元测试与无外部模型依赖场景。
+ * 基于字符 n-gram 哈希投射与 L2 范数归一化生成可复现的高维向量。
+ * 具备基础的字符重叠相似度，专用于离线/单元测试与无外部模型依赖场景。
+ * (注: 本实现为测试/基础设施 provider，非最终生产语义深度模型)
  */
 export class DeterministicEmbeddingProvider implements IEmbeddingProvider {
   readonly modelInfo: Readonly<EmbeddingModelInfo>;
@@ -35,28 +35,22 @@ export class DeterministicEmbeddingProvider implements IEmbeddingProvider {
     }
 
     const cleanText = text.toLowerCase().trim();
-    // 1. 生成 1-gram / 2-gram 字符特征投射
+
+    // 1. 1-gram / 2-gram 字符特征投射 (Character n-gram feature hashing)
     for (let i = 0; i < cleanText.length; i++) {
       const charCode = cleanText.charCodeAt(i);
-      const idx1 = (charCode * 31 + i * 17) % dim;
-      vector[idx1] += 1.0;
+      const unigramIdx = (charCode * 37) % dim;
+      vector[unigramIdx] += 1.0;
 
       if (i + 1 < cleanText.length) {
         const nextCode = cleanText.charCodeAt(i + 1);
-        const bigramHash = (charCode * 10007 + nextCode * 37 + i * 13) % dim;
-        vector[bigramHash] += 1.5;
+        const bigramIdx = ((charCode << 5) - charCode + nextCode) % dim;
+        const safeIdx = ((bigramIdx % dim) + dim) % dim;
+        vector[safeIdx] += 2.0;
       }
     }
 
-    // 2. MD5 整体散列补充分散性
-    const md5Hex = crypto.createHash("md5").update(cleanText).digest("hex");
-    for (let i = 0; i < md5Hex.length; i += 2) {
-      const byteVal = parseInt(md5Hex.slice(i, i + 2), 16);
-      const targetIdx = (byteVal * 19 + i * 7) % dim;
-      vector[targetIdx] += (byteVal - 128) / 256;
-    }
-
-    // 3. L2 范数归一化 (Unit Normalization for Cosine Similarity)
+    // 2. L2 范数归一化 (Unit Normalization for Cosine Similarity)
     let norm = 0;
     for (let i = 0; i < dim; i++) {
       norm += vector[i] * vector[i];

@@ -18,6 +18,8 @@ import { MusicService } from "./music/music-service";
 import { createMusicTools } from "./tools/music-tools";
 import { registerMusicIpc } from "./music/music-ipc";
 import { QQMusicProvider } from "./music/qqmusic-provider";
+import { KnowledgeCoordinator } from "./rag/knowledge-coordinator";
+import { ContextManager } from "./agent/context/context-manager";
 import type { IAgentCore } from "../shared/agent-core";
 import type { CareActionType } from "../shared/firefly-state";
 
@@ -161,15 +163,24 @@ app.whenReady().then(() => {
   }
   unregisterMusicIpc = registerMusicIpc(musicService);
 
-  // 3. Initialize Agent Core (FireflyAgentCore v1) with Provider from Settings
+  // 3. Initialize RAG Knowledge Coordinator & Context Layer
+  const knowledgeCoordinator = new KnowledgeCoordinator({
+    knowledgeDataDir: path.join(app.getAppPath(), "data", "knowledge"),
+  });
+  void knowledgeCoordinator.initialize();
+  const ragSlot = knowledgeCoordinator.createRagSlot();
+  const contextManager = new ContextManager({ customSlots: [ragSlot] });
+
+  // 4. Initialize Agent Core (FireflyAgentCore v1 -> v2.3) with Provider from Settings
   const initialProvider = createFireflyProvider(settingsManager.getLlmConfig());
   agentCore = new FireflyAgentCore({
     provider: initialProvider,
     toolRegistry: globalToolRegistry,
+    contextManager,
   });
   registerChatIpc(agentCore, stateManager);
 
-  // 4. Initialize Firefly Proactive Scheduler
+  // 5. Initialize Firefly Proactive Scheduler
   proactiveScheduler = new FireflyProactiveScheduler({
     stateManager,
     agentCore,

@@ -145,24 +145,77 @@ export class MemorySlot implements IContextSlot {
   }
 }
 
+export interface IKnowledgeRetrieverAdapter {
+  retrieve(query: { queryText?: string; entities?: string[]; topK?: number }): Promise<{
+    items: readonly unknown[];
+  }>;
+}
+
+export interface IKnowledgeProjectorAdapter {
+  project(items: readonly unknown[], config?: { maxTokens?: number }): string;
+}
+
+export interface RagSlotOptions {
+  retriever?: IKnowledgeRetrieverAdapter;
+  projector?: IKnowledgeProjectorAdapter;
+  maxTokens?: number;
+  topK?: number;
+}
+
 /**
- * RAG 知识库检索插槽 (为 V2.3 RAG 预留)
+ * RAG 知识库检索插槽 (RagSlot - Fully Integrated with Knowledge Corpus & Hybrid Retriever)
  */
 export class RagSlot implements IContextSlot {
   readonly id = "rag";
   readonly priority = ContextSlotPriority.RAG;
   readonly enabled = true;
+  private readonly retriever?: IKnowledgeRetrieverAdapter;
+  private readonly projector?: IKnowledgeProjectorAdapter;
+  private readonly maxTokens: number;
+  private readonly topK: number;
 
-  render(ctx: SlotRenderContext): string {
-    if (!ctx.ragContext || ctx.ragContext.trim().length === 0) {
-      return "";
+  constructor(options: RagSlotOptions = {}) {
+    this.retriever = options.retriever;
+    this.projector = options.projector;
+    this.maxTokens = options.maxTokens ?? 800;
+    this.topK = options.topK ?? 5;
+  }
+
+  render(ctx: SlotRenderContext): Promise<string> | string {
+    // 1. 若外部显式注入了 ragContext，格式化后直接返回
+    if (ctx.ragContext && ctx.ragContext.trim().length > 0) {
+      return ctx.ragContext.trim();
     }
-    return `【相关背景知识】\n${ctx.ragContext.trim()}`;
+
+    // 2. 若挂载了 Retriever，基于当前 userPrompt 进行检索与格式化投影
+    if (this.retriever && ctx.userPrompt && ctx.userPrompt.trim().length > 0) {
+      return this.retriever
+        .retrieve({
+          queryText: ctx.userPrompt.trim(),
+          topK: this.topK,
+        })
+        .then((result) => {
+          if (result && result.items && result.items.length > 0) {
+            if (this.projector) {
+              return this.projector.project(result.items, { maxTokens: this.maxTokens });
+            }
+          }
+          return "";
+        })
+        .catch((err) => {
+          console.warn("[RagSlot] Retrieval failed gracefully:", err);
+          return "";
+        });
+    }
+
+    return "";
   }
 
   estimateTokens(ctx: SlotRenderContext, meter: TokenMeter): number {
-    const content = this.render(ctx);
-    return content ? meter.estimateTokens(content) : 0;
+    if (ctx.ragContext && ctx.ragContext.trim().length > 0) {
+      return meter.estimateTokens(ctx.ragContext.trim());
+    }
+    return this.maxTokens;
   }
 }
 

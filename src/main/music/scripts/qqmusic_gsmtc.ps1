@@ -32,7 +32,7 @@ try {
 
     if (-not $qqSession) {
         @{
-            ok = $true
+            ok    = $true
             found = $false
             error = "QQ_MUSIC_SESSION_NOT_FOUND"
         } | ConvertTo-Json -Compress
@@ -77,28 +77,29 @@ try {
             $timeline = $qqSession.GetTimelineProperties()
 
             $res = @{
-                ok = $true
-                found = $true
-                appId = [string]$qqSession.SourceAppUserModelId
-                title = if ($media) { [string]$media.Title } else { "" }
-                artist = if ($media) { [string]$media.Artist } else { "" }
-                albumTitle = if ($media) { [string]$media.AlbumTitle } else { "" }
-                hasThumbnail = if ($media) { [bool]($media.Thumbnail -ne $null) } else { $false }
+                ok             = $true
+                found          = $true
+                appId          = [string]$qqSession.SourceAppUserModelId
+                title          = if ($media) { [string]$media.Title } else { "" }
+                artist         = if ($media) { [string]$media.Artist } else { "" }
+                albumTitle     = if ($media) { [string]$media.AlbumTitle } else { "" }
+                hasThumbnail   = if ($media) { [bool]($media.Thumbnail -ne $null) } else { $false }
                 playbackStatus = if ($playback) { [string]$playback.PlaybackStatus } else { "Closed" }
-                position = if ($timeline) { [double]$timeline.Position.TotalSeconds } else { 0.0 }
-                duration = if ($timeline) { [double]$timeline.EndTime.TotalSeconds } else { 0.0 }
-                canPlay = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPlayEnabled } else { $false }
-                canPause = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPauseEnabled } else { $false }
-                canNext = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsNextEnabled } else { $false }
-                canPrev = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPreviousEnabled } else { $false }
+                position       = if ($timeline) { [double]$timeline.Position.TotalSeconds } else { 0.0 }
+                duration       = if ($timeline) { [double]$timeline.EndTime.TotalSeconds } else { 0.0 }
+                canPlay        = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPlayEnabled } else { $false }
+                canPause       = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPauseEnabled } else { $false }
+                canNext        = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsNextEnabled } else { $false }
+                canPrev        = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPreviousEnabled } else { $false }
             }
             $res | ConvertTo-Json -Compress
             exit 0
         }
     }
-} catch {
+}
+catch {
     @{
-        ok = $false
+        ok    = $false
         found = $false
         error = [string]$_.Exception.Message
     } | ConvertTo-Json -Compress
