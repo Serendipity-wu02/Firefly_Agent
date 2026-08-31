@@ -12,7 +12,26 @@ export type AgentEventType =
   | "agent:final-answer"
   | "agent:cancelled"
   | "agent:error"
-  | "agent:finished";
+  | "agent:finished"
+  | "tool:authorized"
+  | "tool:denied"
+  | "tool:retry"
+  | "tool:timeout"
+  | "checkpoint:created"
+  | "checkpoint:restored"
+  | "recovery:started"
+  | "recovery:completed"
+  | "recovery:failed"
+  | "run:resumed"
+  | "plan:created"
+  | "plan:started"
+  | "plan:step-start"
+  | "plan:step-completed"
+  | "plan:step-failed"
+  | "plan:verification"
+  | "plan:completed"
+  | "plan:failed"
+  | "plan:cancelled";
 
 export type AgentEvent =
   | { type: "agent:started"; runId: string; prompt: string; timestamp: number }
@@ -55,6 +74,151 @@ export type AgentEvent =
       durationMs: number;
       toolCallsCount: number;
       stepsCount: number;
+      timestamp: number;
+    }
+  | {
+      type: "tool:authorized";
+      runId: string;
+      step: number;
+      toolCallId: string;
+      toolName: string;
+      timestamp: number;
+    }
+  | {
+      type: "tool:denied";
+      runId: string;
+      step: number;
+      toolCallId: string;
+      toolName: string;
+      reason: string;
+      timestamp: number;
+    }
+  | {
+      type: "tool:retry";
+      runId: string;
+      step: number;
+      toolCallId: string;
+      toolName: string;
+      attempt: number;
+      delayMs: number;
+      error: string;
+      timestamp: number;
+    }
+  | {
+      type: "tool:timeout";
+      runId: string;
+      step: number;
+      toolCallId: string;
+      toolName: string;
+      timeoutMs: number;
+      timestamp: number;
+    }
+  | {
+      type: "checkpoint:created";
+      runId: string;
+      checkpointId: string;
+      step: number;
+      timestamp: number;
+    }
+  | {
+      type: "checkpoint:restored";
+      runId: string;
+      checkpointId: string;
+      timestamp: number;
+    }
+  | {
+      type: "recovery:started";
+      runId: string;
+      step: number;
+      errorType: string;
+      attempt: number;
+      timestamp: number;
+    }
+  | {
+      type: "recovery:completed";
+      runId: string;
+      step: number;
+      action: string;
+      timestamp: number;
+    }
+  | {
+      type: "recovery:failed";
+      runId: string;
+      step: number;
+      reason: string;
+      timestamp: number;
+    }
+  | {
+      type: "run:resumed";
+      runId: string;
+      fromCheckpointId: string;
+      resumeStep: number;
+      timestamp: number;
+    }
+  | {
+      type: "plan:created";
+      runId: string;
+      planId: string;
+      goal: string;
+      stepsCount: number;
+      timestamp: number;
+    }
+  | {
+      type: "plan:started";
+      runId: string;
+      planId: string;
+      timestamp: number;
+    }
+  | {
+      type: "plan:step-start";
+      runId: string;
+      planId: string;
+      stepIndex: number;
+      description: string;
+      timestamp: number;
+    }
+  | {
+      type: "plan:step-completed";
+      runId: string;
+      planId: string;
+      stepIndex: number;
+      observation?: string;
+      timestamp: number;
+    }
+  | {
+      type: "plan:step-failed";
+      runId: string;
+      planId: string;
+      stepIndex: number;
+      reason: string;
+      timestamp: number;
+    }
+  | {
+      type: "plan:verification";
+      runId: string;
+      planId: string;
+      stepIndex: number;
+      result: string;
+      timestamp: number;
+    }
+  | {
+      type: "plan:completed";
+      runId: string;
+      planId: string;
+      stepsCount: number;
+      timestamp: number;
+    }
+  | {
+      type: "plan:failed";
+      runId: string;
+      planId: string;
+      reason: string;
+      timestamp: number;
+    }
+  | {
+      type: "plan:cancelled";
+      runId: string;
+      planId: string;
       timestamp: number;
     };
 

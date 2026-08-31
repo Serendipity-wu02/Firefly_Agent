@@ -13,9 +13,18 @@ import { LocalFireflyProvider } from "./providers/local-firefly-provider";
 import { FireflyToolRegistry } from "../tools/tool-registry";
 import { FireflyToolDispatcher } from "../tools/tool-dispatcher";
 import { FireflyMemoryService } from "../memory/memory-service";
-import { buildRoundMessages } from "./harness/harness-context";
+import { ContextManager } from "./context/context-manager";
+import { ToolExecutionEngine } from "./execution/tool-execution-engine";
+import type { ToolPolicyConfig } from "./execution/tool-policy";
 import { AgentSession } from "./agent-session";
 import { AgentEventBus } from "./agent-events";
+import { CheckpointManager } from "./recovery/checkpoint-manager";
+import { RecoveryManager } from "./recovery/recovery-manager";
+import { ResumeProtocol } from "./recovery/resume-protocol";
+import type { RunExecutionState } from "./recovery/execution-state";
+import { BoundedPlanner } from "./planning/bounded-planner";
+import { formatPlanContext } from "./planning/plan-lifecycle";
+import type { Plan, PlannerConfig } from "./planning/plan-types";
 
 export interface FireflyAgentCoreOptions {
   provider?: IFireflyLlmProvider;
@@ -23,15 +32,26 @@ export interface FireflyAgentCoreOptions {
   memoryService?: FireflyMemoryService;
   config?: Partial<HarnessConfig>;
   eventBus?: AgentEventBus;
+  contextManager?: ContextManager;
+  toolPolicy?: Partial<ToolPolicyConfig>;
+  executionEngine?: ToolExecutionEngine;
+  checkpointManager?: CheckpointManager;
+  recoveryManager?: RecoveryManager;
+  planner?: BoundedPlanner;
+  plannerConfig?: Partial<PlannerConfig>;
 }
 
 /**
- * FireflyAgentCore (v1)
+ * FireflyAgentCore (v1 -> v2.1 Context, Execution Engine, Recovery & Bounded Planner Integrated)
  *
  * Implements IAgentCore with an independent Agent Loop decoupled from UI, TTS, and Live2D.
  * Connects directly to:
  * - IFireflyLlmProvider (model agnostic)
- * - FireflyToolRegistry & FireflyToolDispatcher
+ * - FireflyToolRegistry & ToolExecutionEngine (Tool Policy, Authorization, Timeout & Concurrency)
+ * - ContextManager (modular Context Layer, Token Meter & Projection)
+ * - BoundedPlanner (Bounded planning skeleton, step lifecycle & verification)
+ * - CheckpointManager (run-level durability & persistence)
+ * - RecoveryManager (bounded LLM recovery & emergency compaction)
  * - AgentSession (stateful message transcript)
  * - AgentEventBus (typed event emitter)
  * - FireflyMemoryService (long-term memory extraction)
@@ -43,6 +63,11 @@ export class FireflyAgentCore implements IAgentCore {
   private readonly memoryService?: FireflyMemoryService;
   private readonly config: HarnessConfig;
   private readonly eventBus: AgentEventBus;
+  private readonly contextManager: ContextManager;
+  private readonly executionEngine: ToolExecutionEngine;
+  private readonly checkpointManager: CheckpointManager;
+  private readonly recoveryManager: RecoveryManager;
+  private readonly planner: BoundedPlanner;
   private readonly activeRuns = new Map<string, AbortController>();
 
   constructor(options: FireflyAgentCoreOptions) {
@@ -52,6 +77,38 @@ export class FireflyAgentCore implements IAgentCore {
     this.memoryService = options.memoryService;
     this.config = { ...DEFAULT_HARNESS_CONFIG, ...(options.config || {}) };
     this.eventBus = options.eventBus || new AgentEventBus();
+    this.contextManager = options.contextManager || new ContextManager();
+    this.executionEngine =
+      options.executionEngine ||
+      new ToolExecutionEngine(
+        this.toolRegistry,
+        options.toolPolicy,
+        this.eventBus,
+        this.toolDispatcher,
+      );
+    this.checkpointManager = options.checkpointManager || new CheckpointManager();
+    this.recoveryManager = options.recoveryManager || new RecoveryManager();
+    this.planner = options.planner || new BoundedPlanner(options.plannerConfig);
+  }
+
+  getContextManager(): ContextManager {
+    return this.contextManager;
+  }
+
+  getExecutionEngine(): ToolExecutionEngine {
+    return this.executionEngine;
+  }
+
+  getCheckpointManager(): CheckpointManager {
+    return this.checkpointManager;
+  }
+
+  getRecoveryManager(): RecoveryManager {
+    return this.recoveryManager;
+  }
+
+  getPlanner(): BoundedPlanner {
+    return this.planner;
   }
 
   setProvider(provider: IFireflyLlmProvider): void {
@@ -81,6 +138,38 @@ export class FireflyAgentCore implements IAgentCore {
       controller.abort();
     }
     this.activeRuns.clear();
+  }
+
+  /**
+   * 从指定快照恢复执行现场并继续运行
+   */
+  async resume(checkpointId: string, signal?: AbortSignal): Promise<HarnessResult> {
+    const checkpoint = await this.checkpointManager.restoreCheckpoint(checkpointId);
+    if (!checkpoint) {
+      throw new Error(`Checkpoint "${checkpointId}" not found.`);
+    }
+
+    const evaluation = ResumeProtocol.evaluate(checkpoint);
+    if (!evaluation.canResume) {
+      throw new Error(`Cannot resume checkpoint "${checkpointId}": ${evaluation.reason}`);
+    }
+
+    this.eventBus.emit({
+      type: "run:resumed",
+      runId: checkpoint.runId,
+      fromCheckpointId: checkpointId,
+      resumeStep: evaluation.resumeStep,
+      timestamp: Date.now(),
+    });
+
+    return this.run({
+      runId: checkpoint.runId,
+      conversationId: checkpoint.sessionId,
+      userPrompt: "",
+      history: evaluation.sanitizedMessages,
+      planMode: !!evaluation.restoredPlan,
+      signal,
+    });
   }
 
   async run(
@@ -120,15 +209,67 @@ export class FireflyAgentCore implements IAgentCore {
     const memoryContext =
       input.memoryContext ?? this.memoryService?.buildMemoryContext(input.userPrompt) ?? "";
 
-    const initialMessages = buildRoundMessages({
+    // 4. Planning Mode Decision (Direct Mode vs Bounded Planning Mode)
+    const isPlanningMode = this.planner.shouldPlan(
+      input.userPrompt,
+      this.toolRegistry.getToolSchemas().length,
+      input.planMode,
+    );
+
+    let plan: Plan | undefined;
+    let planContextStr = "";
+
+    if (isPlanningMode && input.userPrompt) {
+      plan = this.planner.createPlan(runId, input.userPrompt, input.customSteps);
+      planContextStr = formatPlanContext(plan);
+      this.eventBus.emit({
+        type: "plan:created",
+        runId,
+        planId: plan.planId,
+        goal: plan.goal,
+        stepsCount: plan.steps.length,
+        timestamp: Date.now(),
+      });
+      this.eventBus.emit({
+        type: "plan:started",
+        runId,
+        planId: plan.planId,
+        timestamp: Date.now(),
+      });
+    }
+
+    const initialMessages = this.contextManager.buildInitialMessages({
       userPrompt: input.userPrompt,
       history: input.history,
       characterState: input.characterState,
       memoryContext,
+      planContext: planContextStr,
       systemPromptOverride: input.systemPromptOverride,
+      toolSchemas: this.toolRegistry.getToolSchemas(),
     });
 
     const session = new AgentSession({ initialMessages });
+
+    // 初始化执行状态与快照
+    const executionState: RunExecutionState = {
+      runId,
+      sessionId: conversationId || `session-${runId}`,
+      step: 0,
+      runState: "initializing",
+      stepState: "pending",
+      activeToolCalls: [],
+      recoveryAttempts: 0,
+      startedAt: startTime,
+      updatedAt: startTime,
+      plan,
+    };
+
+    executionState.runState = "running";
+    await this.checkpointManager.createCheckpoint(
+      executionState,
+      session.getMessages(),
+      "run_initialized",
+    );
 
     this.eventBus.emit({
       type: "agent:started",
@@ -143,7 +284,7 @@ export class FireflyAgentCore implements IAgentCore {
     let toolCallsCount = 0;
     let errorMsg: string | undefined;
 
-    // 4. Main Multi-Turn Agent Loop
+    // 5. Main Multi-Turn Agent Loop
     try {
       while (stepCount < this.config.maxRounds) {
         if (runAbortController.signal.aborted) {
@@ -154,6 +295,30 @@ export class FireflyAgentCore implements IAgentCore {
 
         stepCount++;
         const roundId = `${runId}:s${stepCount}`;
+        executionState.step = stepCount;
+        executionState.stepState = "running";
+        executionState.updatedAt = Date.now();
+
+        // If in planning mode, emit plan:step-start
+        if (plan && plan.status === "running") {
+          const currentPlanStep = plan.steps[plan.currentStepIndex];
+          if (currentPlanStep) {
+            this.eventBus.emit({
+              type: "plan:step-start",
+              runId,
+              planId: plan.planId,
+              stepIndex: plan.currentStepIndex,
+              description: currentPlanStep.description,
+              timestamp: Date.now(),
+            });
+          }
+        }
+
+        await this.checkpointManager.createCheckpoint(
+          executionState,
+          session.getMessages(),
+          "step_start",
+        );
 
         this.eventBus.emit({
           type: "agent:step-start",
@@ -173,17 +338,96 @@ export class FireflyAgentCore implements IAgentCore {
           timestamp: Date.now(),
         });
 
-        // Call Provider
-        const roundResponse = await this.provider.generateCompletion(
-          {
-            messages: session.getMessages(),
-            tools: toolSchemas.length > 0 ? toolSchemas : undefined,
-          },
-          runAbortController.signal,
-          (delta) => {
-            legacyEmitter?.({ type: "progress_text", delta });
-          },
-        );
+        // Call Provider with Recovery Manager
+        let roundResponse: any;
+        while (true) {
+          try {
+            roundResponse = await this.provider.generateCompletion(
+              {
+                messages: session.getMessages(),
+                tools: toolSchemas.length > 0 ? toolSchemas : undefined,
+              },
+              runAbortController.signal,
+              (delta) => {
+                legacyEmitter?.({ type: "progress_text", delta });
+              },
+            );
+            break;
+          } catch (providerErr: any) {
+            if (runAbortController.signal.aborted) {
+              throw providerErr;
+            }
+
+            executionState.recoveryAttempts++;
+            const decision = this.recoveryManager.evaluate(
+              providerErr,
+              executionState.recoveryAttempts,
+            );
+
+            this.eventBus.emit({
+              type: "recovery:started",
+              runId,
+              step: stepCount,
+              errorType: decision.classifiedError.type,
+              attempt: executionState.recoveryAttempts,
+              timestamp: Date.now(),
+            });
+
+            if (decision.action === "fail_run") {
+              this.eventBus.emit({
+                type: "recovery:failed",
+                runId,
+                step: stepCount,
+                reason: decision.reason,
+                timestamp: Date.now(),
+              });
+              throw providerErr;
+            }
+
+            if (decision.action === "retry_with_compaction") {
+              executionState.runState = "compacting";
+              const projected = this.contextManager.project({
+                userPrompt: input.userPrompt,
+                history: session.getMessages(),
+                forceCompactionStrategy: "emergency",
+              });
+              session.clear();
+              for (const m of projected.messages) {
+                session.append(m);
+              }
+              executionState.runState = "running";
+              await this.checkpointManager.createCheckpoint(
+                executionState,
+                session.getMessages(),
+                "compaction_completed",
+              );
+              this.eventBus.emit({
+                type: "recovery:completed",
+                runId,
+                step: stepCount,
+                action: "retry_with_compaction",
+                timestamp: Date.now(),
+              });
+              continue;
+            }
+
+            if (decision.action === "retry_with_backoff" || decision.action === "retry_immediate") {
+              if (decision.delayMs > 0) {
+                await new Promise((r) => setTimeout(r, decision.delayMs));
+              }
+              this.eventBus.emit({
+                type: "recovery:completed",
+                runId,
+                step: stepCount,
+                action: decision.action,
+                timestamp: Date.now(),
+              });
+              continue;
+            }
+
+            throw providerErr;
+          }
+        }
 
         if (runAbortController.signal.aborted) {
           status = timedOut ? "timeout" : "cancelled";
@@ -193,6 +437,15 @@ export class FireflyAgentCore implements IAgentCore {
         }
 
         const asstMessage = roundResponse.message;
+
+        await this.checkpointManager.createCheckpoint(
+          executionState,
+          session.getMessages(),
+          "llm_completed",
+        );
+
+        let roundObservation = "";
+        let roundHasError = false;
 
         // Branch A: LLM requested tool calls
         if (asstMessage.toolCalls && asstMessage.toolCalls.length > 0) {
@@ -214,6 +467,15 @@ export class FireflyAgentCore implements IAgentCore {
             timestamp: Date.now(),
           });
 
+          // 初始化活跃工具状态
+          executionState.activeToolCalls = asstMessage.toolCalls.map((tc: any) => ({
+            toolCallId: tc.id,
+            name: tc.name,
+            arguments: typeof tc.arguments === "string" ? JSON.parse(tc.arguments || "{}") : tc.arguments,
+            status: "running" as const,
+            sideEffectState: "started" as const,
+          }));
+
           for (const tc of asstMessage.toolCalls) {
             toolCallsCount++;
 
@@ -233,12 +495,27 @@ export class FireflyAgentCore implements IAgentCore {
               args: typeof tc.arguments === "string" ? JSON.parse(tc.arguments || "{}") : tc.arguments,
             });
 
-            // Execute Tool via Tool Dispatcher
-            const toolResult = await this.toolDispatcher.executeToolCall(tc, {
+            // Execute Tool via Tool Execution Engine (Policy, Timeout, Retry, Concurrency, Result Policy)
+            const toolResult = await this.executionEngine.executeToolCall(tc, {
+              runId,
+              step: stepCount,
               conversationId,
               userQuery: input.userPrompt,
               signal: runAbortController.signal,
+              toolCallsCount,
+              maxToolCallsPerRun: this.executionEngine.getPolicyConfig().maxToolCallsPerRun || 25,
             });
+
+            roundObservation += `[${tc.name}]: ${toolResult.output}\n`;
+            if (toolResult.isError) roundHasError = true;
+
+            // 更新状态
+            const activeTc = executionState.activeToolCalls.find((a) => a.toolCallId === tc.id);
+            if (activeTc) {
+              activeTc.status = toolResult.isError ? "failed" : "succeeded";
+              activeTc.sideEffectState = toolResult.isError ? "failed" : "completed";
+              activeTc.output = toolResult.output;
+            }
 
             this.eventBus.emit({
               type: "agent:tool-result",
@@ -267,42 +544,135 @@ export class FireflyAgentCore implements IAgentCore {
             session.append(toolEntry);
           }
 
+          await this.checkpointManager.createCheckpoint(
+            executionState,
+            session.getMessages(),
+            "tool_round_completed",
+          );
+
+          // If in planning mode, evaluate step progress
+          if (plan && plan.status === "running") {
+            const currentPlanStepIdx = plan.currentStepIndex;
+            const advance = this.planner.advanceStep(plan, roundObservation, roundHasError);
+
+            this.eventBus.emit({
+              type: "plan:verification",
+              runId,
+              planId: plan.planId,
+              stepIndex: currentPlanStepIdx,
+              result: advance.verification.status,
+              timestamp: Date.now(),
+            });
+
+            if (advance.action === "next") {
+              this.eventBus.emit({
+                type: "plan:step-completed",
+                runId,
+                planId: plan.planId,
+                stepIndex: currentPlanStepIdx,
+                observation: roundObservation,
+                timestamp: Date.now(),
+              });
+            } else if (advance.action === "complete") {
+              this.eventBus.emit({
+                type: "plan:step-completed",
+                runId,
+                planId: plan.planId,
+                stepIndex: currentPlanStepIdx,
+                observation: roundObservation,
+                timestamp: Date.now(),
+              });
+              this.eventBus.emit({
+                type: "plan:completed",
+                runId,
+                planId: plan.planId,
+                stepsCount: plan.steps.length,
+                timestamp: Date.now(),
+              });
+            } else if (advance.action === "fail") {
+              this.eventBus.emit({
+                type: "plan:step-failed",
+                runId,
+                planId: plan.planId,
+                stepIndex: currentPlanStepIdx,
+                reason: advance.verification.reason || "Step failed",
+                timestamp: Date.now(),
+              });
+              this.eventBus.emit({
+                type: "plan:failed",
+                runId,
+                planId: plan.planId,
+                reason: advance.verification.reason || "Step verification failure",
+                timestamp: Date.now(),
+              });
+            }
+          }
+
           legacyEmitter?.({ type: "round_end", roundId, round: stepCount });
           // Loop continues to next turn
-          continue;
+        } else {
+          // Branch B: Final Answer reached
+          const asstEntry: ChatMessage = {
+            id: `asst-${Date.now()}-${stepCount}`,
+            role: "assistant",
+            content: asstMessage.content || "",
+            timestamp: Date.now(),
+          };
+          session.append(asstEntry);
+
+          if (plan && plan.status === "running") {
+            const currentPlanStepIdx = plan.currentStepIndex;
+            const advance = this.planner.advanceStep(plan, asstMessage.content || "", false);
+            this.eventBus.emit({
+              type: "plan:verification",
+              runId,
+              planId: plan.planId,
+              stepIndex: currentPlanStepIdx,
+              result: advance.verification.status,
+              timestamp: Date.now(),
+            });
+            this.eventBus.emit({
+              type: "plan:step-completed",
+              runId,
+              planId: plan.planId,
+              stepIndex: currentPlanStepIdx,
+              observation: asstMessage.content,
+              timestamp: Date.now(),
+            });
+            this.eventBus.emit({
+              type: "plan:completed",
+              runId,
+              planId: plan.planId,
+              stepsCount: plan.steps.length,
+              timestamp: Date.now(),
+            });
+          }
+
+          this.eventBus.emit({
+            type: "agent:assistant-message",
+            runId,
+            step: stepCount,
+            content: asstMessage.content || "",
+            timestamp: Date.now(),
+          });
+          this.eventBus.emit({
+            type: "agent:final-answer",
+            runId,
+            content: asstMessage.content || "",
+            timestamp: Date.now(),
+          });
+          legacyEmitter?.({
+            type: "final_answer",
+            content: asstMessage.content || "",
+          });
+          legacyEmitter?.({ type: "round_end", roundId, round: stepCount });
+
+          status = "completed";
+          break;
         }
-
-        // Branch B: Final assistant response without tool calls
-        const finalAsstEntry: ChatMessage = {
-          id: `asst-${Date.now()}`,
-          role: "assistant",
-          content: asstMessage.content || "",
-          timestamp: Date.now(),
-        };
-        session.append(finalAsstEntry);
-
-        this.eventBus.emit({
-          type: "agent:assistant-message",
-          runId,
-          step: stepCount,
-          content: asstMessage.content || "",
-          timestamp: Date.now(),
-        });
-
-        this.eventBus.emit({
-          type: "agent:final-answer",
-          runId,
-          content: asstMessage.content || "",
-          timestamp: Date.now(),
-        });
-        legacyEmitter?.({ type: "final_answer", content: asstMessage.content || "" });
-        legacyEmitter?.({ type: "round_end", roundId, round: stepCount });
-
-        status = "completed";
-        break;
       }
 
-      if (stepCount >= this.config.maxRounds && status !== "completed" && status !== "cancelled") {
+      if (stepCount >= this.config.maxRounds && status === "running") {
         status = "completed";
       }
     } catch (err: any) {
@@ -327,12 +697,28 @@ export class FireflyAgentCore implements IAgentCore {
     }
 
     if (status === "cancelled") {
+      if (plan && (plan.status === "running" || plan.status === "draft" || plan.status === "ready")) {
+        plan.status = "cancelled";
+        this.eventBus.emit({
+          type: "plan:cancelled",
+          runId,
+          planId: plan.planId,
+          timestamp: Date.now(),
+        });
+      }
       this.eventBus.emit({
         type: "agent:cancelled",
         runId,
         timestamp: Date.now(),
       });
     }
+
+    executionState.runState = status === "completed" ? "completed" : status === "cancelled" ? "cancelled" : "failed";
+    await this.checkpointManager.createCheckpoint(
+      executionState,
+      session.getMessages(),
+      "run_completed",
+    );
 
     const lastAsst = session
       .getMessages()

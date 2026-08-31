@@ -54,6 +54,8 @@ export interface HarnessInput {
   characterState?: CharacterStateData;
   memoryContext?: string;
   systemPromptOverride?: string;
+  planMode?: boolean;
+  customSteps?: string[];
   signal?: AbortSignal;
 }
 
