@@ -24,14 +24,12 @@ def main() -> int:
     if fallback_intent.text != "继续" or fallback_intent.action_id != "idle":
         raise AssertionError("unknown action fallback failed")
 
-    from actions import AI_ALLOWED_ACTIONS, FORM_GATED_ACTIONS
+    from actions import AI_ALLOWED_ACTIONS
 
     ai_parser = ActionIntentParser(action_ids=AI_ALLOWED_ACTIONS)
-    gated_marker = ai_parser.parse(AIReply(text="看我的 [action:combustion]", action_id="idle"))
-    if gated_marker.action_id != "idle":
-        raise AssertionError("form-gated action leaked through the AI whitelist")
-    if FORM_GATED_ACTIONS & set(AI_ALLOWED_ACTIONS):
-        raise AssertionError("form-gated actions must not be in the AI whitelist")
+    invalid_marker = ai_parser.parse(AIReply(text="看我的 [action:unknown_action]", action_id="idle"))
+    if invalid_marker.action_id != "idle":
+        raise AssertionError("invalid action leaked through the AI whitelist")
     if "shy" not in ai_parser.action_ids or "waving" not in ai_parser.action_ids:
         raise AssertionError("expressive actions missing from the AI whitelist")
 

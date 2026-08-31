@@ -25,9 +25,6 @@ def firefly_actions(project_dir: Path) -> dict[str, Action]:
     def normal(action_id: str, fallback: str = "idle") -> tuple[Path, ...]:
         return resources.action_frames(action_id, form="normal", fallback_action_id=fallback)
 
-    def sam(action_id: str, fallback: str = "idle") -> tuple[Path, ...]:
-        return resources.action_frames(action_id, form="sam", fallback_action_id=fallback)
-
     def action(action_id: str, label: str, frames: tuple[Path, ...], frame_ms: int, duration_ms: int, priority: int, dialogue: tuple[str, ...], loop: bool = False, interruptible: bool = True) -> Action:
         return Action(action_id, label, frames, frame_ms, duration_ms, priority, interruptible, dialogue, loop)
 
@@ -51,10 +48,6 @@ def firefly_actions(project_dir: Path) -> dict[str, Action]:
         "sick": action("sick", "不适", normal("sick", "sleepy"), 600, 5000, 3, ("不用担心，我只是需要休息和治疗。",)),
         "attention": action("attention", "呼唤", normal("attention", "happy"), 600, 5000, 3, ("开拓者…你还在吗？",)),
         "ignored": action("ignored", "被忽略", normal("ignored", "sad"), 600, 5000, 3, ("你是不是…忘记我了。",)),
-        "transform": action("transform", "变身", sam("transform"), 600, 3600, 7, ("形态切换，准备完成。",), interruptible=False),
-        "sam_idle": action("sam_idle", "萨姆待机", sam("idle"), 600, 5200, 0, ("检测到稳定状态。",), True),
-        "sam_active": action("sam_active", "萨姆激活", sam("active"), 600, 5000, 3, ("我会保护好你。",)),
-        "combustion": action("combustion", "完全燃烧", sam("special"), 600, 5200, 8, ("我将，点燃星海！",), interruptible=False),
     }
 
 
@@ -70,5 +63,3 @@ AI_ALLOWED_ACTIONS = (
     "reading",
     "talking",
 )
-
-FORM_GATED_ACTIONS = frozenset({"transform", "combustion"})

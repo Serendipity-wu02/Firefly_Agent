@@ -55,7 +55,6 @@ class NormalVoicePlayer(QObject):
     def __init__(self, project_dir: Path) -> None:
         super().__init__()
         self.audio_root = project_dir / "assets" / "firefly" / "audio" / "normal"
-        self.sam_audio_root = project_dir / "assets" / "firefly" / "audio" / "sam"
         self.audio_output = QAudioOutput(self)
         self.audio_output.setVolume(0.7)
         self.player = QMediaPlayer(self)
@@ -65,9 +64,6 @@ class NormalVoicePlayer(QObject):
         self._last_file: Path | None = None
         self._active = False
         self._last_voice_monotonic: float | None = None
-
-    def play_sam_combustion(self) -> bool:
-        return self._play_file(self.sam_audio_root / "sam入场音乐.wav", force=True)
 
     def is_busy(self) -> bool:
         if not self._active:

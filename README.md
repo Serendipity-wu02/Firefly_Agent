@@ -22,9 +22,9 @@
    - 防崩溃事件总线 (`AgentEventBus`) 与防御性消息隔离 (`AgentSession`)。
    - 角色记忆持久化 (`FireflyMemoryService`) 与三维流萤人格约束 (`resources/firefly.yaml`)。
 
-2. **双形态桌面交互与 Live2D 表现 (Live2D Presentation)**：
+2. **桌面交互与 Live2D 表现 (Live2D Presentation)**：
    - 支持 Live2D Cubism 3 模型 (`Firefly.model3.json`) 渲染，具备鼠标眼球注视追踪。
-   - 完备的序列帧回退机制（Normal 20 动作 + SAM 8 动作），模型缺失时无缝回退且零崩溃。
+   - 完备的序列帧回退机制（Normal 19 动作），模型缺失时无缝回退且零崩溃。
    - 像素级透明度采样（`alphaThreshold: 15`）、鼠标穿透与拖拽交互。
 
 3. **动态流萤 AI Voice (GPT-SoVITS AI Voice)**：
@@ -95,9 +95,7 @@ flowchart TD
 Firefly-Pet/
 ├── assets/firefly/            # 角色模型、序列帧、特化音效与 UI 资产
 │   ├── models/                # Live2D Cubism 3 模型配置与安装目录
-│   ├── normal/                # Normal 形态序列帧 (20 动作)
-│   ├── sam/                   # SAM 机甲形态序列帧 (8 动作)
-│   ├── audio/sam/             # SAM 特化音效资产
+│   ├── normal/                # Normal 形态序列帧 (19 动作)
 │   └── voice_reference/       # GPT-SoVITS 参考音频元数据清单
 ├── config/                    # 运行时配置、记忆与历史存储 (忽略敏感数据)
 │   └── settings.example.json  # 默认配置模板
@@ -186,7 +184,7 @@ $env:ELECTRON_SMOKE_TEST="1"; npx electron .
 - **安装步骤**：
   将流萤 Live2D 模型文件放置于 `assets/firefly/models/` 目录下（包含 `Firefly.model3.json`, `Moc_0.moc3`, `Textures_0_0.png`, `Physics_0.json`, `Expressions/`, `Motions/`）。
 - **降级保护**：
-  若未放置 Live2D 模型，系统将自动启用内置的 PNG 序列帧动画系统 (`assets/firefly/normal/` 和 `assets/firefly/sam/`)，所有交互与功能均可正常运作。
+  若未放置 Live2D 模型，系统将自动启用内置的 PNG 序列帧动画系统 (`assets/firefly/normal/`)，所有交互与功能均可正常运作。
 
 ### 2. GPT-SoVITS 语音服务部署
 本项目 AI Voice 采用动态远程/本地 HTTP 推理，**仓库内不包含任何模型 Checkpoint 权重**。

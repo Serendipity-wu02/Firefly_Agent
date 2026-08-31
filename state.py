@@ -16,12 +16,10 @@ class HealthStatus(str, Enum):
 
 class PetForm(str, Enum):
     NORMAL = "normal"
-    SAM = "sam"
 
 
 class TransformState(str, Enum):
     STABLE = "stable"
-    TRANSFORMING = "transforming"
 
 
 @dataclass
@@ -97,28 +95,6 @@ class CharacterState:
         self.health = HealthStatus.RECOVERED
         return "treatment"
 
-    def transform_to_sam(self) -> str:
-        self.form = PetForm.SAM
-        self.transform_state = TransformState.TRANSFORMING
-        self.mood = "transform"
-        self.last_interaction = datetime.now(timezone.utc)
-        return "transform"
-
-    def return_to_normal(self) -> str:
-        self.form = PetForm.NORMAL
-        self.transform_state = TransformState.STABLE
-        self.mood = "calm"
-        self.current_action = "idle"
-        return "idle"
-
-    def combustion(self) -> str:
-        self.form = PetForm.SAM
-        self.transform_state = TransformState.STABLE
-        self.mood = "combustion"
-        self.energy = max(0, self.energy - 12)
-        self.last_interaction = datetime.now(timezone.utc)
-        return "combustion"
-
     def react_to_click(self) -> str:
         was_attention_low = self.attention < 35
         was_energy_low = self.energy < 30
@@ -126,9 +102,6 @@ class CharacterState:
         self.attention = min(100, self.attention + 15)
         self.last_interaction = datetime.now(timezone.utc)
 
-        if self.form == PetForm.SAM:
-            self.mood = "alert"
-            return "sam_active"
         if self.health == HealthStatus.SICK:
             self.mood = "sick"
             return "sick"
@@ -153,9 +126,6 @@ class CharacterState:
         self.attention = min(100, self.attention + 18)
         self.last_interaction = datetime.now(timezone.utc)
 
-        if self.form == PetForm.SAM:
-            self.mood = "alert"
-            return "sam_active"
         if self.health == HealthStatus.SICK:
             self.mood = "sick"
             return "sick"
@@ -182,14 +152,6 @@ class CharacterState:
         return "dragged"
 
     def choose_idle_action(self) -> str:
-        if self.form == PetForm.SAM:
-            weighted_actions = {"sam_idle": 74, "sam_active": 26}
-            if self.energy < 30:
-                weighted_actions["sam_active"] += 14
-            actions = tuple(weighted_actions.keys())
-            weights = tuple(weighted_actions.values())
-            return choices(actions, weights=weights, k=1)[0]
-
         weighted_actions = {"idle": 42, "thinking": 16, "happy": 12, "sleepy": 8, "surprised": 6}
         if self.energy < 30:
             weighted_actions["sleepy"] += 28
@@ -215,17 +177,11 @@ class CharacterState:
 
     def unlocked_features(self) -> tuple[str, ...]:
         unlocked = ["basic_care"]
-        if self.affection >= 60:
-            unlocked.append("sam_transform")
-        if self.affection >= 80:
-            unlocked.append("combustion")
         if self.affection >= 90:
             unlocked.append("special_dialogue")
         return tuple(unlocked)
 
     def proactive_action(self) -> str | None:
-        if self.transform_state == TransformState.TRANSFORMING:
-            return None
         if self.health == HealthStatus.SICK:
             return "sick"
         if self.energy <= 20:

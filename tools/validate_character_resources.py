@@ -20,11 +20,7 @@ def main() -> int:
         if section not in context:
             raise AssertionError(f"missing context section: {section}")
 
-    sam_combustion = project_dir / "assets" / "firefly" / "audio" / "sam" / "sam入场音乐.wav"
-    if not sam_combustion.is_file():
-        raise AssertionError(f"missing sam combustion audio: {sam_combustion}")
-
-    print("Character resources validated; fixed voice files removed in favor of dynamic AI Voice; sam combustion audio present")
+    print("Character resources validated; fixed voice files removed in favor of dynamic AI Voice")
     return 0
 
 

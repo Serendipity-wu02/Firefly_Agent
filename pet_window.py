@@ -96,7 +96,7 @@ class PetWindow(QWidget):
         self.actions = firefly_actions(project_dir)
         self.state = settings.character.to_state()
         self.state.apply_offline_time()
-        self.state.current_action = "sam_idle" if self.state.form.value == "sam" else "idle"
+        self.state.current_action = "idle"
         self.frame_index = 0
         self.active_action = self.actions[self.state.current_action]
         self.animation_player = AnimationPlayer(self.PET_SIZE)
@@ -122,9 +122,6 @@ class PetWindow(QWidget):
         self.status_panel.feed_requested.connect(self.handle_feed)
         self.status_panel.rest_requested.connect(self.handle_rest)
         self.status_panel.treatment_requested.connect(self.handle_treatment)
-        self.status_panel.transform_requested.connect(self.handle_transform)
-        self.status_panel.combustion_requested.connect(self.handle_combustion)
-        self.status_panel.normal_requested.connect(self.handle_return_to_normal)
         self.status_panel.refresh(self.state)
 
         self.setWindowFlags(
@@ -303,54 +300,10 @@ class PetWindow(QWidget):
         self.status_panel.show_feedback("治疗完成，身体感觉好多了。")
         self.save_settings()
 
-    def handle_transform(self) -> None:
-        if self.state.transform_state == TransformState.TRANSFORMING:
-            self.status_panel.show_feedback("正在变身中，请等一下。")
-            return
-        if self.state.form.value == "normal":
-            self.state.transform_to_sam()
-            self.play_action("transform")
-
-            def resume_sam_idle() -> None:
-                self.state.transform_state = TransformState.STABLE
-                if self.state.form.value == "sam":
-                    self._return_to_default()
-
-            QTimer.singleShot(3600, resume_sam_idle)
-        else:
-            self.handle_return_to_normal()
-        self.status_panel.refresh(self.state)
-        self.save_settings()
-
-    def handle_return_to_normal(self) -> None:
-        if self.state.transform_state == TransformState.TRANSFORMING:
-            self.status_panel.show_feedback("正在变身中，请等一下。")
-            return
-        self.state.return_to_normal()
-        self.play_action("idle")
-        self.status_panel.refresh(self.state)
-        self.save_settings()
-
-    def handle_combustion(self) -> None:
-        if self.state.transform_state == TransformState.TRANSFORMING:
-            self.status_panel.show_feedback("正在变身中，请等一下。")
-            return
-        if "combustion" not in self.state.unlocked_features():
-            self.say("再陪我走一段路，完全燃烧还没有解锁。", 3200)
-            self.status_panel.show_feedback(f"完全燃烧需要好感度 80（当前 {self.state.affection}）。")
-            return
-        self.state.combustion()
-        self.play_action("combustion")
-        self.voice_player.play_sam_combustion()
-        self.status_panel.refresh(self.state)
-        self.save_settings()
-
     def handle_proactive_behavior(self) -> None:
         if self.voice_player.is_busy():
             return
         if self.state.transform_state == TransformState.TRANSFORMING:
-            return
-        if self.active_action.id in ("transform", "combustion"):
             return
 
         action_id = self.state.proactive_action()

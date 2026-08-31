@@ -15,4 +15,4 @@ To enable full Live2D rendering in local development:
    - `Expressions_*.json` (Expression configuration files)
    - `Motions_*.json` (Motion definition files)
 2. When model files are present, Firefly-Pet automatically activates Live2D Cubism rendering with eye focus and mouth synchronization.
-3. If model files are absent, the application automatically falls back to the embedded PNG sequential frame animation engine (`assets/firefly/normal/` and `assets/firefly/sam/`) with zero crashes.
+3. If model files are absent, the application automatically falls back to the embedded PNG sequential frame animation engine (`assets/firefly/normal/`) with zero crashes.
