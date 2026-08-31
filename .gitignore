@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+env/
+
+# Build & compilation outputs
+dist/
+dist-electron/
+build/
+*.tsbuildinfo
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Runtime configuration & state (User secrets, memory, history)
+config/settings.json
+config/memory.json
+config/chat_history.json
+config/cache/
+*.env
+*.env.local
+*.env.*.local
+
+# System & IDE artifacts
+*.log
+logs/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test audio outputs & scratch
+*.tmp
+tmp/
+temp/
+scratch/
+test_*.wav
+*.wav.tmp
+*.mp3.tmp
+
+# AI model weights & checkpoints (GPT-SoVITS local models)
+*.ckpt
+*.pth
+*.pt
+*.safetensors
+GPT_weights*/
+SoVITS_weights*/
+
+# Third-party Live2D model binaries (Unlicensed for public redistribution)
+assets/firefly/models/*.moc3
+assets/firefly/models/*.png
+assets/firefly/models/*.mp3
+assets/firefly/models/*.wav

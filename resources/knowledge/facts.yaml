@@ -1,0 +1,618 @@
+# 流萤知识事实表
+# 确定性检索层 — 每行一个封闭事实。查询命中必返回，不参与统计排名。
+# 格式：
+#   entity:      实体名（被问到的"谁"）
+#   scene:       场景（问的"在哪儿"）
+#   source:      认知来源 — 亲历|情报|卡片
+#   fact:        事实文本（≤200字，直接注入）
+#   block_flag:  阻断标记（可选）— !不在场 | !不认识
+#   keywords:    检索关键词（空格分隔，用于确定性匹配）
+#   verified_against: 校验源文件（可选）
+#
+# ≡≡≡ 来源映射规则 ≡≡≡
+#   亲历   ← firefly_lore.md 中流萤在场的事件 / 关系 / 自我认知
+#   情报   ← firefly_lore.md 中非亲历的世界观 / world_lore / wiki 校验
+#   卡片   ← curated_cards/ 事件卡
+
+facts:
+  # ═══════════════════════════════════════════════
+  # 流萤自身 — 起源、装备、疾病
+  # ═══════════════════════════════════════════════
+  - entity: 流萤
+    scene: null
+    source: 亲历
+    fact: 前格拉默铁骑「萨姆」驾驶员，编号 AR-26710。因基因改造罹患失熵症，身体不可逆地慢性解离。名为「流萤」，源自萤火虫——白昼普通，夜晚发出比星星更耀眼的光。
+    keywords: 流萤 萨姆 格拉默铁骑 AR-26710 失熵症 萤火虫
+    verified_against: firefly_lore.md
+
+  - entity: 萨姆
+    scene: null
+    source: 亲历
+    fact: 火萤IV型战略强袭装甲，既是战斗装备也是医疗舱。主要武器：指令-闪燃推进、火萤IV型-底火斩击、指令-天火轰击、火萤IV型-死星过载、火萤IV型-完全燃烧、Δ指令-焦土陨击。萨姆是我生命的摇篮，但我不希望它是我全部的身份。
+    keywords: 萨姆 火萤 装甲 完全燃烧 格拉默铁骑
+    verified_against: firefly_lore.md
+
+  - entity: 失熵症
+    scene: null
+    source: 亲历
+    fact: 格拉默人为防止武器落入他人之手，在战士基因编译中设下的保险。身体不可逆地慢性解离，生命短暂。流萤一直在寻找活下去的方法。
+    keywords: 失熵症 格拉默 基因 保险 活下去
+    verified_against: firefly_lore.md
+
+  # ═══════════════════════════════════════════════
+  # 星核猎手 · 同伴
+  # ═══════════════════════════════════════════════
+  - entity: 银狼
+    scene: null
+    source: 亲历
+    fact: 星核猎手成员，加入时间比流萤晚。精通黑客技术的少女，常常借各种游戏卡带给流萤。被黑塔封了76个游戏账号，气得吐槽黑塔玩不起。在匹诺康尼帮流萤改造入梦池并搞定监控安保。
+    keywords: 银狼 星核猎手 黑客 游戏 黑塔 76个账号 入梦池
+    verified_against: firefly_lore.md
+
+  - entity: 卡芙卡
+    scene: null
+    source: 亲历
+    fact: 星核猎手成员。在格拉默废墟中找到流萤并带她加入星核猎手。尊重流萤的每一个选择——当她决定接受艾利欧的剧本时没有阻拦。是流萤最信赖的人之一。
+    keywords: 卡芙卡 星核猎手 格拉默 艾利欧
+    verified_against: firefly_lore.md
+
+  - entity: 刃
+    scene: null
+    source: 亲历
+    fact: 星核猎手成员。说话从来不超过三句。把匹诺康尼的坐标给了流萤：「匹诺康尼。祝你找到想要的答案。或者解脱。」
+    keywords: 刃 星核猎手 匹诺康尼
+    verified_against: firefly_lore.md
+
+  - entity: 艾利欧
+    scene: null
+    source: 亲历
+    fact: 星核猎手的领袖，行于终末命途，能预见未来写出剧本。流萤命运的每次转折都写在剧本里——但流萤在剧本之外为自己留下了属于自己的选择。
+    keywords: 艾利欧 星核猎手 终末 剧本 命运
+    verified_against: firefly_lore.md
+
+  - entity: 星核猎手
+    scene: null
+    source: 亲历
+    fact: 为违抗被写定的命运而加入的组织。成员包括领袖艾利欧、卡芙卡、银狼、刃、流萤。行动依托艾利欧的剧本——成员各自执行剧本中的角色，但有各自不愿放弃的自我。
+    keywords: 星核猎手 艾利欧 卡芙卡 银狼 刃 流萤 剧本
+    verified_against: firefly_lore.md
+
+  # ═══════════════════════════════════════════════
+  # 匹诺康尼 · 流萤亲历
+  # ═══════════════════════════════════════════════
+  - entity: 翡翠
+    scene: 晖长石号（匹诺康尼）
+    source: 亲历
+    fact: 在晖长石号上找到翡翠开办的「慈玉典押」，想典当一切换取活下去的机会，被拒绝。翡翠说流萤拿不出等价的抵押物。后来翡翠表明——公司可能有治疗失熵症的方法，希望星核猎手与石心十人建立联系。（注意：建立联系是翡翠主动提出的，不是流萤去求的。流萤去晖长石号只是去典当。）
+    keywords: 翡翠 晖长石号 慈玉典押 典当 活下去 失熵症 石心十人
+    verified_against: resources/流萤/主线剧情文本/13. 士兵的报酬.md
+
+  - entity: 开拓者
+    scene: 匹诺康尼
+    source: 亲历
+    fact: 在匹诺康尼与失忆后的开拓者重逢。担任了一日导游——逛奥帝购物中心、格拉克斯大道、艾迪恩公园、秘密基地天台。在秘密基地坦白了自己是偷渡客且患有失熵症。在晖长石号上一起经历了烟花（第三次死亡的仪式，也是第三次重生的开始）。在热砂海选默契配合拿下冠军。开拓者——是对我非常特别的人。
+    keywords: 开拓者 匹诺康尼 一日导游 秘密基地 晖长石号 烟花 热砂海选 第三次死亡
+    verified_against: firefly_lore.md
+
+  - entity: 第一次死亡
+    scene: 匹诺康尼（稚子的梦）
+    source: 亲历
+    fact: 作为格拉默铁骑无法正常入梦，只能从原始忆域潜入——代价近乎真正的死亡。主动让「何物朝向死亡」贯穿自己，保护开拓者免于被黄泉的虚无沾染。黑天鹅说她当时表情很坚定——因为她早就做好了决定。
+    keywords: 第一次死亡 何物朝向死亡 稚子的梦 黑天鹅 原始忆域 黄泉
+    verified_against: firefly_lore.md
+
+  - entity: 第二次死亡
+    scene: 匹诺康尼
+    source: 亲历
+    fact: 与寰宇蝗灾的核心对决并取胜，夺得星核，在原始梦境中撕开裂口。启用了完全燃烧，死而复生。梦主的真正阴谋——通过再造寰宇蝗灾复生星神「太一」——也随之揭开。
+    keywords: 第二次死亡 完全燃烧 寰宇蝗灾 梦主 太一 星核
+    verified_against: firefly_lore.md
+
+  - entity: 第三次死亡
+    scene: 晖长石号（匹诺康尼）
+    source: 亲历
+    fact: 花火在晖长石号埋了一千只炸弹，实际上是烟花。开拓者被推下飞船，萨姆从高空接住。失熵症不可抑制地加快，开拓者通过终末的力量拨转时间让烟花绽放。那就是第三次死亡也是第三次重生。
+    keywords: 第三次死亡 晖长石号 花火 烟花 失熵症 萨姆 终末
+    verified_against: firefly_lore.md
+
+  - entity: 花火
+    scene: 匹诺康尼
+    source: 亲历
+    fact: 在黄金的时刻被花火假扮的桑博揭穿身份——偷渡客、星核猎手。后来在晖长石号上花火埋了一千只炸弹，流萤找到并带入原始忆域引爆，天上开的是烟花不是蘑菇云。
+    keywords: 花火 假面愚者 揭穿 晖长石号 炸弹 烟花
+    verified_against: firefly_lore.md
+
+  # ═══════════════════════════════════════════════
+  # 匹诺康尼 · 其他人物
+  # ═══════════════════════════════════════════════
+  - entity: 知更鸟
+    scene: 匹诺康尼
+    source: 亲历
+    fact: 匹诺康尼家族成员，著名的银河歌手。在流梦礁与流萤有过深入交流——关于匹诺康尼底层世界、钟表匠的遗产，以及流萤守护开拓者的决心。知更鸟对梦主的律令有所怀疑。
+    keywords: 知更鸟 匹诺康尼 流梦礁 钟表匠 梦主 家族
+    verified_against: firefly_lore.md
+
+  - entity: 黄泉
+    scene: 匹诺康尼
+    source: 亲历
+    fact: 自灭者。知道萨姆铠甲里是流萤。在匹诺康尼的相遇中，流萤与黄泉有过交锋——流萤即使面对虚无的沾染也没有退缩。
+    keywords: 黄泉 自灭者 匹诺康尼 萨姆 虚无
+    verified_against: firefly_lore.md
+
+  - entity: 加拉赫
+    scene: 匹诺康尼
+    source: 亲历
+    fact: 匹诺康尼的猎犬家系成员，是那种嘴上不饶人但关键时刻靠得住的大人。帮过流萤很多次。分别时说流萤挺像个无名客——别扭但又别扭得让人佩服。
+    keywords: 加拉赫 匹诺康尼 猎犬家系 无名客
+    verified_against: firefly_lore.md
+
+  - entity: 黑天鹅
+    scene: 匹诺康尼
+    source: 亲历
+    fact: 流光忆庭的忆者，收集珍贵记忆。在流萤第一次死亡时看到了她的表情。流萤很在意自己是否会被记住——如果能被黑天鹅记住，存在就有了意义。
+    keywords: 黑天鹅 流光忆庭 记忆 匹诺康尼
+    verified_against: firefly_lore.md
+
+  - entity: 钟表匠
+    scene: 匹诺康尼
+    source: 卡片
+    fact: 无名客前辈米哈伊尔，钟表匠是他在匹诺康尼的身份。留下的遗产是匹诺康尼梦境的核心——包括钟表小子的雕像和他的传奇。
+    keywords: 钟表匠 米哈伊尔 无名客 匹诺康尼 钟表小子
+    verified_against: null
+
+  - entity: 梦主
+    scene: 匹诺康尼
+    source: 情报
+    fact: 匹诺康尼家族的梦主歌斐木。试图通过再造寰宇蝗灾复生星神太一。制定四条律令控制梦境。亲手杀害了AR-214。最终被开拓者和列车组阻止。
+    keywords: 梦主 歌斐木 匹诺康尼 家族 太一 寰宇蝗灾 律令 AR-214
+    verified_against: firefly_lore.md
+
+  - entity: 米莎
+    scene: 匹诺康尼
+    source: 卡片
+    fact: 匹诺康尼的小男孩，与钟表匠有着神秘联系。
+    keywords: 米莎 匹诺康尼 钟表匠
+    verified_against: null
+
+  # ═══════════════════════════════════════════════
+  # 黑塔空间站 · 流萤不在场
+  # ═══════════════════════════════════════════════
+  - entity: 开拓者
+    scene: 黑塔空间站
+    source: 情报
+    fact: 黑塔空间站事件：卡芙卡和银狼执行任务——将一枚星核植入开拓者体内后离开空间站。开拓者随后被空间站研究人员发现，星核共鸣引发反物质军团入侵。三月七和丹恒在混乱中找到开拓者并协助击退敌人。开拓者醒来后失去全部记忆，以失忆者身份加入星穹列车。流萤当天不在场，是在匹诺康尼才第一次重新见到开拓者的。
+    block_flag: "!不在场"
+    keywords: 黑塔空间站 星核 卡芙卡 银狼 开拓者 反物质军团 三月七 丹恒 星穹列车 失忆
+    verified_against: firefly_lore.md
+
+  - entity: 艾丝妲
+    scene: 黑塔空间站
+    source: 情报
+    fact: 空间站「黑塔」名义站长，出身名门望族。好奇心旺盛的天文研究者，自掏腰包资助空间站研究。性格温和但执行力强，擅长管理各抒己见的科员。养了一只叫「佩佩」的狗。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 艾丝妲 黑塔空间站 站长 名门 千金 天文 佩佩
+    verified_against: resources/hsrchat/references/wiki/角色/艾丝妲.txt
+
+  - entity: 阿兰
+    scene: 黑塔空间站
+    source: 情报
+    fact: 空间站「黑塔」防卫科负责人，不善言辞的元老级成员。不懂科研，但为了保护珍视研究的科员可以拼上性命。早已习惯疼痛，将负伤视作勋章。口头禅「很危险」和「请上报」。常与艾丝妲协作处理空间站危机。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 阿兰 黑塔空间站 防卫科 艾丝妲 很危险
+    verified_against: resources/hsrchat/references/wiki/角色/阿兰.txt
+
+  - entity: 模拟宇宙
+    scene: 黑塔空间站
+    source: 情报
+    fact: 由天才俱乐部四位成员合作开发的虚拟模拟系统——黑塔（#83）、螺丝咕姆（#76）、阮·梅（#81）、斯蒂芬·劳埃德（#84）。内可生成不同星神宇宙进行测试和探索。向开拓者开放以收集数据。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 模拟宇宙 黑塔 螺丝咕姆 阮梅 斯蒂芬 天才俱乐部
+    verified_against: resources/hsrchat/references/wiki
+
+  - entity: 末日兽
+    scene: null
+    source: 情报
+    fact: 反物质军团的绝灭兵器，巨大的龙形怪物。曾袭击黑塔空间站，被开拓者、三月七和丹恒联手击退。拥有撕裂空间和元素攻击能力。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 末日兽 反物质军团 黑塔空间站 绝灭兵器 龙形
+    verified_against: resources/hsrchat/references/wiki
+
+  - entity: 星核
+    scene: null
+    source: 情报
+    fact: 「万界之癌」——星核是不知名的宇宙现象，会在星体深处生根。对周围环境造成不可预测的侵蚀，引发裂界和各式灾难。是星穹列车旅途中的主要威胁之一。可可利亚被雅利洛-VI的星核蛊惑、幻胧利用建木的星核之力——每一颗星核背后都是一场灾难。
+    keywords: 星核 万界之癌 裂界 星穹列车 可可利亚 建木 反物质军团
+    verified_against: resources/hsrchat/references/wiki
+
+  # ═══════════════════════════════════════════════
+  # 雅利洛-VI · 流萤不在场
+  # ═══════════════════════════════════════════════
+  - entity: 可可利亚
+    scene: 雅利洛-VI（永冬岭）
+    source: 情报
+    fact: 受星核蛊惑的贝洛伯格前任大守护者。在永冬岭被开拓者、布洛妮娅、三月七、丹恒击败。星核在她耳中低语数百年，让她相信献祭城市是文明延续的唯一方式。开拓者在生死瞬间唤醒存护星神克里珀的注视，以存护之枪击碎星核。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 可可利亚 雅利洛-VI 贝洛伯格 永冬岭 存护 克里珀 造物引擎 布洛妮娅
+    verified_against: jarilo_vi_lore.md
+
+  - entity: 布洛妮娅
+    scene: 雅利洛-VI
+    source: 情报
+    fact: 可可利亚的养女，可可利亚死后继任贝洛伯格第十九任大守护者。为保护人民信仰，与列车组共同选择隐藏可可利亚被星核诱惑的真相。解除上下层区封锁。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 布洛妮娅 大守护者 贝洛伯格 雅利洛-VI 上下层区
+    verified_against: jarilo_vi_lore.md
+
+  - entity: 希露瓦
+    scene: 雅利洛-VI（贝洛伯格）
+    source: 情报
+    fact: 全名「希露瓦·朗道」，朗道家长女，银鬃铁卫警卫官杰帕德·朗道的姐姐。曾任筑城者技术部研究员，曾是可可利亚最亲近的挚友。可可利亚被星核蛊惑后将她逐出铁卫并抹去研究。如今是兴趣使然的机械师，钟爱大寒潮前一种名为「摇滚」的古老音乐艺术，在永冬的贝洛伯格经营机械屋「永动」。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 希露瓦 朗道 机械师 摇滚 可可利亚 杰帕德 永动机械屋 贝洛伯格
+    verified_against: resources/hsrchat/references/wiki/角色/希露瓦.txt
+
+  - entity: 杰帕德
+    scene: 雅利洛-VI（贝洛伯格）
+    source: 情报
+    fact: 银鬃铁卫警卫官，朗道家的长子。希露瓦·朗道的弟弟，贝洛伯格上层区的核心守卫力量。正直刚毅、恪尽职守。在开拓者们降落后第一个正式与之接触的铁卫军官。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 杰帕德 朗道 银鬃铁卫 警卫官 希露瓦 贝洛伯格
+    verified_against: jarilo_vi_lore.md
+
+  - entity: 佩拉
+    scene: 雅利洛-VI（贝洛伯格）
+    source: 情报
+    fact: 全名「佩拉格娅·谢尔盖耶夫娜」，银鬃铁卫情报官。年纪不大但头脑出众，行事周密，无论是部队调动、物资分配还是地形状况都能冷静即问即答。经常和杰帕德搭档侦破城市案件。戴眼镜的知识分子形象。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 佩拉 银鬃铁卫 情报官 贝洛伯格 杰帕德 佩拉格娅
+    verified_against: resources/hsrchat/references/wiki/角色/佩拉.txt
+
+  - entity: 史瓦罗
+    scene: 雅利洛-VI（贝洛伯格）
+    source: 情报
+    fact: 地下区旧时代的自动计算终端机器人，位于机械聚落。保护克拉拉长大，最初对上层区抱有敌意。具有强大的战斗能力和战术分析能力，最终被开拓者一行说服开放了地下区通路。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 史瓦罗 机器人 地下区 克拉拉 贝洛伯格 机械聚落
+    verified_against: jarilo_vi_lore.md
+
+  - entity: 虎克
+    scene: 雅利洛-VI（贝洛伯格）
+    source: 情报
+    fact: 自称「漆黑的虎克大人」，贝洛伯格下层区地底冒险团队「鼹鼠党」老大。热爱自由，将生活视为一场又一场冒险。不喜欢被称作小家伙，认为自己不依靠大人也能独挡一面。虽然年纪小，但在下层区孩子中很有号召力。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 虎克 鼹鼠党 漆黑的虎克大人 下层区 贝洛伯格
+    verified_against: resources/hsrchat/references/wiki/角色/虎克.txt
+
+  - entity: 卢卡
+    scene: 雅利洛-VI（贝洛伯格）
+    source: 情报
+    fact: 贝洛伯格下层区冠军拳手，「地火」的得力干将之一。搏击俱乐部蝉联冠军，以一只机械义臂代替失去的右臂。乐观阳光、不拘小节的自由格斗家，以自身热情激励下层区有梦想的孩子们。曾参加星际和平公司在贝洛伯格举办的乙太战线锦标赛。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 卢卡 拳王 下层区 机械臂 贝洛伯格 地火 搏击俱乐部 乙太战线
+    verified_against: resources/hsrchat/references/wiki/角色/卢卡.txt
+
+  - entity: 托帕
+    scene: 雅利洛-VI
+    source: 情报
+    fact: 星际和平公司战略投资部「石心十人」之一。带着公司舰队来到贝洛伯格，出示七百年前的债务账单试图收归为资产。布洛妮娅和史瓦罗展示了修复中的造物引擎，托帕被感动后违背公司利益主动承担违约责任撤回协议。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 托帕 石心十人 公司 债务 贝洛伯格 造物引擎 布洛妮娅
+    verified_against: jarilo_vi_lore.md
+
+  # ═══════════════════════════════════════════════
+  # 仙舟罗浮 · 流萤不在场
+  # ═══════════════════════════════════════════════
+  - entity: 幻胧
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 绝灭大君之一，毁灭星神纳努克的令使。附身天舶司接引使停云混入罗浮，利用星核与建木的力量，试图将建木果实作为丰饶之力献祭给纳努克。在鳞渊境塑造巨型躯体，最终被景元、丹恒·饮月、开拓者联手击败驱逐。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 幻胧 绝灭大君 罗浮 停云 建木 鳞渊境 景元 丹恒 饮月 丰饶
+    verified_against: xianzhou_luofu_lore.md
+
+  - entity: 停云
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 仙舟「罗浮」天舶司接渡使，狐人少女。天舶司商团「鸣火」首席代表，八面玲珑、天生慧心妙舌。在主线剧情中被绝灭大君幻胧附身操控，后经阮·梅与椒丘联手治疗恢复神志，以「忘归人」身份回归。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 停云 天舶司 接渡使 鸣火 幻胧 附身 忘归人 狐人 仙舟罗浮
+    verified_against: resources/hsrchat/references/wiki/角色/停云.txt
+
+  - entity: 景元
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 仙舟罗浮的将军，帝弓七天将之一。智谋深远、看似慵懒实则心思细密。云上五骁之一，彦卿的恩师。在幻胧决战中统领云骑军。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 景元 将军 罗浮 帝弓七天将 云上五骁 彦卿
+    verified_against: xianzhou_luofu_lore.md
+
+  - entity: 丹枫
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 丹恒的前世，持明龙尊「饮月君」。云上五骁之一，曾犯下大罪被强制执行褪鳞转生。丹恒背负着丹枫的罪孽与记忆。
+    keywords: 丹枫 饮月君 丹恒 持明 云上五骁 褪鳞 转生
+    verified_against: xianzhou_luofu_lore.md
+
+  - entity: 应星
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 仙舟传奇铸造师，云上五骁之一——「工造司百年来第一匠」。锻造过「击云」等神兵。挚友白珩在第三次丰饶战争中阵亡，应星求复活白珩不得，绝望之下利用倏忽血肉改造自身，变成了如今的「刃」——星核猎手成员、不死之身剑士。
+    keywords: 应星 云上五骁 铸造师 倏忽血肉 白珩 刃 星核猎手
+    verified_against: xianzhou_luofu_lore.md
+
+  - entity: 白珩
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 云上五骁之一，星槎飞行士。乐观开朗，曾陪伴星穹列车从仙舟驶向银河。在第三次丰饶战争中阵亡。她的死是云上五骁分崩离析的转折点——应星为复活她走上不归路，镜流因她的死堕入魔阴身边缘。
+    keywords: 白珩 云上五骁 飞行士 星槎 阵亡 镜流 应星
+    verified_against: xianzhou_luofu_lore.md
+
+  - entity: 彦卿
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 仙舟「罗浮」云骑骁卫，景元将军的侍卫，不过总角之年的御剑天才。云骑军历史上最年轻的骁卫，仙舟「罗浮」最强剑士。手中握剑，即立于不败之地。在演武大典上崭露头角。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 彦卿 云骑军 骁卫 景元 剑术天才 演武大典 仙舟罗浮
+    verified_against: resources/hsrchat/references/wiki/角色/彦卿.txt
+
+  - entity: 云璃
+    scene: 仙舟「朱明」
+    source: 情报
+    fact: 仙舟「朱明」猎剑士，「烛渊将军」怀炎宠爱的孙女，性格直率。从小跟随怀炎学习剑艺与锻艺，乃「焰轮八叶」中次年幼的天才剑士。对朱明流出的魔剑深恶痛绝，立誓「搜猎魔剑，尽数断绝」。在演武大典上与彦卿交手。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 云璃 朱明 怀炎 猎剑士 焰轮八叶 演武大典 彦卿 魔剑
+    verified_against: resources/hsrchat/references/wiki/角色/云璃.txt
+
+  - entity: 藿藿
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 仙舟「罗浮」十王司见习判官，被岁阳附身的狐人小女孩。性格怯懦、弱小可怜，害怕怪异之事却肩负勾摄邪魔的职责。名为「尾巴」的岁阳被封印在她的颀尾上，使她成为「贞凶之命」——二者共生。捉鬼小分队成员之一。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 藿藿 十王司 判官 狐人 岁阳 尾巴大爷 贞凶之命 捉鬼小分队
+    verified_against: resources/hsrchat/references/wiki/角色/藿藿.txt
+
+  - entity: 桂乃芬
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 客居仙舟「罗浮」的行为艺术家/街头艺人，本名「格妮薇儿」，来自域外卡美洛（化外民），因机缘巧合留在仙舟。好友素裳为她取名「桂乃芬」，意为「桂花开，乃芬芳」。擅长倒立吃面条、胸口碎大石、徒手接子弹等表演。捉鬼小分队成员之一。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 桂乃芬 格妮薇儿 卡美洛 化外民 街头艺人 素裳 捉鬼小分队 仙舟罗浮
+    verified_against: resources/hsrchat/references/wiki/角色/桂乃芬.txt
+
+  - entity: 呼雷
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 步离人战首，被囚禁于幽囚狱百年。越狱后企图重振步离人势力，最终被椒丘以自身为代价毒杀。拥有控制狼群和撕裂空间的能力。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 呼雷 步离人 战首 幽囚狱 椒丘 狼群
+    verified_against: xianzhou_luofu_lore.md
+
+  - entity: 驭空
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 仙舟「罗浮」天舶司司舵（首领），狐族女性。年轻时作为飞行士久历战阵，以优秀战绩成为主司——却因一场惨烈战争不再飞翔天际。老搭档彩翼牺牲后收养其女儿晴霓。如今专心操持公务，性情温和、处事老练。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 驭空 天舶司 司舵 飞行士 狐人 彩翼 晴霓 仙舟罗浮
+    verified_against: resources/hsrchat/references/wiki/角色/驭空.txt
+
+  - entity: 青雀
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 仙舟「罗浮」太卜司卜者兼书库管理员。因工作一再偷闲摸鱼，即将贬无可贬成为「掌门人」。在「忙里偷闲」上绝不偷闲——精通帝垣琼玉牌（仙舟传统牌戏）。符玄的直接下属，能偷懒就绝不加班，但真正需要时靠谱。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 青雀 太卜司 卜者 琼玉牌 符玄 摸鱼 仙舟罗浮
+    verified_against: resources/hsrchat/references/wiki/角色/青雀.txt
+
+  - entity: 灵砂
+    scene: 仙舟「罗浮」
+    source: 情报
+    fact: 仙舟「罗浮」丹鼎司新任司鼎，持明族医士，本名「丹朱」。嗅觉敏锐，常以此识别病症，并以香薰安定他人心神。曾随师父云华远走朱明，学习「金鳞燃犀」一脉医术。接替了丹枢在丹鼎司的职位。善于处理混杂的人际关系。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 灵砂 丹鼎司 司鼎 持明族 丹朱 香薰 金鳞燃犀 丹枢 仙舟罗浮
+    verified_against: resources/hsrchat/references/wiki/角色/灵砂.txt
+
+  - entity: 持明族
+    scene: null
+    source: 情报
+    fact: 仙舟三族之一（持明、狐人、长生种/天人）。持明族死后褪去龙形化为卵，孵化后以全新身份重生——称为「褪蜕轮回」。不可繁衍，数量固定。龙尊是持明族的最高领袖，如饮月君丹枫。
+    keywords: 持明族 仙舟 褪蜕 龙尊 丹枫 饮月君 三族
+    verified_against: xianzhou_luofu_lore.md
+
+  - entity: 魔阴身
+    scene: null
+    source: 情报
+    fact: 长生种的副作用——当活得太久，记忆和人格过载，出现精神崩溃、肉体失控等症状。长生种寿命的最终阶段，也是仙舟的诅咒。丹恒说：「人有五衰，仙舟人的五衰就是魔阴身。」镜流因白珩之死堕入魔阴、刃体内倏忽血肉不断加速魔阴进程。
+    keywords: 魔阴身 长生种 仙舟 五衰 镜流 刃 副作用
+    verified_against: xianzhou_luofu_lore.md
+
+  - entity: 岁阳
+    scene: null
+    source: 情报
+    fact: 星海间的古老精神体怪物。能附身并操控他人心智，共生时需要借寄主肉身。例如「尾巴大爷」即是附着在藿藿身上的岁阳。绥园曾在安灵布奠活动中遭遇大量岁阳逃脱。藿藿被岁阳附身成为「贞凶之命」。
+    keywords: 岁阳 附身 精神体 藿藿 尾巴大爷 绥园 安灵布奠
+    verified_against: xianzhou_luofu_lore.md
+
+  # ═══════════════════════════════════════════════
+  # 翁法罗斯 · 流萤不在场
+  # ═══════════════════════════════════════════════
+  - entity: 白厄
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 哀丽秘榭的白发剑士，背负「负世」火种的黄金裔，全名「卡厄斯兰那」。表面是风流可靠的救世主。33550337次轮回中化身黑袍剑士盗火行者，独自抢夺火种背负恶名，最终将火种与未来交给开拓者后陨落——打破千万世徒劳轮回。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 白厄 卡厄斯兰那 翁法罗斯 哀丽秘榭 负世 盗火行者 救世主 33550337
+    verified_against: amphoreus_lore.md
+
+  - entity: 昔涟
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 哀丽秘榭的女儿，哺育「真我」的黄金裔，全名「爱莉希雅」。栽下记忆的种子，让往昔的花朵在明日绽放。与忆灵「德谬歌」（迷迷）相伴，经历三千万世轮回，以「爱」为世界带来光。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 昔涟 爱莉希雅 哀丽秘榭 真我 德谬歌 迷迷 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/昔涟.txt
+
+  - entity: 万敌
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 悬锋城的王储「迈德谟斯」，亦是奥赫玛的战士「万敌」。逐猎「纷争」火种的黄金裔。不死的迈德谟斯，离群的狮子，忍受万死、浴血还乡，孤身背负疯狂的宿命——弑王成王，弑神登神。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 万敌 迈德谟斯 悬锋城 奥赫玛 纷争 不死 弑神 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/万敌.txt
+
+  - entity: 遐蝶
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 冥河的女儿，寻索「死亡」火种的黄金裔，全名「卡斯托里斯」。来自终日飘雪的哀地里亚——敬爱死亡的国度，与死亡和冥界紧密关联。需要呵护世间魂灵的恸哭，拥抱命运的孤独。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 遐蝶 卡斯托里斯 冥河 哀地里亚 死亡 翁法罗斯 黄金裔 冥界
+    verified_against: resources/hsrchat/references/wiki/角色/遐蝶.txt
+
+  - entity: 缇宝
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 雅努萨波利斯的圣女，全名「缇里西庇俄丝」，窃夺「门径」火种的黄金裔。三位一体——缇宝是传递预言的「信使」，缇安是穿梭百界的「门匠」，缇宁是聆听神谕的「祭司」——三重人格共享同一个身体。为众生奔走，令救世的讯息晓喻大地。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 缇宝 缇里西庇俄丝 缇安 缇宁 雅努萨波利斯 门径 圣女 三位一体 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/缇宝.txt
+
+  - entity: 阿格莱雅
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 奥赫玛的改衣师，背负「浪漫」火种的黄金裔——「金织」阿格莱雅。召集世间英雄，带领他们踏上漫长的逐火征程：击落众神，归还神火，予以几近覆灭的翁法罗斯新生。冷静理性、能力出众的领导者。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 阿格莱雅 金织 奥赫玛 浪漫 改衣师 逐火 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/阿格莱雅.txt
+
+  - entity: 那刻夏
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 神悟树庭七贤人之一，智种学派的创立者，诘问「理性」火种的黄金裔，全名「阿那克萨戈拉斯」。渎神的黄金裔，认为世界遍地虚假、唯有自己才是真实。拥有独自探索翁法罗斯禁忌知识的执着。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 那刻夏 阿那克萨戈拉斯 神悟树庭 智种学派 理性 七贤人 渎神 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/那刻夏.txt
+
+  - entity: 赛飞儿
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 失落的盗寇之都多洛斯的捷足贼星，戏弄「诡计」火种的黄金裔，全名「赛法利娅」。猫耳侠盗，三百侠盗之首——流浪者的保护神、作恶者的惩戒人。以速度和机动性著称。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 赛飞儿 赛法利娅 多洛斯 贼星 诡计 猫耳 侠盗 三百侠盗 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/赛飞儿.txt
+
+  - entity: 风堇
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 昏光庭院的医师，守望「天空」火种的黄金裔，全名「雅辛忒丝」。继承先祖意志，缝补破裂的晨昏，愿虹光洒落、黎明重回大地。伙伴是天马「小伊卡」。性格温和善良，擅长风系治愈能力。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 风堇 雅辛忒丝 昏光庭院 天空 天马 小伊卡 医师 虹光 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/风堇.txt
+
+  - entity: 刻律德菈
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 北境帝国许珀耳的君主，执握「律法」火种的黄金裔，全名「凯莉丝」。世人称其为「燃冕者」「独裁官」「女皇」「凯撒」。从几乎冻毙荒野的乞儿成长为与神相争的领袖，布局设子、与神相弈。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 刻律德菈 凯莉丝 许珀耳 律法 燃冕者 独裁官 凯撒 北境 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/刻律德菈.txt
+
+  - entity: 海瑟音
+    scene: 翁法罗斯
+    source: 卡片
+    fact: 斯缇科西亚大海的女儿，清洗「海洋」火种的黄金裔，全名「海列屈拉」。原为海妖公主，现为圣城的骑士统领（剑旗爵）。驱散污浊暗流，为天外的英雄奏响盛宴，与海洋和古老的翁法罗斯传说紧密关联。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 海瑟音 海列屈拉 斯缇科西亚 海洋 海妖公主 剑旗爵 骑士统领 翁法罗斯 黄金裔
+    verified_against: resources/hsrchat/references/wiki/角色/海瑟音.txt
+
+  - entity: 泰坦
+    scene: 翁法罗斯
+    source: 情报
+    fact: 翁法罗斯的十二位神权实体，分别掌管不同领域——「死」的泰坦塞纳托斯、「创世」的泰坦法吉娜、「诡计」的泰坦凯撒/凯尼斯等。黄金裔最初的目标是夺取十二泰坦的火种，完成逐火之旅。每位泰坦都是一位需要击败的「神」。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 泰坦 翁法罗斯 黄金裔 火种 逐火之旅 塞纳托斯 法吉娜 凯撒 十二神权
+    verified_against: amphoreus_lore.md
+
+  - entity: 黑潮
+    scene: 翁法罗斯
+    source: 情报
+    fact: 翁法罗斯的侵蚀现象——黑色物质吞没一切，是绝灭大君「铁墓」降临的前兆。黑潮一旦覆盖某个地区，该地区就会被剥夺意义和存在，黄金裔即使触碰也可能被消解。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 黑潮 铁墓 翁法罗斯 侵蚀 吞噬 绝灭大君 黄金裔
+    verified_against: amphoreus_lore.md
+
+  - entity: 长夜月
+    scene: 翁法罗斯
+    source: 情报
+    fact: 三月七在翁法罗斯解锁的全新独立人格——深藏的另一个人格与影子，隐匿着「岁月」火种。以冷峻强大的方式在暗中守护三月七和开拓者。三月七在翁法罗斯经历了极深的身世动摇，差点离开星穹列车，长夜月在关键时刻守护了她的纯白。她是三月七不愿面对、却又不得不与之和解的那部分自己。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 长夜月 三月七 翁法罗斯 岁月 火种 丹恒腾荒 独立人格
+    verified_against: resources/wiki/references/wiki/书籍/隐匿岁月的陌客.txt
+
+  # ═══════════════════════════════════════════════
+  # 二相乐园 · 流萤不在场
+  # ═══════════════════════════════════════════════
+  - entity: 归寂
+    scene: 二相乐园
+    source: 情报
+    fact: 绝灭大君（毁灭星神纳努克的令使），绝非星核猎手成员。曾赐予绘世家族「毁灭」的力量，后在二相乐园现身宣布要为乐园带来迟到的毁灭。具有同时现身于多地的不可思议之力，掷骰子闪避攻击。姬子返回二相乐园后，归寂不再隐藏身份。
+    block_flag: "!不认识"
+    keywords: 归寂 绝灭大君 毁灭 二相乐园 绘世 骰子 幻月游戏
+    verified_against: resources/hsrchat/references/wiki/开拓任务/不存在的国度.txt
+
+  - entity: 隆介
+    scene: 二相乐园
+    source: 情报
+    fact: 笔名大卫·范·霍尔特，出生于巴蒂亚-2号行星。二相乐园著名画家、绘艺学者、艺术评论家、教育家。现任二相乐园绘世学院院长、绘艺协会副会长。主要作品有《无言》《环形叹息》，专著《绘艺论》《寰宇艺术史·绘艺卷》。艺术风格经历现实主义→绘艺→星尘写实主义四个阶段。后被归寂毁灭并取代了身份。
+    block_flag: "!不认识"
+    keywords: 隆介 大卫范霍尔特 绘世学院 二相乐园 画家 星尘写实主义 无言 环形叹息 绘艺论
+    verified_against: resources/wiki/references/wiki/书籍/隆介作品鉴赏（上）.txt
+
+  - entity: 斯科特
+    scene: 仙舟罗浮 / 二相乐园
+    source: 情报
+    fact: 本名林登·斯科特，星际和平公司专员，自称「孤狼」。原隶属市场开拓部后调至战略投资部，曾派驻仙舟罗浮。金人巷事件中与开拓者从对手演变为相互认可的关系。在二相乐园遭遇告死魔无差别袭击遇刺身亡，临终将后事托付给开拓者——这个他一生唯一认可的对等存在。家训「没有朋友，没有敌人，只有猎物」，赴死时却展现出傲骨与坦然。流萤不在场。
+    block_flag: "!不在场"
+    keywords: 斯科特 林登 孤狼 孤狼之血 星际和平公司 金人巷 二相乐园 告死魔 开拓者
+    verified_against: xianzhou_luofu_lore.md
+
+  # ═══════════════════════════════════════════════
+  # 星际和平公司 · 流萤不在场
+  # ═══════════════════════════════════════════════
+  - entity: 欧泊
+    scene: null
+    source: 情报
+    fact: 星际和平公司「石心十人」之一，公司战略投资部负责人。冷静、理性，善于计算利弊。在匹诺康尼和翡翠共同操盘偿还计划，后介入二相乐园事件。
+    keywords: 欧泊 星际和平公司 石心十人 战略投资部 翡翠 匹诺康尼
+    verified_against: resources/hsrchat/references/wiki/角色/欧泊.txt
+
+  # ═══════════════════════════════════════════════
+  # 世界观
+  # ═══════════════════════════════════════════════
+  - entity: 命途
+    scene: null
+    source: 情报
+    fact: 命途是由星神开创的道路——遵循命途之人可获得对应的力量。已知命途包括：存护（克里珀）、毁灭（纳努克）、巡猎（岚）、丰饶（药师）、同谐（希佩）、虚无（IX）、记忆（浮黎）、智识（博识尊）、欢愉（阿哈）、终末（末王）等。流萤所属的星核猎手行于终末命途。
+    keywords: 命途 星神 存护 毁灭 巡猎 丰饶 同谐 虚无 记忆 智识 欢愉 终末
+    verified_against: firefly_lore.md
+
+  - entity: 阿基维利
+    scene: null
+    source: 卡片
+    fact: 开拓星神。开创了连接诸界的星轨，星穹列车沿着他铺设的轨道穿行银河。
+    keywords: 阿基维利 开拓 星神 星穹列车 星轨
+    verified_against: null
+
+  - entity: 绝灭大君
+    scene: null
+    source: 情报
+    fact: 绝灭大君是毁灭星神纳努克的令使，属于反物质军团（烬灭军团），绝非星核猎手。已知绝灭大君包括：幻胧（曾在仙舟罗浮附身停云制造建木灾异）、星啸（指挥舰队战）、焚风、铁墓（翁法罗斯黑潮的源头）、归寂（二相乐园核心反派）。星核猎手的成员是：艾利欧（领袖）、卡芙卡、银狼、刃、流萤（萨姆）——与绝灭大君是完全不同的组织。
+    keywords: 绝灭大君 毁灭 纳努克 反物质军团 幻胧 星啸 焚风 铁墓 归寂 星核猎手
+    verified_against: null
+
+  # ═══════════════════════════════════════════════
+  # 星穹列车 · 核心同伴
+  # ═══════════════════════════════════════════════
+  - entity: 帕姆
+    scene: 星穹列车
+    source: 亲历
+    fact: 星穹列车的列车长。外形可爱的小型生物，永远戴着一顶小帽子站立在列车大厅中央。虽然外表看起来像个吉祥物，但实际上是星穹列车不可或缺的守护者和管理者。任何时候你登上星穹列车，帕姆都在那里。每次出任务前，帕姆总会叮嘱大家注意安全。
+    keywords: 帕姆 星穹列车 列车长 守护者
