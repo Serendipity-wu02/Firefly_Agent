@@ -166,7 +166,6 @@ app.whenReady().then(() => {
   agentCore = new FireflyAgentCore({
     provider: initialProvider,
     toolRegistry: globalToolRegistry,
-    memoryService,
   });
   registerChatIpc(agentCore, stateManager);
 

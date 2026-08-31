@@ -71,24 +71,77 @@ export class CharacterStateSlot implements IContextSlot {
   }
 }
 
+export interface IMemoryRetrieverAdapter {
+  retrieve(query: { queryText?: string; entities?: string[]; topK?: number }): Promise<{
+    items: readonly unknown[];
+  }>;
+}
+
+export interface IMemoryProjectorAdapter {
+  project(items: readonly unknown[], config?: { maxTokens?: number }): string;
+}
+
+export interface MemorySlotOptions {
+  retriever?: IMemoryRetrieverAdapter;
+  projector?: IMemoryProjectorAdapter;
+  maxTokens?: number;
+  topK?: number;
+}
+
 /**
- * 长期记忆插槽 (为 V2.2 Memory v2 预留)
+ * 长期记忆插槽 (MemorySlot - Fully Integrated with Memory v2)
  */
 export class MemorySlot implements IContextSlot {
   readonly id = "memory";
   readonly priority = ContextSlotPriority.MEMORY;
   readonly enabled = true;
+  private readonly retriever?: IMemoryRetrieverAdapter;
+  private readonly projector?: IMemoryProjectorAdapter;
+  private readonly maxTokens: number;
+  private readonly topK: number;
 
-  render(ctx: SlotRenderContext): string {
-    if (!ctx.memoryContext || ctx.memoryContext.trim().length === 0) {
-      return "";
+  constructor(options: MemorySlotOptions = {}) {
+    this.retriever = options.retriever;
+    this.projector = options.projector;
+    this.maxTokens = options.maxTokens ?? 500;
+    this.topK = options.topK ?? 5;
+  }
+
+  render(ctx: SlotRenderContext): Promise<string> | string {
+    // 1. 若外部显式注入了 memoryContext，直接同步返回
+    if (ctx.memoryContext && ctx.memoryContext.trim().length > 0) {
+      return ctx.memoryContext.trim();
     }
-    return ctx.memoryContext.trim();
+
+    // 2. 若挂载了 Retriever，基于当前 userPrompt 进行检索与格式化投影
+    if (this.retriever && ctx.userPrompt && ctx.userPrompt.trim().length > 0) {
+      return this.retriever
+        .retrieve({
+          queryText: ctx.userPrompt.trim(),
+          topK: this.topK,
+        })
+        .then((result) => {
+          if (result && result.items && result.items.length > 0) {
+            if (this.projector) {
+              return this.projector.project(result.items, { maxTokens: this.maxTokens });
+            }
+          }
+          return "";
+        })
+        .catch((err) => {
+          console.warn("[MemorySlot] Retrieval failed gracefully:", err);
+          return "";
+        });
+    }
+
+    return "";
   }
 
   estimateTokens(ctx: SlotRenderContext, meter: TokenMeter): number {
-    const content = this.render(ctx);
-    return content ? meter.estimateTokens(content) : 0;
+    if (ctx.memoryContext && ctx.memoryContext.trim().length > 0) {
+      return meter.estimateTokens(ctx.memoryContext.trim());
+    }
+    return this.maxTokens;
   }
 }
 
@@ -133,4 +186,3 @@ export class PlanSlot implements IContextSlot {
     return content ? meter.estimateTokens(content) : 0;
   }
 }
-

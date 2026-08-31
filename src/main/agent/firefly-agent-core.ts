@@ -12,7 +12,6 @@ import type { IAgentCore } from "../../shared/agent-core";
 import { LocalFireflyProvider } from "./providers/local-firefly-provider";
 import { FireflyToolRegistry } from "../tools/tool-registry";
 import { FireflyToolDispatcher } from "../tools/tool-dispatcher";
-import { FireflyMemoryService } from "../memory/memory-service";
 import { ContextManager } from "./context/context-manager";
 import { ToolExecutionEngine } from "./execution/tool-execution-engine";
 import type { ToolPolicyConfig } from "./execution/tool-policy";
@@ -29,7 +28,6 @@ import type { Plan, PlannerConfig } from "./planning/plan-types";
 export interface FireflyAgentCoreOptions {
   provider?: IFireflyLlmProvider;
   toolRegistry: FireflyToolRegistry;
-  memoryService?: FireflyMemoryService;
   config?: Partial<HarnessConfig>;
   eventBus?: AgentEventBus;
   contextManager?: ContextManager;
@@ -54,13 +52,11 @@ export interface FireflyAgentCoreOptions {
  * - RecoveryManager (bounded LLM recovery & emergency compaction)
  * - AgentSession (stateful message transcript)
  * - AgentEventBus (typed event emitter)
- * - FireflyMemoryService (long-term memory extraction)
  */
 export class FireflyAgentCore implements IAgentCore {
   private provider: IFireflyLlmProvider;
   private readonly toolRegistry: FireflyToolRegistry;
   private readonly toolDispatcher: FireflyToolDispatcher;
-  private readonly memoryService?: FireflyMemoryService;
   private readonly config: HarnessConfig;
   private readonly eventBus: AgentEventBus;
   private readonly contextManager: ContextManager;
@@ -74,7 +70,6 @@ export class FireflyAgentCore implements IAgentCore {
     this.provider = options.provider || new LocalFireflyProvider();
     this.toolRegistry = options.toolRegistry;
     this.toolDispatcher = new FireflyToolDispatcher(this.toolRegistry);
-    this.memoryService = options.memoryService;
     this.config = { ...DEFAULT_HARNESS_CONFIG, ...(options.config || {}) };
     this.eventBus = options.eventBus || new AgentEventBus();
     this.contextManager = options.contextManager || new ContextManager();
@@ -180,15 +175,7 @@ export class FireflyAgentCore implements IAgentCore {
     const runId = input.runId || `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const conversationId = input.conversationId;
 
-    // 1. Auto extract user facts into long-term memory
-    if (this.memoryService && input.userPrompt) {
-      const extracted = this.memoryService.extractFromText(input.userPrompt);
-      for (const item of extracted) {
-        this.memoryService.remember(item.key, item.value, "chat_auto_extract");
-      }
-    }
-
-    // 2. Setup AbortController for Cancellation & Timeout
+    // 1. Setup AbortController for Cancellation & Timeout
     const runAbortController = new AbortController();
     if (input.signal) {
       if (input.signal.aborted) runAbortController.abort();
@@ -205,9 +192,8 @@ export class FireflyAgentCore implements IAgentCore {
       }, this.config.totalTimeoutMs);
     }
 
-    // 3. Build Context & Initialize AgentSession
-    const memoryContext =
-      input.memoryContext ?? this.memoryService?.buildMemoryContext(input.userPrompt) ?? "";
+    // 2. Build Context & Initialize AgentSession
+    const memoryContext = input.memoryContext ?? "";
 
     // 4. Planning Mode Decision (Direct Mode vs Bounded Planning Mode)
     const isPlanningMode = this.planner.shouldPlan(

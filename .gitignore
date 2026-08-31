@@ -16,11 +16,12 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
-# Runtime configuration & state (User secrets, memory, history)
+# Runtime configuration & state (User secrets, memory, history, generated data)
 config/settings.json
 config/memory.json
 config/chat_history.json
 config/cache/
+data/
 *.env
 *.env.local
 *.env.*.local
