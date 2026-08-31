@@ -1,16 +1,15 @@
-# Firefly-Pet (流萤桌宠) - V1.0.0
+# Firefly-Pet (流萤桌宠) - V2.3.0
 
-> 🚀 **Firefly Desktop AI Agent** — 基于 Electron + TypeScript + PixiJS Live2D + GPT-SoVITS + Windows GSMTC 的流萤桌面智能体。
+> 🚀 **Firefly Desktop AI Agent** — 基于 Electron + TypeScript + PixiJS Live2D + GPT-SoVITS + Windows GSMTC + Memory v2 + RAG 知识库检索的流萤桌面智能体。
 
 ---
 
 ## 📌 版本状态 (Release Status)
 
-- **当前版本**：`V1.0.0`
+- **当前版本**：`V2.3.0`
 - **基线状态**：**COMPLETE / FROZEN** (核心基线已完全冻结)
-- **基线规范**：[docs/v1/v1-baseline.md](docs/v1/v1-baseline.md)
-- **审计报告**：[docs/v1/v1-baseline-audit.md](docs/v1/v1-baseline-audit.md)
-- **架构文档**：[docs/architecture/firefly-agent-architecture.md](docs/architecture/firefly-agent-architecture.md)
+- **基线规范**：[docs/v1/v1-baseline.md](docs/v1/v1-baseline.md) | [docs/v2/v2.3-final-audit.md](docs/v2/v2.3-final-audit.md)
+- **架构文档**：[docs/architecture/firefly-agent-architecture.md](docs/architecture/firefly-agent-architecture.md) | [docs/v2/v2.3-rag-architecture.md](docs/v2/v2.3-rag-architecture.md)
 
 ---
 
@@ -18,20 +17,32 @@
 
 1. **FireflyAgentCore (智能体核心)**：
    - 深度解耦的 Agent Loop 架构，实现 `IAgentCore` 接口。
-   - 支持单轮与多轮 Tool Calling（工具调用），意图自动解析与 Session Transcript 状态写回。
+   - 具备 Context 层解耦、Tool Policy 策略控制、多步骤有界规划（Bounded Planner）与断点容灾恢复（Recovery Manager）。
    - 防崩溃事件总线 (`AgentEventBus`) 与防御性消息隔离 (`AgentSession`)。
-   - 角色记忆持久化 (`FireflyMemoryService`) 与三维流萤人格约束 (`resources/firefly.yaml`)。
 
-2. **桌面交互与 Live2D 表现 (Live2D Presentation - Live2D Only)**：
+2. **Memory v2 (分层认知记忆系统)**：
+   - L0 工作记忆 / L1 短期情境 / L2 长期语义三层分级架构。
+   - 5 维记忆加权打分检索器（Exact, Partial, Entity, Importance, Recency）。
+   - 记忆生命周期演进：Ebbinghaus 衰减引擎、冲突消解仲裁（Conflict Resolver）与访问升阶整合（Consolidator）。
+   - `MemorySlot` 插槽化装配（优先级 80），统一 `TokenMeter` 预算管理与只读上下文投影。
+
+3. **RAG 知识库检索增强 (Canonical Knowledge Corpus & Hybrid Retrieval)**：
+   - 官方只读知识库语料（`resources/`，806 文件）自动化切片解析，生成 5,665 个标准化切片与 SHA-256 清单。
+   - 稠密向量存储（`FileVectorStore`）具备原子落盘与损坏自动备份恢复机制。
+   - 词法倒排 + 稠密向量双流召回，5 维重排序打分（`KnowledgeReranker`）与对抗性相关性门控（Adversarial Gating）。
+   - `RagSlot` 插槽化装配（优先级 70），800 Token 预算控制与故障安全隔离。
+   - *注：生产语义 Embedding 维持已知限制标记 `PRODUCTION EMBEDDING: NOT QUALIFIED`（由确定性测试 Provider 支持基础向量与自动化回归）。*
+
+4. **桌面交互与 Live2D 表现 (Live2D Presentation - Live2D Only)**：
    - 纯粹的 Live2D Cubism 3 模型 (`Firefly.model3.json`) 渲染，具备鼠标眼球注视追踪与肢体动作联动。
+   - 10 项当前核心 Live2D 动作，6 项 Motion，11 项 Expression，零 PNG 序列帧依赖。
    - 像素级透明度采样（`alphaThreshold: 15`）、鼠标穿透与拖拽交互。
 
-3. **动态流萤 AI Voice (GPT-SoVITS AI Voice)**：
+5. **动态流萤 AI Voice (GPT-SoVITS AI Voice)**：
    - 接入本地独立运行的 GPT-SoVITS 推理服务（`http://127.0.0.1:9880/tts`）。
-   - 基于流萤音色参考音频实现零样本实时语音合成，杜绝硬编码固定音频。
-   - 语音播放状态驱动 Live2D 动作（`talking`）与口型开合（`MouthSyncController`）实时联动。
+   - 语音播放驱动 Live2D `talking` 动作与 `MouthSyncController`（`ParamMouthOpenY`）实时口型同步。
 
-4. **系统媒体控制 (QQ Music GSMTC)**：
+6. **系统媒体控制 (QQ Music GSMTC)**：
    - 通过 Windows GSMTC (Global System Media Transport Controls) API 深度桥接本地运行的 `QQMusic.exe`。
    - Agent 原生支持查询当前播放曲目、艺术家、进度并执行播放/暂停/切换控制。
 
@@ -45,13 +56,17 @@
 flowchart TD
     Index["src/main/index.ts (Composition Root)"]
     
-    subgraph AgentSystem ["🧠 Agent System"]
-        Index --> Core["FireflyAgentCore v1"]
+    subgraph ContextAndAgent ["🧠 Context & Agent System"]
+        Index --> Core["FireflyAgentCore (v2.3)"]
+        Index --> CM["ContextManager"]
+        CM --> MemSlot["MemorySlot (Priority 80)"]
+        CM --> RagSlot["RagSlot (Priority 70)"]
+        MemSlot <--> MemCoord["MemoryCoordinator (Memory v2)"]
+        RagSlot <--> KnowCoord["KnowledgeCoordinator (RAG Pipeline)"]
         Core <--> Dispatcher["FireflyToolDispatcher"]
         Dispatcher <--> Registry["FireflyToolRegistry"]
         Core --> Session["AgentSession (Transcript)"]
         Core --> Bus["AgentEventBus"]
-        Core <--> Memory["FireflyMemoryService"]
     end
 
     subgraph VoiceSystem ["🔊 Voice & TTS System"]
@@ -65,26 +80,16 @@ flowchart TD
         Index --> MusicSvc["MusicService"]
         MusicSvc --> QQBridge["QQMusicDesktopBridge"]
         QQBridge -.-> WinGSMTC["Windows GSMTC API (QQMusic.exe)"]
-        MusicSvc --> FallbackMpv["MpvController (Secondary)"]
     end
 
-    subgraph VisualSystem ["🎨 Visual & Presentation System"]
+    subgraph VisualSystem ["🎨 Visual & Presentation System (Live2D Only)"]
         Index --> WinMgr["WindowManager"]
         WinMgr --> Renderer["src/renderer/main.ts"]
         Renderer --> Live2DMgr["Live2DManager (PixiJS)"]
-        Renderer --> FallbackPNG["PNG Frame Fallback"]
         Renderer --> SpeakingCtrl["SpeakingMotionController"]
         Renderer --> MouthSync["MouthSyncController"]
     end
 ```
-
-### 关键架构组件
-
-- **`FireflyAgentCore`**：独立核心，与 UI、Live2D、TTS、Music 完全解耦。通过 EventBus 与 Tools 桥接业务逻辑。
-- **`AgentSession`**：维护每轮对话的完整状态与 Transcript，采用防御性拷贝防止外部污染。
-- **`AgentEventBus`**：封装 `EventEmitter`，为每个监听器提供独立异常隔离，确保第三方监听异常不中断 Agent 主循环。
-- **`FireflyTtsDispatcher`**：提供 SHA256 语音缓存、TTS 队列管理与优雅降级机制（离线时不阻断对话）。
-- **`QQMusicDesktopBridge`**：基于 Windows PowerShell 与 WinRT GSMTC 接口实现无侵入式桌面媒体控制。
 
 ---
 
@@ -93,17 +98,19 @@ flowchart TD
 ```text
 Firefly-Pet/
 ├── assets/firefly/            # 角色模型、特化音效与 UI 资产
-│   ├── models/                # Live2D Cubism 3 模型配置与安装目录 (唯一角色表现)
-│   └── voice_reference/       # GPT-SoVITS 参考音频元数据清单
-├── config/                    # 运行时配置、记忆与历史存储 (忽略敏感数据)
+│   └── models/                # Live2D Cubism 3 模型配置与资源 (唯一角色表现)
+│       ├── Expressions/       # 11 项表情配置 JSON
+│       ├── Motions/           # 6 项动作配置 JSON
+│       └── Firefly.model3.json# 主配置文件
+├── config/                    # 运行时配置与默认模板 (忽略敏感数据)
 │   └── settings.example.json  # 默认配置模板
-├── docs/                      # 核心文档
-│   ├── architecture/          # 架构全景规范 (firefly-agent-architecture.md)
-│   ├── v1/                    # V1 冻结基线 (v1-baseline.md) 与审计报告 (v1-baseline-audit.md)
-│   └── v2/                    # V2 规划路线图 (v2-roadmap.md)
-├── resources/                 # 角色设定 YAML 与知识库文本
+├── docs/                      # 核心架构与阶段审计文档
+│   ├── architecture/          # 架构全景规范
+│   ├── v1/                    # V1 冻结基线与审计
+│   └── v2/                    # V2 架构演进与全阶段交付报告
+├── resources/                 # 官方只读规范知识语料库 (806 个源文件)
 ├── src/
-│   ├── main/                  # Electron 主进程 (AgentCore, TTS, Music, Windows)
+│   ├── main/                  # Electron 主进程 (AgentCore, Memory, RAG, TTS, Music, Windows)
 │   ├── preload/               # 上下文隔离 Preload 脚本
 │   ├── renderer/              # PixiJS Live2D 渲染与 React 交互 UI
 │   └── shared/                # 跨进程类型定义与通信信道
@@ -152,13 +159,13 @@ npm run dev
 
 ## 🧪 测试与验证 (Testing & Verification)
 
-Firefly-Pet 配备完整的回归测试体系，包含单元测试、契约测试、实机联调与烟雾测试：
+Firefly-Pet 配备严格的多层级回归测试体系（23 个测试套件，299 项自动化测试全部通过）：
 
 ```powershell
-# 1. 运行核心回归测试套件 (6 个测试套件，全部通过)
+# 1. 运行主回归测试套件 (包含 Agent Core, Context, Memory v2, RAG, Live2D)
 npm test
 
-# 2. 运行 Python 资产与逻辑校验套件
+# 2. 运行 Python 资产与逻辑校验套件 (5 项全部通过)
 python tools/validate_ai_intent.py
 python tools/validate_asset_structure.py
 python tools/validate_character_resources.py
@@ -177,34 +184,15 @@ $env:ELECTRON_SMOKE_TEST="1"; npx electron .
 ## 📦 第三方资源与部署说明 (Third-Party Resources)
 
 ### 1. Live2D 角色模型
-本项目支持加载流萤 Live2D Cubism 3 模型。由于版权与分发限制，**本公开仓库不包含第三方 Live2D 二进制文件**（`.moc3`、贴图 `.png`、音频 `.mp3`）。
-
-- **安装步骤**：
-  将流萤 Live2D 模型文件放置于 `assets/firefly/models/` 目录下（包含 `Firefly.model3.json`, `Moc_0.moc3`, `Textures_0_0.png`, `Physics_0.json`, `Expressions/`, `Motions/`）。
-- **模型要求**：
-  本项目采用纯粹的 Live2D 表现架构，若未放置模型文件，系统将提示 Live2D unavailable，不依赖任何 PNG 动画回退。
+本项目采用纯粹的 Live2D 表现架构。模型文件放置于 `assets/firefly/models/` 目录下（包含 `Firefly.model3.json`, `Moc_0.moc3`, `Textures_0_0.png`, `Physics_0.json`, `Expressions/`, `Motions/`）。
 
 ### 2. GPT-SoVITS 语音服务部署
-本项目 AI Voice 采用动态远程/本地 HTTP 推理，**仓库内不包含任何模型 Checkpoint 权重**。
-
-- **推荐开源方案**：[RVC-Boss/GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)
-- **流萤微调权重推荐**：[HuggingFace Waterwzy/GPT-SoVITS-firefly-finetuning](https://huggingface.co/Waterwzy/GPT-SoVITS-firefly-finetuning)
+本项目 AI Voice 采用动态本地 HTTP 推理：
 - **服务启动**：
-  启动 GPT-SoVITS API 服务并监听本地端口：
   ```bash
   python api_v2.py -a 127.0.0.1 -p 9880
   ```
 - **接口地址**：`http://127.0.0.1:9880/tts`
-
----
-
-## 🗺 V2 路线图 (V2 Roadmap)
-
-> ⚠️ **注意**：V1.0.0 阶段已完全冻结。以下内容仅为规划路线，不包含在当前版本中。
-
-- **V2.1 Agent Core v2**：多步规划循环 (Plan-and-Solve)、子任务状态检查点与动态 Token 压缩。
-- **V2.2 Memory v2**：分层认知记忆、SQLite 多命名空间存储与基于遗忘曲线的重要性评分。
-- **V2.3 RAG**：星穹铁道设定知识库与本地混合检索 (BM25 + Vector)。
 
 ---
 
