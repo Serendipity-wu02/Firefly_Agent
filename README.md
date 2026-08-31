@@ -8,9 +8,9 @@
 
 - **当前版本**：`V1.0.0`
 - **基线状态**：**COMPLETE / FROZEN** (核心基线已完全冻结)
-- **基线规范**：[docs/v1/v1-baseline.md](file:///docs/v1/v1-baseline.md)
-- **审计报告**：[docs/v1/v1-baseline-audit.md](file:///docs/v1/v1-baseline-audit.md)
-- **架构文档**：[docs/architecture/firefly-agent-architecture.md](file:///docs/architecture/firefly-agent-architecture.md)
+- **基线规范**：[docs/v1/v1-baseline.md](docs/v1/v1-baseline.md)
+- **审计报告**：[docs/v1/v1-baseline-audit.md](docs/v1/v1-baseline-audit.md)
+- **架构文档**：[docs/architecture/firefly-agent-architecture.md](docs/architecture/firefly-agent-architecture.md)
 
 ---
 
