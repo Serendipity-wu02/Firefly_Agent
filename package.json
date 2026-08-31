@@ -11,7 +11,7 @@
     "dev": "npm run build:main && npm run build:preload && concurrently \"vite\" \"cross-env VITE_DEV=1 electron .\"",
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit",
-    "test": "node tools/test_firefly_agent_core_freeze.mjs && node tools/test_firefly_agent_core_v1.mjs && node tools/test_firefly_voice_v1.mjs && node tools/test_llm_tts_live2d_chain.mjs && node tools/test_music_system.mjs && node tools/test_qqmusic_desktop_bridge.mjs && node tools/test_v2_phase_a_context.mjs && node tools/test_v2_phase_b_compaction.mjs && node tools/test_v2_phase_c_tool_policy.mjs && node tools/test_v2_phase_d_recovery_durability.mjs && node tools/test_v2_phase_e_bounded_planning.mjs"
+    "test": "node tools/test_firefly_agent_core_freeze.mjs && node tools/test_firefly_agent_core_v1.mjs && node tools/test_firefly_voice_v1.mjs && node tools/test_llm_tts_live2d_chain.mjs && node tools/test_music_system.mjs && node tools/test_qqmusic_desktop_bridge.mjs && node tools/test_v2_phase_a_context.mjs && node tools/test_v2_phase_b_compaction.mjs && node tools/test_v2_phase_c_tool_policy.mjs && node tools/test_v2_phase_d_recovery_durability.mjs && node tools/test_v2_phase_e_bounded_planning.mjs && node tools/test_v2_memory_phase1_store.mjs && node tools/test_v2_memory_phase2_retrieval.mjs && node tools/test_live2d_only.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",

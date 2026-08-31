@@ -5,26 +5,7 @@ from pathlib import Path
 
 
 REQUIRED_DIRECTORIES = (
-    "normal/idle",
-    "normal/happy",
-    "normal/sad",
-    "normal/sleepy",
-    "normal/thinking",
-    "normal/reading",
-    "normal/eating",
-    "normal/touched",
-    "normal/surprised",
-    "normal/angry",
-    "normal/shy",
-    "normal/talking",
-    "normal/waving",
-    "normal/attention",
-    "normal/dragged",
-    "normal/hungry",
-    "normal/ignored",
-    "normal/resting",
-    "normal/sick",
-    "normal/treatment",
+    "models",
     "effects/fire",
     "effects/ember",
     "effects/firefly",
@@ -51,7 +32,7 @@ def main() -> int:
         print("\n".join(missing))
         return 1
 
-    print(f"Asset structure validated: {len(REQUIRED_DIRECTORIES)} directories")
+    print(f"Asset structure validated: {len(REQUIRED_DIRECTORIES)} directories (Live2D-only character architecture)")
     return 0
 
 

@@ -17,13 +17,13 @@ test("Action Catalog: resolves standard actions without guessing", () => {
   assert.equal(happyAction.id, "happy");
 
   const target = resolveFireflyTarget("happy");
-  assert.equal(target.kind, "png_sequence");
-  assert.equal(target.action_id, "happy");
+  assert.equal(target.kind, "expression");
+  assert.equal(target.name, "expression4");
 
   // Unknown action fallback to idle
   const unknownTarget = resolveFireflyTarget("non_existent_action_xyz");
-  assert.equal(unknownTarget.kind, "png_sequence");
-  assert.equal(unknownTarget.action_id, "idle");
+  assert.equal(unknownTarget.kind, "motion");
+  assert.equal(unknownTarget.group, "Idle");
 });
 
 test("LLM -> Tool Calling -> Action Dispatch: complete mock chain", async () => {
@@ -83,8 +83,8 @@ test("LLM -> Tool Calling -> Action Dispatch: complete mock chain", async () => 
 
   assert.ok(result.finalText.includes("流萤"), "Result should contain assistant response text");
   assert.equal(result.toolCallsCount, 1, "Tool call should have executed once");
-  assert.equal(dispatchedTargets.length, 1, "Should have dispatched 1 action target to Pet Window");
-  assert.equal(dispatchedTargets[0].action_id, "happy", "Dispatched action must be 'happy'");
+  assert.equal(dispatchedTargets[0].kind, "expression");
+  assert.equal(dispatchedTargets[0].name, "expression4");
 });
 
 test("TTS Chain & Graceful Fallback: synthesizes or skips without crashing", async () => {

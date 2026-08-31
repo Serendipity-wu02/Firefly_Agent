@@ -79,7 +79,8 @@ test("2. 一次 tool call: Single tool call executed and returned to LLM", async
   assert.equal(result.roundsCount, 2);
   assert.equal(result.finalText, "动作展示完毕，开拓者！");
   assert.equal(dispatchedTargets.length, 1);
-  assert.equal(dispatchedTargets[0].action_id, "happy");
+  assert.equal(dispatchedTargets[0].kind, "expression");
+  assert.equal(dispatchedTargets[0].name, "expression4");
 });
 
 test("3. 多轮 tool call: Multi-turn tool execution across multiple rounds", async () => {
@@ -124,8 +125,10 @@ test("3. 多轮 tool call: Multi-turn tool execution across multiple rounds", as
   assert.equal(result.roundsCount, 3);
   assert.equal(result.finalText, "两组动作均已完成！");
   assert.equal(dispatchedTargets.length, 2);
-  assert.equal(dispatchedTargets[0].action_id, "thinking");
-  assert.equal(dispatchedTargets[1].action_id, "happy");
+  assert.equal(dispatchedTargets[0].kind, "expression");
+  assert.equal(dispatchedTargets[0].name, "expression5");
+  assert.equal(dispatchedTargets[1].kind, "expression");
+  assert.equal(dispatchedTargets[1].name, "expression4");
 });
 
 test("4, 5, 6. Transcript 写回: assistant, tool call, tool result verified in transcript", async () => {

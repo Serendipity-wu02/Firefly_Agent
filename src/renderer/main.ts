@@ -54,23 +54,19 @@ declare global {
   }
 }
 
-console.log("[Firefly-Agent] Initializing Desktop Pet Renderer...");
+console.log("[Firefly-Agent] Initializing Live2D Desktop Pet Renderer...");
 
 const canvas = document.getElementById("live2d-canvas") as HTMLCanvasElement;
-const pngContainer = document.getElementById("png-frame-container") as HTMLDivElement;
-const fallbackImg = document.getElementById("fallback-frame") as HTMLImageElement;
 
-if (!canvas || !pngContainer || !fallbackImg) {
-  throw new Error("Required DOM elements (#live2d-canvas, #png-frame-container, #fallback-frame) not found");
+if (!canvas) {
+  throw new Error("Required DOM element #live2d-canvas not found");
 }
 
 const lifecycle = new Live2DRendererLifecycleTracker();
 
-// 1. Initialize Live2D Manager with robust fallback capability
+// 1. Initialize Live2D Manager (Live2D-only Architecture)
 const manager = new Live2DManager({
   canvas,
-  pngContainer,
-  pngImage: fallbackImg,
   width: window.innerWidth,
   height: window.innerHeight,
   modelPath: "assets://firefly/models/Firefly.model3.json",
@@ -78,7 +74,7 @@ const manager = new Live2DManager({
     console.log("[Firefly-Agent] Live2D Model loaded successfully.");
   },
   onModelUnavailable: () => {
-    console.log("[Firefly-Agent] Note: Live2D model not yet provided. PNG Fallback active.");
+    console.warn("[Firefly-Agent] Live2D model unavailable.");
   },
 });
 
@@ -145,7 +141,7 @@ const speakingMotion = new SpeakingMotionController({
 });
 lifecycle.track("resource", "speakingMotion", () => speakingMotion.dispose());
 
-// 8. Speaking State -> PNG Talking / Live2D Mouth Sync
+// 8. Speaking State -> Live2D Mouth Sync
 if (window.firefly?.onSpeakingChanged) {
   const unsubSpeaking = window.firefly.onSpeakingChanged((isSpeaking) => {
     console.log("[Firefly-Agent] Speaking state changed:", isSpeaking);
@@ -214,4 +210,4 @@ const handleResize = () => {
 window.addEventListener("resize", handleResize);
 lifecycle.track("listener", "windowResize", () => window.removeEventListener("resize", handleResize));
 
-console.log("[Firefly-Agent] Desktop Pet Renderer ready!");
+console.log("[Firefly-Agent] Live2D Desktop Pet Renderer ready!");

@@ -1,7 +1,6 @@
 import * as PIXI from "pixi.js";
 import { Live2DModel } from "pixi-live2d-display/cubism4";
 import type { FireflyTarget } from "../../shared/firefly-actions";
-import { PngFallbackController } from "./fallback-png";
 
 // Ensure PIXI is available globally for pixi-live2d-display
 (window as any).PIXI = PIXI;
@@ -29,8 +28,6 @@ export interface MotionGroupItem {
 
 export interface Live2DManagerOptions {
   canvas: HTMLCanvasElement;
-  pngContainer: HTMLElement;
-  pngImage: HTMLImageElement;
   width: number;
   height: number;
   modelPath?: string;
@@ -41,8 +38,6 @@ export interface Live2DManagerOptions {
 
 export class Live2DManager {
   private readonly canvas: HTMLCanvasElement;
-  private readonly pngContainer: HTMLElement;
-  private readonly pngFallback: PngFallbackController;
   private readonly modelPath: string;
 
   private app: PIXI.Application | null = null;
@@ -62,15 +57,11 @@ export class Live2DManager {
 
   constructor(options: Live2DManagerOptions) {
     this.canvas = options.canvas;
-    this.pngContainer = options.pngContainer;
     this.baseWidth = options.width;
     this.baseHeight = options.height;
     this.modelPath = options.modelPath ?? "assets://firefly/models/Firefly.model3.json";
 
-    // 1. Initialize PNG Fallback controller immediately
-    this.pngFallback = new PngFallbackController(options.pngContainer, options.pngImage);
-
-    // 2. Initialize PIXI WebGL Application
+    // 1. Initialize PIXI WebGL Application
     try {
       this.app = new PIXI.Application({
         view: this.canvas,
@@ -85,7 +76,7 @@ export class Live2DManager {
       console.warn("[Live2DManager] PIXI Application initialization failed:", err);
     }
 
-    // 3. Start Model loading & fallback verification
+    // 2. Start Model loading
     void this.initModel(options);
   }
 
@@ -121,7 +112,6 @@ export class Live2DManager {
       this.model = model;
       this.isLive2DAvailable = true;
       this.canvas.style.display = "block";
-      this.pngFallback.hide();
 
       this.setupModelTransform();
       this.app.stage.addChild(model);
@@ -133,9 +123,12 @@ export class Live2DManager {
       options.onLoad?.();
     } catch (err) {
       console.info(
-        `[Live2DManager] Live2D model unavailable at "${this.modelPath}" (${(err as any)?.message || err}). Activating PNG Fallback.`
+        `[Live2DManager] Live2D model unavailable at "${this.modelPath}" (${(err as any)?.message || err}).`
       );
-      this.activateFallback(options);
+      this.isLive2DAvailable = false;
+      this.canvas.style.display = "none";
+      options.onModelUnavailable?.();
+      options.onError?.(err);
     }
   }
 
@@ -217,13 +210,6 @@ export class Live2DManager {
     }
   }
 
-  private activateFallback(options: Live2DManagerOptions): void {
-    this.isLive2DAvailable = false;
-    this.canvas.style.display = "none";
-    this.pngFallback.show();
-    options.onModelUnavailable?.();
-  }
-
   private setupModelTransform(): void {
     if (!this.model) return;
     this.model.anchor.set(0.5, 1.0);
@@ -270,43 +256,24 @@ export class Live2DManager {
   }
 
   playTarget(target: FireflyTarget): void {
-    if (this.isLive2DAvailable && this.model) {
-      if (target.kind === "motion") {
-        const index = this.resolveMotionIndex(target.group, target.motionName);
-        this.model.motion(target.group, index);
-      } else if (target.kind === "expression") {
-        this.model.expression(target.name);
-      } else if (target.kind === "png_sequence") {
-        // Map png action id to model motion or expression if available
-        const index = this.resolveMotionIndex(target.action_id);
-        if (index !== undefined) {
-          this.model.motion(target.action_id, index);
-        } else if (this.availableExpressions.has(target.action_id)) {
-          this.model.expression(target.action_id);
-        }
-      }
-    } else {
-      // Fallback PNG Mode
-      if (target.kind === "png_sequence") {
-        this.pngFallback.playAction(target.action_id);
-      } else if (target.kind === "motion") {
-        this.pngFallback.playAction(target.motionName);
-      } else if (target.kind === "expression") {
-        this.pngFallback.playAction(target.name);
-      }
+    if (!this.isLive2DAvailable || !this.model) return;
+
+    if (target.kind === "motion") {
+      const index = this.resolveMotionIndex(target.group, target.motionName);
+      this.model.motion(target.group, index);
+    } else if (target.kind === "expression") {
+      this.model.expression(target.name);
     }
   }
 
-  playActionId(actionId: string, force = false): void {
-    if (this.isLive2DAvailable && this.model) {
-      const index = this.resolveMotionIndex(actionId);
-      if (index !== undefined) {
-        this.model.motion(actionId, index);
-      } else if (this.availableExpressions.has(actionId)) {
-        this.model.expression(actionId);
-      }
-    } else {
-      this.pngFallback.playAction(actionId, force);
+  playActionId(actionId: string): void {
+    if (!this.isLive2DAvailable || !this.model) return;
+
+    const index = this.resolveMotionIndex(actionId);
+    if (index !== undefined) {
+      this.model.motion(actionId, index);
+    } else if (this.availableExpressions.has(actionId)) {
+      this.model.expression(actionId);
     }
   }
 
@@ -341,9 +308,6 @@ export class Live2DManager {
     this.currentZoom = scale;
     if (this.isLive2DAvailable) {
       this.setupModelTransform();
-    } else if (this.pngContainer) {
-      this.pngContainer.style.transform = `scale(${scale})`;
-      this.pngContainer.style.transformOrigin = "bottom center";
     }
   }
 
@@ -384,7 +348,7 @@ export class Live2DManager {
         return 255;
       }
     }
-    return this.pngFallback.getPixelAlpha(clientX, clientY);
+    return 0;
   }
 
   getModel(): Live2DModel | null {
@@ -433,8 +397,6 @@ export class Live2DManager {
         (PIXI.utils as any).destroyTextureCache();
       }
     } catch {}
-
-    this.pngFallback.dispose();
   }
 }
 
