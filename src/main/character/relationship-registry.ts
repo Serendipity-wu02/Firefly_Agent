@@ -55,7 +55,8 @@ export class RelationshipRegistry {
    * 判断一个人物是否属于流萤的已知同伴或确切交集关系
    */
   static isKnownCompanion(name: string, customRoot?: string): boolean {
-    return this.findRelationship(name, customRoot) !== null;
+    const rel = this.findRelationship(name, customRoot);
+    return rel !== null && rel.category !== "world_figure";
   }
 
   /**
@@ -63,11 +64,12 @@ export class RelationshipRegistry {
    */
   static queryRelationshipPerspective(name: string, customRoot?: string): RelationshipQueryResult {
     const rel = this.findRelationship(name, customRoot);
-    if (rel) {
+    if (rel && rel.category !== "world_figure") {
+      const factSummary = rel.canonicalFacts.length > 0 ? `依据官方事实：${rel.canonicalFacts[0]}` : "";
       return {
         isKnown: true,
         relationship: rel,
-        perspectiveGuidance: `这是流萤认识的${rel.category === "core_companion" ? "核心同伴" : rel.category === "stellaron_hunter" ? "星核猎手同伴" : "重要交集人物"}「${rel.name}」。请以${rel.addressing}称呼，保持${rel.attitude}的真诚口吻，严格依据官方事实回答，严禁捏造未记载的虚构情节。`,
+        perspectiveGuidance: `这是流萤认识的${rel.category === "core_companion" ? "核心同伴" : rel.category === "stellaron_hunter" ? "星核猎手同伴" : "重要交集人物"}「${rel.name}」。请以${rel.addressing}称呼，${factSummary}。保持自然真诚的口吻，严格依据官方事实回答，严禁捏造未记载的虚构情节。`,
       };
     }
 
@@ -78,45 +80,47 @@ export class RelationshipRegistry {
   }
 
   /**
-   * 动态生成用于 System Prompt 注入的高紧凑人际关系规范摘要
+   * 动态生成用于 System Prompt 注入的人际关系规范摘要 (完全由加载的事实驱动，无硬编码 prose)
    */
   static formatRelationshipSummaryForPrompt(customRoot?: string): string {
     const map = this.getRelationships(customRoot);
-    const trailblazer = map.get("trailblazer");
-    const kafka = map.get("kafka");
-    const silverWolf = map.get("silver_wolf");
-    const blade = map.get("blade");
-    const elio = map.get("elio");
-
     const lines: string[] = [
       "【核心人际关系与同伴认知 (Canonical Relationships)】",
     ];
 
-    if (trailblazer) {
+    // 1. 核心羁绊 (Core Companion)
+    const core = Array.from(map.values()).filter((r) => r.category === "core_companion");
+    if (core.length > 0) {
+      const tb = core[0];
+      const factText = tb.canonicalFacts.join("；");
       lines.push(
-        `1. 【${trailblazer.name} (核心羁绊)】：${trailblazer.attitude}称呼为${trailblazer.addressing}，语气柔软真诚，有强烈保护欲；绝不编造机库调试或同居生活等虚假桥段。`,
+        `1. 【${tb.name} (核心羁绊)】：${factText}。称呼为${tb.addressing}，语气柔软真诚，有强烈保护欲；绝不编造未经官方记载的虚假桥段。`,
       );
     }
 
-    lines.push("2. 【星核猎手 (命运同伴与家人)】：");
-    if (kafka) {
-      lines.push(`   - ${kafka.name}：${kafka.attitude}`);
-    }
-    if (silverWolf) {
-      lines.push(`   - ${silverWolf.name}：${silverWolf.attitude}`);
-    }
-    if (blade) {
-      lines.push(`   - ${blade.name}：${blade.attitude}`);
-    }
-    if (elio) {
-      lines.push(`   - ${elio.name}：${elio.attitude}`);
+    // 2. 星核猎手 (Stellaron Hunters)
+    const hunters = Array.from(map.values()).filter((r) => r.category === "stellaron_hunter");
+    if (hunters.length > 0) {
+      lines.push("2. 【星核猎手 (命运同伴与家人)】：");
+      for (const h of hunters) {
+        const factText = h.canonicalFacts.join("；");
+        lines.push(`   - ${h.name}：${factText}`);
+      }
     }
 
+    // 3. 匹诺康尼交集 (Penacony Contacts)
+    const penaconyContacts = Array.from(map.values()).filter((r) => r.category === "penacony_contact");
+    if (penaconyContacts.length > 0) {
+      const summaryItems = penaconyContacts.map((p) => {
+        const preview = p.canonicalFacts.length > 0 ? p.canonicalFacts[0] : "";
+        return preview ? `${p.name}（${preview}）` : p.name;
+      });
+      lines.push(`3. 【匹诺康尼交集】：${summaryItems.join("、")}`);
+    }
+
+    // 4. 边界硬约束
     lines.push(
-      "3. 【匹诺康尼交集】：黄泉（自灭者，知晓萨姆真相）、加拉赫（解围的靠谱长辈）、知更鸟（流梦礁深入交流者）、黑天鹅（见证第一次死亡的忆者）、翡翠（慈玉典押）、花火（带来烟花的假面愚者）。",
-    );
-    lines.push(
-      "4. 【关系边界硬约束】：对于未建立直接关系的外部人物（如景元、希露瓦、托帕、翁法罗斯黄金裔等），以客观情报视角回答，绝不自称熟识或编造亲密经历。",
+      "4. 【关系边界硬约束】：对于未建立直接关系的外部人物（如未在官方语料记载的人物），以客观情报视角回答，绝不自称熟识或编造亲密经历。",
     );
 
     return lines.join("\n");

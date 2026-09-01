@@ -1,7 +1,8 @@
 /**
  * @file test_v2_relationship_ssot.mjs
  * @description Validates that resources/knowledge/facts.yaml and curated cards are the STRICT Single Source of Truth
- * for Character Relationships. Tests dynamic synchronization of Canonical Facts -> RelationshipLoader -> Registry -> Policy.
+ * for Character Relationships. Tests dynamic synchronization, deletion transparency (zero fallback prose),
+ * and complete absence of hardcoded prose in Registry or Loader.
  */
 
 import test from "node:test";
@@ -21,8 +22,7 @@ const relationshipRegistryPath = path.join(projectRoot, "dist", "main", "main", 
 const characterPolicyPath = path.join(projectRoot, "dist", "main", "main", "character", "character-policy.js");
 const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "agent", "context", "system-prompt-builder.js");
 
-test("1. Production Canonical Loading: Relationships are dynamically derived from resources/knowledge/facts.yaml", async () => {
-  const { RelationshipLoader } = await import(`file://${relationshipLoaderPath}`);
+test("1. Production Canonical Loading: Relationships are dynamically loaded from resources/knowledge/facts.yaml", async () => {
   const { RelationshipRegistry } = await import(`file://${relationshipRegistryPath}`);
 
   const map = RelationshipRegistry.reload(projectRoot);
@@ -43,60 +43,53 @@ test("1. Production Canonical Loading: Relationships are dynamically derived fro
   }
 });
 
-test("2. Dynamic SSoT Synchronization: Modifying facts.yaml dynamically changes Relationship Runtime and System Prompt", async () => {
+test("2. Dynamic SSoT Synchronization & Deletion Transparency: Modifying facts changes Runtime, deleting facts leaves 0 fallback", async () => {
   const { RelationshipRegistry } = await import(`file://${relationshipRegistryPath}`);
   const { CharacterPolicyEngine } = await import(`file://${characterPolicyPath}`);
-  const { SystemPromptBuilder } = await import(`file://${systemPromptBuilderPath}`);
 
-  // Create temporary isolated resources fixture directory
+  // Create isolated temporary resources fixture directory
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-rel-ssot-"));
   const tempKnowledgeDir = path.join(tempDir, "resources", "knowledge");
-  fs.mkdirSync(tempKnowledgeDir, { recursive: true });
+  const tempCardsDir = path.join(tempKnowledgeDir, "curated_cards");
+  fs.mkdirSync(tempCardsDir, { recursive: true });
 
+  // Custom facts containing ONLY Trailblazer with custom fact, Kafka completely deleted
   const customFacts = [
     {
       entity: "开拓者",
       scene: "测试星域",
       source: "亲历",
-      fact: "在测试星域ALPHA-999与开拓者共同完成了量子共振仪式，这是动态测试事实。",
+      fact: "在动态测试星域ALPHA-999与开拓者共同完成了量子共振仪式。",
       keywords: "开拓者 测试 量子共振",
-      verified_against: "test_lore.md",
-    },
-    {
-      entity: "卡芙卡",
-      scene: null,
-      source: "亲历",
-      fact: "卡芙卡在动态测试废墟中传授了高维弦理论战术。",
-      keywords: "卡芙卡 战术",
       verified_against: "test_lore.md",
     },
   ];
 
   fs.writeFileSync(path.join(tempKnowledgeDir, "facts.yaml"), yaml.dump(customFacts), "utf-8");
 
+  // Create a curated card
+  const customCardContent = `触发: 开拓者|共鸣\n## 测试卡片\n在量子星域中与开拓者达成了深度共振。`;
+  fs.writeFileSync(path.join(tempCardsDir, "开拓者共鸣.md"), customCardContent, "utf-8");
+
   try {
-    // 1. Reload RelationshipRegistry with custom tempDir
+    // 1. Reload with tempDir
     const customMap = RelationshipRegistry.reload(tempDir);
-    const customTrailblazer = customMap.get("trailblazer");
+    const customTb = customMap.get("trailblazer");
 
-    assert.ok(customTrailblazer);
-    assert.ok(
-      customTrailblazer.canonicalFacts.some((f) => f.includes("ALPHA-999") && f.includes("量子共振仪式")),
-      "Must dynamically reflect the custom facts.yaml content without dual-source lag",
-    );
+    assert.ok(customTb, "Trailblazer entity must exist in custom map");
+    assert.equal(customTb.canonicalFacts.length, 1);
+    assert.ok(customTb.canonicalFacts[0].includes("ALPHA-999"));
+    assert.ok(customTb.evidenceSources.some((s) => s.includes("开拓者共鸣.md")));
 
+    // 2. Deletion Transparency: Kafka is absent from custom facts.yaml, so Kafka MUST NOT exist in customMap
     const customKafka = customMap.get("kafka");
-    assert.ok(customKafka);
-    assert.ok(
-      customKafka.canonicalFacts.some((f) => f.includes("高维弦理论战术")),
-      "Must dynamically reflect Kafka's updated fact from facts.yaml",
-    );
+    assert.equal(customKafka, undefined, "Kafka was deleted in facts.yaml, so Loader MUST NOT fabricate a fallback Kafka fact!");
 
-    // 2. Verify System Prompt incorporates the dynamic relationship model
+    // 3. Verify Prompt reflects the dynamic change
     const engine = CharacterPolicyEngine.getInstance();
     const prompt = engine.buildSystemPrompt();
-    assert.ok(prompt.includes("【核心人际关系与同伴认知 (Canonical Relationships)】"));
-    assert.ok(prompt.includes("开拓者 (核心羁绊)"));
+    assert.ok(prompt.includes("ALPHA-999"), "Prompt must reflect new dynamic fact");
+    assert.ok(!prompt.includes("格拉默废墟中唤醒"), "Deleted Kafka fact must not appear in prompt");
   } finally {
     // Cleanup temporary directory
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -108,21 +101,21 @@ test("2. Dynamic SSoT Synchronization: Modifying facts.yaml dynamically changes 
   const restoredTb = RelationshipRegistry.findRelationship("开拓者", projectRoot);
   assert.ok(restoredTb);
   assert.ok(restoredTb.canonicalFacts.some((f) => f.includes("一日导游") || f.includes("秘密基地")));
+
+  const restoredKafka = RelationshipRegistry.findRelationship("卡芙卡", projectRoot);
+  assert.ok(restoredKafka);
 });
 
-test("3. Addressing & Attitude Consistency: Strictly conforms to canonical naming conventions", async () => {
-  const { RelationshipRegistry } = await import(`file://${relationshipRegistryPath}`);
-  const pomPom = RelationshipRegistry.findRelationship("帕姆");
-  assert.equal(pomPom.addressing, "「帕姆」列车长");
+test("3. Zero Prose Hardcoding in Source: Relationship Registry & Loader contain zero static relationship facts", async () => {
+  const loaderSrc = fs.readFileSync(path.join(projectRoot, "src", "main", "character", "relationship-loader.ts"), "utf-8");
+  const registrySrc = fs.readFileSync(path.join(projectRoot, "src", "main", "character", "relationship-registry.ts"), "utf-8");
 
-  const robin = RelationshipRegistry.findRelationship("知更鸟");
-  assert.equal(robin.addressing, "「知更鸟」小姐");
-
-  const gallagher = RelationshipRegistry.findRelationship("加拉赫");
-  assert.equal(gallagher.addressing, "「加拉赫」先生");
-
-  const jade = RelationshipRegistry.findRelationship("翡翠");
-  assert.equal(jade.addressing, "「翡翠」女士");
+  // Verify absence of forbidden static constructs
+  assert.ok(!loaderSrc.includes("ENTITY_CONFIG_MAP"), "Loader must not contain ENTITY_CONFIG_MAP");
+  assert.ok(!loaderSrc.includes("attitudeSummary"), "Loader must not contain attitudeSummary");
+  assert.ok(!registrySrc.includes("CANONICAL_RELATIONSHIPS"), "Registry must not contain static CANONICAL_RELATIONSHIPS");
+  assert.ok(!registrySrc.includes("黄泉（自灭者，知晓萨姆真相）"), "Registry must not hardcode relationship prose");
+  assert.ok(!registrySrc.includes("加拉赫（解围的靠谱长辈）"), "Registry must not hardcode relationship prose");
 });
 
 test("4. Unknown Character Non-Sentimentalization: External figures are strictly marked isKnown = false", async () => {
