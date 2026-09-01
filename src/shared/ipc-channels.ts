@@ -19,6 +19,8 @@ export const IPC = {
   WINDOW_OPEN_CHAT: "window:open-chat",
   WINDOW_OPEN_STATUS: "window:open-status",
   WINDOW_OPEN_SETTINGS: "window:open-settings",
+  WINDOW_OPEN_SUMMARY: "window:open-summary",
+  CHARACTER_SUMMARY_UPDATED: "character:summary-updated",
 
   // Live2D / Action Execution
   LIVE2D_PLAY_ACTION: "live2d:play-action",

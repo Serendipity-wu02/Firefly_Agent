@@ -65,7 +65,7 @@ declare global {
 }
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"chat" | "settings">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "settings" | "summary">("chat");
 
   // Semantic Cognitive State for CharacterSummary (Zero legacy numeric stats)
   const [currentMood, setCurrentMood] = useState<string>("温和宁静");
@@ -105,6 +105,8 @@ export const App: React.FC = () => {
     const tabParam = params.get("tab");
     if (tabParam === "settings" || tabParam === "tts") {
       setActiveTab("settings");
+    } else if (tabParam === "summary") {
+      setActiveTab("summary");
     } else {
       setActiveTab("chat");
     }
@@ -125,8 +127,18 @@ export const App: React.FC = () => {
       setTtsPlaybackSnapshot(snap);
     });
 
+    let unsubSummary: (() => void) | undefined;
+    if (window.firefly?.onSummaryUpdated) {
+      unsubSummary = window.firefly.onSummaryUpdated((summary) => {
+        if (summary?.moodLabel) setCurrentMood(summary.moodLabel);
+        if (summary?.behaviorLabel) setCurrentBehavior(summary.behaviorLabel);
+        if (summary?.modeLabel) setCurrentMode(summary.modeLabel);
+      });
+    }
+
     return () => {
       unsubTts();
+      unsubSummary?.();
     };
   }, []);
 
@@ -149,6 +161,7 @@ export const App: React.FC = () => {
     const text = inputValue.trim();
     if (!text || isLoading) return;
 
+    console.log(`[Harness Trace] composer.send prompt="${text}"`);
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -165,6 +178,9 @@ export const App: React.FC = () => {
       if (window.chat) {
         const res = await window.chat.sendMessage(text, messages);
         const correlationId = res.correlationId || res.embodimentPlan?.correlationId;
+        console.log(
+          `[Harness Trace] renderer.reply.received text="${res.replyText?.slice(0, 30)}..." correlationId=${correlationId}`,
+        );
         const asstMsg: ChatMessage = {
           id: `asst-${Date.now()}`,
           role: "assistant",
@@ -235,6 +251,31 @@ export const App: React.FC = () => {
     }
   };
 
+  if (activeTab === "summary") {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100vh",
+          padding: "6px",
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "transparent",
+          fontFamily: THEME_TOKENS.typography.fontFamily,
+          userSelect: "none",
+        }}
+      >
+        <CharacterSummary
+          currentMood={currentMood}
+          currentBehavior={currentBehavior}
+          currentMode={currentMode}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -256,7 +297,7 @@ export const App: React.FC = () => {
       {/* 2. Main Body Area */}
       {activeTab === "chat" ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minHeight: 0 }}>
-          {/* Conversation Area with Messages & Floating Summary Card */}
+          {/* Conversation Area with Messages */}
           <div
             style={{
               flex: 1,
@@ -280,24 +321,6 @@ export const App: React.FC = () => {
 
             {/* Bottom scroll target */}
             <div ref={chatBottomRef} style={{ height: "4px" }} />
-          </div>
-
-          {/* Floating Character Summary Widget (Top-Right of Chat Area) */}
-          <div
-            style={{
-              position: "absolute",
-              top: "12px",
-              right: "16px",
-              zIndex: 5,
-            }}
-          >
-            <CharacterSummary
-              currentMood={currentMood}
-              currentBehavior={currentBehavior}
-              currentMode={currentMode}
-              isCollapsed={!showSummaryCard}
-              onToggleCollapse={() => setShowSummaryCard(!showSummaryCard)}
-            />
           </div>
 
           {/* 3. Bottom Composer */}

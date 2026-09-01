@@ -82,6 +82,10 @@ function setupIpcHandlers() {
     windowManager.createSettingsWindow();
   });
 
+  ipcMain.on(IPC.WINDOW_OPEN_SUMMARY, () => {
+    windowManager.toggleSummaryWindow();
+  });
+
   ipcMain.on(IPC.PET_SHOW_CONTEXT_MENU, () => {
     windowManager.showContextMenu();
   });
@@ -110,6 +114,9 @@ function setupIpcHandlers() {
         correlationId: plan.correlationId,
         behaviorType: plan.behaviorType,
       });
+    }
+    if (plan.presentationSummary) {
+      windowManager.broadcast(IPC.CHARACTER_SUMMARY_UPDATED, plan.presentationSummary);
     }
   });
 
@@ -211,7 +218,14 @@ app.whenReady().then(() => {
     toolRegistry: globalToolRegistry,
     contextManager,
   });
-  registerChatIpc(agentCore, stateManager, (ch, data) => windowManager.sendToPet(ch, data));
+  registerChatIpc(agentCore, stateManager, {
+    sendToPet: (ch, data) => windowManager.sendToPet(ch, data),
+    onEmbodimentPlan: (plan) => {
+      if (plan.presentationSummary) {
+        windowManager.broadcast(IPC.CHARACTER_SUMMARY_UPDATED, plan.presentationSummary);
+      }
+    },
+  });
 
   // 5. Initialize Firefly Proactive Scheduler
   proactiveScheduler = new FireflyProactiveScheduler({
@@ -252,6 +266,7 @@ app.whenReady().then(() => {
   const ttsResult = registerTtsIpc({ configPath });
   ttsSessionService = ttsResult.sessionService;
   const petWin = windowManager.createPetWindow();
+  windowManager.createSummaryWindow();
 
   if (process.env.ELECTRON_SMOKE_TEST === "1") {
     console.log("[SmokeTest] Pet window created. Running smoke verification...");

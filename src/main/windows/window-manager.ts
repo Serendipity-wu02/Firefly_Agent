@@ -9,6 +9,8 @@ const STATUS_WINDOW_WIDTH = 420;
 const STATUS_WINDOW_HEIGHT = 560;
 const CHAT_WINDOW_WIDTH = 440;
 const CHAT_WINDOW_HEIGHT = 620;
+const SUMMARY_WINDOW_WIDTH = 240;
+const SUMMARY_WINDOW_HEIGHT = 130;
 const SETTINGS_WINDOW_WIDTH = 500;
 const SETTINGS_WINDOW_HEIGHT = 600;
 
@@ -16,6 +18,7 @@ export class WindowManager {
   private petWindow: BrowserWindow | null = null;
   private statusWindow: BrowserWindow | null = null;
   private chatWindow: BrowserWindow | null = null;
+  private summaryWindow: BrowserWindow | null = null;
   private settingsWindow: BrowserWindow | null = null;
   private isDev: boolean;
   private configPath: string;
@@ -271,6 +274,81 @@ export class WindowManager {
     return win;
   }
 
+  createSummaryWindow(): BrowserWindow {
+    if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
+      this.summaryWindow.show();
+      return this.summaryWindow;
+    }
+
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const workArea = primaryDisplay.workArea;
+
+    const petBounds = this.petWindow?.getBounds();
+    const defaultX = petBounds
+      ? Math.max(workArea.x, Math.min(workArea.x + workArea.width - SUMMARY_WINDOW_WIDTH, petBounds.x + petBounds.width - SUMMARY_WINDOW_WIDTH))
+      : workArea.x + workArea.width - SUMMARY_WINDOW_WIDTH - 20;
+    const defaultY = petBounds
+      ? Math.max(workArea.y, petBounds.y - SUMMARY_WINDOW_HEIGHT - 8)
+      : workArea.y + workArea.height - SUMMARY_WINDOW_HEIGHT - 350;
+
+    const win = new BrowserWindow({
+      x: defaultX,
+      y: defaultY,
+      width: SUMMARY_WINDOW_WIDTH,
+      height: SUMMARY_WINDOW_HEIGHT,
+      title: "流萤 · 认知心境",
+      transparent: true,
+      frame: false,
+      resizable: false,
+      skipTaskbar: true,
+      hasShadow: false,
+      alwaysOnTop: true,
+      backgroundColor: "#00000000",
+      show: false,
+      webPreferences: {
+        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    const targetUrl = this.isDev
+      ? "http://localhost:5173/react/index.html?tab=summary"
+      : path.join(app.getAppPath(), "dist", "renderer", "react", "index.html");
+    console.log(`[WindowManager] OPEN SUMMARY WINDOW -> Target: ${targetUrl}`);
+
+    if (this.isDev) {
+      win.loadURL("http://localhost:5173/react/index.html?tab=summary");
+    } else {
+      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "react", "index.html"), {
+        query: { tab: "summary" },
+      });
+    }
+
+    win.once("ready-to-show", () => {
+      win.show();
+    });
+
+    win.on("closed", () => {
+      this.summaryWindow = null;
+    });
+
+    this.summaryWindow = win;
+    return win;
+  }
+
+  toggleSummaryWindow(): void {
+    if (!this.summaryWindow || this.summaryWindow.isDestroyed()) {
+      this.createSummaryWindow();
+      return;
+    }
+    if (this.summaryWindow.isVisible()) {
+      this.summaryWindow.hide();
+    } else {
+      this.summaryWindow.show();
+    }
+  }
+
   togglePetWindow(): void {
     if (!this.petWindow || this.petWindow.isDestroyed()) {
       this.createPetWindow();
@@ -278,9 +356,11 @@ export class WindowManager {
     }
     if (this.petWindow.isVisible()) {
       this.petWindow.hide();
+      this.summaryWindow?.hide();
     } else {
       this.petWindow.show();
       this.petWindow.focus();
+      this.summaryWindow?.show();
     }
   }
 
@@ -291,6 +371,10 @@ export class WindowManager {
       {
         label: "💬 与流萤对话",
         click: () => this.createChatWindow(),
+      },
+      {
+        label: "💭 流萤认知心境",
+        click: () => this.toggleSummaryWindow(),
       },
       {
         label: "⚙ 设置",
@@ -310,6 +394,11 @@ export class WindowManager {
   getPetWindow(): BrowserWindow | null {
     if (!this.petWindow || this.petWindow.isDestroyed()) return null;
     return this.petWindow;
+  }
+
+  getSummaryWindow(): BrowserWindow | null {
+    if (!this.summaryWindow || this.summaryWindow.isDestroyed()) return null;
+    return this.summaryWindow;
   }
 
   getStatusWindow(): BrowserWindow | null {

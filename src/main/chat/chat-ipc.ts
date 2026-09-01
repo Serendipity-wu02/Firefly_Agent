@@ -25,6 +25,7 @@ export function registerChatIpc(
       const state = stateManager.getState();
       const policyEngine = CharacterPolicyEngine.getInstance();
 
+      console.log(`[Harness Trace] main.chat.received prompt="${payload.message}"`);
       // 1. Unified Behavior Decision
       const behaviorDecision = policyEngine.decideBehavior({
         userPrompt: payload.message,
@@ -33,11 +34,15 @@ export function registerChatIpc(
       });
 
       // 2. Agent Core LLM Execution
+      console.log(`[Harness Trace] agent.start prompt="${payload.message}"`);
       const result = await agentCore.run({
         userPrompt: payload.message,
         history: payload.history || [],
         characterState: state,
       });
+      console.log(
+        `[Harness Trace] agent.complete status=${result.status} text="${result.finalText?.slice(0, 30)}..."`,
+      );
 
       // 3. Compile Unified EmbodimentPlan with generated reply text
       const embodimentPlan = policyEngine.createEmbodimentPlan(

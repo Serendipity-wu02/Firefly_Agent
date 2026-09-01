@@ -26,6 +26,12 @@ contextBridge.exposeInMainWorld("firefly", {
   openChat: () => ipcRenderer.send(IPC.WINDOW_OPEN_CHAT),
   openStatus: () => ipcRenderer.send(IPC.WINDOW_OPEN_STATUS),
   openSettings: () => ipcRenderer.send(IPC.WINDOW_OPEN_SETTINGS),
+  openSummary: () => ipcRenderer.send(IPC.WINDOW_OPEN_SUMMARY),
+  onSummaryUpdated: (cb: (summary: any) => void) => {
+    const listener = (_: unknown, summary: any) => cb(summary);
+    ipcRenderer.on(IPC.CHARACTER_SUMMARY_UPDATED, listener);
+    return () => { ipcRenderer.removeListener(IPC.CHARACTER_SUMMARY_UPDATED, listener); };
+  },
   showContextMenu: () => ipcRenderer.send(IPC.PET_SHOW_CONTEXT_MENU),
   setScale: (scale: number) => ipcRenderer.send(IPC.PET_SET_SCALE, scale),
   onPetZoom: (cb: (zoom: number) => void) => {
@@ -81,7 +87,10 @@ contextBridge.exposeInMainWorld("chat", {
     toolCalled?: boolean;
     embodimentPlan?: any;
     correlationId?: string;
-  }> => ipcRenderer.invoke(IPC.CHAT_SEND_MESSAGE, { message, history }),
+  }> => {
+    console.log(`[Harness Trace] preload.chat.sendMessage prompt="${message}"`);
+    return ipcRenderer.invoke(IPC.CHAT_SEND_MESSAGE, { message, history });
+  },
 });
 
 contextBridge.exposeInMainWorld("settings", {

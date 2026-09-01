@@ -4,6 +4,26 @@ import type { FireflyTarget } from "../../shared/firefly-actions";
 
 // Ensure PIXI is available globally for pixi-live2d-display
 (window as any).PIXI = PIXI;
+
+// PixiJS: Canonical native URL resolution (resolves utils.url.resolve deprecation)
+if ((PIXI as any).utils?.url) {
+  try {
+    Object.defineProperty((PIXI as any).utils.url, "resolve", {
+      value: (from: string, to: string): string => {
+        try {
+          return new URL(to, from).href;
+        } catch {
+          return to;
+        }
+      },
+      configurable: true,
+      writable: true,
+    });
+  } catch {
+    // Ignored if object is frozen
+  }
+}
+
 try {
   Live2DModel.registerTicker(PIXI.Ticker);
 } catch {
@@ -105,7 +125,8 @@ export class Live2DManager {
       }
 
       const model = await Live2DModel.from(this.modelPath, {
-        autoInteract: false,
+        autoHitTest: false,
+        autoFocus: false,
       });
 
       if (this.isDisposed) {
