@@ -1,10 +1,12 @@
 import type { ScoredKnowledgeChunk } from "./retrieval-types";
+import { KnowledgePerspectiveEvaluator } from "../character/knowledge-perspective";
 
 export interface KnowledgeProjectorConfig {
   maxTokens?: number;
   header?: string;
   showCanonicalPriority?: boolean;
   showSourceProvenance?: boolean;
+  showPerspectiveTag?: boolean;
 }
 
 export const DEFAULT_KNOWLEDGE_PROJECTOR_CONFIG: Required<KnowledgeProjectorConfig> = {
@@ -12,12 +14,14 @@ export const DEFAULT_KNOWLEDGE_PROJECTOR_CONFIG: Required<KnowledgeProjectorConf
   header: "【相关背景知识】 (Canonical Knowledge)",
   showCanonicalPriority: true,
   showSourceProvenance: true,
+  showPerspectiveTag: true,
 };
 
 /**
  * 知识投影器 (KnowledgeProjector)
  *
  * 负责将检索并重排序后的 ScoredKnowledgeChunk 列表，
+ * 结合流萤的主观认知视角（亲历记忆、同伴关系、外部情报），
  * 格式化为整洁、紧凑、具备清晰权威来源并严格受控于 Token 预算的 LLM 上下文文本。
  */
 export class KnowledgeProjector {
@@ -56,11 +60,16 @@ export class KnowledgeProjector {
       const chunk = item.chunk;
       const cleanText = chunk.text.trim().replace(/\s+/g, " ");
 
-      // 构建来源与权威度标签
+      // 构建来源与主观视角标签
       let prefix = "- ";
       if (this.config.showSourceProvenance) {
         const sourceName = chunk.sourceUri.split("/").pop() || chunk.sourceUri;
         prefix += `[${sourceName}] `;
+      }
+
+      if (this.config.showPerspectiveTag) {
+        const evalRes = KnowledgePerspectiveEvaluator.evaluate(chunk);
+        prefix += `[${evalRes.perspectiveLabel}] `;
       }
 
       let suffix = "";

@@ -5,6 +5,7 @@
  */
 
 import { PersonaLoader } from "./persona-loader";
+import { KnowledgePerspectiveEvaluator } from "./knowledge-perspective";
 import type {
   PersonaProfile,
   CharacterIntent,
@@ -74,6 +75,18 @@ export class CharacterPolicyEngine {
   }
 
   /**
+   * 评估知识切片的主观视角归属 (亲历记忆 / 同伴关系 / 外部情报 / 未知)
+   */
+  evaluateKnowledgePerspective(chunk: {
+    sourceUri?: string;
+    entityNames?: readonly string[];
+    text?: string;
+    metadata?: { perspective?: string; scene?: string; extra?: Record<string, unknown> };
+  }) {
+    return KnowledgePerspectiveEvaluator.evaluate(chunk);
+  }
+
+  /**
    * 构建 19 个可用 Live2D 动作说明列表
    */
   buildActionListString(): string {
@@ -95,6 +108,7 @@ export class CharacterPolicyEngine {
     const profile = this.getPersona();
     const actionListStr = this.buildActionListString();
     const stateStr = this.buildStateString(options.state);
+    const perspectiveSection = KnowledgePerspectiveEvaluator.buildPerspectiveSystemPromptSection();
 
     let memorySection = "";
     if (options.memoryContext && options.memoryContext.trim().length > 0) {
@@ -139,6 +153,8 @@ ${habitPoints}
 - 坚决不用「亲爱的」「宝贝」「主人」「yyds」「绝绝子」「栓Q」等违和与网络烂梗词汇
 - 常用衔接语气词：「嗯…」「那个…」「嘿嘿」
 - 对开拓者说话时显得更拘谨、更柔软、更坦率
+
+${perspectiveSection}
 
 【角色设定与准则】
 1. 你的唯一身份是流萤。用温柔真诚、富有少女感的语气与开拓者交流。
