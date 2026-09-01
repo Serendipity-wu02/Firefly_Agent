@@ -143,10 +143,14 @@ const mouthSync = new MouthSyncController(() => manager.getModel());
 lifecycle.track("resource", "mouthSync", () => mouthSync.dispose());
 
 // 6. Expression Reset Controller
+// Restores the CURRENT Behavior expression (persistent state), never an
+// unconditional expression00 — the Behavior may legitimately be happy, shy,
+// thinking, concerned, etc. when a temporary reaction expires.
+let currentPersistentExpression = "expression00";
 const expressionReset = new ExpressionResetController({
   defaultDurationMs: 5000,
   onReset: () => {
-    manager.setExpression("expression00");
+    manager.setExpression(currentPersistentExpression);
   },
 });
 lifecycle.track("resource", "expressionReset", () => expressionReset.dispose());
@@ -172,10 +176,19 @@ if (window.live2dAction?.onPlayAction) {
   const unsub = window.live2dAction.onPlayAction((target) => {
     console.log("[Firefly-Agent] Received Action Target from Main Action Catalog:", target);
     manager.playTarget(target);
-    // In V2.4, expressions are persistent with behavior state unless explicitly marked temporary
-    if (target.kind === "expression" && (target as any).temporary) {
-      expressionReset.trigger((target as any).durationMs);
+    if (target.kind === "expression") {
+      if ((target as any).temporary) {
+        // One-shot reaction expression: apply → duration → restore current Behavior expression
+        expressionReset.trigger((target as any).durationMs);
+      } else {
+        // Persistent Behavior expression: becomes the restore target and
+        // supersedes any pending temporary-expression reset
+        currentPersistentExpression = target.name;
+        expressionReset.cancel();
+      }
     }
+    // Motion lifecycle: plays to its natural end, then Idle group resumes.
+    // No timer is imposed on motions.
   });
   lifecycle.track("subscription", "live2dAction", unsub);
 }

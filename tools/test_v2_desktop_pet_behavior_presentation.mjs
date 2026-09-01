@@ -83,10 +83,17 @@ test("6. Speaking Visual Non-Interference: Speaking only modulates mouthSync wit
   assert.ok(!speakingSource.includes('this.manager.playActionId("idle")'), "Speaking stop must not force idle action");
 });
 
-test("7. ExpressionResetController Non-Interference: Expressions are NOT wiped unconditionally after 5 seconds", () => {
+test("7. ExpressionResetController Non-Interference: temporary expressions restore the CURRENT Behavior expression", () => {
   const mainRendererSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "main.ts"), "utf-8");
   assert.ok(mainRendererSource.includes("temporary"), "Expression reset must only run for temporary targets");
-  assert.ok(mainRendererSource.includes('manager.setExpression("expression00")'), "Reset target must be expression00");
+  assert.ok(
+    mainRendererSource.includes("manager.setExpression(currentPersistentExpression)"),
+    "Reset must restore the current Behavior expression, not a fixed one",
+  );
+  assert.ok(
+    !mainRendererSource.includes('manager.setExpression("expression00")'),
+    "Reset must NOT unconditionally fall back to expression00 (Behavior may be happy/shy/thinking/concerned)",
+  );
 });
 
 test("8. Semantic Distinction: User Distress (comfort_user) != Legacy sick", () => {

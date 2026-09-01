@@ -109,8 +109,17 @@ function setupIpcHandlers() {
     const policyEngine = CharacterPolicyEngine.getInstance();
     const plan = policyEngine.handleInteraction(action);
     if (plan.requiresEmbodiment && plan.visual) {
+      const target = plan.visual.target;
+      // One-shot interaction reactions must have a bounded lifecycle:
+      // expression reactions are marked temporary so the renderer restores
+      // the current Behavior expression after durationMs; motions play to
+      // their natural end (motion lifecycle is completion, not a timer).
+      const payload =
+        target.kind === "expression"
+          ? { ...target, temporary: true, durationMs: plan.visual.durationMs ?? 5000 }
+          : target;
       windowManager.sendToPet(IPC.LIVE2D_PLAY_ACTION, {
-        ...plan.visual.target,
+        ...payload,
         correlationId: plan.correlationId,
         behaviorType: plan.behaviorType,
       });
