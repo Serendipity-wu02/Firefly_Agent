@@ -6,6 +6,7 @@ import type { ChatMessage } from "../../shared/chat-types";
 import type { LlmProviderConfig, ProviderId } from "../../shared/provider-types";
 import { PROVIDER_PRESETS, DEFAULT_LLM_CONFIG } from "../../shared/provider-types";
 import { globalTtsPlayback, type TtsPlaybackSnapshot } from "../tts/tts-playback";
+import { ChatMessageItem } from "./components/ChatMessageItem";
 
 declare global {
   interface Window {
@@ -268,40 +269,13 @@ export const App: React.FC = () => {
             gap: "12px",
           }}>
             {messages.map((m) => (
-              <div
+              <ChatMessageItem
                 key={m.id}
-                style={{
-                  alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  maxWidth: "82%",
-                  background: m.role === "user" ? "#285c4a" : "#1e222d",
-                  padding: "10px 14px",
-                  borderRadius: "10px",
-                  fontSize: "14px",
-                  lineHeight: "1.5",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-                  wordBreak: "break-word",
-                  userSelect: "text",
-                }}
-              >
-                {m.content}
-                {m.role === "assistant" && ttsSettings.engine !== "off" && (
-                  <div style={{ marginTop: "6px", textAlign: "right" }}>
-                    <button
-                      onClick={() => globalTtsPlayback.speak(m.content, { messageId: m.id })}
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: ttsPlaybackSnapshot.messageId === m.id ? "#52e3b2" : "#72798e",
-                        cursor: "pointer",
-                        fontSize: "12px",
-                        padding: "2px 4px",
-                      }}
-                    >
-                      {ttsPlaybackSnapshot.messageId === m.id && (ttsPlaybackSnapshot.status === "playing" || ttsPlaybackSnapshot.status === "synthesizing") ? "🔊 朗读中..." : "🔈 播放语音"}
-                    </button>
-                  </div>
-                )}
-              </div>
+                message={m}
+                ttsEnabled={ttsSettings.engine !== "off"}
+                ttsPlaybackSnapshot={ttsPlaybackSnapshot}
+                onSpeak={(text, opts) => globalTtsPlayback.speak(text, opts)}
+              />
             ))}
             {isLoading && (
               <div style={{

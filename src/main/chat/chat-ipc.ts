@@ -45,9 +45,13 @@ export function registerChatIpc(
         result.finalText,
       );
 
-      // 4. Dispatch Visual Embodiment Target to Live2D Window (if enabled)
+      // 4. Dispatch Visual Embodiment Target to Live2D Window (if enabled) with correlationId
       if (embodimentPlan.requiresEmbodiment && embodimentPlan.visual && sendToPet) {
-        sendToPet(IPC.LIVE2D_PLAY_ACTION, embodimentPlan.visual.target);
+        sendToPet(IPC.LIVE2D_PLAY_ACTION, {
+          ...embodimentPlan.visual.target,
+          correlationId: embodimentPlan.correlationId,
+          behaviorType: embodimentPlan.behaviorType,
+        });
       }
 
       onEmbodimentPlan?.(embodimentPlan);

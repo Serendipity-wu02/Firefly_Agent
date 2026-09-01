@@ -1,6 +1,6 @@
 export type FireflyTarget =
-  | { kind: "motion"; group: string; motionName: string }
-  | { kind: "expression"; name: string };
+  | { kind: "motion"; group: string; motionName: string; correlationId?: string; behaviorType?: string }
+  | { kind: "expression"; name: string; correlationId?: string; behaviorType?: string };
 
 export interface FireflyAction {
   /** Unique action ID */

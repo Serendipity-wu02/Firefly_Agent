@@ -267,3 +267,41 @@ test("10. Numeric Independence: Zero reliance on legacy affection/hunger/energy 
   assert.equal(p1.visual?.actionId, p2.visual?.actionId);
   assert.deepEqual(p1.voice.prosodyHint, p2.voice.prosodyHint);
 });
+
+test("11. Avatar Resolver: Resolves default Firefly avatar descriptor with consistent identity", async () => {
+  const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "react", "avatar-resolver.ts")}`);
+  const { DefaultAvatarResolver } = avatarModule;
+
+  const resolver = new DefaultAvatarResolver();
+  const fireflyAvatar = resolver.resolveAvatar("assistant");
+  assert.equal(fireflyAvatar.name, "流萤");
+  assert.equal(fireflyAvatar.alt, "流萤 (Firefly)");
+  assert.ok(fireflyAvatar.badgeBg.includes("#3dbd98"));
+
+  const userAvatar = resolver.resolveAvatar("user");
+  assert.equal(userAvatar.name, "开拓者");
+});
+
+test("12. Live2D Target Correlation: Live2D target payload safely carries correlationId and behaviorType", async () => {
+  const { CharacterPolicyEngine } = await import(`file://${characterPolicyPath}`);
+
+  const engine = CharacterPolicyEngine.getInstance();
+  const decision = engine.decideBehavior({
+    userPrompt: "流萤，夸夸你！",
+    mode: "daily",
+  });
+
+  const plan = engine.createEmbodimentPlan(decision, "嘿嘿，谢谢你！");
+  assert.ok(plan.visual);
+
+  const live2dPayload = {
+    ...plan.visual.target,
+    correlationId: plan.correlationId,
+    behaviorType: plan.behaviorType,
+  };
+
+  assert.equal(live2dPayload.kind, "expression");
+  assert.equal(live2dPayload.name, "expression10");
+  assert.equal(live2dPayload.correlationId, plan.correlationId);
+  assert.equal(live2dPayload.behaviorType, "restrained_response");
+});
