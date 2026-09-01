@@ -1,8 +1,27 @@
 {
   "name": "firefly-agent",
-  "version": "1.0.0",
+  "version": "2.3.0",
   "description": "Firefly Desktop AI Agent - 流萤桌面智能体",
   "main": "dist/main/main/index.js",
+  "bin": {
+    "firefly": "./bin/firefly.mjs",
+    "firefly-agent": "./bin/firefly.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "assets",
+    "resources",
+    "config/settings.example.json",
+    "data/knowledge",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  },
+  "packageManager": "npm@11.17.0",
   "scripts": {
     "build:main": "tsc -p tsconfig.main.json",
     "build:preload": "tsc -p tsconfig.preload.json",
@@ -11,7 +30,7 @@
     "dev": "npm run build:main && npm run build:preload && concurrently \"vite\" \"cross-env VITE_DEV=1 electron .\"",
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit",
-    "test": "node tools/test_firefly_agent_core_freeze.mjs && node tools/test_firefly_agent_core_v1.mjs && node tools/test_firefly_voice_v1.mjs && node tools/test_llm_tts_live2d_chain.mjs && node tools/test_music_system.mjs && node tools/test_qqmusic_desktop_bridge.mjs && node tools/test_v2_phase_a_context.mjs && node tools/test_v2_phase_b_compaction.mjs && node tools/test_v2_phase_c_tool_policy.mjs && node tools/test_v2_phase_d_recovery_durability.mjs && node tools/test_v2_phase_e_bounded_planning.mjs && node tools/test_v2_memory_phase1_store.mjs && node tools/test_v2_memory_phase2_retrieval.mjs && node tools/test_live2d_only.mjs && node tools/test_v2_memory_phase3_write_policy.mjs && node tools/test_v2_memory_phase4_evolution.mjs && node tools/test_v2_memory_phase5_context_integration.mjs && node tools/test_v2_rag_phase1_ingestion.mjs && node tools/test_v2_rag_phase2_vector_store.mjs && node tools/test_v2_rag_phase3_hybrid_retrieval.mjs && node tools/test_v2_rag_production_embedding.mjs && node tools/test_v2_rag_phase4_ragslot_integration.mjs && node tools/test_live2d_resource_reload.mjs"
+    "test": "node tools/test_environment_baseline.mjs && node tools/test_npm_distribution.mjs && node tools/test_firefly_agent_core_freeze.mjs && node tools/test_firefly_agent_core_v1.mjs && node tools/test_firefly_voice_v1.mjs && node tools/test_llm_tts_live2d_chain.mjs && node tools/test_music_system.mjs && node tools/test_qqmusic_desktop_bridge.mjs && node tools/test_v2_phase_a_context.mjs && node tools/test_v2_phase_b_compaction.mjs && node tools/test_v2_phase_c_tool_policy.mjs && node tools/test_v2_phase_d_recovery_durability.mjs && node tools/test_v2_phase_e_bounded_planning.mjs && node tools/test_v2_memory_phase1_store.mjs && node tools/test_v2_memory_phase2_retrieval.mjs && node tools/test_live2d_only.mjs && node tools/test_v2_memory_phase3_write_policy.mjs && node tools/test_v2_memory_phase4_evolution.mjs && node tools/test_v2_memory_phase5_context_integration.mjs && node tools/test_v2_rag_phase1_ingestion.mjs && node tools/test_v2_rag_phase2_vector_store.mjs && node tools/test_v2_rag_phase3_hybrid_retrieval.mjs && node tools/test_v2_rag_production_embedding.mjs && node tools/test_v2_rag_phase4_ragslot_integration.mjs && node tools/test_live2d_resource_reload.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
@@ -20,11 +39,11 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
-    "electron": "^33.2.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.1"
   },
   "dependencies": {
+    "electron": "^33.2.0",
     "js-yaml": "^4.1.0",
     "@types/js-yaml": "^4.0.9",
     "pixi.js": "^7.4.2",
@@ -32,5 +51,19 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "lucide-react": "^0.468.0"
-  }
+  },
+  "author": "Serendipity-wu02",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Serendipity-wu02/Firefly_Agent.git"
+  },
+  "keywords": [
+    "firefly",
+    "desktop-pet",
+    "ai-agent",
+    "live2d",
+    "electron",
+    "honkai-star-rail"
+  ]
 }

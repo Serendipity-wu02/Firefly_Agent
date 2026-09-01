@@ -122,19 +122,28 @@ Firefly-Pet/
 ## 🚀 快速上手 (Quick Start)
 
 ### 1. 环境依赖
-- **Node.js**: >= 18.0.0
+- **Node.js**: `>= 24.0.0` (推荐 Node.js 24 LTS，锁定 `.node-version` 与 `.nvmrc`)
+- **npm**: `>= 11.0.0` (项目通过 `package.json` 的 `packageManager` 与 `engines` 锁定 `npm@11.17.0`，随项目提供无需手动升级)
 - **操作系统**: Windows 10 / 11 (GSMTC 媒体控制支持)
 - **GPT-SoVITS**: 本地独立运行的 GPT-SoVITS 服务（端口 9880）
 - **Python**: >= 3.10 (用于运行资产校验脚本)
 
 ### 2. 安装与配置
+
+#### 方式 A：一键初始化（推荐）
+直接运行根目录的 `setup.bat`，自动使用项目随附 npm 11 完成依赖安装、基线校验与工程构建：
+```powershell
+.\setup.bat
+```
+
+#### 方式 B：手动执行（项目级工具链）
 ```powershell
 # 克隆仓库
 git clone https://github.com/Serendipity-wu02/Firefly_Agent.git
 cd Firefly_Agent
 
-# 安装依赖
-npm install
+# 使用项目随附 npm 11 安装依赖 (无需全局升级)
+node tools/npm.mjs install
 
 # 复制默认配置
 Copy-Item config/settings.example.json config/settings.json
@@ -143,26 +152,40 @@ Copy-Item config/settings.example.json config/settings.json
 ### 3. 本地运行与构建
 ```powershell
 # 类型检查
-npm run typecheck
+node tools/npm.mjs run typecheck
 
 # 编译构建
-npm run build
+node tools/npm.mjs run build
 
 # 启动桌宠 (生产模式)
-npm start
+node tools/npm.mjs start
 
 # 开发模式 (热重载)
-npm run dev
+node tools/npm.mjs run dev
+```
+
+### 4. npm Registry 全局安装与 CLI 启动 (Global CLI Distribution)
+当通过 npm Registry 安装后，可在系统任意目录下直接通过 `firefly` 或 `firefly-agent` 启动：
+```powershell
+# 全局安装
+npm install -g firefly-agent
+
+# 任意路径直接启动桌面应用
+firefly
+
+# 查看版本与帮助
+firefly --version
+firefly --help
 ```
 
 ---
 
 ## 🧪 测试与验证 (Testing & Verification)
 
-Firefly-Pet 配备严格的多层级回归测试体系（23 个测试套件，299 项自动化测试全部通过）：
+Firefly-Pet 配备严格的多层级回归测试体系（25 个测试套件，307 项自动化测试全部通过）：
 
 ```powershell
-# 1. 运行主回归测试套件 (包含 Agent Core, Context, Memory v2, RAG, Live2D)
+# 1. 运行主回归测试套件 (包含 Node 24/npm 11 基线自检, npm 打包隔离测试, Agent Core, Context, Memory v2, RAG, Live2D)
 npm test
 
 # 2. 运行 Python 资产与逻辑校验套件 (5 项全部通过)
