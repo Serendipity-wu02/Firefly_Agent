@@ -90,10 +90,6 @@ const manager = new Live2DManager({
   modelPath: "assets://firefly/models/Firefly.model3.json",
   onLoad: () => {
     console.log("[Firefly-Agent] Live2D Model loaded successfully.");
-    setTimeout(() => {
-      const metrics = manager.measureMetrics();
-      console.log("[Firefly-Metrics] " + JSON.stringify(metrics));
-    }, 100);
   },
   onModelUnavailable: () => {
     console.warn("[Firefly-Agent] Live2D model unavailable.");
