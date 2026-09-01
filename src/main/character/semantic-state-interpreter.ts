@@ -118,20 +118,33 @@ export class SemanticStateInterpreter {
     // 3. 特征分类：严格区分【外部用户不适】与【流萤自身身世/失熵症/身体解离】
     const isUserDistress =
       prompt.includes("我难过") ||
+      prompt.includes("难过") ||
       prompt.includes("我好累") ||
       prompt.includes("我累了") ||
+      prompt.includes("累了") ||
+      prompt.includes("好累") ||
       prompt.includes("我头疼") ||
       prompt.includes("我头痛") ||
+      prompt.includes("头好疼") ||
+      prompt.includes("头好痛") ||
       prompt.includes("头疼") ||
       prompt.includes("头痛") ||
       prompt.includes("好痛") ||
+      prompt.includes("好疼") ||
       prompt.includes("难受") ||
       prompt.includes("我不舒服") ||
+      prompt.includes("不舒服") ||
       prompt.includes("我生病") ||
+      prompt.includes("生病") ||
       prompt.includes("我受伤") ||
+      prompt.includes("受伤") ||
       prompt.includes("我好痛苦") ||
+      prompt.includes("好痛苦") ||
+      prompt.includes("痛苦") ||
       prompt.includes("我哭了") ||
+      prompt.includes("哭了") ||
       prompt.includes("我很失落") ||
+      prompt.includes("失落") ||
       prompt.includes("救救我") ||
       prompt.includes("工作好累") ||
       prompt.includes("倒霉事");
@@ -169,10 +182,14 @@ export class SemanticStateInterpreter {
     const isJoyOrFoodOrMilestone =
       prompt.includes("蛋糕卷") ||
       prompt.includes("橡木蛋糕卷") ||
+      prompt.includes("天台") ||
+      prompt.includes("匹诺康尼") ||
+      prompt.includes("秘密基地") ||
       prompt.includes("看星星") ||
+      prompt.includes("流星") ||
       prompt.includes("萤火虫") ||
       prompt.includes("烟花") ||
-      prompt.includes("秘密基地") ||
+      prompt.includes("冰淇淋") ||
       prompt.includes("礼物") ||
       prompt.includes("好久不见") ||
       prompt.includes("开心") ||
