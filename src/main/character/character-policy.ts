@@ -8,6 +8,7 @@ import { PersonaLoader } from "./persona-loader";
 import { KnowledgePerspectiveEvaluator } from "./knowledge-perspective";
 import { RelationshipRegistry } from "./relationship-registry";
 import { SemanticStateInterpreter } from "./semantic-state-interpreter";
+import { BehaviorRuntime } from "./behavior-runtime";
 import type {
   PersonaProfile,
   CharacterIntent,
@@ -22,6 +23,10 @@ import type {
   SemanticInnerState,
   EmotionInterpretationInput,
 } from "./semantic-state-types";
+import type {
+  BehaviorDecision,
+  BehaviorEvaluationInput,
+} from "./behavior-types";
 import type { CharacterStateData } from "../../shared/firefly-state";
 import { FIREFLY_ACTIONS } from "../../shared/firefly-actions";
 
@@ -134,6 +139,13 @@ export class CharacterPolicyEngine {
    */
   interpretSemanticState(input: EmotionInterpretationInput = {}): SemanticInnerState {
     return SemanticStateInterpreter.interpret(input);
+  }
+
+  /**
+   * 确定性评估并生成高维角色行为决策 (Behavior Decision)
+   */
+  decideBehavior(input: BehaviorEvaluationInput = {}): BehaviorDecision {
+    return BehaviorRuntime.decide(input);
   }
 
   /**

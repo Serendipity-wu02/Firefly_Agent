@@ -12,3 +12,5 @@ export * from "./relationship-loader";
 export * from "./relationship-registry";
 export * from "./semantic-state-types";
 export * from "./semantic-state-interpreter";
+export * from "./behavior-types";
+export * from "./behavior-runtime";
