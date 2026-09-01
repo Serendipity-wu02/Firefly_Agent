@@ -15,6 +15,7 @@ export const IPC = {
   PET_VISIBILITY_CHANGED: "pet:visibility-changed",
   PET_SPEAKING_CHANGED: "pet:speaking-changed",
   PET_PROACTIVE_LINE: "pet:proactive-line",
+  PET_INTERACTION: "pet:interaction",
   WINDOW_OPEN_CHAT: "window:open-chat",
   WINDOW_OPEN_STATUS: "window:open-status",
   WINDOW_OPEN_SETTINGS: "window:open-settings",

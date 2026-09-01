@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("firefly", {
   },
   captureFrame: () => ipcRenderer.invoke(IPC.PET_CAPTURE_FRAME),
   getCursorPosition: () => ipcRenderer.invoke(IPC.PET_GET_CURSOR_POS),
+  interact: (action: "click" | "touch") => ipcRenderer.invoke(IPC.PET_INTERACTION, action),
   openChat: () => ipcRenderer.send(IPC.WINDOW_OPEN_CHAT),
   openStatus: () => ipcRenderer.send(IPC.WINDOW_OPEN_STATUS),
   openSettings: () => ipcRenderer.send(IPC.WINDOW_OPEN_SETTINGS),

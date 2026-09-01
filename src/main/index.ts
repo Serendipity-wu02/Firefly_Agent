@@ -96,23 +96,21 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle(IPC.CARE_ACTION, async (_event, action: CareActionType) => {
-    // 1. Update legacy numeric state for stats compatibility & UI
-    const result = stateManager.handleCareAction(action);
+    // Update legacy numeric state for stats compatibility & UI
+    return stateManager.handleCareAction(action);
+  });
 
-    // 2. V2.4 Behavior/Embodiment: single source of truth for visual decisions
-    if (action === "click" || action === "touch") {
-      const policyEngine = CharacterPolicyEngine.getInstance();
-      const plan = policyEngine.handleInteraction(action);
-      if (plan.requiresEmbodiment && plan.visual) {
-        windowManager.sendToPet(IPC.LIVE2D_PLAY_ACTION, {
-          ...plan.visual.target,
-          correlationId: plan.correlationId,
-          behaviorType: plan.behaviorType,
-        });
-      }
+  // Interaction IPC Handler (Pure V2.4 Character Event, zero numeric state mutation)
+  ipcMain.handle(IPC.PET_INTERACTION, async (_event, action: "click" | "touch") => {
+    const policyEngine = CharacterPolicyEngine.getInstance();
+    const plan = policyEngine.handleInteraction(action);
+    if (plan.requiresEmbodiment && plan.visual) {
+      windowManager.sendToPet(IPC.LIVE2D_PLAY_ACTION, {
+        ...plan.visual.target,
+        correlationId: plan.correlationId,
+        behaviorType: plan.behaviorType,
+      });
     }
-
-    return result;
   });
 
   ipcMain.handle(IPC.PET_SET_INTERACTIVE, async (_event, interactive: boolean) => {

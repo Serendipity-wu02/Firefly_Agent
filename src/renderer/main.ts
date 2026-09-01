@@ -104,12 +104,12 @@ const interaction = new InteractionController(canvas, manager, {
   alphaThreshold: 15,
   dragDistanceThreshold: 5,
   onPetClick: () => {
-    console.log("[Firefly-Agent] Character Body Clicked -> Requesting Main CharacterState click");
-    void window.characterState?.careAction("click");
+    console.log("[Firefly-Agent] Character Body Clicked -> Requesting V2.4 Character Interaction (click)");
+    void (window.firefly as any)?.interact?.("click");
   },
   onPetPet: () => {
-    console.log("[Firefly-Agent] Character Head Petted -> Requesting Main CharacterState touch");
-    void window.characterState?.careAction("touch");
+    console.log("[Firefly-Agent] Character Head Petted -> Requesting V2.4 Character Interaction (touch)");
+    void (window.firefly as any)?.interact?.("touch");
   },
   onPetDragStart: () => {
     console.log("[Firefly-Agent] Character Dragging started");
