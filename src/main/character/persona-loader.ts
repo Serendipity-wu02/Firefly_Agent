@@ -1,6 +1,6 @@
 /**
  * @file persona-loader.ts
- * @description Loads, parses, and validates resources/firefly.yaml as the Single Source of Truth.
+ * @description Loads, parses, and validates resources/persona/firefly.yaml as the Single Source of Truth.
  */
 
 import fs from "node:fs";
@@ -13,7 +13,7 @@ export class PersonaLoader {
   private static resolvedYamlPath: string | null = null;
 
   /**
-   * 自动探测并解析 resources/firefly.yaml 物理绝对路径
+   * 自动探测并解析 resources/persona/firefly.yaml 物理绝对路径
    */
   static resolveYamlPath(customRoot?: string): string {
     if (this.resolvedYamlPath && !customRoot) {
@@ -52,22 +52,12 @@ export class PersonaLoader {
         this.resolvedYamlPath = canonicalP;
         return canonicalP;
       }
-      const compatP = path.join(root, "resources", "firefly.yaml");
-      if (fs.existsSync(compatP)) {
-        this.resolvedYamlPath = compatP;
-        return compatP;
-      }
     }
 
     // Fallback default
     const fallbackCanonical = path.join(process.cwd(), "resources", "persona", "firefly.yaml");
-    if (fs.existsSync(fallbackCanonical)) {
-      this.resolvedYamlPath = fallbackCanonical;
-      return fallbackCanonical;
-    }
-    const fallbackCompat = path.join(process.cwd(), "resources", "firefly.yaml");
-    this.resolvedYamlPath = fallbackCompat;
-    return fallbackCompat;
+    this.resolvedYamlPath = fallbackCanonical;
+    return fallbackCanonical;
   }
 
   /**

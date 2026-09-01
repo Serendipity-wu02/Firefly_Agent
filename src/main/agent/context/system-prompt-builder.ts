@@ -13,7 +13,7 @@ export interface SystemPromptOptions {
 /**
  * SystemPromptBuilder (流萤系统 Prompt 组装门面)
  *
- * 接入 CharacterPolicyEngine 与 resources/firefly.yaml 单一真源 (Single Source of Truth)，
+ * 接入 CharacterPolicyEngine 与 resources/persona/firefly.yaml 单一真源 (Single Source of Truth)，
  * 动态组装高保真人格、向死而生价值观、口癖规范、防篡改守卫、角色状态与 19 个 Live2D 动作约束。
  */
 export class SystemPromptBuilder {

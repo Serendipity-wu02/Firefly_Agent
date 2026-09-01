@@ -1,6 +1,6 @@
 /**
  * @file test_v2_canonical_single_source_of_truth.mjs
- * @description Validates that resources/firefly.yaml is the STRICT Single Source of Truth for all Persona facts.
+ * @description Validates that resources/persona/firefly.yaml is the STRICT Single Source of Truth for all Persona facts.
  * Tests dynamic synchronization of YAML -> PersonaLoader -> PersonaProfile -> CharacterPolicy -> SystemPrompt.
  */
 
@@ -107,7 +107,9 @@ test("2. Dynamic Single Source of Truth Synchronization: Changing YAML dynamical
     proactive_chat: { emotion_detect: "", concern_follow_up: "", idle_casual: "" },
   };
 
-  const customYamlFile = path.join(tempResourcesDir, "firefly.yaml");
+  const tempPersonaDir = path.join(tempResourcesDir, "persona");
+  fs.mkdirSync(tempPersonaDir, { recursive: true });
+  const customYamlFile = path.join(tempPersonaDir, "firefly.yaml");
   fs.writeFileSync(customYamlFile, yaml.dump(customYamlData), "utf-8");
 
   try {

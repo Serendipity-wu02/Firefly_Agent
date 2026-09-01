@@ -1,7 +1,7 @@
 /**
  * @file persona-types.ts
  * @description Strongly typed contract for Firefly Persona, Character Identity, Guardrails, and Policies.
- * Derived directly from Canonical Single Source of Truth: resources/firefly.yaml.
+ * Derived directly from Canonical Single Source of Truth: resources/persona/firefly.yaml.
  */
 
 export interface CharacterMeta {
@@ -110,7 +110,7 @@ export interface PersonaProactiveChat {
 
 /**
  * 完整流萤人格画像强类型契约 (PersonaProfile)
- * 与 resources/firefly.yaml 结构 100% 对应
+ * 与 resources/persona/firefly.yaml 结构 100% 对应
  */
 export interface PersonaProfile {
   character: CharacterMeta;

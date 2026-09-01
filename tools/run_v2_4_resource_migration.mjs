@@ -105,7 +105,7 @@ export function runDryRun(manifestPath = path.join(projectRoot, 'docs', 'v2', 'v
   console.log('- 0 missing');
   console.log('- 0 collision');
   console.log('- 0 unresolved');
-  console.log('- firefly.yaml compatibility requirement: resources/firefly.yaml -> resources/persona/firefly.yaml');
+  console.log('- Canonical persona path: resources/persona/firefly.yaml');
   console.log('DRY RUN PASSED SUCCESSFULLY!\n');
 
   return { moves, plannedDirs };
@@ -139,28 +139,6 @@ export function executeMigration(manifestPath = path.join(projectRoot, 'docs', '
     const targetDir = path.dirname(absTarget);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
-    }
-
-    // Special handling for firefly.yaml compatibility:
-    // When moving resources/firefly.yaml -> resources/persona/firefly.yaml:
-    // Write target file, and ensure source path remains valid via hardlink or compatibility copy
-    if (m.source === 'resources/firefly.yaml' && m.target === 'resources/persona/firefly.yaml') {
-      fs.writeFileSync(absTarget, sourceBuffer);
-      // Verify target
-      const targetHash = getSha256(absTarget);
-      if (targetHash !== sourceHash) {
-        throw new Error(`Hash mismatch on firefly.yaml move!`);
-      }
-      // Note: we leave resources/firefly.yaml in place or link it
-      console.log(`[${i + 1}/806] Migrated firefly.yaml -> resources/persona/firefly.yaml (Retaining compatibility at resources/firefly.yaml)`);
-      auditRecords.push({
-        source: m.source,
-        target: m.target,
-        size: sourceSize,
-        hash: sourceHash,
-        status: 'COPIED_AND_RETAINED_COMPATIBILITY'
-      });
-      continue;
     }
 
     // Write to target
