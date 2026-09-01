@@ -7,11 +7,12 @@ const PET_WINDOW_BASE_WIDTH = 429;
 const PET_WINDOW_BASE_HEIGHT = 315;
 const STATUS_WINDOW_WIDTH = 420;
 const STATUS_WINDOW_HEIGHT = 560;
-// Harness Chat Window sizing: pure flex layout (Header / Conversation /
-// Composer) that scales without overflow. Final size is set in the chat
-// window phase; this constant is the only place it is defined.
-const CHAT_WINDOW_WIDTH = 576;
-const CHAT_WINDOW_HEIGHT = 800;
+// Harness Chat Window sizing: user-specified final default 1920×1080
+// (full-HD landscape). Historical sizes (440×620, 576×800, 768×432) are
+// obsolete. Layout is pure flex (Header / Conversation / Composer), so it
+// scales without overflow. This constant is the only place it is defined.
+const CHAT_WINDOW_WIDTH = 1920;
+const CHAT_WINDOW_HEIGHT = 1080;
 // Mood (Summary) Window: user-specified final 768×540, floating outside the
 // Harness Chat Window's right-top corner as an independent BrowserWindow.
 const SUMMARY_WINDOW_WIDTH = 768;
@@ -191,10 +192,12 @@ export class WindowManager {
     const workArea = primaryDisplay.workArea;
 
     const petBounds = this.petWindow?.getBounds();
-    const defaultX = petBounds
-      ? Math.max(workArea.x, petBounds.x - CHAT_WINDOW_WIDTH - 16)
-      : workArea.x + workArea.width - CHAT_WINDOW_WIDTH - 420;
-    const defaultY = petBounds ? petBounds.y : workArea.y + workArea.height - CHAT_WINDOW_HEIGHT - 32;
+    // Prefer opening beside the pet, then clamp into the work area so a
+    // 1080-tall window never spills under the taskbar / off-screen.
+    const rawX = petBounds ? petBounds.x - CHAT_WINDOW_WIDTH - 16 : workArea.x + workArea.width - CHAT_WINDOW_WIDTH - 420;
+    const rawY = petBounds ? petBounds.y : workArea.y + workArea.height - CHAT_WINDOW_HEIGHT - 32;
+    const defaultX = Math.max(workArea.x, Math.min(rawX, workArea.x + workArea.width - CHAT_WINDOW_WIDTH));
+    const defaultY = Math.max(workArea.y, Math.min(rawY, workArea.y + workArea.height - CHAT_WINDOW_HEIGHT));
 
     const win = new BrowserWindow({
       x: defaultX,
