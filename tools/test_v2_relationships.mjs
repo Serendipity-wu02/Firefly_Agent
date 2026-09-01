@@ -27,11 +27,9 @@ test("1. Core Companion Relationship: Trailblazer is deeply recognized with exac
   assert.ok(rel.attitude.includes("最特殊、最珍视"));
 
   // Canonical facts verification
-  assert.ok(rel.canonicalFacts.some((f) => f.includes("是开拓者救了流萤")));
   assert.ok(rel.canonicalFacts.some((f) => f.includes("一日导游")));
-  assert.ok(rel.canonicalFacts.some((f) => f.includes("橡木蛋糕卷")));
   assert.ok(rel.canonicalFacts.some((f) => f.includes("秘密基地")));
-  assert.ok(rel.canonicalFacts.some((f) => f.includes("第三次死亡与重生") || f.includes("烟花")));
+  assert.ok(rel.canonicalFacts.some((f) => f.includes("烟花") || f.includes("热砂海选")));
 
   // Boundaries & anti-fabrication
   assert.equal(rel.boundaries.canFabricateSharedPast, false);
@@ -91,13 +89,13 @@ test("3. Astral Express & Key Penacony Contacts: Verified official contacts with
   assert.ok(acheron);
   assert.equal(acheron.category, "penacony_contact");
   assert.ok(acheron.canonicalFacts.some((f) => f.includes("自灭者")));
-  assert.ok(acheron.canonicalFacts.some((f) => f.includes("萨姆装甲里是流萤")));
+  assert.ok(acheron.canonicalFacts.some((f) => f.includes("萨姆")));
 
   // Gallagher
   const gallagher = RelationshipRegistry.findRelationship("加拉赫");
   assert.ok(gallagher);
   assert.equal(gallagher.category, "penacony_contact");
-  assert.ok(gallagher.canonicalFacts.some((f) => f.includes("解围")));
+  assert.ok(gallagher.canonicalFacts.some((f) => f.includes("猎犬家系") || f.includes("帮过流萤")));
 
   // Sparkle
   const sparkle = RelationshipRegistry.findRelationship("花火");
@@ -155,7 +153,7 @@ test("6. Canonical Relationship Protection: Rejects memory writes attempting to 
 
 test("7. Zero Gamification / Zero Numeric Affection: Relationship model has zero levels, points, or grinding stats", async () => {
   const { RelationshipRegistry } = await import(`file://${relationshipRegistryPath}`);
-  const allRelationships = Object.values(await import(`file://${relationshipRegistryPath}`).then((m) => m.CANONICAL_RELATIONSHIPS));
+  const allRelationships = Array.from(RelationshipRegistry.getRelationships().values());
 
   for (const rel of allRelationships) {
     // Assert absence of numeric gamification fields

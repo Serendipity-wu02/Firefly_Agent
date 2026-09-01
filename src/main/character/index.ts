@@ -8,4 +8,5 @@ export * from "./persona-loader";
 export * from "./character-policy";
 export * from "./knowledge-perspective";
 export * from "./relationship-types";
+export * from "./relationship-loader";
 export * from "./relationship-registry";
