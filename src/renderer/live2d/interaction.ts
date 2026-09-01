@@ -1,4 +1,5 @@
 import type { FireflyLive2DManager } from "./manager";
+import { debugLog } from "../debug-log";
 
 export type HitAreaType = "head" | "body" | "special";
 
@@ -100,10 +101,10 @@ export class InteractionController {
   private handleContextMenu = (e: MouseEvent): void => {
     if (this.disposed) return;
     const alpha = this.manager.getPixelAlpha(e.clientX, e.clientY);
-    console.log(`[Interaction] contextmenu at (${e.clientX}, ${e.clientY}), alpha = ${alpha}`);
+    debugLog(`[Interaction] contextmenu at (${e.clientX}, ${e.clientY}), alpha = ${alpha}`);
     if (alpha >= this.alphaThreshold) {
       e.preventDefault();
-      console.log("[Interaction] Context menu triggered on character silhouette!");
+      debugLog("[Interaction] Context menu triggered on character silhouette!");
       this.options.onContextMenu?.();
     }
   };
@@ -113,7 +114,7 @@ export class InteractionController {
     if (e.button !== 0) return; // Left button only
 
     const alpha = this.manager.getPixelAlpha(e.clientX, e.clientY);
-    console.log(`[Interaction] pointerdown (left) at (${e.clientX}, ${e.clientY}), alpha = ${alpha}`);
+    debugLog(`[Interaction] pointerdown (left) at (${e.clientX}, ${e.clientY}), alpha = ${alpha}`);
     if (alpha < this.alphaThreshold) return;
 
     this.isPotentialDrag = true;
@@ -134,7 +135,7 @@ export class InteractionController {
 
     if (!this.isDragging && totalDist >= this.dragThreshold) {
       this.isDragging = true;
-      console.log(`[Interaction] Drag started (totalDist=${totalDist.toFixed(1)}px >= threshold=${this.dragThreshold}px)`);
+      debugLog(`[Interaction] Drag started (totalDist=${totalDist.toFixed(1)}px >= threshold=${this.dragThreshold}px)`);
       window.firefly?.setDragging(true);
       this.options.onPetDragStart?.();
     }

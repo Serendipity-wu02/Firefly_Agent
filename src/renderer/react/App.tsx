@@ -14,6 +14,7 @@ import type { ChatMessage } from "../../shared/chat-types";
 import type { LlmProviderConfig, ProviderId } from "../../shared/provider-types";
 import { DEFAULT_LLM_CONFIG } from "../../shared/provider-types";
 import { globalTtsPlayback, type TtsPlaybackSnapshot } from "../tts/tts-playback";
+import { debugLog } from "../debug-log";
 import { THEME_TOKENS } from "./theme/tokens";
 import { Header } from "./components/Header";
 import { ChatMessageItem } from "./components/ChatMessageItem";
@@ -164,7 +165,7 @@ export const App: React.FC = () => {
     const text = inputValue.trim();
     if (!text || isLoading) return;
 
-    console.log(`[Harness Trace] composer.send prompt="${text}"`);
+    debugLog(`[Harness Trace] composer.send prompt="${text}"`);
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -200,7 +201,7 @@ export const App: React.FC = () => {
         }
 
         const correlationId = res.correlationId || res.embodimentPlan?.correlationId;
-        console.log(
+        debugLog(
           `[Harness Trace] renderer.reply.received text="${res.replyText?.slice(0, 30)}..." correlationId=${correlationId}`,
         );
         const asstMsg: ChatMessage = {

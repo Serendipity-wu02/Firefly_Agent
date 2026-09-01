@@ -1,6 +1,13 @@
 import * as PIXI from "pixi.js";
+// CSP compliance: the renderer forbids 'unsafe-eval', but PixiJS v7 compiles
+// uniform-sync functions with `new Function` at runtime. Importing
+// @pixi/unsafe-eval self-installs non-eval ShaderSystem implementations
+// (selfInstall() runs at module load; since 7.1.0 no explicit call is needed
+// and calling the deprecated install() would itself log a deprecation).
+import "@pixi/unsafe-eval";
 import { Live2DModel } from "pixi-live2d-display/cubism4";
 import type { FireflyTarget } from "../../shared/firefly-actions";
+import { debugLog } from "../debug-log";
 
 // Ensure PIXI is available globally for pixi-live2d-display
 (window as any).PIXI = PIXI;
@@ -104,8 +111,8 @@ export class Live2DManager {
   private async initModel(options: Live2DManagerOptions): Promise<void> {
     if (this.isDisposed) return;
 
-    console.log("[Live2D] init:start");
-    console.log("[Live2D] model-load:start", this.modelPath);
+    debugLog("[Live2D] init:start");
+    debugLog("[Live2D] model-load:start", this.modelPath);
 
     try {
       // Step A: Fetch and inspect raw model3.json
@@ -144,12 +151,12 @@ export class Live2DManager {
       // V2.4 Desktop Pet Presentation: Fix default visual state to expression00
       this.setExpression("expression00");
 
-      console.log("[Live2D] model-load:success");
-      console.log(
+      debugLog("[Live2D] model-load:success");
+      debugLog(
         `[Live2DManager] Live2D model loaded successfully from "${this.modelPath}". ` +
           `HitAreas: ${this.hitAreas.length}, Motions: ${this.motionMap.size}, Expressions: ${this.availableExpressions.size}`
       );
-      console.log("[Live2D] manager-ready");
+      debugLog("[Live2D] manager-ready");
       options.onLoad?.();
     } catch (err) {
       console.error(

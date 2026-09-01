@@ -1,4 +1,5 @@
 import { Live2DManager } from "./live2d/manager";
+import { debugLog } from "./debug-log";
 import { ClickThroughController } from "./live2d/click-through";
 import { MouseFocusController } from "./live2d/focus";
 import { MouthSyncController } from "./live2d/mouth-sync";
@@ -62,7 +63,7 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error("[Renderer Promise Rejection]", event.reason);
 });
 
-console.log("[Firefly-Agent] Initializing Live2D Desktop Pet Renderer...");
+debugLog("[Firefly-Agent] Initializing Live2D Desktop Pet Renderer...");
 
 const canvas = document.getElementById("live2d-canvas") as HTMLCanvasElement;
 
@@ -70,7 +71,7 @@ if (!canvas) {
   throw new Error("Required DOM element #live2d-canvas not found");
 }
 
-console.log(
+debugLog(
   "[Canvas Diagnostics]",
   [...document.querySelectorAll("canvas")].map((c) => ({
     width: c.width,
@@ -89,7 +90,7 @@ const manager = new Live2DManager({
   height: window.innerHeight,
   modelPath: "assets://firefly/models/Firefly.model3.json",
   onLoad: () => {
-    console.log("[Firefly-Agent] Live2D Model loaded successfully.");
+    debugLog("[Firefly-Agent] Live2D Model loaded successfully.");
   },
   onModelUnavailable: () => {
     console.warn("[Firefly-Agent] Live2D model unavailable.");
@@ -104,21 +105,21 @@ const interaction = new InteractionController(canvas, manager, {
   alphaThreshold: 15,
   dragDistanceThreshold: 5,
   onPetClick: () => {
-    console.log("[Firefly-Agent] Character Body Clicked -> Requesting V2.4 Character Interaction (click)");
+    debugLog("[Firefly-Agent] Character Body Clicked -> Requesting V2.4 Character Interaction (click)");
     void (window.firefly as any)?.interact?.("click");
   },
   onPetPet: () => {
-    console.log("[Firefly-Agent] Character Head Petted -> Requesting V2.4 Character Interaction (touch)");
+    debugLog("[Firefly-Agent] Character Head Petted -> Requesting V2.4 Character Interaction (touch)");
     void (window.firefly as any)?.interact?.("touch");
   },
   onPetDragStart: () => {
-    console.log("[Firefly-Agent] Character Dragging started");
+    debugLog("[Firefly-Agent] Character Dragging started");
   },
   onPetDragEnd: () => {
-    console.log("[Firefly-Agent] Character Drag Ended");
+    debugLog("[Firefly-Agent] Character Drag Ended");
   },
   onContextMenu: () => {
-    console.log("[Firefly-Agent] Context Menu requested");
+    debugLog("[Firefly-Agent] Context Menu requested");
     window.firefly?.showContextMenu();
   },
 });
@@ -165,7 +166,7 @@ lifecycle.track("resource", "speakingMotion", () => speakingMotion.dispose());
 // 8. Speaking State -> Live2D Mouth Sync
 if (window.firefly?.onSpeakingChanged) {
   const unsubSpeaking = window.firefly.onSpeakingChanged((isSpeaking) => {
-    console.log("[Firefly-Agent] Speaking state changed:", isSpeaking);
+    debugLog("[Firefly-Agent] Speaking state changed:", isSpeaking);
     speakingMotion.setSpeaking(isSpeaking);
   });
   lifecycle.track("subscription", "speakingChanged", unsubSpeaking);
@@ -174,7 +175,7 @@ if (window.firefly?.onSpeakingChanged) {
 // 9. Hook IPC Listeners
 if (window.live2dAction?.onPlayAction) {
   const unsub = window.live2dAction.onPlayAction((target) => {
-    console.log("[Firefly-Agent] Received Action Target from Main Action Catalog:", target);
+    debugLog("[Firefly-Agent] Received Action Target from Main Action Catalog:", target);
     manager.playTarget(target);
     if (target.kind === "expression") {
       if ((target as any).temporary) {
@@ -211,7 +212,7 @@ if (window.live2dSpeech?.onMouthStop) {
 // 11. Zoom Listener
 if (window.firefly?.onPetZoom) {
   const unsubZoom = window.firefly.onPetZoom((scale) => {
-    console.log("[Firefly-Agent] Window zoom updated:", scale);
+    debugLog("[Firefly-Agent] Window zoom updated:", scale);
     manager.applyZoom(scale);
   });
   lifecycle.track("subscription", "petZoom", unsubZoom);
@@ -220,7 +221,7 @@ if (window.firefly?.onPetZoom) {
 // 12. Visibility Listener
 if (window.firefly?.onPetVisibilityChanged) {
   const unsubVisibility = window.firefly.onPetVisibilityChanged((visible) => {
-    console.log("[Firefly-Agent] Visibility changed:", visible);
+    debugLog("[Firefly-Agent] Visibility changed:", visible);
     if (visible) {
       manager.resume();
       mouseFocus.resume();
@@ -241,4 +242,4 @@ const handleResize = () => {
 window.addEventListener("resize", handleResize);
 lifecycle.track("listener", "windowResize", () => window.removeEventListener("resize", handleResize));
 
-console.log("[Firefly-Agent] Live2D Desktop Pet Renderer ready!");
+debugLog("[Firefly-Agent] Live2D Desktop Pet Renderer ready!");
