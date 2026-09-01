@@ -165,6 +165,18 @@ export class FireflyProactiveScheduler {
         characterState: state,
       });
 
+      // A failed agent run must never be spoken or broadcast as a persona
+      // line — report the real failure and skip this proactive round.
+      if (harnessResult.status !== "completed") {
+        this.emit({
+          kind: "proactive_failed",
+          reason: triggerReason,
+          detail: harnessResult.error || `agent status=${harnessResult.status}`,
+          timestamp: Date.now(),
+        });
+        return false;
+      }
+
       this.emit({
         kind: "proactive_completed",
         reason: triggerReason,

@@ -258,11 +258,16 @@ export class FireflyHarness implements IAgentCore {
     }
 
     const lastAsst = messages.filter((m) => m.role === "assistant").pop();
-    const fallbackText = status === "cancelled" ? "（对话已被取消）" : "我在这里，开拓者。";
+    // Factual statuses only. A real execution error must NEVER be disguised
+    // as a persona reply ("我在这里，开拓者。") — error runs produce empty
+    // finalText so no downstream consumer can broadcast a fake response.
+    const fallbackText = status === "cancelled" ? "（对话已被取消）" : "";
     const finalText: string =
-      lastAsst && typeof lastAsst.content === "string" && lastAsst.content.length > 0
-        ? lastAsst.content
-        : fallbackText;
+      status === "error"
+        ? ""
+        : lastAsst && typeof lastAsst.content === "string" && lastAsst.content.length > 0
+          ? lastAsst.content
+          : fallbackText;
 
     const result: HarnessResult = {
       runId,

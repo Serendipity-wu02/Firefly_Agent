@@ -226,7 +226,7 @@ test("9. LLM failure: Provider throwing exception is safely handled", async () =
 
   assert.equal(result.status, "error");
   assert.ok(result.error?.includes("503"), "Result error must record exception message");
-  assert.equal(result.finalText, "我在这里，开拓者。", "Fallback text must be provided gracefully");
+  assert.equal(result.finalText, "", "Real LLM failure must never be disguised as a persona reply");
 });
 
 test("10. Tool failure: Tool execution error is passed back into transcript as tool output", async () => {

@@ -711,16 +711,21 @@ export class FireflyAgentCore implements IAgentCore {
       .filter((m) => m.role === "assistant")
       .pop();
 
+    // Factual statuses only. A real execution error must NEVER be disguised
+    // as a persona reply ("我在这里，开拓者。") — error runs produce empty
+    // finalText so no downstream consumer can broadcast a fake response.
     const fallbackText =
       status === "cancelled"
         ? "（对话已被取消）"
         : status === "timeout"
           ? "（对话请求已超时）"
-          : "我在这里，开拓者。";
+          : "";
     const finalText: string =
-      lastAsst && typeof lastAsst.content === "string" && lastAsst.content.length > 0
-        ? lastAsst.content
-        : fallbackText;
+      status === "error"
+        ? ""
+        : lastAsst && typeof lastAsst.content === "string" && lastAsst.content.length > 0
+          ? lastAsst.content
+          : fallbackText;
 
     const durationMs = Date.now() - startTime;
 
