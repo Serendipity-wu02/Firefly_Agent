@@ -119,30 +119,27 @@ export class CharacterStateManager {
   }
 
   private startTimers(): void {
-    // 1. Decay timer: matches pet_window.py (15000 ms = 15s)
+    // 1. Decay timer: updates numeric state decay & broadcasts (15s)
     this.decayTimer = setInterval(() => {
       this.state.tick();
       this.saveState();
       this.notifyStateChanged();
     }, 15000);
 
-    // 2. Action timer: matches pet_window.py (18000 ms = 18s)
+    // 2. Action timer: in V2.4, Live2D visual actions are driven solely by Behavior Runtime / Embodiment.
+    // Timer-based arbitrary Live2D action dispatch is disabled.
     this.actionTimer = setInterval(() => {
-      if (this.state.current_action === "idle") {
-        const nextAction = this.state.chooseIdleAction();
-        this.dispatchAction(nextAction);
-      }
+      // V2.4: Timer-driven automatic dispatch to Live2D is severed.
+      // Behavior Runtime is the single source of truth for visual decisions.
     }, 18000);
 
-    // 3. Proactive timer: matches pet_window.py (45000 ms = 45s)
+    // 3. Proactive timer: in V2.4, proactive behavior is handled by FireflyProactiveScheduler.
+    // Legacy direct Live2D dispatch from state timer is disabled.
     this.proactiveTimer = setInterval(() => {
-      const proactive = this.state.proactiveAction();
-      if (proactive) {
-        this.dispatchAction(proactive);
-      }
+      // V2.4: Handled by FireflyProactiveScheduler via Agent Core loop.
     }, 45000);
 
-    // 4. Save timer: matches pet_window.py (30000 ms = 30s)
+    // 4. Save timer: periodic persistence (30s)
     this.saveTimer = setInterval(() => {
       this.saveState();
     }, 30000);

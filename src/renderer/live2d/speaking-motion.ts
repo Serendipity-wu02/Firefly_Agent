@@ -26,7 +26,6 @@ export class SpeakingMotionController {
       this.mouthSync.start(durationMs);
     } else {
       this.mouthSync.stop();
-      this.manager.playActionId("idle");
     }
   }
 

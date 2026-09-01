@@ -40,22 +40,18 @@ npm run build
 
 ## 3. 自动化测试套件
 
-### Node.js 核心回归测试
+### Node.js 全量自动化测试套件
 ```bash
-# 执行全部 Node.js 测试 (包含环境基线与 23 个测试套件)
+# 执行全部 Node.js 测试 (包含环境基线与 35 个自动化测试套件，390 项测试)
 npm test
 
 # 或单独执行环境基线自检：
 node tools/test_environment_baseline.mjs
 ```
 
-### Python 资产与意图校验
+### 多模态实机链路回归测试
 ```bash
-python tools/validate_ai_intent.py
-python tools/validate_asset_structure.py
-python tools/validate_character_resources.py
-python tools/validate_firefly_assets.py
-python tools/validate_persistence.py
+node tools/test_llm_tts_live2d_chain.mjs
 ```
 
 ### 真实模型推理与 Electron 烟雾测试
