@@ -376,8 +376,109 @@ export class Live2DManager {
     return this.rawModelJson;
   }
 
-  getAvailableExpressions(): readonly string[] {
-    return Array.from(this.availableExpressions);
+  measureMetrics(alphaThreshold = 15): any {
+    const dpr = window.devicePixelRatio || 1;
+    const winWidth = window.innerWidth;
+    const winHeight = window.innerHeight;
+    const canvasWidth = this.canvas.width;
+    const canvasHeight = this.canvas.height;
+
+    let modelMetrics = null;
+    if (this.model) {
+      const bounds = this.model.getBounds();
+      modelMetrics = {
+        modelWidth: Math.round(this.model.width),
+        modelHeight: Math.round(this.model.height),
+        internalWidth: (this.model as any).internalModel?.width || 0,
+        internalHeight: (this.model as any).internalModel?.height || 0,
+        scaleX: Number(this.model.scale.x.toFixed(4)),
+        scaleY: Number(this.model.scale.y.toFixed(4)),
+        x: Math.round(this.model.x),
+        y: Math.round(this.model.y),
+        anchorX: this.model.anchor.x,
+        anchorY: this.model.anchor.y,
+        bounds: {
+          x: Math.round(bounds.x),
+          y: Math.round(bounds.y),
+          width: Math.round(bounds.width),
+          height: Math.round(bounds.height),
+        },
+      };
+    }
+
+    let visibleBounds: any = "UNAVAILABLE";
+    if (this.isLive2DAvailable && this.app && this.canvas) {
+      try {
+        const renderer = this.app.renderer as PIXI.Renderer;
+        const gl = renderer?.gl;
+        if (gl) {
+          this.app.render();
+          const fbWidth = gl.drawingBufferWidth || canvasWidth;
+          const fbHeight = gl.drawingBufferHeight || canvasHeight;
+          const buffer = new Uint8Array(fbWidth * fbHeight * 4);
+          gl.readPixels(0, 0, fbWidth, fbHeight, gl.RGBA, gl.UNSIGNED_BYTE, buffer);
+
+          let minCol = fbWidth;
+          let maxCol = -1;
+          let minRow = fbHeight;
+          let maxRow = -1;
+          let hitCount = 0;
+
+          for (let row = 0; row < fbHeight; row++) {
+            for (let col = 0; col < fbWidth; col++) {
+              const idx = (row * fbWidth + col) * 4 + 3;
+              if (buffer[idx] > alphaThreshold) {
+                hitCount++;
+                if (col < minCol) minCol = col;
+                if (col > maxCol) maxCol = col;
+                if (row < minRow) minRow = row;
+                if (row > maxRow) maxRow = row;
+              }
+            }
+          }
+
+          if (hitCount > 0 && maxCol >= minCol && maxRow >= minRow) {
+            const res = renderer.resolution || 1;
+            const clientMinX = Math.round(minCol / res);
+            const clientMaxX = Math.round(maxCol / res);
+            const clientMinY = Math.round((fbHeight - 1 - maxRow) / res);
+            const clientMaxY = Math.round((fbHeight - 1 - minRow) / res);
+
+            const visWidth = clientMaxX - clientMinX + 1;
+            const visHeight = clientMaxY - clientMinY + 1;
+            const padTop = clientMinY;
+            const padBottom = Math.max(0, winHeight - 1 - clientMaxY);
+            const padLeft = clientMinX;
+            const padRight = Math.max(0, winWidth - 1 - clientMaxX);
+
+            visibleBounds = {
+              hitPixelCount: hitCount,
+              minX: clientMinX,
+              maxX: clientMaxX,
+              minY: clientMinY,
+              maxY: clientMaxY,
+              visibleWidth: visWidth,
+              visibleHeight: visHeight,
+              paddingTop: padTop,
+              paddingBottom: padBottom,
+              paddingLeft: padLeft,
+              paddingRight: padRight,
+              visibleHeightRatio: Number((visHeight / winHeight).toFixed(4)),
+              visibleWidthRatio: Number((visWidth / winWidth).toFixed(4)),
+            };
+          }
+        }
+      } catch (err) {
+        console.warn("[Live2DManager] measureMetrics error:", err);
+      }
+    }
+
+    return {
+      windowBounds: { width: winWidth, height: winHeight, devicePixelRatio: dpr },
+      canvasBounds: { width: canvasWidth, height: canvasHeight },
+      modelBounds: modelMetrics,
+      visibleCharacterBounds: visibleBounds,
+    };
   }
 
   dispose(): void {
