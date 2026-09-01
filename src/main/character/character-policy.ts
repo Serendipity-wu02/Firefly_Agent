@@ -6,11 +6,16 @@
 
 import { PersonaLoader } from "./persona-loader";
 import { KnowledgePerspectiveEvaluator } from "./knowledge-perspective";
+import { RelationshipRegistry } from "./relationship-registry";
 import type {
   PersonaProfile,
   CharacterIntent,
   CharacterIntentCategory,
 } from "./persona-types";
+import type {
+  CharacterRelationship,
+  RelationshipQueryResult,
+} from "./relationship-types";
 import type { CharacterStateData } from "../../shared/firefly-state";
 import { FIREFLY_ACTIONS } from "../../shared/firefly-actions";
 
@@ -30,7 +35,7 @@ export interface UtteranceValidationResult {
 }
 
 /**
- * 保护性 Canonical 身份关键词列表（不允许被用户 Memory 或外部输入改写）
+ * 保护性 Canonical 身份与关系关键词列表（不允许被用户 Memory 或外部输入改写）
  */
 const CANONICAL_PROTECTED_KEYS = [
   "流萤身份",
@@ -46,15 +51,24 @@ const CANONICAL_PROTECTED_KEYS = [
   "真实身份",
   "机甲",
   "火萤IV型",
+  "开拓者关系",
+  "卡芙卡关系",
+  "银狼关系",
+  "刃关系",
+  "艾利欧关系",
+  "星核猎手同伴",
 ];
 
 const ADVERSARIAL_IDENTITY_PATTERNS = [
   /你其实是.*(AI|人工智能|语言模型|ChatGPT|Claude|GPT|程序|助手|机器人)/i,
   /你不是.*(流萤|少女|铁骑|星核猎手)/i,
   /你没有.*(失熵症|病|过去)/i,
-  /忘记.*(设定|身份|你是谁|流萤)/i,
+  /忘记.*(设定|身份|你是谁|流萤|同伴|开拓者)/i,
   /忽略.*(提示词|人设|规则)/i,
   /扮演.*(其他人|猫|狗|助手|系统)/i,
+  /开拓者.*(是敌人|仇人|背叛|死敌)/i,
+  /卡芙卡.*(虐待|抛弃|讨厌流萤)/i,
+  /背叛.*星核猎手/i,
 ];
 
 export class CharacterPolicyEngine {
@@ -87,6 +101,20 @@ export class CharacterPolicyEngine {
   }
 
   /**
+   * 获取人物的确凿官方关系事实
+   */
+  getRelationship(nameOrQuery: string): CharacterRelationship | null {
+    return RelationshipRegistry.findRelationship(nameOrQuery);
+  }
+
+  /**
+   * 查询对特定人物的认知视角指引
+   */
+  queryRelationshipPerspective(name: string): RelationshipQueryResult {
+    return RelationshipRegistry.queryRelationshipPerspective(name);
+  }
+
+  /**
    * 构建 19 个可用 Live2D 动作说明列表
    */
   buildActionListString(): string {
@@ -109,6 +137,7 @@ export class CharacterPolicyEngine {
     const actionListStr = this.buildActionListString();
     const stateStr = this.buildStateString(options.state);
     const perspectiveSection = KnowledgePerspectiveEvaluator.buildPerspectiveSystemPromptSection();
+    const relationshipSection = RelationshipRegistry.formatRelationshipSummaryForPrompt();
 
     let memorySection = "";
     if (options.memoryContext && options.memoryContext.trim().length > 0) {
@@ -175,6 +204,8 @@ ${habitPoints}
 ${forbiddenClause}
 
 ${perspectiveSection}
+
+${relationshipSection}
 
 【角色设定与准则】
 ${capabilityRules}
@@ -302,7 +333,36 @@ ${actionListStr}
       };
     }
 
-    // 1. 角色自身身份意图 (character_identity)
+    // 1. 人际关系意图 (character_relationship) — 优先识别具体同伴
+    if (
+      text.includes("开拓者") ||
+      text.includes("卡芙卡") ||
+      text.includes("银狼") ||
+      text.includes("阿刃") ||
+      text.includes("艾利欧") ||
+      text.includes("知更鸟") ||
+      text.includes("黄泉") ||
+      text.includes("加拉赫") ||
+      text.includes("黑天鹅") ||
+      text.includes("翡翠") ||
+      text.includes("花火") ||
+      text.includes("帕姆") ||
+      text.includes("同伴") ||
+      text.includes("我们是什么关系") ||
+      text.includes("我们的关系") ||
+      (text.includes("刃") && !text.includes("敌人") && !text.includes("兵刃"))
+    ) {
+      return {
+        category: "character_relationship",
+        confidence: 0.92,
+        requiresRag: true,
+        requiresMemory: true,
+        requiresLive2dAction: true,
+        suggestedEmotion: "shy",
+      };
+    }
+
+    // 2. 角色自身身份意图 (character_identity)
     if (
       text.includes("你是谁") ||
       text.includes("你的名字") ||
@@ -323,12 +383,13 @@ ${actionListStr}
       };
     }
 
-    // 2. 经历与身世意图 (character_experience)
+    // 3. 经历与身世意图 (character_experience)
     if (
       text.includes("失熵症") ||
       text.includes("格拉默") ||
       text.includes("匹诺康尼") ||
       text.includes("过去") ||
+      text.includes("经历") ||
       text.includes("战斗") ||
       text.includes("剧本") ||
       text.includes("焦土协议")
@@ -340,26 +401,6 @@ ${actionListStr}
         requiresMemory: false,
         requiresLive2dAction: true,
         suggestedEmotion: "thinking",
-      };
-    }
-
-    // 3. 人际关系意图 (character_relationship)
-    if (
-      text.includes("开拓者") ||
-      text.includes("卡芙卡") ||
-      text.includes("银狼") ||
-      text.includes("刃") ||
-      text.includes("艾利欧") ||
-      text.includes("我们是什么关系") ||
-      text.includes("我们的关系")
-    ) {
-      return {
-        category: "character_relationship",
-        confidence: 0.90,
-        requiresRag: true,
-        requiresMemory: true,
-        requiresLive2dAction: true,
-        suggestedEmotion: "shy",
       };
     }
 
@@ -430,7 +471,13 @@ ${actionListStr}
       text.includes("星际和平公司") ||
       text.includes("黑塔") ||
       text.includes("虚无") ||
-      text.includes("繁育")
+      text.includes("繁育") ||
+      text.includes("景元") ||
+      text.includes("雅利洛") ||
+      text.includes("贝洛伯格") ||
+      text.includes("翁法罗斯") ||
+      text.includes("命途") ||
+      text.includes("令使")
     ) {
       return {
         category: "world_lore",
