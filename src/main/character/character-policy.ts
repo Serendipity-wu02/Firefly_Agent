@@ -7,6 +7,7 @@
 import { PersonaLoader } from "./persona-loader";
 import { KnowledgePerspectiveEvaluator } from "./knowledge-perspective";
 import { RelationshipRegistry } from "./relationship-registry";
+import { SemanticStateInterpreter } from "./semantic-state-interpreter";
 import type {
   PersonaProfile,
   CharacterIntent,
@@ -16,11 +17,18 @@ import type {
   CharacterRelationship,
   RelationshipQueryResult,
 } from "./relationship-types";
+import type {
+  SemanticEmotion,
+  SemanticInnerState,
+  EmotionInterpretationInput,
+} from "./semantic-state-types";
 import type { CharacterStateData } from "../../shared/firefly-state";
 import { FIREFLY_ACTIONS } from "../../shared/firefly-actions";
 
 export interface SystemPromptProjectionOptions {
   state?: CharacterStateData;
+  semanticState?: SemanticInnerState;
+  userPrompt?: string;
   memoryContext?: string;
   ragContext?: string;
   planContext?: string;
@@ -122,11 +130,28 @@ export class CharacterPolicyEngine {
   }
 
   /**
-   * 格式化当前角色生理/心理状态数据
+   * 评估并生成流萤当前语义内在状态 (Semantic Inner State)
    */
-  buildStateString(state?: CharacterStateData): string {
-    if (!state) return "当前状态：精力 100/100，饱食度 100/100，好感度 100/100，注意力 100/100，健康：healthy，心情：normal。";
-    return `当前状态：精力 ${state.energy}/100，饱食度 ${state.hunger}/100，好感度 ${state.affection}/100，注意力 ${state.attention}/100，健康：${state.health}，心情：${state.mood}。`;
+  interpretSemanticState(input: EmotionInterpretationInput = {}): SemanticInnerState {
+    return SemanticStateInterpreter.interpret(input);
+  }
+
+  /**
+   * 格式化当前角色生理/心理状态数据 (支持 SemanticInnerState 与向下兼容 CharacterStateData)
+   */
+  buildStateString(state?: CharacterStateData | SemanticInnerState): string {
+    if (!state) {
+      const def = SemanticStateInterpreter.getDefaultState("daily");
+      return SemanticStateInterpreter.formatInnerStateForPrompt(def);
+    }
+
+    if ("emotion" in state && "cognitiveContext" in state) {
+      return SemanticStateInterpreter.formatInnerStateForPrompt(state as SemanticInnerState);
+    }
+
+    const legacyData = state as CharacterStateData;
+    const semantic = SemanticStateInterpreter.interpret({ legacyState: legacyData });
+    return `${SemanticStateInterpreter.formatInnerStateForPrompt(semantic)}\n- 状态基线（兼容）：精力 ${legacyData.energy}/100，饱食度 ${legacyData.hunger}/100，好感度 ${legacyData.affection}/100，健康：${legacyData.health}，心情：${legacyData.mood}`;
   }
 
   /**
@@ -135,7 +160,16 @@ export class CharacterPolicyEngine {
   buildSystemPrompt(options: SystemPromptProjectionOptions = {}): string {
     const profile = this.getPersona();
     const actionListStr = this.buildActionListString();
-    const stateStr = this.buildStateString(options.state);
+
+    const semanticState = options.semanticState || SemanticStateInterpreter.interpret({
+      userPrompt: options.userPrompt,
+      mode: options.mode,
+      memoryContext: options.memoryContext,
+      ragContext: options.ragContext,
+      legacyState: options.state,
+    });
+    const stateStr = this.buildStateString(options.state ? options.state : semanticState);
+
     const perspectiveSection = KnowledgePerspectiveEvaluator.buildPerspectiveSystemPromptSection();
     const relationshipSection = RelationshipRegistry.formatRelationshipSummaryForPrompt();
 

@@ -1,9 +1,12 @@
 import type { CharacterStateData } from "../../../shared/firefly-state";
+import type { SemanticInnerState } from "../../character/semantic-state-types";
 import { FIREFLY_ACTIONS } from "../../../shared/firefly-actions";
 import { CharacterPolicyEngine } from "../../character/character-policy";
 
 export interface SystemPromptOptions {
   state?: CharacterStateData;
+  semanticState?: SemanticInnerState;
+  userPrompt?: string;
   memoryContext?: string;
   ragContext?: string;
   planContext?: string;
@@ -37,6 +40,8 @@ export class SystemPromptBuilder {
   static build(options: SystemPromptOptions = {}): string {
     return CharacterPolicyEngine.getInstance().buildSystemPrompt({
       state: options.state,
+      semanticState: options.semanticState,
+      userPrompt: options.userPrompt,
       memoryContext: options.memoryContext,
       ragContext: options.ragContext,
       planContext: options.planContext,
