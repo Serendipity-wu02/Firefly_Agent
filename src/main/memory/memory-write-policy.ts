@@ -2,6 +2,7 @@ import type { MemoryCategory, MemoryLayer, MemoryRecord, MemoryScope } from "./m
 import type { MemoryWriteProposal, WriteDecision, WritePolicyConfig } from "./write-types";
 import { DEFAULT_WRITE_POLICY_CONFIG } from "./write-types";
 import { ImportanceEvaluator } from "./importance-evaluator";
+import { CharacterPolicyEngine } from "../character/character-policy";
 
 /**
  * 记忆写入策略管理器 (MemoryWritePolicy)
@@ -35,6 +36,17 @@ export class MemoryWritePolicy {
       return {
         accepted: false,
         reason: "empty_payload_rejected",
+        importance: 0,
+        targetLayer: "L0_WORKING",
+        targetScope: this.config.defaultScope,
+      };
+    }
+
+    // 2. Canonical 角色身份防篡改拦截 (防止用户记忆改写流萤身世、基因缺陷与核心设定)
+    if (CharacterPolicyEngine.getInstance().isCanonicalProtected(key, value)) {
+      return {
+        accepted: false,
+        reason: "canonical_identity_protected",
         importance: 0,
         targetLayer: "L0_WORKING",
         targetScope: this.config.defaultScope,
