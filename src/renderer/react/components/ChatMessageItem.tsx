@@ -1,14 +1,15 @@
 /**
  * @file ChatMessageItem.tsx
- * @description Cyrene-style Assistant/User Message Renderer with real Firefly Avatar and TTS controls.
- * Cleanly renders Assistant (Real Avatar + Name Header + Message Bubble + TTS Action) and User messages.
- * Uses message embodiment metadata directly for TTS playback so manual and automatic playback remain 100% consistent.
+ * @description Light Sky Message Item for Firefly Harness Chat.
+ * Renders Assistant message with real firefly.png avatar, name, white elevated bubble, and unified TTS playback;
+ * Renders User message with spring green gradient bubble and right alignment.
  */
 
 import React from "react";
 import type { ChatMessage } from "../../../shared/chat-types";
 import type { TtsPlaybackSnapshot } from "../tts/tts-playback";
 import { globalAvatarResolver } from "../avatar-resolver";
+import { THEME_TOKENS } from "../theme/tokens";
 
 export interface ChatMessageItemProps {
   message: ChatMessage;
@@ -33,17 +34,20 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
   if (isSystem) {
     return (
-      <div style={{
-        alignSelf: "center",
-        maxWidth: "90%",
-        padding: "6px 12px",
-        background: "#181b24",
-        borderRadius: "6px",
-        fontSize: "12px",
-        color: "#8e98ab",
-        textAlign: "center",
-        border: "1px dashed #2c3242",
-      }}>
+      <div
+        style={{
+          alignSelf: "center",
+          maxWidth: "85%",
+          padding: "6px 14px",
+          background: THEME_TOKENS.colors.accentSoft,
+          borderRadius: THEME_TOKENS.radii.full,
+          fontSize: "12px",
+          color: THEME_TOKENS.colors.textSecondary,
+          textAlign: "center",
+          border: `1px dashed ${THEME_TOKENS.colors.border}`,
+          margin: "8px 0",
+        }}
+      >
         {message.content}
       </div>
     );
@@ -51,15 +55,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
   if (isAssistant) {
     return (
-      <div style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: "10px",
-        maxWidth: "88%",
-        alignSelf: "flex-start",
-        marginBottom: "4px",
-      }}>
-        {/* Real Firefly Avatar (Strictly zero placeholder text/gradient fallback for assistant) */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "10px",
+          maxWidth: "88%",
+          alignSelf: "flex-start",
+          marginBottom: "12px",
+        }}
+      >
+        {/* Real Firefly Avatar */}
         <div
           title={avatar.alt}
           style={{
@@ -68,13 +74,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             minWidth: "36px",
             borderRadius: "50%",
             overflow: "hidden",
-            background: "#182420",
-            boxShadow: "0 0 10px rgba(61, 189, 152, 0.35)",
-            border: "1.5px solid rgba(126, 231, 196, 0.4)",
+            background: THEME_TOKENS.colors.bgSecondary,
+            boxShadow: THEME_TOKENS.shadows.sm,
+            border: `1.5px solid ${THEME_TOKENS.colors.accentLight}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             userSelect: "none",
+            marginTop: "2px",
           }}
         >
           {avatar.src ? (
@@ -89,45 +96,61 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               }}
             />
           ) : (
-            <div style={{ width: "100%", height: "100%", background: "#1c202a" }} />
+            <div style={{ width: "100%", height: "100%", background: THEME_TOKENS.colors.accentSoft }} />
           )}
         </div>
 
-        {/* Message Body */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-          <span style={{ fontSize: "12px", color: "#7ee7c4", fontWeight: 600 }}>
-            {avatar.name}
-          </span>
+        {/* Message Content & Name Header */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span
+              style={{
+                fontSize: "12px",
+                color: THEME_TOKENS.colors.accent,
+                fontWeight: 700,
+                letterSpacing: "0.2px",
+              }}
+            >
+              {avatar.name}
+            </span>
+          </div>
+
           <div
             style={{
-              background: "#1e222d",
-              padding: "10px 14px",
-              borderRadius: "2px 12px 12px 12px",
+              background: THEME_TOKENS.colors.assistantBubble,
+              padding: "11px 15px",
+              borderRadius: "4px 16px 16px 16px",
               fontSize: "14px",
-              lineHeight: "1.55",
-              color: "#e6e8ee",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.25)",
-              border: "1px solid #2a3040",
+              lineHeight: "1.6",
+              color: THEME_TOKENS.colors.textPrimary,
+              boxShadow: THEME_TOKENS.shadows.sm,
+              border: `1px solid ${THEME_TOKENS.colors.assistantBubbleBorder}`,
               wordBreak: "break-word",
               userSelect: "text",
             }}
           >
-            {message.content}
+            <div style={{ whiteSpace: "pre-wrap" }}>{message.content}</div>
 
-            {/* TTS Playback Action (passes full message embodiment metadata) */}
+            {/* TTS Action Button (Preserves Message Embodiment Metadata) */}
             {ttsEnabled && (
-              <div style={{ marginTop: "6px", textAlign: "right" }}>
+              <div style={{ marginTop: "8px", display: "flex", justifyContent: "flex-end" }}>
                 <button
                   onClick={() => onSpeak(message)}
                   style={{
-                    background: isCurrentSpeaking ? "rgba(82, 227, 178, 0.15)" : "transparent",
-                    border: isCurrentSpeaking ? "1px solid #52e3b2" : "none",
-                    borderRadius: "4px",
-                    color: isCurrentSpeaking ? "#52e3b2" : "#72798e",
+                    background: isCurrentSpeaking ? THEME_TOKENS.colors.accentPill : THEME_TOKENS.colors.bgSecondary,
+                    border: isCurrentSpeaking
+                      ? `1px solid ${THEME_TOKENS.colors.accentLight}`
+                      : `1px solid ${THEME_TOKENS.colors.borderSubtle}`,
+                    borderRadius: THEME_TOKENS.radii.full,
+                    color: THEME_TOKENS.colors.accent,
                     cursor: "pointer",
-                    fontSize: "12px",
-                    padding: "2px 6px",
-                    transition: "all 0.2s",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    padding: "3px 9px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    transition: "all 0.2s ease",
                   }}
                 >
                   {isCurrentSpeaking ? "🔊 朗读中..." : "🔈 播放语音"}
@@ -142,51 +165,28 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
   // User Message
   return (
-    <div style={{
-      display: "flex",
-      alignItems: "flex-start",
-      gap: "10px",
-      maxWidth: "88%",
-      alignSelf: "flex-end",
-      marginBottom: "4px",
-      flexDirection: "row-reverse",
-    }}>
-      {/* User Avatar */}
-      <div
-        title={avatar.alt}
-        style={{
-          width: "36px",
-          height: "36px",
-          minWidth: "36px",
-          borderRadius: "50%",
-          background: avatar.badgeBg || "linear-gradient(135deg, #4f80e1 0%, #294680 100%)",
-          color: avatar.themeColor || "#ffffff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "14px",
-          fontWeight: 700,
-          boxShadow: "0 0 10px rgba(79, 128, 225, 0.3)",
-          border: "1.5px solid rgba(135, 175, 255, 0.4)",
-          userSelect: "none",
-        }}
-      >
-        拓
-      </div>
-
-      {/* Message Bubble */}
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "flex-end",
+        maxWidth: "88%",
+        alignSelf: "flex-end",
+        marginBottom: "12px",
+      }}
+    >
       <div
         style={{
-          background: "#285c4a",
-          padding: "10px 14px",
-          borderRadius: "12px 2px 12px 12px",
+          background: THEME_TOKENS.colors.userBubble,
+          padding: "11px 16px",
+          borderRadius: "16px 4px 16px 16px",
           fontSize: "14px",
-          lineHeight: "1.55",
-          color: "#ffffff",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.25)",
-          border: "1px solid #36755f",
+          lineHeight: "1.6",
+          color: THEME_TOKENS.colors.userBubbleText,
+          boxShadow: THEME_TOKENS.shadows.md,
           wordBreak: "break-word",
           userSelect: "text",
+          whiteSpace: "pre-wrap",
         }}
       >
         {message.content}
