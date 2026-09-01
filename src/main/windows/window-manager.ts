@@ -142,7 +142,11 @@ export class WindowManager {
     });
 
     if (this.isDev) {
-      win.webContents.openDevTools({ mode: "detach" });
+      // DevTools no longer auto-open on every dev launch; opt in explicitly
+      // with FIREFLY_OPEN_DEVTOOLS=1 when debugging the pet renderer.
+      if (process.env.FIREFLY_OPEN_DEVTOOLS === "1") {
+        win.webContents.openDevTools({ mode: "detach" });
+      }
       win.loadURL("http://localhost:5173");
     } else {
       win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "index.html"));
