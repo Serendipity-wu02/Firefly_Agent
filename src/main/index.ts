@@ -1,4 +1,4 @@
-import { app, protocol, BrowserWindow, ipcMain, Tray, screen } from "electron";
+import { app, protocol, BrowserWindow, ipcMain, Tray, screen, Menu } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { WindowManager } from "./windows/window-manager";
@@ -191,6 +191,11 @@ function setupIpcHandlers() {
 }
 
 app.whenReady().then(() => {
+  // Remove the default Electron application menu (File/Edit/View/Window/Help)
+  // from every framed window (Chat / Settings / Summary). The tray menu and
+  // the pet right-click popup are built independently and are unaffected.
+  Menu.setApplicationMenu(null);
+
   // 1. Initialize State Manager, Memory Service & Settings
   stateManager = new CharacterStateManager({
     configPath,
