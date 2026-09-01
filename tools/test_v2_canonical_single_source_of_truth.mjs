@@ -24,7 +24,8 @@ test("1. Production Canonical Loading: PersonaProfile strictly mirrors productio
   const { PersonaLoader } = await import(`file://${personaLoaderPath}`);
   const profile = PersonaLoader.reloadProfile(projectRoot);
 
-  const rawYaml = yaml.load(fs.readFileSync(path.join(projectRoot, "resources", "firefly.yaml"), "utf-8"));
+  const yamlPath = PersonaLoader.resolveYamlPath(projectRoot);
+  const rawYaml = yaml.load(fs.readFileSync(yamlPath, "utf-8"));
 
   assert.equal(profile.character.name, rawYaml.character.name);
   assert.equal(profile.character.nameEn, rawYaml.character.name_en);

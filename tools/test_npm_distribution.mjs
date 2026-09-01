@@ -85,7 +85,7 @@ test('3. Clean Directory Tarball Installation & Resource Isolation Test', () => 
       path.join(installedPkgDir, 'dist', 'preload', 'preload', 'index.js'),
       path.join(installedPkgDir, 'dist', 'renderer', 'index.html'),
       path.join(installedPkgDir, 'assets', 'firefly', 'models', 'Firefly.model3.json'),
-      path.join(installedPkgDir, 'resources', 'firefly.yaml'),
+      path.join(installedPkgDir, 'resources', 'persona', 'firefly.yaml'),
       path.join(installedPkgDir, 'data', 'knowledge', 'chunks.json'),
       path.join(installedPkgDir, 'config', 'settings.example.json'),
     ];

@@ -19,11 +19,11 @@ const characterPolicyPath = path.join(projectRoot, "dist", "main", "main", "char
 const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "agent", "context", "system-prompt-builder.js");
 const memoryWritePolicyPath = path.join(projectRoot, "dist", "main", "main", "memory", "memory-write-policy.js");
 
-test("1. YAML Single Source of Truth: resources/firefly.yaml exists and parses cleanly", async () => {
-  const yamlPath = path.join(projectRoot, "resources", "firefly.yaml");
-  assert.ok(fs.existsSync(yamlPath), "resources/firefly.yaml must exist physically");
-
+test("1. YAML Single Source of Truth: resources/persona/firefly.yaml exists and parses cleanly", async () => {
   const { PersonaLoader } = await import(`file://${personaLoaderPath}`);
+  const yamlPath = PersonaLoader.resolveYamlPath(projectRoot);
+  assert.ok(fs.existsSync(yamlPath), "Canonical persona yaml must exist physically");
+
   const profile = PersonaLoader.getProfile(projectRoot);
 
   assert.ok(profile, "PersonaProfile must load cleanly");

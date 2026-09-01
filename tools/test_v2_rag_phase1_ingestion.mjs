@@ -63,11 +63,11 @@ test("4. YAML Parsing: firefly.yaml and facts.yaml accurately converted into ato
   assert.ok(factChunks.length >= 70, `Expected >= 70 atomic fact chunks, got ${factChunks.length}`);
   assert.equal(factChunks[0].chunkType, "atomic_fact");
 
-  const personaDoc = result.documents.find((d) => d.sourceUri === "firefly.yaml");
-  assert.ok(personaDoc, "firefly.yaml document must exist");
+  const personaDoc = result.documents.find((d) => d.sourceUri === "firefly.yaml" || d.sourceUri === "persona/firefly.yaml");
+  assert.ok(personaDoc, "persona firefly.yaml document must exist");
   assert.equal(personaDoc.contentType, "yaml_persona");
 
-  const personaChunks = result.chunks.filter((c) => c.sourceUri === "firefly.yaml");
+  const personaChunks = result.chunks.filter((c) => c.sourceUri === "firefly.yaml" || c.sourceUri === "persona/firefly.yaml");
   assert.ok(personaChunks.length >= 5, `Expected >= 5 persona chunks, got ${personaChunks.length}`);
 });
 

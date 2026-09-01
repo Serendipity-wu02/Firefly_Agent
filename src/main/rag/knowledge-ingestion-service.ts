@@ -59,7 +59,7 @@ export class KnowledgeIngestionService {
   private classifySource(relativeUri: string): { type: KnowledgeSourceType; priority: number } {
     const normalized = relativeUri.replace(/\\/g, "/");
 
-    if (normalized === "firefly.yaml") {
+    if (normalized === "persona/firefly.yaml" || normalized === "firefly.yaml") {
       return { type: "yaml_persona", priority: 1.0 };
     }
     if (normalized === "knowledge/facts.yaml") {
@@ -68,34 +68,47 @@ export class KnowledgeIngestionService {
     if (normalized.startsWith("knowledge/curated_cards/")) {
       return { type: "curated_card", priority: 0.85 };
     }
-    if (normalized.startsWith("knowledge/")) {
-      return {
-        type: "lore_markdown",
-        priority: normalized.includes("firefly_lore") ? 0.85 : 0.75,
-      };
+    if (normalized.startsWith("character/experience/") || normalized.includes("firefly_lore")) {
+      return { type: "lore_markdown", priority: 0.85 };
     }
-    if (normalized.startsWith("流萤/角色游戏文本/")) {
+    if (normalized.startsWith("character/stories/") || normalized.startsWith("流萤/角色游戏文本/角色故事")) {
       return { type: "character_game_text", priority: 0.9 };
     }
-    if (normalized.startsWith("流萤/官方视频文本/")) {
+    if (normalized.startsWith("linguistics/voice/") || normalized.startsWith("linguistics/sms/") || normalized.startsWith("流萤/角色游戏文本/")) {
+      return { type: "character_game_text", priority: 0.9 };
+    }
+    if (normalized.startsWith("linguistics/media/") || normalized.startsWith("流萤/官方视频文本/")) {
       return { type: "official_media_text", priority: 0.9 };
     }
-    if (normalized.startsWith("流萤/主线剧情文本/")) {
+    if (normalized.startsWith("story/penacony_firefly/") || normalized.startsWith("流萤/主线剧情文本/")) {
       return { type: "script_markdown", priority: 0.8 };
     }
-    if (normalized.startsWith("wiki/开拓任务/") || normalized.startsWith("wiki/开拓续闻/")) {
+    if (
+      normalized.startsWith("world/quests/trailblaze/") ||
+      normalized.startsWith("world/quests/trailblaze_continuance/") ||
+      normalized.startsWith("wiki/开拓任务/") ||
+      normalized.startsWith("wiki/开拓续闻/")
+    ) {
       return { type: "wiki_trailblaze", priority: 0.6 };
     }
-    if (normalized.startsWith("wiki/冒险任务/") || normalized.startsWith("wiki/同行任务/")) {
+    if (
+      normalized.startsWith("world/quests/adventure/") ||
+      normalized.startsWith("world/quests/companion/") ||
+      normalized.startsWith("wiki/冒险任务/") ||
+      normalized.startsWith("wiki/同行任务/")
+    ) {
       return { type: "wiki_quest", priority: 0.5 };
     }
-    if (normalized.startsWith("wiki/角色/")) {
+    if (normalized.startsWith("world/characters/") || normalized.startsWith("wiki/角色/")) {
       return { type: "wiki_character", priority: 0.6 };
     }
-    if (normalized.startsWith("wiki/NPC/")) {
+    if (normalized.startsWith("world/npc/") || normalized.startsWith("wiki/NPC/")) {
       return { type: "wiki_npc", priority: 0.5 };
     }
-    if (normalized.endsWith("state.json")) {
+    if (normalized.startsWith("world/lore/") || normalized.startsWith("knowledge/")) {
+      return { type: "lore_markdown", priority: 0.75 };
+    }
+    if (normalized.endsWith("state.json") || normalized.startsWith("reference/")) {
       return { type: "wiki_metadata", priority: 0.5 };
     }
 

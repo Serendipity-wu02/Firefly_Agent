@@ -47,17 +47,27 @@ export class PersonaLoader {
     candidateRoots.push(path.resolve(__dirname, "../../"));
 
     for (const root of candidateRoots) {
-      const p = path.join(root, "resources", "firefly.yaml");
-      if (fs.existsSync(p)) {
-        this.resolvedYamlPath = p;
-        return p;
+      const canonicalP = path.join(root, "resources", "persona", "firefly.yaml");
+      if (fs.existsSync(canonicalP)) {
+        this.resolvedYamlPath = canonicalP;
+        return canonicalP;
+      }
+      const compatP = path.join(root, "resources", "firefly.yaml");
+      if (fs.existsSync(compatP)) {
+        this.resolvedYamlPath = compatP;
+        return compatP;
       }
     }
 
     // Fallback default
-    const fallbackPath = path.join(process.cwd(), "resources", "firefly.yaml");
-    this.resolvedYamlPath = fallbackPath;
-    return fallbackPath;
+    const fallbackCanonical = path.join(process.cwd(), "resources", "persona", "firefly.yaml");
+    if (fs.existsSync(fallbackCanonical)) {
+      this.resolvedYamlPath = fallbackCanonical;
+      return fallbackCanonical;
+    }
+    const fallbackCompat = path.join(process.cwd(), "resources", "firefly.yaml");
+    this.resolvedYamlPath = fallbackCompat;
+    return fallbackCompat;
   }
 
   /**

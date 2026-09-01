@@ -121,6 +121,10 @@ export class KnowledgePerspectiveEvaluator {
     // 2. 判定第一人称亲历知识 (First-Person Experience)
     const isFireflySource =
       sourceUri.includes("流萤/") ||
+      sourceUri.startsWith("character/") ||
+      sourceUri.startsWith("linguistics/") ||
+      sourceUri.startsWith("story/") ||
+      sourceUri.startsWith("persona/") ||
       sourceUri.includes("firefly.yaml") ||
       sourceUri.includes("firefly_lore.md") ||
       sourceUri.includes("facts.yaml");
