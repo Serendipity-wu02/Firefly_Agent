@@ -7,13 +7,15 @@ const PET_WINDOW_BASE_WIDTH = 429;
 const PET_WINDOW_BASE_HEIGHT = 315;
 const STATUS_WINDOW_WIDTH = 420;
 const STATUS_WINDOW_HEIGHT = 560;
-// Harness Chat Window sizing: user acceptance required a visibly larger
-// chat panel ("大两圈"). 440×620 → 576×800 (×1.31 / ×1.29). Layout is pure
-// flex (Header / Conversation / Composer), so it scales without overflow.
+// Harness Chat Window sizing: pure flex layout (Header / Conversation /
+// Composer) that scales without overflow. Final size is set in the chat
+// window phase; this constant is the only place it is defined.
 const CHAT_WINDOW_WIDTH = 576;
 const CHAT_WINDOW_HEIGHT = 800;
-const SUMMARY_WINDOW_WIDTH = 240;
-const SUMMARY_WINDOW_HEIGHT = 130;
+// Mood (Summary) Window: user-specified final 768×540, floating outside the
+// Harness Chat Window's right-top corner as an independent BrowserWindow.
+const SUMMARY_WINDOW_WIDTH = 768;
+const SUMMARY_WINDOW_HEIGHT = 540;
 const SETTINGS_WINDOW_WIDTH = 500;
 const SETTINGS_WINDOW_HEIGHT = 600;
 
@@ -319,9 +321,13 @@ export class WindowManager {
   }
 
   /**
-   * Compute the Mood (Summary) Window anchor.
-   * Requirement: the mood card must float BESIDE the Harness Chat Window,
-   * never embedded in it and never embedded in the Desktop Pet window.
+   * Compute the Mood (Summary) Window initial anchor.
+   * Requirement: the mood card must open OUTSIDE the Harness Chat Window's
+   * right-top corner (MoodX = ChatRight + gap, MoodY = ChatTop) — never
+   * embedded in it and never anchored to the Desktop Pet window. When the
+   * right side has no room, fall back to the left side of the Chat Window;
+   * if neither side fits the screen, clamp to the work-area right edge and
+   * report the resulting overlap honestly.
    */
   private getSummaryAnchor(): { x: number; y: number } {
     const primaryDisplay = screen.getPrimaryDisplay();
@@ -329,16 +335,27 @@ export class WindowManager {
 
     const chatBounds = this.chatWindow?.getBounds();
     if (chatBounds) {
-      // Prefer the right side of the Harness Chat Window, aligned to bottom (near Composer)
-      let x = chatBounds.x + chatBounds.width + 8;
-      if (x + SUMMARY_WINDOW_WIDTH > workArea.x + workArea.width) {
-        // No room on the right: float to the left of the Chat Window
-        x = Math.max(workArea.x, chatBounds.x - SUMMARY_WINDOW_WIDTH - 8);
+      const workRight = workArea.x + workArea.width;
+      const rightX = chatBounds.x + chatBounds.width + 8;
+      const leftX = chatBounds.x - SUMMARY_WINDOW_WIDTH - 8;
+      const fitsRight = rightX + SUMMARY_WINDOW_WIDTH <= workRight;
+      const fitsLeft = leftX >= workArea.x;
+
+      let x: number;
+      if (fitsRight) {
+        x = rightX;
+      } else if (fitsLeft) {
+        x = leftX;
+      } else {
+        // Screen geometry cannot fit the mood window beside the chat window
+        // on either side; clamp to the work area (partial overlap possible).
+        x = Math.max(workArea.x, Math.min(rightX, workRight - SUMMARY_WINDOW_WIDTH));
       }
-      const targetY = chatBounds.y + chatBounds.height - SUMMARY_WINDOW_HEIGHT;
+
+      // Top-aligned with the Chat Window, clamped into the work area.
       const y = Math.max(
         workArea.y,
-        Math.min(workArea.y + workArea.height - SUMMARY_WINDOW_HEIGHT, targetY),
+        Math.min(chatBounds.y, workArea.y + workArea.height - SUMMARY_WINDOW_HEIGHT),
       );
       return { x, y };
     }

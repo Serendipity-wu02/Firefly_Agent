@@ -55,15 +55,17 @@ export const CharacterSummary: React.FC<CharacterSummaryProps> = ({
   return (
     <div
       style={{
-        width: "190px",
+        width: "100%",
+        height: "100%",
         background: THEME_TOKENS.colors.surfaceCard,
         borderRadius: THEME_TOKENS.radii.lg,
         border: `1px solid ${THEME_TOKENS.colors.border}`,
         boxShadow: THEME_TOKENS.shadows.md,
-        padding: "14px",
+        padding: "12px",
         display: "flex",
         flexDirection: "column",
-        gap: "12px",
+        gap: "10px",
+        overflow: "hidden",
         userSelect: "none",
       }}
     >
