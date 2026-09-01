@@ -53,6 +53,9 @@ export function registerChatIpc(
           behaviorType: embodimentPlan.behaviorType,
         });
       }
+      console.log(
+        `[Presentation Trace] prompt="${payload.message}" behavior=${embodimentPlan.behaviorType} correlationId=${embodimentPlan.correlationId}`,
+      );
 
       onEmbodimentPlan?.(embodimentPlan);
 

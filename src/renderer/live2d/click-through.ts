@@ -74,6 +74,7 @@ export class ClickThroughController {
 
     if (interactive !== this.currentState) {
       this.currentState = interactive;
+      console.log(`[ClickThrough] Pixel alpha at (${pt.x}, ${pt.y}) = ${alpha} -> Setting interactive = ${interactive}`);
       this.onInteractive?.(interactive);
     }
   };

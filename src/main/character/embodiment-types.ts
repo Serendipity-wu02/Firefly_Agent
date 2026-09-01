@@ -56,6 +56,12 @@ export interface TextEmbodimentStrategy {
   readonly speakingHabitConstraint: string;
 }
 
+export interface PresentationSummary {
+  readonly moodLabel: string;
+  readonly behaviorLabel: string;
+  readonly modeLabel: string;
+}
+
 /**
  * 统一多模态具身化执行计划 (EmbodimentPlan)
  * 唯一真源 Behavior 统领 Text, Voice, Live2D 三路协同表现
@@ -75,6 +81,8 @@ export interface EmbodimentPlan {
   readonly text: TextEmbodimentStrategy;
   /** 是否需要进入外显表现层 */
   readonly requiresEmbodiment: boolean;
+  /** UI 呈现摘要 (SSoT 直接给出，UI 严禁关键词推断) */
+  readonly presentationSummary: PresentationSummary;
   /** 计划生成时间戳 */
   readonly timestamp: number;
 }

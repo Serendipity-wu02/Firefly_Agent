@@ -61,7 +61,7 @@ export class Live2DManager {
     this.baseHeight = options.height;
     this.modelPath = options.modelPath ?? "assets://firefly/models/Firefly.model3.json";
 
-    // 1. Initialize PIXI WebGL Application
+    // 1. Initialize PIXI WebGL Application with preserved drawing buffer for accurate alpha testing
     try {
       this.app = new PIXI.Application({
         view: this.canvas,
@@ -71,6 +71,7 @@ export class Live2DManager {
         resolution: window.devicePixelRatio || 1,
         autoDensity: true,
         antialias: true,
+        preserveDrawingBuffer: true,
       });
     } catch (err) {
       console.warn("[Live2DManager] PIXI Application initialization failed:", err);
@@ -346,14 +347,18 @@ export class Live2DManager {
           if (relX < 0 || relY < 0 || relX >= rect.width || relY >= rect.height) {
             return 0;
           }
-          const res = this.app.renderer.resolution || 1;
-          const x = Math.floor(relX * res);
-          const y = Math.floor((rect.height - relY) * res);
+          const glWidth = gl.drawingBufferWidth || Math.round(rect.width * (window.devicePixelRatio || 1));
+          const glHeight = gl.drawingBufferHeight || Math.round(rect.height * (window.devicePixelRatio || 1));
+          const normX = relX / rect.width;
+          const normY = 1.0 - (relY / rect.height); // WebGL Y is inverted
+          const x = Math.min(glWidth - 1, Math.max(0, Math.floor(normX * glWidth)));
+          const y = Math.min(glHeight - 1, Math.max(0, Math.floor(normY * glHeight)));
           const pixel = new Uint8Array(4);
           gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
           return pixel[3];
         }
-      } catch {
+      } catch (err) {
+        console.warn("[Live2DManager] getPixelAlpha failed:", err);
         return 255;
       }
     }

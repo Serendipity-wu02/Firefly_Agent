@@ -72,8 +72,16 @@ contextBridge.exposeInMainWorld("tts", {
 });
 
 contextBridge.exposeInMainWorld("chat", {
-  sendMessage: (message: string, history?: ChatMessage[]): Promise<{ replyText: string; history: ChatMessage[]; toolCalled?: boolean }> =>
-    ipcRenderer.invoke(IPC.CHAT_SEND_MESSAGE, { message, history }),
+  sendMessage: (
+    message: string,
+    history?: ChatMessage[],
+  ): Promise<{
+    replyText: string;
+    history: ChatMessage[];
+    toolCalled?: boolean;
+    embodimentPlan?: any;
+    correlationId?: string;
+  }> => ipcRenderer.invoke(IPC.CHAT_SEND_MESSAGE, { message, history }),
 });
 
 contextBridge.exposeInMainWorld("settings", {

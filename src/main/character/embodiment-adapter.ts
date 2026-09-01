@@ -218,6 +218,58 @@ export class EmbodimentAdapter {
   }
 
   /**
+   * 将行为语义决策编译为统一的 UI 呈现摘要 (SSoT 直接给出，UI 严禁关键词推断)
+   */
+  private static resolvePresentationSummary(decision: BehaviorDecision): import("./embodiment-types").PresentationSummary {
+    const type = decision.type;
+    switch (type) {
+      case "comfort_user":
+        return {
+          moodLabel: "心系开拓者 · 温柔抚慰",
+          behaviorLabel: "关怀与倾听",
+          modeLabel: "日常模式",
+        };
+      case "restrained_response":
+        return {
+          moodLabel: "略带害羞 · 克制欣喜",
+          behaviorLabel: "真挚回应",
+          modeLabel: "日常模式",
+        };
+      case "share_memory":
+        return {
+          moodLabel: "怀想往昔 · 欣悦",
+          behaviorLabel: "分享回忆",
+          modeLabel: "日常模式",
+        };
+      case "reflect_origin":
+        return {
+          moodLabel: "深思沉静 · 探求宿命",
+          behaviorLabel: "身世与病理沉思",
+          modeLabel: "日常模式",
+        };
+      case "focused_execution":
+        return {
+          moodLabel: "专注严谨",
+          behaviorLabel: "工作模式协同",
+          modeLabel: "工作模式",
+        };
+      case "explore_knowledge":
+        return {
+          moodLabel: "求知专注",
+          behaviorLabel: "检索与解析知识",
+          modeLabel: "日常模式",
+        };
+      case "warm_conversation":
+      default:
+        return {
+          moodLabel: "温和宁静",
+          behaviorLabel: "日常陪伴与交谈",
+          modeLabel: "日常模式",
+        };
+    }
+  }
+
+  /**
    * 将高维 BehaviorDecision 编译为统一的多模态具身化执行计划 (EmbodimentPlan)
    */
   static createPlan(
@@ -234,6 +286,7 @@ export class EmbodimentAdapter {
 
     const voice = this.resolveVoiceStrategy(decision, spokenText);
     const text = this.resolveTextStrategy(decision);
+    const presentationSummary = this.resolvePresentationSummary(decision);
 
     return {
       correlationId,
@@ -243,6 +296,7 @@ export class EmbodimentAdapter {
       voice,
       text,
       requiresEmbodiment: decision.requiresEmbodiment,
+      presentationSummary,
       timestamp: Date.now(),
     };
   }

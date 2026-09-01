@@ -12,12 +12,8 @@ export interface TrayDependencies {
 export function buildTrayMenuTemplate(deps: TrayDependencies): MenuItemConstructorOptions[] {
   return [
     {
-      label: "💬 打开聊天窗口",
+      label: "💬 与流萤对话",
       click: () => deps.createChatWindow(),
-    },
-    {
-      label: "📊 打开状态面板",
-      click: () => deps.createStatusWindow(),
     },
     {
       label: "⚙ 设置",
@@ -58,10 +54,6 @@ export function createTray(deps: TrayDependencies): Tray {
 
   tray.setToolTip("流萤 Firefly-Agent");
   tray.setContextMenu(contextMenu);
-
-  tray.on("double-click", () => {
-    deps.togglePetWindow();
-  });
-
+  tray.on("double-click", () => deps.createChatWindow());
   return tray;
 }

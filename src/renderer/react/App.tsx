@@ -177,29 +177,12 @@ export const App: React.FC = () => {
         };
         setMessages((prev) => [...prev, asstMsg]);
 
-        // Update semantic cognitive card from Embodiment / Behavior
-        if (res.embodimentPlan?.behaviorType) {
-          const bType = res.embodimentPlan.behaviorType;
-          if (bType === "comfort_user") {
-            setCurrentMood("心系开拓者 · 温柔抚慰");
-            setCurrentBehavior("关怀与倾听");
-          } else if (bType === "restrained_response") {
-            setCurrentMood("略带害羞 · 克制欣喜");
-            setCurrentBehavior("真挚回应");
-          } else if (bType === "share_memory") {
-            setCurrentMood("怀想往昔 · 欣悦");
-            setCurrentBehavior("分享匹诺康尼回忆");
-          } else if (bType === "reflect_origin") {
-            setCurrentMood("深思沉静 · 探求宿命");
-            setCurrentBehavior("身世与失熵症沉思");
-          } else if (bType === "focused_execution") {
-            setCurrentMood("专注严谨");
-            setCurrentBehavior("工作模式协同");
-            setCurrentMode("工作模式");
-          } else {
-            setCurrentMood("温和宁静");
-            setCurrentBehavior("日常陪伴与交谈");
-          }
+        // Directly consume SSoT presentationSummary from EmbodimentPlan (Zero UI keyword/branch guessing)
+        if (res.embodimentPlan?.presentationSummary) {
+          const { moodLabel, behaviorLabel, modeLabel } = res.embodimentPlan.presentationSummary;
+          setCurrentMood(moodLabel);
+          setCurrentBehavior(behaviorLabel);
+          setCurrentMode(modeLabel);
         }
 
         // Auto speak if TTS is enabled, passing identical embodiment metadata

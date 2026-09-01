@@ -247,6 +247,11 @@ export class WindowManager {
       },
     });
 
+    const targetUrl = this.isDev
+      ? "http://localhost:5173/react/index.html?tab=chat"
+      : path.join(app.getAppPath(), "dist", "renderer", "react", "index.html");
+    console.log(`[WindowManager] OPEN CHAT WINDOW -> Target: ${targetUrl}`);
+
     if (this.isDev) {
       win.loadURL("http://localhost:5173/react/index.html?tab=chat");
     } else {
