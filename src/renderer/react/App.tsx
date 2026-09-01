@@ -28,6 +28,9 @@ declare global {
         message: string,
         history?: ChatMessage[],
       ) => Promise<{
+        ok?: boolean;
+        status?: string;
+        error?: string;
         replyText: string;
         history: ChatMessage[];
         toolCalled?: boolean;
@@ -177,6 +180,25 @@ export const App: React.FC = () => {
     try {
       if (window.chat) {
         const res = await window.chat.sendMessage(text, messages);
+
+        // Real Agent/Provider failure must be shown as a real failure —
+        // never replaced by a fake persona reply, never fed into TTS/Live2D/Mood.
+        if (res.ok === false || !res.replyText) {
+          console.error(
+            `[Harness Trace] renderer.reply.failed status=${res.status ?? "error"} error="${res.error ?? ""}"`,
+          );
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `err-${Date.now()}`,
+              role: "assistant",
+              content: `❌ 流萤这次没能回应（${res.status ?? "error"}）。${res.error ? `原因：${res.error}` : "未收到有效回复，请检查模型连接设置后重试。"}`,
+              timestamp: Date.now(),
+            },
+          ]);
+          return;
+        }
+
         const correlationId = res.correlationId || res.embodimentPlan?.correlationId;
         console.log(
           `[Harness Trace] renderer.reply.received text="${res.replyText?.slice(0, 30)}..." correlationId=${correlationId}`,
@@ -184,7 +206,7 @@ export const App: React.FC = () => {
         const asstMsg: ChatMessage = {
           id: `asst-${Date.now()}`,
           role: "assistant",
-          content: res.replyText || "我在这里，开拓者。",
+          content: res.replyText,
           timestamp: Date.now(),
           behaviorType: res.embodimentPlan?.behaviorType,
           correlationId,
@@ -212,12 +234,19 @@ export const App: React.FC = () => {
           });
         }
       } else {
-        setTimeout(() => {
-          setMessages((prev) => [
-            ...prev,
-            { id: `asst-${Date.now()}`, role: "assistant", content: "（桌宠主进程正在离线响应）开拓者，我在呢！" },
-          ]);
-        }, 600);
+        // window.chat bridge missing = real infrastructure failure. Report it honestly.
+        console.error(
+          "[Harness Trace] window.chat API unavailable — preload bridge failed to load",
+        );
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `err-${Date.now()}`,
+            role: "assistant",
+            content: "❌ 无法连接到流萤的主进程（Chat 通道未加载）。请重启应用；若持续出现，请重新安装或检查应用完整性。",
+            timestamp: Date.now(),
+          },
+        ]);
       }
     } catch (err: any) {
       setMessages((prev) => [

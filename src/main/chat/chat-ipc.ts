@@ -44,13 +44,31 @@ export function registerChatIpc(
         `[Harness Trace] agent.complete status=${result.status} text="${result.finalText?.slice(0, 30)}..."`,
       );
 
-      // 3. Compile Unified EmbodimentPlan with generated reply text
+      // 3. Real Agent failure must be reported as failure, never disguised as a persona reply.
+      //    On failure we do NOT dispatch Live2D visuals and do NOT update Mood state.
+      if (result.status !== "completed") {
+        console.error(
+          `[Harness Trace] agent.failed status=${result.status} error="${result.error ?? "unknown"}"`,
+        );
+        return {
+          ok: false as const,
+          status: result.status,
+          error: result.error,
+          replyText: "",
+          history: payload.history || [],
+          toolCalled: false,
+          embodimentPlan: undefined,
+          correlationId: undefined,
+        };
+      }
+
+      // 4. Compile Unified EmbodimentPlan with generated reply text
       const embodimentPlan = policyEngine.createEmbodimentPlan(
         behaviorDecision,
         result.finalText,
       );
 
-      // 4. Dispatch Visual Embodiment Target to Live2D Window (if enabled) with correlationId
+      // 5. Dispatch Visual Embodiment Target to Live2D Window (if enabled) with correlationId
       if (embodimentPlan.requiresEmbodiment && embodimentPlan.visual && sendToPet) {
         sendToPet(IPC.LIVE2D_PLAY_ACTION, {
           ...embodimentPlan.visual.target,
@@ -65,6 +83,8 @@ export function registerChatIpc(
       onEmbodimentPlan?.(embodimentPlan);
 
       return {
+        ok: true as const,
+        status: result.status,
         replyText: result.finalText,
         history: result.transcript,
         toolCalled: result.toolCallsCount > 0,
