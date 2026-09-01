@@ -1,5 +1,12 @@
 export type TtsAudioFormat = "mp3" | "wav" | "pcm";
 
+export interface VoiceProsodyHint {
+  pace?: "slow" | "normal" | "brisk";
+  pitch?: "soft_low" | "neutral" | "bright_up";
+  volumeModifier?: number;
+  pauseLengthMs?: number;
+}
+
 export interface StartTtsRequest {
   requestId: string;
   conversationId?: string;
@@ -7,6 +14,7 @@ export interface StartTtsRequest {
   speechText: string;
   voiceIntent?: string;
   behaviorType?: string;
+  prosodyHint?: VoiceProsodyHint;
   correlationId?: string;
   converterVersion?: string;
   automatic?: boolean;

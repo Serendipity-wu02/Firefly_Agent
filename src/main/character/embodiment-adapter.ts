@@ -14,16 +14,28 @@ import type {
   TextEmbodimentStrategy,
 } from "./embodiment-types";
 
+let correlationCounter = 0;
+
 export class EmbodimentAdapter {
   /**
-   * 将行为语义类型映射为已验证的 Live2D 视觉表现目标 (100% 对应现有动作库)
+   * 生成全局唯一且可追踪的链路 correlationId
    */
-  private static resolveVisualTarget(type: BehaviorType): VisualEmbodimentTarget {
+  static generateCorrelationId(type: string): string {
+    correlationCounter = (correlationCounter + 1) % 1000000;
+    return `emb-${Date.now()}-${type}-${correlationCounter.toString().padStart(6, "0")}`;
+  }
+
+  /**
+   * 将行为语义类型映射为已验证的 Live2D 视觉表现目标 (100% 对应现有动作库)
+   * 严格区分：用户不适 (comfort_user -> touched) vs 流萤自身不适 (reflect_origin with self physical -> sick/expression7)
+   */
+  private static resolveVisualTarget(decision: BehaviorDecision): VisualEmbodimentTarget {
+    const type = decision.type;
     let actionId = "idle";
 
     switch (type) {
       case "comfort_user":
-        // 关怀抚慰：使用触动与温柔关切表情 (touched -> expression4)
+        // 外部用户不适/困扰：使用触动与温柔抚慰表情 (touched -> expression4)
         actionId = "touched";
         break;
 
@@ -38,8 +50,17 @@ export class EmbodimentAdapter {
         break;
 
       case "reflect_origin":
-        // 沉思回忆：使用托腮思索表情 (thinking -> expression5)
-        actionId = "thinking";
+        // 自身病理/身世沉思：
+        // 若明确指示流萤自身身体病理/失熵症不适，映射至弱气沉思表情 (sick -> expression7)；
+        // 若为一般身世/机甲宿命思考，映射至托腮思索表情 (thinking -> expression5)
+        if (
+          decision.reason.includes("失熵症") ||
+          decision.innerState.explanation.includes("失熵症")
+        ) {
+          actionId = "sick";
+        } else {
+          actionId = "thinking";
+        }
         break;
 
       case "focused_execution":
@@ -205,10 +226,10 @@ export class EmbodimentAdapter {
     customCorrelationId?: string,
   ): EmbodimentPlan {
     const correlationId =
-      customCorrelationId || `emb-${decision.timestamp}-${decision.type}`;
+      customCorrelationId || this.generateCorrelationId(decision.type);
 
     const visual = decision.requiresEmbodiment
-      ? this.resolveVisualTarget(decision.type)
+      ? this.resolveVisualTarget(decision)
       : null;
 
     const voice = this.resolveVoiceStrategy(decision, spokenText);

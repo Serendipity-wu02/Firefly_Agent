@@ -121,6 +121,11 @@ export class SemanticStateInterpreter {
       prompt.includes("我好累") ||
       prompt.includes("我累了") ||
       prompt.includes("我头疼") ||
+      prompt.includes("我头痛") ||
+      prompt.includes("头疼") ||
+      prompt.includes("头痛") ||
+      prompt.includes("好痛") ||
+      prompt.includes("难受") ||
       prompt.includes("我不舒服") ||
       prompt.includes("我生病") ||
       prompt.includes("我受伤") ||

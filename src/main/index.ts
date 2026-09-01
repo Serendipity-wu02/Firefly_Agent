@@ -178,7 +178,7 @@ app.whenReady().then(() => {
     toolRegistry: globalToolRegistry,
     contextManager,
   });
-  registerChatIpc(agentCore, stateManager);
+  registerChatIpc(agentCore, stateManager, (ch, data) => windowManager.sendToPet(ch, data));
 
   // 5. Initialize Firefly Proactive Scheduler
   proactiveScheduler = new FireflyProactiveScheduler({

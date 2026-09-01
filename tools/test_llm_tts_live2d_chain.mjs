@@ -112,3 +112,61 @@ test("TTS Chain & Graceful Fallback: synthesizes or skips without crashing", asy
   assert.equal(failResult.status, "skipped", "Failed TTS should return 'skipped' fallback");
   assert.ok(errorEvents.length >= 1, "Should emit error event for observability");
 });
+
+test("Unified Embodiment Multimodal Chain: BehaviorDecision drives TTS and Live2D synchronously under single correlationId", async () => {
+  const { CharacterPolicyEngine } = await import("../dist/main/main/character/character-policy.js");
+  const sessionService = new TtsSessionService();
+  const dispatchedVisuals = [];
+
+  const fakeSendToPet = (channel, payload) => {
+    dispatchedVisuals.push({ channel, payload });
+  };
+
+  const engine = CharacterPolicyEngine.getInstance();
+
+  // Test 5 representative behaviors
+  const scenarios = [
+    { prompt: "流萤，我头好痛……", expectedBehavior: "comfort_user", expectedActionId: "touched" },
+    { prompt: "流萤太可爱了，夸夸你！", expectedBehavior: "restrained_response", expectedActionId: "shy" },
+    { prompt: "我们一起吃橡木蛋糕卷看星星吧！", expectedBehavior: "share_memory", expectedActionId: "happy" },
+    { prompt: "你的失熵症身体还会痛吗？", expectedBehavior: "reflect_origin", expectedActionId: "sick" },
+    { prompt: "开始执行代码重构任务", expectedBehavior: "focused_execution", expectedActionId: "reading", mode: "work" },
+  ];
+
+  for (const scenario of scenarios) {
+    const decision = engine.decideBehavior({
+      userPrompt: scenario.prompt,
+      mode: scenario.mode || "daily",
+    });
+    assert.equal(decision.type, scenario.expectedBehavior);
+
+    const plan = engine.createEmbodimentPlan(decision, "测试口语回复文本");
+    assert.ok(plan.correlationId.startsWith("emb-"));
+    assert.equal(plan.visual?.actionId, scenario.expectedActionId);
+
+    // Live2D dispatch
+    if (plan.requiresEmbodiment && plan.visual) {
+      fakeSendToPet("live2d:play-action", {
+        target: plan.visual.target,
+        correlationId: plan.correlationId,
+      });
+    }
+
+    // TTS dispatch
+    const ttsResult = await sessionService.start(
+      {
+        requestId: `req-${Date.now()}`,
+        speechText: plan.voice.speechText,
+        voiceIntent: plan.voice.voiceIntent,
+        behaviorType: plan.behaviorType,
+        prosodyHint: plan.voice.prosodyHint,
+        correlationId: plan.correlationId,
+      },
+      { ...DEFAULT_TTS_SETTINGS, engine: "off" }
+    );
+
+    assert.equal(ttsResult.status, "skipped");
+  }
+
+  assert.equal(dispatchedVisuals.length, 5, "All 5 behaviors dispatched Live2D visual targets");
+});
