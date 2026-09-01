@@ -268,15 +268,16 @@ test("10. Numeric Independence: Zero reliance on legacy affection/hunger/energy 
   assert.deepEqual(p1.voice.prosodyHint, p2.voice.prosodyHint);
 });
 
-test("11. Avatar Resolver: Resolves default Firefly avatar descriptor with consistent identity", async () => {
+test("11. Avatar Resolver: Resolves real default Firefly avatar descriptor with consistent identity", async () => {
   const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "react", "avatar-resolver.ts")}`);
   const { DefaultAvatarResolver } = avatarModule;
 
   const resolver = new DefaultAvatarResolver();
   const fireflyAvatar = resolver.resolveAvatar("assistant");
+  assert.equal(fireflyAvatar.kind, "image");
   assert.equal(fireflyAvatar.name, "流萤");
   assert.equal(fireflyAvatar.alt, "流萤 (Firefly)");
-  assert.ok(fireflyAvatar.badgeBg.includes("#3dbd98"));
+  assert.ok(fireflyAvatar.src && fireflyAvatar.src.includes("firefly.png"));
 
   const userAvatar = resolver.resolveAvatar("user");
   assert.equal(userAvatar.name, "开拓者");
@@ -304,4 +305,36 @@ test("12. Live2D Target Correlation: Live2D target payload safely carries correl
   assert.equal(live2dPayload.name, "expression10");
   assert.equal(live2dPayload.correlationId, plan.correlationId);
   assert.equal(live2dPayload.behaviorType, "restrained_response");
+});
+
+test("13. Firefly Avatar Asset & Build Verification: Head portrait exists and is bundled into dist/renderer/assets", async () => {
+  const fs = await import("node:fs");
+  const sourceAvatarPath = path.join(projectRoot, "src", "renderer", "head_portrait", "firefly.png");
+  assert.ok(fs.existsSync(sourceAvatarPath), "src/renderer/head_portrait/firefly.png must exist");
+
+  const stat = fs.statSync(sourceAvatarPath);
+  assert.ok(stat.size > 10000, "firefly.png size must be substantial (>10KB)");
+
+  // Check dist/renderer/assets/
+  const distAssetsDir = path.join(projectRoot, "dist", "renderer", "assets");
+  if (fs.existsSync(distAssetsDir)) {
+    const files = fs.readdirSync(distAssetsDir);
+    const avatarBundled = files.some((f) => f.startsWith("firefly-") && f.endsWith(".png"));
+    assert.ok(avatarBundled, "dist/renderer/assets must contain bundled firefly-*.png");
+  }
+});
+
+test("14. Avatar Decoupling: Avatar resolver returns constant identity regardless of changing emotional state", async () => {
+  const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "react", "avatar-resolver.ts")}`);
+  const { DefaultAvatarResolver } = avatarModule;
+  const resolver = new DefaultAvatarResolver();
+
+  // Test across multiple simulated emotions
+  const emotions = ["happy", "sad", "shy", "thinking", "surprised", "angry", "neutral"];
+  for (const emotion of emotions) {
+    const descriptor = resolver.resolveAvatar("assistant", { emotion, behaviorType: "comfort_user" });
+    assert.equal(descriptor.name, "流萤");
+    assert.equal(descriptor.kind, "image");
+    assert.ok(descriptor.src && descriptor.src.includes("firefly.png"));
+  }
 });

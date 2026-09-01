@@ -136,16 +136,20 @@ export class SemanticStateInterpreter {
       prompt.includes("工作好累") ||
       prompt.includes("倒霉事");
 
-    const isSelfPhysicalOrEntropyLoss =
+    const isEntropyDistress =
       Boolean(input.selfPhysicalContext) ||
       prompt.includes("失熵症") ||
       prompt.includes("身体解离") ||
       prompt.includes("解离") ||
-      prompt.includes("医疗舱") ||
+      prompt.includes("医疗舱");
+
+    const isPilotLore =
       prompt.includes("格拉默铁骑") ||
       prompt.includes("ar-26710") ||
       prompt.includes("火萤iv型") ||
       prompt.includes("萨姆装甲");
+
+    const isSelfPhysicalOrEntropyLoss = isEntropyDistress || isPilotLore;
 
     const isAffectionOrCompliment =
       prompt.includes("喜欢你") ||
@@ -154,6 +158,8 @@ export class SemanticStateInterpreter {
       prompt.includes("漂亮") ||
       prompt.includes("真棒") ||
       prompt.includes("夸奖") ||
+      prompt.includes("夸夸") ||
+      prompt.includes("夸你") ||
       prompt.includes("约会") ||
       prompt.includes("脸红") ||
       prompt.includes("害羞") ||
@@ -203,10 +209,14 @@ export class SemanticStateInterpreter {
       emotion = "concerned";
       cognitiveContext = "caring";
       explanation = "检测到用户表达身体不适或负向情绪，判定为关切状态。";
-    } else if (isSelfPhysicalOrEntropyLoss) {
+    } else if (isEntropyDistress) {
       emotion = mode === "work" ? "determined" : "thinking";
       cognitiveContext = "reflecting";
-      explanation = "检测到关于失熵症或机甲驾驶员身世的讨论，判定为沉思回忆状态。";
+      explanation = "检测到关于自身失熵症身体病理的讨论，判定为沉思回忆状态。";
+    } else if (isPilotLore) {
+      emotion = mode === "work" ? "determined" : "thinking";
+      cognitiveContext = "reflecting";
+      explanation = "检测到关于机甲驾驶员身世与背景的讨论，判定为沉思回忆状态。";
     } else if (isAffectionOrCompliment) {
       emotion = "shy";
       cognitiveContext = "conversing";

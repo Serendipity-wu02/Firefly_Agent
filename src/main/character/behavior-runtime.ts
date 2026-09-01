@@ -197,6 +197,9 @@ export class BehaviorRuntime {
       Boolean(input.selfPhysicalContext) ||
       (innerState.cognitiveContext === "reflecting" &&
         (prompt.includes("失熵症") ||
+          prompt.includes("身体解离") ||
+          prompt.includes("解离") ||
+          prompt.includes("医疗舱") ||
           prompt.includes("格拉默") ||
           prompt.includes("机甲") ||
           prompt.includes("萨姆") ||
@@ -204,7 +207,15 @@ export class BehaviorRuntime {
     ) {
       type = "reflect_origin";
       priority = BehaviorPriority.EMOTIONAL_EXPRESSION;
-      reason = "检测到关于失熵症或机甲驾驶员身世的讨论，仲裁为沉思回忆行为。";
+      const isEntropy =
+        Boolean(input.selfPhysicalContext) ||
+        prompt.includes("失熵症") ||
+        prompt.includes("身体解离") ||
+        prompt.includes("解离") ||
+        prompt.includes("医疗舱");
+      reason = isEntropy
+        ? "检测到关于自身失熵症身体病理的讨论，仲裁为沉思回忆行为。"
+        : "检测到关于机甲驾驶员身世与背景的讨论，仲裁为沉思回忆行为。";
       shouldRespond = true;
       requiresEmbodiment = true;
       allowToolExecution = false;

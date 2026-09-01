@@ -1,7 +1,7 @@
 /**
  * @file ChatMessageItem.tsx
- * @description Cyrene-style Assistant/User Message Renderer with Firefly Avatar and TTS controls.
- * Cleanly separates Assistant (Avatar + Name Header + Message Bubble + TTS Action) and User messages.
+ * @description Cyrene-style Assistant/User Message Renderer with real Firefly Avatar and TTS controls.
+ * Cleanly renders Assistant (Real Avatar + Name Header + Message Bubble + TTS Action) and User messages.
  */
 
 import React from "react";
@@ -58,7 +58,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
         alignSelf: "flex-start",
         marginBottom: "4px",
       }}>
-        {/* Firefly Avatar */}
+        {/* Real Firefly Avatar */}
         <div
           title={avatar.alt}
           style={{
@@ -66,19 +66,30 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             height: "36px",
             minWidth: "36px",
             borderRadius: "50%",
-            background: avatar.badgeBg || "linear-gradient(135deg, #3dbd98 0%, #1f5e4b 100%)",
-            color: avatar.themeColor || "#ffffff",
+            overflow: "hidden",
+            background: "#182420",
+            boxShadow: "0 0 10px rgba(61, 189, 152, 0.35)",
+            border: "1.5px solid rgba(126, 231, 196, 0.4)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "14px",
-            fontWeight: 700,
-            boxShadow: "0 0 10px rgba(61, 189, 152, 0.35)",
-            border: "1.5px solid rgba(126, 231, 196, 0.4)",
             userSelect: "none",
           }}
         >
-          萤
+          {avatar.kind === "image" && avatar.src ? (
+            <img
+              src={avatar.src}
+              alt={avatar.alt}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          ) : (
+            <span style={{ color: "#7ee7c4", fontWeight: 700, fontSize: "14px" }}>萤</span>
+          )}
         </div>
 
         {/* Message Body */}

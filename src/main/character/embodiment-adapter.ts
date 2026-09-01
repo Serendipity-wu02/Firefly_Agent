@@ -54,8 +54,8 @@ export class EmbodimentAdapter {
         // 若明确指示流萤自身身体病理/失熵症不适，映射至弱气沉思表情 (sick -> expression7)；
         // 若为一般身世/机甲宿命思考，映射至托腮思索表情 (thinking -> expression5)
         if (
-          decision.reason.includes("失熵症") ||
-          decision.innerState.explanation.includes("失熵症")
+          decision.reason.includes("自身失熵症身体病理") ||
+          decision.innerState.explanation.includes("自身失熵症身体病理")
         ) {
           actionId = "sick";
         } else {

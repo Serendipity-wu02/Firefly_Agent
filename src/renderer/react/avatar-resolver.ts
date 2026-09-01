@@ -1,20 +1,22 @@
 /**
  * @file avatar-resolver.ts
  * @description Extensible Avatar Resolver for Firefly-Agent Harness Chat.
- * Provides a decoupled avatar resolution mechanism. Resolves the default Firefly avatar
- * with future extension hooks for external profile providers (e.g. WeChat, QQ, local custom).
+ * Dynamically resolves the real Firefly avatar asset (src/renderer/head_portrait/firefly.png)
+ * for assistant messages, while providing an extensible provider interface for future external integrations.
  */
 
+const FIREFLY_DEFAULT_AVATAR_PATH = new URL("../head_portrait/firefly.png", import.meta.url).href;
+
 export interface AvatarDescriptor {
-  /** 头像展现形式: svg | image | text */
-  readonly kind: "svg" | "image" | "text";
+  /** 头像展现形式: image | svg | text */
+  readonly kind: "image" | "svg" | "text";
   /** 角色名称 */
   readonly name: string;
   /** 视觉描述/Alt */
   readonly alt: string;
-  /** 图片 URL (当 kind === "image" 时可用) */
+  /** 真实图片资源 URL / 导入路径 */
   readonly src?: string;
-  /** 主题前景色与背景色 */
+  /** 主题前景色与徽章背景 */
   readonly themeColor?: string;
   readonly badgeBg?: string;
 }
@@ -25,18 +27,18 @@ export interface IAvatarResolver {
 
 /**
  * 默认流萤头像解析器 (Default Firefly Avatar Resolver)
- * 采用固定流萤专属配色 (#39c5bb / #2a8370 莹绿星辉) 与“萤”标识
- * 严格保持固定头像，不随瞬时情绪动态切换头像图片 (情绪由 Live2D 和 Voice 具身化承担)
+ * 采用真实物理资产 src/renderer/head_portrait/firefly.png
+ * 严格保持固定头像，不随瞬时情绪切换图片 (情绪由 Live2D 和 Voice 具身化承担)
  */
 export class DefaultAvatarResolver implements IAvatarResolver {
   resolveAvatar(role: "assistant" | "user" | "system", metadata?: Record<string, unknown>): AvatarDescriptor {
     if (role === "assistant") {
       return {
-        kind: "text",
+        kind: "image",
         name: "流萤",
         alt: "流萤 (Firefly)",
-        themeColor: "#ffffff",
-        badgeBg: "linear-gradient(135deg, #3dbd98 0%, #1f5e4b 100%)",
+        src: FIREFLY_DEFAULT_AVATAR_PATH,
+        themeColor: "#7ee7c4",
       };
     }
 
