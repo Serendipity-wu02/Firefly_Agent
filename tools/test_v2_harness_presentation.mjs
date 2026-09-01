@@ -118,3 +118,31 @@ test("11. Resource & Asset Immutability: 0 diff on resources/ and assets/", () =
     assert.ok(fs.existsSync(path.join(rootDir, "resources")), "resources directory exists");
   }
 });
+
+test("12. Preload Channel Sync: sandbox-safe preload mirror matches shared/ipc-channels.ts", () => {
+  // The preload runs inside the default Electron sandbox and can only
+  // require("electron"), so it carries a literal mirror of the IPC channel
+  // table instead of importing ../shared/ipc-channels. This guard fails the
+  // build the moment the two definitions drift apart.
+  const readChannels = (relPath) => {
+    const source = fs.readFileSync(path.join(rootDir, relPath), "utf-8");
+    const channels = {};
+    const pattern = /([A-Z][A-Z0-9_]+)\s*:\s*"([a-z0-9:-]+)"/g;
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+      channels[match[1]] = match[2];
+    }
+    return channels;
+  };
+
+  const shared = readChannels(path.join("src", "shared", "ipc-channels.ts"));
+  const preload = readChannels(path.join("src", "preload", "index.ts"));
+
+  const preloadKeys = Object.keys(preload);
+  assert.ok(preloadKeys.length >= 30, "preload mirror must define the full channel table");
+  for (const key of preloadKeys) {
+    assert.ok(key in shared, `preload channel ${key} must exist in shared/ipc-channels.ts`);
+    assert.equal(preload[key], shared[key], `preload channel ${key} value must match shared definition`);
+  }
+  assert.equal(preload.CHAT_SEND_MESSAGE, shared.CHAT_SEND_MESSAGE, "chat bridge channel must stay aligned");
+});

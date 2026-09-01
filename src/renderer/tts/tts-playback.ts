@@ -1,4 +1,5 @@
 import type { StartTtsRequest, TtsStartResult, TtsSessionEvent, VoiceProsodyHint } from "../../shared/tts-session";
+import { debugLog } from "../debug-log";
 
 export type TtsPlaybackStatus = "idle" | "synthesizing" | "playing" | "paused" | "completed" | "error";
 
@@ -83,6 +84,10 @@ export class TtsPlaybackManager {
     this.currentRequestId = requestId;
     this.currentMessageId = options.messageId || requestId;
     this.setStatus("synthesizing");
+    debugLog(
+      `[TTS Trace] start requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} ` +
+        `behavior=${options.behaviorType ?? "n/a"} chars=${text.length}`,
+    );
 
     try {
       const res: TtsStartResult = await window.tts.startSession({
@@ -98,15 +103,18 @@ export class TtsPlaybackManager {
       if (this.currentRequestId !== requestId) return;
 
       if (res.status === "skipped" || res.status === "cancelled") {
+        debugLog(`[TTS Trace] skipped requestId=${requestId} correlationId=${options.correlationId ?? "n/a"}`);
         this.setStatus("idle");
         return;
       }
 
       if (res.status === "ready" && res.base64) {
+        debugLog(`[TTS Trace] ready requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} format=${res.format}`);
         await this.playBase64(res.base64, res.format);
       }
     } catch (err: any) {
       if (this.currentRequestId === requestId) {
+        debugLog(`[TTS Trace] error requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} message="${err?.message || err}"`);
         this.setStatus("error", err?.message || String(err));
         this.setSpeaking(false);
       }
@@ -130,6 +138,7 @@ export class TtsPlaybackManager {
     this.currentAudio = audio;
 
     audio.onplay = () => {
+      debugLog(`[TTS Trace] playing messageId=${this.currentMessageId ?? "n/a"}`);
       this.setStatus("playing");
       this.setSpeaking(true);
     };

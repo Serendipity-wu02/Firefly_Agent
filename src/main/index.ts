@@ -125,7 +125,10 @@ function setupIpcHandlers() {
       });
     }
     if (plan.presentationSummary) {
-      windowManager.broadcast(IPC.CHARACTER_SUMMARY_UPDATED, plan.presentationSummary);
+      windowManager.broadcast(IPC.CHARACTER_SUMMARY_UPDATED, {
+        correlationId: plan.correlationId,
+        summary: plan.presentationSummary,
+      });
     }
   });
 
@@ -231,7 +234,10 @@ app.whenReady().then(() => {
     sendToPet: (ch, data) => windowManager.sendToPet(ch, data),
     onEmbodimentPlan: (plan) => {
       if (plan.presentationSummary) {
-        windowManager.broadcast(IPC.CHARACTER_SUMMARY_UPDATED, plan.presentationSummary);
+        windowManager.broadcast(IPC.CHARACTER_SUMMARY_UPDATED, {
+          correlationId: plan.correlationId,
+          summary: plan.presentationSummary,
+        });
       }
     },
   });

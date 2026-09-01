@@ -133,10 +133,17 @@ export const App: React.FC = () => {
 
     let unsubSummary: (() => void) | undefined;
     if (window.firefly?.onSummaryUpdated) {
-      unsubSummary = window.firefly.onSummaryUpdated((summary) => {
+      unsubSummary = window.firefly.onSummaryUpdated((payload) => {
+        // Payload is { correlationId, summary } from EmbodimentPlan.presentationSummary.
+        // Tolerate the legacy bare-summary shape so the card never renders empty.
+        const summary = payload?.summary ?? payload;
         if (summary?.moodLabel) setCurrentMood(summary.moodLabel);
         if (summary?.behaviorLabel) setCurrentBehavior(summary.behaviorLabel);
         if (summary?.modeLabel) setCurrentMode(summary.modeLabel);
+        debugLog(
+          `[Mood Trace] summary-updated correlationId=${payload?.correlationId ?? "n/a"} ` +
+            `mood="${summary?.moodLabel ?? ""}" behavior="${summary?.behaviorLabel ?? ""}" mode="${summary?.modeLabel ?? ""}"`,
+        );
       });
     }
 
