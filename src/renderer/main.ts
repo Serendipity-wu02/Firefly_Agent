@@ -147,7 +147,7 @@ lifecycle.track("resource", "mouthSync", () => mouthSync.dispose());
 const expressionReset = new ExpressionResetController({
   defaultDurationMs: 5000,
   onReset: () => {
-    manager.setExpression("");
+    manager.setExpression("expression00");
   },
 });
 lifecycle.track("resource", "expressionReset", () => expressionReset.dispose());
@@ -173,8 +173,9 @@ if (window.live2dAction?.onPlayAction) {
   const unsub = window.live2dAction.onPlayAction((target) => {
     console.log("[Firefly-Agent] Received Action Target from Main Action Catalog:", target);
     manager.playTarget(target);
-    if (target.kind === "expression") {
-      expressionReset.trigger();
+    // In V2.4, expressions are persistent with behavior state unless explicitly marked temporary
+    if (target.kind === "expression" && (target as any).temporary) {
+      expressionReset.trigger((target as any).durationMs);
     }
   });
   lifecycle.track("subscription", "live2dAction", unsub);

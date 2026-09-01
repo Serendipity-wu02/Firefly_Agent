@@ -22,7 +22,6 @@ export class SpeakingMotionController {
     this.isSpeaking = speaking;
 
     if (speaking) {
-      this.manager.playActionId("talking");
       this.mouthSync.start(durationMs);
     } else {
       this.mouthSync.stop();

@@ -88,8 +88,8 @@ export class CharacterStateManager {
     this.saveState();
     this.notifyStateChanged();
 
-    // Dispatch resolved Action to Pet Window
-    this.dispatchAction(actionId);
+    // V2.4: StateManager no longer dispatches to Live2D directly.
+    // CharacterPolicyEngine / EmbodimentAdapter is the single source of truth.
 
     return { state: this.state.toJSON(), actionId, feedback };
   }

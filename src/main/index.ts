@@ -21,6 +21,7 @@ import { registerMusicIpc } from "./music/music-ipc";
 import { QQMusicProvider } from "./music/qqmusic-provider";
 import { KnowledgeCoordinator } from "./rag/knowledge-coordinator";
 import { ContextManager } from "./agent/context/context-manager";
+import { CharacterPolicyEngine } from "./character/character-policy";
 import type { IAgentCore } from "../shared/agent-core";
 import type { CareActionType } from "../shared/firefly-state";
 
@@ -95,7 +96,23 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle(IPC.CARE_ACTION, async (_event, action: CareActionType) => {
-    return stateManager.handleCareAction(action);
+    // 1. Update legacy numeric state for stats compatibility & UI
+    const result = stateManager.handleCareAction(action);
+
+    // 2. V2.4 Behavior/Embodiment: single source of truth for visual decisions
+    if (action === "click" || action === "touch" || action === "drag") {
+      const policyEngine = CharacterPolicyEngine.getInstance();
+      const plan = policyEngine.handleInteraction(action);
+      if (plan.requiresEmbodiment && plan.visual) {
+        windowManager.sendToPet(IPC.LIVE2D_PLAY_ACTION, {
+          ...plan.visual.target,
+          correlationId: plan.correlationId,
+          behaviorType: plan.behaviorType,
+        });
+      }
+    }
+
+    return result;
   });
 
   ipcMain.handle(IPC.PET_SET_INTERACTIVE, async (_event, interactive: boolean) => {

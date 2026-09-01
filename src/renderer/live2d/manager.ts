@@ -119,6 +119,9 @@ export class Live2DManager {
       this.setupModelTransform();
       this.app.stage.addChild(model);
 
+      // V2.4 Desktop Pet Presentation: Fix default visual state to expression00
+      this.setExpression("expression00");
+
       console.log("[Live2D] model-load:success");
       console.log(
         `[Live2DManager] Live2D model loaded successfully from "${this.modelPath}". ` +

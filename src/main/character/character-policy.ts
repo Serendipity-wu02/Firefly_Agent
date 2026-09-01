@@ -24,13 +24,15 @@ import type {
   SemanticInnerState,
   EmotionInterpretationInput,
 } from "./semantic-state-types";
-import type {
-  BehaviorDecision,
-  BehaviorEvaluationInput,
+import {
+  BehaviorPriority,
+  type BehaviorDecision,
+  type BehaviorEvaluationInput,
+  type BehaviorType,
 } from "./behavior-types";
-import type { EmbodimentPlan } from "./embodiment-types";
+import type { EmbodimentPlan, VisualEmbodimentTarget } from "./embodiment-types";
 import type { CharacterStateData } from "../../shared/firefly-state";
-import { FIREFLY_ACTIONS } from "../../shared/firefly-actions";
+import { FIREFLY_ACTIONS, resolveFireflyTarget } from "../../shared/firefly-actions";
 
 export interface SystemPromptProjectionOptions {
   state?: CharacterStateData;
@@ -159,6 +161,83 @@ export class CharacterPolicyEngine {
     correlationId?: string,
   ): EmbodimentPlan {
     return EmbodimentAdapter.createPlan(decision, spokenText, correlationId);
+  }
+
+  /**
+   * 处理桌面物理交互事件 (click, touch, drag)，生成统一的 EmbodimentPlan
+   * 彻底切断 Legacy Numeric CharacterState 对 Live2D 的直接控制
+   */
+  handleInteraction(action: "click" | "touch" | "drag"): EmbodimentPlan {
+    let behaviorType: BehaviorType = "warm_conversation";
+    let explanation = `用户桌面交互: ${action}`;
+
+    if (action === "touch") {
+      behaviorType = "comfort_user";
+      explanation = "用户抚摸头部，流萤感到温暖与关爱";
+    } else if (action === "click") {
+      behaviorType = "warm_conversation";
+      explanation = "用户点击身体轻触，流萤日常回应";
+    } else if (action === "drag") {
+      behaviorType = "warm_conversation";
+      explanation = "用户拖拽移动桌宠位置";
+    }
+
+    const innerState: SemanticInnerState = {
+      ...SemanticStateInterpreter.interpret({
+        mode: "daily",
+        userPrompt: action === "touch" ? "摸摸头" : "你好",
+      }),
+      explanation,
+    };
+
+    const decision: BehaviorDecision = {
+      type: behaviorType,
+      priority: BehaviorPriority.RELATIONSHIP_INTERACTION,
+      reason: explanation,
+      shouldRespond: false,
+      requiresEmbodiment: true,
+      allowToolExecution: false,
+      innerState,
+      memoryInfluenced: false,
+      multimodalIntent: {
+        text: "",
+        voice: "",
+        visual: action === "touch" ? "面带感动与羞赧微光" : "自然眨眼互动",
+      },
+      timestamp: Date.now(),
+    };
+
+    let visualTarget: VisualEmbodimentTarget = {
+      actionId: "waving",
+      target: resolveFireflyTarget("waving"),
+      description: "流萤被点击时的互动动作",
+      durationMs: 5000,
+      interruptible: true,
+    };
+
+    if (action === "touch") {
+      visualTarget = {
+        actionId: "touched",
+        target: resolveFireflyTarget("touched"),
+        description: "流萤被抚摸头部的触动表情",
+        durationMs: 5000,
+        interruptible: true,
+      };
+    } else if (action === "drag") {
+      visualTarget = {
+        actionId: "dragged",
+        target: resolveFireflyTarget("dragged"),
+        description: "流萤被拖拽结束时的晃动动作",
+        durationMs: 5000,
+        interruptible: true,
+      };
+    }
+
+    const basePlan = this.createEmbodimentPlan(decision);
+    return {
+      ...basePlan,
+      visual: visualTarget,
+    };
   }
 
   /**

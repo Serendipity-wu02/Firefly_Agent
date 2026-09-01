@@ -143,9 +143,9 @@ test("11. Missing Model Semantics: When model is missing, system marks unavailab
   assert.equal(target.motionName, "0");
 });
 
-test("12. Speaking Motion & MouthSync: Pure Live2D talking expression and parameter modulation", () => {
+test("12. Speaking Motion & MouthSync: Pure Live2D mouthSync parameter modulation without overriding visual expressions", () => {
   const speakingSource = fs.readFileSync(path.join(PROJECT_ROOT, "src", "renderer", "live2d", "speaking-motion.ts"), "utf-8");
-  assert.ok(speakingSource.includes('this.manager.playActionId("talking")'), "Speaking triggers talking action");
   assert.ok(speakingSource.includes("this.mouthSync.start"), "Speaking triggers mouthSync.start");
   assert.ok(speakingSource.includes("this.mouthSync.stop"), "Stop speaking stops mouthSync");
+  assert.ok(!speakingSource.includes('this.manager.playActionId("talking")'), "Voice does not override behavior visual with talking action");
 });
