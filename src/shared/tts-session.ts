@@ -5,6 +5,9 @@ export interface StartTtsRequest {
   conversationId?: string;
   messageId?: string;
   speechText: string;
+  voiceIntent?: string;
+  behaviorType?: string;
+  correlationId?: string;
   converterVersion?: string;
   automatic?: boolean;
   supportsStreamingPlayback?: boolean;

@@ -9,6 +9,7 @@ import { KnowledgePerspectiveEvaluator } from "./knowledge-perspective";
 import { RelationshipRegistry } from "./relationship-registry";
 import { SemanticStateInterpreter } from "./semantic-state-interpreter";
 import { BehaviorRuntime } from "./behavior-runtime";
+import { EmbodimentAdapter } from "./embodiment-adapter";
 import type {
   PersonaProfile,
   CharacterIntent,
@@ -27,6 +28,7 @@ import type {
   BehaviorDecision,
   BehaviorEvaluationInput,
 } from "./behavior-types";
+import type { EmbodimentPlan } from "./embodiment-types";
 import type { CharacterStateData } from "../../shared/firefly-state";
 import { FIREFLY_ACTIONS } from "../../shared/firefly-actions";
 
@@ -146,6 +148,17 @@ export class CharacterPolicyEngine {
    */
   decideBehavior(input: BehaviorEvaluationInput = {}): BehaviorDecision {
     return BehaviorRuntime.decide(input);
+  }
+
+  /**
+   * 将行为决策编译为统一的多模态具身化执行计划 (EmbodimentPlan)
+   */
+  createEmbodimentPlan(
+    decision: BehaviorDecision,
+    spokenText: string = "",
+    correlationId?: string,
+  ): EmbodimentPlan {
+    return EmbodimentAdapter.createPlan(decision, spokenText, correlationId);
   }
 
   /**
