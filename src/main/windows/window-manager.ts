@@ -128,13 +128,19 @@ export class WindowManager {
       },
     });
 
+    win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+      console.log(`[Renderer Console L${level}] ${message} (${sourceId}:${line})`);
+    });
+
     if (this.isDev) {
+      win.webContents.openDevTools({ mode: "detach" });
       win.loadURL("http://localhost:5173");
     } else {
       win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "index.html"));
     }
 
     win.once("ready-to-show", () => {
+      console.log("[WindowManager] petWindow ready-to-show triggered, showing window");
       win.show();
     });
 

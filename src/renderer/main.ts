@@ -54,6 +54,14 @@ declare global {
   }
 }
 
+window.addEventListener("error", (event) => {
+  console.error("[Renderer Error]", event.error ?? event.message);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("[Renderer Promise Rejection]", event.reason);
+});
+
 console.log("[Firefly-Agent] Initializing Live2D Desktop Pet Renderer...");
 
 const canvas = document.getElementById("live2d-canvas") as HTMLCanvasElement;
@@ -61,6 +69,16 @@ const canvas = document.getElementById("live2d-canvas") as HTMLCanvasElement;
 if (!canvas) {
   throw new Error("Required DOM element #live2d-canvas not found");
 }
+
+console.log(
+  "[Canvas Diagnostics]",
+  [...document.querySelectorAll("canvas")].map((c) => ({
+    width: c.width,
+    height: c.height,
+    clientWidth: c.clientWidth,
+    clientHeight: c.clientHeight,
+  }))
+);
 
 const lifecycle = new Live2DRendererLifecycleTracker();
 

@@ -1,5 +1,6 @@
-import { app, protocol, BrowserWindow, ipcMain, Tray } from "electron";
+import { app, protocol, BrowserWindow, ipcMain, Tray, screen } from "electron";
 import path from "node:path";
+import fs from "node:fs";
 import { WindowManager } from "./windows/window-manager";
 import { createTray } from "./tray";
 import { IPC } from "../shared/ipc-channels";
@@ -22,6 +23,19 @@ import { KnowledgeCoordinator } from "./rag/knowledge-coordinator";
 import { ContextManager } from "./agent/context/context-manager";
 import type { IAgentCore } from "../shared/agent-core";
 import type { CareActionType } from "../shared/firefly-state";
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "assets",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      bypassCSP: true,
+    },
+  },
+]);
 
 const isDev = process.env.VITE_DEV === "1";
 const windowManager = new WindowManager(isDev);
@@ -111,6 +125,10 @@ function setupIpcHandlers() {
   ipcMain.on(IPC.PET_SPEAKING_CHANGED, (_event, speaking: boolean) => {
     isSpeaking = speaking;
     windowManager.broadcast(IPC.PET_SPEAKING_CHANGED, speaking);
+  });
+
+  ipcMain.handle(IPC.PET_GET_CURSOR_POS, async () => {
+    return screen.getCursorScreenPoint();
   });
 
   // Startup IPC Handlers
@@ -205,11 +223,12 @@ app.whenReady().then(() => {
     createSettingsWindow: () => windowManager.createSettingsWindow(),
   });
 
-  // 6. Register custom assets:// protocol so PNG renderer can access project assets
-  //    regardless of whether running in dev or production Electron context.
+  // 6. Register custom assets:// protocol so Live2D renderer can access project assets
   protocol.registerFileProtocol("assets", (request, callback) => {
     const url = decodeURIComponent(request.url.replace("assets://", ""));
     const filePath = path.join(app.getAppPath(), "assets", url);
+    const exists = fs.existsSync(filePath);
+    console.log(`[Assets Protocol] requested: "${request.url}" -> resolved: "${filePath}" (exists: ${exists})`);
     callback({ path: filePath });
   });
 

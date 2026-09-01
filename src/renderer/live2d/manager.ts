@@ -83,6 +83,9 @@ export class Live2DManager {
   private async initModel(options: Live2DManagerOptions): Promise<void> {
     if (this.isDisposed) return;
 
+    console.log("[Live2D] init:start");
+    console.log("[Live2D] model-load:start", this.modelPath);
+
     try {
       // Step A: Fetch and inspect raw model3.json
       const res = await fetch(this.modelPath);
@@ -116,14 +119,17 @@ export class Live2DManager {
       this.setupModelTransform();
       this.app.stage.addChild(model);
 
+      console.log("[Live2D] model-load:success");
       console.log(
         `[Live2DManager] Live2D model loaded successfully from "${this.modelPath}". ` +
           `HitAreas: ${this.hitAreas.length}, Motions: ${this.motionMap.size}, Expressions: ${this.availableExpressions.size}`
       );
+      console.log("[Live2D] manager-ready");
       options.onLoad?.();
     } catch (err) {
-      console.info(
-        `[Live2DManager] Live2D model unavailable at "${this.modelPath}" (${(err as any)?.message || err}).`
+      console.error(
+        `[Live2DManager] Live2D model load failed at "${this.modelPath}" (${(err as any)?.message || err}):`,
+        err
       );
       this.isLive2DAvailable = false;
       this.canvas.style.display = "none";
