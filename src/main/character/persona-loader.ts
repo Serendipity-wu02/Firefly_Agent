@@ -111,19 +111,16 @@ export class PersonaLoader {
 
     return {
       character: {
-        name: rawChar.name || "流萤",
-        nameEn: rawChar.name_en || "Firefly",
-        source: rawChar.source || "崩坏：星穹铁道",
-        identity: rawChar.identity || "星核猎手成员，前格拉默铁骑「萨姆」驾驶员",
+        name: String(rawChar.name || "").trim(),
+        nameEn: String(rawChar.name_en || "").trim(),
+        source: String(rawChar.source || "").trim(),
+        identity: String(rawChar.identity || "").trim(),
       },
       identity: {
         background: String(rawIdent.background || "").trim(),
         personality: Array.isArray(rawIdent.personality) ? rawIdent.personality.map(String) : [],
         likes: Array.isArray(rawIdent.likes) ? rawIdent.likes.map(String) : [],
         fears: Array.isArray(rawIdent.fears) ? rawIdent.fears.map(String) : [],
-        code: "AR-26710",
-        mbti: "INFJ",
-        armorModel: "火萤IV型战略强袭装甲「萨姆」",
       },
       vocabulary: {
         preferred: Array.isArray(rawVocab.preferred) ? rawVocab.preferred.map(String) : [],

@@ -67,8 +67,8 @@ test("3. Exact Mapping Consistency: Runtime contract 100% mirrors YAML data", as
   const { PersonaLoader } = await import(`file://${personaLoaderPath}`);
   const profile = PersonaLoader.getProfile(projectRoot);
 
-  assert.equal(profile.identity.code, "AR-26710");
-  assert.equal(profile.identity.mbti, "INFJ");
+  assert.ok(profile.identity.background.includes("AR-26710"));
+  assert.ok(profile.identity.background.includes("MBTI：INFJ"));
   assert.equal(profile.dailyMode.theme.particleEffect, "firefly");
   assert.equal(profile.workMode.subTones.execution.name, "高能执行态");
   assert.equal(profile.workMode.subTones.warning.name, "护盾警告态");

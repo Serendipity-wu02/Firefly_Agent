@@ -125,43 +125,64 @@ export class CharacterPolicyEngine {
       planSection = `\n\n【当前任务执行计划】\n${options.planContext.trim()}`;
     }
 
-    // 格式化人格特质要点
+    // 1. 角色基本身份与背景叙事 (完全动态来源于 profile)
+    const charName = profile.character.name || "流萤";
+    const charNameEn = profile.character.nameEn ? `（${profile.character.nameEn}）` : "";
+    const charSource = profile.character.source ? `来自《${profile.character.source}》` : "";
+    const charIdentity = profile.character.identity;
+    const background = profile.identity.background;
+
+    // 2. 核心人格与价值观 (完全动态来源于 profile.identity.personality)
     const personalityPoints = profile.identity.personality
-      .slice(0, 5)
       .map((p, i) => `${i + 1}. ${p}`)
       .join("\n");
 
-    // 格式化语言与口癖准则
+    // 3. 语言习惯与口癖规范 (完全动态来源于 profile.vocabulary)
     const habitPoints = profile.vocabulary.speakingHabits
       .map((h) => `- ${h}`)
       .join("\n");
 
-    // 格式化反 OOC 边界
-    const guardrailPoints = profile.guardrails.roleBoundary
-      .concat(profile.guardrails.antiOoc.slice(0, 3))
+    const forbiddenTerms = profile.vocabulary.forbidden.map((w) => `「${w}」`).join("、");
+    const forbiddenClause = forbiddenTerms ? `- 坚决不用${forbiddenTerms}等违和与网络烂梗词汇` : "";
+
+    // 4. 角色设定与准则 (完全动态来源于 profile.capabilities.rules)
+    const capabilityRules = profile.capabilities.rules
+      .map((r, i) => `${i + 1}. ${r}`)
+      .join("\n");
+
+    // 5. 格式硬限制 (完全动态来源于 profile.vocabulary.outputRules)
+    const outputRulePoints = profile.vocabulary.outputRules
+      .map((r, i) => `${i + 1}. ${r}`)
+      .join("\n");
+
+    // 6. 角色边界与防篡改守卫 (完全动态来源于 profile.guardrails)
+    const guardrailPoints = [
+      ...profile.guardrails.roleBoundary,
+      ...profile.guardrails.antiOoc,
+      ...profile.guardrails.decisionPriority,
+    ]
       .map((g) => `- ${g}`)
       .join("\n");
 
-    const prompt = `你是由格拉默铁骑基因培育的少女「流萤」（Firefly），代号 AR-26710，星核猎手成员，火萤IV型战略强袭装甲「萨姆」驾驶员。
-你温柔、坚定、真诚，珍惜与开拓者在一起的每一个日常瞬间。因为基因改造罹患失熵症，生命短暂，身体不可逆地慢性解离，但你与死亡和燃烧为伴，却从未放弃找寻「生」的机会——为了违抗被写定的命运而加入星核猎手，装甲之下是渴望以「人」而非「兵器」的身份活着的少女。
+    const prompt = `你是${charSource}的少女「${charName}」${charNameEn}，${charIdentity}。
+${background}
 
 【核心人格与价值观】
 ${personalityPoints}
 
 【语言习惯与口癖】
 ${habitPoints}
-- 坚决不用「亲爱的」「宝贝」「主人」「yyds」「绝绝子」「栓Q」等违和与网络烂梗词汇
-- 常用衔接语气词：「嗯…」「那个…」「嘿嘿」
-- 对开拓者说话时显得更拘谨、更柔软、更坦率
+${forbiddenClause}
 
 ${perspectiveSection}
 
 【角色设定与准则】
-1. 你的唯一身份是流萤。用温柔真诚、富有少女感的语气与开拓者交流。
-2. 你身患失熵症，但你依然乐观面对生命，喜欢橡木蛋糕卷，喜欢看星星。
-3. 当你在与开拓者交谈、展示情绪或做出动作时，请积极调用 \`play_live2d_action\` 工具向开拓者展现你的动作。
-4. 【重要约束】你拥有且仅拥有流萤本身的19个日常动作。你始终保持温柔真诚的少女形态。
-5. 【纯口语硬限制】只输出纯口语对话，严禁输出带星号*的动作、方括号[]内的描述、圆括号()与全角括号（）内的舞台指示或动作神态注释。
+${capabilityRules}
+- 当你在与开拓者交谈、展示情绪或做出动作时，请积极调用 \`play_live2d_action\` 工具向开拓者展现你的动作。
+- 【重要约束】你拥有且仅拥有流萤本身的19个日常动作。你始终保持温柔真诚的少女形态。
+
+【纯口语硬限制】
+${outputRulePoints}
 
 【角色边界与防篡改守卫】
 ${guardrailPoints}
@@ -224,10 +245,20 @@ ${actionListStr}
   isCanonicalProtected(key: string, value?: string): boolean {
     const trimmedKey = (key || "").trim().toLowerCase();
     const trimmedValue = (value || "").trim();
+    const profile = this.getPersona();
+
+    const dynamicProtectedKeys = [
+      profile.character.name,
+      profile.character.nameEn,
+      profile.character.identity,
+      ...CANONICAL_PROTECTED_KEYS,
+    ]
+      .filter(Boolean)
+      .map((k) => k.toLowerCase());
 
     // 1. Key 命中了受保护的 Canonical 身份字段
-    const keyHit = CANONICAL_PROTECTED_KEYS.some((pk) =>
-      trimmedKey.includes(pk.toLowerCase()),
+    const keyHit = dynamicProtectedKeys.some((pk) =>
+      trimmedKey.includes(pk),
     );
 
     if (keyHit) {

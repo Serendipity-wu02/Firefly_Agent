@@ -16,9 +16,6 @@ export interface PersonaIdentity {
   personality: string[];
   likes: string[];
   fears: string[];
-  code?: string;       // AR-26710
-  mbti?: string;       // INFJ
-  armorModel?: string; // 火萤IV型战略强袭装甲「萨姆」
 }
 
 export interface PersonaVocabulary {
