@@ -100,7 +100,7 @@ function setupIpcHandlers() {
     const result = stateManager.handleCareAction(action);
 
     // 2. V2.4 Behavior/Embodiment: single source of truth for visual decisions
-    if (action === "click" || action === "touch" || action === "drag") {
+    if (action === "click" || action === "touch") {
       const policyEngine = CharacterPolicyEngine.getInstance();
       const plan = policyEngine.handleInteraction(action);
       if (plan.requiresEmbodiment && plan.visual) {

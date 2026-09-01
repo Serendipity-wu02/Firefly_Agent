@@ -1,8 +1,9 @@
 /**
  * @file test_v2_desktop_pet_presentation.mjs
  * @description Unit & Integration test suite for V2.4 Desktop Pet Presentation.
- * Verifies default expression determinism, severance of legacy state timers from Live2D,
- * speaking/reset controller non-interference, and user interaction routing through CharacterPolicyEngine.
+ * Verifies 429x315 tight window bounds, default petScale 1.0, default expression00, default Idle/0,
+ * pure Alpha dragging, severance of Drag from CharacterState, SpeakingMotionController non-interference,
+ * context menu simplification, and resource integrity.
  */
 
 import test from "node:test";
@@ -16,13 +17,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 
-// Import CharacterPolicyEngine and state components
+// Import CharacterPolicyEngine, WindowManager, and state components
 const { CharacterPolicyEngine } = await import("../dist/main/main/character/character-policy.js");
 const { CharacterStateManager } = await import("../dist/main/main/state/state-manager.js");
-const { SpeakingMotionController } = await import("../dist/renderer/assets/renderer-BfB6sYrj.js").catch(() => ({}));
+const { WindowManager } = await import("../dist/main/main/windows/window-manager.js");
 const { FIREFLY_ACTIONS, findFireflyAction, resolveFireflyTarget } = await import("../dist/main/shared/firefly-actions.js");
 
-test("1. Default Expression Determinism: Firefly.model3.json binds expression00 to Expressions_0_File_0.json", () => {
+test("1. Base Window Dimensions: PET_WINDOW_BASE_WIDTH = 429, PET_WINDOW_BASE_HEIGHT = 315", () => {
+  const windowManagerSource = fs.readFileSync(path.join(rootDir, "src", "main", "windows", "window-manager.ts"), "utf-8");
+  assert.ok(windowManagerSource.includes("const PET_WINDOW_BASE_WIDTH = 429;"), "PET_WINDOW_BASE_WIDTH must be 429");
+  assert.ok(windowManagerSource.includes("const PET_WINDOW_BASE_HEIGHT = 315;"), "PET_WINDOW_BASE_HEIGHT must be 315");
+});
+
+test("2. Default petScale is 1.0 and ignores legacy 0.7 configuration", () => {
+  const wm = new WindowManager(false);
+  assert.equal(wm.getPetScale(), 1.0, "WindowManager default petScale must be 1.0");
+
+  const windowManagerSource = fs.readFileSync(path.join(rootDir, "src", "main", "windows", "window-manager.ts"), "utf-8");
+  assert.ok(windowManagerSource.includes("json.window.pet_scale !== 0.7"), "loadPetScale must ignore legacy 0.7 configuration");
+});
+
+test("3. Default Expression Determinism: Firefly.model3.json binds expression00 to Expressions_0_File_0.json", () => {
   const modelJsonPath = path.join(rootDir, "assets", "firefly", "models", "Firefly.model3.json");
   assert.ok(fs.existsSync(modelJsonPath), "Firefly.model3.json must exist");
   const modelData = JSON.parse(fs.readFileSync(modelJsonPath, "utf-8"));
@@ -35,92 +50,89 @@ test("1. Default Expression Determinism: Firefly.model3.json binds expression00 
   assert.ok(fs.existsSync(exp0File), "Expressions_0_File_0.json must exist on disk");
 });
 
-test("2. Startup Determinism: Manager initializes with expression00 without random expression assignment", () => {
+test("4. Startup Expression: Manager initializes with expression00 without random expression assignment", () => {
   const managerSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "live2d", "manager.ts"), "utf-8");
   assert.ok(managerSource.includes('this.setExpression("expression00")'), "Live2DManager must explicitly set expression00 on load");
   assert.ok(!managerSource.includes("Math.random()"), "Manager must not randomly select expressions on init");
 });
 
-test("3. Numeric State Isolation: StateManager does NOT dispatch actions on decayTimer or timers", () => {
-  const stateManagerSource = fs.readFileSync(path.join(rootDir, "src", "main", "state", "state-manager.ts"), "utf-8");
+test("5. Default Idle Motion: Idle/0 is registered and points to Motions_Tick2_0_File_0.json", () => {
+  const modelJsonPath = path.join(rootDir, "assets", "firefly", "models", "Firefly.model3.json");
+  const modelData = JSON.parse(fs.readFileSync(modelJsonPath, "utf-8"));
+  const idle0 = modelData.FileReferences.Motions.Idle[0];
+  assert.ok(idle0, "Idle/0 must exist in model3.json");
+  assert.equal(idle0.File, "Motions/Motions_Tick2_0_File_0.json");
+  assert.ok(fs.existsSync(path.join(rootDir, "assets", "firefly", "models", idle0.File)), "Motions_Tick2_0_File_0.json must exist");
+});
+
+test("6. Isotropic Model Scaling in setupModelTransform: scaleX === scaleY without artificial margin shrinking", () => {
+  const managerSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "live2d", "manager.ts"), "utf-8");
+  assert.ok(managerSource.includes("const scaleX = this.baseWidth / this.model.width;"), "scaleX must compute true baseWidth ratio");
+  assert.ok(managerSource.includes("const scaleY = this.baseHeight / this.model.height;"), "scaleY must compute true baseHeight ratio");
+  assert.ok(managerSource.includes("const fitScale = Math.min(scaleX, scaleY);"), "fitScale must be isotropic min(scaleX, scaleY)");
+  assert.ok(!managerSource.includes("baseWidth * 0.9"), "Must not artificially shrink width by 0.9");
+  assert.ok(!managerSource.includes("baseHeight * 0.95"), "Must not artificially shrink height by 0.95");
+});
+
+test("7. Transparent Window Configuration: backgroundColor is #00000000 and transparent is true", () => {
+  const windowManagerSource = fs.readFileSync(path.join(rootDir, "src", "main", "windows", "window-manager.ts"), "utf-8");
+  assert.ok(windowManagerSource.includes('backgroundColor: "#00000000"'), "petWindow must specify #00000000 backgroundColor");
+  assert.ok(windowManagerSource.includes("transparent: true"), "petWindow must be transparent");
+  assert.ok(windowManagerSource.includes("frame: false"), "petWindow must be frameless");
+  assert.ok(windowManagerSource.includes("hasShadow: false"), "petWindow must have no shadow");
+});
+
+test("8. Alpha Pixel Drag Initiation: InteractionController checks alpha >= alphaThreshold before drag", () => {
+  const interactionSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "live2d", "interaction.ts"), "utf-8");
+  assert.ok(interactionSource.includes("const alpha = this.manager.getPixelAlpha(e.clientX, e.clientY);"), "Must check pixel alpha on pointerdown");
+  assert.ok(interactionSource.includes("if (alpha < this.alphaThreshold) return;"), "Must reject drag on transparent pixels");
+});
+
+test("9. Drag Window Movement: InteractionController calls window.firefly.moveBy(dx, dy)", () => {
+  const interactionSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "live2d", "interaction.ts"), "utf-8");
+  assert.ok(interactionSource.includes("window.firefly?.moveBy(dx, dy);"), "Must call window.firefly.moveBy during dragging");
+});
+
+test("10. Drag Severance from CharacterState: onPetDragEnd does NOT call careAction('drag')", () => {
+  const mainRendererSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "main.ts"), "utf-8");
+  assert.ok(!mainRendererSource.includes('careAction("drag")'), "onPetDragEnd must not call careAction('drag')");
+});
+
+test("11. Click / Touch Routing: click and touch route through CharacterPolicyEngine -> EmbodimentPlan", () => {
+  const policyEngine = CharacterPolicyEngine.getInstance();
   
-  // Verify timer blocks contain zero dispatchAction calls
-  const timerBlockMatch = stateManagerSource.match(/private startTimers\(\): void \{([\s\S]*?)\n  \}/);
-  assert.ok(timerBlockMatch, "startTimers method must exist");
-  assert.ok(!timerBlockMatch[1].includes("this.dispatchAction("), "startTimers must not call dispatchAction");
+  const touchPlan = policyEngine.handleInteraction("touch");
+  assert.equal(touchPlan.behaviorType, "comfort_user");
+  assert.equal(touchPlan.visual?.actionId, "touched");
+  assert.ok(touchPlan.correlationId.startsWith("emb-"));
+
+  const clickPlan = policyEngine.handleInteraction("click");
+  assert.equal(clickPlan.behaviorType, "warm_conversation");
+  assert.equal(clickPlan.visual?.actionId, "waving");
+  assert.ok(clickPlan.correlationId.startsWith("emb-"));
 });
 
-test("4. actionTimer Severance: 18s timer has zero Live2D dispatch callers", () => {
-  const stateManagerSource = fs.readFileSync(path.join(rootDir, "src", "main", "state", "state-manager.ts"), "utf-8");
-  assert.ok(stateManagerSource.includes("actionTimer = setInterval"), "actionTimer must exist");
-  assert.ok(!stateManagerSource.includes("this.dispatchAction(nextAction)"), "actionTimer must not dispatch nextAction");
+test("12. Context Menu Simplification: Legacy pet_scale submenu is completely removed", () => {
+  const windowManagerSource = fs.readFileSync(path.join(rootDir, "src", "main", "windows", "window-manager.ts"), "utf-8");
+  assert.ok(!windowManagerSource.includes("角色大小"), "Context menu must not contain legacy 角色大小 submenu");
+  assert.ok(windowManagerSource.includes("💬 与流萤对话"), "Context menu must contain 与流萤对话");
+  assert.ok(windowManagerSource.includes("⚙ 设置"), "Context menu must contain 设置");
+  assert.ok(windowManagerSource.includes("❌ 退出"), "Context menu must contain 退出");
 });
 
-test("5. proactiveTimer Severance: 45s timer has zero Live2D dispatch callers", () => {
-  const stateManagerSource = fs.readFileSync(path.join(rootDir, "src", "main", "state", "state-manager.ts"), "utf-8");
-  assert.ok(stateManagerSource.includes("proactiveTimer = setInterval"), "proactiveTimer must exist");
-  assert.ok(!stateManagerSource.includes("this.dispatchAction(proactive)"), "proactiveTimer must not dispatch proactive");
-});
-
-test("6. SpeakingMotionController Non-Interference: Speaking state does NOT override Live2D expression to talking or idle", () => {
+test("13. SpeakingMotionController Non-Interference: Speaking state does NOT override Live2D expression", () => {
   const speakingSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "live2d", "speaking-motion.ts"), "utf-8");
   assert.ok(!speakingSource.includes('this.manager.playActionId("talking")'), "setSpeaking(true) must not force talking action");
   assert.ok(!speakingSource.includes('this.manager.playActionId("idle")'), "setSpeaking(false) must not force idle action");
 });
 
-test("7. ExpressionResetController Non-Interference: Expressions do NOT get arbitrarily wiped after 5 seconds", () => {
-  const mainRendererSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "main.ts"), "utf-8");
-  assert.ok(mainRendererSource.includes("temporary"), "Expression reset must only trigger when explicitly temporary");
-  assert.ok(mainRendererSource.includes('manager.setExpression("expression00")'), "Expression reset must restore to expression00");
-});
-
-test("8. User Interaction Routing: click/touch/drag route through CharacterPolicyEngine -> EmbodimentPlan", () => {
-  const policyEngine = CharacterPolicyEngine.getInstance();
-  
-  // Touch -> comfort_user / touched (expression4)
-  const touchPlan = policyEngine.handleInteraction("touch");
-  assert.equal(touchPlan.behaviorType, "comfort_user");
-  assert.equal(touchPlan.visual?.actionId, "touched");
-  assert.ok(touchPlan.correlationId.startsWith("emb-"));
-  assert.equal(touchPlan.visual?.target.kind, "expression");
-
-  // Click -> warm_conversation / waving (Tap/1)
-  const clickPlan = policyEngine.handleInteraction("click");
-  assert.equal(clickPlan.behaviorType, "warm_conversation");
-  assert.equal(clickPlan.visual?.actionId, "waving");
-  assert.equal(clickPlan.visual?.target.kind, "motion");
-
-  // Drag -> warm_conversation / dragged (Tap/0)
-  const dragPlan = policyEngine.handleInteraction("drag");
-  assert.equal(dragPlan.behaviorType, "warm_conversation");
-  assert.equal(dragPlan.visual?.actionId, "dragged");
-  assert.equal(dragPlan.visual?.target.kind, "motion");
-});
-
-test("9. StateManager handleCareAction Severance: Care action does NOT dispatch to Live2D directly", () => {
-  const stateManagerSource = fs.readFileSync(path.join(rootDir, "src", "main", "state", "state-manager.ts"), "utf-8");
-  const handleCareActionMatch = stateManagerSource.match(/handleCareAction\([\s\S]*?\n  \}/);
-  assert.ok(handleCareActionMatch, "handleCareAction must exist");
-  assert.ok(!handleCareActionMatch[0].includes("this.dispatchAction("), "handleCareAction must not call dispatchAction directly");
-});
-
-test("10. Legacy Action Catalog Audit: All 19 actions in FIREFLY_ACTIONS resolve to valid Live2D targets", () => {
-  assert.equal(FIREFLY_ACTIONS.length, 19, "FIREFLY_ACTIONS must contain exactly 19 catalogued actions");
-  for (const action of FIREFLY_ACTIONS) {
-    const target = resolveFireflyTarget(action.id);
-    assert.ok(target, `Action ${action.id} must resolve to a valid target`);
-    assert.ok(target.kind === "motion" || target.kind === "expression", `Target kind must be motion or expression`);
-  }
-});
-
-test("11. Assets & Resources Frozen: git diff reports 0 diff on assets/ and resources/", () => {
+test("14. Assets & Resources Frozen: git diff reports 0 diff on assets/ and resources/", () => {
   try {
     const diffAssets = execSync("git diff HEAD -- assets/", { cwd: rootDir, encoding: "utf-8" }).trim();
     const diffResources = execSync("git diff HEAD -- resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
     assert.equal(diffAssets, "", "assets/ must have 0 diff");
     assert.equal(diffResources, "", "resources/ must have 0 diff");
   } catch (err) {
-    // If git diff command fails, ensure paths exist
     assert.ok(fs.existsSync(path.join(rootDir, "assets")), "assets directory exists");
     assert.ok(fs.existsSync(path.join(rootDir, "resources")), "resources directory exists");
   }

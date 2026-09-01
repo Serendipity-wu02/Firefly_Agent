@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { IPC } from "../../shared/ipc-channels";
 
-const PET_WINDOW_BASE_WIDTH = 340;
-const PET_WINDOW_BASE_HEIGHT = 440;
+const PET_WINDOW_BASE_WIDTH = 429;
+const PET_WINDOW_BASE_HEIGHT = 315;
 const STATUS_WINDOW_WIDTH = 420;
 const STATUS_WINDOW_HEIGHT = 560;
 const CHAT_WINDOW_WIDTH = 440;
@@ -35,11 +35,16 @@ export class WindowManager {
     try {
       if (fs.existsSync(this.configPath)) {
         const json = JSON.parse(fs.readFileSync(this.configPath, "utf-8"));
-        if (typeof json.window?.pet_scale === "number") {
+        // In V2.4, default petScale is 1.0; legacy 0.7 scale is ignored to prevent shrinking
+        if (typeof json.window?.pet_scale === "number" && json.window.pet_scale !== 0.7) {
           this.petScale = json.window.pet_scale;
+        } else {
+          this.petScale = 1.0;
         }
       }
-    } catch {}
+    } catch {
+      this.petScale = 1.0;
+    }
   }
 
   saveWindowPosition(x: number, y: number): void {
@@ -119,6 +124,7 @@ export class WindowManager {
       resizable: false,
       hasShadow: false,
       alwaysOnTop: true,
+      backgroundColor: "#00000000",
       show: false,
       webPreferences: {
         preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
@@ -327,39 +333,6 @@ export class WindowManager {
       {
         label: "💬 与流萤对话",
         click: () => this.createChatWindow(),
-      },
-      {
-        label: "📊 角色状态与照料",
-        click: () => this.createStatusWindow(),
-      },
-      {
-        label: "📐 角色大小",
-        submenu: [
-          {
-            label: "小 (0.70)",
-            type: "radio",
-            checked: Math.abs(this.petScale - 0.70) < 0.05,
-            click: () => this.setPetScale(0.70),
-          },
-          {
-            label: "标准 (0.90)",
-            type: "radio",
-            checked: Math.abs(this.petScale - 0.90) < 0.05,
-            click: () => this.setPetScale(0.90),
-          },
-          {
-            label: "大 (1.00)",
-            type: "radio",
-            checked: Math.abs(this.petScale - 1.00) < 0.05,
-            click: () => this.setPetScale(1.00),
-          },
-          {
-            label: "特大 (1.25)",
-            type: "radio",
-            checked: Math.abs(this.petScale - 1.25) < 0.05,
-            click: () => this.setPetScale(1.25),
-          },
-        ],
       },
       {
         label: "⚙ 设置",

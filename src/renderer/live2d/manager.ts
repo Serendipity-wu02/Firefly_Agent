@@ -226,8 +226,8 @@ export class Live2DManager {
     this.model.y = this.baseHeight;
 
     if (this.model.width > 0 && this.model.height > 0) {
-      const scaleX = (this.baseWidth * 0.9) / this.model.width;
-      const scaleY = (this.baseHeight * 0.95) / this.model.height;
+      const scaleX = this.baseWidth / this.model.width;
+      const scaleY = this.baseHeight / this.model.height;
       const fitScale = Math.min(scaleX, scaleY);
       this.model.scale.set(fitScale * this.currentZoom);
     }

@@ -115,8 +115,7 @@ const interaction = new InteractionController(canvas, manager, {
     console.log("[Firefly-Agent] Character Dragging started");
   },
   onPetDragEnd: () => {
-    console.log("[Firefly-Agent] Character Drag Ended -> Requesting Main CharacterState drag");
-    void window.characterState?.careAction("drag");
+    console.log("[Firefly-Agent] Character Drag Ended");
   },
   onContextMenu: () => {
     console.log("[Firefly-Agent] Context Menu requested");
