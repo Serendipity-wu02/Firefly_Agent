@@ -227,19 +227,15 @@ export class WindowManager {
 
     win.once("ready-to-show", () => {
       win.show();
-      // Ensure Mood Window is opened and positioned floating beside the Harness Chat Window
-      const sumWin = this.createSummaryWindow();
-      sumWin.show();
-      this.positionSummaryBesideChat();
+      // Open the Mood Window once, anchored to the Chat Window's right-top
+      // corner (getSummaryAnchor computed inside createSummaryWindow). It is
+      // an independent window: it does NOT follow chat moves afterwards.
+      this.createSummaryWindow();
     });
 
-    win.on("move", () => {
-      this.positionSummaryBesideChat();
-    });
-
-    win.on("moved", () => {
-      this.positionSummaryBesideChat();
-    });
+    // Deliberately NO move/moved/restore repositioning: the Mood Window's
+    // position is an initial anchor only — dragging the Chat Window must
+    // never move the Mood Window (same for the Desktop Pet window).
 
     win.on("minimize", () => {
       this.summaryWindow?.hide();
@@ -248,7 +244,6 @@ export class WindowManager {
     win.on("restore", () => {
       if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
         this.summaryWindow.show();
-        this.positionSummaryBesideChat();
       }
     });
 
@@ -259,7 +254,6 @@ export class WindowManager {
     win.on("show", () => {
       if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
         this.summaryWindow.show();
-        this.positionSummaryBesideChat();
       }
     });
 
@@ -365,13 +359,6 @@ export class WindowManager {
     return { x: defaultX, y: defaultY };
   }
 
-  /** Reposition an existing Mood Window to float beside the current Chat Window. */
-  private positionSummaryBesideChat(): void {
-    if (!this.summaryWindow || this.summaryWindow.isDestroyed()) return;
-    const { x, y } = this.getSummaryAnchor();
-    this.summaryWindow.setPosition(x, y);
-  }
-
   createSummaryWindow(): BrowserWindow {
     if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
       this.summaryWindow.show();
@@ -445,12 +432,12 @@ export class WindowManager {
     }
     if (this.petWindow.isVisible()) {
       this.petWindow.hide();
-      this.summaryWindow?.hide();
     } else {
       this.petWindow.show();
       this.petWindow.focus();
-      this.summaryWindow?.show();
     }
+    // Mood (Summary) Window is bound to the Harness Chat Window lifecycle
+    // only — Desktop Pet visibility must never show/hide or move it.
   }
 
   showContextMenu(): void {
