@@ -26,6 +26,10 @@ export class FireflyTtsDispatcher {
     const text = request.speechText.trim();
     let format: TtsAudioFormat = "mp3";
 
+    console.log(
+      `[TTS Dispatcher Trace] requestId=${request.requestId} correlationId=${request.correlationId} behavior=${request.behaviorType} text="${text.slice(0, 20)}..."`,
+    );
+
     // 1. Calculate effective speed based on settings and Behavior prosody hint
     let baseSpeed = settings.speed ?? 1.0;
     if (request.prosodyHint?.pace === "slow") {

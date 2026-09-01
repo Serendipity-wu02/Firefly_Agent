@@ -164,55 +164,8 @@ export class WindowManager {
   }
 
   createStatusWindow(): BrowserWindow {
-    if (this.statusWindow && !this.statusWindow.isDestroyed()) {
-      this.statusWindow.show();
-      this.statusWindow.focus();
-      return this.statusWindow;
-    }
-
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const workArea = primaryDisplay.workArea;
-
-    const petBounds = this.petWindow?.getBounds();
-    const defaultX = petBounds
-      ? Math.max(workArea.x, petBounds.x - STATUS_WINDOW_WIDTH - 16)
-      : workArea.x + workArea.width - STATUS_WINDOW_WIDTH - 420;
-    const defaultY = petBounds ? petBounds.y : workArea.y + workArea.height - STATUS_WINDOW_HEIGHT - 32;
-
-    const win = new BrowserWindow({
-      x: defaultX,
-      y: defaultY,
-      width: STATUS_WINDOW_WIDTH,
-      height: STATUS_WINDOW_HEIGHT,
-      title: "流萤 状态与照料",
-      frame: true,
-      resizable: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    });
-
-    if (this.isDev) {
-      win.loadURL("http://localhost:5173/react/index.html?tab=status");
-    } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "react", "index.html"), {
-        query: { tab: "status" },
-      });
-    }
-
-    win.once("ready-to-show", () => {
-      win.show();
-    });
-
-    win.on("closed", () => {
-      this.statusWindow = null;
-    });
-
-    this.statusWindow = win;
-    return win;
+    console.log("[WindowManager] createStatusWindow invoked -> Redirecting to unified Harness Chat Window");
+    return this.createChatWindow();
   }
 
   createChatWindow(): BrowserWindow {
@@ -360,8 +313,7 @@ export class WindowManager {
   }
 
   getStatusWindow(): BrowserWindow | null {
-    if (!this.statusWindow || this.statusWindow.isDestroyed()) return null;
-    return this.statusWindow;
+    return this.getChatWindow();
   }
 
   getChatWindow(): BrowserWindow | null {
