@@ -143,9 +143,14 @@ export class WindowManager {
       },
     });
 
-    win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-      console.log(`[Renderer Console L${level}] ${message} (${sourceId}:${line})`);
-    });
+    if (this.isDev) {
+      // Dev-only diagnostics: mirror renderer console onto main stdout.
+      // Real renderer errors still surface via the app's own error handlers;
+      // production stdout must not become a debug trace firehose.
+      win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+        console.log(`[Renderer Console L${level}] ${message} (${sourceId}:${line})`);
+      });
+    }
 
     if (this.isDev) {
       // DevTools no longer auto-open on every dev launch; opt in explicitly
