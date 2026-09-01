@@ -150,6 +150,7 @@ export class Live2DManager {
 
       // V2.4 Desktop Pet Presentation: Fix default visual state to expression00
       this.setExpression("expression00");
+      this.pinIdleMotionToZero();
 
       debugLog("[Live2D] model-load:success");
       debugLog(
@@ -260,6 +261,33 @@ export class Live2DManager {
       const fitScale = Math.min(scaleX, scaleY);
       this.model.scale.set(fitScale * this.currentZoom);
     }
+  }
+
+  /**
+   * Default standby must always be Idle/0 (standing, natural breathing).
+   * pixi-live2d-display picks idle motions randomly across the whole Idle
+   * group, which would randomly replace the standby pose with Idle/1
+   * (reading) or Idle/2. Pin the idle group to index 0; explicit motions
+   * (Tap, reading, etc.) and non-idle groups are unaffected.
+   */
+  private pinIdleMotionToZero(): void {
+    const motionManager = (this.model as any)?.internalModel?.motionManager;
+    if (!motionManager || typeof motionManager.startRandomMotion !== "function") return;
+
+    const idleGroup: string = motionManager.groups?.idle ?? "Idle";
+    const originalStartRandomMotion = motionManager.startRandomMotion.bind(motionManager);
+
+    motionManager.startRandomMotion = (
+      group: string,
+      priority: number,
+    ): Promise<boolean> => {
+      if (group === idleGroup) {
+        return motionManager.startMotion(group, 0, priority);
+      }
+      return originalStartRandomMotion(group, priority);
+    };
+
+    debugLog(`[Live2D] idle motion pinned to ${idleGroup}:0`);
   }
 
   private resolveMotionIndex(groupOrName: string, motionNameOrIndex?: string | number): number | undefined {
