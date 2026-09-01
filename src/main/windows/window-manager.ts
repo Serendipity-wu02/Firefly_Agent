@@ -225,12 +225,47 @@ export class WindowManager {
 
     win.once("ready-to-show", () => {
       win.show();
-      // Mood Window floats beside the Harness Chat Window once Chat exists
+      // Ensure Mood Window is opened and positioned floating beside the Harness Chat Window
+      const sumWin = this.createSummaryWindow();
+      sumWin.show();
       this.positionSummaryBesideChat();
+    });
+
+    win.on("move", () => {
+      this.positionSummaryBesideChat();
+    });
+
+    win.on("moved", () => {
+      this.positionSummaryBesideChat();
+    });
+
+    win.on("minimize", () => {
+      this.summaryWindow?.hide();
+    });
+
+    win.on("restore", () => {
+      if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
+        this.summaryWindow.show();
+        this.positionSummaryBesideChat();
+      }
+    });
+
+    win.on("hide", () => {
+      this.summaryWindow?.hide();
+    });
+
+    win.on("show", () => {
+      if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
+        this.summaryWindow.show();
+        this.positionSummaryBesideChat();
+      }
     });
 
     win.on("closed", () => {
       this.chatWindow = null;
+      if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
+        this.summaryWindow.hide();
+      }
     });
 
     this.chatWindow = win;
@@ -287,7 +322,6 @@ export class WindowManager {
    * Compute the Mood (Summary) Window anchor.
    * Requirement: the mood card must float BESIDE the Harness Chat Window,
    * never embedded in it and never embedded in the Desktop Pet window.
-   * Falls back to the desktop pet area only when Chat is not open.
    */
   private getSummaryAnchor(): { x: number; y: number } {
     const primaryDisplay = screen.getPrimaryDisplay();
@@ -295,27 +329,23 @@ export class WindowManager {
 
     const chatBounds = this.chatWindow?.getBounds();
     if (chatBounds) {
-      // Prefer the right side of the Harness Chat Window
+      // Prefer the right side of the Harness Chat Window, aligned to bottom (near Composer)
       let x = chatBounds.x + chatBounds.width + 8;
       if (x + SUMMARY_WINDOW_WIDTH > workArea.x + workArea.width) {
         // No room on the right: float to the left of the Chat Window
         x = Math.max(workArea.x, chatBounds.x - SUMMARY_WINDOW_WIDTH - 8);
       }
-      const y = Math.min(
-        Math.max(workArea.y, chatBounds.y),
-        Math.max(workArea.y, workArea.y + workArea.height - SUMMARY_WINDOW_HEIGHT),
+      const targetY = chatBounds.y + chatBounds.height - SUMMARY_WINDOW_HEIGHT;
+      const y = Math.max(
+        workArea.y,
+        Math.min(workArea.y + workArea.height - SUMMARY_WINDOW_HEIGHT, targetY),
       );
       return { x, y };
     }
 
-    const petBounds = this.petWindow?.getBounds();
-    const fallbackX = petBounds
-      ? Math.max(workArea.x, Math.min(workArea.x + workArea.width - SUMMARY_WINDOW_WIDTH, petBounds.x + petBounds.width - SUMMARY_WINDOW_WIDTH))
-      : workArea.x + workArea.width - SUMMARY_WINDOW_WIDTH - 20;
-    const fallbackY = petBounds
-      ? Math.max(workArea.y, petBounds.y - SUMMARY_WINDOW_HEIGHT - 8)
-      : workArea.y + workArea.height - SUMMARY_WINDOW_HEIGHT - 350;
-    return { x: fallbackX, y: fallbackY };
+    const defaultX = Math.max(workArea.x, workArea.x + workArea.width - SUMMARY_WINDOW_WIDTH - 24);
+    const defaultY = Math.max(workArea.y, workArea.y + workArea.height - SUMMARY_WINDOW_HEIGHT - 350);
+    return { x: defaultX, y: defaultY };
   }
 
   /** Reposition an existing Mood Window to float beside the current Chat Window. */

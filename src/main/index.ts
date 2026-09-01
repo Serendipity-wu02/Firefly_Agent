@@ -275,7 +275,6 @@ app.whenReady().then(() => {
   const ttsResult = registerTtsIpc({ configPath });
   ttsSessionService = ttsResult.sessionService;
   const petWin = windowManager.createPetWindow();
-  windowManager.createSummaryWindow();
 
   if (process.env.ELECTRON_SMOKE_TEST === "1") {
     console.log("[SmokeTest] Pet window created. Running smoke verification...");
