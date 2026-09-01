@@ -327,9 +327,45 @@ export class Live2DManager {
     if (target.kind === "motion") {
       const index = this.resolveMotionIndex(target.group, target.motionName);
       this.model.motion(target.group, index);
+      this.scheduleMotionStop(target.group, index, target.durationMs);
     } else if (target.kind === "expression") {
       this.model.expression(target.name);
     }
+  }
+
+  /**
+   * Bounded playback for one-shot (non-idle) motions. Motion files authored
+   * with Meta.Loop=true (e.g. Tap/1 at ~202s) never reach the library's
+   * natural end, which would keep the pet out of standby for minutes after
+   * a click/double-click. One-shot motions are stopped at the action
+   * catalog's durationMs (delivered on the FireflyTarget); the pinned
+   * Idle/0 standby then resumes through the normal motion-manager update.
+   * The Idle group itself is exempt — looping IS its natural lifecycle —
+   * and the stop only fires when that exact motion is still active, so
+   * motions that ended early (or were replaced) are left untouched.
+   */
+  private motionStopTimer: number | null = null;
+
+  private scheduleMotionStop(group: string, index: number | undefined, durationMs?: number): void {
+    if (this.motionStopTimer !== null) {
+      window.clearTimeout(this.motionStopTimer);
+      this.motionStopTimer = null;
+    }
+    if (group.toLowerCase() === "idle") return;
+
+    this.motionStopTimer = window.setTimeout(() => {
+      this.motionStopTimer = null;
+      const motionManager = (this.model as any)?.internalModel?.motionManager;
+      if (!motionManager) return;
+      const stillActive =
+        index !== undefined &&
+        typeof motionManager.state?.isActive === "function" &&
+        motionManager.state.isActive(group, index);
+      if (stillActive) {
+        debugLog(`[Live2D] one-shot motion ${group}:${index} stopped at catalog duration`);
+        motionManager.stopAllMotions();
+      }
+    }, Math.max(500, durationMs ?? 5000));
   }
 
   playActionId(actionId: string): void {
@@ -545,6 +581,11 @@ export class Live2DManager {
   dispose(): void {
     if (this.isDisposed) return;
     this.isDisposed = true;
+
+    if (this.motionStopTimer !== null) {
+      window.clearTimeout(this.motionStopTimer);
+      this.motionStopTimer = null;
+    }
 
     if (this.model) {
       try {

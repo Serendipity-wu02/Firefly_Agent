@@ -37,7 +37,12 @@ export function createPlayLive2DActionHandler(deps: PlayLive2DActionDeps) {
 
     try {
       const target = resolveFireflyTarget(action.id);
-      deps.sendToPet(IPC.LIVE2D_PLAY_ACTION, target);
+      deps.sendToPet(IPC.LIVE2D_PLAY_ACTION, {
+        ...target,
+        // Catalog playback window for one-shot motions (loop-authored files
+        // would otherwise hold the pet out of standby for minutes).
+        ...(target.kind === "motion" ? { durationMs: action.durationMs } : {}),
+      });
       return toJsonResult({
         ok: true,
         action: action.id,

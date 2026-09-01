@@ -117,7 +117,7 @@ function setupIpcHandlers() {
       const payload =
         target.kind === "expression"
           ? { ...target, temporary: true, durationMs: plan.visual.durationMs ?? 5000 }
-          : target;
+          : { ...target, durationMs: plan.visual.durationMs ?? 5000 };
       windowManager.sendToPet(IPC.LIVE2D_PLAY_ACTION, {
         ...payload,
         correlationId: plan.correlationId,

@@ -1,5 +1,19 @@
 export type FireflyTarget =
-  | { kind: "motion"; group: string; motionName: string; correlationId?: string; behaviorType?: string }
+  | {
+      kind: "motion";
+      group: string;
+      motionName: string;
+      correlationId?: string;
+      behaviorType?: string;
+      /**
+       * Bounded playback window (ms) for one-shot motions from the action
+       * catalog. Motion files authored with Meta.Loop=true (e.g. Tap/1 at
+       * ~202s) never reach the library's natural end, so the renderer stops
+       * the motion after this catalog duration; Idle group is exempt and
+       * keeps looping by design.
+       */
+      durationMs?: number;
+    }
   | {
       kind: "expression";
       name: string;
