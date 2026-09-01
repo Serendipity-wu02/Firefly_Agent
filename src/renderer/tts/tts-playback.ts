@@ -1,4 +1,4 @@
-import type { StartTtsRequest, TtsStartResult, TtsSessionEvent } from "../../shared/tts-session";
+import type { StartTtsRequest, TtsStartResult, TtsSessionEvent, VoiceProsodyHint } from "../../shared/tts-session";
 
 export type TtsPlaybackStatus = "idle" | "synthesizing" | "playing" | "paused" | "completed" | "error";
 
@@ -6,6 +6,14 @@ export interface TtsPlaybackSnapshot {
   messageId: string | null;
   status: TtsPlaybackStatus;
   error?: string;
+}
+
+export interface TtsSpeakOptions {
+  messageId?: string;
+  voiceIntent?: string;
+  behaviorType?: string;
+  prosodyHint?: VoiceProsodyHint;
+  correlationId?: string;
 }
 
 export class TtsPlaybackManager {
@@ -66,7 +74,7 @@ export class TtsPlaybackManager {
     } catch {}
   }
 
-  async speak(text: string, options: { messageId?: string } = {}): Promise<void> {
+  async speak(text: string, options: TtsSpeakOptions = {}): Promise<void> {
     this.stop();
 
     if (!text.trim()) return;
@@ -79,7 +87,12 @@ export class TtsPlaybackManager {
     try {
       const res: TtsStartResult = await window.tts.startSession({
         requestId,
+        messageId: options.messageId,
         speechText: text,
+        voiceIntent: options.voiceIntent,
+        behaviorType: options.behaviorType,
+        prosodyHint: options.prosodyHint,
+        correlationId: options.correlationId,
       });
 
       if (this.currentRequestId !== requestId) return;

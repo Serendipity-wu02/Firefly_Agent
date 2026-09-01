@@ -39,7 +39,6 @@ export class FireflyTtsDispatcher {
       speed: baseSpeed,
       behaviorType: request.behaviorType,
       pace: request.prosodyHint?.pace,
-      pitch: request.prosodyHint?.pitch,
     };
 
     // Build engine-specific configs with effective speed

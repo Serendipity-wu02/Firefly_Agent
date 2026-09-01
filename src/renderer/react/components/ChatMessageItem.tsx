@@ -2,6 +2,7 @@
  * @file ChatMessageItem.tsx
  * @description Cyrene-style Assistant/User Message Renderer with real Firefly Avatar and TTS controls.
  * Cleanly renders Assistant (Real Avatar + Name Header + Message Bubble + TTS Action) and User messages.
+ * Uses message embodiment metadata directly for TTS playback so manual and automatic playback remain 100% consistent.
  */
 
 import React from "react";
@@ -13,7 +14,7 @@ export interface ChatMessageItemProps {
   message: ChatMessage;
   ttsEnabled: boolean;
   ttsPlaybackSnapshot: TtsPlaybackSnapshot;
-  onSpeak: (text: string, options: { messageId?: string }) => void;
+  onSpeak: (message: ChatMessage) => void;
 }
 
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
@@ -58,7 +59,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
         alignSelf: "flex-start",
         marginBottom: "4px",
       }}>
-        {/* Real Firefly Avatar */}
+        {/* Real Firefly Avatar (Strictly zero placeholder text/gradient fallback for assistant) */}
         <div
           title={avatar.alt}
           style={{
@@ -76,7 +77,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             userSelect: "none",
           }}
         >
-          {avatar.kind === "image" && avatar.src ? (
+          {avatar.src ? (
             <img
               src={avatar.src}
               alt={avatar.alt}
@@ -88,7 +89,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               }}
             />
           ) : (
-            <span style={{ color: "#7ee7c4", fontWeight: 700, fontSize: "14px" }}>萤</span>
+            <div style={{ width: "100%", height: "100%", background: "#1c202a" }} />
           )}
         </div>
 
@@ -113,11 +114,11 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           >
             {message.content}
 
-            {/* TTS Playback Action */}
+            {/* TTS Playback Action (passes full message embodiment metadata) */}
             {ttsEnabled && (
               <div style={{ marginTop: "6px", textAlign: "right" }}>
                 <button
-                  onClick={() => onSpeak(message.content, { messageId: message.id })}
+                  onClick={() => onSpeak(message)}
                   style={{
                     background: isCurrentSpeaking ? "rgba(82, 227, 178, 0.15)" : "transparent",
                     border: isCurrentSpeaking ? "1px solid #52e3b2" : "none",

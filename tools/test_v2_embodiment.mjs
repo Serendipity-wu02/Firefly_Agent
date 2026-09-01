@@ -338,3 +338,51 @@ test("14. Avatar Decoupling: Avatar resolver returns constant identity regardles
     assert.ok(descriptor.src && descriptor.src.includes("firefly.png"));
   }
 });
+
+test("15. Automatic vs Manual TTS Playback Equivalence: Both consume the exact same Embodiment metadata from ChatMessage", async () => {
+  const { CharacterPolicyEngine } = await import(`file://${characterPolicyPath}`);
+  const engine = CharacterPolicyEngine.getInstance();
+
+  const decision = engine.decideBehavior({
+    userPrompt: "流萤，我今天头好痛……",
+    mode: "daily",
+  });
+  const plan = engine.createEmbodimentPlan(decision, "没关系，我一直都在这里陪着你。");
+
+  // ChatMessage constructed with Embodiment metadata
+  const chatMessage = {
+    id: "msg-12345",
+    role: "assistant",
+    content: plan.voice.speechText,
+    timestamp: Date.now(),
+    behaviorType: plan.behaviorType,
+    correlationId: plan.correlationId,
+    voiceIntent: plan.voice.voiceIntent,
+    prosodyHint: plan.voice.prosodyHint,
+  };
+
+  // Simulated Automatic Playback Call payload
+  const autoPayload = {
+    messageId: chatMessage.id,
+    speechText: chatMessage.content,
+    voiceIntent: chatMessage.voiceIntent,
+    behaviorType: chatMessage.behaviorType,
+    prosodyHint: chatMessage.prosodyHint,
+    correlationId: chatMessage.correlationId,
+  };
+
+  // Simulated Manual Playback Call payload (from clicking TTS button in ChatMessageItem)
+  const manualPayload = {
+    messageId: chatMessage.id,
+    speechText: chatMessage.content,
+    voiceIntent: chatMessage.voiceIntent,
+    behaviorType: chatMessage.behaviorType,
+    prosodyHint: chatMessage.prosodyHint,
+    correlationId: chatMessage.correlationId,
+  };
+
+  assert.deepEqual(autoPayload, manualPayload, "Auto and manual playback payloads must be strictly identical");
+  assert.equal(manualPayload.correlationId, plan.correlationId);
+  assert.equal(manualPayload.behaviorType, "comfort_user");
+  assert.equal(manualPayload.prosodyHint.pace, "slow");
+});

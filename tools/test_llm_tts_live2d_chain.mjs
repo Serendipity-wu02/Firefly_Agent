@@ -144,24 +144,52 @@ test("Unified Embodiment Multimodal Chain: BehaviorDecision drives TTS and Live2
     assert.ok(plan.correlationId.startsWith("emb-"));
     assert.equal(plan.visual?.actionId, scenario.expectedActionId);
 
+    // Construct Assistant ChatMessage with Embodiment metadata
+    const asstMsg = {
+      id: `asst-${Date.now()}`,
+      role: "assistant",
+      content: plan.voice.speechText,
+      timestamp: Date.now(),
+      behaviorType: plan.behaviorType,
+      correlationId: plan.correlationId,
+      voiceIntent: plan.voice.voiceIntent,
+      prosodyHint: plan.voice.prosodyHint,
+    };
+
     // Live2D dispatch
+    let dispatchedTarget = null;
     if (plan.requiresEmbodiment && plan.visual) {
-      fakeSendToPet("live2d:play-action", {
-        target: plan.visual.target,
+      dispatchedTarget = {
+        ...plan.visual.target,
         correlationId: plan.correlationId,
-      });
+        behaviorType: plan.behaviorType,
+      };
+      fakeSendToPet("live2d:play-action", dispatchedTarget);
     }
 
-    // TTS dispatch
+    // TTS dispatch (consuming Assistant Message metadata)
+    const ttsRequest = {
+      requestId: `req-${Date.now()}`,
+      messageId: asstMsg.id,
+      speechText: asstMsg.content,
+      voiceIntent: asstMsg.voiceIntent,
+      behaviorType: asstMsg.behaviorType,
+      prosodyHint: asstMsg.prosodyHint,
+      correlationId: asstMsg.correlationId,
+    };
+
+    // Assert correlationId consistency across all 4 boundaries:
+    assert.equal(plan.correlationId, asstMsg.correlationId);
+    assert.equal(plan.correlationId, ttsRequest.correlationId);
+    assert.equal(plan.correlationId, dispatchedTarget?.correlationId);
+
+    // Assert speechText purity
+    assert.equal(ttsRequest.speechText, asstMsg.content);
+    assert.ok(!ttsRequest.speechText.includes("<"));
+    assert.ok(!ttsRequest.speechText.includes(">"));
+
     const ttsResult = await sessionService.start(
-      {
-        requestId: `req-${Date.now()}`,
-        speechText: plan.voice.speechText,
-        voiceIntent: plan.voice.voiceIntent,
-        behaviorType: plan.behaviorType,
-        prosodyHint: plan.voice.prosodyHint,
-        correlationId: plan.correlationId,
-      },
+      ttsRequest,
       { ...DEFAULT_TTS_SETTINGS, engine: "off" }
     );
 

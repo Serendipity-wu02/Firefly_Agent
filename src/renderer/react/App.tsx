@@ -11,7 +11,34 @@ import { ChatMessageItem } from "./components/ChatMessageItem";
 declare global {
   interface Window {
     chat?: {
-      sendMessage: (message: string, history?: ChatMessage[]) => Promise<{ replyText: string; history: ChatMessage[]; toolCalled?: boolean }>;
+      sendMessage: (
+        message: string,
+        history?: ChatMessage[],
+      ) => Promise<{
+        replyText: string;
+        history: ChatMessage[];
+        toolCalled?: boolean;
+        embodimentPlan?: {
+          behaviorType: string;
+          correlationId: string;
+          requiresEmbodiment: boolean;
+          voice?: {
+            speechText: string;
+            voiceIntent: string;
+            prosodyHint?: {
+              pace?: "slow" | "normal" | "brisk";
+              pitch?: "soft_low" | "neutral" | "bright_up";
+              volumeModifier?: number;
+              pauseLengthMs?: number;
+            };
+          };
+          visual?: {
+            actionId: string;
+            target: any;
+          } | null;
+        };
+        correlationId?: string;
+      }>;
     };
     settings?: {
       load: () => Promise<any>;
@@ -125,17 +152,28 @@ export const App: React.FC = () => {
     try {
       if (window.chat) {
         const res = await window.chat.sendMessage(text, messages);
+        const correlationId = res.correlationId || res.embodimentPlan?.correlationId;
         const asstMsg: ChatMessage = {
           id: `asst-${Date.now()}`,
           role: "assistant",
           content: res.replyText || "我在这里，开拓者。",
           timestamp: Date.now(),
+          behaviorType: res.embodimentPlan?.behaviorType,
+          correlationId,
+          voiceIntent: res.embodimentPlan?.voice?.voiceIntent,
+          prosodyHint: res.embodimentPlan?.voice?.prosodyHint,
         };
         setMessages((prev) => [...prev, asstMsg]);
 
-        // Auto speak if TTS is enabled
+        // Auto speak if TTS is enabled, passing identical embodiment metadata
         if (ttsSettings.engine !== "off" && res.replyText) {
-          globalTtsPlayback.speak(res.replyText, { messageId: asstMsg.id });
+          globalTtsPlayback.speak(asstMsg.content, {
+            messageId: asstMsg.id,
+            voiceIntent: asstMsg.voiceIntent,
+            behaviorType: asstMsg.behaviorType,
+            prosodyHint: asstMsg.prosodyHint,
+            correlationId: asstMsg.correlationId,
+          });
         }
       } else {
         setTimeout(() => {
@@ -274,7 +312,15 @@ export const App: React.FC = () => {
                 message={m}
                 ttsEnabled={ttsSettings.engine !== "off"}
                 ttsPlaybackSnapshot={ttsPlaybackSnapshot}
-                onSpeak={(text, opts) => globalTtsPlayback.speak(text, opts)}
+                onSpeak={(msg) =>
+                  globalTtsPlayback.speak(msg.content, {
+                    messageId: msg.id,
+                    voiceIntent: msg.voiceIntent,
+                    behaviorType: msg.behaviorType,
+                    prosodyHint: msg.prosodyHint,
+                    correlationId: msg.correlationId,
+                  })
+                }
               />
             ))}
             {isLoading && (
