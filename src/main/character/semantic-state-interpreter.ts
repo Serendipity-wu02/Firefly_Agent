@@ -2,7 +2,7 @@
  * @file semantic-state-interpreter.ts
  * @description Deterministic Semantic Emotion & Inner State Interpreter for Firefly V2.4.
  * Dynamically resolves expression guidance and behavioral tendencies from PersonaLoader (firefly.yaml).
- * Strictly avoids duplicating canonical persona prose in TypeScript runtime code.
+ * Strictly contains 0 Persona prose fallbacks; explanations describe classifier decision reasons only.
  */
 
 import { PersonaLoader } from "./persona-loader";
@@ -37,7 +37,7 @@ const COGNITIVE_ZH_MAP: Record<CognitiveContext, string> = {
 
 export class SemanticStateInterpreter {
   /**
-   * 动态从 PersonaProfile 解析指定情绪的表达指引
+   * 动态从 PersonaProfile 解析指定情绪的表达指引 (0 静态 Persona prose fallback)
    */
   private static resolveGuidanceFromProfile(
     canonicalKey: CanonicalEmotionKey,
@@ -45,17 +45,14 @@ export class SemanticStateInterpreter {
   ): string {
     const profile = PersonaLoader.getProfile();
     if (mode === "work") {
-      return (
-        profile.workMode?.tone?.description ||
-        "冷静、果断、高效"
-      );
+      return profile.workMode?.tone?.description || "";
     }
     const emotionRules = profile.dailyMode?.emotionRules || {};
-    return emotionRules[canonicalKey] || profile.dailyMode?.tone?.description || "温和、阳光、真诚";
+    return emotionRules[canonicalKey] || profile.dailyMode?.tone?.description || "";
   }
 
   /**
-   * 动态从 PersonaProfile 解析行为姿态倾向
+   * 动态从 PersonaProfile 解析行为姿态倾向 (0 静态 Persona prose fallback)
    */
   private static resolveBehavioralTendencyFromProfile(
     mode: CharacterMode,
@@ -63,10 +60,10 @@ export class SemanticStateInterpreter {
     const profile = PersonaLoader.getProfile();
     if (mode === "work") {
       const chars = profile.workMode?.tone?.characteristics;
-      return chars && chars.length > 0 ? chars.join("；") : "用词严密，注重效率；任务执行中保持专业。";
+      return chars && chars.length > 0 ? chars.join("；") : "";
     }
     const habits = profile.vocabulary?.speakingHabits;
-    return habits && habits.length > 0 ? habits.slice(0, 2).join("；") : "日常说话轻声、柔和，带停顿与思考感。";
+    return habits && habits.length > 0 ? habits.slice(0, 2).join("；") : "";
   }
 
   /**
@@ -83,8 +80,8 @@ export class SemanticStateInterpreter {
       cognitiveContext: isWork ? "task_executing" : "conversing",
       mode,
       explanation: isWork
-        ? "处于工作执行模式，保持专业、严密与专注。"
-        : "处于日常闲暇时光，心境平和自然，享受安宁的时刻。",
+        ? "处于工作模式，保持指令执行状态。"
+        : "处于日常闲暇交互状态，无特定触发词。",
       expressionGuidance: this.resolveGuidanceFromProfile(canonicalEmotion, mode),
       behavioralTendency: this.resolveBehavioralTendencyFromProfile(mode),
       timestamp: Date.now(),
@@ -109,13 +106,13 @@ export class SemanticStateInterpreter {
 
     let emotion: SemanticEmotion = "neutral";
     let cognitiveContext: CognitiveContext = "conversing";
-    let explanation = "日常交流对话，心境平静自然。";
+    let explanation = "日常交流对话，无特殊触发条件。";
 
     // 2. 工作模式优先判定
     if (mode === "work") {
       emotion = "determined";
       cognitiveContext = "task_executing";
-      explanation = "处于工作任务执行状态，保持冷静、高效与专注。";
+      explanation = "处于工作模式，保持指令执行状态。";
     }
 
     // 3. 特征分类：严格区分【外部用户不适】与【流萤自身身世/失熵症/身体解离】
@@ -196,50 +193,42 @@ export class SemanticStateInterpreter {
       prompt.includes("黑塔") ||
       prompt.includes("命途");
 
-    // 4. 确定性仲裁状态映射
+    // 4. 确定性仲裁状态映射 (Explanation 仅表达程序决策理由)
     if (isUserDistress) {
-      // 外部用户不适 -> 关切担忧与主动抚慰
       emotion = "concerned";
       cognitiveContext = "caring";
-      explanation = "感知到对方的身体不适或情绪困扰，由衷表达关切与守护之意。";
+      explanation = "检测到用户表达身体不适或负向情绪，判定为关切状态。";
     } else if (isSelfPhysicalOrEntropyLoss) {
-      // 流萤自身病理/身世探讨 -> 专注沉思与身世回忆
       emotion = mode === "work" ? "determined" : "thinking";
       cognitiveContext = "reflecting";
-      explanation = "探讨自身失熵症、身世宿命与机甲驾驶员经历，心境沉静，流露对真实生活与当下的向往。";
+      explanation = "检测到关于失熵症或机甲驾驶员身世的讨论，判定为沉思回忆状态。";
     } else if (isAffectionOrCompliment) {
       emotion = "shy";
       cognitiveContext = "conversing";
-      explanation = "面对亲近同伴的夸奖或直率赞美，感到些许拘谨与羞涩。";
+      explanation = "检测到针对角色的夸奖或直率赞美，判定为羞涩状态。";
     } else if (isJoyOrFoodOrMilestone) {
       emotion = "happy";
       cognitiveContext = "sharing_memory";
-      explanation = "提及喜爱的食物、美好回忆或重聚时光，心生暖意与欣喜。";
+      explanation = "检测到关于喜爱的食物、游玩或重聚的讨论，判定为欣喜状态。";
     } else if (isSurprise) {
       emotion = "surprised";
       cognitiveContext = "conversing";
-      explanation = "面对出乎意料的状况或提问，产生轻声的意外与好奇。";
+      explanation = "检测到表达出乎意料或惊讶的词汇，判定为意外状态。";
     } else if (isTaskOrTool) {
       emotion = mode === "work" ? "determined" : "happy";
       cognitiveContext = "task_executing";
-      explanation = "收到协助指令，以真诚积极的姿态准备执行任务。";
+      explanation = "检测到协助或任务指令，判定为执行协助状态。";
     } else if (isWorldLore) {
       emotion = "thinking";
       cognitiveContext = "reflecting";
-      explanation = "梳理外部世界观与宇宙情报线索，专注审慎地思考。";
+      explanation = "检测到外部世界观或宏观势力设定讨论，判定为思考状态。";
     }
 
     // 5. 对话对象 (Relationship) 影响
     if (input.relationshipResult?.isKnown) {
       const companionName = input.relationshipResult.relationship?.name || input.interlocutor || "";
-      if (companionName.includes("开拓者")) {
-        explanation += ` 正在与最珍视的开拓者交流，语气自然亲近、多一份柔软。`;
-      } else if (
-        companionName.includes("卡芙卡") ||
-        companionName.includes("银狼") ||
-        companionName.includes("刃")
-      ) {
-        explanation += ` 正在与星核猎手同伴交谈，保持彼此信赖与默契。`;
+      if (companionName) {
+        explanation += ` 识别到对话对象为同伴「${companionName}」。`;
       }
     }
 

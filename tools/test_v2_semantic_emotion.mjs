@@ -1,7 +1,7 @@
 /**
  * @file test_v2_semantic_emotion.mjs
  * @description Comprehensive Test Suite for Firefly-Agent V2.4 Semantic Emotion & Inner State.
- * Validates canonical YAML mapping, dynamic PersonaLoader derivation, zero duplicate prose,
+ * Validates canonical YAML mapping, dynamic PersonaLoader derivation, zero fallback prose in code,
  * user distress vs self physical state distinction, persona/relationship/memory invariance,
  * numeric state independence, and System Prompt projection.
  */
@@ -51,7 +51,7 @@ test("1. Canonical Mapping: YAML emotion_rules keys map bijectively to SemanticE
   assert.equal(SEMANTIC_TO_CANONICAL_EMOTION_MAP["determined"], "angry");
 });
 
-test("2. Dynamic PersonaLoader Derivation: expressionGuidance dynamically sources from firefly.yaml", async () => {
+test("2. Dynamic PersonaLoader Derivation: expressionGuidance and behavioralTendency source from firefly.yaml", async () => {
   const { SemanticStateInterpreter } = await import(`file://${semanticInterpreterPath}`);
   const { PersonaLoader } = await import(`file://${personaLoaderPath}`);
 
@@ -65,18 +65,38 @@ test("2. Dynamic PersonaLoader Derivation: expressionGuidance dynamically source
   assert.equal(happyState.canonicalEmotion, "happy");
   // expressionGuidance must strictly match firefly.yaml daily_mode.emotion_rules.happy
   assert.equal(happyState.expressionGuidance, profile.dailyMode.emotionRules.happy);
+
+  // behavioralTendency must dynamically reflect speaking habits
+  const expectedHabits = profile.vocabulary.speakingHabits.slice(0, 2).join("；");
+  assert.equal(happyState.behavioralTendency, expectedHabits);
 });
 
-test("3. Zero Duplicate Prose Static Check: semantic-state-interpreter.ts has no hardcoded duplicate persona prose", () => {
+test("3. Zero Duplicate Prose Static Check: semantic-state-interpreter.ts contains 0 hardcoded persona prose", () => {
   const interpreterSrcPath = path.join(projectRoot, "src", "main", "character", "semantic-state-interpreter.ts");
   const src = fs.readFileSync(interpreterSrcPath, "utf-8");
 
-  // Verify that old hardcoded prose strings were removed
-  assert.ok(!src.includes("“语气轻快柔和"), "Must not hardcode duplicated persona prose");
-  assert.ok(!src.includes("“拘谨害羞"), "Must not hardcode duplicated persona prose");
-  assert.ok(!src.includes("“善用省略号"), "Must not hardcode duplicated persona prose");
-  assert.ok(!src.includes("“声音变低变稳"), "Must not hardcode duplicated persona prose");
-  assert.ok(src.includes("resolveGuidanceFromProfile"), "Must resolve guidance from PersonaLoader");
+  // Verify that all hardcoded persona fallback strings are completely absent
+  const forbiddenSubstrings = [
+    "冷静、果断、高效",
+    "温和、阳光、真诚",
+    "日常说话轻声",
+    "拘谨害羞",
+    "声音变低变稳",
+    "用词严密，注重效率",
+    "最珍视的开拓者",
+    "由衷守护",
+    "星核猎手同伴交谈",
+  ];
+
+  for (const forbidden of forbiddenSubstrings) {
+    assert.ok(
+      !src.includes(forbidden),
+      `semantic-state-interpreter.ts must not contain duplicated persona prose: "${forbidden}"`,
+    );
+  }
+
+  assert.ok(src.includes("resolveGuidanceFromProfile"), "Must dynamically resolve guidance from PersonaLoader");
+  assert.ok(src.includes("resolveBehavioralTendencyFromProfile"), "Must dynamically resolve tendency from PersonaLoader");
 });
 
 test("4. Distress Distinction: User distress vs Firefly self physical / entropy loss condition", async () => {
@@ -90,7 +110,7 @@ test("4. Distress Distinction: User distress vs Firefly self physical / entropy 
   assert.equal(userDistressState.emotion, "concerned");
   assert.equal(userDistressState.canonicalEmotion, "sad");
   assert.equal(userDistressState.cognitiveContext, "caring");
-  assert.ok(userDistressState.explanation.includes("对方的身体不适或情绪困扰"));
+  assert.ok(userDistressState.explanation.includes("检测到用户表达身体不适或负向情绪"));
 
   // Scenario B: Firefly self condition / entropy loss -> thinking / reflecting
   const selfEntropyState = SemanticStateInterpreter.interpret({
@@ -138,10 +158,10 @@ test("6. Default State: Empty or idle prompt returns clean deterministic default
   assert.equal(workDefault.canonicalEmotion, "angry");
   assert.equal(workDefault.cognitiveContext, "task_executing");
   assert.equal(workDefault.mode, "work");
-  assert.ok(workDefault.explanation.includes("工作"));
+  assert.ok(workDefault.explanation.includes("工作模式"));
 });
 
-test("7. Relationship Influence: Interlocutor context enriches emotional explanation without mutating facts", async () => {
+test("7. Relationship Influence: Interlocutor context enriches explanation without mutating facts", async () => {
   const { SemanticStateInterpreter } = await import(`file://${semanticInterpreterPath}`);
   const { RelationshipRegistry } = await import(`file://${relationshipRegistryPath}`);
 
@@ -158,7 +178,6 @@ test("7. Relationship Influence: Interlocutor context enriches emotional explana
   assert.equal(state.emotion, "happy");
   assert.equal(state.cognitiveContext, "sharing_memory");
   assert.ok(state.explanation.includes("开拓者"));
-  assert.ok(state.explanation.includes("蛋糕卷"));
 
   // Verify Canonical Relationship is NOT mutated
   const canonicalTrailblazer = RelationshipRegistry.findRelationship("开拓者");
