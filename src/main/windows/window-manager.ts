@@ -7,8 +7,11 @@ const PET_WINDOW_BASE_WIDTH = 429;
 const PET_WINDOW_BASE_HEIGHT = 315;
 const STATUS_WINDOW_WIDTH = 420;
 const STATUS_WINDOW_HEIGHT = 560;
-const CHAT_WINDOW_WIDTH = 440;
-const CHAT_WINDOW_HEIGHT = 620;
+// Harness Chat Window sizing: user acceptance required a visibly larger
+// chat panel ("大两圈"). 440×620 → 576×800 (×1.31 / ×1.29). Layout is pure
+// flex (Header / Conversation / Composer), so it scales without overflow.
+const CHAT_WINDOW_WIDTH = 576;
+const CHAT_WINDOW_HEIGHT = 800;
 const SUMMARY_WINDOW_WIDTH = 240;
 const SUMMARY_WINDOW_HEIGHT = 130;
 const SETTINGS_WINDOW_WIDTH = 500;
