@@ -139,7 +139,9 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                   title={
                     ttsPlaybackSnapshot.messageId === message.id && ttsPlaybackSnapshot.error
                       ? `TTS 错误: ${ttsPlaybackSnapshot.error}`
-                      : "播放语音"
+                      : isCurrentSpeaking
+                        ? "正在播放语音"
+                        : "播放语音"
                   }
                   style={{
                     background: isCurrentSpeaking
@@ -167,11 +169,9 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                     transition: "all 0.2s ease",
                   }}
                 >
-                  {isCurrentSpeaking
-                    ? "🔊 朗读中..."
-                    : ttsPlaybackSnapshot.messageId === message.id && ttsPlaybackSnapshot.status === "error"
-                      ? "⚠️ 播放失败"
-                      : "🔈 播放语音"}
+                  {ttsPlaybackSnapshot.messageId === message.id && ttsPlaybackSnapshot.status === "error"
+                    ? "⚠️ 播放失败"
+                    : "🔈 播放语音"}
                 </button>
               </div>
             )}

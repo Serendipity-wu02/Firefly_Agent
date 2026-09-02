@@ -10,50 +10,7 @@ import { Live2DRendererLifecycleTracker } from "./live2d/lifecycle-diagnostics";
 import type { FireflyTarget } from "../shared/firefly-actions";
 import type { CareActionType } from "../shared/firefly-state";
 
-declare global {
-  interface Window {
-    firefly?: {
-      minimize: () => void;
-      hide: () => void;
-      quit: () => void;
-      setInteractive: (interactive: boolean) => Promise<void>;
-      moveBy: (dx: number, dy: number) => void;
-      moveTo: (x: number, y: number) => void;
-      setDragging: (isDragging: boolean) => void;
-      setSpeaking: (isSpeaking: boolean) => void;
-      onSpeakingChanged: (cb: (isSpeaking: boolean) => void) => () => void;
-      captureFrame: () => Promise<string | null>;
-      getCursorPosition: () => Promise<{ x: number; y: number } | null>;
-      openChat: () => void;
-      openStatus: () => void;
-      openSettings: () => void;
-      showContextMenu: () => void;
-      setScale: (scale: number) => void;
-      onPetZoom: (cb: (zoom: number) => void) => () => void;
-      onPetVisibilityChanged: (cb: (visible: boolean) => void) => () => void;
-    };
-    live2dAction?: {
-      onPlayAction: (cb: (target: FireflyTarget) => void) => () => void;
-    };
-    live2dSpeech?: {
-      onPrepare: (cb: () => void) => () => void;
-      onMouthStart: (cb: (payload: { durationMs: number }) => void) => () => void;
-      onMouthStop: (cb: () => void) => () => void;
-    };
-    characterState?: {
-      getState: () => Promise<any>;
-      careAction: (action: CareActionType) => Promise<{ state: any; actionId: string; feedback?: string }>;
-      onStateChanged: (cb: (state: any) => void) => () => void;
-    };
-    tts?: {
-      startSession: (request: any) => Promise<any>;
-      cancelSession: (requestId: string) => Promise<boolean>;
-      getSettings: () => Promise<any>;
-      saveSettings: (settings: any) => Promise<boolean>;
-      onSessionEvent: (cb: (event: any) => void) => () => void;
-    };
-  }
-}
+
 
 window.addEventListener("error", (event) => {
   console.error("[Renderer Error]", event.error ?? event.message);

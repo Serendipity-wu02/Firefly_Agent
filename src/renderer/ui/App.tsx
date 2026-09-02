@@ -11,8 +11,8 @@ import React, { useEffect, useState, useRef } from "react";
 import type { TtsSettings } from "../../shared/tts-types";
 import { DEFAULT_TTS_SETTINGS } from "../../shared/tts-types";
 import type { ChatMessage } from "../../shared/chat-types";
-import type { LlmProviderConfig, ProviderId } from "../../shared/provider-types";
-import { DEFAULT_LLM_CONFIG } from "../../shared/provider-types";
+import type { LlmProviderConfig, ProviderId, ProviderStatus } from "../../shared/provider-types";
+import { DEFAULT_LLM_CONFIG, evaluateProviderStatus } from "../../shared/provider-types";
 import { globalTtsPlayback, type TtsPlaybackSnapshot } from "../tts/tts-playback";
 import { debugLog } from "../debug-log";
 import { THEME_TOKENS } from "./theme/tokens";
@@ -22,62 +22,7 @@ import { CharacterSummary } from "./components/CharacterSummary";
 import { Composer } from "./components/Composer";
 import { SettingsView } from "./components/SettingsView";
 
-declare global {
-  interface Window {
-    chat?: {
-      sendMessage: (
-        message: string,
-        history?: any[],
-      ) => Promise<{
-        ok?: boolean;
-        status?: string;
-        replyText: string;
-        history: any[];
-        toolCalled?: boolean;
-        error?: string;
-        embodimentPlan?: {
-          behaviorType: string;
-          presentationSummary?: {
-            moodLabel: string;
-            behaviorLabel: string;
-            modeLabel: string;
-          };
-          voice?: {
-            voiceIntent?: string;
-            prosodyHint?: {
-              pace?: "slow" | "normal" | "brisk";
-              pitch?: "soft_low" | "neutral" | "bright_up";
-              volumeModifier?: number;
-              pauseLengthMs?: number;
-            };
-          };
-          visual?: {
-            actionId: string;
-            target: any;
-          } | null;
-        };
-        correlationId?: string;
-      }>;
-      getProviderStatus?: () => Promise<ProviderStatus>;
-      onProviderStatusChanged?: (cb: (status: ProviderStatus) => void) => () => void;
-    };
-    settings?: {
-      load: () => Promise<any>;
-      save: (settings: any) => Promise<boolean>;
-    };
-    startup?: {
-      get: () => Promise<boolean>;
-      set: (enabled: boolean) => Promise<boolean>;
-    };
-    tts?: {
-      getSettings: () => Promise<TtsSettings>;
-      saveSettings: (settings: TtsSettings) => Promise<boolean>;
-    };
-    firefly?: {
-      onSummaryUpdated: (cb: (payload: any) => void) => () => void;
-    };
-  }
-}
+
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"chat" | "settings" | "summary">("chat");
@@ -122,10 +67,13 @@ export const App: React.FC = () => {
     const tabParam = params.get("tab");
     if (tabParam === "settings" || tabParam === "tts") {
       setActiveTab("settings");
+      document.title = "流萤 · 设置";
     } else if (tabParam === "summary") {
       setActiveTab("summary");
+      document.title = "流萤 · 认知心境";
     } else {
       setActiveTab("chat");
+      document.title = "与流萤对话 · Firefly Chat";
     }
 
     // Load Settings

@@ -46,6 +46,7 @@ export const THEME_TOKENS = {
 
     // Status Colors
     statusOnline: "#38a169",
+    statusOffline: "#a0aec0",
     statusThinking: "#d97706",
     statusError: "#e53e3e",
   },

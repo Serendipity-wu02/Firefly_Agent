@@ -43,6 +43,7 @@ export interface TtsSettings {
   engine: TtsEngine;
   speed: number;
   volume: number;
+  autoPlay?: boolean;
   gptsovits: GptsovitsConfig;
   customCloud: CustomCloudTtsConfig;
   minimax: MinimaxTtsConfig;
@@ -54,6 +55,7 @@ export const DEFAULT_TTS_SETTINGS: TtsSettings = {
   engine: "gptsovits",
   speed: 1.0,
   volume: 1.0,
+  autoPlay: true,
   gptsovits: {
     baseUrl: "http://127.0.0.1:9880",
     refAudioPath: "E:\\GPT-SoVITS\\GPT-SoVITS-firefly-finetuning\\samples\\sample_1.wav",

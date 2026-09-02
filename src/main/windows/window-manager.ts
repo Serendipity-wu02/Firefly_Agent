@@ -5,8 +5,6 @@ import { IPC } from "../../shared/ipc-channels";
 
 const PET_WINDOW_BASE_WIDTH = 429;
 const PET_WINDOW_BASE_HEIGHT = 315;
-const STATUS_WINDOW_WIDTH = 420;
-const STATUS_WINDOW_HEIGHT = 560;
 // Harness Chat Window sizing: V1.1.0 canonical 1152×648 (16:9 desktop chat).
 const CHAT_WINDOW_WIDTH = 1152;
 const CHAT_WINDOW_HEIGHT = 648;
@@ -19,7 +17,6 @@ const SETTINGS_WINDOW_HEIGHT = 600;
 
 export class WindowManager {
   private petWindow: BrowserWindow | null = null;
-  private statusWindow: BrowserWindow | null = null;
   private chatWindow: BrowserWindow | null = null;
   private summaryWindow: BrowserWindow | null = null;
   private settingsWindow: BrowserWindow | null = null;
@@ -396,6 +393,7 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+    win.setMenu(null);
 
     const targetUrl = this.isDev
       ? "http://localhost:5173/ui/index.html?tab=summary"

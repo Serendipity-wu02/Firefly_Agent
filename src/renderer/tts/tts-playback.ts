@@ -90,6 +90,12 @@ export class TtsPlaybackManager {
     );
 
     try {
+      if (!window.tts) {
+        debugLog(`[TTS Trace] playback-error: window.tts is unavailable`);
+        this.setStatus("error", "TTS preload bridge unavailable");
+        this.setSpeaking(false);
+        return;
+      }
       const res: TtsStartResult = await window.tts.startSession({
         requestId,
         messageId: options.messageId,
