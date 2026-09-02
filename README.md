@@ -1,95 +1,57 @@
-# Firefly-Pet (流萤桌宠) - V2.3.0
+# Firefly-Agent (流萤桌面智能体) - v1.1.0
 
-> 🚀 **Firefly Desktop AI Agent** — 基于 Electron + TypeScript + PixiJS Live2D + GPT-SoVITS + Windows GSMTC + Memory v2 + RAG 知识库检索的流萤桌面智能体。
+> 🚀 **Firefly Desktop AI Agent** — 基于 Electron + TypeScript + PixiJS Live2D + GPT-SoVITS + Windows GSMTC + Memory v2 + RAG 知识库检索与统一具身多模态调度的流萤桌面智能体。
 
 ---
 
 ## 📌 版本状态 (Release Status)
 
-- **当前版本**：`V2.3.0`
-- **基线状态**：**COMPLETE / FROZEN** (核心基线已完全冻结)
-- **基线规范**：[docs/v1/v1-baseline.md](docs/v1/v1-baseline.md) | [docs/v2/v2.3-final-audit.md](docs/v2/v2.3-final-audit.md)
-- **架构文档**：[docs/architecture/firefly-agent-architecture.md](docs/architecture/firefly-agent-architecture.md) | [docs/v2/v2.3-rag-architecture.md](docs/v2/v2.3-rag-architecture.md)
+- **当前版本**：`v1.1.0`
+- **基线状态**：**COMPLETE / VERIFIED** (目录重构、GUI 基线修复与运行时验证全部通过)
+- **验收报告**：[docs/v1.1.0-runtime-baseline-acceptance-report.md](docs/v1.1.0-runtime-baseline-acceptance-report.md)
+- **重构报告**：[docs/v1.1.0-repository-reorganization-report.md](docs/v1.1.0-repository-reorganization-report.md) | [docs/v1.1.0-cleanup-report.md](docs/v1.1.0-cleanup-report.md)
 
 ---
 
 ## 🌟 核心特性 (Features)
 
-1. **FireflyAgentCore (智能体核心)**：
-   - 深度解耦的 Agent Loop 架构，实现 `IAgentCore` 接口。
-   - 具备 Context 层解耦、Tool Policy 策略控制、多步骤有界规划（Bounded Planner）与断点容灾恢复（Recovery Manager）。
-   - 防崩溃事件总线 (`AgentEventBus`) 与防御性消息隔离 (`AgentSession`)。
+1. **Light Sky 对话视窗与认知心境 (Harness Chat & Mood Window)**：
+   - **与流萤对话 (Chat Window)**：`1152 × 648` (16:9 桌面标准布局)，浅绿晴空纯净视觉，真实角色头像与气泡。
+   - **流萤认知心境 (Mood Window)**：`252 × 324` 独立无边框置顶视窗，支持独立自由拖拽（`-webkit-app-region: drag`），单次初始锚定 Chat 右侧，移动与 Desktop Pet / Chat 彻底解耦。
+   - **真实在线状态 (ProviderStatus)**：真实展示内置规则引擎状态或外部 API 连接状况，未配置时显示离线，绝不伪造在线。
 
-2. **Memory v2 (分层认知记忆系统)**：
+2. **桌面交互与 Live2D 表现 (Desktop Pet - Live2D Only)**：
+   - `429 × 315` 纯净透明视窗，Live2D Cubism 3 模型 (`Firefly.model3.json`) 渲染。
+   - 默认稳定启动表情 `expression00` 与待机动作 `Idle/0`。
+   - 像素级 Alpha 透明度采样（`alphaThreshold: 15`）、鼠标穿透、平滑拖拽与右键托盘/上下文菜单。
+
+3. **FireflyAgentCore (智能体核心)**：
+   - 深度解耦的 Agent Loop 架构，实现 `IAgentCore` 接口。
+   - 具备 Context 预算层、Tool Policy 策略控制、多步骤有界规划（Bounded Planner）与断点容灾恢复（Recovery Manager）。
+   - 防崩溃事件总线 (`AgentEventBus`) 与防御性消息隔离 (`AgentSession`)。
+   - 真实报错传播，故障时绝不伪造 Persona 回复。
+
+4. **统一具身策略驱动 (Unified Embodiment Multimodal Chain)**：
+   - `CharacterPolicyEngine` 统一仲裁 BehaviorDecision 并输出 `EmbodimentPlan`。
+   - 依托唯一的 `correlationId` 跨进程同步调度 Live2D 动作、TTS 语音韵律及心境卡片总结。
+
+5. **动态流萤 AI Voice (GPT-SoVITS AI Voice)**：
+   - 接入本地独立运行的 GPT-SoVITS 推理服务（`http://127.0.0.1:9880/tts`）与云端多引擎。
+   - 实时音频口型同步（`MouthSyncController`），具备完整的 `[TTS Trace]` 诊断链路与真实错误状态呈现。
+
+6. **Memory v2 (分层认知记忆系统)**：
    - L0 工作记忆 / L1 短期情境 / L2 长期语义三层分级架构。
    - 5 维记忆加权打分检索器（Exact, Partial, Entity, Importance, Recency）。
    - 记忆生命周期演进：Ebbinghaus 衰减引擎、冲突消解仲裁（Conflict Resolver）与访问升阶整合（Consolidator）。
-   - `MemorySlot` 插槽化装配（优先级 80），统一 `TokenMeter` 预算管理与只读上下文投影。
 
-3. **RAG 知识库检索增强 (Canonical Knowledge Corpus & Hybrid Retrieval)**：
-   - 官方只读知识库语料（`resources/`，806 文件）自动化切片解析，生成 5,665 个标准化切片与 SHA-256 清单。
-   - 稠密向量存储（`FileVectorStore`）具备原子落盘与损坏自动备份恢复机制。
-   - 词法倒排 + 稠密向量双流召回，5 维重排序打分（`KnowledgeReranker`）与对抗性相关性门控（Adversarial Gating）。
-   - `RagSlot` 插槽化装配（优先级 70），800 Token 预算控制与故障安全隔离。
-   - *注：生产语义 Embedding 维持已知限制标记 `PRODUCTION EMBEDDING: NOT QUALIFIED`（由确定性测试 Provider 支持基础向量与自动化回归）。*
+7. **RAG 知识库检索增强 (Canonical Knowledge Corpus & Hybrid Retrieval)**：
+   - 官方只读知识库语料（`src/main/character/resources/`，806 文件）切片索引。
+   - 预构建向量索引与标准化切片位于 `data/knowledge/`。
+   - 词法倒排 + 稠密向量双流召回，5 维重排序打分（`KnowledgeReranker`）。
 
-4. **桌面交互与 Live2D 表现 (Live2D Presentation - Live2D Only)**：
-   - 纯粹的 Live2D Cubism 3 模型 (`Firefly.model3.json`) 渲染，具备鼠标眼球注视追踪与肢体动作联动。
-   - 10 项当前核心 Live2D 动作，6 项 Motion，11 项 Expression，零 PNG 序列帧依赖。
-   - 像素级透明度采样（`alphaThreshold: 15`）、鼠标穿透与拖拽交互。
-
-5. **动态流萤 AI Voice (GPT-SoVITS AI Voice)**：
-   - 接入本地独立运行的 GPT-SoVITS 推理服务（`http://127.0.0.1:9880/tts`）。
-   - 语音播放驱动 Live2D `talking` 动作与 `MouthSyncController`（`ParamMouthOpenY`）实时口型同步。
-
-6. **系统媒体控制 (QQ Music GSMTC)**：
+8. **系统媒体控制 (QQ Music GSMTC)**：
    - 通过 Windows GSMTC (Global System Media Transport Controls) API 深度桥接本地运行的 `QQMusic.exe`。
-   - Agent 原生支持查询当前播放曲目、艺术家、进度并执行播放/暂停/切换控制。
-
----
-
-## 🏗 系统架构 (Architecture)
-
-### 架构全景图
-
-```mermaid
-flowchart TD
-    Index["src/main/index.ts (Composition Root)"]
-    
-    subgraph ContextAndAgent ["🧠 Context & Agent System"]
-        Index --> Core["FireflyAgentCore (v2.3)"]
-        Index --> CM["ContextManager"]
-        CM --> MemSlot["MemorySlot (Priority 80)"]
-        CM --> RagSlot["RagSlot (Priority 70)"]
-        MemSlot <--> MemCoord["MemoryCoordinator (Memory v2)"]
-        RagSlot <--> KnowCoord["KnowledgeCoordinator (RAG Pipeline)"]
-        Core <--> Dispatcher["FireflyToolDispatcher"]
-        Dispatcher <--> Registry["FireflyToolRegistry"]
-        Core --> Session["AgentSession (Transcript)"]
-        Core --> Bus["AgentEventBus"]
-    end
-
-    subgraph VoiceSystem ["🔊 Voice & TTS System"]
-        Index --> TtsSvc["TtsSessionService"]
-        TtsSvc --> TtsDisp["FireflyTtsDispatcher"]
-        TtsDisp --> GptSoVits["synthesizeGptsovits (HTTP POST)"]
-        GptSoVits -.-> RemoteTTS["Local GPT-SoVITS Server (127.0.0.1:9880)"]
-    end
-
-    subgraph MusicSystem ["🎵 Media & Music System"]
-        Index --> MusicSvc["MusicService"]
-        MusicSvc --> QQBridge["QQMusicDesktopBridge"]
-        QQBridge -.-> WinGSMTC["Windows GSMTC API (QQMusic.exe)"]
-    end
-
-    subgraph VisualSystem ["🎨 Visual & Presentation System (Live2D Only)"]
-        Index --> WinMgr["WindowManager"]
-        WinMgr --> Renderer["src/renderer/main.ts"]
-        Renderer --> Live2DMgr["Live2DManager (PixiJS)"]
-        Renderer --> SpeakingCtrl["SpeakingMotionController"]
-        Renderer --> MouthSync["MouthSyncController"]
-    end
-```
+   - 支持 Agent 原生查询当前曲目、艺术家、进度并执行播放/暂停控制。
 
 ---
 
@@ -97,24 +59,31 @@ flowchart TD
 
 ```text
 Firefly-Pet/
-├── assets/firefly/            # 角色模型、特化音效与 UI 资产
-│   └── models/                # Live2D Cubism 3 模型配置与资源 (唯一角色表现)
-│       ├── Expressions/       # 11 项表情配置 JSON
-│       ├── Motions/           # 6 项动作配置 JSON
-│       └── Firefly.model3.json# 主配置文件
-├── config/                    # 运行时配置与默认模板 (忽略敏感数据)
-│   └── settings.example.json  # 默认配置模板
-├── docs/                      # 核心架构与阶段审计文档
-│   ├── architecture/          # 架构全景规范
-│   ├── v1/                    # V1 冻结基线与审计
-│   └── v2/                    # V2 架构演进与全阶段交付报告
-├── resources/                 # 官方只读规范知识语料库 (806 个源文件)
+├── data/knowledge/            # RAG 运行时切片与向量索引 (只读缓存)
+│   ├── chunks.json            # 5,665 个预解析切片
+│   ├── vector_index.json      # 向量索引数据
+│   └── manifest.json          # 语料清单 SHA-256
+├── docs/                      # 架构全景、阶段交付与验收报告
 ├── src/
-│   ├── main/                  # Electron 主进程 (AgentCore, Memory, RAG, TTS, Music, Windows)
-│   ├── preload/               # 上下文隔离 Preload 脚本
-│   ├── renderer/              # PixiJS Live2D 渲染与 React 交互 UI
-│   └── shared/                # 跨进程类型定义与通信信道
-└── tools/                     # 回归测试套件与 Python 资产校验工具
+│   ├── cli/                   # 命令行启动入口 (firefly.mjs)
+│   ├── main/                  # Electron 主进程
+│   │   ├── character/         # 角色策略、具身映射与 806 篇官方原始语料 resources
+│   │   ├── chat/              # Chat IPC 通信与 EmbodimentPlan 调度
+│   │   ├── llm/               # LLM Provider 工厂与适配层
+│   │   ├── orchestrator/      # FireflyAgentCore, ContextManager, ProactiveScheduler
+│   │   ├── rag/               # RAG 协调器与检索流水线
+│   │   ├── runtime/           # Runtime 服务 (TTS, Music, Execution)
+│   │   ├── state/             # 角色状态管理器
+│   │   ├── tools/             # 工具注册中心与分发器
+│   │   └── windows/           # WindowManager (Pet, Chat, Mood, Settings)
+│   ├── preload/               # 上下文安全隔离 Preload 脚本
+│   ├── renderer/              # 渲染层 (PixiJS Live2D + Light Sky React UI)
+│   │   ├── public/            # Live2D 模型、动作与表情资产
+│   │   ├── tts/               # TTS 音频播放器与状态追踪
+│   │   └── ui/                # React 对话与心境卡片组件
+│   ├── settings/              # SettingsManager 与默认模板
+│   └── shared/                # 跨进程类型定义与 IPC 信道常量
+└── tools/                     # 36 个自动化回归测试套件
 ```
 
 ---
@@ -122,104 +91,57 @@ Firefly-Pet/
 ## 🚀 快速上手 (Quick Start)
 
 ### 1. 环境依赖
-- **Node.js**: `>= 24.0.0` (推荐 Node.js 24 LTS，锁定 `.node-version` 与 `.nvmrc`)
-- **npm**: `>= 11.0.0` (项目通过 `package.json` 的 `packageManager` 与 `engines` 锁定 `npm@11.17.0`，随项目提供无需手动升级)
-- **操作系统**: Windows 10 / 11 (GSMTC 媒体控制支持)
-- **GPT-SoVITS**: 本地独立运行的 GPT-SoVITS 服务（端口 9880）
-- **Python**: >= 3.10 (用于运行资产校验脚本)
+- **Node.js**: `>= 24.0.0` (推荐 Node.js 24 LTS)
+- **npm**: `>= 11.0.0` (锁定 `npm@11.17.0`)
+- **操作系统**: Windows 10 / 11
 
-### 2. 安装与配置
-
-#### 方式 A：一键初始化（推荐）
-直接运行根目录的 `setup.bat`，自动使用项目随附 npm 11 完成依赖安装、基线校验与工程构建：
+### 2. 安装与构建
 ```powershell
-.\setup.bat
-```
+# 安装依赖
+npm install
 
-#### 方式 B：手动执行（项目级工具链）
-```powershell
-# 克隆仓库
-git clone https://github.com/Serendipity-wu02/Firefly_Agent.git
-cd Firefly_Agent
+# 完整构建 (Main + Preload + Renderer)
+npm run build
 
-# 使用项目随附 npm 11 安装依赖 (无需全局升级)
-node tools/npm.mjs install
-
-# 复制默认配置
-Copy-Item config/settings.example.json config/settings.json
-```
-
-### 3. 本地运行与构建
-```powershell
-# 类型检查
-node tools/npm.mjs run typecheck
-
-# 编译构建
-node tools/npm.mjs run build
-
-# 启动桌宠 (生产模式)
-node tools/npm.mjs start
+# 启动桌宠应用 (生产模式)
+npm start
 
 # 开发模式 (热重载)
-node tools/npm.mjs run dev
+npm run dev
 ```
 
-### 4. npm Registry 全局安装与 CLI 启动 (Global CLI Distribution)
-当通过 npm Registry 安装后，可在系统任意目录下直接通过 `firefly` 或 `firefly-agent` 启动：
+### 3. 全局 CLI 启动
 ```powershell
-# 全局安装
-npm install -g firefly-agent
+# 运行烟雾测试
+node src/cli/firefly.mjs --smoke-test
 
-# 任意路径直接启动桌面应用
-firefly
-
-# 查看版本与帮助
-firefly --version
-firefly --help
+# 查看版本
+node src/cli/firefly.mjs --version
 ```
 
 ---
 
-## 🧪 测试与验证 (Testing & Verification)
+## 🧪 测试与质量门禁 (Testing & Verification)
 
-Firefly-Pet 配备严格的多层级回归测试体系（25 个测试套件，307 项自动化测试全部通过）：
+Firefly-Agent 配备严格的多层级回归测试体系（36 个测试套件，328+ 项自动化测试全部通过）：
 
 ```powershell
-# 1. 运行主回归测试套件 (包含 Node 24/npm 11 基线自检, npm 打包隔离测试, Agent Core, Context, Memory v2, RAG, Live2D)
+# 1. 全量 TypeScript 类型检查 (Main + Preload + Renderer)
+npm run typecheck
+
+# 2. 运行全部 36 个自动化回归测试套件 (100% 通过)
 npm test
 
-# 2. 运行 Python 资产与逻辑校验套件 (5 项全部通过)
-python tools/validate_ai_intent.py
-python tools/validate_asset_structure.py
-python tools/validate_character_resources.py
-python tools/validate_firefly_assets.py
-python tools/validate_persistence.py
-
-# 3. 运行实机 GPT-SoVITS 联调测试 (需启动本地 GPT-SoVITS 服务)
-node tools/verify_live_voice.mjs
+# 3. 运行 npm 打包检查
+npm pack --dry-run
 
 # 4. 运行 Electron 启动与销毁烟雾测试
-$env:ELECTRON_SMOKE_TEST="1"; npx electron .
+node src/cli/firefly.mjs --smoke-test
 ```
-
----
-
-## 📦 第三方资源与部署说明 (Third-Party Resources)
-
-### 1. Live2D 角色模型
-本项目采用纯粹的 Live2D 表现架构。模型文件放置于 `assets/firefly/models/` 目录下（包含 `Firefly.model3.json`, `Moc_0.moc3`, `Textures_0_0.png`, `Physics_0.json`, `Expressions/`, `Motions/`）。
-
-### 2. GPT-SoVITS 语音服务部署
-本项目 AI Voice 采用动态本地 HTTP 推理：
-- **服务启动**：
-  ```bash
-  python api_v2.py -a 127.0.0.1 -p 9880
-  ```
-- **接口地址**：`http://127.0.0.1:9880/tts`
 
 ---
 
 ## 📄 开源协议 (License)
 
-本项目代码部分基于 [MIT License](LICENSE) 开源。
+本项目代码部分基于 [MIT License](LICENSE) 开源。  
 相关角色形象及衍生资源版权归原权利方所有。
