@@ -27,21 +27,23 @@ declare global {
     chat?: {
       sendMessage: (
         message: string,
-        history?: ChatMessage[],
+        history?: any[],
       ) => Promise<{
         ok?: boolean;
         status?: string;
-        error?: string;
         replyText: string;
-        history: ChatMessage[];
+        history: any[];
         toolCalled?: boolean;
+        error?: string;
         embodimentPlan?: {
           behaviorType: string;
-          correlationId: string;
-          requiresEmbodiment: boolean;
+          presentationSummary?: {
+            moodLabel: string;
+            behaviorLabel: string;
+            modeLabel: string;
+          };
           voice?: {
-            speechText: string;
-            voiceIntent: string;
+            voiceIntent?: string;
             prosodyHint?: {
               pace?: "slow" | "normal" | "brisk";
               pitch?: "soft_low" | "neutral" | "bright_up";
@@ -56,6 +58,8 @@ declare global {
         };
         correlationId?: string;
       }>;
+      getProviderStatus?: () => Promise<ProviderStatus>;
+      onProviderStatusChanged?: (cb: (status: ProviderStatus) => void) => () => void;
     };
     settings?: {
       load: () => Promise<any>;
@@ -64,6 +68,13 @@ declare global {
     startup?: {
       get: () => Promise<boolean>;
       set: (enabled: boolean) => Promise<boolean>;
+    };
+    tts?: {
+      getSettings: () => Promise<TtsSettings>;
+      saveSettings: (settings: TtsSettings) => Promise<boolean>;
+    };
+    firefly?: {
+      onSummaryUpdated: (cb: (payload: any) => void) => () => void;
     };
   }
 }
@@ -75,7 +86,9 @@ export const App: React.FC = () => {
   const [currentMood, setCurrentMood] = useState<string>("温和宁静");
   const [currentBehavior, setCurrentBehavior] = useState<string>("日常陪伴与交谈");
   const [currentMode, setCurrentMode] = useState<string>("日常模式");
-  const [showSummaryCard, setShowSummaryCard] = useState<boolean>(true);
+
+  // Provider Status State
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus>(evaluateProviderStatus(DEFAULT_LLM_CONFIG));
 
   // Settings State
   const [llmConfig, setLlmConfig] = useState<LlmProviderConfig>(DEFAULT_LLM_CONFIG);
@@ -117,9 +130,18 @@ export const App: React.FC = () => {
 
     // Load Settings
     window.settings?.load().then((res) => {
-      if (res?.llm) setLlmConfig(res.llm);
+      if (res?.llm) {
+        setLlmConfig(res.llm);
+        setProviderStatus(evaluateProviderStatus(res.llm));
+      }
       if (res?.tts) setTtsSettings(res.tts);
     });
+
+    if (window.chat?.getProviderStatus) {
+      window.chat.getProviderStatus().then((status) => {
+        if (status) setProviderStatus(status);
+      });
+    }
 
     window.tts?.getSettings().then((ts) => {
       if (ts) setTtsSettings(ts);
@@ -134,8 +156,6 @@ export const App: React.FC = () => {
     let unsubSummary: (() => void) | undefined;
     if (window.firefly?.onSummaryUpdated) {
       unsubSummary = window.firefly.onSummaryUpdated((payload) => {
-        // Payload is { correlationId, summary } from EmbodimentPlan.presentationSummary.
-        // Tolerate the legacy bare-summary shape so the card never renders empty.
         const summary = payload?.summary ?? payload;
         if (summary?.moodLabel) setCurrentMood(summary.moodLabel);
         if (summary?.behaviorLabel) setCurrentBehavior(summary.behaviorLabel);
@@ -147,9 +167,17 @@ export const App: React.FC = () => {
       });
     }
 
+    let unsubProvider: (() => void) | undefined;
+    if (window.chat?.onProviderStatusChanged) {
+      unsubProvider = window.chat.onProviderStatusChanged((status) => {
+        if (status) setProviderStatus(status);
+      });
+    }
+
     return () => {
       unsubTts();
       unsubSummary?.();
+      unsubProvider?.();
     };
   }, []);
 
@@ -302,7 +330,9 @@ export const App: React.FC = () => {
           background: "transparent",
           fontFamily: THEME_TOKENS.typography.fontFamily,
           userSelect: "none",
-        }}
+          WebkitAppRegion: "drag",
+          cursor: "move",
+        } as React.CSSProperties}
       >
         <CharacterSummary
           currentMood={currentMood}
@@ -329,7 +359,7 @@ export const App: React.FC = () => {
       }}
     >
       {/* 1. Top Header */}
-      <Header activeTab={activeTab} onTabChange={setActiveTab} />
+      <Header activeTab={activeTab} onTabChange={setActiveTab} providerStatus={providerStatus} />
 
       {/* 2. Main Body Area */}
       {activeTab === "chat" ? (

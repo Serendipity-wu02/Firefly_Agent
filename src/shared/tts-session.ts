@@ -39,6 +39,12 @@ export type TtsStartResult =
   | {
       requestId: string;
       status: "skipped" | "cancelled";
+      reason?: string;
+    }
+  | {
+      requestId: string;
+      status: "error";
+      error: string;
     };
 
 export type TtsSessionEvent =

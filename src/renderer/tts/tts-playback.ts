@@ -102,20 +102,37 @@ export class TtsPlaybackManager {
 
       if (this.currentRequestId !== requestId) return;
 
+      if (res.status === "error") {
+        debugLog(
+          `[TTS Trace] playback-error: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} error="${res.error}"`,
+        );
+        this.setStatus("error", res.error);
+        this.setSpeaking(false);
+        return;
+      }
+
       if (res.status === "skipped" || res.status === "cancelled") {
-        debugLog(`[TTS Trace] skipped requestId=${requestId} correlationId=${options.correlationId ?? "n/a"}`);
+        debugLog(
+          `[TTS Trace] skipped: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} reason=${res.reason ?? "off"}`,
+        );
         this.setStatus("idle");
+        this.setSpeaking(false);
         return;
       }
 
       if (res.status === "ready" && res.base64) {
-        debugLog(`[TTS Trace] ready requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} format=${res.format}`);
+        debugLog(
+          `[TTS Trace] ready: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} format=${res.format} cached=${res.cached}`,
+        );
         await this.playBase64(res.base64, res.format);
       }
     } catch (err: any) {
       if (this.currentRequestId === requestId) {
-        debugLog(`[TTS Trace] error requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} message="${err?.message || err}"`);
-        this.setStatus("error", err?.message || String(err));
+        const errMsg = err?.message || String(err);
+        debugLog(
+          `[TTS Trace] playback-error: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} message="${errMsg}"`,
+        );
+        this.setStatus("error", errMsg);
         this.setSpeaking(false);
       }
     }
@@ -138,24 +155,34 @@ export class TtsPlaybackManager {
     this.currentAudio = audio;
 
     audio.onplay = () => {
-      debugLog(`[TTS Trace] playing messageId=${this.currentMessageId ?? "n/a"}`);
+      debugLog(`[TTS Trace] playback-start: messageId=${this.currentMessageId ?? "n/a"}`);
       this.setStatus("playing");
       this.setSpeaking(true);
     };
 
     audio.onended = () => {
+      debugLog(`[TTS Trace] playback-end: messageId=${this.currentMessageId ?? "n/a"}`);
       this.setStatus("completed");
       this.setSpeaking(false);
       this.cleanupAudio();
     };
 
-    audio.onerror = () => {
-      this.setStatus("error", "Audio playback error");
+    audio.onerror = (e) => {
+      const errDetail = audio.error ? `code ${audio.error.code} (${audio.error.message})` : "Audio decode/playback error";
+      debugLog(`[TTS Trace] playback-error: messageId=${this.currentMessageId ?? "n/a"} detail="${errDetail}"`);
+      this.setStatus("error", errDetail);
       this.setSpeaking(false);
       this.cleanupAudio();
     };
 
-    await audio.play();
+    try {
+      await audio.play();
+    } catch (playErr: any) {
+      debugLog(`[TTS Trace] playback-error: play() rejected: "${playErr?.message || playErr}"`);
+      this.setStatus("error", playErr?.message || "Audio playback blocked or failed");
+      this.setSpeaking(false);
+      this.cleanupAudio();
+    }
   }
 
   stop(): void {

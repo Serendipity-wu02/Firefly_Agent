@@ -209,6 +209,7 @@ export class WindowManager {
       title: "与流萤对话",
       frame: true,
       resizable: true,
+      autoHideMenuBar: true,
       show: false,
       webPreferences: {
         preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
@@ -216,6 +217,7 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+    win.setMenu(null);
 
     const targetUrl = this.isDev
       ? "http://localhost:5173/ui/index.html?tab=chat"
@@ -291,6 +293,7 @@ export class WindowManager {
       title: "流萤 设置",
       frame: true,
       resizable: true,
+      autoHideMenuBar: true,
       show: false,
       webPreferences: {
         preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
@@ -298,6 +301,7 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+    win.setMenu(null);
 
     if (this.isDev) {
       win.loadURL("http://localhost:5173/ui/index.html?tab=settings");

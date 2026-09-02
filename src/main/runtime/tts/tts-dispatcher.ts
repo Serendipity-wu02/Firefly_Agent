@@ -27,8 +27,10 @@ export class FireflyTtsDispatcher {
     let format: TtsAudioFormat = "mp3";
 
     console.log(
-      `[TTS Dispatcher Trace] requestId=${request.requestId} correlationId=${request.correlationId} behavior=${request.behaviorType} text="${text.slice(0, 20)}..."`,
+      `[TTS Trace] request: requestId=${request.requestId} correlationId=${request.correlationId ?? "n/a"} ` +
+        `behavior=${request.behaviorType ?? "n/a"} text="${text.slice(0, 25)}..."`,
     );
+    console.log(`[TTS Trace] dispatch: engine=${engine}`);
 
     // 1. Calculate effective speed based on settings and Behavior prosody hint
     let baseSpeed = settings.speed ?? 1.0;
@@ -76,6 +78,7 @@ export class FireflyTtsDispatcher {
     // 2. Check cache
     const cachedBuffer = this.cache.read(cacheKey, format);
     if (cachedBuffer) {
+      console.log(`[TTS Trace] result: cache hit key=${cacheKey} format=${format}`);
       return {
         requestId: request.requestId,
         status: "ready",
@@ -87,6 +90,7 @@ export class FireflyTtsDispatcher {
     }
 
     // 3. Synthesize via selected Engine
+    console.log(`[TTS Trace] engine: invoking ${engine} synthesizer...`);
     let audioBuffer: Buffer;
     if (engine === "gptsovits") {
       const res = await synthesizeGptsovits(text, gptsovitsConfig, signal);
@@ -101,11 +105,12 @@ export class FireflyTtsDispatcher {
       audioBuffer = res.buffer;
       format = res.format;
     } else {
-      return { requestId: request.requestId, status: "skipped" };
+      return { requestId: request.requestId, status: "skipped", reason: `unsupported_engine_${engine}` };
     }
 
     // 4. Write cache
     this.cache.write(cacheKey, audioBuffer, format);
+    console.log(`[TTS Trace] result: synthesis success bytes=${audioBuffer.length} format=${format}`);
 
     return {
       requestId: request.requestId,

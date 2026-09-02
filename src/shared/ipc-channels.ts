@@ -48,11 +48,13 @@ export const IPC = {
   CHAT_CLEAR_HISTORY: "chat:clear-history",
   CHAT_GET_HISTORY: "chat:get-history",
 
-  // Settings & Startup
+  // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",
   SETTINGS_SAVE: "settings:save",
   STARTUP_GET: "startup:get",
   STARTUP_SET: "startup:set",
+  PROVIDER_GET_STATUS: "provider:get-status",
+  PROVIDER_STATUS_CHANGED: "provider:status-changed",
 
   // Music System
   MUSIC_SEARCH: "music:search",

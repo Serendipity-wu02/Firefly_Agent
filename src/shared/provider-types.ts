@@ -46,6 +46,69 @@ export const DEFAULT_LLM_CONFIG: LlmProviderConfig = {
   enableStreaming: true,
 };
 
+export type ProviderStatusType = "online" | "offline" | "error";
+
+export interface ProviderStatus {
+  status: ProviderStatusType;
+  providerId: ProviderId;
+  providerName: string;
+  model?: string;
+  label: string;
+  details?: string;
+}
+
+export function evaluateProviderStatus(config?: Partial<LlmProviderConfig>, lastError?: string): ProviderStatus {
+  const provider = config?.provider || "local";
+  const preset = PROVIDER_PRESETS[provider];
+  const providerName = preset?.name || provider;
+  const model = config?.model || preset?.defaultModel || "";
+
+  if (lastError) {
+    return {
+      status: "error",
+      providerId: provider,
+      providerName,
+      model,
+      label: "服务异常",
+      details: lastError,
+    };
+  }
+
+  if (provider === "local") {
+    return {
+      status: "online",
+      providerId: "local",
+      providerName: "内置智能规则 (Local)",
+      model: "local-rule",
+      label: "内置规则引擎 (Local)",
+      details: "流萤内置智能规则与工具调度引擎已就绪",
+    };
+  }
+
+  const apiKey = (config?.apiKey || "").trim();
+  const baseUrl = (config?.baseUrl || preset?.baseUrl || "").trim();
+
+  if (!baseUrl || (!apiKey && provider !== "custom")) {
+    return {
+      status: "offline",
+      providerId: provider,
+      providerName,
+      model,
+      label: "未配置 API (离线)",
+      details: `请在设置中配置 ${providerName} 的有效 API Key 与端点`,
+    };
+  }
+
+  return {
+    status: "online",
+    providerId: provider,
+    providerName,
+    model,
+    label: `${providerName} · ${model}`,
+    details: `已连接 ${providerName} 模型 [${model}]`,
+  };
+}
+
 // ── Provider interface types ────────────────────────────────────────────────
 // Kept in shared/ so that IAgentCore can reference IFireflyLlmProvider
 // without creating a circular dependency through the main/ layer.

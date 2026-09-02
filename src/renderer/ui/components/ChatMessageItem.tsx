@@ -136,13 +136,27 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               <div style={{ marginTop: "8px", display: "flex", justifyContent: "flex-end" }}>
                 <button
                   onClick={() => onSpeak(message)}
+                  title={
+                    ttsPlaybackSnapshot.messageId === message.id && ttsPlaybackSnapshot.error
+                      ? `TTS 错误: ${ttsPlaybackSnapshot.error}`
+                      : "播放语音"
+                  }
                   style={{
-                    background: isCurrentSpeaking ? THEME_TOKENS.colors.accentPill : THEME_TOKENS.colors.bgSecondary,
+                    background: isCurrentSpeaking
+                      ? THEME_TOKENS.colors.accentPill
+                      : ttsPlaybackSnapshot.messageId === message.id && ttsPlaybackSnapshot.status === "error"
+                        ? "rgba(229, 62, 62, 0.1)"
+                        : THEME_TOKENS.colors.bgSecondary,
                     border: isCurrentSpeaking
                       ? `1px solid ${THEME_TOKENS.colors.accentLight}`
-                      : `1px solid ${THEME_TOKENS.colors.borderSubtle}`,
+                      : ttsPlaybackSnapshot.messageId === message.id && ttsPlaybackSnapshot.status === "error"
+                        ? "1px solid #E53E3E"
+                        : `1px solid ${THEME_TOKENS.colors.borderSubtle}`,
                     borderRadius: THEME_TOKENS.radii.full,
-                    color: THEME_TOKENS.colors.accent,
+                    color:
+                      ttsPlaybackSnapshot.messageId === message.id && ttsPlaybackSnapshot.status === "error"
+                        ? "#E53E3E"
+                        : THEME_TOKENS.colors.accent,
                     cursor: "pointer",
                     fontSize: "11px",
                     fontWeight: 600,
@@ -153,7 +167,11 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                     transition: "all 0.2s ease",
                   }}
                 >
-                  {isCurrentSpeaking ? "🔊 朗读中..." : "🔈 播放语音"}
+                  {isCurrentSpeaking
+                    ? "🔊 朗读中..."
+                    : ttsPlaybackSnapshot.messageId === message.id && ttsPlaybackSnapshot.status === "error"
+                      ? "⚠️ 播放失败"
+                      : "🔈 播放语音"}
                 </button>
               </div>
             )}

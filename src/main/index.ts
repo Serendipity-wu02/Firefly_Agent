@@ -24,6 +24,7 @@ import { ContextManager } from "./orchestrator/context/context-manager";
 import { CharacterPolicyEngine } from "./character/character-policy";
 import type { IAgentCore } from "../shared/agent-core";
 import type { CareActionType } from "../shared/firefly-state";
+import { evaluateProviderStatus } from "../shared/provider-types";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -191,8 +192,16 @@ function setupIpcHandlers() {
       const provider = createFireflyProvider(settingsManager.getLlmConfig());
       // setProvider is optional on IAgentCore — use optional chaining
       agentCore.setProvider?.(provider);
+      const status = evaluateProviderStatus(settingsManager.getLlmConfig());
+      windowManager.broadcast(IPC.PROVIDER_STATUS_CHANGED, status);
     }
     return ok;
+  });
+
+  // Provider Status IPC Handler
+  ipcMain.handle(IPC.PROVIDER_GET_STATUS, async () => {
+    const config = settingsManager.getLlmConfig();
+    return evaluateProviderStatus(config);
   });
 }
 

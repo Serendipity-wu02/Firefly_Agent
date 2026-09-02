@@ -25,11 +25,12 @@ export class TtsSessionService {
       return result;
     } catch (err: any) {
       if (controller.signal.aborted) {
-        return { requestId: request.requestId, status: "cancelled" };
+        return { requestId: request.requestId, status: "cancelled", reason: "user_cancelled" };
       }
       const msg = err?.message || String(err);
+      console.warn(`[TTS Session Error] requestId=${request.requestId}: ${msg}`);
       onEvent({ requestId: request.requestId, type: "error", message: msg });
-      return { requestId: request.requestId, status: "skipped" };
+      return { requestId: request.requestId, status: "error", error: msg };
     } finally {
       this.active.delete(request.requestId);
     }

@@ -61,11 +61,13 @@ const IPC = {
   // Chat & AI
   CHAT_SEND_MESSAGE: "chat:send-message",
 
-  // Settings & Startup
+  // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",
   SETTINGS_SAVE: "settings:save",
   STARTUP_GET: "startup:get",
   STARTUP_SET: "startup:set",
+  PROVIDER_GET_STATUS: "provider:get-status",
+  PROVIDER_STATUS_CHANGED: "provider:status-changed",
 } as const;
 
 contextBridge.exposeInMainWorld("firefly", {
@@ -152,6 +154,12 @@ contextBridge.exposeInMainWorld("chat", {
   }> => {
     console.log(`[Harness Trace] preload.chat.sendMessage prompt="${message}"`);
     return ipcRenderer.invoke(IPC.CHAT_SEND_MESSAGE, { message, history });
+  },
+  getProviderStatus: (): Promise<any> => ipcRenderer.invoke(IPC.PROVIDER_GET_STATUS),
+  onProviderStatusChanged: (cb: (status: any) => void) => {
+    const listener = (_: unknown, status: any) => cb(status);
+    ipcRenderer.on(IPC.PROVIDER_STATUS_CHANGED, listener);
+    return () => { ipcRenderer.removeListener(IPC.PROVIDER_STATUS_CHANGED, listener); };
   },
 });
 

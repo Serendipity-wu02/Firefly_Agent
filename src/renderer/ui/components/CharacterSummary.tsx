@@ -67,7 +67,10 @@ export const CharacterSummary: React.FC<CharacterSummaryProps> = ({
         gap: "10px",
         overflow: "hidden",
         userSelect: "none",
-      }}
+        WebkitAppRegion: "drag",
+        cursor: "move",
+        boxSizing: "border-box",
+      } as React.CSSProperties}
     >
       {/* Header with Avatar */}
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>

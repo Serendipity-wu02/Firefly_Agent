@@ -7,19 +7,32 @@
 import React from "react";
 import { THEME_TOKENS } from "../theme/tokens";
 import { globalAvatarResolver } from "../avatar-resolver";
+import type { ProviderStatus } from "../../../shared/provider-types";
 
 export interface HeaderProps {
   activeTab: "chat" | "settings";
   onTabChange: (tab: "chat" | "settings") => void;
-  statusText?: string;
+  providerStatus?: ProviderStatus;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   onTabChange,
-  statusText = "在线 · 陪伴模式",
+  providerStatus = {
+    status: "online",
+    providerId: "local",
+    providerName: "内置智能规则 (Local)",
+    label: "内置规则引擎 (Local)",
+  },
 }) => {
   const avatar = globalAvatarResolver.resolveAvatar("assistant");
+
+  const statusColor =
+    providerStatus.status === "online"
+      ? THEME_TOKENS.colors.statusOnline
+      : providerStatus.status === "error"
+        ? THEME_TOKENS.colors.statusError
+        : THEME_TOKENS.colors.statusOffline;
 
   return (
     <header
@@ -27,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "10px 16px",
+        padding: "10px 18px",
         background: THEME_TOKENS.colors.surfaceElevated,
         backdropFilter: "blur(16px)",
         borderBottom: `1px solid ${THEME_TOKENS.colors.border}`,
@@ -36,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
         zIndex: 10,
       }}
     >
-      {/* Left: Firefly Character Capsule */}
+      {/* Left: Firefly Character Capsule with Truthful Provider Status */}
       <div
         style={{
           display: "flex",
@@ -93,12 +106,13 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </div>
           <span
+            title={providerStatus.details || providerStatus.label}
             style={{
               fontSize: "11px",
               color: THEME_TOKENS.colors.textMuted,
               display: "flex",
               alignItems: "center",
-              gap: "4px",
+              gap: "5px",
             }}
           >
             <span
@@ -106,16 +120,17 @@ export const Header: React.FC<HeaderProps> = ({
                 width: "6px",
                 height: "6px",
                 borderRadius: "50%",
-                background: THEME_TOKENS.colors.statusOnline,
+                background: statusColor,
                 display: "inline-block",
+                boxShadow: providerStatus.status === "online" ? "0 0 4px rgba(72, 187, 120, 0.6)" : "none",
               }}
             />
-            {statusText}
+            {providerStatus.label}
           </span>
         </div>
       </div>
 
-      {/* Center: Navigation Switcher */}
+      {/* Right: Clean Navigation Switcher */}
       <div
         style={{
           display: "flex",
@@ -129,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => onTabChange("chat")}
           style={{
-            padding: "4px 14px",
+            padding: "5px 16px",
             borderRadius: THEME_TOKENS.radii.full,
             border: "none",
             background:
@@ -153,7 +168,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => onTabChange("settings")}
           style={{
-            padding: "4px 14px",
+            padding: "5px 16px",
             borderRadius: THEME_TOKENS.radii.full,
             border: "none",
             background:
@@ -173,50 +188,6 @@ export const Header: React.FC<HeaderProps> = ({
           }}
         >
           ⚙ 设置
-        </button>
-      </div>
-
-      {/* Right: Window Control Buttons */}
-      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-        <button
-          onClick={() => window.firefly?.minimize?.()}
-          title="最小化"
-          style={{
-            width: "26px",
-            height: "26px",
-            borderRadius: "50%",
-            border: `1px solid ${THEME_TOKENS.colors.borderSubtle}`,
-            background: THEME_TOKENS.colors.surface,
-            color: THEME_TOKENS.colors.textSecondary,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "12px",
-            transition: "background 0.15s",
-          }}
-        >
-          –
-        </button>
-        <button
-          onClick={() => window.firefly?.hide?.()}
-          title="关闭窗口"
-          style={{
-            width: "26px",
-            height: "26px",
-            borderRadius: "50%",
-            border: `1px solid ${THEME_TOKENS.colors.borderSubtle}`,
-            background: THEME_TOKENS.colors.surface,
-            color: THEME_TOKENS.colors.textSecondary,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "12px",
-            transition: "background 0.15s",
-          }}
-        >
-          ✕
         </button>
       </div>
     </header>
