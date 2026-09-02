@@ -1,0 +1,162 @@
+[
+  {
+    "id": "gq_01",
+    "category": "流萤身份",
+    "queryType": "exact",
+    "query": "流萤的真实身份与代号",
+    "expectedKeywords": ["流萤", "萨姆", "格拉默", "星核猎手"],
+    "expectedEntities": ["流萤", "萨姆", "星核猎手"]
+  },
+  {
+    "id": "gq_02",
+    "category": "流萤背景",
+    "queryType": "paraphrase",
+    "query": "流萤出生在什么地方，过去是什么身份",
+    "expectedKeywords": ["格拉默", "铁骑", "兵器", "人工胚胎"],
+    "expectedEntities": ["格拉默", "格拉默铁骑", "流萤"]
+  },
+  {
+    "id": "gq_03",
+    "category": "失熵症",
+    "queryType": "exact",
+    "query": "失熵症的病理特征与影响",
+    "expectedKeywords": ["失熵症", "物理结构", "解离", "慢性解离"],
+    "expectedEntities": ["失熵症", "流萤"]
+  },
+  {
+    "id": "gq_04",
+    "category": "流萤与开拓者",
+    "queryType": "relationship",
+    "query": "流萤带开拓者去了流梦礁的什么地方",
+    "expectedKeywords": ["秘密基地", "流梦礁", "开拓者", "拍照"],
+    "expectedEntities": ["流萤", "开拓者", "流梦礁", "秘密基地"]
+  },
+  {
+    "id": "gq_05",
+    "category": "流萤与其他角色关系",
+    "queryType": "relationship",
+    "query": "流萤和星核猎手卡芙卡与银狼的关系",
+    "expectedKeywords": ["卡芙卡", "银狼", "刃", "星核猎手", "艾利欧"],
+    "expectedEntities": ["卡芙卡", "银狼", "星核猎手", "流萤"]
+  },
+  {
+    "id": "gq_06",
+    "category": "匹诺康尼剧情",
+    "queryType": "timeline",
+    "query": "匹诺康尼的盛会之星与流梦礁真相",
+    "expectedKeywords": ["匹诺康尼", "流梦礁", "美梦", "梦境"],
+    "expectedEntities": ["匹诺康尼", "流梦礁"]
+  },
+  {
+    "id": "gq_07",
+    "category": "翁法罗斯剧情",
+    "queryType": "timeline",
+    "query": "翁法罗斯大地的旅途与世界观背景",
+    "expectedKeywords": ["翁法罗斯", "白厄", "神话", "黄金之裔"],
+    "expectedEntities": ["翁法罗斯"]
+  },
+  {
+    "id": "gq_08",
+    "category": "白厄",
+    "queryType": "entity",
+    "query": "白厄与毁灭灾厄的关系",
+    "expectedKeywords": ["白厄", "灾厄", "翁法罗斯"],
+    "expectedEntities": ["白厄", "翁法罗斯"]
+  },
+  {
+    "id": "gq_09",
+    "category": "萨姆",
+    "queryType": "exact",
+    "query": "萨姆装甲的型号与作战特点",
+    "expectedKeywords": ["萨姆", "格拉默铁骑", "焦土作战", "IV型装甲"],
+    "expectedEntities": ["萨姆", "格拉默铁骑"]
+  },
+  {
+    "id": "gq_10",
+    "category": "时间线",
+    "queryType": "timeline",
+    "query": "格拉默共和国覆灭的历史时间线",
+    "expectedKeywords": ["格拉默", "虫群", "寰宇蝗灾", "覆灭"],
+    "expectedEntities": ["格拉默", "寰宇蝗灾"]
+  },
+  {
+    "id": "gq_11",
+    "category": "角色故事",
+    "queryType": "paraphrase",
+    "query": "流萤在梦境中想要体验普通女孩的生活",
+    "expectedKeywords": ["流萤", "普通人", "梦境", "生活"],
+    "expectedEntities": ["流萤"]
+  },
+  {
+    "id": "gq_12",
+    "category": "短信",
+    "queryType": "entity",
+    "query": "流萤给开拓者发的日常短信内容",
+    "expectedKeywords": ["短信", "流萤", "表情包"],
+    "expectedEntities": ["流萤", "开拓者"]
+  },
+  {
+    "id": "gq_13",
+    "category": "官方角色资料",
+    "queryType": "exact",
+    "query": "流萤的属性、命途与战斗类型",
+    "expectedKeywords": ["火属性", "毁灭", "击破", "流萤"],
+    "expectedEntities": ["流萤"]
+  },
+  {
+    "id": "gq_14",
+    "category": "世界观",
+    "queryType": "worldview",
+    "query": "万界之癌星核与星神命途",
+    "expectedKeywords": ["星核", "星神", "命途", "毁灭"],
+    "expectedEntities": ["星核", "星神"]
+  },
+  {
+    "id": "gq_15",
+    "category": "Wiki",
+    "queryType": "wiki",
+    "query": "雅利洛-VI号行星上的贝洛伯格城市",
+    "expectedKeywords": ["雅利洛-VI", "贝洛伯格", "大守护者", "下层区"],
+    "expectedEntities": ["雅利洛-VI", "贝洛伯格"]
+  },
+  {
+    "id": "gq_16",
+    "category": "同义改写",
+    "queryType": "paraphrase",
+    "query": "流萤喜欢吃什么甜品呀",
+    "expectedKeywords": ["橡木蛋糕卷", "蛋糕卷", "甜品", "流萤"],
+    "expectedEntities": ["流萤", "橡木蛋糕卷"]
+  },
+  {
+    "id": "gq_17",
+    "category": "同义改写",
+    "queryType": "paraphrase",
+    "query": "萨姆到底是谁的装甲",
+    "expectedKeywords": ["流萤", "萨姆", "铁骑", "装甲"],
+    "expectedEntities": ["萨姆", "流萤"]
+  },
+  {
+    "id": "gq_18",
+    "category": "省略主语表达",
+    "queryType": "paraphrase",
+    "query": "得了失熵症身体会变成什么样",
+    "expectedKeywords": ["失熵症", "解离", "不可逆", "知觉"],
+    "expectedEntities": ["失熵症"]
+  },
+  {
+    "id": "gq_19",
+    "category": "关系问答",
+    "queryType": "relationship",
+    "query": "黑天鹅与黄泉在匹诺康尼的对话",
+    "expectedKeywords": ["黑天鹅", "黄泉", "忆者", "匹诺康尼"],
+    "expectedEntities": ["黑天鹅", "黄泉"]
+  },
+  {
+    "id": "gq_20",
+    "category": "世界观问答",
+    "queryType": "worldview",
+    "query": "阮·梅培育了什么虫群复制体",
+    "expectedKeywords": ["阮·梅", "碎星王虫", "虫群", "复制体"],
+    "expectedEntities": ["阮·梅", "碎星王虫"]
+  }
+]

@@ -40,8 +40,14 @@ protocol.registerSchemesAsPrivileged([
 
 const isDev = process.env.VITE_DEV === "1";
 const windowManager = new WindowManager(isDev);
-const configPath = path.join(app.getAppPath(), "config", "settings.json");
-const memoryPath = path.join(app.getAppPath(), "config", "memory.json");
+let userDataPath: string;
+try {
+  userDataPath = app.getPath("userData");
+} catch {
+  userDataPath = process.cwd();
+}
+const configPath = path.join(userDataPath, "settings.json");
+const memoryPath = path.join(userDataPath, "memory.json");
 
 let stateManager: CharacterStateManager;
 let memoryService: FireflyMemoryService;

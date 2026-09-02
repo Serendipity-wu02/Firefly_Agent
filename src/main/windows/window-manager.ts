@@ -33,9 +33,9 @@ export class WindowManager {
   constructor(isDev: boolean) {
     this.isDev = isDev;
     try {
-      this.configPath = path.join(app.getAppPath(), "config", "settings.json");
+      this.configPath = path.join(app.getPath("userData"), "settings.json");
     } catch {
-      this.configPath = path.join(process.cwd(), "config", "settings.json");
+      this.configPath = path.join(process.cwd(), "settings.json");
     }
     this.loadPetScale();
   }

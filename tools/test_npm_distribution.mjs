@@ -28,6 +28,7 @@ test('1. package.json Distribution Fields Integrity', () => {
   assert.ok(pkg.files.includes('dist'), 'files must include dist');
   assert.ok(pkg.files.includes('src/renderer/public'), 'files must include src/renderer/public');
   assert.ok(pkg.files.includes('src/main/character/resources'), 'files must include src/main/character/resources');
+  assert.ok(pkg.files.includes('src/settings/settings.example.json'), 'files must include src/settings/settings.example.json');
   assert.ok(pkg.dependencies.electron, 'electron must be in dependencies for npm distribution');
 });
 
@@ -87,7 +88,7 @@ test('3. Clean Directory Tarball Installation & Resource Isolation Test', () => 
       path.join(installedPkgDir, 'src', 'renderer', 'public', 'models', 'Firefly.model3.json'),
       path.join(installedPkgDir, 'src', 'main', 'character', 'resources', 'persona', 'firefly.yaml'),
       path.join(installedPkgDir, 'data', 'knowledge', 'chunks.json'),
-      path.join(installedPkgDir, 'config', 'settings.example.json'),
+      path.join(installedPkgDir, 'src', 'settings', 'settings.example.json'),
     ];
 
     for (const f of mustExistFiles) {

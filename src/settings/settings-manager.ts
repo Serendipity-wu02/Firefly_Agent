@@ -26,9 +26,9 @@ export class SettingsManager {
       this.configPath = customPath;
     } else {
       try {
-        this.configPath = path.join(app.getAppPath(), "config", "settings.json");
+        this.configPath = path.join(app.getPath("userData"), "settings.json");
       } catch {
-        this.configPath = path.join(process.cwd(), "config", "settings.json");
+        this.configPath = path.join(process.cwd(), "settings.json");
       }
     }
     this.load();
@@ -39,6 +39,19 @@ export class SettingsManager {
       if (fs.existsSync(this.configPath)) {
         const raw = fs.readFileSync(this.configPath, "utf-8");
         this.settings = JSON.parse(raw);
+        return this.settings;
+      }
+      const exampleCandidates = [
+        path.join(__dirname, "settings.example.json"),
+        path.join(__dirname, "../src/settings/settings.example.json"),
+        path.join(process.cwd(), "src", "settings", "settings.example.json"),
+      ];
+      for (const ex of exampleCandidates) {
+        if (fs.existsSync(ex)) {
+          const raw = fs.readFileSync(ex, "utf-8");
+          this.settings = JSON.parse(raw);
+          return this.settings;
+        }
       }
     } catch (err) {
       console.warn("[SettingsManager] Failed to read settings.json:", err);

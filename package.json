@@ -12,7 +12,7 @@
     "src/cli",
     "src/main/character/resources",
     "src/renderer/public",
-    "config/settings.example.json",
+    "src/settings/settings.example.json",
     "data/knowledge",
     "README.md",
     "LICENSE"

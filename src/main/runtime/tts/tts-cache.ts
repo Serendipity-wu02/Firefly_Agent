@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { app } from "electron";
 import type { TtsAudioFormat } from "../../../shared/tts-session";
 
@@ -13,7 +14,7 @@ export class TtsCache {
       try {
         this.cacheDir = path.join(app.getPath("userData"), "cache", "tts");
       } catch {
-        this.cacheDir = path.join(process.cwd(), "config", "cache", "tts");
+        this.cacheDir = path.join(os.tmpdir(), "firefly_cache", "tts");
       }
     }
     this.ensureDir();

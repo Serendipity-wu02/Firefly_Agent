@@ -17,11 +17,13 @@ __pycache__/
 .pytest_cache/
 
 # Runtime configuration & state (User secrets, memory, history, generated data)
-config/settings.json
-config/memory.json
-config/chat_history.json
-config/cache/
-data/
+settings.json
+memory.json
+memory_v2.json
+chat_history.json
+*.bak
+cache/
+config/
 *.env
 *.env.local
 *.env.*.local
@@ -52,9 +54,3 @@ test_*.wav
 *.safetensors
 GPT_weights*/
 SoVITS_weights*/
-
-# Third-party Live2D model binaries (Unlicensed for public redistribution)
-assets/firefly/models/*.moc3
-assets/firefly/models/*.png
-assets/firefly/models/*.mp3
-assets/firefly/models/*.wav

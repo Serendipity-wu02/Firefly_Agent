@@ -19,9 +19,9 @@ export class FireflyMemoryService {
       this.filePath = customPath;
     } else {
       try {
-        this.filePath = path.join(app.getAppPath(), "config", "memory.json");
+        this.filePath = path.join(app.getPath("userData"), "memory.json");
       } catch {
-        this.filePath = path.join(process.cwd(), "config", "memory.json");
+        this.filePath = path.join(process.cwd(), "memory.json");
       }
     }
     this.load();
