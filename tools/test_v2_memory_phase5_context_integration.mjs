@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { InMemoryMemoryStore } from "../dist/main/main/memory/memory-store.js";
-import { MemoryCoordinator } from "../dist/main/main/memory/memory-coordinator.js";
-import { MemoryProjector } from "../dist/main/main/memory/memory-projector.js";
-import { ContextManager } from "../dist/main/main/agent/context/context-manager.js";
-import { MemorySlot } from "../dist/main/main/agent/context/context-slots.js";
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
+import { InMemoryMemoryStore } from "../dist/main/main/character/memory/memory-store.js";
+import { MemoryCoordinator } from "../dist/main/main/character/memory/memory-coordinator.js";
+import { MemoryProjector } from "../dist/main/main/character/memory/memory-projector.js";
+import { ContextManager } from "../dist/main/main/orchestrator/context/context-manager.js";
+import { MemorySlot } from "../dist/main/main/orchestrator/context/context-slots.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
 
 function createMockLlm(responseText = "你好呀，开拓者！") {
@@ -257,8 +257,8 @@ test("15. Memory Update Does Not Mutate Projected Context: Frozen projection sna
   assert.ok(snapshot1.includes("开心"));
 });
 
-test("16. Static Decoupling Audit: FireflyAgentCore has ZERO imports from src/main/memory/*", () => {
-  const coreFilePath = path.join(process.cwd(), "src", "main", "agent", "firefly-agent-core.ts");
+test("16. Static Decoupling Audit: FireflyAgentCore has ZERO imports from src/main/character/memory/*", () => {
+  const coreFilePath = path.join(process.cwd(), "src", "main", "orchestrator", "firefly-agent-core.ts");
   const coreSource = fs.readFileSync(coreFilePath, "utf-8");
 
   // Check no concrete imports from memory directory

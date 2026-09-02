@@ -12,7 +12,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         renderer: resolve(__dirname, "src/renderer/index.html"),
-        chat: resolve(__dirname, "src/renderer/react/index.html"),
+        chat: resolve(__dirname, "src/renderer/ui/index.html"),
       },
     },
   },

@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { DeterministicEmbeddingProvider, MockEmbeddingProvider } from "../dist/main/main/rag/embedding-provider.js";
-import { InMemoryVectorStore } from "../dist/main/main/rag/vector-store.js";
-import { LexicalRetriever } from "../dist/main/main/rag/lexical-retriever.js";
-import { VectorRetriever } from "../dist/main/main/rag/vector-retriever.js";
-import { KnowledgeReranker } from "../dist/main/main/rag/knowledge-reranker.js";
-import { HybridRetriever } from "../dist/main/main/rag/hybrid-retriever.js";
+import { DeterministicEmbeddingProvider, MockEmbeddingProvider } from "../dist/main/rag/embedding-provider.js";
+import { InMemoryVectorStore } from "../dist/main/rag/vector-store.js";
+import { LexicalRetriever } from "../dist/main/rag/lexical-retriever.js";
+import { VectorRetriever } from "../dist/main/rag/vector-retriever.js";
+import { KnowledgeReranker } from "../dist/main/rag/knowledge-reranker.js";
+import { HybridRetriever } from "../dist/main/rag/hybrid-retriever.js";
 
 const sampleChunks = [
   {

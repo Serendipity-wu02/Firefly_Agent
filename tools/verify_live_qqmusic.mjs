@@ -1,5 +1,5 @@
-import { QQMusicDesktopBridge } from "../dist/main/main/music/qqmusic-desktop-bridge.js";
-import { MusicService } from "../dist/main/main/music/music-service.js";
+import { QQMusicDesktopBridge } from "../dist/main/main/runtime/music/qqmusic-desktop-bridge.js";
+import { MusicService } from "../dist/main/main/runtime/music/music-service.js";
 import { createMusicTools } from "../dist/main/main/tools/music-tools.js";
 
 async function main() {

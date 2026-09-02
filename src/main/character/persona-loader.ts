@@ -24,6 +24,7 @@ export class PersonaLoader {
 
     if (customRoot) {
       candidateRoots.push(customRoot);
+      candidateRoots.push(path.join(customRoot, "src", "main", "character"));
     }
 
     // 1. Electron app.getAppPath() (if available)
@@ -33,15 +34,18 @@ export class PersonaLoader {
       const { app } = require("electron");
       if (app && typeof app.getAppPath === "function") {
         candidateRoots.push(app.getAppPath());
+        candidateRoots.push(path.join(app.getAppPath(), "src", "main", "character"));
       }
     } catch {
       // Not in Electron runtime
     }
 
-    // 2. process.cwd()
+    // 2. Direct character directory roots
+    candidateRoots.push(path.resolve(__dirname)); // in src/main/character or dist/main/main/character
+    candidateRoots.push(path.join(process.cwd(), "src", "main", "character"));
     candidateRoots.push(process.cwd());
 
-    // 3. __dirname relative path
+    // 3. __dirname relative paths
     candidateRoots.push(path.resolve(__dirname, "../../../")); // from src/main/character or dist/main/main/character
     candidateRoots.push(path.resolve(__dirname, "../../../../")); // fallback
     candidateRoots.push(path.resolve(__dirname, "../../"));
@@ -55,7 +59,7 @@ export class PersonaLoader {
     }
 
     // Fallback default
-    const fallbackCanonical = path.join(process.cwd(), "resources", "persona", "firefly.yaml");
+    const fallbackCanonical = path.join(process.cwd(), "src", "main", "character", "resources", "persona", "firefly.yaml");
     this.resolvedYamlPath = fallbackCanonical;
     return fallbackCanonical;
   }

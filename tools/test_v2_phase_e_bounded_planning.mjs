@@ -1,20 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { BoundedPlanner } from "../dist/main/main/agent/planning/bounded-planner.js";
-import { StepVerifier } from "../dist/main/main/agent/planning/step-verifier.js";
+import { BoundedPlanner } from "../dist/main/main/orchestrator/planning/bounded-planner.js";
+import { StepVerifier } from "../dist/main/main/orchestrator/planning/step-verifier.js";
 import {
   validatePlanStatusTransition,
   validateStepStatusTransition,
   formatPlanContext,
-} from "../dist/main/main/agent/planning/plan-lifecycle.js";
-import { PlanSlot } from "../dist/main/main/agent/context/context-slots.js";
-import { TokenMeter } from "../dist/main/main/agent/context/token-meter.js";
+} from "../dist/main/main/orchestrator/planning/plan-lifecycle.js";
+import { PlanSlot } from "../dist/main/main/orchestrator/context/context-slots.js";
+import { TokenMeter } from "../dist/main/main/orchestrator/context/token-meter.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
-import { AgentEventBus } from "../dist/main/main/agent/agent-events.js";
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
-import { InMemoryCheckpointStore } from "../dist/main/main/agent/recovery/checkpoint-store.js";
-import { CheckpointManager } from "../dist/main/main/agent/recovery/checkpoint-manager.js";
+import { AgentEventBus } from "../dist/main/main/orchestrator/agent-events.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
+import { InMemoryCheckpointStore } from "../dist/main/main/orchestrator/recovery/checkpoint-store.js";
+import { CheckpointManager } from "../dist/main/main/orchestrator/recovery/checkpoint-manager.js";
 
 test("1. Direct Mode: Simple question does NOT trigger plan mode", async () => {
   const planner = new BoundedPlanner();

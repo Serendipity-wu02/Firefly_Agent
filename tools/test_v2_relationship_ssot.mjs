@@ -28,7 +28,7 @@ test("1. Production Canonical Loading: Relationships are dynamically loaded from
   const map = RelationshipRegistry.reload(projectRoot);
   assert.ok(map.size > 0, "Must load relationship entities from resources");
 
-  const rawYaml = yaml.load(fs.readFileSync(path.join(projectRoot, "resources", "knowledge", "facts.yaml"), "utf-8"));
+  const rawYaml = yaml.load(fs.readFileSync(path.join(projectRoot, "src", "main", "character", "resources", "knowledge", "facts.yaml"), "utf-8"));
   const rawFactsList = Array.isArray(rawYaml) ? rawYaml : Array.isArray(rawYaml.facts) ? rawYaml.facts : Object.values(rawYaml).flat();
   const trailblazerRawFacts = rawFactsList.filter((f) => f && f.entity === "开拓者").map((f) => f.fact.trim());
 
@@ -49,7 +49,7 @@ test("2. Dynamic SSoT Synchronization & Deletion Transparency: Modifying facts c
 
   // Create isolated temporary resources fixture directory
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-rel-ssot-"));
-  const tempKnowledgeDir = path.join(tempDir, "resources", "knowledge");
+  const tempKnowledgeDir = path.join(tempDir, "src", "main", "character", "resources", "knowledge");
   const tempCardsDir = path.join(tempKnowledgeDir, "curated_cards");
   fs.mkdirSync(tempCardsDir, { recursive: true });
 

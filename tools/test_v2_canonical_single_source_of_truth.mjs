@@ -45,7 +45,7 @@ test("2. Dynamic Single Source of Truth Synchronization: Changing YAML dynamical
 
   // Create an isolated temporary fixture directory
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-ssot-test-"));
-  const tempResourcesDir = path.join(tempDir, "resources");
+  const tempResourcesDir = path.join(tempDir, "src", "main", "character", "resources");
   fs.mkdirSync(tempResourcesDir, { recursive: true });
 
   const customYamlData = {

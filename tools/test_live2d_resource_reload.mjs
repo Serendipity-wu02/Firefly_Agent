@@ -10,7 +10,7 @@ import {
   resolveFireflyTarget,
 } from "../dist/main/shared/firefly-actions.js";
 
-const MODELS_DIR = path.join(process.cwd(), "assets", "firefly", "models");
+const MODELS_DIR = path.join(process.cwd(), "src", "renderer", "public", "models");
 const MODEL_JSON_PATH = path.join(MODELS_DIR, "Firefly.model3.json");
 
 test("1. Model3.json: Root configuration exists and parses cleanly", () => {
@@ -152,7 +152,7 @@ test("11. MouthSync Modulation: ParamMouthOpenY viseme parameter targeted in run
 });
 
 test("12. Zero PNG Fallback: Confirms complete absence of legacy fallback png code & folders", () => {
-  const legacyDir = path.join(process.cwd(), "assets", "firefly", "normal");
+  const legacyDir = path.join(process.cwd(), "src", "renderer", "public", "models", "normal");
   assert.equal(fs.existsSync(legacyDir), false, "Legacy normal/ directory must NOT exist");
 
   const rendererFiles = [

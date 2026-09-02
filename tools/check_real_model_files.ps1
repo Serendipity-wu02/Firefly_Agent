@@ -1,16 +1,21 @@
 # check_real_model_files.ps1
 [CmdletBinding()]
-param()
+param(
+    [string[]]$SearchDirs = @()
+)
 
 $ErrorActionPreference = 'SilentlyContinue'
 
-$searchTargets = @(
-    (Join-Path (Get-Location) "assets\firefly"),
-    (Join-Path (Get-Location) "models"),
-    "E:\Google-Antigravity\working",
-    "C:\Users\w1558\Downloads",
-    "D:\"
+$defaultTargets = @(
+    (Join-Path (Get-Location) "src\renderer\public\models"),
+    (Join-Path (Get-Location) "models")
 )
+
+if ($env:FIREFLY_MODEL_PATH) {
+    $defaultTargets += $env:FIREFLY_MODEL_PATH
+}
+
+$searchTargets = if ($SearchDirs.Count -gt 0) { $SearchDirs } else { $defaultTargets }
 
 Write-Host "=========================================="
 Write-Host "Searching for Firefly GPT-SoVITS Model Files & Environment:"

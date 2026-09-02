@@ -11,11 +11,11 @@ import {
 } from "../dist/main/shared/firefly-actions.js";
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
-const MODELS_DIR = path.join(PROJECT_ROOT, "assets", "firefly", "models");
+const MODELS_DIR = path.join(PROJECT_ROOT, "src", "renderer", "public", "models");
 const MODEL_JSON_PATH = path.join(MODELS_DIR, "Firefly.model3.json");
 
 test("1. Live2D Model Path: Confirms presence of models directory and main config", () => {
-  assert.ok(fs.existsSync(MODELS_DIR), "assets/firefly/models/ must exist");
+  assert.ok(fs.existsSync(MODELS_DIR), "src/renderer/public/models/ must exist");
   assert.ok(fs.existsSync(MODEL_JSON_PATH), "Firefly.model3.json must exist");
 });
 
@@ -123,9 +123,9 @@ test("8. Renderer Source Audit: Zero imports of fallback-png or references to fa
   }
 });
 
-test("9. Normal Asset Audit: assets/firefly/normal/ is 100% removed from disk", () => {
-  const normalDir = path.join(PROJECT_ROOT, "assets", "firefly", "normal");
-  assert.ok(!fs.existsSync(normalDir), "assets/firefly/normal directory must NOT exist");
+test("9. Normal Asset Audit: src/renderer/public/models/normal/ is 100% removed from disk", () => {
+  const normalDir = path.join(PROJECT_ROOT, "src", "renderer", "public", "models", "normal");
+  assert.ok(!fs.existsSync(normalDir), "src/renderer/public/models/normal directory must NOT exist");
 });
 
 test("10. Live2DManager Pure Contract: Verified Live2DManager options do not accept PNG elements", () => {

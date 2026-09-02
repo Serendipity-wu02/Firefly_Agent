@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
-import { FireflyHarness } from "../dist/main/main/agent/harness/firefly-harness.js";
-import { AgentSession } from "../dist/main/main/agent/agent-session.js";
-import { AgentEventBus } from "../dist/main/main/agent/agent-events.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
+import { FireflyHarness } from "../dist/main/main/orchestrator/harness/firefly-harness.js";
+import { AgentSession } from "../dist/main/main/orchestrator/agent-session.js";
+import { AgentEventBus } from "../dist/main/main/orchestrator/agent-events.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
 import { createPlayLive2DActionTool } from "../dist/main/main/tools/play-live2d-action.js";
 
@@ -323,7 +323,7 @@ test("13. Contract check: Both FireflyHarness and FireflyAgentCore implement IAg
 });
 
 test("14. Isolation check: FireflyAgentCore source does NOT import FireflyHarness", () => {
-  const sourcePath = path.join(process.cwd(), "src", "main", "agent", "firefly-agent-core.ts");
+  const sourcePath = path.join(process.cwd(), "src", "main", "orchestrator", "firefly-agent-core.ts");
   const sourceContent = fs.readFileSync(sourcePath, "utf-8");
 
   assert.ok(!sourceContent.includes("FireflyHarness"), "FireflyAgentCore must not import or mention FireflyHarness");

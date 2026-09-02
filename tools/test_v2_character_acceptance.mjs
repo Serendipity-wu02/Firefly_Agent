@@ -230,7 +230,7 @@ test("Scenario 10: Harness Presentation (Real Avatar, Message Item, and TTS Play
   const avatarPath = path.join(projectRoot, "src", "renderer", "head_portrait", "firefly.png");
   assert.ok(fs.existsSync(avatarPath), "src/renderer/head_portrait/firefly.png must exist");
 
-  const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "react", "avatar-resolver.ts")}`);
+  const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "ui", "avatar-resolver.ts")}`);
   const { DefaultAvatarResolver } = avatarModule;
 
   const resolver = new DefaultAvatarResolver();
@@ -246,6 +246,6 @@ test("Scenario 10: Harness Presentation (Real Avatar, Message Item, and TTS Play
   if (fs.existsSync(distAssetsDir)) {
     const files = fs.readdirSync(distAssetsDir);
     const hasAvatar = files.some((f) => f.startsWith("firefly-") && f.endsWith(".png"));
-    assert.ok(hasAvatar, "dist/renderer/assets/firefly-*.png must be built into production output");
+    assert.ok(hasAvatar, "dist/renderer/src/renderer/public/models-*.png must be built into production output");
   }
 });

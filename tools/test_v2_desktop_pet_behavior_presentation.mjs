@@ -22,7 +22,7 @@ const { EmbodimentAdapter } = await import("../dist/main/main/character/embodime
 const { FIREFLY_ACTIONS, resolveFireflyTarget } = await import("../dist/main/shared/firefly-actions.js");
 
 test("1. Idle Default State: Expression is expression00 and Idle Motion is Idle/0", () => {
-  const modelJsonPath = path.join(rootDir, "assets", "firefly", "models", "Firefly.model3.json");
+  const modelJsonPath = path.join(rootDir, "src", "renderer", "public", "models", "Firefly.model3.json");
   const modelData = JSON.parse(fs.readFileSync(modelJsonPath, "utf-8"));
   
   const exp0 = modelData.FileReferences.Expressions.find(e => e.Name === "expression00");
@@ -156,12 +156,12 @@ test("12. Deterministic Execution: Zero random expression or motion selection ac
 
 test("13. Resources & Assets Immutability: 0 diff on resources/ and assets/", () => {
   try {
-    const diffAssets = execSync("git diff HEAD -- assets/", { cwd: rootDir, encoding: "utf-8" }).trim();
-    const diffResources = execSync("git diff HEAD -- resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
+    const diffAssets = execSync("git diff HEAD -- src/renderer/public/models/", { cwd: rootDir, encoding: "utf-8" }).trim();
+    const diffResources = execSync("git diff HEAD -- src/main/character/resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
     assert.equal(diffAssets, "", "assets/ must have 0 diff");
     assert.equal(diffResources, "", "resources/ must have 0 diff");
   } catch (err) {
-    assert.ok(fs.existsSync(path.join(rootDir, "assets")), "assets directory exists");
-    assert.ok(fs.existsSync(path.join(rootDir, "resources")), "resources directory exists");
+    assert.ok(fs.existsSync(path.join(rootDir, "src", "renderer", "public", "models")), "assets directory exists");
+    assert.ok(fs.existsSync(path.join(rootDir, "src", "main", "character", "resources")), "resources directory exists");
   }
 });

@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 
 // 1. Test Action Catalog resolution
 import { FIREFLY_ACTIONS, findFireflyAction, resolveFireflyTarget } from "../dist/main/shared/firefly-actions.js";
-import { LocalFireflyProvider } from "../dist/main/main/agent/providers/local-firefly-provider.js";
-import { FireflyHarness } from "../dist/main/main/agent/harness/firefly-harness.js";
+import { LocalFireflyProvider } from "../dist/main/main/llm/providers/local-firefly-provider.js";
+import { FireflyHarness } from "../dist/main/main/orchestrator/harness/firefly-harness.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
 import { createPlayLive2DActionTool } from "../dist/main/main/tools/play-live2d-action.js";
-import { FireflyTtsDispatcher } from "../dist/main/main/tts/tts-dispatcher.js";
-import { TtsSessionService } from "../dist/main/main/tts/tts-session-service.js";
+import { FireflyTtsDispatcher } from "../dist/main/main/runtime/tts/tts-dispatcher.js";
+import { TtsSessionService } from "../dist/main/main/runtime/tts/tts-session-service.js";
 import { DEFAULT_TTS_SETTINGS } from "../dist/main/shared/tts-types.js";
 
 test("Action Catalog: resolves standard actions without guessing", () => {

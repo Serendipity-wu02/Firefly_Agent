@@ -7,15 +7,15 @@ import * as os from "node:os";
 import {
   InMemoryCheckpointStore,
   FileCheckpointStore,
-} from "../dist/main/main/agent/recovery/checkpoint-store.js";
-import { CheckpointManager } from "../dist/main/main/agent/recovery/checkpoint-manager.js";
-import { ErrorClassifier } from "../dist/main/main/agent/recovery/error-classifier.js";
-import { RecoveryManager } from "../dist/main/main/agent/recovery/recovery-manager.js";
-import { ResumeProtocol } from "../dist/main/main/agent/recovery/resume-protocol.js";
-import { validateRunStateTransition } from "../dist/main/main/agent/recovery/execution-state.js";
-import { AgentEventBus } from "../dist/main/main/agent/agent-events.js";
+} from "../dist/main/main/orchestrator/recovery/checkpoint-store.js";
+import { CheckpointManager } from "../dist/main/main/orchestrator/recovery/checkpoint-manager.js";
+import { ErrorClassifier } from "../dist/main/main/orchestrator/recovery/error-classifier.js";
+import { RecoveryManager } from "../dist/main/main/orchestrator/recovery/recovery-manager.js";
+import { ResumeProtocol } from "../dist/main/main/orchestrator/recovery/resume-protocol.js";
+import { validateRunStateTransition } from "../dist/main/main/orchestrator/recovery/execution-state.js";
+import { AgentEventBus } from "../dist/main/main/orchestrator/agent-events.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
 
 test("1. Checkpoint Creation: Captures state, transcript and emits event", async () => {
   const eventBus = new AgentEventBus();

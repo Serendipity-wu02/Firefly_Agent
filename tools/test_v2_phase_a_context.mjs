@@ -1,17 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { TokenMeter, DefaultEstimateTokenizer } from "../dist/main/main/agent/context/token-meter.js";
-import { SystemPromptBuilder } from "../dist/main/main/agent/context/system-prompt-builder.js";
+import { TokenMeter, DefaultEstimateTokenizer } from "../dist/main/main/orchestrator/context/token-meter.js";
+import { SystemPromptBuilder } from "../dist/main/main/orchestrator/context/system-prompt-builder.js";
 import {
   ContextSlotPriority,
   SystemPromptSlot,
   CharacterStateSlot,
   MemorySlot,
   RagSlot,
-} from "../dist/main/main/agent/context/context-slots.js";
-import { computeContextBudget, DEFAULT_CONTEXT_BUDGET_CONFIG } from "../dist/main/main/agent/context/context-budget.js";
-import { ContextProjector } from "../dist/main/main/agent/context/context-projector.js";
-import { ContextManager } from "../dist/main/main/agent/context/context-manager.js";
+} from "../dist/main/main/orchestrator/context/context-slots.js";
+import { computeContextBudget, DEFAULT_CONTEXT_BUDGET_CONFIG } from "../dist/main/main/orchestrator/context/context-budget.js";
+import { ContextProjector } from "../dist/main/main/orchestrator/context/context-projector.js";
+import { ContextManager } from "../dist/main/main/orchestrator/context/context-manager.js";
 
 test("1. TokenMeter: estimate vs actual token calculation with injectable tokenizer", () => {
   const meter = new TokenMeter();

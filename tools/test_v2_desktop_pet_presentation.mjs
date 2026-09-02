@@ -38,7 +38,7 @@ test("2. Default petScale is 1.0 and ignores legacy 0.7 configuration", () => {
 });
 
 test("3. Default Expression Determinism: Firefly.model3.json binds expression00 to Expressions_0_File_0.json", () => {
-  const modelJsonPath = path.join(rootDir, "assets", "firefly", "models", "Firefly.model3.json");
+  const modelJsonPath = path.join(rootDir, "src", "renderer", "public", "models", "Firefly.model3.json");
   assert.ok(fs.existsSync(modelJsonPath), "Firefly.model3.json must exist");
   const modelData = JSON.parse(fs.readFileSync(modelJsonPath, "utf-8"));
   
@@ -46,7 +46,7 @@ test("3. Default Expression Determinism: Firefly.model3.json binds expression00 
   assert.ok(exp0, "expression00 must be defined in model3.json");
   assert.equal(exp0.File, "Expressions/Expressions_0_File_0.json");
 
-  const exp0File = path.join(rootDir, "assets", "firefly", "models", exp0.File);
+  const exp0File = path.join(rootDir, "src", "renderer", "public", "models", exp0.File);
   assert.ok(fs.existsSync(exp0File), "Expressions_0_File_0.json must exist on disk");
 });
 
@@ -57,12 +57,12 @@ test("4. Startup Expression: Manager initializes with expression00 without rando
 });
 
 test("5. Default Idle Motion: Idle/0 is registered and points to Motions_Tick2_0_File_0.json", () => {
-  const modelJsonPath = path.join(rootDir, "assets", "firefly", "models", "Firefly.model3.json");
+  const modelJsonPath = path.join(rootDir, "src", "renderer", "public", "models", "Firefly.model3.json");
   const modelData = JSON.parse(fs.readFileSync(modelJsonPath, "utf-8"));
   const idle0 = modelData.FileReferences.Motions.Idle[0];
   assert.ok(idle0, "Idle/0 must exist in model3.json");
   assert.equal(idle0.File, "Motions/Motions_Tick2_0_File_0.json");
-  assert.ok(fs.existsSync(path.join(rootDir, "assets", "firefly", "models", idle0.File)), "Motions_Tick2_0_File_0.json must exist");
+  assert.ok(fs.existsSync(path.join(rootDir, "src", "renderer", "public", "models", idle0.File)), "Motions_Tick2_0_File_0.json must exist");
 });
 
 test("6. Isotropic Model Scaling in setupModelTransform: scaleX === scaleY without artificial margin shrinking", () => {
@@ -128,12 +128,12 @@ test("13. SpeakingMotionController Non-Interference: Speaking state does NOT ove
 
 test("14. Assets & Resources Frozen: git diff reports 0 diff on assets/ and resources/", () => {
   try {
-    const diffAssets = execSync("git diff HEAD -- assets/", { cwd: rootDir, encoding: "utf-8" }).trim();
-    const diffResources = execSync("git diff HEAD -- resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
+    const diffAssets = execSync("git diff HEAD -- src/renderer/public/models/", { cwd: rootDir, encoding: "utf-8" }).trim();
+    const diffResources = execSync("git diff HEAD -- src/main/character/resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
     assert.equal(diffAssets, "", "assets/ must have 0 diff");
     assert.equal(diffResources, "", "resources/ must have 0 diff");
   } catch (err) {
-    assert.ok(fs.existsSync(path.join(rootDir, "assets")), "assets directory exists");
-    assert.ok(fs.existsSync(path.join(rootDir, "resources")), "resources directory exists");
+    assert.ok(fs.existsSync(path.join(rootDir, "src", "renderer", "public", "models")), "assets directory exists");
+    assert.ok(fs.existsSync(path.join(rootDir, "src", "main", "character", "resources")), "resources directory exists");
   }
 });

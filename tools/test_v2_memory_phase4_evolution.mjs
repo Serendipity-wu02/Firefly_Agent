@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { InMemoryMemoryStore } from "../dist/main/main/memory/memory-store.js";
-import { MemoryDecayEngine } from "../dist/main/main/memory/memory-decay-engine.js";
-import { MemoryConflictResolver } from "../dist/main/main/memory/memory-conflict-resolver.js";
-import { MemoryConsolidator } from "../dist/main/main/memory/memory-consolidator.js";
-import { MemoryMaintenanceService } from "../dist/main/main/memory/memory-maintenance-service.js";
-import { MemoryRetriever } from "../dist/main/main/memory/memory-retriever.js";
-import { MemoryRanker } from "../dist/main/main/memory/memory-ranker.js";
-import { DEFAULT_RETRIEVAL_POLICY } from "../dist/main/main/memory/retrieval-types.js";
-import { MemoryWriteService } from "../dist/main/main/memory/memory-write-service.js";
+import { InMemoryMemoryStore } from "../dist/main/main/character/memory/memory-store.js";
+import { MemoryDecayEngine } from "../dist/main/main/character/memory/memory-decay-engine.js";
+import { MemoryConflictResolver } from "../dist/main/main/character/memory/memory-conflict-resolver.js";
+import { MemoryConsolidator } from "../dist/main/main/character/memory/memory-consolidator.js";
+import { MemoryMaintenanceService } from "../dist/main/main/character/memory/memory-maintenance-service.js";
+import { MemoryRetriever } from "../dist/main/main/character/memory/memory-retriever.js";
+import { MemoryRanker } from "../dist/main/main/character/memory/memory-ranker.js";
+import { DEFAULT_RETRIEVAL_POLICY } from "../dist/main/main/character/memory/retrieval-types.js";
+import { MemoryWriteService } from "../dist/main/main/character/memory/memory-write-service.js";
 
 test("1. Basic Decay: Unpinned L1 memory strength decays exponentially over elapsed time", () => {
   const decayEngine = new MemoryDecayEngine({ halfLifeDays: 7 });

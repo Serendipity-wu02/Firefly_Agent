@@ -4,7 +4,7 @@
  * Distinguishes First-Person Canonical Experiences, Relationship Facts, and World Lore Intelligence.
  */
 
-import type { KnowledgeChunk } from "../rag/rag-types";
+import type { KnowledgeChunk } from "../../rag/rag-types";
 
 export type SubjectivePerspectiveType =
   | "first_person_experience"  // 流萤亲身经历（第一人称记忆回忆）

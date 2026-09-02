@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { MusicService } from "../dist/main/main/music/music-service.js";
-import { MockMusicProvider } from "../dist/main/main/music/mock-music-provider.js";
-import { QQMusicProvider } from "../dist/main/main/music/qqmusic-provider.js";
-import { SelectionSetCache } from "../dist/main/main/music/selection-set-cache.js";
-import { PlaybackSession } from "../dist/main/main/music/playback-session.js";
+import { MusicService } from "../dist/main/main/runtime/music/music-service.js";
+import { MockMusicProvider } from "../dist/main/main/runtime/music/mock-music-provider.js";
+import { QQMusicProvider } from "../dist/main/main/runtime/music/qqmusic-provider.js";
+import { SelectionSetCache } from "../dist/main/main/runtime/music/selection-set-cache.js";
+import { PlaybackSession } from "../dist/main/main/runtime/music/playback-session.js";
 import { createMusicTools } from "../dist/main/main/tools/music-tools.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
 
 // Mock MPV player for testing that simulates IPC events without spawning external mpv binary
 class MockMpvPlayer {

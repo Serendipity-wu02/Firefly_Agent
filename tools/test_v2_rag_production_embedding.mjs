@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { ProductionEmbeddingProvider } from "../dist/main/main/rag/production-embedding-provider.js";
-import { DeterministicEmbeddingProvider } from "../dist/main/main/rag/embedding-provider.js";
-import { InMemoryVectorStore, FileVectorStore } from "../dist/main/main/rag/vector-store.js";
-import { VectorIndexService } from "../dist/main/main/rag/vector-index-service.js";
-import { HybridRetriever } from "../dist/main/main/rag/hybrid-retriever.js";
-import { KnowledgeReranker } from "../dist/main/main/rag/knowledge-reranker.js";
+import { ProductionEmbeddingProvider } from "../dist/main/rag/production-embedding-provider.js";
+import { DeterministicEmbeddingProvider } from "../dist/main/rag/embedding-provider.js";
+import { InMemoryVectorStore, FileVectorStore } from "../dist/main/rag/vector-store.js";
+import { VectorIndexService } from "../dist/main/rag/vector-index-service.js";
+import { HybridRetriever } from "../dist/main/rag/hybrid-retriever.js";
+import { KnowledgeReranker } from "../dist/main/rag/knowledge-reranker.js";
 
 const goldenQueriesPath = path.join(process.cwd(), "data", "knowledge", "golden_queries.json");
 const chunksPath = path.join(process.cwd(), "data", "knowledge", "chunks.json");

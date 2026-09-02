@@ -1,5 +1,5 @@
 import type { ToolDefinition } from "../../shared/tool-types";
-import { MusicService } from "../music/music-service";
+import { MusicService } from "../runtime/music/music-service";
 
 export function createMusicTools(musicService: MusicService): ToolDefinition[] {
   const searchTool: ToolDefinition = {

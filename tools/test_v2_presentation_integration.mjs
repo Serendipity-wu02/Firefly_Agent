@@ -62,7 +62,7 @@ test("5. Preload Metadata Passthrough: window.chat.sendMessage exposes embodimen
 });
 
 test("6. TTS Metadata Flow: Auto-playback & Manual playback share identical Embodiment metadata", () => {
-  const appSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "react", "App.tsx"), "utf-8");
+  const appSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "ui", "App.tsx"), "utf-8");
   assert.ok(appSource.includes("voiceIntent: asstMsg.voiceIntent"), "Preserves voiceIntent");
   assert.ok(appSource.includes("prosodyHint: asstMsg.prosodyHint"), "Preserves prosodyHint");
   assert.ok(appSource.includes("correlationId: asstMsg.correlationId"), "Preserves correlationId");
@@ -87,7 +87,7 @@ test("8. Zero Numeric Stat Mutation: Interaction and chat events do not mutate a
   const mainRendererSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "main.ts"), "utf-8");
   assert.ok(!mainRendererSource.includes('careAction("drag")'), "Must not invoke careAction('drag')");
 
-  const appSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "react", "App.tsx"), "utf-8");
+  const appSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "ui", "App.tsx"), "utf-8");
   assert.ok(!appSource.includes("handleCare"), "App.tsx must not contain handleCare or care buttons");
 });
 
@@ -100,12 +100,12 @@ test("9. Physical Avatar Asset: Real firefly.png exists on disk and is used by D
 
 test("10. Resource & Asset Immutability: 0 diff on resources/ and assets/", () => {
   try {
-    const diffAssets = execSync("git diff HEAD -- assets/", { cwd: rootDir, encoding: "utf-8" }).trim();
-    const diffResources = execSync("git diff HEAD -- resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
+    const diffAssets = execSync("git diff HEAD -- src/renderer/public/models/", { cwd: rootDir, encoding: "utf-8" }).trim();
+    const diffResources = execSync("git diff HEAD -- src/main/character/resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
     assert.equal(diffAssets, "", "assets/ must have 0 diff");
     assert.equal(diffResources, "", "resources/ must have 0 diff");
   } catch (err) {
-    assert.ok(fs.existsSync(path.join(rootDir, "assets")), "assets directory exists");
-    assert.ok(fs.existsSync(path.join(rootDir, "resources")), "resources directory exists");
+    assert.ok(fs.existsSync(path.join(rootDir, "src", "renderer", "public", "models")), "assets directory exists");
+    assert.ok(fs.existsSync(path.join(rootDir, "src", "main", "character", "resources")), "resources directory exists");
   }
 });

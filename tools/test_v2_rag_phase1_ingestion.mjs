@@ -4,15 +4,15 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
-import { KnowledgeIngestionService } from "../dist/main/main/rag/knowledge-ingestion-service.js";
-import { AtomicFactChunker } from "../dist/main/main/rag/chunkers/atomic-fact-chunker.js";
-import { YamlPersonaChunker } from "../dist/main/main/rag/chunkers/yaml-persona-chunker.js";
-import { HeadingMarkdownChunker } from "../dist/main/main/rag/chunkers/heading-markdown-chunker.js";
-import { CuratedCardChunker } from "../dist/main/main/rag/chunkers/curated-card-chunker.js";
-import { SceneDialogueChunker } from "../dist/main/main/rag/chunkers/scene-dialogue-chunker.js";
-import { CharacterProfileChunker } from "../dist/main/main/rag/chunkers/character-profile-chunker.js";
+import { KnowledgeIngestionService } from "../dist/main/rag/knowledge-ingestion-service.js";
+import { AtomicFactChunker } from "../dist/main/rag/chunkers/atomic-fact-chunker.js";
+import { YamlPersonaChunker } from "../dist/main/rag/chunkers/yaml-persona-chunker.js";
+import { HeadingMarkdownChunker } from "../dist/main/rag/chunkers/heading-markdown-chunker.js";
+import { CuratedCardChunker } from "../dist/main/rag/chunkers/curated-card-chunker.js";
+import { SceneDialogueChunker } from "../dist/main/rag/chunkers/scene-dialogue-chunker.js";
+import { CharacterProfileChunker } from "../dist/main/rag/chunkers/character-profile-chunker.js";
 
-const resourcesRoot = path.join(process.cwd(), "resources");
+const resourcesRoot = path.join(process.cwd(), "src", "main", "character", "resources");
 const testOutputDir = path.join(process.cwd(), "data", "test_knowledge");
 
 test("1. Full File Inventory: All 806 files discovered and successfully categorized", async () => {

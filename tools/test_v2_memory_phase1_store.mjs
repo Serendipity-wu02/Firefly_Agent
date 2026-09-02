@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-import { InMemoryMemoryStore, FileMemoryStore } from "../dist/main/main/memory/memory-store.js";
+import { InMemoryMemoryStore, FileMemoryStore } from "../dist/main/main/character/memory/memory-store.js";
 
 test("1. MemoryRecord CRUD: In-Memory Store create, read, update, delete", async () => {
   const store = new InMemoryMemoryStore();

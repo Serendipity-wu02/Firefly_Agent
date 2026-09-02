@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
-import { ToolExecutionEngine } from "../dist/main/main/agent/execution/tool-execution-engine.js";
-import { ToolPolicyEvaluator } from "../dist/main/main/agent/execution/tool-policy.js";
-import { ToolBatchPlanner } from "../dist/main/main/agent/execution/tool-concurrency.js";
-import { ToolResultPolicy } from "../dist/main/main/agent/execution/tool-result-policy.js";
-import { AgentEventBus } from "../dist/main/main/agent/agent-events.js";
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
+import { ToolExecutionEngine } from "../dist/main/main/runtime/execution/tool-execution-engine.js";
+import { ToolPolicyEvaluator } from "../dist/main/main/runtime/execution/tool-policy.js";
+import { ToolBatchPlanner } from "../dist/main/main/runtime/execution/tool-concurrency.js";
+import { ToolResultPolicy } from "../dist/main/main/runtime/execution/tool-result-policy.js";
+import { AgentEventBus } from "../dist/main/main/orchestrator/agent-events.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
 
 test("1. Policy Denied: Blacklist and whitelist enforcement", async () => {
   const registry = new FireflyToolRegistry();

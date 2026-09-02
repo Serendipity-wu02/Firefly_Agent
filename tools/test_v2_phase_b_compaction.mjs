@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ToolResultPruner, DEFAULT_PRUNING_CONFIG } from "../dist/main/main/agent/compaction/tool-result-pruner.js";
-import { PairedSafeCut } from "../dist/main/main/agent/compaction/safe-cut.js";
-import { ContextCompactor } from "../dist/main/main/agent/compaction/compactor.js";
-import { ContextProjector } from "../dist/main/main/agent/context/context-projector.js";
-import { ContextManager } from "../dist/main/main/agent/context/context-manager.js";
-import { AgentSession } from "../dist/main/main/agent/agent-session.js";
+import { ToolResultPruner, DEFAULT_PRUNING_CONFIG } from "../dist/main/main/orchestrator/compaction/tool-result-pruner.js";
+import { PairedSafeCut } from "../dist/main/main/orchestrator/compaction/safe-cut.js";
+import { ContextCompactor } from "../dist/main/main/orchestrator/compaction/compactor.js";
+import { ContextProjector } from "../dist/main/main/orchestrator/context/context-projector.js";
+import { ContextManager } from "../dist/main/main/orchestrator/context/context-manager.js";
+import { AgentSession } from "../dist/main/main/orchestrator/agent-session.js";
 
 test("1. Tool Result Pruning: Head + Tail + Middle Marker on large outputs", () => {
   const hugeText = "START_" + "A".repeat(10000) + "_END";

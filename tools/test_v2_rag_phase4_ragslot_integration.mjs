@@ -3,16 +3,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { RagSlot, MemorySlot, ContextSlotPriority } from "../dist/main/main/agent/context/context-slots.js";
-import { ContextManager } from "../dist/main/main/agent/context/context-manager.js";
-import { ContextProjector } from "../dist/main/main/agent/context/context-projector.js";
-import { TokenMeter } from "../dist/main/main/agent/context/token-meter.js";
-import { KnowledgeProjector } from "../dist/main/main/rag/knowledge-projector.js";
-import { KnowledgeCoordinator } from "../dist/main/main/rag/knowledge-coordinator.js";
-import { HybridRetriever } from "../dist/main/main/rag/hybrid-retriever.js";
-import { InMemoryVectorStore } from "../dist/main/main/rag/vector-store.js";
-import { DeterministicEmbeddingProvider } from "../dist/main/main/rag/embedding-provider.js";
-import { ProductionEmbeddingProvider } from "../dist/main/main/rag/production-embedding-provider.js";
+import { RagSlot, MemorySlot, ContextSlotPriority } from "../dist/main/main/orchestrator/context/context-slots.js";
+import { ContextManager } from "../dist/main/main/orchestrator/context/context-manager.js";
+import { ContextProjector } from "../dist/main/main/orchestrator/context/context-projector.js";
+import { TokenMeter } from "../dist/main/main/orchestrator/context/token-meter.js";
+import { KnowledgeProjector } from "../dist/main/rag/knowledge-projector.js";
+import { KnowledgeCoordinator } from "../dist/main/rag/knowledge-coordinator.js";
+import { HybridRetriever } from "../dist/main/rag/hybrid-retriever.js";
+import { InMemoryVectorStore } from "../dist/main/rag/vector-store.js";
+import { DeterministicEmbeddingProvider } from "../dist/main/rag/embedding-provider.js";
+import { ProductionEmbeddingProvider } from "../dist/main/rag/production-embedding-provider.js";
 
 const sampleChunks = [
   {
@@ -210,8 +210,8 @@ test("12. ContextManager Integration: RagSlot is mounted in ContextManager along
   assert.equal(memorySlot.priority, 80);
 });
 
-test("13. FireflyAgentCore No Direct RAG Dependency: Core has zero imports from src/main/rag/*", () => {
-  const coreFile = path.join(process.cwd(), "src", "main", "agent", "firefly-agent-core.ts");
+test("13. FireflyAgentCore No Direct RAG Dependency: Core has zero imports from src/rag/*", () => {
+  const coreFile = path.join(process.cwd(), "src", "main", "orchestrator", "firefly-agent-core.ts");
   const content = fs.readFileSync(coreFile, "utf-8");
 
   assert.ok(!content.includes("src/main/rag"));

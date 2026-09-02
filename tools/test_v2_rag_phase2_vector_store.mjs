@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { DeterministicEmbeddingProvider, MockEmbeddingProvider } from "../dist/main/main/rag/embedding-provider.js";
-import { InMemoryVectorStore, FileVectorStore } from "../dist/main/main/rag/vector-store.js";
-import { VectorIndexService } from "../dist/main/main/rag/vector-index-service.js";
+import { DeterministicEmbeddingProvider, MockEmbeddingProvider } from "../dist/main/rag/embedding-provider.js";
+import { InMemoryVectorStore, FileVectorStore } from "../dist/main/rag/vector-store.js";
+import { VectorIndexService } from "../dist/main/rag/vector-index-service.js";
 
 const testOutputDir = path.join(process.cwd(), "data", "test_vector_store");
 const testVectorFile = path.join(testOutputDir, "test_vector_index.json");
@@ -328,7 +328,7 @@ test("18. Embedding Metadata Preservation: VectorRecord retains exact model and 
 });
 
 test("19. Resources Unchanged: Vector indexing never modifies raw resources/ files", async () => {
-  const resourcesRoot = path.join(process.cwd(), "resources");
+  const resourcesRoot = path.join(process.cwd(), "src", "main", "character", "resources");
   const getDirHash = (dir) => {
     const files = fs.readdirSync(dir, { recursive: true, withFileTypes: true })
       .filter((f) => f.isFile())

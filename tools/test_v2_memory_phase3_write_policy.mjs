@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { InMemoryMemoryStore } from "../dist/main/main/memory/memory-store.js";
-import { ImportanceEvaluator } from "../dist/main/main/memory/importance-evaluator.js";
-import { MemoryWritePolicy } from "../dist/main/main/memory/memory-write-policy.js";
-import { MemoryWriteService } from "../dist/main/main/memory/memory-write-service.js";
+import { InMemoryMemoryStore } from "../dist/main/main/character/memory/memory-store.js";
+import { ImportanceEvaluator } from "../dist/main/main/character/memory/importance-evaluator.js";
+import { MemoryWritePolicy } from "../dist/main/main/character/memory/memory-write-policy.js";
+import { MemoryWriteService } from "../dist/main/main/character/memory/memory-write-service.js";
 
 test("1. Explicit User Fact: Accurately accepted and routed to L2 Semantic user profile", async () => {
   const store = new InMemoryMemoryStore();

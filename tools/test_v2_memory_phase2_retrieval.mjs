@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { InMemoryMemoryStore } from "../dist/main/main/memory/memory-store.js";
-import { MemoryRetriever } from "../dist/main/main/memory/memory-retriever.js";
-import { MemoryRanker } from "../dist/main/main/memory/memory-ranker.js";
-import { DEFAULT_RETRIEVAL_POLICY } from "../dist/main/main/memory/retrieval-types.js";
+import { InMemoryMemoryStore } from "../dist/main/main/character/memory/memory-store.js";
+import { MemoryRetriever } from "../dist/main/main/character/memory/memory-retriever.js";
+import { MemoryRanker } from "../dist/main/main/character/memory/memory-ranker.js";
+import { DEFAULT_RETRIEVAL_POLICY } from "../dist/main/main/character/memory/retrieval-types.js";
 
 function createMockRecord(id, key, value, overrides = {}) {
   return {

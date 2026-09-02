@@ -103,6 +103,9 @@ export class RelationshipLoader {
    */
   static resolveResourcesRoot(customRoot?: string): string {
     if (customRoot) {
+      if (fs.existsSync(path.join(customRoot, "src", "main", "character", "resources"))) {
+        return path.join(customRoot, "src", "main", "character", "resources");
+      }
       if (fs.existsSync(path.join(customRoot, "resources"))) {
         return path.join(customRoot, "resources");
       }
@@ -112,6 +115,9 @@ export class RelationshipLoader {
     }
 
     const candidateRoots = [
+      path.resolve(process.cwd(), "src/main/character/resources"),
+      path.resolve(__dirname, "resources"),
+      path.resolve(__dirname, "../../../../src/main/character/resources"),
       path.resolve(process.cwd(), "resources"),
       path.resolve(__dirname, "../../../resources"),
       path.resolve(__dirname, "../../resources"),
@@ -124,7 +130,7 @@ export class RelationshipLoader {
       }
     }
 
-    return path.resolve(process.cwd(), "resources");
+    return path.resolve(process.cwd(), "src/main/character/resources");
   }
 
   /**

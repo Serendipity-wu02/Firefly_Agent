@@ -221,14 +221,14 @@ export class WindowManager {
     });
 
     const targetUrl = this.isDev
-      ? "http://localhost:5173/react/index.html?tab=chat"
-      : path.join(app.getAppPath(), "dist", "renderer", "react", "index.html");
+      ? "http://localhost:5173/ui/index.html?tab=chat"
+      : path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html");
     console.log(`[WindowManager] OPEN CHAT WINDOW -> Target: ${targetUrl}`);
 
     if (this.isDev) {
-      win.loadURL("http://localhost:5173/react/index.html?tab=chat");
+      win.loadURL("http://localhost:5173/ui/index.html?tab=chat");
     } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "react", "index.html"), {
+      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
         query: { tab: "chat" },
       });
     }
@@ -303,9 +303,9 @@ export class WindowManager {
     });
 
     if (this.isDev) {
-      win.loadURL("http://localhost:5173/react/index.html?tab=settings");
+      win.loadURL("http://localhost:5173/ui/index.html?tab=settings");
     } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "react", "index.html"), {
+      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
         query: { tab: "settings" },
       });
     }
@@ -397,14 +397,14 @@ export class WindowManager {
     });
 
     const targetUrl = this.isDev
-      ? "http://localhost:5173/react/index.html?tab=summary"
-      : path.join(app.getAppPath(), "dist", "renderer", "react", "index.html");
+      ? "http://localhost:5173/ui/index.html?tab=summary"
+      : path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html");
     console.log(`[WindowManager] OPEN SUMMARY WINDOW -> Target: ${targetUrl}`);
 
     if (this.isDev) {
-      win.loadURL("http://localhost:5173/react/index.html?tab=summary");
+      win.loadURL("http://localhost:5173/ui/index.html?tab=summary");
     } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "react", "index.html"), {
+      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
         query: { tab: "summary" },
       });
     }

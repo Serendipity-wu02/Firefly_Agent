@@ -269,7 +269,7 @@ test("10. Numeric Independence: Zero reliance on legacy affection/hunger/energy 
 });
 
 test("11. Avatar Resolver: Resolves real default Firefly avatar descriptor with consistent identity", async () => {
-  const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "react", "avatar-resolver.ts")}`);
+  const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "ui", "avatar-resolver.ts")}`);
   const { DefaultAvatarResolver } = avatarModule;
 
   const resolver = new DefaultAvatarResolver();
@@ -325,7 +325,7 @@ test("13. Firefly Avatar Asset & Build Verification: Head portrait exists and is
 });
 
 test("14. Avatar Decoupling: Avatar resolver returns constant identity regardless of changing emotional state", async () => {
-  const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "react", "avatar-resolver.ts")}`);
+  const avatarModule = await import(`file://${path.join(projectRoot, "src", "renderer", "ui", "avatar-resolver.ts")}`);
   const { DefaultAvatarResolver } = avatarModule;
   const resolver = new DefaultAvatarResolver();
 

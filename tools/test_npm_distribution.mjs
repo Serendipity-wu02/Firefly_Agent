@@ -21,25 +21,25 @@ test('1. package.json Distribution Fields Integrity', () => {
 
   assert.equal(pkg.name, 'firefly-agent');
   assert.ok(pkg.bin, 'package.json must contain bin field');
-  assert.equal(pkg.bin.firefly, './bin/firefly.mjs');
-  assert.equal(pkg.bin['firefly-agent'], './bin/firefly.mjs');
+  assert.equal(pkg.bin.firefly, './src/cli/firefly.mjs');
+  assert.equal(pkg.bin['firefly-agent'], './src/cli/firefly.mjs');
   assert.ok(Array.isArray(pkg.files), 'files whitelist must be an array');
-  assert.ok(pkg.files.includes('bin'), 'files must include bin');
+  assert.ok(pkg.files.includes('src/cli'), 'files must include src/cli');
   assert.ok(pkg.files.includes('dist'), 'files must include dist');
-  assert.ok(pkg.files.includes('assets'), 'files must include assets');
-  assert.ok(pkg.files.includes('resources'), 'files must include resources');
+  assert.ok(pkg.files.includes('src/renderer/public'), 'files must include src/renderer/public');
+  assert.ok(pkg.files.includes('src/main/character/resources'), 'files must include src/main/character/resources');
   assert.ok(pkg.dependencies.electron, 'electron must be in dependencies for npm distribution');
 });
 
 test('2. CLI Entry Point Executable & Options', () => {
-  const cliPath = path.join(projectRoot, 'bin', 'firefly.mjs');
-  assert.ok(fs.existsSync(cliPath), 'bin/firefly.mjs must exist');
+  const cliPath = path.join(projectRoot, 'src', 'cli', 'firefly.mjs');
+  assert.ok(fs.existsSync(cliPath), 'src/cli/firefly.mjs must exist');
 
   const versionOut = execSync(`"${process.execPath}" "${cliPath}" --version`, {
     encoding: 'utf-8',
     cwd: os.tmpdir(),
   }).trim();
-  assert.match(versionOut, /firefly-agent v2\./, 'CLI --version must report package version');
+  assert.match(versionOut, /firefly-agent v1\./, 'CLI --version must report package version');
 
   const helpOut = execSync(`"${process.execPath}" "${cliPath}" --help`, {
     encoding: 'utf-8',
@@ -80,12 +80,12 @@ test('3. Clean Directory Tarball Installation & Resource Isolation Test', () => 
 
     // Step D: Verify essential runtime files in installed package
     const mustExistFiles = [
-      path.join(installedPkgDir, 'bin', 'firefly.mjs'),
+      path.join(installedPkgDir, 'src', 'cli', 'firefly.mjs'),
       path.join(installedPkgDir, 'dist', 'main', 'main', 'index.js'),
       path.join(installedPkgDir, 'dist', 'preload', 'preload', 'index.js'),
       path.join(installedPkgDir, 'dist', 'renderer', 'index.html'),
-      path.join(installedPkgDir, 'assets', 'firefly', 'models', 'Firefly.model3.json'),
-      path.join(installedPkgDir, 'resources', 'persona', 'firefly.yaml'),
+      path.join(installedPkgDir, 'src', 'renderer', 'public', 'models', 'Firefly.model3.json'),
+      path.join(installedPkgDir, 'src', 'main', 'character', 'resources', 'persona', 'firefly.yaml'),
       path.join(installedPkgDir, 'data', 'knowledge', 'chunks.json'),
       path.join(installedPkgDir, 'config', 'settings.example.json'),
     ];
@@ -96,7 +96,8 @@ test('3. Clean Directory Tarball Installation & Resource Isolation Test', () => 
 
     // Step E: Verify excluded development sources are NOT in package
     const mustNotExistFiles = [
-      path.join(installedPkgDir, 'src'),
+      path.join(installedPkgDir, 'src', 'main', 'index.ts'),
+      path.join(installedPkgDir, 'src', 'renderer', 'main.ts'),
       path.join(installedPkgDir, 'tools'),
       path.join(installedPkgDir, 'docs'),
       path.join(installedPkgDir, 'state.py'),
@@ -108,12 +109,12 @@ test('3. Clean Directory Tarball Installation & Resource Isolation Test', () => 
     }
 
     // Step F: Execute CLI from temp directory
-    const installedCli = path.join(installedPkgDir, 'bin', 'firefly.mjs');
+    const installedCli = path.join(installedPkgDir, 'src', 'cli', 'firefly.mjs');
     const out = execSync(`"${process.execPath}" "${installedCli}" --version`, {
       cwd: tempDir,
       encoding: 'utf-8',
     }).trim();
-    assert.match(out, /firefly-agent v2\./);
+    assert.match(out, /firefly-agent v1\./);
 
   } finally {
     // Cleanup tarball and temp directory

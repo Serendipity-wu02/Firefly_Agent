@@ -4,10 +4,10 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 
-import { synthesizeGptsovits } from "../dist/main/main/tts/engines/gptsovits-engine.js";
-import { FireflyTtsDispatcher } from "../dist/main/main/tts/tts-dispatcher.js";
-import { TtsSessionService } from "../dist/main/main/tts/tts-session-service.js";
-import { TtsCache } from "../dist/main/main/tts/tts-cache.js";
+import { synthesizeGptsovits } from "../dist/main/main/runtime/tts/engines/gptsovits-engine.js";
+import { FireflyTtsDispatcher } from "../dist/main/main/runtime/tts/tts-dispatcher.js";
+import { TtsSessionService } from "../dist/main/main/runtime/tts/tts-session-service.js";
+import { TtsCache } from "../dist/main/main/runtime/tts/tts-cache.js";
 
 // Helper to create a local Mock GPT-SoVITS HTTP Server
 function createMockGptsovitsServer(options = {}) {
@@ -80,7 +80,7 @@ test("1. GPT-SoVITS Provider Config & Request Construction", async () => {
   try {
     const config = {
       baseUrl: mockServer.baseUrl,
-      refAudioPath: "assets/firefly/voice_reference/sample.wav",
+      refAudioPath: "src/renderer/public/voice_reference/sample.wav",
       promptText: "在梦里，我见到了焦土……",
       format: "wav",
       speed: 1.1,
@@ -95,7 +95,7 @@ test("1. GPT-SoVITS Provider Config & Request Construction", async () => {
     const payload = mockServer.getLastPayload();
     assert.equal(payload.text, "你好，开拓者！");
     assert.equal(payload.text_lang, "zh");
-    assert.equal(payload.ref_audio_path, "assets/firefly/voice_reference/sample.wav");
+    assert.equal(payload.ref_audio_path, "src/renderer/public/voice_reference/sample.wav");
     assert.equal(payload.prompt_text, "在梦里，我见到了焦土……");
     assert.equal(payload.prompt_lang, "zh");
     assert.equal(payload.speed_factor, 1.1);
@@ -261,12 +261,12 @@ test("6. Speaking State Lifecycle & Live2D MouthSync Chain", () => {
 });
 
 test("7. Verification of Zero Fixed 367 WAV Runtime Dependency", () => {
-  const normalVoiceDir = path.join(process.cwd(), "assets", "firefly", "audio", "normal");
+  const normalVoiceDir = path.join(process.cwd(), "src", "renderer", "public", "models", "audio", "normal");
   const exists = fs.existsSync(normalVoiceDir);
   if (exists) {
     const files = fs.readdirSync(normalVoiceDir);
-    assert.equal(files.length, 0, "assets/firefly/audio/normal must have 0 fixed WAVs");
+    assert.equal(files.length, 0, "src/renderer/public/models/audio/normal must have 0 fixed WAVs");
   } else {
-    assert.equal(exists, false, "assets/firefly/audio/normal directory successfully deleted");
+    assert.equal(exists, false, "src/renderer/public/models/audio/normal directory successfully deleted");
   }
 });

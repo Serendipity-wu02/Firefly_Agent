@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
-import { AgentSession } from "../dist/main/main/agent/agent-session.js";
-import { AgentEventBus } from "../dist/main/main/agent/agent-events.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
+import { AgentSession } from "../dist/main/main/orchestrator/agent-session.js";
+import { AgentEventBus } from "../dist/main/main/orchestrator/agent-events.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
-import { FireflyMemoryService } from "../dist/main/main/memory/memory-service.js";
+import { FireflyMemoryService } from "../dist/main/main/character/memory/memory-service.js";
 
 // Helper: Create a controllable Mock LLM Provider
 function createControllableMockLlm(handlers = {}) {
@@ -35,7 +35,7 @@ function createControllableMockLlm(handlers = {}) {
 
 // 1. Structure & Static Audit
 test("1. FireflyAgentCore Structure & Static Decoupling Audit", () => {
-  const coreFilePath = path.join(process.cwd(), "src", "main", "agent", "firefly-agent-core.ts");
+  const coreFilePath = path.join(process.cwd(), "src", "main", "orchestrator", "firefly-agent-core.ts");
   const coreSource = fs.readFileSync(coreFilePath, "utf-8");
 
   // Verify zero references to forbidden modules in core

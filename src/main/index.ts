@@ -5,22 +5,22 @@ import { WindowManager } from "./windows/window-manager";
 import { createTray } from "./tray";
 import { IPC } from "../shared/ipc-channels";
 import { CharacterStateManager } from "./state/state-manager";
-import { registerTtsIpc } from "./tts/tts-ipc";
+import { registerTtsIpc } from "./runtime/tts/tts-ipc";
 import { globalToolRegistry } from "./tools/tool-registry";
 import { createPlayLive2DActionTool } from "./tools/play-live2d-action";
-import { FireflyMemoryService } from "./memory/memory-service";
-import { FireflyAgentCore } from "./agent/firefly-agent-core";
-import { FireflyProactiveScheduler } from "./agent/proactive/proactive-scheduler";
+import { FireflyMemoryService } from "./character/memory/memory-service";
+import { FireflyAgentCore } from "./orchestrator/firefly-agent-core";
+import { FireflyProactiveScheduler } from "./orchestrator/proactive/proactive-scheduler";
 import { registerChatIpc } from "./chat/chat-ipc";
 import { getAutoLaunch, setAutoLaunch } from "./startup";
-import { SettingsManager } from "./settings/settings-manager";
-import { createFireflyProvider } from "./agent/providers/provider-factory";
-import { MusicService } from "./music/music-service";
+import { SettingsManager } from "../settings/settings-manager";
+import { createFireflyProvider } from "./llm/providers/provider-factory";
+import { MusicService } from "./runtime/music/music-service";
 import { createMusicTools } from "./tools/music-tools";
-import { registerMusicIpc } from "./music/music-ipc";
-import { QQMusicProvider } from "./music/qqmusic-provider";
-import { KnowledgeCoordinator } from "./rag/knowledge-coordinator";
-import { ContextManager } from "./agent/context/context-manager";
+import { registerMusicIpc } from "./runtime/music/music-ipc";
+import { QQMusicProvider } from "./runtime/music/qqmusic-provider";
+import { KnowledgeCoordinator } from "../rag/knowledge-coordinator";
+import { ContextManager } from "./orchestrator/context/context-manager";
 import { CharacterPolicyEngine } from "./character/character-policy";
 import type { IAgentCore } from "../shared/agent-core";
 import type { CareActionType } from "../shared/firefly-state";
@@ -55,7 +55,7 @@ let proactiveScheduler: FireflyProactiveScheduler;
 let tray: Tray | null = null;
 let isSpeaking = false;
 let isChatInFlight = false;
-let ttsSessionService: import("./tts/tts-session-service").TtsSessionService | null = null;
+let ttsSessionService: import("./runtime/tts/tts-session-service").TtsSessionService | null = null;
 
 function setupIpcHandlers() {
   ipcMain.on(IPC.WINDOW_MINIMIZE, () => {
@@ -274,11 +274,26 @@ app.whenReady().then(() => {
 
   // 6. Register custom assets:// protocol so Live2D renderer can access project assets
   protocol.registerFileProtocol("assets", (request, callback) => {
-    const url = decodeURIComponent(request.url.replace("assets://", ""));
-    const filePath = path.join(app.getAppPath(), "assets", url);
-    const exists = fs.existsSync(filePath);
-    console.log(`[Assets Protocol] requested: "${request.url}" -> resolved: "${filePath}" (exists: ${exists})`);
-    callback({ path: filePath });
+    let clean = decodeURIComponent(request.url.replace("assets://", "").replace(/^\/+/, ""));
+    if (clean.startsWith("firefly/")) {
+      clean = clean.replace("firefly/", "");
+    }
+    const candidatePaths = [
+      path.join(app.getAppPath(), "src", "renderer", "public", clean),
+      path.join(app.getAppPath(), "src", "renderer", "public", "models", clean),
+      path.join(app.getAppPath(), "dist", "renderer", clean),
+      path.join(app.getAppPath(), clean),
+    ];
+    let resolved = candidatePaths[0];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        resolved = p;
+        break;
+      }
+    }
+    const exists = fs.existsSync(resolved);
+    console.log(`[Assets Protocol] requested: "${request.url}" -> resolved: "${resolved}" (exists: ${exists})`);
+    callback({ path: resolved });
   });
 
   // 7. Setup IPC, TTS, and Pet Window

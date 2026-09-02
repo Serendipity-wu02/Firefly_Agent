@@ -1,17 +1,17 @@
 {
   "name": "firefly-agent",
-  "version": "2.3.0",
+  "version": "1.1.0",
   "description": "Firefly Desktop AI Agent - 流萤桌面智能体",
   "main": "dist/main/main/index.js",
   "bin": {
-    "firefly": "./bin/firefly.mjs",
-    "firefly-agent": "./bin/firefly.mjs"
+    "firefly": "./src/cli/firefly.mjs",
+    "firefly-agent": "./src/cli/firefly.mjs"
   },
   "files": [
-    "bin",
     "dist",
-    "assets",
-    "resources",
+    "src/cli",
+    "src/main/character/resources",
+    "src/renderer/public",
     "config/settings.example.json",
     "data/knowledge",
     "README.md",

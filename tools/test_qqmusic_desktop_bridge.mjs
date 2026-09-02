@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { QQMusicDesktopBridge } from "../dist/main/main/music/qqmusic-desktop-bridge.js";
-import { MusicService } from "../dist/main/main/music/music-service.js";
+import { QQMusicDesktopBridge } from "../dist/main/main/runtime/music/qqmusic-desktop-bridge.js";
+import { MusicService } from "../dist/main/main/runtime/music/music-service.js";
 import { createMusicTools } from "../dist/main/main/tools/music-tools.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
 
 // Helper to create mock GSMTC executor
 function createMockGsmtcExecutor(initialState = {}) {

@@ -1,7 +1,7 @@
-import { synthesizeGptsovits } from "../dist/main/main/tts/engines/gptsovits-engine.js";
-import { FireflyTtsDispatcher } from "../dist/main/main/tts/tts-dispatcher.js";
-import { TtsSessionService } from "../dist/main/main/tts/tts-session-service.js";
-import { FireflyAgentCore } from "../dist/main/main/agent/firefly-agent-core.js";
+import { synthesizeGptsovits } from "../dist/main/main/runtime/tts/engines/gptsovits-engine.js";
+import { FireflyTtsDispatcher } from "../dist/main/main/runtime/tts/tts-dispatcher.js";
+import { TtsSessionService } from "../dist/main/main/runtime/tts/tts-session-service.js";
+import { FireflyAgentCore } from "../dist/main/main/orchestrator/firefly-agent-core.js";
 import { FireflyToolRegistry } from "../dist/main/main/tools/tool-registry.js";
 import { DEFAULT_TTS_SETTINGS } from "../dist/main/shared/tts-types.js";
 import fs from "node:fs";
@@ -181,9 +181,9 @@ async function main() {
 
   // Reference Check
   console.log("\n[Asset Audit] Checking 367 Fixed WAV Absence in Runtime...");
-  const normalDir = path.join(process.cwd(), "assets", "firefly", "audio", "normal");
+  const normalDir = path.join(process.cwd(), "src", "renderer", "public", "models", "audio", "normal");
   const exists = fs.existsSync(normalDir) && fs.readdirSync(normalDir).length > 0;
-  assert.equal(exists, false, "assets/firefly/audio/normal must NOT contain fixed WAV files.");
+  assert.equal(exists, false, "src/renderer/public/models/audio/normal must NOT contain fixed WAV files.");
   console.log("  ✅ Zero fixed 367 WAVs confirmed in runtime.");
 
   console.log("\n==================================================");

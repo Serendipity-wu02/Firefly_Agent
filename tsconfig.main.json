@@ -17,6 +17,8 @@
   },
   "include": [
     "src/main/**/*.ts",
+    "src/rag/**/*.ts",
+    "src/settings/**/*.ts",
     "src/shared/**/*.ts"
   ],
   "exclude": [
