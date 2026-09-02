@@ -7,16 +7,13 @@ const PET_WINDOW_BASE_WIDTH = 429;
 const PET_WINDOW_BASE_HEIGHT = 315;
 const STATUS_WINDOW_WIDTH = 420;
 const STATUS_WINDOW_HEIGHT = 560;
-// Harness Chat Window sizing: user-specified final default 1920×1080
-// (full-HD landscape). Historical sizes (440×620, 576×800, 768×432) are
-// obsolete. Layout is pure flex (Header / Conversation / Composer), so it
-// scales without overflow. This constant is the only place it is defined.
-const CHAT_WINDOW_WIDTH = 1920;
-const CHAT_WINDOW_HEIGHT = 1080;
-// Mood (Summary) Window: user-specified final 768×540, floating outside the
+// Harness Chat Window sizing: V1.1.0 canonical 1152×648 (16:9 desktop chat).
+const CHAT_WINDOW_WIDTH = 1152;
+const CHAT_WINDOW_HEIGHT = 648;
+// Mood (Summary) Window: V1.1.0 canonical 252×324, floating outside the
 // Harness Chat Window's right-top corner as an independent BrowserWindow.
-const SUMMARY_WINDOW_WIDTH = 768;
-const SUMMARY_WINDOW_HEIGHT = 540;
+const SUMMARY_WINDOW_WIDTH = 252;
+const SUMMARY_WINDOW_HEIGHT = 324;
 const SETTINGS_WINDOW_WIDTH = 500;
 const SETTINGS_WINDOW_HEIGHT = 600;
 
