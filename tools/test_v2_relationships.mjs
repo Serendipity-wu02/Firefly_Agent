@@ -15,7 +15,7 @@ const projectRoot = path.resolve(__dirname, "..");
 
 const characterPolicyPath = path.join(projectRoot, "dist", "main", "main", "character", "character-policy.js");
 const relationshipRegistryPath = path.join(projectRoot, "dist", "main", "main", "character", "relationship-registry.js");
-const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "agent", "context", "system-prompt-builder.js");
+const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "orchestrator", "context", "system-prompt-builder.js");
 
 test("1. Core Companion Relationship: Trailblazer is deeply recognized with exact canonical facts and address", async () => {
   const { RelationshipRegistry } = await import(`file://${relationshipRegistryPath}`);

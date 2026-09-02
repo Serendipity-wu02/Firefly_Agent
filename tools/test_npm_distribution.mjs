@@ -26,7 +26,8 @@ test('1. package.json Distribution Fields Integrity', () => {
   assert.ok(Array.isArray(pkg.files), 'files whitelist must be an array');
   assert.ok(pkg.files.includes('src/cli'), 'files must include src/cli');
   assert.ok(pkg.files.includes('dist'), 'files must include dist');
-  assert.ok(pkg.files.includes('src/renderer/public'), 'files must include src/renderer/public');
+  assert.ok(pkg.files.includes('src/renderer/models'), 'files must include src/renderer/models');
+  assert.ok(pkg.files.includes('src/rag/knowledge'), 'files must include src/rag/knowledge');
   assert.ok(pkg.files.includes('src/main/character/resources'), 'files must include src/main/character/resources');
   assert.ok(pkg.files.includes('src/settings/settings.example.json'), 'files must include src/settings/settings.example.json');
   assert.ok(pkg.dependencies.electron, 'electron must be in dependencies for npm distribution');
@@ -85,9 +86,9 @@ test('3. Clean Directory Tarball Installation & Resource Isolation Test', () => 
       path.join(installedPkgDir, 'dist', 'main', 'main', 'index.js'),
       path.join(installedPkgDir, 'dist', 'preload', 'preload', 'index.js'),
       path.join(installedPkgDir, 'dist', 'renderer', 'index.html'),
-      path.join(installedPkgDir, 'src', 'renderer', 'public', 'models', 'Firefly.model3.json'),
+      path.join(installedPkgDir, 'src', 'renderer', 'models', 'Firefly.model3.json'),
       path.join(installedPkgDir, 'src', 'main', 'character', 'resources', 'persona', 'firefly.yaml'),
-      path.join(installedPkgDir, 'data', 'knowledge', 'chunks.json'),
+      path.join(installedPkgDir, 'src', 'rag', 'knowledge', 'chunks.json'),
       path.join(installedPkgDir, 'src', 'settings', 'settings.example.json'),
     ];
 

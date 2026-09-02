@@ -10,8 +10,8 @@ import { VectorIndexService } from "../dist/main/rag/vector-index-service.js";
 import { HybridRetriever } from "../dist/main/rag/hybrid-retriever.js";
 import { KnowledgeReranker } from "../dist/main/rag/knowledge-reranker.js";
 
-const goldenQueriesPath = path.join(process.cwd(), "data", "knowledge", "golden_queries.json");
-const chunksPath = path.join(process.cwd(), "data", "knowledge", "chunks.json");
+const goldenQueriesPath = path.join(process.cwd(), "src", "rag", "knowledge", "golden_queries.json");
+const chunksPath = path.join(process.cwd(), "src", "rag", "knowledge", "chunks.json");
 const testProdIndexDir = path.join(process.cwd(), "data", "test_prod_vector_store");
 const testProdIndexFile = path.join(testProdIndexDir, "production_vector_index.json");
 

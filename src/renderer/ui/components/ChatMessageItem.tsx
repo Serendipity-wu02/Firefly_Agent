@@ -41,7 +41,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           padding: "6px 14px",
           background: THEME_TOKENS.colors.accentSoft,
           borderRadius: THEME_TOKENS.radii.full,
-          fontSize: "12px",
+          fontSize: THEME_TOKENS.typography.fontSizes.label,
           color: THEME_TOKENS.colors.textSecondary,
           textAlign: "center",
           border: `1px dashed ${THEME_TOKENS.colors.border}`,
@@ -105,7 +105,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span
               style={{
-                fontSize: "12px",
+                fontSize: THEME_TOKENS.typography.fontSizes.label,
                 color: THEME_TOKENS.colors.accent,
                 fontWeight: 700,
                 letterSpacing: "0.2px",
@@ -120,7 +120,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               background: THEME_TOKENS.colors.assistantBubble,
               padding: "11px 15px",
               borderRadius: "4px 16px 16px 16px",
-              fontSize: "14px",
+              fontSize: THEME_TOKENS.typography.fontSizes.body,
               lineHeight: "1.6",
               color: THEME_TOKENS.colors.textPrimary,
               boxShadow: THEME_TOKENS.shadows.sm,
@@ -160,7 +160,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                         ? "#E53E3E"
                         : THEME_TOKENS.colors.accent,
                     cursor: "pointer",
-                    fontSize: "11px",
+                    fontSize: THEME_TOKENS.typography.fontSizes.caption,
                     fontWeight: 600,
                     padding: "3px 9px",
                     display: "inline-flex",
@@ -198,7 +198,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           background: THEME_TOKENS.colors.userBubble,
           padding: "11px 16px",
           borderRadius: "16px 4px 16px 16px",
-          fontSize: "14px",
+          fontSize: THEME_TOKENS.typography.fontSizes.body,
           lineHeight: "1.6",
           color: THEME_TOKENS.colors.userBubbleText,
           boxShadow: THEME_TOKENS.shadows.md,

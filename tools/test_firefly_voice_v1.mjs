@@ -113,6 +113,7 @@ test("2. FireflyTtsDispatcher: Synthesis, Caching, and Skip", async () => {
       engine: "gptsovits",
       speed: 1.0,
       volume: 1.0,
+      voiceProfile: "firefly-v2proplus",
       gptsovits: {
         baseUrl: mockServer.baseUrl,
         refAudioPath: "samples/ref.wav",
@@ -120,10 +121,6 @@ test("2. FireflyTtsDispatcher: Synthesis, Caching, and Skip", async () => {
         format: "wav",
         speed: 1.0,
       },
-      customCloud: { endpointUrl: "", format: "mp3", speed: 1.0, volume: 1.0 },
-      minimax: { apiKey: "", voiceId: "" },
-      mimo: { apiKey: "" },
-      mossland: { apiKey: "" },
     };
 
     // 1st request -> Network call
@@ -157,6 +154,7 @@ test("3. TtsSessionService: Session Queue & Cancellation", async () => {
       engine: "gptsovits",
       speed: 1.0,
       volume: 1.0,
+      voiceProfile: "firefly-v2proplus",
       gptsovits: {
         baseUrl: mockServer.baseUrl,
         refAudioPath: "",
@@ -164,10 +162,6 @@ test("3. TtsSessionService: Session Queue & Cancellation", async () => {
         format: "wav",
         speed: 1.0,
       },
-      customCloud: { endpointUrl: "", format: "mp3", speed: 1.0, volume: 1.0 },
-      minimax: { apiKey: "", voiceId: "" },
-      mimo: { apiKey: "" },
-      mossland: { apiKey: "" },
     };
 
     const startPromise = service.start(

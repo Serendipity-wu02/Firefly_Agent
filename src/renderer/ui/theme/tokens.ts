@@ -4,6 +4,9 @@
  * Aesthetic: 浅绿晴空 + 白色 + 淡青 + 春日生命感 + 明亮通透 + 柔和阳光.
  */
 
+import type { UiFontSize } from "../../../shared/ui-types";
+import { UI_FONT_SCALES } from "../../../shared/ui-types";
+
 export const THEME_TOKENS = {
   colors: {
     // Backgrounds
@@ -65,5 +68,23 @@ export const THEME_TOKENS = {
   },
   typography: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
+    fontSizes: {
+      title: "var(--ff-font-title, 14px)",
+      body: "var(--ff-font-body, 14px)",
+      input: "var(--ff-font-input, 13px)",
+      label: "var(--ff-font-label, 12px)",
+      caption: "var(--ff-font-caption, 11px)",
+    },
   },
 } as const;
+
+export function getFontScaleStyles(scale: UiFontSize = "medium"): React.CSSProperties {
+  const current = UI_FONT_SCALES[scale] || UI_FONT_SCALES.medium;
+  return {
+    ["--ff-font-title" as any]: current.title,
+    ["--ff-font-body" as any]: current.body,
+    ["--ff-font-input" as any]: current.input,
+    ["--ff-font-label" as any]: current.label,
+    ["--ff-font-caption" as any]: current.caption,
+  };
+}

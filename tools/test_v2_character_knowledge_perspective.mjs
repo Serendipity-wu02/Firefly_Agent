@@ -15,8 +15,8 @@ const projectRoot = path.resolve(__dirname, "..");
 
 const perspectivePath = path.join(projectRoot, "dist", "main", "main", "character", "knowledge-perspective.js");
 const characterPolicyPath = path.join(projectRoot, "dist", "main", "main", "character", "character-policy.js");
-const knowledgeProjectorPath = path.join(projectRoot, "dist", "main", "main", "rag", "knowledge-projector.js");
-const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "agent", "context", "system-prompt-builder.js");
+const knowledgeProjectorPath = path.join(projectRoot, "dist", "main", "rag", "knowledge-projector.js");
+const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "orchestrator", "context", "system-prompt-builder.js");
 
 test("1. First-Person Canonical Experience: Evaluates Firefly's own history as first-person memory", async () => {
   const { KnowledgePerspectiveEvaluator } = await import(`file://${perspectivePath}`);

@@ -21,8 +21,8 @@ const behaviorRuntimePath = path.join(projectRoot, "dist", "main", "main", "char
 const embodimentAdapterPath = path.join(projectRoot, "dist", "main", "main", "character", "embodiment-adapter.js");
 const personaLoaderPath = path.join(projectRoot, "dist", "main", "main", "character", "persona-loader.js");
 const relationshipRegistryPath = path.join(projectRoot, "dist", "main", "main", "character", "relationship-registry.js");
-const ttsSessionServicePath = path.join(projectRoot, "dist", "main", "main", "tts", "tts-session-service.js");
-const ttsDispatcherPath = path.join(projectRoot, "dist", "main", "main", "tts", "tts-dispatcher.js");
+const ttsSessionServicePath = path.join(projectRoot, "dist", "main", "main", "runtime", "tts", "tts-session-service.js");
+const ttsDispatcherPath = path.join(projectRoot, "dist", "main", "main", "runtime", "tts", "tts-dispatcher.js");
 const ttsSettingsPath = path.join(projectRoot, "dist", "main", "shared", "tts-types.js");
 
 test("1. comfort_user: Unified EmbodimentPlan maps to touched Live2D expression and gentle voice prosody", async () => {

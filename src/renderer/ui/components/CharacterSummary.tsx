@@ -44,8 +44,8 @@ export const CharacterSummary: React.FC<CharacterSummaryProps> = ({
           userSelect: "none",
         }}
       >
-        <span style={{ fontSize: "14px" }}>🌱</span>
-        <span style={{ fontSize: "12px", color: THEME_TOKENS.colors.accent, fontWeight: 600 }}>
+        <span style={{ fontSize: THEME_TOKENS.typography.fontSizes.body }}>🌱</span>
+        <span style={{ fontSize: THEME_TOKENS.typography.fontSizes.label, color: THEME_TOKENS.colors.accent, fontWeight: 600 }}>
           {currentMood}
         </span>
       </div>
@@ -91,10 +91,10 @@ export const CharacterSummary: React.FC<CharacterSummaryProps> = ({
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ fontSize: "13px", fontWeight: 700, color: THEME_TOKENS.colors.textPrimary }}>
+          <span style={{ fontSize: THEME_TOKENS.typography.fontSizes.title, fontWeight: 700, color: THEME_TOKENS.colors.textPrimary }}>
             流萤 · 心境
           </span>
-          <span style={{ fontSize: "11px", color: THEME_TOKENS.colors.textMuted }}>
+          <span style={{ fontSize: THEME_TOKENS.typography.fontSizes.caption, color: THEME_TOKENS.colors.textMuted }}>
             AR-267 格拉默铁骑
           </span>
         </div>
@@ -106,12 +106,12 @@ export const CharacterSummary: React.FC<CharacterSummaryProps> = ({
       {/* Semantic Cognitive State Details */}
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span style={{ fontSize: "11px", color: THEME_TOKENS.colors.textMuted, fontWeight: 500 }}>
+          <span style={{ fontSize: THEME_TOKENS.typography.fontSizes.caption, color: THEME_TOKENS.colors.textMuted, fontWeight: 500 }}>
             当前心境
           </span>
           <span
             style={{
-              fontSize: "12px",
+              fontSize: THEME_TOKENS.typography.fontSizes.label,
               color: THEME_TOKENS.colors.textPrimary,
               fontWeight: 600,
               display: "flex",
@@ -132,21 +132,21 @@ export const CharacterSummary: React.FC<CharacterSummaryProps> = ({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span style={{ fontSize: "11px", color: THEME_TOKENS.colors.textMuted, fontWeight: 500 }}>
+          <span style={{ fontSize: THEME_TOKENS.typography.fontSizes.caption, color: THEME_TOKENS.colors.textMuted, fontWeight: 500 }}>
             当前行为
           </span>
-          <span style={{ fontSize: "12px", color: THEME_TOKENS.colors.textSecondary }}>
+          <span style={{ fontSize: THEME_TOKENS.typography.fontSizes.label, color: THEME_TOKENS.colors.textSecondary }}>
             {currentBehavior}
           </span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span style={{ fontSize: "11px", color: THEME_TOKENS.colors.textMuted, fontWeight: 500 }}>
+          <span style={{ fontSize: THEME_TOKENS.typography.fontSizes.caption, color: THEME_TOKENS.colors.textMuted, fontWeight: 500 }}>
             当前模式
           </span>
           <span
             style={{
-              fontSize: "11px",
+              fontSize: THEME_TOKENS.typography.fontSizes.caption,
               padding: "2px 8px",
               background: THEME_TOKENS.colors.accentSoft,
               color: THEME_TOKENS.colors.accent,

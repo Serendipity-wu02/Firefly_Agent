@@ -7,22 +7,25 @@
  * and bottom fixed Composer.
  */
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import type { ProviderStatus } from "../../shared/provider-types";
+import { DEFAULT_LLM_CONFIG, evaluateProviderStatus } from "../../shared/provider-types";
+import type { LlmProviderConfig } from "../../shared/provider-types";
 import type { TtsSettings } from "../../shared/tts-types";
 import { DEFAULT_TTS_SETTINGS } from "../../shared/tts-types";
+import type { UiFontSize } from "../../shared/ui-types";
+import { DEFAULT_UI_PREFERENCES } from "../../shared/ui-types";
 import type { ChatMessage } from "../../shared/chat-types";
-import type { LlmProviderConfig, ProviderId, ProviderStatus } from "../../shared/provider-types";
-import { DEFAULT_LLM_CONFIG, evaluateProviderStatus } from "../../shared/provider-types";
+import { THEME_TOKENS, getFontScaleStyles } from "./theme/tokens";
 import { globalTtsPlayback, type TtsPlaybackSnapshot } from "../tts/tts-playback";
 import { debugLog } from "../debug-log";
-import { THEME_TOKENS } from "./theme/tokens";
+
+// UI Components
 import { Header } from "./components/Header";
 import { ChatMessageItem } from "./components/ChatMessageItem";
-import { CharacterSummary } from "./components/CharacterSummary";
 import { Composer } from "./components/Composer";
 import { SettingsView } from "./components/SettingsView";
-
-
+import { CharacterSummary } from "./components/CharacterSummary";
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"chat" | "settings" | "summary">("chat");
@@ -38,6 +41,7 @@ export const App: React.FC = () => {
   // Settings State
   const [llmConfig, setLlmConfig] = useState<LlmProviderConfig>(DEFAULT_LLM_CONFIG);
   const [ttsSettings, setTtsSettings] = useState<TtsSettings>(DEFAULT_TTS_SETTINGS);
+  const [uiFontSize, setUiFontSize] = useState<UiFontSize>(DEFAULT_UI_PREFERENCES.fontSize);
   const [autoLaunch, setAutoLaunchState] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string>("");
 
@@ -73,7 +77,7 @@ export const App: React.FC = () => {
       document.title = "流萤 · 认知心境";
     } else {
       setActiveTab("chat");
-      document.title = "与流萤对话 · Firefly Chat";
+      document.title = "流萤 · Firefly";
     }
 
     // Load Settings
@@ -83,6 +87,7 @@ export const App: React.FC = () => {
         setProviderStatus(evaluateProviderStatus(res.llm));
       }
       if (res?.tts) setTtsSettings(res.tts);
+      if (res?.ui?.fontSize) setUiFontSize(res.ui.fontSize);
     });
 
     if (window.chat?.getProviderStatus) {
@@ -249,6 +254,7 @@ export const App: React.FC = () => {
         await window.settings.save({
           llm: llmConfig,
           tts: ttsSettings,
+          ui: { fontSize: uiFontSize },
         });
       }
       if (window.tts) {
@@ -267,6 +273,7 @@ export const App: React.FC = () => {
   if (activeTab === "summary") {
     return (
       <div
+        data-font-size={uiFontSize}
         style={{
           width: "100%",
           height: "100vh",
@@ -280,6 +287,7 @@ export const App: React.FC = () => {
           userSelect: "none",
           WebkitAppRegion: "drag",
           cursor: "move",
+          ...getFontScaleStyles(uiFontSize),
         } as React.CSSProperties}
       >
         <CharacterSummary
@@ -293,6 +301,7 @@ export const App: React.FC = () => {
 
   return (
     <div
+      data-font-size={uiFontSize}
       style={{
         width: "100%",
         height: "100vh",
@@ -304,6 +313,7 @@ export const App: React.FC = () => {
         boxSizing: "border-box",
         userSelect: "none",
         overflow: "hidden",
+        ...getFontScaleStyles(uiFontSize),
       }}
     >
       {/* 1. Top Header */}
@@ -354,6 +364,8 @@ export const App: React.FC = () => {
           setLlmConfig={setLlmConfig}
           ttsSettings={ttsSettings}
           setTtsSettings={setTtsSettings}
+          uiFontSize={uiFontSize}
+          setUiFontSize={setUiFontSize}
           autoLaunch={autoLaunch}
           setAutoLaunchState={setAutoLaunchState}
           onSave={handleSaveSettings}

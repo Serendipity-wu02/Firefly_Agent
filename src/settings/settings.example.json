@@ -11,45 +11,23 @@
     "engine": "gptsovits",
     "speed": 1,
     "volume": 1,
+    "autoPlay": true,
+    "voiceProfile": "firefly-v2proplus",
     "gptsovits": {
       "baseUrl": "http://127.0.0.1:9880",
       "refAudioPath": "",
       "promptText": "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！",
       "format": "wav",
       "speed": 1
-    },
-    "customCloud": {
-      "endpointUrl": "",
-      "apiKey": "",
-      "voiceId": "",
-      "format": "mp3",
-      "speed": 1,
-      "volume": 1,
-      "timeoutMs": 30000
-    },
-    "minimax": {
-      "apiKey": "",
-      "voiceId": "female-tianmei",
-      "model": "speech-01-turbo",
-      "speed": 1,
-      "volume": 1
-    },
-    "mimo": {
-      "apiKey": "",
-      "voiceAudioPath": "",
-      "stylePrompt": ""
-    },
-    "mossland": {
-      "apiKey": "",
-      "voiceId": "",
-      "model": "moss-tts-v1",
-      "format": "mp3"
     }
+  },
+  "ui": {
+    "fontSize": "medium"
   },
   "window": {
     "x": 100,
     "y": 100,
-    "pet_scale": 0.7
+    "pet_scale": 1.0
   },
   "startup": {
     "openAtLogin": false

@@ -71,11 +71,11 @@ export function registerChatIpc(
       // 5. Dispatch Visual Embodiment Target to Live2D Window (if enabled) with correlationId
       if (embodimentPlan.requiresEmbodiment && embodimentPlan.visual && sendToPet) {
         const { target } = embodimentPlan.visual;
+        const durationMs = embodimentPlan.visual.durationMs ?? 5000;
         sendToPet(IPC.LIVE2D_PLAY_ACTION, {
           ...target,
-          // One-shot motions need the catalog playback window: loop-authored
-          // motion files would otherwise keep the pet out of standby for minutes.
-          ...(target.kind === "motion" ? { durationMs: embodimentPlan.visual.durationMs ?? 5000 } : {}),
+          durationMs,
+          behaviorDurationMs: durationMs,
           correlationId: embodimentPlan.correlationId,
           behaviorType: embodimentPlan.behaviorType,
         });

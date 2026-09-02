@@ -97,14 +97,14 @@ test("TTS Chain & Graceful Fallback: synthesizes or skips without crashing", asy
   );
   assert.equal(skipResult.status, "skipped", "When TTS engine is off, it should return 'skipped'");
 
-  // Test 2: Custom Cloud TTS fallback with empty/invalid URL -> gracefully fails without crashing
+  // Test 2: GPT-SoVITS TTS fallback with offline/invalid URL -> gracefully fails without crashing
   const errorEvents = [];
   const failResult = await sessionService.start(
     { requestId: "req-2", speechText: "测试语音" },
     {
       ...DEFAULT_TTS_SETTINGS,
-      engine: "custom-cloud",
-      customCloud: { endpointUrl: "http://127.0.0.1:99999/invalid", timeoutMs: 200 },
+      engine: "gptsovits",
+      gptsovits: { ...DEFAULT_TTS_SETTINGS.gptsovits, baseUrl: "http://127.0.0.1:59997" },
     },
     (ev) => errorEvents.push(ev)
   );

@@ -18,7 +18,7 @@ const projectRoot = path.resolve(__dirname, "..");
 
 const personaLoaderPath = path.join(projectRoot, "dist", "main", "main", "character", "persona-loader.js");
 const characterPolicyPath = path.join(projectRoot, "dist", "main", "main", "character", "character-policy.js");
-const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "agent", "context", "system-prompt-builder.js");
+const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "orchestrator", "context", "system-prompt-builder.js");
 
 test("1. Production Canonical Loading: PersonaProfile strictly mirrors production firefly.yaml without fabrication", async () => {
   const { PersonaLoader } = await import(`file://${personaLoaderPath}`);

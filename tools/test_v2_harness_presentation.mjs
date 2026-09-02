@@ -39,12 +39,11 @@ test("2. Real Firefly Avatar: Default avatar resolver points to physical firefly
   assert.ok(fs.existsSync(avatarDiskPath), "Physical firefly.png must exist on disk");
 });
 
-test("3. Chat-Centric Header: Renders character capsule, Firefly name, and navigation tabs", () => {
+test("3. Top Navigation Header: Renders clean navigation tabs and provider status without redundant banner", () => {
   const headerSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "ui", "components", "Header.tsx"), "utf-8");
-  assert.ok(headerSource.includes("流萤"), "Header must include 流萤");
-  assert.ok(headerSource.includes("Firefly"), "Header must include Firefly badge");
   assert.ok(headerSource.includes("💬 对话"), "Header must include 对话 tab");
   assert.ok(headerSource.includes("⚙ 设置"), "Header must include 设置 tab");
+  assert.ok(headerSource.includes("providerStatus.label"), "Header must render provider status label");
 });
 
 test("4. Assistant Message Rendering: Includes avatar, Firefly label, speech bubble, and TTS action", () => {
@@ -109,12 +108,12 @@ test("10. Main Chat Window Isolation: WindowManager creates separate Pet and Cha
 
 test("11. Resource & Asset Immutability: 0 diff on resources/ and assets/", () => {
   try {
-    const diffAssets = execSync("git diff HEAD -- src/renderer/public/models/", { cwd: rootDir, encoding: "utf-8" }).trim();
+    const diffAssets = execSync("git diff HEAD -- src/renderer/models/", { cwd: rootDir, encoding: "utf-8" }).trim();
     const diffResources = execSync("git diff HEAD -- src/main/character/resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
     assert.equal(diffAssets, "", "assets/ must have 0 diff");
     assert.equal(diffResources, "", "resources/ must have 0 diff");
   } catch (err) {
-    assert.ok(fs.existsSync(path.join(rootDir, "src", "renderer", "public", "models")), "assets directory exists");
+    assert.ok(fs.existsSync(path.join(rootDir, "src", "renderer", "models")), "assets directory exists");
     assert.ok(fs.existsSync(path.join(rootDir, "src", "main", "character", "resources")), "resources directory exists");
   }
 });
@@ -145,4 +144,52 @@ test("12. Preload Channel Sync: sandbox-safe preload mirror matches shared/ipc-c
     assert.equal(preload[key], shared[key], `preload channel ${key} value must match shared definition`);
   }
   assert.equal(preload.CHAT_SEND_MESSAGE, shared.CHAT_SEND_MESSAGE, "chat bridge channel must stay aligned");
+});
+
+test("13. Canonical Window Sizing & Centering: Chat = 1344x756 centered, Mood = 254x388", () => {
+  const wmSource = fs.readFileSync(path.join(rootDir, "src", "main", "windows", "window-manager.ts"), "utf-8");
+  assert.ok(wmSource.includes("const CHAT_WINDOW_WIDTH = 1344;"), "CHAT_WINDOW_WIDTH must be 1344");
+  assert.ok(wmSource.includes("const CHAT_WINDOW_HEIGHT = 756;"), "CHAT_WINDOW_HEIGHT must be 756");
+  assert.ok(wmSource.includes("const SUMMARY_WINDOW_WIDTH = 254;"), "SUMMARY_WINDOW_WIDTH must be 254");
+  assert.ok(wmSource.includes("const SUMMARY_WINDOW_HEIGHT = 388;"), "SUMMARY_WINDOW_HEIGHT must be 388");
+  assert.ok(wmSource.includes("win.center()"), "Chat window must call win.center()");
+});
+
+test("14. 3-Tier Global UI Font Scale: small, medium, large with CSS variables", () => {
+  const uiTypesSource = fs.readFileSync(path.join(rootDir, "src", "shared", "ui-types.ts"), "utf-8");
+  assert.ok(uiTypesSource.includes('"small" | "medium" | "large"'), "Must define 3-tier font sizes");
+  assert.ok(uiTypesSource.includes("DEFAULT_UI_PREFERENCES"), "Must define default UI preferences");
+
+  const tokensSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "ui", "theme", "tokens.ts"), "utf-8");
+  assert.ok(tokensSource.includes("getFontScaleStyles"), "Must export getFontScaleStyles helper");
+  assert.ok(tokensSource.includes("--ff-font-title"), "Must support --ff-font-title CSS variable");
+  assert.ok(tokensSource.includes("--ff-font-body"), "Must support --ff-font-body CSS variable");
+});
+
+test("15. Clean Title Integration: Native window title used without duplicate inner banner", () => {
+  const appSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "ui", "App.tsx"), "utf-8");
+  assert.ok(appSource.includes('document.title = "流萤 · Firefly";'), "App.tsx must set clean document.title");
+  assert.ok(!appSource.includes("与流萤对话 · Firefly Chat"), "Must remove old duplicate title banner");
+});
+
+test("16. TTS Engine Contract: Strictly off | gptsovits with firefly-v2proplus VoiceProfile", () => {
+  const ttsTypesSource = fs.readFileSync(path.join(rootDir, "src", "shared", "tts-types.ts"), "utf-8");
+  assert.ok(ttsTypesSource.includes('export type TtsEngine = "off" | "gptsovits";'), "TtsEngine must only be off | gptsovits");
+  assert.ok(ttsTypesSource.includes('"firefly-v2proplus"'), "Must define firefly-v2proplus voice profile");
+  assert.ok(ttsTypesSource.includes('"http://127.0.0.1:9880"'), "Default baseUrl must be 127.0.0.1:9880");
+  assert.ok(!ttsTypesSource.includes('"edge"'), "TtsEngine union must NOT include edge");
+  assert.ok(!ttsTypesSource.includes('"custom-cloud"'), "TtsEngine union must NOT include custom-cloud");
+  assert.ok(!ttsTypesSource.includes('"minimax"'), "TtsEngine union must NOT include minimax");
+  assert.ok(!ttsTypesSource.includes('"mimo"'), "TtsEngine union must NOT include mimo");
+  assert.ok(!ttsTypesSource.includes('"mossland"'), "TtsEngine union must NOT include mossland");
+
+  const ttsIpcSource = fs.readFileSync(path.join(rootDir, "src", "main", "runtime", "tts", "tts-ipc.ts"), "utf-8");
+  assert.ok(ttsIpcSource.includes("TTS Migration"), "tts-ipc must perform migration on invalid engines");
+});
+
+test("17. Live2D Expression Lifecycle: expression00 is baseline, temporary restores active behavior", () => {
+  const mainSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "main.ts"), "utf-8");
+  assert.ok(mainSource.includes('let currentPersistentExpression = "expression00";'), "currentPersistentExpression must default to expression00");
+  assert.ok(mainSource.includes("setActiveBehavior"), "main.ts must manage active behavior lifecycle");
+  assert.ok(mainSource.includes("speakingMotion.setSpeaking"), "Speaking state must delegate to speakingMotion without owning expression");
 });

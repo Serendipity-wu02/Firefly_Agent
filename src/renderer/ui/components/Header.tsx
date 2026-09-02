@@ -6,7 +6,6 @@
 
 import React from "react";
 import { THEME_TOKENS } from "../theme/tokens";
-import { globalAvatarResolver } from "../avatar-resolver";
 import type { ProviderStatus } from "../../../shared/provider-types";
 
 export interface HeaderProps {
@@ -25,7 +24,6 @@ export const Header: React.FC<HeaderProps> = ({
     label: "内置规则引擎 (Local)",
   },
 }) => {
-  const avatar = globalAvatarResolver.resolveAvatar("assistant");
 
   const statusColor =
     providerStatus.status === "online"
@@ -49,85 +47,37 @@ export const Header: React.FC<HeaderProps> = ({
         zIndex: 10,
       }}
     >
-      {/* Left: Firefly Character Capsule with Truthful Provider Status */}
+      {/* Left: Truthful Provider Status */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "10px",
+          gap: "8px",
         }}
       >
-        <div
+        <span
+          title={providerStatus.details || providerStatus.label}
           style={{
-            position: "relative",
-            width: "32px",
-            height: "32px",
-            borderRadius: THEME_TOKENS.radii.full,
-            overflow: "hidden",
-            border: `1.5px solid ${THEME_TOKENS.colors.accentLight}`,
-            boxShadow: "0 0 8px rgba(72, 187, 120, 0.35)",
-            background: THEME_TOKENS.colors.bgSecondary,
+            fontSize: THEME_TOKENS.typography.fontSizes.label,
+            color: THEME_TOKENS.colors.textSecondary,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            fontWeight: 500,
           }}
         >
-          {avatar.src ? (
-            <img
-              src={avatar.src}
-              alt="流萤"
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            <div style={{ width: "100%", height: "100%", background: THEME_TOKENS.colors.accentSoft }} />
-          )}
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span
-              style={{
-                fontSize: "14px",
-                fontWeight: 700,
-                color: THEME_TOKENS.colors.textPrimary,
-                letterSpacing: "0.2px",
-              }}
-            >
-              流萤
-            </span>
-            <span
-              style={{
-                fontSize: "11px",
-                padding: "1px 6px",
-                borderRadius: THEME_TOKENS.radii.full,
-                background: THEME_TOKENS.colors.accentPill,
-                color: THEME_TOKENS.colors.accent,
-                fontWeight: 600,
-              }}
-            >
-              Firefly
-            </span>
-          </div>
           <span
-            title={providerStatus.details || providerStatus.label}
             style={{
-              fontSize: "11px",
-              color: THEME_TOKENS.colors.textMuted,
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              background: statusColor,
+              display: "inline-block",
+              boxShadow: providerStatus.status === "online" ? "0 0 6px rgba(72, 187, 120, 0.6)" : "none",
             }}
-          >
-            <span
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: statusColor,
-                display: "inline-block",
-                boxShadow: providerStatus.status === "online" ? "0 0 4px rgba(72, 187, 120, 0.6)" : "none",
-              }}
-            />
-            {providerStatus.label}
-          </span>
-        </div>
+          />
+          {providerStatus.label}
+        </span>
       </div>
 
       {/* Right: Clean Navigation Switcher */}
@@ -156,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ? THEME_TOKENS.colors.accent
                 : THEME_TOKENS.colors.textSecondary,
             fontWeight: activeTab === "chat" ? 600 : 500,
-            fontSize: "12px",
+            fontSize: THEME_TOKENS.typography.fontSizes.label,
             cursor: "pointer",
             boxShadow:
               activeTab === "chat" ? THEME_TOKENS.shadows.sm : "none",
@@ -180,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ? THEME_TOKENS.colors.accent
                 : THEME_TOKENS.colors.textSecondary,
             fontWeight: activeTab === "settings" ? 600 : 500,
-            fontSize: "12px",
+            fontSize: THEME_TOKENS.typography.fontSizes.label,
             cursor: "pointer",
             boxShadow:
               activeTab === "settings" ? THEME_TOKENS.shadows.sm : "none",

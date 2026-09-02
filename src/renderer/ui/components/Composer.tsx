@@ -60,7 +60,7 @@ export const Composer: React.FC<ComposerProps> = ({
       {toolStatus && (
         <div
           style={{
-            fontSize: "12px",
+            fontSize: THEME_TOKENS.typography.fontSizes.label,
             color: THEME_TOKENS.colors.statusThinking,
             display: "flex",
             alignItems: "center",
@@ -109,7 +109,7 @@ export const Composer: React.FC<ComposerProps> = ({
             outline: "none",
             resize: "none",
             fontFamily: THEME_TOKENS.typography.fontFamily,
-            fontSize: "14px",
+            fontSize: THEME_TOKENS.typography.fontSizes.body,
             lineHeight: "1.5",
             color: THEME_TOKENS.colors.textPrimary,
             background: "transparent",
@@ -138,7 +138,7 @@ export const Composer: React.FC<ComposerProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "14px",
+            fontSize: THEME_TOKENS.typography.fontSizes.body,
             transition: "all 0.2s ease",
             boxShadow: isSendDisabled ? "none" : THEME_TOKENS.shadows.glow,
           }}
@@ -154,7 +154,7 @@ export const Composer: React.FC<ComposerProps> = ({
           justifyContent: "space-between",
           alignItems: "center",
           padding: "0 4px",
-          fontSize: "11px",
+          fontSize: THEME_TOKENS.typography.fontSizes.caption,
           color: THEME_TOKENS.colors.textMuted,
         }}
       >

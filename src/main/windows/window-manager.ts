@@ -5,13 +5,13 @@ import { IPC } from "../../shared/ipc-channels";
 
 const PET_WINDOW_BASE_WIDTH = 429;
 const PET_WINDOW_BASE_HEIGHT = 315;
-// Harness Chat Window sizing: V1.1.0 canonical 1152×648 (16:9 desktop chat).
-const CHAT_WINDOW_WIDTH = 1152;
-const CHAT_WINDOW_HEIGHT = 648;
-// Mood (Summary) Window: V1.1.0 canonical 252×324, floating outside the
+// Harness Chat Window sizing: V1.1.0 canonical 1344×756 (16:9 desktop chat).
+const CHAT_WINDOW_WIDTH = 1344;
+const CHAT_WINDOW_HEIGHT = 756;
+// Mood (Summary) Window: V1.1.0 canonical 254×388, floating outside the
 // Harness Chat Window's right-top corner as an independent BrowserWindow.
-const SUMMARY_WINDOW_WIDTH = 252;
-const SUMMARY_WINDOW_HEIGHT = 324;
+const SUMMARY_WINDOW_WIDTH = 254;
+const SUMMARY_WINDOW_HEIGHT = 388;
 const SETTINGS_WINDOW_WIDTH = 500;
 const SETTINGS_WINDOW_HEIGHT = 600;
 
@@ -187,23 +187,11 @@ export class WindowManager {
       return this.chatWindow;
     }
 
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const workArea = primaryDisplay.workArea;
-
-    const petBounds = this.petWindow?.getBounds();
-    // Prefer opening beside the pet, then clamp into the work area so a
-    // 1080-tall window never spills under the taskbar / off-screen.
-    const rawX = petBounds ? petBounds.x - CHAT_WINDOW_WIDTH - 16 : workArea.x + workArea.width - CHAT_WINDOW_WIDTH - 420;
-    const rawY = petBounds ? petBounds.y : workArea.y + workArea.height - CHAT_WINDOW_HEIGHT - 32;
-    const defaultX = Math.max(workArea.x, Math.min(rawX, workArea.x + workArea.width - CHAT_WINDOW_WIDTH));
-    const defaultY = Math.max(workArea.y, Math.min(rawY, workArea.y + workArea.height - CHAT_WINDOW_HEIGHT));
-
     const win = new BrowserWindow({
-      x: defaultX,
-      y: defaultY,
       width: CHAT_WINDOW_WIDTH,
       height: CHAT_WINDOW_HEIGHT,
-      title: "与流萤对话",
+      center: true,
+      title: "流萤 · Firefly",
       frame: true,
       resizable: true,
       autoHideMenuBar: true,
@@ -215,6 +203,7 @@ export class WindowManager {
       },
     });
     win.setMenu(null);
+    win.center();
 
     const targetUrl = this.isDev
       ? "http://localhost:5173/ui/index.html?tab=chat"
@@ -230,6 +219,7 @@ export class WindowManager {
     }
 
     win.once("ready-to-show", () => {
+      win.center();
       win.show();
       // Open the Mood Window once, anchored to the Chat Window's right-top
       // corner (getSummaryAnchor computed inside createSummaryWindow). It is

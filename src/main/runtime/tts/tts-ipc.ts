@@ -2,13 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, ipcMain, BrowserWindow } from "electron";
 import { IPC } from "../../../shared/ipc-channels";
-import { DEFAULT_TTS_SETTINGS, type TtsSettings } from "../../../shared/tts-types";
+import { DEFAULT_TTS_SETTINGS, type TtsSettings, type TtsEngine } from "../../../shared/tts-types";
 import type { StartTtsRequest } from "../../../shared/tts-session";
 import { TtsSessionService } from "./tts-session-service";
 
 export interface TtsIpcOptions {
   configPath: string;
 }
+
+const VALID_TTS_ENGINES: ReadonlySet<string> = new Set(["off", "gptsovits"]);
 
 export function registerTtsIpc(options: TtsIpcOptions): {
   sessionService: TtsSessionService;
@@ -22,13 +24,29 @@ export function registerTtsIpc(options: TtsIpcOptions): {
       if (fs.existsSync(configPath)) {
         const json = JSON.parse(fs.readFileSync(configPath, "utf-8"));
         if (json.tts && typeof json.tts === "object") {
-          return {
+          let migrated = false;
+          let engine: TtsEngine = json.tts.engine;
+
+          // Migrate legacy / invalid engine configs (such as "edge", "custom-cloud", "minimax", etc.) to "gptsovits"
+          if (!engine || !VALID_TTS_ENGINES.has(engine)) {
+            console.log(`[TTS Migration] Detected invalid/legacy TTS engine "${engine}", migrating to "gptsovits"`);
+            engine = "gptsovits";
+            migrated = true;
+          }
+
+          const resolvedSettings: TtsSettings = {
             ...DEFAULT_TTS_SETTINGS,
             ...json.tts,
+            engine,
+            voiceProfile: "firefly-v2proplus",
             gptsovits: { ...DEFAULT_TTS_SETTINGS.gptsovits, ...(json.tts.gptsovits || {}) },
-            customCloud: { ...DEFAULT_TTS_SETTINGS.customCloud, ...(json.tts.customCloud || {}) },
-            minimax: { ...DEFAULT_TTS_SETTINGS.minimax, ...(json.tts.minimax || {}) },
           };
+
+          if (migrated) {
+            saveSettings(resolvedSettings);
+          }
+
+          return resolvedSettings;
         }
       }
     } catch (err) {

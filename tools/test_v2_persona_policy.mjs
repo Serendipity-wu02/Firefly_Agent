@@ -16,8 +16,8 @@ const projectRoot = path.resolve(__dirname, "..");
 // Compile output module paths
 const personaLoaderPath = path.join(projectRoot, "dist", "main", "main", "character", "persona-loader.js");
 const characterPolicyPath = path.join(projectRoot, "dist", "main", "main", "character", "character-policy.js");
-const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "agent", "context", "system-prompt-builder.js");
-const memoryWritePolicyPath = path.join(projectRoot, "dist", "main", "main", "memory", "memory-write-policy.js");
+const systemPromptBuilderPath = path.join(projectRoot, "dist", "main", "main", "orchestrator", "context", "system-prompt-builder.js");
+const memoryWritePolicyPath = path.join(projectRoot, "dist", "main", "main", "character", "memory", "memory-write-policy.js");
 
 test("1. YAML Single Source of Truth: resources/persona/firefly.yaml exists and parses cleanly", async () => {
   const { PersonaLoader } = await import(`file://${personaLoaderPath}`);

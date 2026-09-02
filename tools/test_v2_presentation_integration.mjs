@@ -100,12 +100,12 @@ test("9. Physical Avatar Asset: Real firefly.png exists on disk and is used by D
 
 test("10. Resource & Asset Immutability: 0 diff on resources/ and assets/", () => {
   try {
-    const diffAssets = execSync("git diff HEAD -- src/renderer/public/models/", { cwd: rootDir, encoding: "utf-8" }).trim();
+    const diffAssets = execSync("git diff HEAD -- src/renderer/models/", { cwd: rootDir, encoding: "utf-8" }).trim();
     const diffResources = execSync("git diff HEAD -- src/main/character/resources/", { cwd: rootDir, encoding: "utf-8" }).trim();
     assert.equal(diffAssets, "", "assets/ must have 0 diff");
     assert.equal(diffResources, "", "resources/ must have 0 diff");
   } catch (err) {
-    assert.ok(fs.existsSync(path.join(rootDir, "src", "renderer", "public", "models")), "assets directory exists");
+    assert.ok(fs.existsSync(path.join(rootDir, "src", "renderer", "models")), "assets directory exists");
     assert.ok(fs.existsSync(path.join(rootDir, "src", "main", "character", "resources")), "resources directory exists");
   }
 });

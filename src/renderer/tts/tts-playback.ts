@@ -85,7 +85,7 @@ export class TtsPlaybackManager {
     this.currentMessageId = options.messageId || requestId;
     this.setStatus("synthesizing");
     debugLog(
-      `[TTS Trace] start requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} ` +
+      `[TTS Trace] request: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} ` +
         `behavior=${options.behaviorType ?? "n/a"} chars=${text.length}`,
     );
 
@@ -128,9 +128,14 @@ export class TtsPlaybackManager {
 
       if (res.status === "ready" && res.base64) {
         debugLog(
-          `[TTS Trace] ready: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} format=${res.format} cached=${res.cached}`,
+          `[TTS Trace] audio-created: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} format=${res.format} cached=${res.cached} base64Len=${res.base64.length}`,
         );
         await this.playBase64(res.base64, res.format);
+      } else {
+        const noAudioErr = "TTS 服务返回成功但未提供音频数据";
+        debugLog(`[TTS Trace] playback-error: requestId=${requestId} detail="${noAudioErr}"`);
+        this.setStatus("error", noAudioErr);
+        this.setSpeaking(false);
       }
     } catch (err: any) {
       if (this.currentRequestId === requestId) {
@@ -156,6 +161,7 @@ export class TtsPlaybackManager {
     }
     const blob = new Blob([bytes], { type: mime });
     this.currentObjectUrl = URL.createObjectURL(blob);
+    debugLog(`[TTS Trace] audio-created: mime=${mime} blobBytes=${bytes.length} url=${this.currentObjectUrl}`);
 
     const audio = new Audio(this.currentObjectUrl);
     this.currentAudio = audio;
@@ -173,7 +179,7 @@ export class TtsPlaybackManager {
       this.cleanupAudio();
     };
 
-    audio.onerror = (e) => {
+    audio.onerror = () => {
       const errDetail = audio.error ? `code ${audio.error.code} (${audio.error.message})` : "Audio decode/playback error";
       debugLog(`[TTS Trace] playback-error: messageId=${this.currentMessageId ?? "n/a"} detail="${errDetail}"`);
       this.setStatus("error", errDetail);
@@ -184,8 +190,9 @@ export class TtsPlaybackManager {
     try {
       await audio.play();
     } catch (playErr: any) {
-      debugLog(`[TTS Trace] playback-error: play() rejected: "${playErr?.message || playErr}"`);
-      this.setStatus("error", playErr?.message || "Audio playback blocked or failed");
+      const rejectErr = playErr?.message || String(playErr);
+      debugLog(`[TTS Trace] playback-error: play() rejected: "${rejectErr}"`);
+      this.setStatus("error", rejectErr || "Audio playback blocked or failed");
       this.setSpeaking(false);
       this.cleanupAudio();
     }

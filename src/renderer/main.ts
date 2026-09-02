@@ -100,20 +100,51 @@ lifecycle.track("resource", "mouseFocus", () => mouseFocus.dispose());
 const mouthSync = new MouthSyncController(() => manager.getModel());
 lifecycle.track("resource", "mouthSync", () => mouthSync.dispose());
 
-// 6. Expression Reset Controller
-// Restores the CURRENT Behavior expression (persistent state), never an
-// unconditional expression00 — the Behavior may legitimately be happy, shy,
-// thinking, concerned, etc. when a temporary reaction expires.
+// 6. Expression Lifecycle & Reset Controller
+// - No active Behavior: currentPersistentExpression = "expression00" (baseline)
+// - Active Behavior: currentPersistentExpression = target.name
+// - Temporary Reaction: plays for durationMs, then restores currentPersistentExpression
+// - Behavior Completion: when active behavior finishes, returns cleanly to currentPersistentExpression = "expression00"
 let currentPersistentExpression = "expression00";
+let activeBehaviorTimer: number | null = null;
+
 const expressionReset = new ExpressionResetController({
   defaultDurationMs: 5000,
   onReset: () => {
+    debugLog(`[Live2D Lifecycle] temporary expression expired -> restoring current behavior expression "${currentPersistentExpression}"`);
     manager.setExpression(currentPersistentExpression);
   },
 });
-lifecycle.track("resource", "expressionReset", () => expressionReset.dispose());
 
-// 7. Speaking Motion Controller
+function setActiveBehavior(expressionName: string, durationMs?: number): void {
+  if (activeBehaviorTimer !== null) {
+    window.clearTimeout(activeBehaviorTimer);
+    activeBehaviorTimer = null;
+  }
+
+  currentPersistentExpression = expressionName || "expression00";
+  expressionReset.cancel();
+  manager.setExpression(currentPersistentExpression);
+
+  if (currentPersistentExpression !== "expression00" && durationMs && durationMs > 0) {
+    activeBehaviorTimer = window.setTimeout(() => {
+      activeBehaviorTimer = null;
+      debugLog(`[Live2D Lifecycle] active behavior (${currentPersistentExpression}) completed -> returning to baseline`);
+      currentPersistentExpression = "expression00";
+      manager.setExpression(currentPersistentExpression);
+    }, durationMs);
+  }
+}
+
+lifecycle.track("resource", "expressionReset", () => {
+  expressionReset.dispose();
+  if (activeBehaviorTimer !== null) {
+    window.clearTimeout(activeBehaviorTimer);
+    activeBehaviorTimer = null;
+  }
+});
+
+// 7. Speaking Motion Controller (MouthSync only — never overrides or owns character expression)
 const speakingMotion = new SpeakingMotionController({
   manager,
   mouthSync,
@@ -139,14 +170,12 @@ if (window.live2dAction?.onPlayAction) {
         // One-shot reaction expression: apply → duration → restore current Behavior expression
         expressionReset.trigger((target as any).durationMs);
       } else {
-        // Persistent Behavior expression: becomes the restore target and
-        // supersedes any pending temporary-expression reset
-        currentPersistentExpression = target.name;
-        expressionReset.cancel();
+        // Active Behavior expression: becomes the active behavior expression
+        const behaviorDuration = (target as any).behaviorDurationMs || (target as any).durationMs;
+        setActiveBehavior(target.name, behaviorDuration);
       }
     }
-    // Motion lifecycle: plays to its natural end, then Idle group resumes.
-    // No timer is imposed on motions.
+    // Motion lifecycle: plays to its natural end or catalog duration, then Idle/0 resumes.
   });
   lifecycle.track("subscription", "live2dAction", unsub);
 }

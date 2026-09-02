@@ -78,22 +78,25 @@ test('5. .node-version and .nvmrc Version Locks', () => {
   assert.match(nvmrcContent, /^24/, '.nvmrc must specify Node 24');
 });
 
-test('6. Project-Level npm 11 Launcher (tools/npm.mjs & tools/bin/npm.cmd)', () => {
-  const npmScriptPath = path.join(projectRoot, 'tools', 'npm.mjs');
-  assert.ok(fs.existsSync(npmScriptPath), 'tools/npm.mjs launcher must exist');
+test('6. Project-Level npm 11 Launcher (tools/npm/npm.mjs, tools/npm/npm.cmd & tools/npm/npm.ps1)', () => {
+  const npmScriptPath = path.join(projectRoot, 'tools', 'npm', 'npm.mjs');
+  assert.ok(fs.existsSync(npmScriptPath), 'tools/npm/npm.mjs launcher must exist');
   
-  const cmdPath = path.join(projectRoot, 'tools', 'bin', 'npm.cmd');
-  assert.ok(fs.existsSync(cmdPath), 'tools/bin/npm.cmd wrapper must exist');
+  const cmdPath = path.join(projectRoot, 'tools', 'npm', 'npm.cmd');
+  assert.ok(fs.existsSync(cmdPath), 'tools/npm/npm.cmd wrapper must exist');
+
+  const ps1Path = path.join(projectRoot, 'tools', 'npm', 'npm.ps1');
+  assert.ok(fs.existsSync(ps1Path), 'tools/npm/npm.ps1 wrapper must exist');
 
   const setupPath = path.join(projectRoot, 'setup.bat');
   assert.ok(fs.existsSync(setupPath), 'setup.bat bootstrap script must exist');
 
-  // Verify tools/npm.mjs invokes npm 11 without requiring global upgrade
+  // Verify tools/npm/npm.mjs invokes npm 11 without requiring global upgrade
   const output = execSync(`"${process.execPath}" "${npmScriptPath}" -v`, {
     encoding: 'utf-8',
     cwd: projectRoot
   }).trim();
 
   const major = parseInt(output.split('.')[0], 10);
-  assert.equal(major, 11, `tools/npm.mjs must output npm 11.x, actual output: ${output}`);
+  assert.equal(major, 11, `tools/npm/npm.mjs must output npm 11.x, actual output: ${output}`);
 });

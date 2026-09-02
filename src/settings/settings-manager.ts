@@ -3,10 +3,13 @@ import path from "node:path";
 import { app } from "electron";
 import type { LlmProviderConfig } from "../shared/provider-types";
 import { DEFAULT_LLM_CONFIG } from "../shared/provider-types";
+import type { UiPreferences, UiFontSize } from "../shared/ui-types";
+import { DEFAULT_UI_PREFERENCES } from "../shared/ui-types";
 
 export interface FireflyAppSettings {
   llm?: LlmProviderConfig;
   tts?: any;
+  ui?: UiPreferences;
   window?: {
     x?: number;
     y?: number;
@@ -39,6 +42,13 @@ export class SettingsManager {
       if (fs.existsSync(this.configPath)) {
         const raw = fs.readFileSync(this.configPath, "utf-8");
         this.settings = JSON.parse(raw);
+        if (this.settings.tts && typeof this.settings.tts === "object") {
+          const validEngines = new Set(["off", "gptsovits"]);
+          if (!this.settings.tts.engine || !validEngines.has(this.settings.tts.engine)) {
+            this.settings.tts.engine = "gptsovits";
+            this.save({ tts: this.settings.tts });
+          }
+        }
         return this.settings;
       }
       const exampleCandidates = [
@@ -82,5 +92,14 @@ export class SettingsManager {
   saveLlmConfig(config: Partial<LlmProviderConfig>): boolean {
     const merged = { ...this.getLlmConfig(), ...config };
     return this.save({ llm: merged });
+  }
+
+  getUiPreferences(): UiPreferences {
+    return { ...DEFAULT_UI_PREFERENCES, ...(this.settings.ui || {}) };
+  }
+
+  saveUiPreferences(preferences: Partial<UiPreferences>): boolean {
+    const merged = { ...this.getUiPreferences(), ...preferences };
+    return this.save({ ui: merged });
   }
 }

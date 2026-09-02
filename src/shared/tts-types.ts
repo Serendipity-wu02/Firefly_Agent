@@ -1,4 +1,28 @@
-export type TtsEngine = "off" | "gptsovits" | "custom-cloud" | "minimax" | "mimo" | "mossland";
+export type TtsEngine = "off" | "gptsovits";
+
+export interface VoiceProfile {
+  id: "firefly-v2proplus";
+  displayName: string;
+  engine: "gptsovits";
+  version: "v2ProPlus";
+  baseUrl: string;
+  refAudioPath?: string;
+  promptText?: string;
+  targetLanguage: "zh";
+  referenceLanguage: "zh";
+}
+
+export const FIREFLY_VOICE_PROFILE: VoiceProfile = {
+  id: "firefly-v2proplus",
+  displayName: "流萤标准语音 · GPT-SoVITS V2ProPlus",
+  engine: "gptsovits",
+  version: "v2ProPlus",
+  baseUrl: "http://127.0.0.1:9880",
+  refAudioPath: "",
+  promptText: "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！",
+  targetLanguage: "zh",
+  referenceLanguage: "zh",
+};
 
 export interface GptsovitsConfig {
   baseUrl: string;
@@ -8,47 +32,13 @@ export interface GptsovitsConfig {
   speed?: number;
 }
 
-export interface CustomCloudTtsConfig {
-  endpointUrl: string;
-  apiKey?: string;
-  voiceId?: string;
-  format?: "wav" | "mp3";
-  speed?: number;
-  volume?: number;
-  timeoutMs?: number;
-}
-
-export interface MinimaxTtsConfig {
-  apiKey: string;
-  voiceId: string;
-  model?: string;
-  speed?: number;
-  volume?: number;
-}
-
-export interface MimoTtsConfig {
-  apiKey: string;
-  voiceAudioPath?: string;
-  stylePrompt?: string;
-}
-
-export interface MosslandTtsConfig {
-  apiKey: string;
-  voiceId?: string;
-  model?: string;
-  format?: "mp3" | "wav";
-}
-
 export interface TtsSettings {
   engine: TtsEngine;
   speed: number;
   volume: number;
   autoPlay?: boolean;
+  voiceProfile?: "firefly-v2proplus";
   gptsovits: GptsovitsConfig;
-  customCloud: CustomCloudTtsConfig;
-  minimax: MinimaxTtsConfig;
-  mimo: MimoTtsConfig;
-  mossland: MosslandTtsConfig;
 }
 
 export const DEFAULT_TTS_SETTINGS: TtsSettings = {
@@ -56,38 +46,12 @@ export const DEFAULT_TTS_SETTINGS: TtsSettings = {
   speed: 1.0,
   volume: 1.0,
   autoPlay: true,
+  voiceProfile: "firefly-v2proplus",
   gptsovits: {
     baseUrl: "http://127.0.0.1:9880",
-    refAudioPath: "E:\\GPT-SoVITS\\GPT-SoVITS-firefly-finetuning\\samples\\sample_1.wav",
+    refAudioPath: "",
     promptText: "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！",
     format: "wav",
     speed: 1.0,
-  },
-  customCloud: {
-    endpointUrl: "",
-    apiKey: "",
-    voiceId: "",
-    format: "mp3",
-    speed: 1.0,
-    volume: 1.0,
-    timeoutMs: 30000,
-  },
-  minimax: {
-    apiKey: "",
-    voiceId: "female-tianmei",
-    model: "speech-01-turbo",
-    speed: 1.0,
-    volume: 1.0,
-  },
-  mimo: {
-    apiKey: "",
-    voiceAudioPath: "",
-    stylePrompt: "",
-  },
-  mossland: {
-    apiKey: "",
-    voiceId: "",
-    model: "moss-tts-v1",
-    format: "mp3",
   },
 };

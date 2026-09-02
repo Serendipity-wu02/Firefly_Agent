@@ -166,11 +166,8 @@ async function main() {
       engine: "gptsovits",
       speed: 1.0,
       volume: 1.0,
+      voiceProfile: "firefly-v2proplus",
       gptsovits: offlineConfig,
-      customCloud: { endpointUrl: "", format: "mp3", speed: 1.0, volume: 1.0 },
-      minimax: { apiKey: "", voiceId: "" },
-      mimo: { apiKey: "" },
-      mossland: { apiKey: "" },
     },
     (ev) => errorEvents.push(ev),
   );

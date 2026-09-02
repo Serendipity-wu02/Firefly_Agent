@@ -11,9 +11,9 @@
     "dist",
     "src/cli",
     "src/main/character/resources",
-    "src/renderer/public",
+    "src/renderer/models",
     "src/settings/settings.example.json",
-    "data/knowledge",
+    "src/rag/knowledge",
     "README.md",
     "LICENSE"
   ],
