@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import type { GptsovitsConfig } from "../../../../shared/tts-types";
 import type { TtsAudioFormat } from "../../../../shared/tts-session";
 
@@ -27,13 +28,18 @@ export async function synthesizeGptsovits(
   const baseUrl = (config.baseUrl || "http://127.0.0.1:9880").replace(/\/+$/, "");
   const endpoint = `${baseUrl}/tts`;
 
+  const defaultRefPath = "E:\\GPT-SoVITS\\GPT-SoVITS-firefly-finetuning\\samples\\sample_1.wav";
+  const refAudioPath = config.refAudioPath || (fs.existsSync(defaultRefPath) ? defaultRefPath : "");
+  const promptText = config.promptText || "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！";
+
   const payload: Record<string, unknown> = {
     text,
     text_lang: "zh",
-    ref_audio_path: config.refAudioPath || "",
-    prompt_text: config.promptText || "",
+    ref_audio_path: refAudioPath,
+    prompt_text: promptText,
     prompt_lang: "zh",
     media_type: config.format || "wav",
+    speed: config.speed ?? 1.0,
     speed_factor: config.speed ?? 1.0,
   };
 

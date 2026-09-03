@@ -127,10 +127,27 @@ export const App: React.FC = () => {
       });
     }
 
+    let unsubSettings: (() => void) | undefined;
+    if ((window.settings as any)?.onSettingsChanged) {
+      unsubSettings = (window.settings as any).onSettingsChanged((newSettings: any) => {
+        if (newSettings?.ui?.fontSize) {
+          setUiFontSize(newSettings.ui.fontSize);
+        }
+        if (newSettings?.llm) {
+          setLlmConfig(newSettings.llm);
+          setProviderStatus(evaluateProviderStatus(newSettings.llm));
+        }
+        if (newSettings?.tts) {
+          setTtsSettings(newSettings.tts);
+        }
+      });
+    }
+
     return () => {
       unsubTts();
       unsubSummary?.();
       unsubProvider?.();
+      unsubSettings?.();
     };
   }, []);
 

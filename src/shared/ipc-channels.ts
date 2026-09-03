@@ -51,6 +51,7 @@ export const IPC = {
   // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",
   SETTINGS_SAVE: "settings:save",
+  SETTINGS_CHANGED: "settings:changed",
   STARTUP_GET: "startup:get",
   STARTUP_SET: "startup:set",
   PROVIDER_GET_STATUS: "provider:get-status",

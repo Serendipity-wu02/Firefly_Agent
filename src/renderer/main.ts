@@ -100,39 +100,51 @@ lifecycle.track("resource", "mouseFocus", () => mouseFocus.dispose());
 const mouthSync = new MouthSyncController(() => manager.getModel());
 lifecycle.track("resource", "mouthSync", () => mouthSync.dispose());
 
-// 6. Expression Lifecycle & Reset Controller
-// - No active Behavior: currentPersistentExpression = "expression00" (baseline)
-// - Active Behavior: currentPersistentExpression = target.name
-// - Temporary Reaction: plays for durationMs, then restores currentPersistentExpression
-// - Behavior Completion: when active behavior finishes, returns cleanly to currentPersistentExpression = "expression00"
+// 6. Expression Lifecycle & Ownership Controller
+// Strict Expression Ownership & Priority:
+// 1. Baseline State (No active Behavior): expression00 + Idle/0
+// 2. Active Behavior: currentPersistentExpression = target.name
+// 3. Temporary Interaction: overrides temporarily, then restores currentPersistentExpression
+// 4. Behavior Completion: returns cleanly to expression00 + Idle/0, wiping all residual parameters
+// 5. Speaking / TTS: controls MouthSync only; NEVER owns or overrides Expression
 let currentPersistentExpression = "expression00";
+let currentBehaviorOwner: string | null = null;
 let activeBehaviorTimer: number | null = null;
 
 const expressionReset = new ExpressionResetController({
   defaultDurationMs: 5000,
   onReset: () => {
-    debugLog(`[Live2D Lifecycle] temporary expression expired -> restoring current behavior expression "${currentPersistentExpression}"`);
-    manager.setExpression(currentPersistentExpression);
+    debugLog(`[Live2D Trace] expression-reset=${currentPersistentExpression}`);
+    if (currentPersistentExpression === "expression00") {
+      manager.resetToDefaultState();
+    } else {
+      manager.setExpression(currentPersistentExpression);
+    }
   },
 });
 
-function setActiveBehavior(expressionName: string, durationMs?: number): void {
+function setActiveBehavior(expressionName: string, behaviorType?: string, durationMs?: number): void {
   if (activeBehaviorTimer !== null) {
     window.clearTimeout(activeBehaviorTimer);
     activeBehaviorTimer = null;
   }
 
   currentPersistentExpression = expressionName || "expression00";
+  currentBehaviorOwner = behaviorType || "behavior";
   expressionReset.cancel();
+
+  debugLog(`[Live2D Trace] expression-owner=Character Behavior expression-set=${currentPersistentExpression} behavior=${currentBehaviorOwner}`);
   manager.setExpression(currentPersistentExpression);
 
-  if (currentPersistentExpression !== "expression00" && durationMs && durationMs > 0) {
+  const duration = durationMs && durationMs > 0 ? durationMs : 5000;
+  if (currentPersistentExpression !== "expression00") {
     activeBehaviorTimer = window.setTimeout(() => {
       activeBehaviorTimer = null;
-      debugLog(`[Live2D Lifecycle] active behavior (${currentPersistentExpression}) completed -> returning to baseline`);
+      debugLog(`[Live2D Trace] behavior-end=${currentBehaviorOwner} expression-reset=expression00`);
       currentPersistentExpression = "expression00";
-      manager.setExpression(currentPersistentExpression);
-    }, durationMs);
+      currentBehaviorOwner = null;
+      manager.resetToDefaultState();
+    }, duration);
   }
 }
 
@@ -164,16 +176,20 @@ if (window.firefly?.onSpeakingChanged) {
 if (window.live2dAction?.onPlayAction) {
   const unsub = window.live2dAction.onPlayAction((target) => {
     debugLog("[Firefly-Agent] Received Action Target from Main Action Catalog:", target);
-    manager.playTarget(target);
     if (target.kind === "expression") {
       if ((target as any).temporary) {
         // One-shot reaction expression: apply → duration → restore current Behavior expression
+        debugLog(`[Live2D Trace] expression-owner=Temporary Interaction expression-set=${target.name}`);
+        manager.setExpression(target.name);
         expressionReset.trigger((target as any).durationMs);
       } else {
         // Active Behavior expression: becomes the active behavior expression
         const behaviorDuration = (target as any).behaviorDurationMs || (target as any).durationMs;
-        setActiveBehavior(target.name, behaviorDuration);
+        setActiveBehavior(target.name, (target as any).behaviorType, behaviorDuration);
       }
+    } else if (target.kind === "motion") {
+      debugLog(`[Live2D Trace] motion-start=${target.group}:${target.motionName || 0}`);
+      manager.playTarget(target);
     }
     // Motion lifecycle: plays to its natural end or catalog duration, then Idle/0 resumes.
   });

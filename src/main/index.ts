@@ -188,6 +188,8 @@ function setupIpcHandlers() {
 
   ipcMain.handle(IPC.SETTINGS_SAVE, async (_event, newSettings) => {
     const ok = settingsManager.save(newSettings);
+    const updated = settingsManager.load();
+    windowManager.broadcast(IPC.SETTINGS_CHANGED, updated);
     if (newSettings.llm) {
       const provider = createFireflyProvider(settingsManager.getLlmConfig());
       // setProvider is optional on IAgentCore — use optional chaining
@@ -294,9 +296,10 @@ app.whenReady().then(() => {
       clean = clean.replace("firefly/", "");
     }
     const candidatePaths = [
-      path.join(app.getAppPath(), "src", "renderer", "public", clean),
-      path.join(app.getAppPath(), "src", "renderer", "public", "models", clean),
+      path.join(app.getAppPath(), "src", "renderer", clean),
+      path.join(app.getAppPath(), "src", "renderer", "models", clean),
       path.join(app.getAppPath(), "dist", "renderer", clean),
+      path.join(app.getAppPath(), "dist", "renderer", "models", clean),
       path.join(app.getAppPath(), clean),
     ];
     let resolved = candidatePaths[0];

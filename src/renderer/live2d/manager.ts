@@ -5,7 +5,7 @@ import * as PIXI from "pixi.js";
 // (selfInstall() runs at module load; since 7.1.0 no explicit call is needed
 // and calling the deprecated install() would itself log a deprecation).
 import "@pixi/unsafe-eval";
-import { Live2DModel } from "pixi-live2d-display/cubism4";
+import type { Live2DModel } from "pixi-live2d-display/cubism4";
 import type { FireflyTarget } from "../../shared/firefly-actions";
 import { debugLog } from "../debug-log";
 
@@ -31,10 +31,36 @@ if ((PIXI as any).utils?.url) {
   }
 }
 
-try {
-  Live2DModel.registerTicker(PIXI.Ticker);
-} catch {
-  // Ignored if already registered
+let Live2DModelClass: typeof Live2DModel | null = null;
+
+async function getLive2DModel(): Promise<typeof Live2DModel> {
+  if (Live2DModelClass) return Live2DModelClass;
+
+  // 1. Ensure Cubism Core runtime is loaded and initialized on window
+  if (typeof window !== "undefined") {
+    for (let i = 0; i < 50; i++) {
+      if ((window as any).Live2DCubismCore) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    if (!(window as any).Live2DCubismCore) {
+      throw new Error(
+        "Could not find Cubism 4 runtime. Live2DCubismCore not found on window. " +
+        "Ensure live2dcubismcore.min.js is loaded."
+      );
+    }
+  }
+
+  // 2. Dynamically import pixi-live2d-display/cubism4
+  const cubism4Module = await import("pixi-live2d-display/cubism4");
+  Live2DModelClass = cubism4Module.Live2DModel;
+
+  try {
+    Live2DModelClass.registerTicker(PIXI.Ticker);
+  } catch {
+    // Ignored if already registered
+  }
+
+  return Live2DModelClass;
 }
 
 export interface ParsedHitArea {
@@ -131,6 +157,7 @@ export class Live2DManager {
         throw new Error("PIXI.Application is not initialized");
       }
 
+      const Live2DModel = await getLive2DModel();
       const model = await Live2DModel.from(this.modelPath, {
         autoHitTest: false,
         autoFocus: false,
@@ -390,6 +417,54 @@ export class Live2DManager {
   setExpression(name: string): void {
     if (this.isLive2DAvailable && this.model) {
       this.model.expression(name);
+    }
+  }
+
+  /**
+   * Reset model to pristine default state (expression00 + Idle/0 + all parameters restored to catalog defaults).
+   * Ensures no residual smiling, crying, or closed-eye parameters remain in the core model.
+   */
+  resetToDefaultState(): void {
+    if (!this.isLive2DAvailable || !this.model) return;
+
+    try {
+      // 1. Stop any active expressions in expressionManager
+      const expressionManager = (this.model as any).internalModel?.motionManager?.expressionManager;
+      if (expressionManager) {
+        if (typeof expressionManager.stopAllExpressions === "function") {
+          expressionManager.stopAllExpressions();
+        }
+        expressionManager.currentExpression = null;
+      }
+
+      // 2. Stop any active one-shot motion
+      const motionManager = (this.model as any).internalModel?.motionManager;
+      if (motionManager && typeof motionManager.stopAllMotions === "function") {
+        motionManager.stopAllMotions();
+      }
+
+      // 3. Reset all Live2D core model parameters to their factory defaults
+      const coreModel = (this.model as any).internalModel?.coreModel;
+      if (coreModel && typeof coreModel.getParameterCount === "function") {
+        const count = coreModel.getParameterCount();
+        for (let i = 0; i < count; i++) {
+          const defVal = coreModel.getParameterDefaultValue(i);
+          coreModel.setParameterValueByIndex(i, defVal);
+        }
+        if (typeof coreModel.saveParameters === "function") {
+          coreModel.saveParameters();
+        }
+      }
+
+      // 4. Set expression cleanly to baseline expression00
+      this.model.expression("expression00");
+
+      // 5. Pin Idle motion to Idle/0
+      this.pinIdleMotionToZero();
+
+      debugLog("[Live2D Trace] model-reset: baseline expression00 + Idle/0 restored");
+    } catch (err) {
+      debugLog("[Live2D] resetToDefaultState error:", err);
     }
   }
 

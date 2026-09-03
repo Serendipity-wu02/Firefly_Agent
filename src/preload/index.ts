@@ -64,6 +64,7 @@ const IPC = {
   // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",
   SETTINGS_SAVE: "settings:save",
+  SETTINGS_CHANGED: "settings:changed",
   STARTUP_GET: "startup:get",
   STARTUP_SET: "startup:set",
   PROVIDER_GET_STATUS: "provider:get-status",
@@ -166,6 +167,11 @@ contextBridge.exposeInMainWorld("chat", {
 contextBridge.exposeInMainWorld("settings", {
   load: (): Promise<any> => ipcRenderer.invoke(IPC.SETTINGS_LOAD),
   save: (settings: any): Promise<boolean> => ipcRenderer.invoke(IPC.SETTINGS_SAVE, settings),
+  onSettingsChanged: (cb: (settings: any) => void) => {
+    const listener = (_: unknown, settings: any) => cb(settings);
+    ipcRenderer.on(IPC.SETTINGS_CHANGED, listener);
+    return () => { ipcRenderer.removeListener(IPC.SETTINGS_CHANGED, listener); };
+  },
 });
 
 contextBridge.exposeInMainWorld("startup", {
