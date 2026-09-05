@@ -1,4 +1,5 @@
 import type { MouthSyncController } from "./mouth-sync";
+import { MOUTH_SYNC_FAILSAFE_DURATION_MS } from "./mouth-sync";
 import type { FireflyLive2DManager } from "./manager";
 
 export interface SpeakingMotionOptions {
@@ -17,12 +18,12 @@ export class SpeakingMotionController {
     this.mouthSync = options.mouthSync;
   }
 
-  setSpeaking(speaking: boolean, durationMs: number = 10000): void {
+  setSpeaking(speaking: boolean, durationMs?: number): void {
     if (this.disposed) return;
     this.isSpeaking = speaking;
 
     if (speaking) {
-      this.mouthSync.start(durationMs);
+      this.mouthSync.start(durationMs ?? MOUTH_SYNC_FAILSAFE_DURATION_MS);
     } else {
       this.mouthSync.stop();
     }

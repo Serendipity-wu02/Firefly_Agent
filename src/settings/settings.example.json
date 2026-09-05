@@ -9,7 +9,7 @@
   },
   "tts": {
     "engine": "gptsovits",
-    "speed": 1,
+    "speed": 0.9,
     "volume": 1,
     "autoPlay": true,
     "voiceProfile": "firefly-v2proplus",
@@ -18,7 +18,8 @@
       "refAudioPath": "",
       "promptText": "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！",
       "format": "wav",
-      "speed": 1
+      "speed": 0.9,
+      "seed": 5
     }
   },
   "ui": {

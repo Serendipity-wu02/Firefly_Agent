@@ -16,8 +16,8 @@
 ## 🌟 核心特性 (Features)
 
 1. **Light Sky 对话视窗与认知心境 (Harness Chat & Mood Window)**：
-   - **与流萤对话 (Chat Window)**：`1152 × 648` (16:9 桌面标准布局)，浅绿晴空纯净视觉，真实角色头像与气泡。
-   - **流萤认知心境 (Mood Window)**：`252 × 324` 独立无边框置顶视窗，支持独立自由拖拽（`-webkit-app-region: drag`），单次初始锚定 Chat 右侧，移动与 Desktop Pet / Chat 彻底解耦。
+   - **与流萤对话 (Chat Window)**：`1344 × 756` (16:9 桌面标准布局)，浅绿晴空纯净视觉，真实角色头像与气泡。
+   - **流萤认知心境 (Mood Window)**：`254 × 388` 独立无边框置顶视窗，支持独立自由拖拽（`-webkit-app-region: drag`），单次初始锚定 Chat 右侧，移动与 Desktop Pet / Chat 彻底解耦。
    - **真实在线状态 (ProviderStatus)**：真实展示内置规则引擎状态或外部 API 连接状况，未配置时显示离线，绝不伪造在线。
 
 2. **桌面交互与 Live2D 表现 (Desktop Pet - Live2D Only)**：
@@ -26,7 +26,7 @@
    - 像素级 Alpha 透明度采样（`alphaThreshold: 15`）、鼠标穿透、平滑拖拽与右键托盘/上下文菜单。
 
 3. **FireflyAgentCore (智能体核心)**：
-   - 深度解耦的 Agent Loop 架构，实现 `IAgentCore` 接口。
+   - `FireflyAgentCore` 是公共 `IAgentCore` facade，唯一的 Agent Loop 由内部 `FireflyHarness` 持有。
    - 具备 Context 预算层、Tool Policy 策略控制、多步骤有界规划（Bounded Planner）与断点容灾恢复（Recovery Manager）。
    - 防崩溃事件总线 (`AgentEventBus`) 与防御性消息隔离 (`AgentSession`)。
    - 真实报错传播，故障时绝不伪造 Persona 回复。
@@ -70,7 +70,7 @@ Firefly-Pet/
 │   │   ├── character/         # 角色策略、具身映射与 806 篇官方原始语料 resources
 │   │   ├── chat/              # Chat IPC 通信与 EmbodimentPlan 调度
 │   │   ├── llm/               # LLM Provider 工厂与适配层
-│   │   ├── orchestrator/      # FireflyAgentCore, ContextManager, ProactiveScheduler
+│   │   ├── orchestrator/      # AgentCore facade, FireflyHarness, ContextManager, ProactiveScheduler
 │   │   ├── rag/               # RAG 协调器与检索流水线
 │   │   ├── runtime/           # Runtime 服务 (TTS, Music, Execution)
 │   │   ├── state/             # 角色状态管理器
@@ -83,7 +83,19 @@ Firefly-Pet/
 │   │   └── ui/                # React 对话与心境卡片组件
 │   ├── settings/              # SettingsManager 与默认模板
 │   └── shared/                # 跨进程类型定义与 IPC 信道常量
-└── tools/                     # 36 个自动化回归测试套件
+└── tools/
+    ├── npm/                  # 项目级 npm 11 封装器
+    ├── test/                 # 按领域收敛的 32 个 canonical 回归套件
+    │   ├── distribution/     # 环境与 npm 分发
+    │   ├── core/             # Agent Core 与上下文运行时
+    │   ├── runtime/          # 工具执行、TTS 与媒体控制
+    │   ├── memory/           # 记忆生命周期
+    │   ├── rag/              # 知识摄取、向量与混合检索
+    │   ├── character/        # Persona、关系与具身策略
+    │   ├── live2d/           # Live2D 模型资源与运行时契约
+    │   └── presentation/    # 桌宠、Chat Shell 与界面集成
+    ├── verify/               # 真实外部服务验证器
+    └── diagnostics/          # Windows 诊断脚本
 ```
 
 ---
@@ -123,13 +135,13 @@ node src/cli/firefly.mjs --version
 
 ## 🧪 测试与质量门禁 (Testing & Verification)
 
-Firefly-Agent 配备严格的多层级回归测试体系（36 个测试套件，328+ 项自动化测试全部通过）：
+Firefly-Agent 配备严格的多层级回归测试体系（32 个按领域组织的 canonical 测试套件）：
 
 ```powershell
 # 1. 全量 TypeScript 类型检查 (Main + Preload + Renderer)
 npm run typecheck
 
-# 2. 运行全部 36 个自动化回归测试套件 (100% 通过)
+# 2. 运行全部 32 个 canonical 自动化回归测试套件
 npm test
 
 # 3. 运行 npm 打包检查

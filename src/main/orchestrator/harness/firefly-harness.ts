@@ -1,45 +1,99 @@
 import type {
-  HarnessConfig,
-  HarnessInput,
-  HarnessResult,
-  HarnessEvent,
-  HarnessRunStatus,
-} from "../../../shared/harness-types";
-import { DEFAULT_HARNESS_CONFIG } from "../../../shared/harness-types";
-import type { ChatMessage } from "../../../shared/chat-types";
-import type { IFireflyLlmProvider } from "../../llm/providers/provider-types";
+  AgentConfig,
+  AgentRunInput,
+  AgentRunResult,
+  AgentRunStatus,
+} from "../../../shared/agent-types";
+import { DEFAULT_AGENT_CONFIG } from "../../../shared/agent-types";
+import type { ChatMessage, ChatCompletionResponse } from "../../../shared/chat-types";
+import type { IFireflyLlmProvider } from "../../../shared/provider-types";
 import type { IAgentCore } from "../../../shared/agent-core";
 import { LocalFireflyProvider } from "../../llm/providers/local-firefly-provider";
 import { FireflyToolRegistry } from "../../tools/tool-registry";
-import { FireflyToolDispatcher } from "../../tools/tool-dispatcher";
-import { FireflyMemoryService } from "../../character/memory/memory-service";
-import { buildRoundMessages, buildFireflySystemPrompt } from "./harness-context";
+import { ContextManager } from "../context/context-manager";
+import { ToolExecutionEngine } from "../../runtime/execution/tool-execution-engine";
+import type { ToolPolicyConfig } from "../../runtime/execution/tool-policy";
+import { AgentSession } from "../agent-session";
+import { AgentEventBus } from "../agent-events";
+import { CheckpointManager } from "../recovery/checkpoint-manager";
+import { RecoveryManager } from "../recovery/recovery-manager";
+import { ResumeProtocol } from "../recovery/resume-protocol";
+import type { RunExecutionState } from "../recovery/execution-state";
+import { BoundedPlanner } from "../planning/bounded-planner";
+import { formatPlanContext } from "../planning/plan-lifecycle";
+import type { Plan, PlannerConfig } from "../planning/plan-types";
+import { requestHarnessCompletion } from "./harness-llm";
 import { executeToolRound } from "./tool-round";
-import { compactMessagesIfNeeded, computeTokenBudget } from "./compaction";
-import { InMemoryCheckpointStore } from "./checkpoint";
 
 export interface FireflyHarnessOptions {
   provider?: IFireflyLlmProvider;
   toolRegistry: FireflyToolRegistry;
-  memoryService?: FireflyMemoryService;
-  config?: Partial<HarnessConfig>;
+  config?: Partial<AgentConfig>;
+  eventBus?: AgentEventBus;
+  contextManager?: ContextManager;
+  toolPolicy?: Partial<ToolPolicyConfig>;
+  executionEngine?: ToolExecutionEngine;
+  checkpointManager?: CheckpointManager;
+  recoveryManager?: RecoveryManager;
+  planner?: BoundedPlanner;
+  plannerConfig?: Partial<PlannerConfig>;
 }
 
+/**
+ * FireflyHarness is the sole Agent execution loop.
+ *
+ * It coordinates the existing Session, Context, Planning, Recovery,
+ * Checkpoint, Compaction, and ToolExecutionEngine owners without reimplementing
+ * their policies or domain behavior.
+ */
 export class FireflyHarness implements IAgentCore {
   private provider: IFireflyLlmProvider;
   private readonly toolRegistry: FireflyToolRegistry;
-  private readonly toolDispatcher: FireflyToolDispatcher;
-  private readonly memoryService?: FireflyMemoryService;
-  private readonly config: HarnessConfig;
+  private readonly config: AgentConfig;
+  private readonly eventBus: AgentEventBus;
+  private readonly contextManager: ContextManager;
+  private readonly executionEngine: ToolExecutionEngine;
+  private readonly checkpointManager: CheckpointManager;
+  private readonly recoveryManager: RecoveryManager;
+  private readonly planner: BoundedPlanner;
   private readonly activeRuns = new Map<string, AbortController>();
-  private readonly checkpointStore = new InMemoryCheckpointStore();
 
   constructor(options: FireflyHarnessOptions) {
     this.provider = options.provider || new LocalFireflyProvider();
     this.toolRegistry = options.toolRegistry;
-    this.toolDispatcher = new FireflyToolDispatcher(this.toolRegistry);
-    this.memoryService = options.memoryService;
-    this.config = { ...DEFAULT_HARNESS_CONFIG, ...(options.config || {}) };
+    this.config = { ...DEFAULT_AGENT_CONFIG, ...(options.config || {}) };
+    this.eventBus = options.eventBus || new AgentEventBus();
+    this.contextManager = options.contextManager || new ContextManager();
+    this.executionEngine =
+      options.executionEngine ||
+      new ToolExecutionEngine(this.toolRegistry, options.toolPolicy, this.eventBus);
+    this.checkpointManager = options.checkpointManager || new CheckpointManager();
+    this.recoveryManager = options.recoveryManager || new RecoveryManager();
+    this.planner = options.planner || new BoundedPlanner(options.plannerConfig);
+  }
+
+  getContextManager(): ContextManager {
+    return this.contextManager;
+  }
+
+  getExecutionEngine(): ToolExecutionEngine {
+    return this.executionEngine;
+  }
+
+  getCheckpointManager(): CheckpointManager {
+    return this.checkpointManager;
+  }
+
+  getRecoveryManager(): RecoveryManager {
+    return this.recoveryManager;
+  }
+
+  getPlanner(): BoundedPlanner {
+    return this.planner;
+  }
+
+  getEventBus(): AgentEventBus {
+    return this.eventBus;
   }
 
   setProvider(provider: IFireflyLlmProvider): void {
@@ -50,25 +104,41 @@ export class FireflyHarness implements IAgentCore {
     return this.provider;
   }
 
-  getCheckpoint(runId: string) {
-    return this.checkpointStore.get(runId);
+  async resume(checkpointId: string, signal?: AbortSignal): Promise<AgentRunResult> {
+    const checkpoint = await this.checkpointManager.restoreCheckpoint(checkpointId);
+    if (!checkpoint) {
+      throw new Error("Checkpoint " + checkpointId + " not found.");
+    }
+
+    const evaluation = ResumeProtocol.evaluate(checkpoint);
+    if (!evaluation.canResume) {
+      throw new Error("Cannot resume checkpoint " + checkpointId + ": " + evaluation.reason);
+    }
+
+    this.eventBus.emit({
+      type: "run:resumed",
+      runId: checkpoint.runId,
+      fromCheckpointId: checkpointId,
+      resumeStep: evaluation.resumeStep,
+      timestamp: Date.now(),
+    });
+
+    return this.run({
+      runId: checkpoint.runId,
+      conversationId: checkpoint.sessionId,
+      userPrompt: "",
+      history: evaluation.sanitizedMessages,
+      planMode: !!evaluation.restoredPlan,
+      signal,
+    });
   }
 
-  async run(
-    input: HarnessInput,
-    emitter?: (event: HarnessEvent) => void,
-  ): Promise<HarnessResult> {
+  async run(input: AgentRunInput): Promise<AgentRunResult> {
     const startTime = Date.now();
-    const runId = input.runId || `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const runId =
+      input.runId ||
+      "run-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
     const conversationId = input.conversationId;
-
-    // Auto extract user facts into long-term memory
-    if (this.memoryService && input.userPrompt) {
-      const extracted = this.memoryService.extractFromText(input.userPrompt);
-      for (const item of extracted) {
-        this.memoryService.remember(item.key, item.value, "chat_auto_extract");
-      }
-    }
 
     const runAbortController = new AbortController();
     if (input.signal) {
@@ -77,223 +147,554 @@ export class FireflyHarness implements IAgentCore {
     }
     this.activeRuns.set(runId, runAbortController);
 
-    // Timeout guard for entire run
+    let timedOut = false;
     let runTimeoutId: NodeJS.Timeout | null = null;
     if (this.config.totalTimeoutMs > 0) {
       runTimeoutId = setTimeout(() => {
+        timedOut = true;
         runAbortController.abort();
       }, this.config.totalTimeoutMs);
     }
 
-    emitter?.({ type: "run_created", runId });
+    const isPlanningMode = this.planner.shouldPlan(
+      input.userPrompt,
+      this.toolRegistry.getToolSchemas().length,
+      input.planMode,
+    );
 
-    let status: HarnessRunStatus = "running";
-    let roundsCount = 0;
-    let toolCallsCount = 0;
-    let errorMsg: string | undefined;
+    let plan: Plan | undefined;
+    let planContextStr = "";
 
-    // 1. Build Memory Context
-    const memoryContext =
-      input.memoryContext ?? this.memoryService?.buildMemoryContext(input.userPrompt) ?? "";
+    if (isPlanningMode && input.userPrompt) {
+      plan = this.planner.createPlan(runId, input.userPrompt, input.customSteps);
+      planContextStr = formatPlanContext(plan);
+      this.eventBus.emit({
+        type: "plan:created",
+        runId,
+        planId: plan.planId,
+        goal: plan.goal,
+        stepsCount: plan.steps.length,
+        timestamp: Date.now(),
+      });
+      this.eventBus.emit({
+        type: "plan:started",
+        runId,
+        planId: plan.planId,
+        timestamp: Date.now(),
+      });
+    }
 
-    // 2. Build initial context messages & system prompt
-    const systemPrompt =
-      input.systemPromptOverride ||
-      buildFireflySystemPrompt(input.characterState, memoryContext);
-
-    let messages = buildRoundMessages({
+    const initialMessages = await this.contextManager.buildInitialMessagesWithSlots({
       userPrompt: input.userPrompt,
       history: input.history,
       characterState: input.characterState,
-      memoryContext,
+      memoryContext: input.memoryContext,
+      planContext: planContextStr,
       systemPromptOverride: input.systemPromptOverride,
+      toolSchemas: this.toolRegistry.getToolSchemas(),
     });
 
-    // Save initial checkpoint
-    this.checkpointStore.save({
+    const session = new AgentSession({ initialMessages });
+    const executionState: RunExecutionState = {
       runId,
-      conversationId,
-      round: 0,
-      status,
-      transcript: messages,
-      toolCallsCount,
-      createdAt: startTime,
+      sessionId: conversationId || "session-" + runId,
+      step: 0,
+      runState: "initializing",
+      stepState: "pending",
+      activeToolCalls: [],
+      recoveryAttempts: 0,
+      startedAt: startTime,
       updatedAt: startTime,
+      plan,
+    };
+
+    executionState.runState = "running";
+    await this.checkpointManager.createCheckpoint(
+      executionState,
+      session.getMessages(),
+      "run_initialized",
+    );
+
+    this.eventBus.emit({
+      type: "agent:started",
+      runId,
+      prompt: input.userPrompt,
+      timestamp: startTime,
     });
+
+    let status: AgentRunStatus = "running";
+    let stepCount = 0;
+    let toolCallsCount = 0;
+    let errorMsg: string | undefined;
 
     try {
-      // Main Agent Loop
-      while (roundsCount < this.config.maxRounds) {
+      while (stepCount < this.config.maxRounds) {
         if (runAbortController.signal.aborted) {
-          status = "cancelled";
+          status = timedOut ? "timeout" : "cancelled";
+          if (timedOut) {
+            errorMsg = "Run timed out after " + this.config.totalTimeoutMs + "ms";
+          }
           break;
         }
 
-        roundsCount++;
-        const roundId = `${runId}:r${roundsCount}`;
-        emitter?.({ type: "round_start", roundId, round: roundsCount });
+        stepCount++;
+        executionState.step = stepCount;
+        executionState.stepState = "waiting_llm";
+        executionState.updatedAt = Date.now();
 
-        // Tool schemas
-        const toolSchemas = this.toolRegistry.getToolSchemas();
+        if (plan && plan.status === "running") {
+          const currentPlanStep = plan.steps[plan.currentStepIndex];
+          if (currentPlanStep) {
+            this.eventBus.emit({
+              type: "plan:step-start",
+              runId,
+              planId: plan.planId,
+              stepIndex: plan.currentStepIndex,
+              description: currentPlanStep.description,
+              timestamp: Date.now(),
+            });
+          }
+        }
 
-        // Mid-loop compaction check & context usage report
-        const compactionRes = compactMessagesIfNeeded(messages, systemPrompt, toolSchemas, this.config);
-        messages = compactionRes.messages;
-
-        const usageSnapshot = computeTokenBudget(systemPrompt, toolSchemas, messages, this.config);
-        emitter?.({ type: "context_usage", snapshot: usageSnapshot });
-
-        // Round LLM Call
-        status = "running";
-        const roundResponse = await this.provider.generateCompletion(
-          {
-            messages,
-            tools: toolSchemas.length > 0 ? toolSchemas : undefined,
-          },
-          runAbortController.signal,
-          (delta) => {
-            emitter?.({ type: "progress_text", delta });
-          },
+        await this.checkpointManager.createCheckpoint(
+          executionState,
+          session.getMessages(),
+          "step_start",
         );
 
+        this.eventBus.emit({
+          type: "agent:step-start",
+          runId,
+          step: stepCount,
+          timestamp: Date.now(),
+        });
+
+        const toolSchemas = this.toolRegistry.getToolSchemas();
+
+        this.eventBus.emit({
+          type: "agent:llm-request",
+          runId,
+          step: stepCount,
+          messageCount: session.size(),
+          timestamp: Date.now(),
+        });
+
+        let roundResponse: ChatCompletionResponse;
+        while (true) {
+          try {
+            roundResponse = await requestHarnessCompletion(
+              this.provider,
+              {
+                messages: session.getMessages(),
+                tools: toolSchemas.length > 0 ? toolSchemas : undefined,
+              },
+              runAbortController.signal,
+              (delta) => {
+                this.eventBus.emit({
+                  type: "agent:progress",
+                  runId,
+                  step: stepCount,
+                  delta,
+                  timestamp: Date.now(),
+                });
+              },
+            );
+            break;
+          } catch (providerErr: unknown) {
+            if (runAbortController.signal.aborted) {
+              throw providerErr;
+            }
+
+            executionState.recoveryAttempts++;
+            const decision = this.recoveryManager.evaluate(
+              providerErr,
+              executionState.recoveryAttempts,
+            );
+
+            this.eventBus.emit({
+              type: "recovery:started",
+              runId,
+              step: stepCount,
+              errorType: decision.classifiedError.type,
+              attempt: executionState.recoveryAttempts,
+              timestamp: Date.now(),
+            });
+            await this.checkpointManager.createCheckpoint(
+              executionState,
+              session.getMessages(),
+              "recovery_started",
+            );
+
+            if (decision.action === "fail_run") {
+              this.eventBus.emit({
+                type: "recovery:failed",
+                runId,
+                step: stepCount,
+                reason: decision.reason,
+                timestamp: Date.now(),
+              });
+              throw providerErr;
+            }
+
+            if (decision.action === "retry_with_compaction") {
+              executionState.runState = "compacting";
+              const projected = this.contextManager.project({
+                userPrompt: input.userPrompt,
+                history: session.getMessages(),
+                forceCompactionStrategy: "emergency",
+              });
+              session.clear();
+              for (const message of projected.messages) {
+                session.append(message);
+              }
+              executionState.runState = "running";
+              await this.checkpointManager.createCheckpoint(
+                executionState,
+                session.getMessages(),
+                "compaction_completed",
+              );
+              this.eventBus.emit({
+                type: "recovery:completed",
+                runId,
+                step: stepCount,
+                action: "retry_with_compaction",
+                timestamp: Date.now(),
+              });
+              continue;
+            }
+
+            if (decision.action === "retry_with_backoff" || decision.action === "retry_immediate") {
+              if (decision.delayMs > 0) {
+                await new Promise((resolve) => setTimeout(resolve, decision.delayMs));
+              }
+              this.eventBus.emit({
+                type: "recovery:completed",
+                runId,
+                step: stepCount,
+                action: decision.action,
+                timestamp: Date.now(),
+              });
+              continue;
+            }
+
+            throw providerErr;
+          }
+        }
+
         if (runAbortController.signal.aborted) {
-          status = "cancelled";
-          emitter?.({ type: "round_end", roundId, round: roundsCount });
+          status = timedOut ? "timeout" : "cancelled";
+          if (timedOut) {
+            errorMsg = "Run timed out after " + this.config.totalTimeoutMs + "ms";
+          }
           break;
         }
 
         const asstMessage = roundResponse.message;
+        await this.checkpointManager.createCheckpoint(
+          executionState,
+          session.getMessages(),
+          "llm_completed",
+        );
 
-        // Case A: LLM requested Tool Calls
+        let roundObservation = "";
+        let roundHasError = false;
+
         if (asstMessage.toolCalls && asstMessage.toolCalls.length > 0) {
-          status = "waiting_tool";
-          toolCallsCount += asstMessage.toolCalls.length;
-
-          // Assistant message with toolCalls MUST be recorded to transcript before executing tool round
+          executionState.stepState = "waiting_tool";
           const asstEntry: ChatMessage = {
-            id: `asst-${Date.now()}-${roundsCount}`,
+            id: "asst-" + Date.now() + "-" + stepCount,
             role: "assistant",
             content: asstMessage.content || "",
             toolCalls: asstMessage.toolCalls,
             timestamp: Date.now(),
           };
-          messages.push(asstEntry);
+          session.append(asstEntry);
 
-          // Emit tool_start events
-          for (const tc of asstMessage.toolCalls) {
-            emitter?.({ type: "tool_start", toolCallId: tc.id, toolName: tc.name, args: tc.arguments });
-          }
+          this.eventBus.emit({
+            type: "agent:assistant-message",
+            runId,
+            step: stepCount,
+            content: asstMessage.content || "",
+            toolCalls: asstMessage.toolCalls,
+            timestamp: Date.now(),
+          });
 
-          // Execute Tool Round
+          executionState.activeToolCalls = asstMessage.toolCalls.map((call) => ({
+            toolCallId: call.id,
+            name: call.name,
+            arguments: call.arguments,
+            status: "running" as const,
+            sideEffectState: "started" as const,
+          }));
+
+          const toolCallsBeforeRound = toolCallsCount;
           const toolObservations = await executeToolRound(asstMessage.toolCalls, {
-            dispatcher: this.toolDispatcher,
-            toolTimeoutMs: this.config.toolTimeoutMs,
+            executionEngine: this.executionEngine,
+            runId,
+            step: stepCount,
             userQuery: input.userPrompt,
             conversationId,
             signal: runAbortController.signal,
+            toolCallsCount: toolCallsBeforeRound,
+            maxToolCallsPerRun:
+              this.executionEngine.getPolicyConfig().maxToolCallsPerRun || 25,
+            onCallStart: (call) => {
+              toolCallsCount++;
+              this.eventBus.emit({
+                type: "agent:tool-call",
+                runId,
+                step: stepCount,
+                toolCallId: call.id,
+                toolName: call.name,
+                args: call.arguments,
+                timestamp: Date.now(),
+              });
+            },
           });
 
-          // Append each Tool Result to transcript
-          for (const obs of toolObservations) {
-            emitter?.({ type: "tool_end", toolCallId: obs.call.id, outcome: obs.outcome, preview: obs.preview });
-            const toolEntry: ChatMessage = {
-              id: `tool-${Date.now()}-${obs.call.id}`,
-              role: "tool",
-              content: obs.result.output,
-              toolCallId: obs.call.id,
+          for (const observation of toolObservations) {
+            const { call, result } = observation;
+            roundObservation += "[" + call.name + "]: " + result.output + "\n";
+            if (result.isError) roundHasError = true;
+
+            const activeToolCall = executionState.activeToolCalls.find(
+              (active) => active.toolCallId === call.id,
+            );
+            if (activeToolCall) {
+              activeToolCall.status = result.isError ? "failed" : "succeeded";
+              activeToolCall.sideEffectState = result.isError ? "failed" : "completed";
+              activeToolCall.output = result.output;
+            }
+
+            this.eventBus.emit({
+              type: "agent:tool-result",
+              runId,
+              step: stepCount,
+              toolCallId: result.toolCallId,
+              toolName: result.name,
+              output: result.output,
+              isError: !!result.isError,
               timestamp: Date.now(),
-            };
-            messages.push(toolEntry);
+            });
+
+            session.append({
+              id: "tool-" + Date.now() + "-" + call.id,
+              role: "tool",
+              content: result.output,
+              toolCallId: call.id,
+              timestamp: Date.now(),
+            });
           }
 
-          // Checkpoint update
-          this.checkpointStore.save({
-            runId,
-            conversationId,
-            round: roundsCount,
-            status,
-            transcript: messages,
-            toolCallsCount,
-            createdAt: startTime,
-            updatedAt: Date.now(),
+          await this.checkpointManager.createCheckpoint(
+            executionState,
+            session.getMessages(),
+            "tool_round_completed",
+          );
+
+          if (plan && plan.status === "running") {
+            const currentPlanStepIndex = plan.currentStepIndex;
+            const advance = this.planner.advanceStep(plan, roundObservation, roundHasError);
+            this.eventBus.emit({
+              type: "plan:verification",
+              runId,
+              planId: plan.planId,
+              stepIndex: currentPlanStepIndex,
+              result: advance.verification.status,
+              timestamp: Date.now(),
+            });
+
+            if (advance.action === "next" || advance.action === "complete") {
+              this.eventBus.emit({
+                type: "plan:step-completed",
+                runId,
+                planId: plan.planId,
+                stepIndex: currentPlanStepIndex,
+                observation: roundObservation,
+                timestamp: Date.now(),
+              });
+            }
+            if (advance.action === "complete") {
+              this.eventBus.emit({
+                type: "plan:completed",
+                runId,
+                planId: plan.planId,
+                stepsCount: plan.steps.length,
+                timestamp: Date.now(),
+              });
+            } else if (advance.action === "fail") {
+              this.eventBus.emit({
+                type: "plan:step-failed",
+                runId,
+                planId: plan.planId,
+                stepIndex: currentPlanStepIndex,
+                reason: advance.verification.reason || "Step failed",
+                timestamp: Date.now(),
+              });
+              this.eventBus.emit({
+                type: "plan:failed",
+                runId,
+                planId: plan.planId,
+                reason: advance.verification.reason || "Step verification failure",
+                timestamp: Date.now(),
+              });
+            }
+          }
+        } else {
+          const finalContent = asstMessage.content || "";
+          session.append({
+            id: "asst-" + Date.now() + "-" + stepCount,
+            role: "assistant",
+            content: finalContent,
+            timestamp: Date.now(),
           });
 
-          emitter?.({ type: "round_end", roundId, round: roundsCount });
+          if (plan && plan.status === "running") {
+            const currentPlanStepIndex = plan.currentStepIndex;
+            const advance = this.planner.advanceStep(plan, finalContent, false);
+            this.eventBus.emit({
+              type: "plan:verification",
+              runId,
+              planId: plan.planId,
+              stepIndex: currentPlanStepIndex,
+              result: advance.verification.status,
+              timestamp: Date.now(),
+            });
+            this.eventBus.emit({
+              type: "plan:step-completed",
+              runId,
+              planId: plan.planId,
+              stepIndex: currentPlanStepIndex,
+              observation: finalContent,
+              timestamp: Date.now(),
+            });
+            this.eventBus.emit({
+              type: "plan:completed",
+              runId,
+              planId: plan.planId,
+              stepsCount: plan.steps.length,
+              timestamp: Date.now(),
+            });
+          }
 
-          // Continue to next round so LLM can observe tool results and formulate answer
-          continue;
+          this.eventBus.emit({
+            type: "agent:assistant-message",
+            runId,
+            step: stepCount,
+            content: finalContent,
+            timestamp: Date.now(),
+          });
+          this.eventBus.emit({
+            type: "agent:final-answer",
+            runId,
+            content: finalContent,
+            timestamp: Date.now(),
+          });
+          executionState.stepState = "completed";
+          status = "completed";
+          break;
         }
-
-        // Case B: LLM returned final text response (No tool calls)
-        const finalAsstEntry: ChatMessage = {
-          id: `asst-${Date.now()}`,
-          role: "assistant",
-          content: asstMessage.content || "",
-          timestamp: Date.now(),
-        };
-        messages.push(finalAsstEntry);
-
-        emitter?.({ type: "final_answer", content: asstMessage.content || "" });
-        emitter?.({ type: "round_end", roundId, round: roundsCount });
-
-        status = "completed";
-        break;
       }
 
-      if (roundsCount >= this.config.maxRounds && status !== "completed") {
+      if (stepCount >= this.config.maxRounds && status === "running") {
         status = "completed";
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (runAbortController.signal.aborted) {
-        status = "cancelled";
+        status = timedOut ? "timeout" : "cancelled";
+        if (timedOut) {
+          errorMsg = "Run timed out after " + this.config.totalTimeoutMs + "ms";
+        }
       } else {
         status = "error";
-        const msg = err?.message ? String(err.message) : String(err);
-        errorMsg = msg;
-        emitter?.({ type: "run_error", runId, error: msg });
+        const message = err instanceof Error ? err.message : String(err);
+        errorMsg = message;
+        this.eventBus.emit({
+          type: "agent:error",
+          runId,
+          error: message,
+          timestamp: Date.now(),
+        });
       }
     } finally {
       if (runTimeoutId) clearTimeout(runTimeoutId);
       this.activeRuns.delete(runId);
     }
 
-    const lastAsst = messages.filter((m) => m.role === "assistant").pop();
-    // Factual statuses only. A real execution error must NEVER be disguised
-    // as a persona reply ("我在这里，开拓者。") — error runs produce empty
-    // finalText so no downstream consumer can broadcast a fake response.
-    const fallbackText = status === "cancelled" ? "（对话已被取消）" : "";
-    const finalText: string =
+    if (status === "cancelled") {
+      executionState.stepState = "cancelled";
+      if (plan && (plan.status === "running" || plan.status === "draft" || plan.status === "ready")) {
+        plan.status = "cancelled";
+        this.eventBus.emit({
+          type: "plan:cancelled",
+          runId,
+          planId: plan.planId,
+          timestamp: Date.now(),
+        });
+      }
+      this.eventBus.emit({
+        type: "agent:cancelled",
+        runId,
+        timestamp: Date.now(),
+      });
+    } else if (status === "timeout" || status === "error") {
+      executionState.stepState = "failed";
+    }
+
+    executionState.runState =
+      status === "completed"
+        ? "completed"
+        : status === "cancelled"
+          ? "cancelled"
+          : status === "timeout"
+            ? "timed_out"
+            : "failed";
+    await this.checkpointManager.createCheckpoint(
+      executionState,
+      session.getMessages(),
+      "run_completed",
+    );
+
+    const lastAssistant = session
+      .getMessages()
+      .filter((message) => message.role === "assistant")
+      .pop();
+    const fallbackText =
+      status === "cancelled"
+        ? "（对话已被取消）"
+        : status === "timeout"
+          ? "（对话请求已超时）"
+          : "";
+    const finalText =
       status === "error"
         ? ""
-        : lastAsst && typeof lastAsst.content === "string" && lastAsst.content.length > 0
-          ? lastAsst.content
+        : lastAssistant && lastAssistant.content.length > 0
+          ? lastAssistant.content
           : fallbackText;
 
-    const result: HarnessResult = {
+    const durationMs = Date.now() - startTime;
+    const result: AgentRunResult = {
       runId,
       conversationId,
       status,
       finalText,
-      transcript: messages,
+      transcript: session.getMessages(),
       toolCallsCount,
-      roundsCount,
+      roundsCount: stepCount,
       error: errorMsg,
-      durationMs: Date.now() - startTime,
+      durationMs,
     };
 
-    // Save terminal checkpoint
-    this.checkpointStore.save({
+    this.eventBus.emit({
+      type: "agent:finished",
       runId,
-      conversationId,
-      round: roundsCount,
       status,
-      transcript: messages,
+      durationMs,
       toolCallsCount,
-      createdAt: startTime,
-      updatedAt: Date.now(),
+      stepsCount: stepCount,
+      timestamp: Date.now(),
     });
 
-    emitter?.({ type: "run_completed", runId, result });
     return result;
   }
 
@@ -308,7 +709,7 @@ export class FireflyHarness implements IAgentCore {
   }
 
   cancelAll(): void {
-    for (const [id, controller] of this.activeRuns.entries()) {
+    for (const controller of this.activeRuns.values()) {
       controller.abort();
     }
     this.activeRuns.clear();

@@ -1,9 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { FireflyTarget } from "../shared/firefly-actions";
 import type { CharacterStateData, CareActionType } from "../shared/firefly-state";
-import type { StartTtsRequest, TtsStartResult, TtsSessionEvent } from "../shared/tts-session";
+import type { StartTtsRequest, TtsPlaybackStopRequest, TtsStartResult, TtsSessionEvent } from "../shared/tts-session";
 import type { TtsSettings } from "../shared/tts-types";
 import type { ChatMessage } from "../shared/chat-types";
+import type { ProactiveLinePayload } from "../shared/proactive-types";
 
 /**
  * Sandbox-safe channel table (mirror of src/shared/ipc-channels.ts).
@@ -22,6 +23,8 @@ const IPC = {
   // Window & System
   WINDOW_MINIMIZE: "window:minimize",
   WINDOW_HIDE: "window:hide",
+  WINDOW_CLOSE: "window:close",
+  WINDOW_MAXIMIZE_TOGGLE: "window:maximize-toggle",
   WINDOW_QUIT: "window:quit",
   PET_SET_INTERACTIVE: "pet:set-interactive",
   PET_MOVE_BY: "pet:move-by",
@@ -34,6 +37,7 @@ const IPC = {
   PET_SHOW_CONTEXT_MENU: "pet:show-context-menu",
   PET_VISIBILITY_CHANGED: "pet:visibility-changed",
   PET_SPEAKING_CHANGED: "pet:speaking-changed",
+  PET_PROACTIVE_LINE: "pet:proactive-line",
   PET_INTERACTION: "pet:interaction",
   WINDOW_OPEN_CHAT: "window:open-chat",
   WINDOW_OPEN_STATUS: "window:open-status",
@@ -43,8 +47,6 @@ const IPC = {
 
   // Live2D / Action Execution
   LIVE2D_PLAY_ACTION: "live2d:play-action",
-  LIVE2D_MOUTH_START: "live2d:mouth-start",
-  LIVE2D_MOUTH_STOP: "live2d:mouth-stop",
 
   // Character State & Care
   STATE_GET: "state:get",
@@ -55,6 +57,9 @@ const IPC = {
   TTS_SESSION_START: "tts:session-start",
   TTS_SESSION_CANCEL: "tts:session-cancel",
   TTS_SESSION_EVENT: "tts:session-event",
+  TTS_ACQUIRE_PLAYBACK: "tts:acquire-playback",
+  TTS_RELEASE_PLAYBACK: "tts:release-playback",
+  TTS_STOP_PLAYBACK: "tts:stop-playback",
   TTS_GET_SETTINGS: "tts:get-settings",
   TTS_SAVE_SETTINGS: "tts:save-settings",
 
@@ -71,19 +76,42 @@ const IPC = {
   PROVIDER_STATUS_CHANGED: "provider:status-changed",
 } as const;
 
+async function tracePreloadTtsText(requestId: string, text: string): Promise<void> {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const sha256 = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
+  const safePreview = Array.from(text)
+    .slice(0, 40)
+    .join("")
+    .replace(/[\u0000-\u001f\u007f]/g, "�");
+  console.log(
+    `[TTS Text Integrity] boundary=preload.startSession requestId=${requestId} ` +
+      `utf16Length=${text.length} utf8ByteLength=${bytes.byteLength} sha256=${sha256} ` +
+      `preview=${JSON.stringify(safePreview)}`,
+  );
+}
+
 contextBridge.exposeInMainWorld("firefly", {
   minimize: () => ipcRenderer.send(IPC.WINDOW_MINIMIZE),
   hide: () => ipcRenderer.send(IPC.WINDOW_HIDE),
+  close: () => ipcRenderer.send(IPC.WINDOW_CLOSE),
+  toggleMaximize: () => ipcRenderer.send(IPC.WINDOW_MAXIMIZE_TOGGLE),
   quit: () => ipcRenderer.send(IPC.WINDOW_QUIT),
   setInteractive: (interactive: boolean) => ipcRenderer.invoke(IPC.PET_SET_INTERACTIVE, interactive),
   moveBy: (dx: number, dy: number) => ipcRenderer.send(IPC.PET_MOVE_BY, { dx, dy }),
   moveTo: (x: number, y: number) => ipcRenderer.send(IPC.PET_MOVE_TO, { x, y }),
   setDragging: (isDragging: boolean) => ipcRenderer.send(IPC.PET_SET_DRAGGING, isDragging),
-  setSpeaking: (isSpeaking: boolean) => ipcRenderer.send(IPC.PET_SPEAKING_CHANGED, isSpeaking),
+  setSpeaking: (isSpeaking: boolean, requestId?: string) =>
+    ipcRenderer.send(IPC.PET_SPEAKING_CHANGED, { isSpeaking, requestId }),
   onSpeakingChanged: (cb: (isSpeaking: boolean) => void) => {
     const listener = (_: unknown, isSpeaking: boolean) => cb(isSpeaking);
     ipcRenderer.on(IPC.PET_SPEAKING_CHANGED, listener);
     return () => { ipcRenderer.removeListener(IPC.PET_SPEAKING_CHANGED, listener); };
+  },
+  onProactiveLine: (cb: (payload: ProactiveLinePayload) => void) => {
+    const listener = (_: unknown, payload: ProactiveLinePayload) => cb(payload);
+    ipcRenderer.on(IPC.PET_PROACTIVE_LINE, listener);
+    return () => { ipcRenderer.removeListener(IPC.PET_PROACTIVE_LINE, listener); };
   },
   captureFrame: () => ipcRenderer.invoke(IPC.PET_CAPTURE_FRAME),
   getCursorPosition: () => ipcRenderer.invoke(IPC.PET_GET_CURSOR_POS),
@@ -91,6 +119,11 @@ contextBridge.exposeInMainWorld("firefly", {
   openChat: () => ipcRenderer.send(IPC.WINDOW_OPEN_CHAT),
   openStatus: () => ipcRenderer.send(IPC.WINDOW_OPEN_STATUS),
   openSettings: () => ipcRenderer.send(IPC.WINDOW_OPEN_SETTINGS),
+  onOpenSettings: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on(IPC.WINDOW_OPEN_SETTINGS, listener);
+    return () => { ipcRenderer.removeListener(IPC.WINDOW_OPEN_SETTINGS, listener); };
+  },
   openSummary: () => ipcRenderer.send(IPC.WINDOW_OPEN_SUMMARY),
   onSummaryUpdated: (cb: (summary: any) => void) => {
     const listener = (_: unknown, summary: any) => cb(summary);
@@ -131,8 +164,22 @@ contextBridge.exposeInMainWorld("characterState", {
 });
 
 contextBridge.exposeInMainWorld("tts", {
-  startSession: (request: StartTtsRequest): Promise<TtsStartResult> => ipcRenderer.invoke(IPC.TTS_SESSION_START, request),
+  startSession: async (request: StartTtsRequest): Promise<TtsStartResult> => {
+    try {
+      await tracePreloadTtsText(request.requestId, request.speechText);
+    } catch {
+      console.warn(`[TTS Text Integrity] boundary=preload.startSession requestId=${request.requestId} unavailable`);
+    }
+    return ipcRenderer.invoke(IPC.TTS_SESSION_START, request);
+  },
   cancelSession: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.TTS_SESSION_CANCEL, requestId),
+  acquirePlayback: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.TTS_ACQUIRE_PLAYBACK, requestId),
+  releasePlayback: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.TTS_RELEASE_PLAYBACK, requestId),
+  onPlaybackStop: (cb: (request: TtsPlaybackStopRequest) => void) => {
+    const listener = (_unknown: unknown, request: TtsPlaybackStopRequest) => cb(request);
+    ipcRenderer.on(IPC.TTS_STOP_PLAYBACK, listener);
+    return () => { ipcRenderer.removeListener(IPC.TTS_STOP_PLAYBACK, listener); };
+  },
   getSettings: (): Promise<TtsSettings> => ipcRenderer.invoke(IPC.TTS_GET_SETTINGS),
   saveSettings: (settings: TtsSettings): Promise<boolean> => ipcRenderer.invoke(IPC.TTS_SAVE_SETTINGS, settings),
   onSessionEvent: (cb: (event: TtsSessionEvent) => void) => {

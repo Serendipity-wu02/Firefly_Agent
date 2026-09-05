@@ -8,6 +8,12 @@ export type ProactiveTriggerReason =
   | "idle_presence"
   | "manual";
 
+export interface ProactiveLinePayload {
+  text: string;
+  actionId: string;
+  reason: ProactiveTriggerReason;
+}
+
 export type ProactiveEventKind =
   | "proactive_triggered"
   | "proactive_skipped"

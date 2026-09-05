@@ -18,7 +18,7 @@ echo [OK] Node.js 版本满足要求。
 
 echo.
 echo [2/4] 使用项目随附 npm 11 安装项目依赖...
-node tools/npm.mjs install
+node tools/npm/npm.mjs install
 if errorlevel 1 (
     echo [错误] npm install 失败
     pause
@@ -27,7 +27,7 @@ if errorlevel 1 (
 
 echo.
 echo [3/4] 执行环境基线自检...
-node tools/test_environment_baseline.mjs
+node tools/test/distribution/environment-baseline.test.mjs
 if errorlevel 1 (
     echo [错误] 环境基线自检未通过
     pause
@@ -36,7 +36,7 @@ if errorlevel 1 (
 
 echo.
 echo [4/4] 编译构建项目...
-node tools/npm.mjs run build
+node tools/npm/npm.mjs run build
 if errorlevel 1 (
     echo [错误] npm run build 失败
     pause
@@ -46,7 +46,7 @@ if errorlevel 1 (
 echo.
 echo ========================================================
 echo  [Firefly-Pet] 环境初始化成功！
-echo  开发启动指令: node tools/npm.mjs run dev
-echo  测试执行指令: node tools/npm.mjs test
+echo  开发启动指令: node tools/npm/npm.mjs run dev
+echo  测试执行指令: node tools/npm/npm.mjs test
 echo ========================================================
 pause

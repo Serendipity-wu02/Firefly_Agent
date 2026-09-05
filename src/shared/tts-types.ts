@@ -28,8 +28,9 @@ export interface GptsovitsConfig {
   baseUrl: string;
   refAudioPath: string;
   promptText: string;
-  format?: "wav" | "mp3";
+  format?: "wav";
   speed?: number;
+  seed?: number;
 }
 
 export interface TtsSettings {
@@ -43,7 +44,7 @@ export interface TtsSettings {
 
 export const DEFAULT_TTS_SETTINGS: TtsSettings = {
   engine: "gptsovits",
-  speed: 1.0,
+  speed: 0.9,
   volume: 1.0,
   autoPlay: true,
   voiceProfile: "firefly-v2proplus",
@@ -52,6 +53,7 @@ export const DEFAULT_TTS_SETTINGS: TtsSettings = {
     refAudioPath: "",
     promptText: "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！",
     format: "wav",
-    speed: 1.0,
+    speed: 0.9,
+    seed: 5,
   },
 };

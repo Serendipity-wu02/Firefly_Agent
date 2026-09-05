@@ -1,4 +1,5 @@
 import type { StartTtsRequest, TtsStartResult, TtsSessionEvent, VoiceProsodyHint } from "../../shared/tts-session";
+import { traceTtsTextIntegrity } from "../../shared/tts-text-integrity";
 import { debugLog } from "../debug-log";
 
 export type TtsPlaybackStatus = "idle" | "synthesizing" | "playing" | "paused" | "completed" | "error";
@@ -15,6 +16,13 @@ export interface TtsSpeakOptions {
   behaviorType?: string;
   prosodyHint?: VoiceProsodyHint;
   correlationId?: string;
+  volume?: number;
+}
+
+interface TtsCompletion {
+  requestId: string;
+  resolve: () => void;
+  settled: boolean;
 }
 
 export class TtsPlaybackManager {
@@ -22,12 +30,17 @@ export class TtsPlaybackManager {
   private currentRequestId: string | null = null;
   private currentMessageId: string | null = null;
   private currentObjectUrl: string | null = null;
+  private currentCompletion: TtsCompletion | null = null;
+  private currentPlaybackResolve: (() => void) | null = null;
   private status: TtsPlaybackStatus = "idle";
   private listeners: Array<(snapshot: TtsPlaybackSnapshot) => void> = [];
 
   constructor() {
     if (typeof window !== "undefined" && window.tts?.onSessionEvent) {
       window.tts.onSessionEvent(this.handleSessionEvent);
+    }
+    if (typeof window !== "undefined" && window.tts?.onPlaybackStop) {
+      window.tts.onPlaybackStop(({ requestId }) => this.stop(requestId));
     }
   }
 
@@ -51,16 +64,15 @@ export class TtsPlaybackManager {
       status: this.status,
       error,
     };
-    for (const l of this.listeners) {
-      l(snapshot);
+    for (const listener of this.listeners) {
+      listener(snapshot);
     }
   }
 
   private handleSessionEvent = (event: TtsSessionEvent): void => {
     if (event.requestId !== this.currentRequestId) return;
     if (event.type === "error") {
-      this.setStatus("error", event.message);
-      this.setSpeaking(false);
+      this.finishRequest(event.requestId, "error", event.message);
     }
   };
 
@@ -69,10 +81,63 @@ export class TtsPlaybackManager {
     this.notify(error);
   }
 
-  private setSpeaking(isSpeaking: boolean): void {
+  private setSpeaking(isSpeaking: boolean, requestId: string): void {
     try {
-      window.firefly?.setSpeaking(isSpeaking);
+      window.firefly?.setSpeaking(isSpeaking, requestId);
     } catch {}
+  }
+
+  private isCurrent(requestId: string, audio?: HTMLAudioElement): boolean {
+    return this.currentRequestId === requestId && (!audio || this.currentAudio === audio);
+  }
+
+  private createCompletion(requestId: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.currentCompletion = { requestId, resolve, settled: false };
+    });
+  }
+
+  private resolveCompletion(requestId: string): void {
+    if (!this.currentCompletion || this.currentCompletion.requestId !== requestId) return;
+    if (this.currentCompletion.settled) return;
+    this.currentCompletion.settled = true;
+    const resolve = this.currentCompletion.resolve;
+    this.currentCompletion = null;
+    resolve();
+  }
+
+  private requestRelease(requestId: string): void {
+    const release = window.tts?.releasePlayback(requestId);
+    if (release) void release.catch(() => undefined);
+  }
+
+  private requestCancel(requestId: string): void {
+    const cancel = window.tts?.cancelSession(requestId);
+    if (cancel) void cancel.catch(() => undefined);
+  }
+
+  private resolveCurrentPlayback(): void {
+    const resolve = this.currentPlaybackResolve;
+    this.currentPlaybackResolve = null;
+    resolve?.();
+  }
+
+  private finishRequest(
+    requestId: string,
+    status: TtsPlaybackStatus,
+    error?: string,
+    audio: HTMLAudioElement | null = this.currentAudio,
+    objectUrl: string | null = this.currentObjectUrl,
+  ): void {
+    if (!this.isCurrent(requestId)) return;
+
+    this.currentRequestId = null;
+    this.setSpeaking(false, requestId);
+    this.requestRelease(requestId);
+    this.resolveCurrentPlayback();
+    this.cleanupAudio(audio, objectUrl);
+    this.setStatus(status, error);
+    this.resolveCompletion(requestId);
   }
 
   async speak(text: string, options: TtsSpeakOptions = {}): Promise<void> {
@@ -83,20 +148,29 @@ export class TtsPlaybackManager {
     const requestId = `tts-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     this.currentRequestId = requestId;
     this.currentMessageId = options.messageId || requestId;
+    const completion = this.createCompletion(requestId);
     this.setStatus("synthesizing");
-    debugLog(
-      `[TTS Trace] request: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} ` +
-        `behavior=${options.behaviorType ?? "n/a"} chars=${text.length}`,
-    );
 
     try {
+      try {
+        await traceTtsTextIntegrity("renderer.speak", requestId, text);
+      } catch {
+        debugLog(`[TTS Text Integrity] boundary=renderer.speak requestId=${requestId} unavailable`);
+      }
+
+      debugLog(
+        `[TTS Trace] request: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} ` +
+          `behavior=${options.behaviorType ?? "n/a"} chars=${text.length}`,
+      );
+
       if (!window.tts) {
         debugLog(`[TTS Trace] playback-error: window.tts is unavailable`);
-        this.setStatus("error", "TTS preload bridge unavailable");
-        this.setSpeaking(false);
+        this.finishRequest(requestId, "error", "TTS preload bridge unavailable");
+        await completion;
         return;
       }
-      const res: TtsStartResult = await window.tts.startSession({
+
+      const request: StartTtsRequest = {
         requestId,
         messageId: options.messageId,
         speechText: text,
@@ -104,16 +178,20 @@ export class TtsPlaybackManager {
         behaviorType: options.behaviorType,
         prosodyHint: options.prosodyHint,
         correlationId: options.correlationId,
-      });
+      };
+      const res: TtsStartResult = await window.tts.startSession(request);
 
-      if (this.currentRequestId !== requestId) return;
+      if (!this.isCurrent(requestId)) {
+        await completion;
+        return;
+      }
 
       if (res.status === "error") {
         debugLog(
           `[TTS Trace] playback-error: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} error="${res.error}"`,
         );
-        this.setStatus("error", res.error);
-        this.setSpeaking(false);
+        this.finishRequest(requestId, "error", res.error);
+        await completion;
         return;
       }
 
@@ -121,8 +199,8 @@ export class TtsPlaybackManager {
         debugLog(
           `[TTS Trace] skipped: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} reason=${res.reason ?? "off"}`,
         );
-        this.setStatus("idle");
-        this.setSpeaking(false);
+        this.finishRequest(requestId, "idle");
+        await completion;
         return;
       }
 
@@ -130,92 +208,161 @@ export class TtsPlaybackManager {
         debugLog(
           `[TTS Trace] audio-created: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} format=${res.format} cached=${res.cached} base64Len=${res.base64.length}`,
         );
-        await this.playBase64(res.base64, res.format);
+        await this.playBase64(requestId, res.base64, res.format, options.volume);
       } else {
         const noAudioErr = "TTS 服务返回成功但未提供音频数据";
         debugLog(`[TTS Trace] playback-error: requestId=${requestId} detail="${noAudioErr}"`);
-        this.setStatus("error", noAudioErr);
-        this.setSpeaking(false);
+        this.finishRequest(requestId, "error", noAudioErr);
       }
     } catch (err: any) {
-      if (this.currentRequestId === requestId) {
+      if (this.isCurrent(requestId)) {
         const errMsg = err?.message || String(err);
         debugLog(
           `[TTS Trace] playback-error: requestId=${requestId} correlationId=${options.correlationId ?? "n/a"} message="${errMsg}"`,
         );
-        this.setStatus("error", errMsg);
-        this.setSpeaking(false);
+        this.finishRequest(requestId, "error", errMsg);
       }
     }
+
+    await completion;
   }
 
-  private async playBase64(base64: string, format: string): Promise<void> {
-    this.cleanupAudio();
+  private async playBase64(requestId: string, base64: string, format: string, volume?: number): Promise<void> {
+    if (!this.isCurrent(requestId)) return;
 
     const mime = format === "wav" ? "audio/wav" : "audio/mpeg";
     const binary = atob(base64);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
     const blob = new Blob([bytes], { type: mime });
-    this.currentObjectUrl = URL.createObjectURL(blob);
-    debugLog(`[TTS Trace] audio-created: mime=${mime} blobBytes=${bytes.length} url=${this.currentObjectUrl}`);
+    const objectUrl = URL.createObjectURL(blob);
 
-    const audio = new Audio(this.currentObjectUrl);
+    const acquire = window.tts?.acquirePlayback;
+    let acquired = false;
+    try {
+      acquired = acquire ? await acquire(requestId) : false;
+    } catch (err: any) {
+      URL.revokeObjectURL(objectUrl);
+      if (this.isCurrent(requestId)) {
+        this.finishRequest(requestId, "error", err?.message || String(err));
+      }
+      return;
+    }
+    if (!acquired || !this.isCurrent(requestId)) {
+      URL.revokeObjectURL(objectUrl);
+      if (this.isCurrent(requestId)) this.finishRequest(requestId, "idle");
+      return;
+    }
+
+    let audio: HTMLAudioElement;
+    try {
+      audio = new Audio(objectUrl);
+    } catch (err: any) {
+      URL.revokeObjectURL(objectUrl);
+      this.finishRequest(requestId, "error", err?.message || String(err));
+      return;
+    }
+
+    if (!this.isCurrent(requestId)) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+
+    this.currentObjectUrl = objectUrl;
     this.currentAudio = audio;
+    const safeVolume = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume as number)) : 1;
+    audio.volume = safeVolume;
+    debugLog(`[TTS Trace] audio-created: mime=${mime} blobBytes=${bytes.length} url=${objectUrl}`);
+
+    let resolvePlayback: (() => void) | null = null;
+    let settled = false;
+    const playbackComplete = new Promise<void>((resolve) => {
+      resolvePlayback = resolve;
+      this.currentPlaybackResolve = resolve;
+    });
+    const finishPlayback = (status: TtsPlaybackStatus, error?: string): void => {
+      if (settled) return;
+      settled = true;
+      if (this.isCurrent(requestId, audio)) {
+        this.finishRequest(requestId, status, error, audio, objectUrl);
+      }
+      resolvePlayback?.();
+    };
 
     audio.onplay = () => {
+      if (!this.isCurrent(requestId, audio)) return;
       debugLog(`[TTS Trace] playback-start: messageId=${this.currentMessageId ?? "n/a"}`);
       this.setStatus("playing");
-      this.setSpeaking(true);
+      this.setSpeaking(true, requestId);
     };
 
     audio.onended = () => {
+      if (!this.isCurrent(requestId, audio)) return;
       debugLog(`[TTS Trace] playback-end: messageId=${this.currentMessageId ?? "n/a"}`);
-      this.setStatus("completed");
-      this.setSpeaking(false);
-      this.cleanupAudio();
+      finishPlayback("completed");
     };
 
     audio.onerror = () => {
+      if (!this.isCurrent(requestId, audio)) return;
       const errDetail = audio.error ? `code ${audio.error.code} (${audio.error.message})` : "Audio decode/playback error";
       debugLog(`[TTS Trace] playback-error: messageId=${this.currentMessageId ?? "n/a"} detail="${errDetail}"`);
-      this.setStatus("error", errDetail);
-      this.setSpeaking(false);
-      this.cleanupAudio();
+      finishPlayback("error", errDetail);
     };
 
     try {
-      await audio.play();
+      void audio.play().catch((playErr: any) => {
+        if (!this.isCurrent(requestId, audio)) {
+          finishPlayback("idle");
+          return;
+        }
+        const rejectErr = playErr?.message || String(playErr);
+        debugLog(`[TTS Trace] playback-error: play() rejected: "${rejectErr}"`);
+        finishPlayback("error", rejectErr || "Audio playback blocked or failed");
+      });
     } catch (playErr: any) {
       const rejectErr = playErr?.message || String(playErr);
-      debugLog(`[TTS Trace] playback-error: play() rejected: "${rejectErr}"`);
-      this.setStatus("error", rejectErr || "Audio playback blocked or failed");
-      this.setSpeaking(false);
-      this.cleanupAudio();
+      if (this.isCurrent(requestId, audio)) {
+        debugLog(`[TTS Trace] playback-error: play() rejected: "${rejectErr}"`);
+        finishPlayback("error", rejectErr || "Audio playback blocked or failed");
+      } else {
+        finishPlayback("idle");
+      }
     }
+
+    await playbackComplete;
   }
 
-  stop(): void {
-    if (this.currentRequestId) {
-      window.tts?.cancelSession(this.currentRequestId);
-      this.currentRequestId = null;
-    }
+  stop(requestId?: string): void {
+    const activeRequestId = this.currentRequestId;
+    if (!activeRequestId || (requestId && requestId !== activeRequestId)) return;
+
+    this.currentRequestId = null;
+    this.setSpeaking(false, activeRequestId);
+    this.requestCancel(activeRequestId);
+    this.requestRelease(activeRequestId);
+    this.resolveCurrentPlayback();
     this.cleanupAudio();
-    this.setSpeaking(false);
     this.setStatus("idle");
+    this.resolveCompletion(activeRequestId);
   }
 
-  private cleanupAudio(): void {
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio.src = "";
-      this.currentAudio = null;
+  private cleanupAudio(audio: HTMLAudioElement | null = this.currentAudio, objectUrl: string | null = this.currentObjectUrl): void {
+    if (audio) {
+      audio.onplay = null;
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      if (this.currentAudio === audio) this.currentAudio = null;
     }
-    if (this.currentObjectUrl) {
-      URL.revokeObjectURL(this.currentObjectUrl);
+    if (objectUrl && this.currentObjectUrl === objectUrl) {
+      URL.revokeObjectURL(objectUrl);
       this.currentObjectUrl = null;
     }
   }

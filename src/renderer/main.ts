@@ -7,10 +7,10 @@ import { ExpressionResetController } from "./live2d/expression-reset";
 import { SpeakingMotionController } from "./live2d/speaking-motion";
 import { InteractionController, DefaultHitAreaAbstraction } from "./live2d/interaction";
 import { Live2DRendererLifecycleTracker } from "./live2d/lifecycle-diagnostics";
+import { globalTtsPlayback } from "./tts/tts-playback";
 import type { FireflyTarget } from "../shared/firefly-actions";
 import type { CareActionType } from "../shared/firefly-state";
-
-
+import type { ProactiveLinePayload } from "../shared/proactive-types";
 
 window.addEventListener("error", (event) => {
   console.error("[Renderer Error]", event.error ?? event.message);
@@ -39,6 +39,46 @@ debugLog(
 );
 
 const lifecycle = new Live2DRendererLifecycleTracker();
+
+const proactiveLineOverlay = document.getElementById("proactive-line-overlay");
+let proactiveLineHideTimer: number | null = null;
+
+const hideProactiveLine = (): void => {
+  if (proactiveLineHideTimer !== null) {
+    window.clearTimeout(proactiveLineHideTimer);
+    proactiveLineHideTimer = null;
+  }
+  if (proactiveLineOverlay) {
+    proactiveLineOverlay.textContent = "";
+    proactiveLineOverlay.hidden = true;
+  }
+};
+
+const handleProactiveLine = (payload: ProactiveLinePayload): void => {
+  if (!payload.text.trim()) {
+    hideProactiveLine();
+    return;
+  }
+  const text = payload.text;
+
+  debugLog(`[Proactive Trace] line-received reason=${payload.reason} actionId=${payload.actionId}`);
+  if (proactiveLineOverlay) {
+    if (proactiveLineHideTimer !== null) {
+      window.clearTimeout(proactiveLineHideTimer);
+    }
+    proactiveLineOverlay.textContent = text;
+    proactiveLineOverlay.hidden = false;
+    proactiveLineHideTimer = window.setTimeout(hideProactiveLine, 6000);
+  }
+
+  void globalTtsPlayback.speak(text, {
+    messageId: `proactive-${Date.now()}`,
+    behaviorType: `proactive:${payload.reason}`,
+  });
+};
+
+lifecycle.track("resource", "proactiveLineOverlay", hideProactiveLine);
+lifecycle.track("resource", "globalTtsPlayback", () => globalTtsPlayback.stop());
 
 // 1. Initialize Live2D Manager (Live2D-only Architecture)
 const manager = new Live2DManager({
@@ -172,6 +212,11 @@ if (window.firefly?.onSpeakingChanged) {
   lifecycle.track("subscription", "speakingChanged", unsubSpeaking);
 }
 
+if (window.firefly?.onProactiveLine) {
+  const unsubProactiveLine = window.firefly.onProactiveLine(handleProactiveLine);
+  lifecycle.track("subscription", "proactiveLine", unsubProactiveLine);
+}
+
 // 9. Hook IPC Listeners
 if (window.live2dAction?.onPlayAction) {
   const unsub = window.live2dAction.onPlayAction((target) => {
@@ -196,22 +241,7 @@ if (window.live2dAction?.onPlayAction) {
   lifecycle.track("subscription", "live2dAction", unsub);
 }
 
-// 10. Live2D Speech manual hooks
-if (window.live2dSpeech?.onMouthStart) {
-  const unsubMouthStart = window.live2dSpeech.onMouthStart(({ durationMs }) => {
-    mouthSync.start(durationMs);
-  });
-  lifecycle.track("subscription", "live2dSpeech:mouthStart", unsubMouthStart);
-}
-
-if (window.live2dSpeech?.onMouthStop) {
-  const unsubMouthStop = window.live2dSpeech.onMouthStop(() => {
-    mouthSync.stop();
-  });
-  lifecycle.track("subscription", "live2dSpeech:mouthStop", unsubMouthStop);
-}
-
-// 11. Zoom Listener
+// 10. Zoom Listener
 if (window.firefly?.onPetZoom) {
   const unsubZoom = window.firefly.onPetZoom((scale) => {
     debugLog("[Firefly-Agent] Window zoom updated:", scale);
@@ -243,5 +273,12 @@ const handleResize = () => {
 };
 window.addEventListener("resize", handleResize);
 lifecycle.track("listener", "windowResize", () => window.removeEventListener("resize", handleResize));
+
+const disposeRenderer = (): void => {
+  hideProactiveLine();
+  lifecycle.disposeAll();
+};
+window.addEventListener("unload", disposeRenderer);
+lifecycle.track("listener", "rendererUnload", () => window.removeEventListener("unload", disposeRenderer));
 
 debugLog("[Firefly-Agent] Live2D Desktop Pet Renderer ready!");

@@ -2,6 +2,8 @@ export const IPC = {
   // Window & System
   WINDOW_MINIMIZE: "window:minimize",
   WINDOW_HIDE: "window:hide",
+  WINDOW_CLOSE: "window:close",
+  WINDOW_MAXIMIZE_TOGGLE: "window:maximize-toggle",
   WINDOW_QUIT: "window:quit",
   PET_SET_INTERACTIVE: "pet:set-interactive",
   PET_MOVE_BY: "pet:move-by",
@@ -24,9 +26,6 @@ export const IPC = {
 
   // Live2D / Action Execution
   LIVE2D_PLAY_ACTION: "live2d:play-action",
-  LIVE2D_SPEECH_PREPARE: "live2d:speech-prepare",
-  LIVE2D_MOUTH_START: "live2d:mouth-start",
-  LIVE2D_MOUTH_STOP: "live2d:mouth-stop",
 
   // Character State & Care
   STATE_GET: "state:get",
@@ -38,6 +37,9 @@ export const IPC = {
   TTS_SESSION_START: "tts:session-start",
   TTS_SESSION_CANCEL: "tts:session-cancel",
   TTS_SESSION_EVENT: "tts:session-event",
+  TTS_ACQUIRE_PLAYBACK: "tts:acquire-playback",
+  TTS_RELEASE_PLAYBACK: "tts:release-playback",
+  TTS_STOP_PLAYBACK: "tts:stop-playback",
   TTS_GET_SETTINGS: "tts:get-settings",
   TTS_SAVE_SETTINGS: "tts:save-settings",
 

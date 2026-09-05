@@ -30,7 +30,7 @@ export interface ContextManagerOptions {
  * ContextManager (Context Layer 核心门面协调器)
  *
  * 统一管理上下文插槽、动态 Token 预算、Compaction 策略与上下文物化投影。
- * 彻底解耦 FireflyAgentCore 对 harness-context.ts 的直接依赖。
+ * 统一承担 Harness 所需的上下文投影，避免执行循环自行构造上下文。
  */
 export class ContextManager {
   private tokenMeter: TokenMeter;
@@ -106,6 +106,42 @@ export class ContextManager {
   buildInitialMessages(options: ContextProjectionOptions): ChatMessage[] {
     const projected = this.project(options);
     return projected.messages;
+  }
+
+  /**
+   * 执行已注册的上下文插槽后，物化用于 Agent 运行的初始消息列表。
+   * 异步插槽（Memory/RAG）只在生产 Chat 入口使用此方法；保留同步 facade
+   * 以维持现有纯投影与单测调用的兼容性。
+   */
+  async buildInitialMessagesWithSlots(options: ContextProjectionOptions): Promise<ChatMessage[]> {
+    const projected = await this.projectWithSlots(options);
+    return projected.messages;
+  }
+
+  /**
+   * 执行全部已启用 slot.render()，将 Memory/RAG/Plan 的结果注入标准投影。
+   * System 与 Character slot 也会被执行，以保证注册表与实际运行一致；
+   * 系统提示和角色状态仍由 ContextProjector 统一组装，避免重复拼接。
+   */
+  async projectWithSlots(options: ContextProjectionOptions): Promise<ProjectedContext> {
+    const resolved = { ...options };
+    const slotContext = { ...options, userPrompt: options.userPrompt };
+
+    for (const slot of this.listSlots()) {
+      if (!slot.enabled) continue;
+      const rendered = await slot.render(slotContext);
+      if (typeof rendered !== "string" || rendered.trim().length === 0) continue;
+
+      if (slot.id === "memory" && !resolved.memoryContext) {
+        resolved.memoryContext = rendered.trim();
+      } else if (slot.id === "rag" && !resolved.ragContext) {
+        resolved.ragContext = rendered.trim();
+      } else if (slot.id === "plan" && !resolved.planContext) {
+        resolved.planContext = rendered.trim();
+      }
+    }
+
+    return this.project(resolved);
   }
 
   /**

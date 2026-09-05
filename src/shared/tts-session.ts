@@ -21,6 +21,10 @@ export interface StartTtsRequest {
   supportsStreamingPlayback?: boolean;
 }
 
+export interface TtsPlaybackStopRequest {
+  requestId: string;
+}
+
 export type TtsStartResult =
   | {
       requestId: string;

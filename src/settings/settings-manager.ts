@@ -5,10 +5,11 @@ import type { LlmProviderConfig } from "../shared/provider-types";
 import { DEFAULT_LLM_CONFIG } from "../shared/provider-types";
 import type { UiPreferences, UiFontSize } from "../shared/ui-types";
 import { DEFAULT_UI_PREFERENCES } from "../shared/ui-types";
+import type { TtsSettings } from "../shared/tts-types";
 
 export interface FireflyAppSettings {
   llm?: LlmProviderConfig;
-  tts?: any;
+  tts?: TtsSettings;
   ui?: UiPreferences;
   window?: {
     x?: number;

@@ -21,6 +21,7 @@ import { registerMusicIpc } from "./runtime/music/music-ipc";
 import { QQMusicProvider } from "./runtime/music/qqmusic-provider";
 import { KnowledgeCoordinator } from "../rag/knowledge-coordinator";
 import { ContextManager } from "./orchestrator/context/context-manager";
+import { MemorySlot } from "./orchestrator/context/context-slots";
 import { CharacterPolicyEngine } from "./character/character-policy";
 import type { IAgentCore } from "../shared/agent-core";
 import type { CareActionType } from "../shared/firefly-state";
@@ -56,7 +57,7 @@ let settingsManager: SettingsManager;
 let musicService: MusicService;
 let unregisterMusicIpc: (() => void) | null = null;
 /** Typed as IAgentCore so consumers never depend on the concrete class.
- *  index.ts is the sole composition root: change new FireflyHarness → new FireflyAgentCore here only. */
+ *  index.ts is the sole composition root: production consumers receive the public AgentCore facade here. */
 let agentCore: IAgentCore;
 let proactiveScheduler: FireflyProactiveScheduler;
 let tray: Tray | null = null;
@@ -65,12 +66,26 @@ let isChatInFlight = false;
 let ttsSessionService: import("./runtime/tts/tts-session-service").TtsSessionService | null = null;
 
 function setupIpcHandlers() {
-  ipcMain.on(IPC.WINDOW_MINIMIZE, () => {
-    windowManager.getPetWindow()?.minimize();
+  ipcMain.on(IPC.WINDOW_MINIMIZE, (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize();
   });
 
-  ipcMain.on(IPC.WINDOW_HIDE, () => {
-    windowManager.getPetWindow()?.hide();
+  ipcMain.on(IPC.WINDOW_HIDE, (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.hide();
+  });
+
+  ipcMain.on(IPC.WINDOW_CLOSE, (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
+  });
+
+  ipcMain.on(IPC.WINDOW_MAXIMIZE_TOGGLE, (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
+    if (win.isMaximized()) {
+      win.restore();
+    } else {
+      win.maximize();
+    }
   });
 
   ipcMain.on(IPC.WINDOW_QUIT, () => {
@@ -163,11 +178,6 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.on(IPC.PET_SPEAKING_CHANGED, (_event, speaking: boolean) => {
-    isSpeaking = speaking;
-    windowManager.broadcast(IPC.PET_SPEAKING_CHANGED, speaking);
-  });
-
   ipcMain.handle(IPC.PET_GET_CURSOR_POS, async () => {
     return screen.getCursorScreenPoint();
   });
@@ -208,16 +218,14 @@ function setupIpcHandlers() {
 }
 
 app.whenReady().then(() => {
-  // Remove the default Electron application menu (File/Edit/View/Window/Help)
-  // from every framed window (Chat / Settings / Summary). The tray menu and
-  // the pet right-click popup are built independently and are unaffected.
+  // Remove the default Electron application menu (File/Edit/View/Window/Help).
+  // The tray menu and the pet right-click popup are built independently.
   Menu.setApplicationMenu(null);
 
   // 1. Initialize State Manager, Memory Service & Settings
   stateManager = new CharacterStateManager({
     configPath,
     broadcast: (ch, data) => windowManager.broadcast(ch, data),
-    sendToPet: (ch, data) => windowManager.sendToPet(ch, data),
   });
   memoryService = new FireflyMemoryService(memoryPath);
   settingsManager = new SettingsManager(configPath);
@@ -239,13 +247,21 @@ app.whenReady().then(() => {
 
   // 3. Initialize RAG Knowledge Coordinator & Context Layer
   const knowledgeCoordinator = new KnowledgeCoordinator({
-    knowledgeDataDir: path.join(app.getAppPath(), "data", "knowledge"),
+    knowledgeDataDir: path.join(app.getAppPath(), "src", "rag", "knowledge"),
   });
   void knowledgeCoordinator.initialize();
   const ragSlot = knowledgeCoordinator.createRagSlot();
-  const contextManager = new ContextManager({ customSlots: [ragSlot] });
+  const memorySlot = new MemorySlot({
+    retriever: {
+      retrieve: async ({ topK }) => ({ items: memoryService.list().slice(0, topK ?? 5) }),
+    },
+    projector: {
+      project: () => memoryService.buildMemoryContext(),
+    },
+  });
+  const contextManager = new ContextManager({ customSlots: [memorySlot, ragSlot] });
 
-  // 4. Initialize Agent Core (FireflyAgentCore v1 -> v2.3) with Provider from Settings
+  // 4. Initialize the public AgentCore facade with the Provider from Settings
   const initialProvider = createFireflyProvider(settingsManager.getLlmConfig());
   agentCore = new FireflyAgentCore({
     provider: initialProvider,
@@ -254,6 +270,10 @@ app.whenReady().then(() => {
   });
   registerChatIpc(agentCore, stateManager, {
     sendToPet: (ch, data) => windowManager.sendToPet(ch, data),
+    memoryService,
+    onChatInFlight: (active) => {
+      isChatInFlight = active;
+    },
     onEmbodimentPlan: (plan) => {
       if (plan.presentationSummary) {
         windowManager.broadcast(IPC.CHARACTER_SUMMARY_UPDATED, {
@@ -316,7 +336,13 @@ app.whenReady().then(() => {
 
   // 7. Setup IPC, TTS, and Pet Window
   setupIpcHandlers();
-  const ttsResult = registerTtsIpc({ configPath });
+  const ttsResult = registerTtsIpc({
+    configPath,
+    onSpeakingChanged: (speaking) => {
+      isSpeaking = speaking;
+      windowManager.broadcast(IPC.PET_SPEAKING_CHANGED, speaking);
+    },
+  });
   ttsSessionService = ttsResult.sessionService;
   const petWin = windowManager.createPetWindow();
 

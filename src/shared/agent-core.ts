@@ -1,14 +1,14 @@
-import type { HarnessInput, HarnessResult, HarnessEvent } from "./harness-types";
+import type { AgentRunInput, AgentRunResult } from "./agent-types";
 import type { IFireflyLlmProvider } from "./provider-types";
 
 /**
  * Stable Agent Core contract.
  *
- * All consumers (chat-ipc, proactive-scheduler, agent-orchestrator, index.ts)
+ * All consumers (chat-ipc, proactive-scheduler, index.ts)
  * depend ONLY on this interface, never on any concrete implementation.
  *
- * Current implementation: FireflyHarness (src/main/agent/harness/firefly-harness.ts)
- * Future replacement:     FireflyAgentCore (self-developed Agent Loop)
+ * Public implementation: FireflyAgentCore (src/main/orchestrator/firefly-agent-core.ts)
+ * Internal execution owner: FireflyHarness (src/main/orchestrator/harness/firefly-harness.ts)
  *
  * To swap the implementation, change ONE line in index.ts (the composition root).
  * Every downstream consumer requires zero modification.
@@ -18,7 +18,12 @@ export interface IAgentCore {
    * Run a single agent turn: build context, call LLM, handle tool rounds,
    * and return the final text + transcript.
    */
-  run(input: HarnessInput, emitter?: (event: HarnessEvent) => void): Promise<HarnessResult>;
+  run(input: AgentRunInput): Promise<AgentRunResult>;
+
+  /**
+   * Resume an interrupted run from the canonical checkpoint manager.
+   */
+  resume(checkpointId: string, signal?: AbortSignal): Promise<AgentRunResult>;
 
   /**
    * Cancel a specific in-flight run by its runId.

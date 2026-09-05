@@ -12,10 +12,10 @@
 - **npm**: `>= 11.0.0` (项目通过 `package.json` 中的 `packageManager: "npm@11.17.0"` 与 `engines` 锁定)
 - **开发者无需手动升级全局 npm**：项目随附提供 Corepack 自动调度与项目级 CLI 封装器，满足任意一种启动方式即可统一运行 npm 11：
   1. **一键初始化（推荐）**：双击运行 `setup.bat`，自动完成依赖安装、环境基线自检与全工程构建；
-  2. **项目级脚本启动**：使用 `node tools/npm.mjs <command>` 或 `.\tools\bin\npm.cmd <command>`（例如 `node tools/npm.mjs install`、`node tools/npm.mjs test`）；
+  2. **项目级脚本启动**：使用 `node tools/npm/npm.mjs <command>` 或 `tools\npm\npm.cmd <command>`（例如 `node tools/npm/npm.mjs install`、`node tools/npm/npm.mjs test`）；
   3. **Corepack 原生支持**：执行 `corepack enable` 后直接运行标准 `npm <command>`。
 - **强制引擎校验**: 项目根目录配置 `.npmrc` (`engine-strict=true`)，杜绝非兼容版本安装
-- **基线自检**: 执行 `node tools/test_environment_baseline.mjs` 验证当前环境与工具链是否 100% 就绪
+- **基线自检**: 执行 `node tools/test/distribution/environment-baseline.test.mjs` 验证当前环境与工具链是否 100% 就绪
 
 ---
 
@@ -42,21 +42,21 @@ npm run build
 
 ### Node.js 全量自动化测试套件
 ```bash
-# 执行全部 Node.js 测试 (包含环境基线与 35 个自动化测试套件，390 项测试)
+# 执行全部 Node.js 测试（包含环境基线与 32 个 canonical 测试套件）
 npm test
 
 # 或单独执行环境基线自检：
-node tools/test_environment_baseline.mjs
+node tools/test/distribution/environment-baseline.test.mjs
 ```
 
 ### 多模态实机链路回归测试
 ```bash
-node tools/test_llm_tts_live2d_chain.mjs
+node tools/test/runtime/tts.test.mjs
 ```
 
 ### 真实模型推理与 Electron 烟雾测试
 ```bash
-node tools/verify_live_voice.mjs
+node tools/verify/live-voice.mjs
 $env:ELECTRON_SMOKE_TEST="1"; npx electron .
 ```
 

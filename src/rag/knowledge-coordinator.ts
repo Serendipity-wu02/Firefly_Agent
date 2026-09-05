@@ -20,7 +20,7 @@ export interface KnowledgeCoordinatorOptions {
  *
  * 核心职责：
  * 1. 组合与管理 RAG 知识库检索流水线 (HybridRetriever + KnowledgeProjector)；
- * 2. 负责读取 data/knowledge/ 生成的离线语料与向量索引；
+ * 2. 负责读取 src/rag/knowledge/ 中的离线语料与向量索引；
  * 3. 作为与 ContextManager 衔接的统一 Adapter 工厂 (createRagSlot)；
  * 4. 严格保持与 MemoryStore、Agent Core 及 resources/ 的单向解耦。
  */
@@ -35,7 +35,7 @@ export class KnowledgeCoordinator {
 
   constructor(options: KnowledgeCoordinatorOptions = {}) {
     this.knowledgeDataDir =
-      options.knowledgeDataDir || path.join(process.cwd(), "data", "knowledge");
+      options.knowledgeDataDir || path.join(process.cwd(), "src", "rag", "knowledge");
 
     this.vectorStore =
       options.vectorStore ||

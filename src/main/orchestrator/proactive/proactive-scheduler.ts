@@ -1,5 +1,6 @@
 import type {
   ProactiveConfig,
+  ProactiveLinePayload,
   ProactiveEvent,
   ProactiveTriggerReason,
 } from "../../../shared/proactive-types";
@@ -15,8 +16,7 @@ export interface ProactiveSchedulerDeps {
   isPetVisible?: () => boolean;
   isUserChatActive?: () => boolean;
   isSpeakingActive?: () => boolean;
-  broadcastProactive?: (payload: { text: string; actionId: string; reason: ProactiveTriggerReason }) => void;
-  speakProactive?: (text: string) => void;
+  broadcastProactive?: (payload: ProactiveLinePayload) => void;
 }
 
 export class FireflyProactiveScheduler {
@@ -192,11 +192,6 @@ export class FireflyProactiveScheduler {
           actionId: targetActionId,
           reason: triggerReason,
         });
-      }
-
-      // Trigger TTS Speech if available
-      if (this.deps.speakProactive && harnessResult.finalText) {
-        this.deps.speakProactive(harnessResult.finalText);
       }
 
       return true;

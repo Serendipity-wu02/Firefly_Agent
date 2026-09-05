@@ -5,10 +5,13 @@ import type { IAgentCore } from "../../shared/agent-core";
 import { CharacterStateManager } from "../state/state-manager";
 import { CharacterPolicyEngine } from "../character/character-policy";
 import type { EmbodimentPlan } from "../character/embodiment-types";
+import type { FireflyMemoryService } from "../character/memory/memory-service";
 
 export interface ChatIpcOptions {
   sendToPet?: (channel: string, payload?: unknown) => void;
   onEmbodimentPlan?: (plan: EmbodimentPlan) => void;
+  onChatInFlight?: (active: boolean) => void;
+  memoryService?: FireflyMemoryService;
 }
 
 export function registerChatIpc(
@@ -18,10 +21,21 @@ export function registerChatIpc(
 ): void {
   const sendToPet = typeof options === "function" ? options : options?.sendToPet;
   const onEmbodimentPlan = typeof options === "object" ? options?.onEmbodimentPlan : undefined;
+  const onChatInFlight = typeof options === "object" ? options?.onChatInFlight : undefined;
+  const memoryService = typeof options === "object" ? options?.memoryService : undefined;
 
   ipcMain.handle(
     IPC.CHAT_SEND_MESSAGE,
     async (_event, payload: { message: string; history?: ChatMessage[] }) => {
+      onChatInFlight?.(true);
+      try {
+        if (memoryService && payload.message) {
+          const extracted = memoryService.extractFromText(payload.message);
+          for (const item of extracted) {
+            memoryService.remember(item.key, item.value, "chat_auto_extract");
+          }
+        }
+
       const state = stateManager.getState();
       const policyEngine = CharacterPolicyEngine.getInstance();
 
@@ -95,6 +109,9 @@ export function registerChatIpc(
         embodimentPlan,
         correlationId: embodimentPlan.correlationId,
       };
+      } finally {
+        onChatInFlight?.(false);
+      }
     },
   );
 }

@@ -9,7 +9,8 @@ Firefly-Pet is an Electron + TypeScript desktop companion agent featuring dual-f
 ```mermaid
 flowchart TD
     Index[src/main/index.ts - Composition Root]
-    Index --> AgentCore[FireflyAgentCore v1]
+    Index --> AgentCore[FireflyAgentCore - public IAgentCore facade]
+    AgentCore --> Harness[FireflyHarness - sole Agent Loop]
     Index --> ToolRegistry[FireflyToolRegistry]
     Index --> StateMgr[CharacterStateManager]
     Index --> MemorySvc[FireflyMemoryService]
@@ -22,26 +23,35 @@ flowchart TD
 
 ---
 
-## 2. Agent Core (`FireflyAgentCore`)
+## 2. Agent Core and Harness (`FireflyAgentCore` / `FireflyHarness`)
 
-`FireflyAgentCore` implements `IAgentCore` and maintains an independent agent loop completely decoupled from UI, Live2D, TTS, and Music services.
+`FireflyAgentCore` implements `IAgentCore` as the public composition and lifecycle facade. `FireflyHarness` is the sole owner of the Agent Loop and delegates domain responsibilities to the existing canonical runtime owners. Neither layer depends on UI, Live2D, TTS, or Music services.
 
 ```mermaid
 flowchart LR
-    UserInput[HarnessInput] --> AgentCore[FireflyAgentCore]
-    AgentCore <--> Provider[IFireflyLlmProvider]
-    AgentCore <--> Dispatcher[FireflyToolDispatcher]
+    UserInput[AgentRunInput] --> AgentCore[FireflyAgentCore - facade]
+    AgentCore --> Harness[FireflyHarness - sole loop]
+    Harness <--> Provider[IFireflyLlmProvider]
+    Harness --> Session[AgentSession - state transcript]
+    Harness --> Context[ContextManager - slots and compaction]
+    Harness --> Engine[ToolExecutionEngine - policy and execution]
+    Engine <--> Dispatcher[FireflyToolDispatcher - dispatch adapter]
     Dispatcher <--> Tools[FireflyToolRegistry]
-    AgentCore --> Session[AgentSession - State Transcript]
-    AgentCore --> EventBus[AgentEventBus - Typed Lifecycle Events]
-    AgentCore <--> Memory[FireflyMemoryService]
-    AgentCore --> Result[HarnessResult - finalText, transcript, toolCallsCount]
+    Harness --> Planning[BoundedPlanner]
+    Harness --> Recovery[RecoveryManager]
+    Harness --> Checkpoint[CheckpointManager]
+    AgentCore --> EventBus[AgentEventBus - typed lifecycle events]
+    Harness --> Result[AgentRunResult - finalText, transcript, toolCallsCount]
 ```
 
 ### Key Components
 - **`AgentSession`**: Immutable message transcript accumulation with isolation from external mutation.
+- **`FireflyAgentCore`**: Normalizes the public input, composes the canonical owners, delegates execution and resume, and exposes the shared event bus.
+- **`FireflyHarness`**: Owns the single loop, lifecycle transitions, provider turns, tool-round orchestration, recovery boundaries, checkpoints, and final result mapping.
+- **`ContextManager`**: Owns context slots, asynchronous Memory/RAG projection, token budgeting, and canonical compaction.
+- **`ToolExecutionEngine`**: Sole tool-runtime owner for authorization, timeout, retry, concurrency, and result policy; the Harness calls `executeToolCall()` through the thin `tool-round.ts` orchestrator.
 - **`AgentEventBus`**: Emits typed lifecycle events (`agent:run-start`, `agent:step-start`, `agent:tool-call-start`, `agent:tool-call-result`, `agent:run-complete`, `agent:error`) wrapped in try-catch guards to prevent third-party listener crashes.
-- **`FireflyToolDispatcher`**: Executes tool calls matching registry definitions, captures execution errors, and writes tool results back into the session transcript.
+- **`FireflyToolDispatcher`**: Remains behind `ToolExecutionEngine` as the registry dispatch adapter and is not constructed by the Harness.
 - **`IFireflyLlmProvider`**: Decoupled LLM interface (`LocalFireflyProvider`, `OpenAiFireflyProvider`).
 
 ---
@@ -68,7 +78,7 @@ flowchart TD
 
 ### Verified Runtime Configuration
 - **Endpoint**: `http://127.0.0.1:9880/tts`
-- **Reference Audio**: `E:\GPT-SoVITS\GPT-SoVITS-firefly-finetuning\samples\sample_1.wav`
+- **Reference Audio**: external user configuration (`TTS.gptsovits.refAudioPath`); repository manifest: `src/renderer/tts/voice_reference/reference_manifest.json`
 - **Reference Prompt**: `谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！`
 - **Request Fields**: `text`, `text_lang`, `ref_audio_path`, `prompt_text`, `prompt_lang`, `media_type`, `speed_factor`.
 

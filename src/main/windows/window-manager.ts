@@ -12,14 +12,11 @@ const CHAT_WINDOW_HEIGHT = 756;
 // Harness Chat Window's right-top corner as an independent BrowserWindow.
 const SUMMARY_WINDOW_WIDTH = 254;
 const SUMMARY_WINDOW_HEIGHT = 388;
-const SETTINGS_WINDOW_WIDTH = 500;
-const SETTINGS_WINDOW_HEIGHT = 600;
 
 export class WindowManager {
   private petWindow: BrowserWindow | null = null;
   private chatWindow: BrowserWindow | null = null;
   private summaryWindow: BrowserWindow | null = null;
-  private settingsWindow: BrowserWindow | null = null;
   private isDev: boolean;
   private configPath: string;
   private petScale = 1.0;
@@ -180,7 +177,7 @@ export class WindowManager {
     return this.createChatWindow();
   }
 
-  createChatWindow(): BrowserWindow {
+  createChatWindow(initialTab: "chat" | "settings" = "chat"): BrowserWindow {
     if (this.chatWindow && !this.chatWindow.isDestroyed()) {
       this.chatWindow.show();
       this.chatWindow.focus();
@@ -192,7 +189,9 @@ export class WindowManager {
       height: CHAT_WINDOW_HEIGHT,
       center: true,
       title: "流萤 · Firefly",
-      frame: true,
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
       resizable: true,
       autoHideMenuBar: true,
       show: false,
@@ -206,15 +205,15 @@ export class WindowManager {
     win.center();
 
     const targetUrl = this.isDev
-      ? "http://localhost:5173/ui/index.html?tab=chat"
+      ? `http://localhost:5173/ui/index.html?tab=${initialTab}`
       : path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html");
     console.log(`[WindowManager] OPEN CHAT WINDOW -> Target: ${targetUrl}`);
 
     if (this.isDev) {
-      win.loadURL("http://localhost:5173/ui/index.html?tab=chat");
+      win.loadURL(targetUrl);
     } else {
       win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
-        query: { tab: "chat" },
+        query: { tab: initialTab },
       });
     }
 
@@ -263,50 +262,21 @@ export class WindowManager {
   }
 
   createSettingsWindow(): BrowserWindow {
-    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      this.settingsWindow.show();
-      this.settingsWindow.focus();
-      return this.settingsWindow;
+    const existingChatWindow = this.getChatWindow();
+    const win = existingChatWindow || this.createChatWindow("settings");
+    let delivered = false;
+    const openSettingsTab = () => {
+      if (delivered || win.isDestroyed()) return;
+      delivered = true;
+      win.webContents.send(IPC.WINDOW_OPEN_SETTINGS);
+    };
+
+    win.webContents.once("did-finish-load", openSettingsTab);
+    if (!win.webContents.isLoading() && win.webContents.getURL()) {
+      openSettingsTab();
     }
-
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const workArea = primaryDisplay.workArea;
-
-    const win = new BrowserWindow({
-      x: workArea.x + Math.round((workArea.width - SETTINGS_WINDOW_WIDTH) / 2),
-      y: workArea.y + Math.round((workArea.height - SETTINGS_WINDOW_HEIGHT) / 2),
-      width: SETTINGS_WINDOW_WIDTH,
-      height: SETTINGS_WINDOW_HEIGHT,
-      title: "流萤 设置",
-      frame: true,
-      resizable: true,
-      autoHideMenuBar: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    });
-    win.setMenu(null);
-
-    if (this.isDev) {
-      win.loadURL("http://localhost:5173/ui/index.html?tab=settings");
-    } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
-        query: { tab: "settings" },
-      });
-    }
-
-    win.once("ready-to-show", () => {
-      win.show();
-    });
-
-    win.on("closed", () => {
-      this.settingsWindow = null;
-    });
-
-    this.settingsWindow = win;
+    win.show();
+    win.focus();
     return win;
   }
 
@@ -481,11 +451,6 @@ export class WindowManager {
   getChatWindow(): BrowserWindow | null {
     if (!this.chatWindow || this.chatWindow.isDestroyed()) return null;
     return this.chatWindow;
-  }
-
-  getSettingsWindow(): BrowserWindow | null {
-    if (!this.settingsWindow || this.settingsWindow.isDestroyed()) return null;
-    return this.settingsWindow;
   }
 
   sendToPet(channel: string, payload?: unknown): void {

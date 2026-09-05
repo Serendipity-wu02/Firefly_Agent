@@ -54,7 +54,8 @@ export const Composer: React.FC<ComposerProps> = ({
         flexDirection: "column",
         gap: "8px",
         zIndex: 10,
-      }}
+         WebkitAppRegion: "no-drag",
+      } as React.CSSProperties}
     >
       {/* Tool / Status Indicator */}
       {toolStatus && (

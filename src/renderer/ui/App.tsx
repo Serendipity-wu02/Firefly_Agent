@@ -120,6 +120,10 @@ export const App: React.FC = () => {
       });
     }
 
+    const unsubOpenSettings = window.firefly?.onOpenSettings?.(() => {
+      setActiveTab("settings");
+    });
+
     let unsubProvider: (() => void) | undefined;
     if (window.chat?.onProviderStatusChanged) {
       unsubProvider = window.chat.onProviderStatusChanged((status) => {
@@ -128,8 +132,8 @@ export const App: React.FC = () => {
     }
 
     let unsubSettings: (() => void) | undefined;
-    if ((window.settings as any)?.onSettingsChanged) {
-      unsubSettings = (window.settings as any).onSettingsChanged((newSettings: any) => {
+    if (window.settings?.onSettingsChanged) {
+      unsubSettings = window.settings.onSettingsChanged((newSettings) => {
         if (newSettings?.ui?.fontSize) {
           setUiFontSize(newSettings.ui.fontSize);
         }
@@ -146,6 +150,7 @@ export const App: React.FC = () => {
     return () => {
       unsubTts();
       unsubSummary?.();
+      unsubOpenSettings?.();
       unsubProvider?.();
       unsubSettings?.();
     };
@@ -163,6 +168,7 @@ export const App: React.FC = () => {
       behaviorType: msg.behaviorType,
       prosodyHint: msg.prosodyHint,
       correlationId: msg.correlationId,
+      volume: ttsSettings.volume,
     });
   };
 
@@ -237,6 +243,7 @@ export const App: React.FC = () => {
             behaviorType: asstMsg.behaviorType,
             prosodyHint: asstMsg.prosodyHint,
             correlationId: asstMsg.correlationId,
+            volume: ttsSettings.volume,
           });
         }
       } else {
@@ -330,6 +337,9 @@ export const App: React.FC = () => {
         boxSizing: "border-box",
         userSelect: "none",
         overflow: "hidden",
+        borderRadius: "16px",
+        position: "relative",
+        paddingTop: "52px",
         ...getFontScaleStyles(uiFontSize),
       }}
     >
@@ -338,7 +348,7 @@ export const App: React.FC = () => {
 
       {/* 2. Main Body Area */}
       {activeTab === "chat" ? (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minHeight: 0 }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minHeight: 0, WebkitAppRegion: "no-drag" } as React.CSSProperties}>
           {/* Conversation Area with Messages */}
           <div
             style={{
@@ -348,7 +358,8 @@ export const App: React.FC = () => {
               display: "flex",
               flexDirection: "column",
               position: "relative",
-            }}
+              WebkitAppRegion: "no-drag",
+            } as React.CSSProperties}
           >
             {/* Messages List */}
             {messages.map((msg) => (
@@ -376,18 +387,30 @@ export const App: React.FC = () => {
         </div>
       ) : (
         /* Settings Tab */
-        <SettingsView
-          llmConfig={llmConfig}
-          setLlmConfig={setLlmConfig}
-          ttsSettings={ttsSettings}
-          setTtsSettings={setTtsSettings}
-          uiFontSize={uiFontSize}
-          setUiFontSize={setUiFontSize}
-          autoLaunch={autoLaunch}
-          setAutoLaunchState={setAutoLaunchState}
-          onSave={handleSaveSettings}
-          saveStatus={saveStatus}
-        />
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            boxSizing: "border-box",
+            WebkitAppRegion: "no-drag",
+          } as React.CSSProperties}
+        >
+          <SettingsView
+            llmConfig={llmConfig}
+            setLlmConfig={setLlmConfig}
+            ttsSettings={ttsSettings}
+            setTtsSettings={setTtsSettings}
+            uiFontSize={uiFontSize}
+            setUiFontSize={setUiFontSize}
+            autoLaunch={autoLaunch}
+            setAutoLaunchState={setAutoLaunchState}
+            onSave={handleSaveSettings}
+            saveStatus={saveStatus}
+          />
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 import type { StartTtsRequest, TtsSessionEvent, TtsStartResult } from "../../../shared/tts-session";
 import type { TtsSettings } from "../../../shared/tts-types";
 import { FireflyTtsDispatcher } from "./tts-dispatcher";
+import { traceTtsTextIntegrity } from "../../../shared/tts-text-integrity";
 
 export class TtsSessionService {
   private readonly active = new Map<string, AbortController>();
@@ -15,12 +16,15 @@ export class TtsSessionService {
     settings: TtsSettings,
     onEvent: (event: TtsSessionEvent) => void = () => {},
   ): Promise<TtsStartResult> {
-    this.cancelAll();
-
     const controller = new AbortController();
     this.active.set(request.requestId, controller);
 
     try {
+      try {
+        await traceTtsTextIntegrity("main.session", request.requestId, request.speechText);
+      } catch {
+        console.warn(`[TTS Text Integrity] boundary=main.session requestId=${request.requestId} unavailable`);
+      }
       const result = await this.dispatcher.synthesize(request, settings, controller.signal);
       return result;
     } catch (err: any) {

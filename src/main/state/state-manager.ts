@@ -2,30 +2,24 @@ import fs from "node:fs";
 import path from "node:path";
 import { CharacterState } from "./character-state";
 import { HealthStatus, type CharacterStateData, type CareActionType } from "../../shared/firefly-state";
-import { findFireflyAction, resolveFireflyTarget } from "../../shared/firefly-actions";
 import { IPC } from "../../shared/ipc-channels";
 
 export interface StateManagerOptions {
   configPath: string;
   broadcast: (channel: string, payload: unknown) => void;
-  sendToPet: (channel: string, payload: unknown) => void;
 }
 
 export class CharacterStateManager {
   private state: CharacterState;
   private configPath: string;
   private broadcast: (channel: string, payload: unknown) => void;
-  private sendToPet: (channel: string, payload: unknown) => void;
 
   private decayTimer: NodeJS.Timeout | null = null;
-  private actionTimer: NodeJS.Timeout | null = null;
-  private proactiveTimer: NodeJS.Timeout | null = null;
   private saveTimer: NodeJS.Timeout | null = null;
 
   constructor(options: StateManagerOptions) {
     this.configPath = options.configPath;
     this.broadcast = options.broadcast;
-    this.sendToPet = options.sendToPet;
 
     this.state = this.loadState();
     this.state.applyOfflineTime();
@@ -106,18 +100,6 @@ export class CharacterStateManager {
     return this.handleCareAction("drag");
   }
 
-  dispatchAction(actionId: string): void {
-    const action = findFireflyAction(actionId);
-    if (!action) {
-      console.warn(`[StateManager] Unknown action requested: ${actionId}`);
-      return;
-    }
-
-    const target = resolveFireflyTarget(actionId);
-    console.log(`[StateManager] Dispatched Action: "${action.alias}" (${actionId}) -> Target:`, target);
-    this.sendToPet(IPC.LIVE2D_PLAY_ACTION, target);
-  }
-
   private startTimers(): void {
     // 1. Decay timer: updates numeric state decay & broadcasts (15s)
     this.decayTimer = setInterval(() => {
@@ -126,20 +108,7 @@ export class CharacterStateManager {
       this.notifyStateChanged();
     }, 15000);
 
-    // 2. Action timer: in V2.4, Live2D visual actions are driven solely by Behavior Runtime / Embodiment.
-    // Timer-based arbitrary Live2D action dispatch is disabled.
-    this.actionTimer = setInterval(() => {
-      // V2.4: Timer-driven automatic dispatch to Live2D is severed.
-      // Behavior Runtime is the single source of truth for visual decisions.
-    }, 18000);
-
-    // 3. Proactive timer: in V2.4, proactive behavior is handled by FireflyProactiveScheduler.
-    // Legacy direct Live2D dispatch from state timer is disabled.
-    this.proactiveTimer = setInterval(() => {
-      // V2.4: Handled by FireflyProactiveScheduler via Agent Core loop.
-    }, 45000);
-
-    // 4. Save timer: periodic persistence (30s)
+    // 2. Save timer: periodic persistence (30s)
     this.saveTimer = setInterval(() => {
       this.saveState();
     }, 30000);
@@ -190,8 +159,6 @@ export class CharacterStateManager {
 
   dispose(): void {
     if (this.decayTimer) clearInterval(this.decayTimer);
-    if (this.actionTimer) clearInterval(this.actionTimer);
-    if (this.proactiveTimer) clearInterval(this.proactiveTimer);
     if (this.saveTimer) clearInterval(this.saveTimer);
     this.saveState();
   }

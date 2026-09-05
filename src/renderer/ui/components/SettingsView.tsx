@@ -56,11 +56,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     <div
       style={{
         flex: 1,
+        minHeight: 0,
         overflowY: "auto",
+        overflowX: "hidden",
         padding: "16px 20px 24px 20px",
         display: "flex",
         flexDirection: "column",
         gap: "20px",
+        boxSizing: "border-box",
         color: THEME_TOKENS.colors.textPrimary,
         userSelect: "none",
       }}

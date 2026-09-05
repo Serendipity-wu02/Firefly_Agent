@@ -2,7 +2,8 @@ import type { TtsSettings } from "../../../shared/tts-types";
 import type { StartTtsRequest, TtsStartResult, TtsAudioFormat } from "../../../shared/tts-session";
 import { TtsCache } from "./tts-cache";
 import { buildTtsCacheKey } from "./tts-cache-key";
-import { synthesizeGptsovits } from "./engines/gptsovits-engine";
+import { normalizeGptsovitsText, synthesizeGptsovits } from "./engines/gptsovits-engine";
+import { traceTtsTextIntegrity } from "../../../shared/tts-text-integrity";
 
 export class FireflyTtsDispatcher {
   private cache: TtsCache;
@@ -21,12 +22,24 @@ export class FireflyTtsDispatcher {
       return { requestId: request.requestId, status: "skipped" };
     }
 
-    const text = request.speechText.trim();
+    const text = request.speechText;
+    const synthesisText = normalizeGptsovitsText(text);
     let format: TtsAudioFormat = "wav";
+
+    try {
+      await traceTtsTextIntegrity("main.dispatcher.input", request.requestId, text);
+      await traceTtsTextIntegrity("main.dispatcher.synthesis", request.requestId, synthesisText);
+    } catch {
+      console.warn(`[TTS Text Integrity] boundary=main.dispatcher requestId=${request.requestId} unavailable`);
+    }
+
+    if (synthesisText !== text) {
+      console.log(`[TTS Trace] text-normalized: requestId=${request.requestId} pronunciation=失熵症→失商症`);
+    }
 
     console.log(
       `[TTS Trace] request: requestId=${request.requestId} correlationId=${request.correlationId ?? "n/a"} ` +
-        `behavior=${request.behaviorType ?? "n/a"} text="${text.slice(0, 25)}..."`,
+        `behavior=${request.behaviorType ?? "n/a"} utf16Length=${text.length}`,
     );
     console.log(`[TTS Trace] dispatch: engine=${engine}`);
 
@@ -46,7 +59,7 @@ export class FireflyTtsDispatcher {
     format = gptsovitsConfig.format || "wav";
 
     const payloadForCache: Record<string, unknown> = {
-      text,
+      text: synthesisText,
       behaviorType: request.behaviorType,
       pace: request.prosodyHint?.pace,
       ...gptsovitsConfig,
@@ -74,7 +87,7 @@ export class FireflyTtsDispatcher {
     let audioBuffer: Buffer;
     try {
       if (engine === "gptsovits") {
-        const res = await synthesizeGptsovits(text, gptsovitsConfig, signal);
+        const res = await synthesizeGptsovits(synthesisText, gptsovitsConfig, signal, request.requestId);
         audioBuffer = res.buffer;
         format = res.format;
       } else {

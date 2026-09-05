@@ -1,10 +1,19 @@
-import fs from "node:fs";
 import type { GptsovitsConfig } from "../../../../shared/tts-types";
 import type { TtsAudioFormat } from "../../../../shared/tts-session";
+import { traceTtsTextIntegrity } from "../../../../shared/tts-text-integrity";
 
 export interface GptsovitsSynthesizeResult {
   buffer: Buffer;
   format: TtsAudioFormat;
+}
+
+/**
+ * GPT-SoVITS' bundled Chinese pronunciation dictionary maps 熵 to di1.
+ * Keep the visible character in Firefly, but send the verified shang1
+ * homophone to the external synthesizer for this canonical term.
+ */
+export function normalizeGptsovitsText(text: string): string {
+  return text.replace(/失熵症/g, "失商症");
 }
 
 /**
@@ -17,38 +26,52 @@ export interface GptsovitsSynthesizeResult {
  * - ref_audio_path: Reference audio path for zero-shot voice cloning
  * - prompt_text: Reference audio transcript prompt
  * - prompt_lang: "zh"
- * - media_type: "wav" | "mp3"
- * - speed: Speech speed rate (e.g. 1.0)
+ * - media_type: "wav"
+ * - speed_factor: Speech speed rate (e.g. 1.0)
+ * - seed: Fixed semantic sampling seed for stable pronunciation
  */
 export async function synthesizeGptsovits(
   text: string,
   config: GptsovitsConfig,
   signal?: AbortSignal,
+  requestId = "n/a",
 ): Promise<GptsovitsSynthesizeResult> {
   const baseUrl = (config.baseUrl || "http://127.0.0.1:9880").replace(/\/+$/, "");
   const endpoint = `${baseUrl}/tts`;
+  const synthesisText = normalizeGptsovitsText(text);
 
-  const defaultRefPath = "E:\\GPT-SoVITS\\GPT-SoVITS-firefly-finetuning\\samples\\sample_1.wav";
-  const refAudioPath = config.refAudioPath || (fs.existsSync(defaultRefPath) ? defaultRefPath : "");
-  const promptText = config.promptText || "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！";
+  const refAudioPath = config.refAudioPath;
+  const promptText = config.promptText;
 
   const payload: Record<string, unknown> = {
-    text,
+    text: synthesisText,
     text_lang: "zh",
     ref_audio_path: refAudioPath,
     prompt_text: promptText,
     prompt_lang: "zh",
     media_type: config.format || "wav",
-    speed: config.speed ?? 1.0,
     speed_factor: config.speed ?? 1.0,
+    seed: config.seed ?? 5,
+    streaming_mode: false,
   };
+
+  const serializedBody = JSON.stringify(payload);
+  const serializedText = (JSON.parse(serializedBody) as { text?: unknown }).text;
+  if (typeof serializedText !== "string" || serializedText !== synthesisText) {
+    throw new Error("GPT-SoVITS request serialization changed the TTS text");
+  }
+  try {
+    await traceTtsTextIntegrity("gptsovits.request", requestId, serializedText);
+  } catch {
+    console.warn(`[TTS Text Integrity] boundary=gptsovits.request requestId=${requestId} unavailable`);
+  }
 
   let res: Response;
   try {
     res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: serializedBody,
       signal,
     });
   } catch (err: any) {
@@ -56,21 +79,6 @@ export async function synthesizeGptsovits(
       throw new Error("GPT-SoVITS 请求已被取消。");
     }
     throw new Error(`GPT-SoVITS 服务连接失败 (${err?.message || "请确认本地 127.0.0.1:9880 服务已启动"})`);
-  }
-
-  // Fallback: If POST returns 405 Method Not Allowed, try GET query parameters
-  if (res.status === 405) {
-    const params = new URLSearchParams();
-    for (const [k, v] of Object.entries(payload)) {
-      if (v !== undefined && v !== "") {
-        params.set(k, String(v));
-      }
-    }
-    try {
-      res = await fetch(`${endpoint}?${params.toString()}`, { method: "GET", signal });
-    } catch (err: any) {
-      throw new Error(`GPT-SoVITS GET 请求失败: ${err?.message}`);
-    }
   }
 
   if (!res.ok) {
