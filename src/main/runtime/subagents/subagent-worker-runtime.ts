@@ -187,6 +187,7 @@ export class SubAgentWorkerRuntime {
       const result = await this.options.agentCore.run({
         runId,
         conversationId: `subagent:${taskId}`,
+        source: "worker",
         userPrompt: initial.task.objective,
         executionProfile: profile,
         signal: controller.signal,

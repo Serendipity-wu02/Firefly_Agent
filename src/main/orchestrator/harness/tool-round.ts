@@ -22,6 +22,8 @@ export interface ToolRoundOptions {
   authorizationAdapter?: HarnessAuthorizationAdapter;
   allowedToolIds?: ReadonlySet<string>;
   requireAuthorizationForAllTools?: boolean;
+  /** Rejects model tool calls before authorization or ToolExecutionEngine. */
+  rejectAllToolCalls?: boolean;
   requester?: CapabilityRequester;
   mainDelegationService?: MainAgentDelegationService;
   getMainDelegationBudget?: () => MainAgentDelegationBudget;
@@ -109,6 +111,20 @@ function workerToolRejectionResult(call: ToolCall, error: string, message: strin
   };
 }
 
+function restrictedToolRejectionResult(call: ToolCall): ToolCallResult {
+  return {
+    toolCallId: call.id,
+    name: call.name,
+    output: JSON.stringify({
+      ok: false,
+      error: "tool_surface_empty",
+      outcome: "not_executed",
+      message: "This Agent run has no tool execution surface.",
+    }),
+    isError: true,
+  };
+}
+
 /**
  * Tool-round orchestration only.
  *
@@ -128,6 +144,17 @@ export async function executeToolRound(
   for (let index = 0; index < toolCalls.length; index++) {
     const call = toolCalls[index];
     options.onCallStart?.(call, index);
+
+    if (options.rejectAllToolCalls === true) {
+      const result = restrictedToolRejectionResult(call);
+      observations.push({
+        call,
+        result,
+        outcome: "not_executed",
+        preview: result.output.slice(0, 100),
+      });
+      continue;
+    }
 
     if (options.allowedToolIds !== undefined && !options.allowedToolIds.has(call.name)) {
       const result = workerToolRejectionResult(

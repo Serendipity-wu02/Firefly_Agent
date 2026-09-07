@@ -1,4 +1,5 @@
 import type { CharacterStateData } from "../../../shared/firefly-state";
+import type { AgentRunSource } from "../../../shared/agent-types";
 import type {
   MusicContextSnapshot,
   MusicContextSnapshotReader,
@@ -21,6 +22,7 @@ export interface SlotRenderContext {
   ragContext?: string;
   planContext?: string;
   userPrompt?: string;
+  source?: AgentRunSource;
   customData?: Record<string, unknown>;
 }
 
@@ -112,6 +114,8 @@ export class MemorySlot implements IContextSlot {
   }
 
   render(ctx: SlotRenderContext): Promise<string> | string {
+    if (ctx.source === "proactive") return "";
+
     // 1. 若外部显式注入了 memoryContext，直接同步返回
     if (ctx.memoryContext && ctx.memoryContext.trim().length > 0) {
       return ctx.memoryContext.trim();
@@ -186,6 +190,8 @@ export class RagSlot implements IContextSlot {
   }
 
   render(ctx: SlotRenderContext): Promise<string> | string {
+    if (ctx.source === "proactive") return "";
+
     // 1. 若外部显式注入了 ragContext，格式化后直接返回
     if (ctx.ragContext && ctx.ragContext.trim().length > 0) {
       return ctx.ragContext.trim();

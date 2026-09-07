@@ -4,6 +4,9 @@ import type { ToolCall } from "./tool-types";
 import type { MusicContextEvent } from "./music-context-types";
 import type { AgentExecutionProfile } from "./subagent-types";
 
+/** Identifies the producer of an Agent run for Context and execution policy. */
+export type AgentRunSource = "user" | "proactive" | "worker";
+
 export type AgentRunStatus =
   | "created"
   | "running"
@@ -42,6 +45,8 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 export interface AgentRunInput {
   runId?: string;
   conversationId?: string;
+  /** Defaults to user for existing callers; proactive runs must set proactive explicitly. */
+  source?: AgentRunSource;
   userPrompt: string;
   history?: ChatMessage[];
   characterState?: CharacterStateData;

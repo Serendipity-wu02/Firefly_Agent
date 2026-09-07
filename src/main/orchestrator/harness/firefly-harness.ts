@@ -126,7 +126,14 @@ export class FireflyHarness implements IAgentCore {
     return this.eventBus;
   }
 
-  private getToolSchemasForProfile(profile: AgentExecutionProfile | undefined) {
+  private getToolSchemasForProfile(
+    profile: AgentExecutionProfile | undefined,
+    restrictToolSurface: boolean = false,
+  ) {
+    if (restrictToolSurface || (profile?.kind === "MAIN" && profile.toolSurface === "none")) {
+      return [];
+    }
+
     const schemas = this.toolRegistry.getToolSchemas();
     if (isWorkerProfile(profile)) {
       const allowed = new Set(profile.allowedToolIds);
@@ -184,14 +191,17 @@ export class FireflyHarness implements IAgentCore {
     const executionProfile: AgentExecutionProfile =
       input.executionProfile ?? { kind: "MAIN" };
     const workerRun = isWorkerProfile(executionProfile);
+    const restrictedProactiveSurface =
+      input.source === "proactive" ||
+      (executionProfile.kind === "MAIN" && executionProfile.toolSurface === "none");
     const mainDelegationService =
-      !workerRun && executionProfile.allowSubAgentDelegation === true
+      !workerRun && !restrictedProactiveSurface && executionProfile.allowSubAgentDelegation === true
         ? this.mainDelegationService
         : undefined;
     const workerSystemPrompt = workerRun
       ? buildWorkerSystemPrompt(executionProfile)
       : undefined;
-    const toolSchemas = this.getToolSchemasForProfile(executionProfile);
+    const toolSchemas = this.getToolSchemasForProfile(executionProfile, restrictedProactiveSurface);
     const maxRounds = workerRun ? executionProfile.budget.maxSteps : this.config.maxRounds;
     const maxToolCallsPerRun = workerRun
       ? executionProfile.budget.maxToolCalls
@@ -247,6 +257,7 @@ export class FireflyHarness implements IAgentCore {
 
     const initialMessages = workerRun
       ? this.contextManager.project({
+          source: input.source,
           userPrompt: input.userPrompt,
           history: [],
           systemPromptOverride: workerSystemPrompt,
@@ -254,6 +265,7 @@ export class FireflyHarness implements IAgentCore {
           suppressCharacterState: true,
         }).messages
       : await this.contextManager.buildInitialMessagesWithSlots({
+          source: input.source,
           userPrompt: input.userPrompt,
           history: input.history,
           characterState: input.characterState,
@@ -412,6 +424,7 @@ export class FireflyHarness implements IAgentCore {
             if (decision.action === "retry_with_compaction") {
               executionState.runState = "compacting";
               const projected = this.contextManager.project({
+                source: input.source,
                 userPrompt: input.userPrompt,
                 history: session.getMessages(),
                 forceCompactionStrategy: "emergency",
@@ -514,6 +527,7 @@ export class FireflyHarness implements IAgentCore {
             authorizationAdapter: this.authorizationAdapter,
             allowedToolIds: workerRun ? new Set(executionProfile.allowedToolIds) : undefined,
             requireAuthorizationForAllTools: workerRun,
+            rejectAllToolCalls: restrictedProactiveSurface,
             requester: workerRun ? executionProfile.requester : undefined,
             mainDelegationService,
             getMainDelegationBudget: mainDelegationService

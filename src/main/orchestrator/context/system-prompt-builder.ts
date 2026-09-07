@@ -11,6 +11,7 @@ export interface SystemPromptOptions {
   ragContext?: string;
   planContext?: string;
   mode?: "daily" | "work";
+  unlockedTools?: boolean;
 }
 
 /**
@@ -46,6 +47,7 @@ export class SystemPromptBuilder {
       ragContext: options.ragContext,
       planContext: options.planContext,
       mode: options.mode,
+      unlockedTools: options.unlockedTools,
     });
   }
 }

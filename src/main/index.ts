@@ -117,7 +117,8 @@ let unregisterApprovalPresentationListener: (() => void) | null = null;
  *  index.ts is the sole composition root: production consumers receive the public AgentCore facade here. */
 let agentCore: IAgentCore;
 let subAgentWorkerRuntime: SubAgentWorkerRuntime | null = null;
-let proactiveScheduler: FireflyProactiveScheduler;
+let proactiveScheduler: FireflyProactiveScheduler | null = null;
+let unregisterProactivePetVisibility: (() => void) | null = null;
 let tray: Tray | null = null;
 let isSpeaking = false;
 let isChatInFlight = false;
@@ -472,6 +473,7 @@ app.whenReady().then(() => {
     memoryService,
     onChatInFlight: (active) => {
       isChatInFlight = active;
+      if (active) proactiveScheduler?.invalidateForChatStart();
     },
     onEmbodimentPlan: (plan) => {
       if (plan.presentationSummary) {
@@ -487,7 +489,6 @@ app.whenReady().then(() => {
   proactiveScheduler = new FireflyProactiveScheduler({
     stateManager,
     agentCore,
-    memoryService,
     isPetVisible: () => {
       const win = windowManager.getPetWindow();
       return !!(win && !win.isDestroyed() && win.isVisible());
@@ -497,6 +498,9 @@ app.whenReady().then(() => {
     broadcastProactive: (payload) => {
       windowManager.broadcast(IPC.PET_PROACTIVE_LINE, payload);
     },
+  });
+  unregisterProactivePetVisibility = windowManager.onPetVisibilityChanged((visible) => {
+    if (!visible) proactiveScheduler?.invalidateForPetHidden();
   });
   proactiveScheduler.start();
 
@@ -543,6 +547,7 @@ app.whenReady().then(() => {
   const ttsResult = registerTtsIpc({
     configPath,
     onSpeakingChanged: (speaking) => {
+      if (speaking) proactiveScheduler?.invalidateForSpeakingStart();
       isSpeaking = speaking;
       windowManager.broadcast(IPC.PET_SPEAKING_CHANGED, speaking);
     },
@@ -567,6 +572,8 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   proactiveScheduler?.stop();
+  unregisterProactivePetVisibility?.();
+  unregisterProactivePetVisibility = null;
   stateManager?.dispose();
   memoryService?.save();
   subAgentWorkerRuntime?.cancelAll();

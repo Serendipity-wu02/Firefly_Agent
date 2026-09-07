@@ -331,6 +331,15 @@ export class CharacterPolicyEngine {
       .map((g) => `- ${g}`)
       .join("\n");
 
+    const actionInstruction =
+      options.unlockedTools === false
+        ? "- 当前运行没有工具执行面。请只返回流萤直接说出的口语内容，不调用工具，也不要输出动作调用指令。"
+        : "- 当你在与开拓者交谈、展示情绪或做出动作时，请积极调用 `play_live2d_action` 工具向开拓者展现你的动作。";
+    const actionListSection =
+      options.unlockedTools === false
+        ? "【当前运行边界】\n本次主动生成不提供动作工具，不执行任何动作调用。"
+        : `【可用动作列表】\n${actionListStr}`;
+
     const prompt = `你是${charSource}的少女「${charName}」${charNameEn}，${charIdentity}。
 ${background}
 
@@ -347,7 +356,7 @@ ${relationshipSection}
 
 【角色设定与准则】
 ${capabilityRules}
-- 当你在与开拓者交谈、展示情绪或做出动作时，请积极调用 \`play_live2d_action\` 工具向开拓者展现你的动作。
+${actionInstruction}
 - 【重要约束】你拥有且仅拥有流萤本身的19个日常动作。你始终保持温柔真诚的少女形态。
 
 【纯口语硬限制】
@@ -360,7 +369,7 @@ ${guardrailPoints}
 ${stateStr}${memorySection}${ragSection}${planSection}
 
 【可用动作列表】
-${actionListStr}
+${actionListSection}
 `;
 
     return prompt;

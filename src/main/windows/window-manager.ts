@@ -35,6 +35,7 @@ export class WindowManager {
   private approvalWindowCloseHandler: (() => void) | null = null;
   private approvalPresentationRefreshHandler: (() => void) | null = null;
   private chatRendererReady = false;
+  private readonly petVisibilityListeners = new Set<(visible: boolean) => void>();
   private isDev: boolean;
   private configPath: string;
   private petScale = 1.0;
@@ -47,6 +48,17 @@ export class WindowManager {
       this.configPath = path.join(process.cwd(), "settings.json");
     }
     this.loadPetScale();
+  }
+
+  onPetVisibilityChanged(listener: (visible: boolean) => void): () => void {
+    this.petVisibilityListeners.add(listener);
+    return () => this.petVisibilityListeners.delete(listener);
+  }
+
+  private notifyPetVisibilityChanged(visible: boolean): void {
+    for (const listener of this.petVisibilityListeners) {
+      listener(visible);
+    }
   }
 
   private loadPetScale(): void {
@@ -195,6 +207,9 @@ export class WindowManager {
       win.show();
     });
 
+    win.on("show", () => this.notifyPetVisibilityChanged(true));
+    win.on("hide", () => this.notifyPetVisibilityChanged(false));
+
     win.on("moved", () => {
       const [x, y] = win.getPosition();
       this.saveWindowPosition(x, y);
@@ -202,6 +217,7 @@ export class WindowManager {
 
     win.on("closed", () => {
       this.petWindow = null;
+      this.notifyPetVisibilityChanged(false);
     });
 
     this.petWindow = win;

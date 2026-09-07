@@ -1,5 +1,6 @@
 import type { ChatMessage } from "../../../shared/chat-types";
 import type { CharacterStateData } from "../../../shared/firefly-state";
+import type { AgentRunSource } from "../../../shared/agent-types";
 import { SystemPromptBuilder } from "./system-prompt-builder";
 import { TokenMeter } from "./token-meter";
 import {
@@ -17,6 +18,7 @@ import {
 
 export interface ContextProjectionOptions {
   userPrompt: string;
+  source?: AgentRunSource;
   history?: ChatMessage[];
   characterState?: CharacterStateData;
   memoryContext?: string;
@@ -63,7 +65,15 @@ export class ContextProjector {
         state: options.characterState,
         memoryContext: options.memoryContext,
         ragContext: options.ragContext,
+        unlockedTools: options.source !== "proactive",
       });
+
+    if (options.source === "proactive" && options.userPrompt.trim().length > 0) {
+      systemPrompt +=
+        "\n\n【内部主动触发指令】\n" +
+        options.userPrompt.trim() +
+        "\n请只返回流萤直接说出的口语内容；当前运行没有任何工具执行面，不要调用工具或输出动作调用指令。";
+    }
 
     if (options.planContext && options.planContext.trim().length > 0) {
       systemPrompt += `\n\n【当前任务执行计划】\n${options.planContext.trim()}`;
@@ -77,11 +87,19 @@ export class ContextProjector {
     };
 
     // 2. 组装原始对话历史 (防御性拷贝，不污染传入数组)
-    const history = options.history ? options.history.map((m) => ({ ...m })) : [];
+    const history =
+      options.source === "proactive"
+        ? []
+        : options.history
+          ? options.history.map((m) => ({ ...m }))
+          : [];
 
     // 若历史末尾不是当前 userPrompt，安全追加当前用户输入
     const lastMsg = history[history.length - 1];
-    if (!lastMsg || lastMsg.role !== "user" || lastMsg.content !== options.userPrompt) {
+    if (
+      options.source !== "proactive" &&
+      (!lastMsg || lastMsg.role !== "user" || lastMsg.content !== options.userPrompt)
+    ) {
       history.push({
         id: `user-${Date.now()}`,
         role: "user",

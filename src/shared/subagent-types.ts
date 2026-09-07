@@ -145,6 +145,8 @@ export interface MainExecutionProfile {
    * existing tool surface.
    */
   readonly allowSubAgentDelegation?: true;
+  /** Explicit execution surface. "none" is used by internal proactive generation. */
+  readonly toolSurface?: "default" | "none";
 }
 
 export type AgentExecutionProfile = MainExecutionProfile | WorkerExecutionProfile;

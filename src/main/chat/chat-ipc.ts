@@ -50,6 +50,7 @@ export function registerChatIpc(
       // 2. Agent Core LLM Execution
       console.log(`[Harness Trace] agent.start prompt="${payload.message}"`);
       const result = await agentCore.run({
+        source: "user",
         userPrompt: payload.message,
         history: payload.history || [],
         characterState: state,

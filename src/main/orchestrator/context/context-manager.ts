@@ -102,6 +102,18 @@ export class ContextManager {
     this.compactorOptions = { ...this.compactorOptions, ...options };
   }
 
+  private prepareProjectionOptions(options: ContextProjectionOptions): ContextProjectionOptions {
+    if (options.source !== "proactive") return options;
+
+    // Internal proactive instructions keep the canonical character/system
+    // context but never receive ordinary Memory or RAG projection input.
+    return {
+      ...options,
+      memoryContext: undefined,
+      ragContext: undefined,
+    };
+  }
+
   /**
    * 物化生成用于 Agent 运行的初始消息列表 (与 V1 buildRoundMessages 行为完全等价)
    */
@@ -135,8 +147,9 @@ export class ContextManager {
    * 系统提示和角色状态仍由 ContextProjector 统一组装，避免重复拼接。
    */
   async projectWithSlots(options: ContextProjectionOptions): Promise<ProjectedContext> {
-    const resolved = { ...options };
-    const slotContext = { ...options, userPrompt: options.userPrompt };
+    const prepared = this.prepareProjectionOptions(options);
+    const resolved = { ...prepared };
+    const slotContext = { ...prepared, userPrompt: prepared.userPrompt };
 
     for (const slot of this.listSlots()) {
       if (!slot.enabled) continue;
@@ -159,10 +172,11 @@ export class ContextManager {
    * 完整物化投影，包含 ChatMessage[]、上下文使用量快照与 Compaction 执行结果
    */
   project(options: ContextProjectionOptions): ProjectedContext {
+    const prepared = this.prepareProjectionOptions(options);
     return this.projector.project({
-      ...options,
-      budgetConfig: options.budgetConfig || this.budgetConfig,
-      compactorOptions: options.compactorOptions || this.compactorOptions,
+      ...prepared,
+      budgetConfig: prepared.budgetConfig || this.budgetConfig,
+      compactorOptions: prepared.compactorOptions || this.compactorOptions,
     });
   }
 }
