@@ -1,4 +1,4 @@
-# Firefly-Agent (流萤桌面智能体) - v1.1.0
+# Firefly-Agent (流萤桌面智能体) - v1.1.1
 
 > 🚀 **Firefly Desktop AI Agent** — 基于 Electron + TypeScript + PixiJS Live2D + GPT-SoVITS + Windows GSMTC + Memory v2 + RAG 知识库检索与统一具身多模态调度的流萤桌面智能体。
 
@@ -6,7 +6,7 @@
 
 ## 📌 版本状态 (Release Status)
 
-- **当前版本**：`v1.1.0`
+- **当前版本**：`v1.1.1`
 - **基线状态**：**COMPLETE / VERIFIED** (目录重构、GUI 基线修复与运行时验证全部通过)
 - **验收报告**：[docs/v1.1.0-runtime-baseline-acceptance-report.md](docs/v1.1.0-runtime-baseline-acceptance-report.md)
 - **重构报告**：[docs/v1.1.0-repository-reorganization-report.md](docs/v1.1.0-repository-reorganization-report.md) | [docs/v1.1.0-cleanup-report.md](docs/v1.1.0-cleanup-report.md)
@@ -36,7 +36,7 @@
    - 依托唯一的 `correlationId` 跨进程同步调度 Live2D 动作、TTS 语音韵律及心境卡片总结。
 
 5. **动态流萤 AI Voice (GPT-SoVITS AI Voice)**：
-   - 接入本地独立运行的 GPT-SoVITS 推理服务（`http://127.0.0.1:9880/tts`）与云端多引擎。
+   - 接入本地独立运行的 GPT-SoVITS 推理服务（`http://127.0.0.1:9880/tts`）；当前 TTS 引擎契约为 `off` 或 `gptsovits`。
    - 实时音频口型同步（`MouthSyncController`），具备完整的 `[TTS Trace]` 诊断链路与真实错误状态呈现。
 
 6. **Memory v2 (分层认知记忆系统)**：
@@ -85,7 +85,7 @@ Firefly-Pet/
 │   └── shared/                # 跨进程类型定义与 IPC 信道常量
 └── tools/
     ├── npm/                  # 项目级 npm 11 封装器
-    ├── test/                 # 按领域收敛的 32 个 canonical 回归套件
+    ├── test/                 # 按领域收敛的 53 个 canonical 回归套件
     │   ├── distribution/     # 环境与 npm 分发
     │   ├── core/             # Agent Core 与上下文运行时
     │   ├── runtime/          # 工具执行、TTS 与媒体控制
@@ -135,13 +135,13 @@ node src/cli/firefly.mjs --version
 
 ## 🧪 测试与质量门禁 (Testing & Verification)
 
-Firefly-Agent 配备严格的多层级回归测试体系（32 个按领域组织的 canonical 测试套件）：
+Firefly-Agent 配备严格的多层级回归测试体系（53 个按领域组织的 canonical 测试套件）：
 
 ```powershell
 # 1. 全量 TypeScript 类型检查 (Main + Preload + Renderer)
 npm run typecheck
 
-# 2. 运行全部 32 个 canonical 自动化回归测试套件
+# 2. 运行全部 53 个 canonical 自动化回归测试套件
 npm test
 
 # 3. 运行 npm 打包检查

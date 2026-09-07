@@ -29,15 +29,28 @@ export interface DesktopBridgeSnapshot {
   playbackState: PlaybackState;
 }
 
-export type GsmtcExecutor = (action: "get-state" | "play" | "pause" | "toggle" | "next" | "prev") => Promise<GsmtcRawState>;
+export type GsmtcControlAction = "play" | "pause" | "toggle" | "next" | "prev";
+export type GsmtcAction = "get-state" | GsmtcControlAction;
+
+export const QQ_MUSIC_SESSION_ID = "QQMusic.exe";
+
+export function isCanonicalQqMusicSessionId(value: unknown): value is string {
+  return typeof value === "string" && value.toLowerCase() === QQ_MUSIC_SESSION_ID.toLowerCase();
+}
+
+export type GsmtcExecutor = (action: GsmtcAction, signal?: AbortSignal) => Promise<GsmtcRawState>;
 
 export function defaultGsmtcExecutor(scriptPath: string): GsmtcExecutor {
-  return (action) => {
+  return (action, signal) => {
     return new Promise((resolve) => {
+      if (signal?.aborted) {
+        resolve({ ok: false, found: false, error: "CANCELLED" });
+        return;
+      }
       const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-Action", action];
-      execFile("powershell.exe", args, { timeout: 4000, windowsHide: true }, (err, stdout) => {
+      execFile("powershell.exe", args, { timeout: 4000, windowsHide: true, signal }, (err, stdout) => {
         if (err) {
-          resolve({ ok: false, found: false, error: err.message });
+          resolve({ ok: false, found: false, error: signal?.aborted ? "CANCELLED" : err.message });
           return;
         }
         try {
@@ -74,15 +87,16 @@ export interface QQMusicDesktopBridgeOptions {
  */
 function resolveGsmtcScript(customPath?: string): string {
   if (customPath && fs.existsSync(customPath)) return customPath;
-  const candidates = [
-    path.join(__dirname, "scripts", "qqmusic_gsmtc.ps1"),
-    path.join(process.cwd(), "src", "main", "music", "scripts", "qqmusic_gsmtc.ps1"),
-    path.join(process.cwd(), "dist", "main", "main", "music", "scripts", "qqmusic_gsmtc.ps1"),
+  const scriptName = "qqmusic_gsmtc.ps1";
+  const scriptPaths = [
+    path.join(__dirname, "scripts", scriptName),
+    path.join(process.cwd(), "dist", "main", "main", "runtime", "music", "scripts", scriptName),
+    path.join(process.cwd(), "src", "main", "runtime", "music", "scripts", scriptName),
   ];
-  for (const c of candidates) {
+  for (const c of scriptPaths) {
     if (fs.existsSync(c)) return c;
   }
-  return path.join(process.cwd(), "src", "main", "music", "scripts", "qqmusic_gsmtc.ps1");
+  return path.join(process.cwd(), "src", "main", "runtime", "music", "scripts", scriptName);
 }
 
 export class QQMusicDesktopBridge extends EventEmitter {
@@ -137,7 +151,11 @@ export class QQMusicDesktopBridge extends EventEmitter {
     this.activePollPromise = (async () => {
       try {
         const raw = await this.executor("get-state");
-        this.applyRawState(raw);
+        this.applyRawState(
+          raw.ok && raw.found && !isCanonicalQqMusicSessionId(raw.appId)
+            ? { ok: true, found: false, error: "QQ_MUSIC_SESSION_NOT_FOUND" }
+            : raw,
+        );
       } catch (err: any) {
         this.applyRawState({ ok: false, found: false, error: err?.message || String(err) });
       } finally {
@@ -235,55 +253,68 @@ export class QQMusicDesktopBridge extends EventEmitter {
     }
   }
 
-  async play(): Promise<boolean> {
-    const res = await this.executor("play");
-    if (res.ok) {
-      this.playbackState.paused = false;
-      this.playbackState.loaded = true;
-      this.emitState();
-      return true;
+  async control(action: GsmtcControlAction, signal?: AbortSignal): Promise<GsmtcRawState> {
+    if (signal?.aborted) {
+      return { ok: false, found: false, error: "CANCELLED" };
     }
-    return false;
+    if (!this.isAvailable) {
+      return { ok: false, found: false, error: "QQ_MUSIC_SESSION_NOT_FOUND" };
+    }
+
+    const res = await this.executor(action, signal);
+    if (signal?.aborted) {
+      return {
+        ...res,
+        ok: false,
+        error: "CANCELLED",
+      };
+    }
+    if (!res.ok) return res;
+
+    switch (action) {
+      case "play":
+        this.playbackState.paused = false;
+        this.playbackState.loaded = true;
+        this.emitState();
+        break;
+      case "pause":
+        this.playbackState.paused = true;
+        this.playbackState.loaded = true;
+        this.emitState();
+        break;
+      case "toggle":
+        this.playbackState.paused = !this.playbackState.paused;
+        this.playbackState.loaded = true;
+        this.emitState();
+        break;
+      case "next":
+      case "prev":
+        setTimeout(() => void this.poll(), 300);
+        break;
+      default:
+        break;
+    }
+    return res;
   }
 
-  async pause(): Promise<boolean> {
-    const res = await this.executor("pause");
-    if (res.ok) {
-      this.playbackState.paused = true;
-      this.emitState();
-      return true;
-    }
-    return false;
+  async play(signal?: AbortSignal): Promise<boolean> {
+    return (await this.control("play", signal)).ok;
   }
 
-  async toggle(): Promise<boolean> {
-    const res = await this.executor("toggle");
-    if (res.ok) {
-      this.playbackState.paused = !this.playbackState.paused;
-      this.emitState();
-      return true;
-    }
-    return false;
+  async pause(signal?: AbortSignal): Promise<boolean> {
+    return (await this.control("pause", signal)).ok;
   }
 
-  async next(): Promise<boolean> {
-    const res = await this.executor("next");
-    if (res.ok) {
-      // Force quick poll to get new track info
-      setTimeout(() => void this.poll(), 300);
-      return true;
-    }
-    return false;
+  async toggle(signal?: AbortSignal): Promise<boolean> {
+    return (await this.control("toggle", signal)).ok;
   }
 
-  async prev(): Promise<boolean> {
-    const res = await this.executor("prev");
-    if (res.ok) {
-      // Force quick poll to get new track info
-      setTimeout(() => void this.poll(), 300);
-      return true;
-    }
-    return false;
+  async next(signal?: AbortSignal): Promise<boolean> {
+    return (await this.control("next", signal)).ok;
+  }
+
+  async prev(signal?: AbortSignal): Promise<boolean> {
+    return (await this.control("prev", signal)).ok;
   }
 
   getSnapshot(): DesktopBridgeSnapshot {

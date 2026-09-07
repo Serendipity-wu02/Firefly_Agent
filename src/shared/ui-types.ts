@@ -10,6 +10,9 @@ export interface UiPreferences {
   fontSize: UiFontSize;
 }
 
+export const CHAT_OUTER_RADIUS = "16px";
+export const CHAT_MAXIMIZED_OUTER_RADIUS = "0px";
+
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   fontSize: "medium",
 };

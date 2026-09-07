@@ -16,16 +16,47 @@ import { getAutoLaunch, setAutoLaunch } from "./startup";
 import { SettingsManager } from "../settings/settings-manager";
 import { createFireflyProvider } from "./llm/providers/provider-factory";
 import { MusicService } from "./runtime/music/music-service";
+import { MusicContextService } from "./runtime/music/music-context-service";
+import { MusicPreferenceService } from "./runtime/music/music-preference-service";
+import { registerMusicPreferenceSignalAdapter } from "./runtime/music/music-preference-signals";
 import { createMusicTools } from "./tools/music-tools";
 import { registerMusicIpc } from "./runtime/music/music-ipc";
 import { QQMusicProvider } from "./runtime/music/qqmusic-provider";
 import { KnowledgeCoordinator } from "../rag/knowledge-coordinator";
 import { ContextManager } from "./orchestrator/context/context-manager";
-import { MemorySlot } from "./orchestrator/context/context-slots";
+import { MemorySlot, MusicContextSlot } from "./orchestrator/context/context-slots";
 import { CharacterPolicyEngine } from "./character/character-policy";
+import { ApprovalService } from "./runtime/approval/approval-service";
+import { registerApprovalIpc } from "./runtime/approval/approval-ipc";
+import { createApprovalRequirementResolver } from "./runtime/approval/approval-requirement-resolver";
+import { CapabilityAuthorizationPipeline } from "./runtime/authorization/capability-authorization-pipeline";
+import { AuthorizedInvocationBridge } from "./runtime/authorization/authorized-invocation-bridge";
+import { PermissionProfilePolicyResolver } from "./runtime/authorization/permission-profile-policy-resolver";
+import { CapabilityBindingResolver } from "./runtime/capabilities/capability-binding-resolver";
+import { CapabilityRegistry } from "./runtime/capabilities/capability-registry";
+import { SandboxPolicyEvaluator } from "./runtime/sandbox/sandbox-policy";
+import { ToolExecutionEngine } from "./runtime/execution/tool-execution-engine";
+import { AgentEventBus } from "./orchestrator/agent-events";
+import { HarnessAuthorizationAdapter } from "./orchestrator/harness/harness-authorization-adapter";
+import { SubAgentRegistry } from "./runtime/subagents/subagent-registry";
+import { SubAgentTaskService } from "./runtime/subagents/subagent-task-service";
+import { MainAgentDelegationService } from "./runtime/subagents/main-agent-delegation";
+import {
+  DEFAULT_MUSIC_STATUS_SUBAGENT_DESCRIPTOR,
+  SubAgentWorkerRuntime,
+} from "./runtime/subagents/subagent-worker-runtime";
 import type { IAgentCore } from "../shared/agent-core";
 import type { CareActionType } from "../shared/firefly-state";
+import { DEFAULT_AGENT_CONFIG } from "../shared/agent-types";
+import {
+  createCapabilityCategory,
+  createCapabilityId,
+} from "../shared/capability-types";
 import { evaluateProviderStatus } from "../shared/provider-types";
+import { createSandboxProfileId } from "../shared/sandbox-types";
+import type { WindowStateSnapshot } from "../shared/window-types";
+import type { FireflySettingsUpdate } from "../shared/settings-types";
+import type { MemoryItem } from "../shared/memory-types";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -50,15 +81,42 @@ try {
 }
 const configPath = path.join(userDataPath, "settings.json");
 const memoryPath = path.join(userDataPath, "memory.json");
+const approvalService = new ApprovalService();
+const MUSIC_STATUS_CAPABILITY_ID = createCapabilityId("music.status.read");
+const MUSIC_CONTROL_CAPABILITY_ID = createCapabilityId("music.control");
+const MUSIC_STATUS_CAPABILITY_CATEGORY = createCapabilityCategory("music");
+const MUSIC_STATUS_SANDBOX_PROFILE_ID = createSandboxProfileId("firefly-music-status-read-v1");
+const MUSIC_CONTROL_SANDBOX_PROFILE_ID = createSandboxProfileId("firefly-music-control-v1");
+const MUSIC_STATUS_SANDBOX_SCOPE = Object.freeze({ kind: "desktop", target: "QQMusic" } as const);
+const MUSIC_CONTROL_SANDBOX_SCOPE = Object.freeze({ kind: "desktop", target: "QQMusic" } as const);
+
+const MUSIC_CONTROL_ACTION_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  play: "播放",
+  pause: "暂停播放",
+  next: "下一首",
+  previous: "上一首",
+  toggle: "切换播放状态",
+});
+
+function formatMusicControlApprovalSummary(input: Readonly<Record<string, unknown>>): string {
+  const action = typeof input.action === "string" ? input.action : "";
+  return `控制 QQ 音乐：${MUSIC_CONTROL_ACTION_LABELS[action] ?? "不支持的操作"}`;
+}
 
 let stateManager: CharacterStateManager;
 let memoryService: FireflyMemoryService;
 let settingsManager: SettingsManager;
 let musicService: MusicService;
+let musicContextService: MusicContextService;
+let musicPreferenceService: MusicPreferenceService;
+let unregisterMusicPreferenceSignals: (() => void) | null = null;
 let unregisterMusicIpc: (() => void) | null = null;
+let unregisterApprovalIpc: (() => void) | null = null;
+let unregisterApprovalPresentationListener: (() => void) | null = null;
 /** Typed as IAgentCore so consumers never depend on the concrete class.
  *  index.ts is the sole composition root: production consumers receive the public AgentCore facade here. */
 let agentCore: IAgentCore;
+let subAgentWorkerRuntime: SubAgentWorkerRuntime | null = null;
 let proactiveScheduler: FireflyProactiveScheduler;
 let tray: Tray | null = null;
 let isSpeaking = false;
@@ -86,6 +144,11 @@ function setupIpcHandlers() {
     } else {
       win.maximize();
     }
+  });
+
+  ipcMain.handle(IPC.WINDOW_GET_STATE, (event): WindowStateSnapshot => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return { isMaximized: !!win && !win.isDestroyed() && win.isMaximized() };
   });
 
   ipcMain.on(IPC.WINDOW_QUIT, () => {
@@ -196,7 +259,7 @@ function setupIpcHandlers() {
     return settingsManager.load();
   });
 
-  ipcMain.handle(IPC.SETTINGS_SAVE, async (_event, newSettings) => {
+  ipcMain.handle(IPC.SETTINGS_SAVE, async (_event, newSettings: FireflySettingsUpdate) => {
     const ok = settingsManager.save(newSettings);
     const updated = settingsManager.load();
     windowManager.broadcast(IPC.SETTINGS_CHANGED, updated);
@@ -238,12 +301,77 @@ app.whenReady().then(() => {
 
   // Initialize Music Service & Register Music Tools
   musicService = new MusicService({ provider: new QQMusicProvider() });
-  void musicService.start();
   const musicTools = createMusicTools(musicService);
   for (const t of musicTools) {
     globalToolRegistry.register(t);
   }
   unregisterMusicIpc = registerMusicIpc(musicService);
+
+  // Register the two explicitly migrated music routes. Discovery and playback
+  // tools retain their legacy route and are not part of this authorization set.
+  const capabilityRegistry = new CapabilityRegistry();
+  capabilityRegistry.register({
+    id: MUSIC_STATUS_CAPABILITY_ID,
+    name: "Read music playback status",
+    description: "Reads the current music playback status without issuing player controls.",
+    version: "1.1.1",
+    category: MUSIC_STATUS_CAPABILITY_CATEGORY,
+    risk: "read_only",
+    sideEffect: "read_only",
+  });
+  capabilityRegistry.register({
+    id: MUSIC_CONTROL_CAPABILITY_ID,
+    name: "Control QQ Music playback",
+    description: "Controls QQ Music background playback transport without foreground activation.",
+    version: "1.1.1",
+    category: MUSIC_STATUS_CAPABILITY_CATEGORY,
+    risk: "side_effect",
+    sideEffect: "external_action",
+  });
+  const capabilityBindingResolver = new CapabilityBindingResolver(
+    capabilityRegistry,
+    globalToolRegistry,
+  );
+  capabilityBindingResolver.register({
+    capabilityId: MUSIC_STATUS_CAPABILITY_ID,
+    toolId: "music_status",
+  });
+  capabilityBindingResolver.register({
+    capabilityId: MUSIC_CONTROL_CAPABILITY_ID,
+    toolId: "music_control",
+  });
+  const sandboxPolicy = new SandboxPolicyEvaluator([
+    {
+      id: MUSIC_STATUS_SANDBOX_PROFILE_ID,
+      version: "1.1.1",
+      rules: [{ kind: "desktop", allowedTargets: [MUSIC_STATUS_SANDBOX_SCOPE.target] }],
+    },
+    {
+      id: MUSIC_CONTROL_SANDBOX_PROFILE_ID,
+      version: "1.1.1",
+      rules: [{ kind: "desktop", allowedTargets: [MUSIC_CONTROL_SANDBOX_SCOPE.target] }],
+    },
+  ]);
+  const permissionProfilePolicyResolver = new PermissionProfilePolicyResolver();
+  const approvalRequirementResolver = createApprovalRequirementResolver(
+    [
+      { capabilityId: MUSIC_STATUS_CAPABILITY_ID, requirement: "none" },
+      { capabilityId: MUSIC_CONTROL_CAPABILITY_ID, requirement: "required" },
+    ],
+    {
+      permissionPolicyResolver: permissionProfilePolicyResolver,
+      permissionProfile: () => settingsManager.getPermissionProfile(),
+    },
+  );
+  const authorizationPipeline = new CapabilityAuthorizationPipeline({
+    capabilityRegistry,
+    bindingResolver: capabilityBindingResolver,
+    sandboxPolicy,
+    approvalRequirementResolver,
+    approvalService,
+    permissionPolicyResolver: permissionProfilePolicyResolver,
+    getPermissionProfile: () => settingsManager.getPermissionProfile(),
+  });
 
   // 3. Initialize RAG Knowledge Coordinator & Context Layer
   const knowledgeCoordinator = new KnowledgeCoordinator({
@@ -253,20 +381,91 @@ app.whenReady().then(() => {
   const ragSlot = knowledgeCoordinator.createRagSlot();
   const memorySlot = new MemorySlot({
     retriever: {
-      retrieve: async ({ topK }) => ({ items: memoryService.list().slice(0, topK ?? 5) }),
+      retrieve: async ({ topK }) => ({
+        items: memoryService.listForGeneralContext().slice(0, topK ?? 5),
+      }),
     },
     projector: {
-      project: () => memoryService.buildMemoryContext(),
+      project: (items) => memoryService.buildMemoryContextFromItems(items as readonly MemoryItem[]),
     },
   });
-  const contextManager = new ContextManager({ customSlots: [memorySlot, ragSlot] });
-
   // 4. Initialize the public AgentCore facade with the Provider from Settings
   const initialProvider = createFireflyProvider(settingsManager.getLlmConfig());
+  const agentEventBus = new AgentEventBus();
+  musicContextService = new MusicContextService({
+    desktopBridge: musicService.getDesktopBridge(),
+    eventBus: agentEventBus,
+  });
+  musicPreferenceService = new MusicPreferenceService({ memory: memoryService });
+  unregisterMusicPreferenceSignals = registerMusicPreferenceSignalAdapter({
+    eventBus: agentEventBus,
+    preferenceService: musicPreferenceService,
+  });
+  musicContextService.start();
+  const musicContextSlot = new MusicContextSlot(musicContextService);
+  const contextManager = new ContextManager({
+    customSlots: [memorySlot, ragSlot, musicContextSlot],
+  });
+  void musicService.start();
+  const toolExecutionEngine = new ToolExecutionEngine(
+    globalToolRegistry,
+    undefined,
+    agentEventBus,
+  );
+  const authorizedInvocationBridge = new AuthorizedInvocationBridge(
+    toolExecutionEngine,
+    globalToolRegistry,
+  );
+  const harnessAuthorizationAdapter = new HarnessAuthorizationAdapter({
+    pipeline: authorizationPipeline,
+    bridge: authorizedInvocationBridge,
+    approvalService,
+    getPermissionProfile: () => settingsManager.getPermissionProfile(),
+    routes: [
+      {
+        toolId: "music_status",
+        capabilityId: MUSIC_STATUS_CAPABILITY_ID,
+        sandboxProfileId: MUSIC_STATUS_SANDBOX_PROFILE_ID,
+        requestedScope: MUSIC_STATUS_SANDBOX_SCOPE,
+        approvalSummary: "查询当前播放器状态",
+        approvalReason: "当前权限方案要求在读取播放器状态前获得确认。",
+        approvalTtlMs: DEFAULT_AGENT_CONFIG.totalTimeoutMs,
+      },
+      {
+        toolId: "music_control",
+        capabilityId: MUSIC_CONTROL_CAPABILITY_ID,
+        sandboxProfileId: MUSIC_CONTROL_SANDBOX_PROFILE_ID,
+        requestedScope: MUSIC_CONTROL_SANDBOX_SCOPE,
+        approvalSummary: formatMusicControlApprovalSummary,
+        approvalReason: "当前权限方案要求在控制 QQ 音乐前获得确认。",
+        approvalTtlMs: DEFAULT_AGENT_CONFIG.totalTimeoutMs,
+      },
+    ],
+  });
+  const subAgentRegistry = new SubAgentRegistry();
+  subAgentRegistry.register(DEFAULT_MUSIC_STATUS_SUBAGENT_DESCRIPTOR);
+  const subAgentTaskService = new SubAgentTaskService({ registry: subAgentRegistry });
+  const workerRuntime = new SubAgentWorkerRuntime({
+    registry: subAgentRegistry,
+    taskService: subAgentTaskService,
+    bindingResolver: capabilityBindingResolver,
+    agentCore: { run: (input) => agentCore.run(input) },
+    eventBus: agentEventBus,
+  });
+  subAgentWorkerRuntime = workerRuntime;
+  const mainAgentDelegationService = new MainAgentDelegationService({
+    registry: subAgentRegistry,
+    taskService: subAgentTaskService,
+    workerRuntime,
+  });
   agentCore = new FireflyAgentCore({
     provider: initialProvider,
     toolRegistry: globalToolRegistry,
     contextManager,
+    eventBus: agentEventBus,
+    executionEngine: toolExecutionEngine,
+    authorizationAdapter: harnessAuthorizationAdapter,
+    mainDelegationService: mainAgentDelegationService,
   });
   registerChatIpc(agentCore, stateManager, {
     sendToPet: (ch, data) => windowManager.sendToPet(ch, data),
@@ -336,6 +535,11 @@ app.whenReady().then(() => {
 
   // 7. Setup IPC, TTS, and Pet Window
   setupIpcHandlers();
+  const approvalIpc = registerApprovalIpc({ approvalService, windowManager });
+  unregisterApprovalIpc = approvalIpc.dispose;
+  unregisterApprovalPresentationListener = approvalService.onChanged(() => {
+    queueMicrotask(() => approvalIpc.notifyPending());
+  });
   const ttsResult = registerTtsIpc({
     configPath,
     onSpeakingChanged: (speaking) => {
@@ -365,10 +569,17 @@ app.on("before-quit", () => {
   proactiveScheduler?.stop();
   stateManager?.dispose();
   memoryService?.save();
+  subAgentWorkerRuntime?.cancelAll();
+  subAgentWorkerRuntime = null;
   agentCore?.cancelAll();
   ttsSessionService?.cancelAll();
+  unregisterMusicPreferenceSignals?.();
+  unregisterMusicPreferenceSignals = null;
+  musicContextService?.dispose();
   void musicService?.shutdown();
   unregisterMusicIpc?.();
+  unregisterApprovalPresentationListener?.();
+  unregisterApprovalIpc?.();
   if (tray && !tray.isDestroyed()) {
     tray.destroy();
     tray = null;

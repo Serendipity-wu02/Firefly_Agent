@@ -1,5 +1,27 @@
-import type { ToolDefinition } from "../../shared/tool-types";
-import { MusicService } from "../runtime/music/music-service";
+import type { ToolContext, ToolDefinition } from "../../shared/tool-types";
+import {
+  MusicService,
+  type QQMusicControlAction,
+} from "../runtime/music/music-service";
+
+const MUSIC_CONTROL_CAPABILITY_ID = "music.control";
+const MUSIC_CONTROL_TOOL_ID = "music_control";
+const QQ_MUSIC_TARGET = "QQMusic";
+const AUTHORIZED_QQ_MUSIC_ACTIONS = new Set<QQMusicControlAction>([
+  "play",
+  "pause",
+  "next",
+  "previous",
+  "toggle",
+]);
+
+function hasPinnedQqMusicAuthorization(ctx: ToolContext | undefined): boolean {
+  const authorization = ctx?.upstreamAuthorization;
+  return authorization?.capabilityId === MUSIC_CONTROL_CAPABILITY_ID &&
+    authorization.toolId === MUSIC_CONTROL_TOOL_ID &&
+    authorization.authorizedScope.kind === "desktop" &&
+    authorization.authorizedScope.target === QQ_MUSIC_TARGET;
+}
 
 export function createMusicTools(musicService: MusicService): ToolDefinition[] {
   const searchTool: ToolDefinition = {
@@ -160,13 +182,19 @@ export function createMusicTools(musicService: MusicService): ToolDefinition[] {
   const controlTool: ToolDefinition = {
     id: "music_control",
     name: "控制音乐",
-    description: "控制音乐播放状态：暂停(pause)、继续(resume)、下一首(next)、上一首(prev)、停止(stop)、设置音量(volume)。",
+    description:
+      "控制音乐播放状态。QQ 音乐授权后台控制支持 play、pause、next、previous、toggle；未授权旧路径保留既有播放器控制语义。",
+    risk: "side_effect",
+    safetyLevel: "confirm_required",
+    sideEffect: "external_action",
+    timeoutMs: 5_000,
+    retryable: false,
     inputSchema: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: ["pause", "resume", "next", "prev", "stop", "volume"],
+          enum: ["play", "pause", "next", "previous", "toggle", "resume", "prev", "stop", "volume"],
           description: "控制指令",
         },
         volume: {
@@ -177,9 +205,32 @@ export function createMusicTools(musicService: MusicService): ToolDefinition[] {
       required: ["action"],
     },
     enabled: true,
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, ctx?: ToolContext) => {
       try {
-        const action = String(args.action || "") as "pause" | "resume" | "next" | "prev" | "stop" | "volume";
+        const action = String(args.action || "");
+        if (ctx?.upstreamAuthorization !== undefined) {
+          if (!hasPinnedQqMusicAuthorization(ctx)) {
+            return JSON.stringify({
+              ok: false,
+              error: "CONTROL_TARGET_MISMATCH",
+              message: "授权控制目标不是固定的 QQMusic 桌面会话。",
+            });
+          }
+          if (!AUTHORIZED_QQ_MUSIC_ACTIONS.has(action as QQMusicControlAction)) {
+            return JSON.stringify({
+              ok: false,
+              error: "COMMAND_UNSUPPORTED",
+              message: "该命令不属于 V1 QQ 音乐后台控制集合。",
+              target: QQ_MUSIC_TARGET,
+            });
+          }
+          const result = await musicService.controlQQMusic(
+            action as QQMusicControlAction,
+            ctx.signal,
+          );
+          return JSON.stringify(result);
+        }
+
         switch (action) {
           case "pause":
             await musicService.pause();
@@ -219,6 +270,8 @@ export function createMusicTools(musicService: MusicService): ToolDefinition[] {
     id: "music_status",
     name: "查询音乐状态",
     description: "查询当前正在播放的歌曲信息以及播放器状态（播放中、已暂停、音量等）。",
+    risk: "read_only",
+    sideEffect: "read_only",
     inputSchema: {
       type: "object",
       properties: {},

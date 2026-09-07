@@ -1,4 +1,5 @@
 {
+  "permissionProfile": "RESTRICTED_SCOPE",
   "llm": {
     "provider": "local",
     "baseUrl": "",
@@ -19,7 +20,8 @@
       "promptText": "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！",
       "format": "wav",
       "speed": 0.9,
-      "seed": 5
+      "seed": 15,
+      "textSplitMethod": "cut5"
     }
   },
   "ui": {

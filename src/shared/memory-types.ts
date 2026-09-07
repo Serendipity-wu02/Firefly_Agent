@@ -3,6 +3,7 @@ export interface MemoryItem {
   value: string;
   updatedAt: string;
   source?: string;
+  metadata?: Readonly<Record<string, unknown>>;
 }
 
 export interface MemoryContextSnapshot {

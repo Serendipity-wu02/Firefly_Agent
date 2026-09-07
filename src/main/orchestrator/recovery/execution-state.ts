@@ -19,6 +19,7 @@ export type StepState =
   | "pending"
   | "running"
   | "waiting_tool"
+  | "waiting_permission"
   | "waiting_llm"
   | "completed"
   | "failed"

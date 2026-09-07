@@ -3,6 +3,7 @@ import type {
   ToolSafetyLevel,
   ToolSideEffect,
 } from "../../../shared/tool-types";
+import type { UpstreamAuthorizationContext } from "../../../shared/runtime-integration-types";
 
 export type ToolExecutionMode = "serial" | "parallel";
 
@@ -65,6 +66,42 @@ export interface ToolPolicyDecision {
   reason?: string;
 }
 
+export interface ToolPolicyEvaluationContext {
+  readonly upstreamAuthorization?: UpstreamAuthorizationContext;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isUpstreamAuthorizationForTool(
+  authorization: UpstreamAuthorizationContext | undefined,
+  toolName: string,
+): boolean {
+  if (authorization === undefined || authorization.toolId !== toolName) return false;
+  if (
+    !isNonEmptyString(authorization.capabilityId) ||
+    !isNonEmptyString(authorization.requestId) ||
+    typeof authorization.requester !== "object" ||
+    authorization.requester === null ||
+    !isNonEmptyString(authorization.requester.type) ||
+    !isNonEmptyString(authorization.requester.id) ||
+    typeof authorization.authorizedScope !== "object" ||
+    authorization.authorizedScope === null
+  ) {
+    return false;
+  }
+
+  if (authorization.approvalRequirement === "none") {
+    return authorization.authorization.type === "sandbox-only";
+  }
+
+  return authorization.approvalRequirement === "required" &&
+    authorization.authorization.type === "approval-grant" &&
+    authorization.authorization.grantLifetime === "once" &&
+    isNonEmptyString(authorization.authorization.approvalRequestId);
+}
+
 /**
  * ToolPolicyEvaluator (工具策略评估器)
  *
@@ -75,6 +112,7 @@ export class ToolPolicyEvaluator {
     tool: ToolDefinition | undefined,
     toolName: string,
     config: ToolPolicyConfig = DEFAULT_TOOL_POLICY_CONFIG,
+    context: ToolPolicyEvaluationContext = {},
   ): ToolPolicyDecision {
     const mergedConfig: ToolPolicyConfig = { ...DEFAULT_TOOL_POLICY_CONFIG, ...config };
     const rule = mergedConfig.rules?.[toolName] || {};
@@ -183,7 +221,7 @@ export class ToolPolicyEvaluator {
       safetyLevel === "confirm_required" ||
       safetyLevel === "high_risk";
 
-    if (isConfirmationRequired) {
+    if (isConfirmationRequired && !isUpstreamAuthorizationForTool(context.upstreamAuthorization, toolName)) {
       return {
         toolName,
         allowed: true,
@@ -196,6 +234,22 @@ export class ToolPolicyEvaluator {
         retryBackoffMs,
         maxResultChars,
         reason: `confirmation_required: Tool "${toolName}" requires user authorization before execution.`,
+      };
+    }
+
+    if (isConfirmationRequired) {
+      return {
+        toolName,
+        allowed: true,
+        action: "allow",
+        safetyLevel,
+        sideEffect,
+        executionMode,
+        timeoutMs,
+        maxRetries,
+        retryBackoffMs,
+        maxResultChars,
+        reason: `upstream_authorization_satisfied: Tool "${toolName}" was authorized before execution.`,
       };
     }
 

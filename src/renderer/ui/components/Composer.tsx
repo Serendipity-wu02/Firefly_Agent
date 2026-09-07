@@ -6,7 +6,9 @@
  */
 
 import React, { useRef, useEffect } from "react";
+import type { PermissionProfile } from "../../../shared/permission-profile-types";
 import { THEME_TOKENS } from "../theme/tokens";
+import { PermissionProfileQuickSwitcher } from "./PermissionProfileQuickSwitcher";
 
 export interface ComposerProps {
   value: string;
@@ -15,6 +17,8 @@ export interface ComposerProps {
   isLoading: boolean;
   toolStatus?: string | null;
   placeholder?: string;
+  permissionProfile: PermissionProfile;
+  onPermissionProfileChange: (profile: PermissionProfile) => void | Promise<void>;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -24,6 +28,8 @@ export const Composer: React.FC<ComposerProps> = ({
   isLoading,
   toolStatus,
   placeholder = "和流萤说点什么吧……（Enter 发送，Shift+Enter 换行）",
+  permissionProfile,
+  onPermissionProfileChange,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -159,7 +165,13 @@ export const Composer: React.FC<ComposerProps> = ({
           color: THEME_TOKENS.colors.textMuted,
         }}
       >
-        <span>🌱 与流萤心意相通</span>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+          <span>🌱 与流萤心意相通</span>
+          <PermissionProfileQuickSwitcher
+            profile={permissionProfile}
+            onChange={onPermissionProfileChange}
+          />
+        </div>
         <span>Enter 发送 · Shift+Enter 换行</span>
       </div>
     </div>

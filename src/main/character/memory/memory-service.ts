@@ -3,6 +3,14 @@ import path from "node:path";
 import { app } from "electron";
 import type { MemoryItem } from "../../../shared/memory-types";
 
+export const MUSIC_PREFERENCE_MEMORY_DOMAIN = "music_preference_v1";
+
+function readMetadata(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? { ...(value as Record<string, unknown>) }
+    : undefined;
+}
+
 export const MEMORY_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/(?:我叫|我的名字[叫是]|请叫我)([一-龥A-Za-z0-9]{1,12})/, "用户名字"],
   [/(?:我的生日是|我生日是)([0-9]{1,4}[月日号]?[0-9]{0,4}[月日号]?)/, "用户生日"],
@@ -42,6 +50,7 @@ export class FireflyMemoryService {
                 value: item.value.trim(),
                 updatedAt,
                 source: item.source,
+                metadata: readMetadata(item.metadata),
               });
             }
           }
@@ -67,7 +76,12 @@ export class FireflyMemoryService {
     }
   }
 
-  remember(key: string, value: string, source?: string): boolean {
+  remember(
+    key: string,
+    value: string,
+    source?: string,
+    metadata?: Readonly<Record<string, unknown>>,
+  ): boolean {
     const k = key.trim();
     const v = value.trim();
     if (!k || !v) return false;
@@ -77,6 +91,7 @@ export class FireflyMemoryService {
       value: v,
       updatedAt: new Date().toISOString(),
       source,
+      metadata: metadata ? { ...metadata } : undefined,
     });
     return this.save();
   }
@@ -95,6 +110,12 @@ export class FireflyMemoryService {
 
   list(): readonly MemoryItem[] {
     return Array.from(this.items.values());
+  }
+
+  listForGeneralContext(): readonly MemoryItem[] {
+    return this.list().filter(
+      (item) => item.metadata?.domain !== MUSIC_PREFERENCE_MEMORY_DOMAIN,
+    );
   }
 
   clear(): void {
@@ -124,8 +145,12 @@ export class FireflyMemoryService {
     return all.slice(0, limit);
   }
 
-  buildMemoryContext(query?: string): string {
-    const memories = this.retrieve(query);
+  buildMemoryContext(_query?: string): string {
+    const memories = this.listForGeneralContext().slice(0, 20);
+    return this.buildMemoryContextFromItems(memories);
+  }
+
+  buildMemoryContextFromItems(memories: readonly MemoryItem[]): string {
     if (memories.length === 0) {
       return "";
     }

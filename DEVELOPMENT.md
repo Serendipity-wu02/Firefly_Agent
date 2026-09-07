@@ -42,7 +42,7 @@ npm run build
 
 ### Node.js 全量自动化测试套件
 ```bash
-# 执行全部 Node.js 测试（包含环境基线与 32 个 canonical 测试套件）
+# 执行全部 Node.js 测试（包含环境基线与 53 个 canonical 测试套件）
 npm test
 
 # 或单独执行环境基线自检：
@@ -64,6 +64,6 @@ $env:ELECTRON_SMOKE_TEST="1"; npx electron .
 
 ## 4. 架构分层约定
 
-1. **Agent Core 纯粹性**：`src/main/agent/firefly-agent-core.ts` 严禁直接引入渲染层、UI 层、Live2D、TTS 或窗口对象，必须保持纯逻辑状态。
+1. **Agent Core 纯粹性**：`src/main/orchestrator/firefly-agent-core.ts` 严禁直接引入渲染层、UI 层、Live2D、TTS 或窗口对象，必须保持纯逻辑状态。
 2. **多进程通信**：所有主进程向渲染进程广播通过 `WindowManager.broadcast(channel, data)` 统一分发，信道常量必须集中定义在 `src/shared/ipc-channels.ts`。
 3. **音频处理原则**：真实语音推理仅通过 HTTP API 访问外部 GPT-SoVITS 服务，大型权重文件严禁复制入 Electron 代码仓库。

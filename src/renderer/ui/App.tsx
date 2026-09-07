@@ -14,8 +14,18 @@ import type { LlmProviderConfig } from "../../shared/provider-types";
 import type { TtsSettings } from "../../shared/tts-types";
 import { DEFAULT_TTS_SETTINGS } from "../../shared/tts-types";
 import type { UiFontSize } from "../../shared/ui-types";
-import { DEFAULT_UI_PREFERENCES } from "../../shared/ui-types";
+import {
+  CHAT_MAXIMIZED_OUTER_RADIUS,
+  CHAT_OUTER_RADIUS,
+  DEFAULT_UI_PREFERENCES,
+} from "../../shared/ui-types";
+import { parseRendererView, type RendererView } from "../../shared/window-types";
 import type { ChatMessage } from "../../shared/chat-types";
+import type { ApprovalRecord } from "../../shared/approval-types";
+import {
+  DEFAULT_PERMISSION_PROFILE,
+  type PermissionProfile,
+} from "../../shared/permission-profile-types";
 import { THEME_TOKENS, getFontScaleStyles } from "./theme/tokens";
 import { globalTtsPlayback, type TtsPlaybackSnapshot } from "../tts/tts-playback";
 import { debugLog } from "../debug-log";
@@ -26,9 +36,23 @@ import { ChatMessageItem } from "./components/ChatMessageItem";
 import { Composer } from "./components/Composer";
 import { SettingsView } from "./components/SettingsView";
 import { CharacterSummary } from "./components/CharacterSummary";
+import { ApprovalView } from "./components/ApprovalView";
+import { InlineApprovalCard } from "./components/InlineApprovalCard";
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"chat" | "settings" | "summary">("chat");
+  const rendererView = parseRendererView(window.location.search);
+  if (rendererView === "approval") {
+    return <ApprovalView />;
+  }
+  return <MainApp rendererView={rendererView} />;
+};
+
+interface MainAppProps {
+  readonly rendererView: Exclude<RendererView, "approval">;
+}
+
+const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
+  const [isMaximized, setIsMaximized] = useState(false);
 
   // Semantic Cognitive State for CharacterSummary (Zero legacy numeric stats)
   const [currentMood, setCurrentMood] = useState<string>("温和宁静");
@@ -42,6 +66,7 @@ export const App: React.FC = () => {
   const [llmConfig, setLlmConfig] = useState<LlmProviderConfig>(DEFAULT_LLM_CONFIG);
   const [ttsSettings, setTtsSettings] = useState<TtsSettings>(DEFAULT_TTS_SETTINGS);
   const [uiFontSize, setUiFontSize] = useState<UiFontSize>(DEFAULT_UI_PREFERENCES.fontSize);
+  const [permissionProfile, setPermissionProfile] = useState<PermissionProfile>(DEFAULT_PERMISSION_PROFILE);
   const [autoLaunch, setAutoLaunchState] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string>("");
 
@@ -64,20 +89,25 @@ export const App: React.FC = () => {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentToolStatus, setCurrentToolStatus] = useState<string | null>(null);
+  const [inlineApproval, setInlineApproval] = useState<ApprovalRecord | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get("tab");
-    if (tabParam === "settings" || tabParam === "tts") {
-      setActiveTab("settings");
+    if (rendererView === "settings") {
       document.title = "流萤 · 设置";
-    } else if (tabParam === "summary") {
-      setActiveTab("summary");
+    } else if (rendererView === "summary") {
       document.title = "流萤 · 认知心境";
     } else {
-      setActiveTab("chat");
       document.title = "流萤 · Firefly";
+    }
+
+    const unsubWindowState = window.firefly?.onWindowStateChanged?.((state) => {
+      setIsMaximized(state.isMaximized);
+    });
+    if (window.firefly?.getWindowState) {
+      void window.firefly.getWindowState().then((state) => {
+        setIsMaximized(state.isMaximized);
+      });
     }
 
     // Load Settings
@@ -88,6 +118,7 @@ export const App: React.FC = () => {
       }
       if (res?.tts) setTtsSettings(res.tts);
       if (res?.ui?.fontSize) setUiFontSize(res.ui.fontSize);
+      if (res?.permissionProfile) setPermissionProfile(res.permissionProfile);
     });
 
     if (window.chat?.getProviderStatus) {
@@ -120,10 +151,6 @@ export const App: React.FC = () => {
       });
     }
 
-    const unsubOpenSettings = window.firefly?.onOpenSettings?.(() => {
-      setActiveTab("settings");
-    });
-
     let unsubProvider: (() => void) | undefined;
     if (window.chat?.onProviderStatusChanged) {
       unsubProvider = window.chat.onProviderStatusChanged((status) => {
@@ -144,17 +171,28 @@ export const App: React.FC = () => {
         if (newSettings?.tts) {
           setTtsSettings(newSettings.tts);
         }
+        if (newSettings?.permissionProfile) {
+          setPermissionProfile(newSettings.permissionProfile);
+        }
+      });
+    }
+
+    let unsubApproval: (() => void) | undefined;
+    if (rendererView === "chat" && window.approval?.onApprovalChanged) {
+      unsubApproval = window.approval.onApprovalChanged((event) => {
+        setInlineApproval(event.record?.state === "pending" ? event.record : null);
       });
     }
 
     return () => {
       unsubTts();
       unsubSummary?.();
-      unsubOpenSettings?.();
+      unsubWindowState?.();
       unsubProvider?.();
       unsubSettings?.();
+      unsubApproval?.();
     };
-  }, []);
+  }, [rendererView]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -272,6 +310,20 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleUiFontSizeChange = async (fontSize: UiFontSize) => {
+    setUiFontSize(fontSize);
+    if (!window.settings) return;
+
+    try {
+      const ok = await window.settings.save({ ui: { fontSize } });
+      setSaveStatus(ok ? "✅ 字号已即时同步！" : "❌ 字号保存失败");
+      window.setTimeout(() => setSaveStatus(""), 3000);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "字号保存失败";
+      setSaveStatus(`❌ ${message}`);
+    }
+  };
+
   const handleSaveSettings = async () => {
     try {
       if (window.settings) {
@@ -279,6 +331,7 @@ export const App: React.FC = () => {
           llm: llmConfig,
           tts: ttsSettings,
           ui: { fontSize: uiFontSize },
+          permissionProfile,
         });
       }
       if (window.tts) {
@@ -294,7 +347,39 @@ export const App: React.FC = () => {
     }
   };
 
-  if (activeTab === "summary") {
+  const handlePermissionProfileChange = async (profile: PermissionProfile): Promise<void> => {
+    if (!window.settings) return;
+
+    const restoreCanonicalProfile = async () => {
+      try {
+        const snapshot = await window.settings?.load();
+        setPermissionProfile(snapshot?.permissionProfile ?? DEFAULT_PERMISSION_PROFILE);
+      } catch {
+        setPermissionProfile(DEFAULT_PERMISSION_PROFILE);
+      }
+    };
+
+    try {
+      const ok = await window.settings.save({ permissionProfile: profile });
+      if (!ok) {
+        await restoreCanonicalProfile();
+        setSaveStatus("❌ 权限模式保存失败");
+        window.setTimeout(() => setSaveStatus(""), 3000);
+        return;
+      }
+
+      setPermissionProfile(profile);
+      setSaveStatus("✅ 权限模式已即时同步！");
+      window.setTimeout(() => setSaveStatus(""), 3000);
+    } catch (err: unknown) {
+      await restoreCanonicalProfile();
+      const message = err instanceof Error ? err.message : "权限模式保存失败";
+      setSaveStatus(`❌ ${message}`);
+      window.setTimeout(() => setSaveStatus(""), 3000);
+    }
+  };
+
+  if (rendererView === "summary") {
     return (
       <div
         data-font-size={uiFontSize}
@@ -337,17 +422,21 @@ export const App: React.FC = () => {
         boxSizing: "border-box",
         userSelect: "none",
         overflow: "hidden",
-        borderRadius: "16px",
+        borderRadius: isMaximized ? CHAT_MAXIMIZED_OUTER_RADIUS : CHAT_OUTER_RADIUS,
+        transition: "border-radius 140ms ease-out, opacity 140ms ease-out, transform 140ms ease-out",
+        opacity: isMaximized ? 1 : 0.998,
+        transform: isMaximized ? "scale(1)" : "scale(0.998)",
+        transformOrigin: "center",
         position: "relative",
         paddingTop: "52px",
         ...getFontScaleStyles(uiFontSize),
       }}
     >
       {/* 1. Top Header */}
-      <Header activeTab={activeTab} onTabChange={setActiveTab} providerStatus={providerStatus} />
+      <Header providerStatus={providerStatus} isMaximized={isMaximized} />
 
       {/* 2. Main Body Area */}
-      {activeTab === "chat" ? (
+      {rendererView === "chat" ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minHeight: 0, WebkitAppRegion: "no-drag" } as React.CSSProperties}>
           {/* Conversation Area with Messages */}
           <div
@@ -361,6 +450,13 @@ export const App: React.FC = () => {
               WebkitAppRegion: "no-drag",
             } as React.CSSProperties}
           >
+            {inlineApproval ? (
+              <InlineApprovalCard
+                record={inlineApproval}
+                onStale={() => setInlineApproval(null)}
+              />
+            ) : null}
+
             {/* Messages List */}
             {messages.map((msg) => (
               <ChatMessageItem
@@ -383,10 +479,12 @@ export const App: React.FC = () => {
             onSend={handleSendMessage}
             isLoading={isLoading}
             toolStatus={currentToolStatus}
+            permissionProfile={permissionProfile}
+            onPermissionProfileChange={handlePermissionProfileChange}
           />
         </div>
       ) : (
-        /* Settings Tab */
+        /* Independent Settings Window */
         <div
           style={{
             flex: 1,
@@ -404,7 +502,9 @@ export const App: React.FC = () => {
             ttsSettings={ttsSettings}
             setTtsSettings={setTtsSettings}
             uiFontSize={uiFontSize}
-            setUiFontSize={setUiFontSize}
+            onUiFontSizeChange={handleUiFontSizeChange}
+            permissionProfile={permissionProfile}
+            onPermissionProfileChange={handlePermissionProfileChange}
             autoLaunch={autoLaunch}
             setAutoLaunchState={setAutoLaunchState}
             onSave={handleSaveSettings}

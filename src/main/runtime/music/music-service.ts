@@ -3,7 +3,7 @@ import { MpvController } from "./mpv-controller";
 import { SelectionSetCache } from "./selection-set-cache";
 import { PlaybackSession } from "./playback-session";
 import { QQMusicProvider } from "./qqmusic-provider";
-import { QQMusicDesktopBridge } from "./qqmusic-desktop-bridge";
+import { QQMusicDesktopBridge, type GsmtcControlAction } from "./qqmusic-desktop-bridge";
 import type {
   MusicTrack,
   MusicBackendState,
@@ -20,6 +20,27 @@ export interface MusicServiceOptions {
   selectionCache?: SelectionSetCache;
   playbackSession?: PlaybackSession;
 }
+
+export type QQMusicControlAction = "play" | "pause" | "next" | "previous" | "toggle";
+export type QQMusicControlFailureCode =
+  | "PLAYER_NOT_FOUND"
+  | "COMMAND_REJECTED"
+  | "CONTROL_UNAVAILABLE"
+  | "CANCELLED";
+
+export type QQMusicControlResult =
+  | {
+      readonly ok: true;
+      readonly action: QQMusicControlAction;
+      readonly target: "QQMusic";
+    }
+  | {
+      readonly ok: false;
+      readonly action: QQMusicControlAction;
+      readonly target: "QQMusic";
+      readonly error: QQMusicControlFailureCode;
+      readonly message: string;
+    };
 
 export class MusicService {
   private provider: IMusicProvider;
@@ -247,6 +268,47 @@ export class MusicService {
       return this.playTrack(prev);
     }
     return false;
+  }
+
+  async controlQQMusic(
+    action: QQMusicControlAction,
+    signal?: AbortSignal,
+  ): Promise<QQMusicControlResult> {
+    const failure = (error: QQMusicControlFailureCode, message: string): QQMusicControlResult => ({
+      ok: false,
+      action,
+      target: "QQMusic",
+      error,
+      message,
+    });
+
+    if (signal?.aborted) {
+      return failure("CANCELLED", "QQ 音乐控制在发送前已被取消；未发送控制命令。");
+    }
+
+    if (!this.desktopBridge.getSnapshot().available) {
+      return failure("PLAYER_NOT_FOUND", "未找到正在运行的 QQ 音乐媒体会话。");
+    }
+
+    const bridgeAction: GsmtcControlAction = action === "previous" ? "prev" : action;
+    const result = await this.desktopBridge.control(bridgeAction, signal);
+    if (signal?.aborted || result.error === "CANCELLED") {
+      return failure(
+        "CANCELLED",
+        "QQ 音乐控制已取消；外部命令是否已到达播放器无法回滚或确认。",
+      );
+    }
+    if (result.ok) {
+      return { ok: true, action, target: "QQMusic" };
+    }
+
+    if (result.error === "QQ_MUSIC_SESSION_NOT_FOUND") {
+      return failure("PLAYER_NOT_FOUND", "QQ 音乐媒体会话已不可用。");
+    }
+    if (result.error !== undefined) {
+      return failure("CONTROL_UNAVAILABLE", "QQ 音乐后台控制不可用。");
+    }
+    return failure("COMMAND_REJECTED", "QQ 音乐拒绝了该后台控制命令。");
   }
 
   async stop(): Promise<void> {

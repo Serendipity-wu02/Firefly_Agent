@@ -1,3 +1,5 @@
+import type { UpstreamAuthorizationContext } from "../../../shared/runtime-integration-types";
+
 export interface ToolExecutionContext {
   runId: string;
   step: number;
@@ -7,4 +9,6 @@ export interface ToolExecutionContext {
   toolCallsCount: number;
   maxToolCallsPerRun?: number;
   metadata?: Record<string, unknown>;
+  /** Present only when the authorized invocation bridge has completed upstream authorization. */
+  upstreamAuthorization?: UpstreamAuthorizationContext;
 }

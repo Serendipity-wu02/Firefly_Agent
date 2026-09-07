@@ -109,6 +109,7 @@ export class ToolExecutionEngine {
         tool,
         call.name,
         this.policyConfig,
+        { upstreamAuthorization: ctx.upstreamAuthorization },
       );
 
       // 3. 拒绝拦截或确认阻断
@@ -208,10 +209,24 @@ export class ToolExecutionEngine {
             userQuery: ctx.userQuery || "",
             conversationId: ctx.conversationId,
             signal: timeoutController.signal,
+            upstreamAuthorization: ctx.upstreamAuthorization,
           });
 
           clearTimeout(timer);
           ctx.signal?.removeEventListener("abort", onParentAbort);
+
+          if (ctx.signal?.aborted) {
+            return {
+              toolCallId: call.id,
+              name: call.name,
+              output: JSON.stringify({
+                ok: false,
+                error: "tool_cancelled",
+                message: "Tool execution was cancelled by agent signal.",
+              }),
+              isError: true,
+            };
+          }
 
           // 超时拦截
           if (timeoutTriggered) {
@@ -303,6 +318,18 @@ export class ToolExecutionEngine {
           }
 
           const errMsg = err?.message || String(err);
+          if (ctx.signal?.aborted) {
+            return {
+              toolCallId: call.id,
+              name: call.name,
+              output: JSON.stringify({
+                ok: false,
+                error: "tool_cancelled",
+                message: "Tool execution was cancelled by agent signal.",
+              }),
+              isError: true,
+            };
+          }
           if (attempt <= maxRetries && !ctx.signal?.aborted) {
             const delayMs = decision.retryBackoffMs * Math.pow(2, attempt - 1);
             this.eventBus?.emit({
@@ -363,7 +390,12 @@ export class ToolExecutionEngine {
     const decisionMap = new Map<string, ToolPolicyDecision>();
     for (const call of toolCalls) {
       const tool = this.registry.get(call.name);
-      const decision = ToolPolicyEvaluator.evaluate(tool, call.name, this.policyConfig);
+      const decision = ToolPolicyEvaluator.evaluate(
+        tool,
+        call.name,
+        this.policyConfig,
+        { upstreamAuthorization: ctx.upstreamAuthorization },
+      );
       decisionMap.set(call.id, decision);
       decisionMap.set(call.name, decision);
     }

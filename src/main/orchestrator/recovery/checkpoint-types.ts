@@ -12,6 +12,7 @@ export type CheckpointTrigger =
   | "run_initialized"
   | "step_start"
   | "llm_completed"
+  | "waiting_permission"
   | "tool_round_completed"
   | "compaction_completed"
   | "recovery_started"

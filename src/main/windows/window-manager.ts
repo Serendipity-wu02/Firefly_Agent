@@ -2,21 +2,39 @@ import { app, BrowserWindow, Menu, screen } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { IPC } from "../../shared/ipc-channels";
+import type { ApprovalChangedEvent } from "../../shared/approval-ipc-types";
+import {
+  RENDERER_VIEW_QUERY_PARAM,
+  type RendererView,
+  type WindowStateSnapshot,
+} from "../../shared/window-types";
 
 const PET_WINDOW_BASE_WIDTH = 429;
 const PET_WINDOW_BASE_HEIGHT = 315;
 // Harness Chat Window sizing: V1.1.0 canonical 1344×756 (16:9 desktop chat).
 const CHAT_WINDOW_WIDTH = 1344;
 const CHAT_WINDOW_HEIGHT = 756;
+// Settings keeps the existing Harness surface dimensions while moving to its
+// own BrowserWindow, so the current settings layout remains usable without a
+// second sizing contract.
+const SETTINGS_WINDOW_WIDTH = CHAT_WINDOW_WIDTH;
+const SETTINGS_WINDOW_HEIGHT = CHAT_WINDOW_HEIGHT;
 // Mood (Summary) Window: V1.1.0 canonical 254×388, floating outside the
 // Harness Chat Window's right-top corner as an independent BrowserWindow.
 const SUMMARY_WINDOW_WIDTH = 254;
 const SUMMARY_WINDOW_HEIGHT = 388;
+const APPROVAL_WINDOW_WIDTH = 520;
+const APPROVAL_WINDOW_HEIGHT = 600;
 
 export class WindowManager {
   private petWindow: BrowserWindow | null = null;
   private chatWindow: BrowserWindow | null = null;
+  private settingsWindow: BrowserWindow | null = null;
   private summaryWindow: BrowserWindow | null = null;
+  private approvalWindow: BrowserWindow | null = null;
+  private approvalWindowCloseHandler: (() => void) | null = null;
+  private approvalPresentationRefreshHandler: (() => void) | null = null;
+  private chatRendererReady = false;
   private isDev: boolean;
   private configPath: string;
   private petScale = 1.0;
@@ -84,6 +102,24 @@ export class WindowManager {
 
   getPetScale(): number {
     return this.petScale;
+  }
+
+  private sendWindowState(win: BrowserWindow): void {
+    if (win.isDestroyed() || !win.webContents || win.webContents.isDestroyed()) return;
+    const state: WindowStateSnapshot = { isMaximized: win.isMaximized() };
+    win.webContents.send(IPC.WINDOW_STATE_CHANGED, state);
+  }
+
+  private bindWindowState(win: BrowserWindow): void {
+    const sync = (): void => this.sendWindowState(win);
+    win.on("maximize", sync);
+    win.on("unmaximize", sync);
+    win.on("restore", sync);
+    win.webContents.on("did-finish-load", sync);
+  }
+
+  private getRendererDevUrl(view: RendererView): string {
+    return `http://localhost:5173/ui/index.html?${RENDERER_VIEW_QUERY_PARAM}=${view}`;
   }
 
   createPetWindow(): BrowserWindow {
@@ -177,10 +213,11 @@ export class WindowManager {
     return this.createChatWindow();
   }
 
-  createChatWindow(initialTab: "chat" | "settings" = "chat"): BrowserWindow {
+  createChatWindow(): BrowserWindow {
     if (this.chatWindow && !this.chatWindow.isDestroyed()) {
       this.chatWindow.show();
       this.chatWindow.focus();
+      this.notifyApprovalPresentationAvailability();
       return this.chatWindow;
     }
 
@@ -202,10 +239,11 @@ export class WindowManager {
       },
     });
     win.setMenu(null);
+    this.bindWindowState(win);
     win.center();
 
     const targetUrl = this.isDev
-      ? `http://localhost:5173/ui/index.html?tab=${initialTab}`
+      ? this.getRendererDevUrl("chat")
       : path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html");
     console.log(`[WindowManager] OPEN CHAT WINDOW -> Target: ${targetUrl}`);
 
@@ -213,7 +251,7 @@ export class WindowManager {
       win.loadURL(targetUrl);
     } else {
       win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
-        query: { tab: initialTab },
+        query: { [RENDERER_VIEW_QUERY_PARAM]: "chat" },
       });
     }
 
@@ -224,6 +262,13 @@ export class WindowManager {
       // corner (getSummaryAnchor computed inside createSummaryWindow). It is
       // an independent window: it does NOT follow chat moves afterwards.
       this.createSummaryWindow();
+      this.chatRendererReady = true;
+      this.notifyApprovalPresentationAvailability();
+    });
+
+    win.webContents.on("did-finish-load", () => {
+      this.chatRendererReady = true;
+      this.notifyApprovalPresentationAvailability();
     });
 
     // Deliberately NO move/moved/restore repositioning: the Mood Window's
@@ -232,26 +277,32 @@ export class WindowManager {
 
     win.on("minimize", () => {
       this.summaryWindow?.hide();
+      this.notifyApprovalPresentationAvailability();
     });
 
     win.on("restore", () => {
       if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
         this.summaryWindow.show();
       }
+      this.notifyApprovalPresentationAvailability();
     });
 
     win.on("hide", () => {
       this.summaryWindow?.hide();
+      this.notifyApprovalPresentationAvailability();
     });
 
     win.on("show", () => {
       if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
         this.summaryWindow.show();
       }
+      this.notifyApprovalPresentationAvailability();
     });
 
     win.on("closed", () => {
       this.chatWindow = null;
+      this.chatRendererReady = false;
+      this.notifyApprovalPresentationAvailability();
       if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
         this.summaryWindow.hide();
       }
@@ -262,22 +313,166 @@ export class WindowManager {
   }
 
   createSettingsWindow(): BrowserWindow {
-    const existingChatWindow = this.getChatWindow();
-    const win = existingChatWindow || this.createChatWindow("settings");
-    let delivered = false;
-    const openSettingsTab = () => {
-      if (delivered || win.isDestroyed()) return;
-      delivered = true;
-      win.webContents.send(IPC.WINDOW_OPEN_SETTINGS);
-    };
-
-    win.webContents.once("did-finish-load", openSettingsTab);
-    if (!win.webContents.isLoading() && win.webContents.getURL()) {
-      openSettingsTab();
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      this.settingsWindow.show();
+      this.settingsWindow.focus();
+      return this.settingsWindow;
     }
-    win.show();
-    win.focus();
+
+    const win = new BrowserWindow({
+      width: SETTINGS_WINDOW_WIDTH,
+      height: SETTINGS_WINDOW_HEIGHT,
+      center: true,
+      title: "流萤 · 设置",
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      resizable: true,
+      autoHideMenuBar: true,
+      show: false,
+      webPreferences: {
+        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    win.setMenu(null);
+    this.bindWindowState(win);
+
+    const targetUrl = this.isDev
+      ? this.getRendererDevUrl("settings")
+      : path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html");
+    console.log(`[WindowManager] OPEN SETTINGS WINDOW -> Target: ${targetUrl}`);
+
+    if (this.isDev) {
+      win.loadURL(targetUrl);
+    } else {
+      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
+        query: { [RENDERER_VIEW_QUERY_PARAM]: "settings" },
+      });
+    }
+
+    win.once("ready-to-show", () => {
+      win.center();
+      win.show();
+      win.focus();
+    });
+    win.on("closed", () => {
+      this.settingsWindow = null;
+    });
+
+    this.settingsWindow = win;
     return win;
+  }
+
+  openApprovalWindow(): void {
+    if (this.approvalWindow && !this.approvalWindow.isDestroyed()) {
+      this.approvalWindow.show();
+      this.approvalWindow.focus();
+      return;
+    }
+
+    const win = new BrowserWindow({
+      width: APPROVAL_WINDOW_WIDTH,
+      height: APPROVAL_WINDOW_HEIGHT,
+      center: true,
+      title: "流萤 · 权限确认",
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      resizable: false,
+      autoHideMenuBar: true,
+      show: false,
+      webPreferences: {
+        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    win.setMenu(null);
+
+    const targetUrl = this.isDev
+      ? this.getRendererDevUrl("approval")
+      : path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html");
+    console.log(`[WindowManager] OPEN APPROVAL WINDOW -> Target: ${targetUrl}`);
+
+    if (this.isDev) {
+      win.loadURL(targetUrl);
+    } else {
+      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
+        query: { [RENDERER_VIEW_QUERY_PARAM]: "approval" },
+      });
+    }
+
+    win.once("ready-to-show", () => {
+      win.center();
+      win.show();
+      win.focus();
+    });
+
+    win.on("closed", () => {
+      this.approvalWindow = null;
+      this.approvalWindowCloseHandler?.();
+    });
+
+    this.approvalWindow = win;
+  }
+
+  closeApprovalWindow(): boolean {
+    if (!this.approvalWindow || this.approvalWindow.isDestroyed()) {
+      this.approvalWindow = null;
+      return false;
+    }
+    this.approvalWindow.close();
+    return true;
+  }
+
+  getApprovalWindow(): BrowserWindow | null {
+    if (!this.approvalWindow || this.approvalWindow.isDestroyed()) return null;
+    return this.approvalWindow;
+  }
+
+  isApprovalWindowSender(sender: unknown): boolean {
+    return this.getApprovalWindow()?.webContents === sender;
+  }
+
+  isApprovalSurfaceSender(sender: unknown): boolean {
+    return this.isApprovalWindowSender(sender) || this.getChatWindow()?.webContents === sender;
+  }
+
+  sendApprovalChanged(event: ApprovalChangedEvent): void {
+    const win = this.getApprovalWindow();
+    if (win) {
+      win.webContents.send(IPC.APPROVAL_CHANGED, event);
+    }
+  }
+
+  isChatInlineReady(): boolean {
+    const win = this.getChatWindow();
+    return !!win && this.chatRendererReady && win.isVisible() && !win.isMinimized();
+  }
+
+  sendApprovalInline(event: ApprovalChangedEvent): void {
+    const win = this.getChatWindow();
+    if (win && !win.webContents.isDestroyed()) {
+      win.webContents.send(IPC.APPROVAL_CHANGED, event);
+    }
+  }
+
+  clearApprovalInline(): void {
+    this.sendApprovalInline({ record: null });
+  }
+
+  setApprovalWindowCloseHandler(handler: (() => void) | null): void {
+    this.approvalWindowCloseHandler = handler;
+  }
+
+  setApprovalPresentationRefreshHandler(handler: (() => void) | null): void {
+    this.approvalPresentationRefreshHandler = handler;
+  }
+
+  private notifyApprovalPresentationAvailability(): void {
+    this.approvalPresentationRefreshHandler?.();
   }
 
   /**
@@ -354,17 +549,18 @@ export class WindowManager {
       },
     });
     win.setMenu(null);
+    this.bindWindowState(win);
 
     const targetUrl = this.isDev
-      ? "http://localhost:5173/ui/index.html?tab=summary"
+      ? this.getRendererDevUrl("summary")
       : path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html");
     console.log(`[WindowManager] OPEN SUMMARY WINDOW -> Target: ${targetUrl}`);
 
     if (this.isDev) {
-      win.loadURL("http://localhost:5173/ui/index.html?tab=summary");
+      win.loadURL(targetUrl);
     } else {
       win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html"), {
-        query: { tab: "summary" },
+        query: { [RENDERER_VIEW_QUERY_PARAM]: "summary" },
       });
     }
 

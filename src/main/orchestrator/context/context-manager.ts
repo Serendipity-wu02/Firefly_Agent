@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../../../shared/chat-types";
+import type { MusicContextSnapshot } from "../../../shared/music-context-types";
 import { TokenMeter, type ITokenizer } from "./token-meter";
 import {
   ContextProjector,
@@ -15,6 +16,7 @@ import {
   SystemPromptSlot,
   CharacterStateSlot,
   MemorySlot,
+  MusicContextSlot,
   RagSlot,
 } from "./context-slots";
 import type { CompactorOptions } from "../compaction/compactor";
@@ -106,6 +108,15 @@ export class ContextManager {
   buildInitialMessages(options: ContextProjectionOptions): ChatMessage[] {
     const projected = this.project(options);
     return projected.messages;
+  }
+
+  /**
+   * Returns the latest transient music fact when the composition root has
+   * registered MusicContextSlot. It does not add music to every LLM prompt.
+   */
+  getMusicContextSnapshot(): MusicContextSnapshot | undefined {
+    const slot = this.slots.get("music-context");
+    return slot instanceof MusicContextSlot ? slot.getSnapshot() : undefined;
   }
 
   /**

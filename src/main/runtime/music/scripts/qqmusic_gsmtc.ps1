@@ -28,7 +28,10 @@ try {
     $manager = Await-AsyncOp $managerOp ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
 
     $sessions = $manager.GetSessions()
-    $qqSession = $sessions | Where-Object { $_.SourceAppUserModelId -match 'QQMusic' } | Select-Object -First 1
+    $canonicalQqMusicSessionId = "QQMusic.exe"
+    $qqSession = $sessions |
+        Where-Object { ([string]$_.SourceAppUserModelId) -ieq $canonicalQqMusicSessionId } |
+        Select-Object -First 1
 
     if (-not $qqSession) {
         @{

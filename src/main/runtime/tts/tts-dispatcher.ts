@@ -1,7 +1,11 @@
-import type { TtsSettings } from "../../../shared/tts-types";
+import {
+  DEFAULT_GPTSOVITS_SEED,
+  DEFAULT_GPTSOVITS_TEXT_SPLIT_METHOD,
+  type TtsSettings,
+} from "../../../shared/tts-types";
 import type { StartTtsRequest, TtsStartResult, TtsAudioFormat } from "../../../shared/tts-session";
 import { TtsCache } from "./tts-cache";
-import { buildTtsCacheKey } from "./tts-cache-key";
+import { buildTtsCacheKey, TTS_CACHE_VERSION, versionTtsCacheKey } from "./tts-cache-key";
 import { normalizeGptsovitsText, synthesizeGptsovits } from "./engines/gptsovits-engine";
 import { traceTtsTextIntegrity } from "../../../shared/tts-text-integrity";
 
@@ -34,7 +38,13 @@ export class FireflyTtsDispatcher {
     }
 
     if (synthesisText !== text) {
-      console.log(`[TTS Trace] text-normalized: requestId=${request.requestId} pronunciation=失熵症→失商症`);
+      const pronunciationChanges: string[] = [];
+      if (text.includes("AR-26710")) pronunciationChanges.push("AR-26710→AR二六七一零");
+      if (text.includes("失熵症")) pronunciationChanges.push("失熵症→失商症");
+      console.log(
+        `[TTS Trace] text-normalized: requestId=${request.requestId} ` +
+          `pronunciation=${pronunciationChanges.join(",")}`,
+      );
     }
 
     console.log(
@@ -55,6 +65,8 @@ export class FireflyTtsDispatcher {
     const gptsovitsConfig = {
       ...settings.gptsovits,
       speed: baseSpeed,
+      seed: settings.gptsovits.seed ?? DEFAULT_GPTSOVITS_SEED,
+      textSplitMethod: settings.gptsovits.textSplitMethod ?? DEFAULT_GPTSOVITS_TEXT_SPLIT_METHOD,
     };
     format = gptsovitsConfig.format || "wav";
 
@@ -66,7 +78,8 @@ export class FireflyTtsDispatcher {
       speed: baseSpeed,
     };
 
-    const cacheKey = buildTtsCacheKey(engine, payloadForCache);
+    const baseCacheKey = buildTtsCacheKey(engine, payloadForCache);
+    const cacheKey = versionTtsCacheKey(baseCacheKey, TTS_CACHE_VERSION);
 
     // 2. Check cache
     const cachedBuffer = this.cache.read(cacheKey, format);

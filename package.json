@@ -1,6 +1,6 @@
 {
   "name": "firefly-agent",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Firefly Desktop AI Agent - 流萤桌面智能体",
   "main": "dist/main/main/index.js",
   "bin": {
@@ -10,6 +10,7 @@
   "files": [
     "dist",
     "src/cli",
+    "src/main/runtime/music/scripts",
     "src/main/character/resources",
     "src/renderer/models",
     "src/settings/settings.example.json",
@@ -29,8 +30,10 @@
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "dev": "npm run build:main && npm run build:preload && concurrently \"vite\" \"cross-env VITE_DEV=1 electron .\"",
     "start": "electron .",
+    "verify:typescript": "node tools/verify/verify-typescript-production.mjs",
+    "verify:architecture": "node tools/verify/verify-architecture.mjs",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit && tsc -p tsconfig.json --noEmit",
-    "test": "node tools/test/distribution/environment-baseline.test.mjs && node tools/test/distribution/npm-distribution.test.mjs && node tools/test/core/agent-core.test.mjs && node tools/test/core/harness.test.mjs && node tools/test/core/context.test.mjs && node tools/test/core/compaction.test.mjs && node tools/test/core/recovery.test.mjs && node tools/test/core/planning.test.mjs && node tools/test/runtime/tool-execution.test.mjs && node tools/test/runtime/tts.test.mjs && node tools/test/runtime/music.test.mjs && node tools/test/runtime/qqmusic-bridge.test.mjs && node tools/test/memory/store.test.mjs && node tools/test/memory/retrieval.test.mjs && node tools/test/memory/write-policy.test.mjs && node tools/test/memory/evolution.test.mjs && node tools/test/memory/context-integration.test.mjs && node tools/test/rag/ingestion.test.mjs && node tools/test/rag/vector-store.test.mjs && node tools/test/rag/hybrid-retrieval.test.mjs && node tools/test/rag/embedding.test.mjs && node tools/test/rag/context-integration.test.mjs && node tools/test/character/persona-ssot.test.mjs && node tools/test/character/persona-policy.test.mjs && node tools/test/character/knowledge-perspective.test.mjs && node tools/test/character/relationships.test.mjs && node tools/test/character/relationship-ssot.test.mjs && node tools/test/character/embodiment.test.mjs && node tools/test/live2d/live2d-contract.test.mjs && node tools/test/presentation/desktop-pet.test.mjs && node tools/test/presentation/chat-shell.test.mjs && node tools/test/presentation/integration.test.mjs"
+    "test": "node tools/test/distribution/environment-baseline.test.mjs && node tools/test/distribution/npm-distribution.test.mjs && node tools/test/core/agent-core.test.mjs && node tools/test/core/harness.test.mjs && node tools/test/core/context.test.mjs && node tools/test/core/compaction.test.mjs && node tools/test/core/recovery.test.mjs && node tools/test/core/planning.test.mjs && node tools/test/runtime/tool-execution.test.mjs && node tools/test/runtime/capabilities.test.mjs && node tools/test/runtime/sandbox.test.mjs && node tools/test/runtime/approval.test.mjs && node tools/test/runtime/approval-ipc.test.mjs && node tools/test/runtime/approval-ux-v2.test.mjs && node tools/test/runtime/permission-profile.test.mjs && node tools/test/runtime/subagents.test.mjs && node tools/test/runtime/subagent-worker-runtime.test.mjs && node tools/test/runtime/main-agent-delegation.test.mjs && node tools/test/runtime/capability-authorization-pipeline.test.mjs && node tools/test/runtime/authorized-invocation-execution.test.mjs && node tools/test/runtime/harness-authorization-integration.test.mjs && node tools/test/runtime/harness-authorization-pilot-audit.test.mjs && node tools/test/runtime/runtime-integration-contracts.test.mjs && node tools/test/runtime/tts.test.mjs && node tools/test/runtime/music.test.mjs && node tools/test/runtime/qqmusic-bridge.test.mjs && node tools/test/runtime/music-context.test.mjs && node tools/test/runtime/qqmusic-control-capability.test.mjs && node tools/test/memory/store.test.mjs && node tools/test/memory/retrieval.test.mjs && node tools/test/memory/write-policy.test.mjs && node tools/test/memory/evolution.test.mjs && node tools/test/memory/context-integration.test.mjs && node tools/test/memory/music-preference-memory.test.mjs && node tools/test/rag/ingestion.test.mjs && node tools/test/rag/vector-store.test.mjs && node tools/test/rag/hybrid-retrieval.test.mjs && node tools/test/rag/context-integration.test.mjs && node tools/test/rag/embedding.test.mjs && node tools/test/character/persona-ssot.test.mjs && node tools/test/character/persona-policy.test.mjs && node tools/test/character/knowledge-perspective.test.mjs && node tools/test/character/relationships.test.mjs && node tools/test/character/relationship-ssot.test.mjs && node tools/test/character/embodiment.test.mjs && node tools/test/live2d/live2d-contract.test.mjs && node tools/test/presentation/desktop-pet.test.mjs && node tools/test/presentation/chat-shell.test.mjs && node tools/test/presentation/approval-ui.test.mjs && node tools/test/presentation/integration.test.mjs && node tools/test/presentation/typescript-first.test.mjs && node tools/test/presentation/font-size-live-sync.test.mjs && node tools/test/presentation/permission-profile-quick-switcher.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",

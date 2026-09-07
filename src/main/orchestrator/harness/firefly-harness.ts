@@ -22,7 +22,10 @@ import type { RunExecutionState } from "../recovery/execution-state";
 import { BoundedPlanner } from "../planning/bounded-planner";
 import { formatPlanContext } from "../planning/plan-lifecycle";
 import type { Plan, PlannerConfig } from "../planning/plan-types";
+import type { AgentExecutionProfile, WorkerExecutionProfile } from "../../../shared/subagent-types";
+import type { MainAgentDelegationService } from "../../runtime/subagents/main-agent-delegation";
 import { requestHarnessCompletion } from "./harness-llm";
+import type { HarnessAuthorizationAdapter } from "./harness-authorization-adapter";
 import { executeToolRound } from "./tool-round";
 
 export interface FireflyHarnessOptions {
@@ -33,10 +36,33 @@ export interface FireflyHarnessOptions {
   contextManager?: ContextManager;
   toolPolicy?: Partial<ToolPolicyConfig>;
   executionEngine?: ToolExecutionEngine;
+  authorizationAdapter?: HarnessAuthorizationAdapter;
+  mainDelegationService?: MainAgentDelegationService;
   checkpointManager?: CheckpointManager;
   recoveryManager?: RecoveryManager;
   planner?: BoundedPlanner;
   plannerConfig?: Partial<PlannerConfig>;
+}
+
+function isWorkerProfile(
+  profile: AgentExecutionProfile | undefined,
+): profile is WorkerExecutionProfile {
+  return profile?.kind === "WORKER";
+}
+
+function buildWorkerSystemPrompt(profile: WorkerExecutionProfile): string {
+  const contextLines = profile.contextProjection.map((item) =>
+    `- ${item.key}: ${JSON.stringify(item.value)}`,
+  );
+  return [
+    "You are a delegated functional worker inside an existing agent runtime.",
+    "Complete the supplied objective and return a structured factual work product to the parent runtime.",
+    "Do not roleplay, speak as a character, or produce user-facing presentation language.",
+    `Objective: ${profile.objective}`,
+    contextLines.length > 0
+      ? `Explicit read-only task context:\n${contextLines.join("\n")}`
+      : "Explicit read-only task context: none.",
+  ].join("\n");
 }
 
 /**
@@ -53,6 +79,8 @@ export class FireflyHarness implements IAgentCore {
   private readonly eventBus: AgentEventBus;
   private readonly contextManager: ContextManager;
   private readonly executionEngine: ToolExecutionEngine;
+  private readonly authorizationAdapter?: HarnessAuthorizationAdapter;
+  private readonly mainDelegationService?: MainAgentDelegationService;
   private readonly checkpointManager: CheckpointManager;
   private readonly recoveryManager: RecoveryManager;
   private readonly planner: BoundedPlanner;
@@ -67,6 +95,8 @@ export class FireflyHarness implements IAgentCore {
     this.executionEngine =
       options.executionEngine ||
       new ToolExecutionEngine(this.toolRegistry, options.toolPolicy, this.eventBus);
+    this.authorizationAdapter = options.authorizationAdapter;
+    this.mainDelegationService = options.mainDelegationService;
     this.checkpointManager = options.checkpointManager || new CheckpointManager();
     this.recoveryManager = options.recoveryManager || new RecoveryManager();
     this.planner = options.planner || new BoundedPlanner(options.plannerConfig);
@@ -94,6 +124,18 @@ export class FireflyHarness implements IAgentCore {
 
   getEventBus(): AgentEventBus {
     return this.eventBus;
+  }
+
+  private getToolSchemasForProfile(profile: AgentExecutionProfile | undefined) {
+    const schemas = this.toolRegistry.getToolSchemas();
+    if (isWorkerProfile(profile)) {
+      const allowed = new Set(profile.allowedToolIds);
+      return schemas.filter((schema) => allowed.has(schema.function.name));
+    }
+    if (profile?.allowSubAgentDelegation === true && this.mainDelegationService !== undefined) {
+      return [...schemas, this.mainDelegationService.getToolSchema()];
+    }
+    return schemas;
   }
 
   setProvider(provider: IFireflyLlmProvider): void {
@@ -139,6 +181,25 @@ export class FireflyHarness implements IAgentCore {
       input.runId ||
       "run-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
     const conversationId = input.conversationId;
+    const executionProfile: AgentExecutionProfile =
+      input.executionProfile ?? { kind: "MAIN" };
+    const workerRun = isWorkerProfile(executionProfile);
+    const mainDelegationService =
+      !workerRun && executionProfile.allowSubAgentDelegation === true
+        ? this.mainDelegationService
+        : undefined;
+    const workerSystemPrompt = workerRun
+      ? buildWorkerSystemPrompt(executionProfile)
+      : undefined;
+    const toolSchemas = this.getToolSchemasForProfile(executionProfile);
+    const maxRounds = workerRun ? executionProfile.budget.maxSteps : this.config.maxRounds;
+    const maxToolCallsPerRun = workerRun
+      ? executionProfile.budget.maxToolCalls
+      : this.executionEngine.getPolicyConfig().maxToolCallsPerRun || 25;
+    const runTimeoutMs = workerRun
+      ? executionProfile.budget.timeoutMs
+      : this.config.totalTimeoutMs;
+    const runDeadline = runTimeoutMs > 0 ? startTime + runTimeoutMs : undefined;
 
     const runAbortController = new AbortController();
     if (input.signal) {
@@ -149,16 +210,16 @@ export class FireflyHarness implements IAgentCore {
 
     let timedOut = false;
     let runTimeoutId: NodeJS.Timeout | null = null;
-    if (this.config.totalTimeoutMs > 0) {
+    if (runTimeoutMs > 0) {
       runTimeoutId = setTimeout(() => {
         timedOut = true;
         runAbortController.abort();
-      }, this.config.totalTimeoutMs);
+      }, runTimeoutMs);
     }
 
     const isPlanningMode = this.planner.shouldPlan(
       input.userPrompt,
-      this.toolRegistry.getToolSchemas().length,
+      toolSchemas.length,
       input.planMode,
     );
 
@@ -184,15 +245,23 @@ export class FireflyHarness implements IAgentCore {
       });
     }
 
-    const initialMessages = await this.contextManager.buildInitialMessagesWithSlots({
-      userPrompt: input.userPrompt,
-      history: input.history,
-      characterState: input.characterState,
-      memoryContext: input.memoryContext,
-      planContext: planContextStr,
-      systemPromptOverride: input.systemPromptOverride,
-      toolSchemas: this.toolRegistry.getToolSchemas(),
-    });
+    const initialMessages = workerRun
+      ? this.contextManager.project({
+          userPrompt: input.userPrompt,
+          history: [],
+          systemPromptOverride: workerSystemPrompt,
+          toolSchemas,
+          suppressCharacterState: true,
+        }).messages
+      : await this.contextManager.buildInitialMessagesWithSlots({
+          userPrompt: input.userPrompt,
+          history: input.history,
+          characterState: input.characterState,
+          memoryContext: input.memoryContext,
+          planContext: planContextStr,
+          systemPromptOverride: input.systemPromptOverride,
+          toolSchemas,
+        });
 
     const session = new AgentSession({ initialMessages });
     const executionState: RunExecutionState = {
@@ -208,12 +277,17 @@ export class FireflyHarness implements IAgentCore {
       plan,
     };
 
+    const createCheckpoint = (trigger: Parameters<CheckpointManager["createCheckpoint"]>[2]) =>
+      workerRun
+        ? Promise.resolve(null)
+        : this.checkpointManager.createCheckpoint(
+            executionState,
+            session.getMessages(),
+            trigger,
+          );
+
     executionState.runState = "running";
-    await this.checkpointManager.createCheckpoint(
-      executionState,
-      session.getMessages(),
-      "run_initialized",
-    );
+    await createCheckpoint("run_initialized");
 
     this.eventBus.emit({
       type: "agent:started",
@@ -225,14 +299,21 @@ export class FireflyHarness implements IAgentCore {
     let status: AgentRunStatus = "running";
     let stepCount = 0;
     let toolCallsCount = 0;
+    let delegatedStepsReserved = 0;
     let errorMsg: string | undefined;
 
     try {
       while (stepCount < this.config.maxRounds) {
+        if (workerRun && stepCount >= maxRounds) {
+          break;
+        }
+        if (!workerRun && stepCount + delegatedStepsReserved >= maxRounds) {
+          break;
+        }
         if (runAbortController.signal.aborted) {
           status = timedOut ? "timeout" : "cancelled";
           if (timedOut) {
-            errorMsg = "Run timed out after " + this.config.totalTimeoutMs + "ms";
+            errorMsg = "Run timed out after " + runTimeoutMs + "ms";
           }
           break;
         }
@@ -256,11 +337,7 @@ export class FireflyHarness implements IAgentCore {
           }
         }
 
-        await this.checkpointManager.createCheckpoint(
-          executionState,
-          session.getMessages(),
-          "step_start",
-        );
+        await createCheckpoint("step_start");
 
         this.eventBus.emit({
           type: "agent:step-start",
@@ -268,8 +345,6 @@ export class FireflyHarness implements IAgentCore {
           step: stepCount,
           timestamp: Date.now(),
         });
-
-        const toolSchemas = this.toolRegistry.getToolSchemas();
 
         this.eventBus.emit({
           type: "agent:llm-request",
@@ -289,15 +364,17 @@ export class FireflyHarness implements IAgentCore {
                 tools: toolSchemas.length > 0 ? toolSchemas : undefined,
               },
               runAbortController.signal,
-              (delta) => {
-                this.eventBus.emit({
-                  type: "agent:progress",
-                  runId,
-                  step: stepCount,
-                  delta,
-                  timestamp: Date.now(),
-                });
-              },
+              workerRun
+                ? undefined
+                : (delta) => {
+                    this.eventBus.emit({
+                      type: "agent:progress",
+                      runId,
+                      step: stepCount,
+                      delta,
+                      timestamp: Date.now(),
+                    });
+                  },
             );
             break;
           } catch (providerErr: unknown) {
@@ -319,11 +396,7 @@ export class FireflyHarness implements IAgentCore {
               attempt: executionState.recoveryAttempts,
               timestamp: Date.now(),
             });
-            await this.checkpointManager.createCheckpoint(
-              executionState,
-              session.getMessages(),
-              "recovery_started",
-            );
+            await createCheckpoint("recovery_started");
 
             if (decision.action === "fail_run") {
               this.eventBus.emit({
@@ -342,17 +415,20 @@ export class FireflyHarness implements IAgentCore {
                 userPrompt: input.userPrompt,
                 history: session.getMessages(),
                 forceCompactionStrategy: "emergency",
+                ...(workerRun
+                  ? {
+                      systemPromptOverride: workerSystemPrompt,
+                      toolSchemas,
+                      suppressCharacterState: true,
+                    }
+                  : {}),
               });
               session.clear();
               for (const message of projected.messages) {
                 session.append(message);
               }
               executionState.runState = "running";
-              await this.checkpointManager.createCheckpoint(
-                executionState,
-                session.getMessages(),
-                "compaction_completed",
-              );
+              await createCheckpoint("compaction_completed");
               this.eventBus.emit({
                 type: "recovery:completed",
                 runId,
@@ -384,17 +460,13 @@ export class FireflyHarness implements IAgentCore {
         if (runAbortController.signal.aborted) {
           status = timedOut ? "timeout" : "cancelled";
           if (timedOut) {
-            errorMsg = "Run timed out after " + this.config.totalTimeoutMs + "ms";
+            errorMsg = "Run timed out after " + runTimeoutMs + "ms";
           }
           break;
         }
 
         const asstMessage = roundResponse.message;
-        await this.checkpointManager.createCheckpoint(
-          executionState,
-          session.getMessages(),
-          "llm_completed",
-        );
+        await createCheckpoint("llm_completed");
 
         let roundObservation = "";
         let roundHasError = false;
@@ -410,14 +482,16 @@ export class FireflyHarness implements IAgentCore {
           };
           session.append(asstEntry);
 
-          this.eventBus.emit({
-            type: "agent:assistant-message",
-            runId,
-            step: stepCount,
-            content: asstMessage.content || "",
-            toolCalls: asstMessage.toolCalls,
-            timestamp: Date.now(),
-          });
+          if (!workerRun) {
+            this.eventBus.emit({
+              type: "agent:assistant-message",
+              runId,
+              step: stepCount,
+              content: asstMessage.content || "",
+              toolCalls: asstMessage.toolCalls,
+              timestamp: Date.now(),
+            });
+          }
 
           executionState.activeToolCalls = asstMessage.toolCalls.map((call) => ({
             toolCallId: call.id,
@@ -436,8 +510,34 @@ export class FireflyHarness implements IAgentCore {
             conversationId,
             signal: runAbortController.signal,
             toolCallsCount: toolCallsBeforeRound,
-            maxToolCallsPerRun:
-              this.executionEngine.getPolicyConfig().maxToolCallsPerRun || 25,
+            maxToolCallsPerRun,
+            authorizationAdapter: this.authorizationAdapter,
+            allowedToolIds: workerRun ? new Set(executionProfile.allowedToolIds) : undefined,
+            requireAuthorizationForAllTools: workerRun,
+            requester: workerRun ? executionProfile.requester : undefined,
+            mainDelegationService,
+            getMainDelegationBudget: mainDelegationService
+              ? () => ({
+                  availableWorkerSteps: Math.max(
+                    0,
+                    maxRounds - stepCount - delegatedStepsReserved - 1,
+                  ),
+                  availableWorkerToolCalls: Math.max(
+                    0,
+                    maxToolCallsPerRun - toolCallsCount,
+                  ),
+                  remainingTimeoutMs:
+                    runDeadline === undefined
+                      ? 30_000
+                      : Math.max(0, runDeadline - Date.now()),
+                })
+              : undefined,
+            onDelegationBudgetReserved: mainDelegationService
+              ? (budget) => {
+                  delegatedStepsReserved += budget.maxSteps;
+                  toolCallsCount += budget.maxToolCalls;
+                }
+              : undefined,
             onCallStart: (call) => {
               toolCallsCount++;
               this.eventBus.emit({
@@ -450,10 +550,27 @@ export class FireflyHarness implements IAgentCore {
                 timestamp: Date.now(),
               });
             },
+            onPermissionWaiting: async () => {
+              executionState.stepState = "waiting_permission";
+              executionState.updatedAt = Date.now();
+              await createCheckpoint("waiting_permission");
+            },
+            onPermissionResolved: async () => {
+              executionState.stepState = "waiting_tool";
+              executionState.updatedAt = Date.now();
+            },
           });
 
+          if (runAbortController.signal.aborted) {
+            status = timedOut ? "timeout" : "cancelled";
+            if (timedOut) {
+              errorMsg = "Run timed out after " + runTimeoutMs + "ms";
+            }
+            break;
+          }
+
           for (const observation of toolObservations) {
-            const { call, result } = observation;
+            const { call, result, outcome } = observation;
             roundObservation += "[" + call.name + "]: " + result.output + "\n";
             if (result.isError) roundHasError = true;
 
@@ -461,8 +578,13 @@ export class FireflyHarness implements IAgentCore {
               (active) => active.toolCallId === call.id,
             );
             if (activeToolCall) {
-              activeToolCall.status = result.isError ? "failed" : "succeeded";
-              activeToolCall.sideEffectState = result.isError ? "failed" : "completed";
+              if (outcome === "not_executed") {
+                activeToolCall.status = "pending";
+                activeToolCall.sideEffectState = "not_started";
+              } else {
+                activeToolCall.status = result.isError ? "failed" : "succeeded";
+                activeToolCall.sideEffectState = result.isError ? "failed" : "completed";
+              }
               activeToolCall.output = result.output;
             }
 
@@ -486,11 +608,7 @@ export class FireflyHarness implements IAgentCore {
             });
           }
 
-          await this.checkpointManager.createCheckpoint(
-            executionState,
-            session.getMessages(),
-            "tool_round_completed",
-          );
+          await createCheckpoint("tool_round_completed");
 
           if (plan && plan.status === "running") {
             const currentPlanStepIndex = plan.currentStepIndex;
@@ -577,33 +695,39 @@ export class FireflyHarness implements IAgentCore {
             });
           }
 
-          this.eventBus.emit({
-            type: "agent:assistant-message",
-            runId,
-            step: stepCount,
-            content: finalContent,
-            timestamp: Date.now(),
-          });
-          this.eventBus.emit({
-            type: "agent:final-answer",
-            runId,
-            content: finalContent,
-            timestamp: Date.now(),
-          });
+          if (!workerRun) {
+            this.eventBus.emit({
+              type: "agent:assistant-message",
+              runId,
+              step: stepCount,
+              content: finalContent,
+              timestamp: Date.now(),
+            });
+            this.eventBus.emit({
+              type: "agent:final-answer",
+              runId,
+              content: finalContent,
+              timestamp: Date.now(),
+            });
+          }
           executionState.stepState = "completed";
           status = "completed";
           break;
         }
       }
 
-      if (stepCount >= this.config.maxRounds && status === "running") {
+      if (
+        ((workerRun && stepCount >= maxRounds) ||
+          (!workerRun && stepCount + delegatedStepsReserved >= maxRounds)) &&
+        status === "running"
+      ) {
         status = "completed";
       }
     } catch (err: unknown) {
       if (runAbortController.signal.aborted) {
         status = timedOut ? "timeout" : "cancelled";
         if (timedOut) {
-          errorMsg = "Run timed out after " + this.config.totalTimeoutMs + "ms";
+          errorMsg = "Run timed out after " + runTimeoutMs + "ms";
         }
       } else {
         status = "error";
@@ -649,11 +773,7 @@ export class FireflyHarness implements IAgentCore {
           : status === "timeout"
             ? "timed_out"
             : "failed";
-    await this.checkpointManager.createCheckpoint(
-      executionState,
-      session.getMessages(),
-      "run_completed",
-    );
+    await createCheckpoint("run_completed");
 
     const lastAssistant = session
       .getMessages()

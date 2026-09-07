@@ -2,7 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, ipcMain, BrowserWindow } from "electron";
 import { IPC } from "../../../shared/ipc-channels";
-import { DEFAULT_TTS_SETTINGS, type TtsSettings, type TtsEngine } from "../../../shared/tts-types";
+import {
+  DEFAULT_TTS_SETTINGS,
+  DEFAULT_GPTSOVITS_SEED,
+  TTS_SETTINGS_SCHEMA_VERSION,
+  migrateTtsSettings,
+  type TtsSettings,
+  type TtsEngine,
+} from "../../../shared/tts-types";
 import type { StartTtsRequest } from "../../../shared/tts-session";
 import { TtsSessionService } from "./tts-session-service";
 import { TtsPlaybackOwnership } from "./playback-owner";
@@ -67,15 +74,21 @@ export function registerTtsIpc(options: TtsIpcOptions): {
             migrated = true;
           }
 
+          const migration = migrateTtsSettings(json.tts);
           const resolvedSettings: TtsSettings = {
-            ...DEFAULT_TTS_SETTINGS,
-            ...json.tts,
+            ...migration.settings,
             engine,
             voiceProfile: "firefly-v2proplus",
-            gptsovits: { ...DEFAULT_TTS_SETTINGS.gptsovits, ...(json.tts.gptsovits || {}) },
           };
 
-          if (migrated) {
+          if (migration.migratedLegacySeed) {
+            console.log(
+              `[TTS Migration] Legacy settings seed=5 migrated to seed=${DEFAULT_GPTSOVITS_SEED}`,
+            );
+            migrated = true;
+          }
+
+          if (migrated || migration.changed) {
             saveSettings(resolvedSettings);
           }
 
@@ -102,7 +115,7 @@ export function registerTtsIpc(options: TtsIpcOptions): {
         }
       }
 
-      data.tts = settings;
+      data.tts = { ...settings, schemaVersion: TTS_SETTINGS_SCHEMA_VERSION };
       fs.writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
     } catch (err) {
       console.warn("[TtsIPC] Failed to save TTS settings:", err);

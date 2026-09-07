@@ -30,6 +30,8 @@ export interface ContextProjectionOptions {
   budgetConfig?: ContextBudgetConfig;
   compactorOptions?: Partial<CompactorOptions>;
   forceCompactionStrategy?: CompactionStrategy;
+  /** Worker runs use an explicit functional prompt with no character state. */
+  suppressCharacterState?: boolean;
 }
 
 export interface ProjectedContext {
@@ -92,9 +94,11 @@ export class ContextProjector {
 
     // 3. 计算初始 Token 配额与上下文压力快照
     const systemTokens = this.tokenMeter.estimateTokens(systemPrompt);
-    const characterStateTokens = this.tokenMeter.estimateTokens(
-      SystemPromptBuilder.buildStateString(options.characterState),
-    );
+    const characterStateTokens = options.suppressCharacterState
+      ? 0
+      : this.tokenMeter.estimateTokens(
+          SystemPromptBuilder.buildStateString(options.characterState),
+        );
     const memoryTokens = options.memoryContext
       ? this.tokenMeter.estimateTokens(options.memoryContext)
       : 0;

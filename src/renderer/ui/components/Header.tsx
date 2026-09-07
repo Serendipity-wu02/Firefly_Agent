@@ -1,36 +1,55 @@
 /**
  * @file Header.tsx
- * @description Light Sky Top Navigation Header for Firefly Harness Chat.
- * Features character capsule, mode indicator, navigation tabs, and window controls.
+ * @description Compact Firefly identity header and native window controls.
+ * Chat and Settings are separate renderer views, so this header intentionally
+ * has no navigation tabs or provider/model labels.
  */
 
 import React from "react";
 import { THEME_TOKENS } from "../theme/tokens";
 import type { ProviderStatus } from "../../../shared/provider-types";
 
+const FIREFLY_AVATAR_PATH = new URL("../../head_portrait/firefly.png", import.meta.url).href;
+
 export interface HeaderProps {
-  activeTab: "chat" | "settings";
-  onTabChange: (tab: "chat" | "settings") => void;
   providerStatus?: ProviderStatus;
+  isMaximized?: boolean;
+}
+
+const DEFAULT_PROVIDER_STATUS: ProviderStatus = {
+  status: "online",
+  providerId: "local",
+  providerName: "内置智能规则 (Local)",
+  label: "内置规则引擎 (Local)",
+};
+
+function getConnectionLabel(status: ProviderStatus["status"]): string {
+  if (status === "online") return "已连接";
+  if (status === "error") return "连接异常";
+  return "未连接";
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  activeTab,
-  onTabChange,
-  providerStatus = {
-    status: "online",
-    providerId: "local",
-    providerName: "内置智能规则 (Local)",
-    label: "内置规则引擎 (Local)",
-  },
+  providerStatus = DEFAULT_PROVIDER_STATUS,
+  isMaximized = false,
 }) => {
-
   const statusColor =
     providerStatus.status === "online"
       ? THEME_TOKENS.colors.statusOnline
       : providerStatus.status === "error"
         ? THEME_TOKENS.colors.statusError
         : THEME_TOKENS.colors.statusOffline;
+  const connectionLabel = getConnectionLabel(providerStatus.status);
+
+  const squareStyle: React.CSSProperties = {
+    position: "absolute",
+    width: "8px",
+    height: "8px",
+    boxSizing: "border-box",
+    border: "2px solid currentColor",
+    borderRadius: "1px",
+    transition: "transform 140ms ease-out, opacity 140ms ease-out",
+  };
 
   return (
     <header
@@ -49,219 +68,189 @@ export const Header: React.FC<HeaderProps> = ({
         userSelect: "none",
         zIndex: 10,
         WebkitAppRegion: "drag",
-         pointerEvents: "none",
+        pointerEvents: "none",
       } as React.CSSProperties}
     >
-      {/* Left: Truthful connection status indicator */}
       <div
+        data-firefly-identity="true"
         style={{
           display: "flex",
           alignItems: "center",
-          WebkitAppRegion: "no-drag",
-           pointerEvents: "auto",
-        } as React.CSSProperties}
-      >
-        <span
-          role="status"
-          aria-label={providerStatus.details || providerStatus.status}
-          title={providerStatus.details || providerStatus.status}
-          data-provider-status={providerStatus.status}
-          style={{
-            width: "10px",
-            height: "10px",
-            borderRadius: "50%",
-            background: statusColor,
-            display: "inline-block",
-            boxShadow: providerStatus.status === "online" ? "0 0 6px rgba(72, 187, 120, 0.6)" : "none",
-          }}
-        />
-      </div>
-
-      {/* Center: Clean Navigation Switcher */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          position: "absolute",
-          left: "50%",
-          transform: "translateX(-50%)",
-          WebkitAppRegion: "no-drag",
-           pointerEvents: "auto",
-        } as React.CSSProperties}
-      >
-        <div
-          style={{
-            display: "flex",
-            background: THEME_TOKENS.colors.bgSecondary,
-            borderRadius: THEME_TOKENS.radii.full,
-            padding: "3px",
-            gap: "2px",
-            border: `1px solid ${THEME_TOKENS.colors.borderSubtle}`,
-          }}
-        >
-          <button
-            onClick={() => onTabChange("chat")}
-            style={{
-              padding: "5px 16px",
-              borderRadius: THEME_TOKENS.radii.full,
-              border: "none",
-              background:
-                activeTab === "chat"
-                  ? THEME_TOKENS.colors.surface
-                  : "transparent",
-              color:
-                activeTab === "chat"
-                  ? THEME_TOKENS.colors.accent
-                  : THEME_TOKENS.colors.textSecondary,
-              fontWeight: activeTab === "chat" ? 600 : 500,
-              fontSize: THEME_TOKENS.typography.fontSizes.label,
-              cursor: "pointer",
-              boxShadow:
-                activeTab === "chat" ? THEME_TOKENS.shadows.sm : "none",
-              transition: "all 0.18s ease",
-               WebkitAppRegion: "no-drag",
-            } as React.CSSProperties}
-          >
-            💬 对话
-          </button>
-          <button
-            onClick={() => onTabChange("settings")}
-            style={{
-              padding: "5px 16px",
-              borderRadius: THEME_TOKENS.radii.full,
-              border: "none",
-              background:
-                activeTab === "settings"
-                  ? THEME_TOKENS.colors.surface
-                  : "transparent",
-              color:
-                activeTab === "settings"
-                  ? THEME_TOKENS.colors.accent
-                  : THEME_TOKENS.colors.textSecondary,
-              fontWeight: activeTab === "settings" ? 600 : 500,
-              fontSize: THEME_TOKENS.typography.fontSizes.label,
-              cursor: "pointer",
-              boxShadow:
-                activeTab === "settings" ? THEME_TOKENS.shadows.sm : "none",
-              transition: "all 0.18s ease",
-               WebkitAppRegion: "no-drag",
-            } as React.CSSProperties}
-          >
-            ⚙ 设置
-          </button>
-        </div>
-
-      </div>
-
-      {/* Right: Window controls */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          marginLeft: "auto",
+          gap: "7px",
+          color: THEME_TOKENS.colors.textPrimary,
+          fontSize: THEME_TOKENS.typography.fontSizes.body,
+          fontWeight: 700,
+          letterSpacing: "0.01em",
           WebkitAppRegion: "no-drag",
           pointerEvents: "auto",
         } as React.CSSProperties}
       >
-        <div
-          aria-label="窗口控制"
+        <span
           style={{
-            display: "flex",
+            position: "relative",
+            width: "26px",
+            height: "26px",
+            display: "inline-flex",
             alignItems: "center",
-            gap: "1px",
-            padding: "2px",
+            justifyContent: "center",
             borderRadius: THEME_TOKENS.radii.full,
-            background: THEME_TOKENS.colors.bgSecondary,
-            border: `1px solid ${THEME_TOKENS.colors.borderSubtle}`,
+            overflow: "visible",
+            background: THEME_TOKENS.colors.surface,
+            boxShadow: THEME_TOKENS.shadows.sm,
           }}
         >
-          <button
-            type="button"
-            aria-label="最小化窗口"
-            title="最小化"
-            onClick={() => window.firefly?.minimize()}
+          <img
+            src={FIREFLY_AVATAR_PATH}
+            alt="Firefly"
+            draggable={false}
             style={{
-              width: "30px",
-              height: "30px",
-              padding: 0,
-              border: "none",
+              width: "24px",
+              height: "24px",
+              objectFit: "cover",
               borderRadius: THEME_TOKENS.radii.full,
-              background: "transparent",
-              color: THEME_TOKENS.colors.textSecondary,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-               WebkitAppRegion: "no-drag",
-            } as React.CSSProperties}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: "12px",
-                height: "1.5px",
-                borderRadius: THEME_TOKENS.radii.full,
-                background: "currentColor",
-              }}
-            />
-          </button>
-          <button
-            type="button"
-            aria-label="切换窗口最大化"
-            title="最大化 / 还原"
-            onClick={() => window.firefly?.toggleMaximize()}
+              display: "block",
+            }}
+          />
+          <span
+            role="status"
+            aria-label={`连接状态：${connectionLabel}`}
+            title={connectionLabel}
+            data-provider-status={providerStatus.status}
             style={{
-              width: "30px",
-              height: "30px",
-              padding: 0,
-              border: "none",
+              position: "absolute",
+              right: "-1px",
+              bottom: "-1px",
+              width: "8px",
+              height: "8px",
               borderRadius: THEME_TOKENS.radii.full,
-              background: "transparent",
-              color: THEME_TOKENS.colors.textSecondary,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-               WebkitAppRegion: "no-drag",
-            } as React.CSSProperties}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: "12px",
-                height: "12px",
-                boxSizing: "border-box",
-                border: "1.5px solid currentColor",
-                borderRadius: "1px",
-              }}
-            />
-          </button>
-          <button
-            type="button"
-            aria-label="关闭窗口"
-            title="关闭"
-            onClick={() => window.firefly?.close()}
+              border: `2px solid ${THEME_TOKENS.colors.surface}`,
+              background: statusColor,
+              boxSizing: "content-box",
+              boxShadow: providerStatus.status === "online" ? "0 0 5px rgba(72, 187, 120, 0.55)" : "none",
+            }}
+          />
+        </span>
+        <span>Firefly</span>
+      </div>
+
+      <div
+        aria-label="窗口控制"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "1px",
+          marginLeft: "auto",
+          padding: "2px",
+          borderRadius: THEME_TOKENS.radii.full,
+          background: THEME_TOKENS.colors.bgSecondary,
+          border: `1px solid ${THEME_TOKENS.colors.borderSubtle}`,
+          WebkitAppRegion: "no-drag",
+          pointerEvents: "auto",
+        } as React.CSSProperties}
+      >
+        <button
+          type="button"
+          aria-label="最小化窗口"
+          title="最小化"
+          onClick={() => window.firefly?.minimize()}
+          style={{
+            width: "30px",
+            height: "30px",
+            padding: 0,
+            border: "none",
+            borderRadius: THEME_TOKENS.radii.full,
+            background: "transparent",
+            color: THEME_TOKENS.colors.textSecondary,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            WebkitAppRegion: "no-drag",
+          } as React.CSSProperties}
+        >
+          <span
+            aria-hidden="true"
             style={{
-              width: "30px",
-              height: "30px",
-              padding: 0,
-              border: "none",
+              width: "11px",
+              height: "2px",
               borderRadius: THEME_TOKENS.radii.full,
-              background: "transparent",
-              color: THEME_TOKENS.colors.textSecondary,
-              cursor: "pointer",
-              fontSize: "20px",
-              lineHeight: 1,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-               WebkitAppRegion: "no-drag",
-            } as React.CSSProperties}
+              background: "currentColor",
+            }}
+          />
+        </button>
+        <button
+          type="button"
+          aria-label="切换窗口最大化"
+          title="最大化 / 还原"
+          data-window-control="maximize"
+          data-window-state={isMaximized ? "maximized" : "normal"}
+          onClick={() => window.firefly?.toggleMaximize()}
+          style={{
+            width: "30px",
+            height: "30px",
+            padding: 0,
+            border: "none",
+            borderRadius: THEME_TOKENS.radii.full,
+            background: "transparent",
+            color: THEME_TOKENS.colors.textSecondary,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            WebkitAppRegion: "no-drag",
+          } as React.CSSProperties}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              position: "relative",
+              width: "12px",
+              height: "12px",
+              display: "inline-block",
+            }}
           >
-            ×
-          </button>
-        </div>
+            {isMaximized ? (
+              <>
+                <span style={{ ...squareStyle, top: "0px", left: "0px", opacity: 0.72 }} />
+                <span style={{ ...squareStyle, top: "3px", left: "3px", background: THEME_TOKENS.colors.bgSecondary }} />
+              </>
+            ) : (
+              <span
+                style={{
+                  ...squareStyle,
+                  top: "0px",
+                  left: "0px",
+                  width: "11px",
+                  height: "11px",
+                }}
+              />
+            )}
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label="关闭窗口"
+          title="关闭"
+          onClick={() => window.firefly?.close()}
+          style={{
+            width: "30px",
+            height: "30px",
+            padding: 0,
+            border: "none",
+            borderRadius: THEME_TOKENS.radii.full,
+            background: "transparent",
+            color: THEME_TOKENS.colors.textSecondary,
+            cursor: "pointer",
+            fontSize: "18px",
+            lineHeight: 1,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            WebkitAppRegion: "no-drag",
+          } as React.CSSProperties}
+        >
+          ×
+        </button>
       </div>
     </header>
   );

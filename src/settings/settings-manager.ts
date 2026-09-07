@@ -1,25 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
-import type { LlmProviderConfig } from "../shared/provider-types";
 import { DEFAULT_LLM_CONFIG } from "../shared/provider-types";
-import type { UiPreferences, UiFontSize } from "../shared/ui-types";
+import type { LlmProviderConfig } from "../shared/provider-types";
+import type { UiPreferences } from "../shared/ui-types";
 import { DEFAULT_UI_PREFERENCES } from "../shared/ui-types";
-import type { TtsSettings } from "../shared/tts-types";
+import type { FireflySettingsSnapshot, FireflySettingsUpdate } from "../shared/settings-types";
+import {
+  isPermissionProfile,
+  migratePersistedPermissionProfile,
+  type PermissionProfile,
+} from "../shared/permission-profile-types";
 
-export interface FireflyAppSettings {
-  llm?: LlmProviderConfig;
-  tts?: TtsSettings;
-  ui?: UiPreferences;
-  window?: {
-    x?: number;
-    y?: number;
-    pet_scale?: number;
-  };
-  startup?: {
-    openAtLogin?: boolean;
-  };
-}
+export type FireflyAppSettings = FireflySettingsSnapshot;
 
 export class SettingsManager {
   private configPath: string;
@@ -50,7 +43,7 @@ export class SettingsManager {
             this.save({ tts: this.settings.tts });
           }
         }
-        return this.settings;
+        return this.getSnapshot();
       }
       const exampleCandidates = [
         path.join(__dirname, "settings.example.json"),
@@ -61,17 +54,23 @@ export class SettingsManager {
         if (fs.existsSync(ex)) {
           const raw = fs.readFileSync(ex, "utf-8");
           this.settings = JSON.parse(raw);
-          return this.settings;
+          return this.getSnapshot();
         }
       }
     } catch (err) {
       console.warn("[SettingsManager] Failed to read settings.json:", err);
       this.settings = {};
     }
-    return this.settings;
+    return this.getSnapshot();
   }
 
-  save(newSettings: Partial<FireflyAppSettings>): boolean {
+  save(newSettings: FireflySettingsUpdate): boolean {
+    if (
+      Object.prototype.hasOwnProperty.call(newSettings, "permissionProfile") &&
+      !isPermissionProfile(newSettings.permissionProfile)
+    ) {
+      return false;
+    }
     this.settings = { ...this.settings, ...newSettings };
     try {
       const dir = path.dirname(this.configPath);
@@ -99,8 +98,21 @@ export class SettingsManager {
     return { ...DEFAULT_UI_PREFERENCES, ...(this.settings.ui || {}) };
   }
 
+  getPermissionProfile(): PermissionProfile {
+    return migratePersistedPermissionProfile(this.settings.permissionProfile);
+  }
+
   saveUiPreferences(preferences: Partial<UiPreferences>): boolean {
     const merged = { ...this.getUiPreferences(), ...preferences };
     return this.save({ ui: merged });
+  }
+
+  getSnapshot(): FireflyAppSettings {
+    return {
+      ...this.settings,
+      permissionProfile: this.getPermissionProfile(),
+      llm: this.getLlmConfig(),
+      ui: this.getUiPreferences(),
+    };
   }
 }

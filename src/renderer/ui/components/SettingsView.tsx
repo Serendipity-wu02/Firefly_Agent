@@ -9,6 +9,10 @@ import type { LlmProviderConfig, ProviderId } from "../../../shared/provider-typ
 import { PROVIDER_PRESETS } from "../../../shared/provider-types";
 import type { TtsSettings, TtsEngine } from "../../../shared/tts-types";
 import type { UiFontSize } from "../../../shared/ui-types";
+import {
+  PERMISSION_PROFILE_OPTIONS,
+  type PermissionProfile,
+} from "../../../shared/permission-profile-types";
 import { THEME_TOKENS } from "../theme/tokens";
 
 export interface SettingsViewProps {
@@ -17,7 +21,9 @@ export interface SettingsViewProps {
   ttsSettings: TtsSettings;
   setTtsSettings: React.Dispatch<React.SetStateAction<TtsSettings>>;
   uiFontSize: UiFontSize;
-  setUiFontSize: React.Dispatch<React.SetStateAction<UiFontSize>>;
+  onUiFontSizeChange: (fontSize: UiFontSize) => void | Promise<void>;
+  permissionProfile: PermissionProfile;
+  onPermissionProfileChange: (profile: PermissionProfile) => void | Promise<void>;
   autoLaunch: boolean;
   setAutoLaunchState: React.Dispatch<React.SetStateAction<boolean>>;
   onSave: () => void;
@@ -36,7 +42,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   ttsSettings,
   setTtsSettings,
   uiFontSize,
-  setUiFontSize,
+  onUiFontSizeChange,
+  permissionProfile,
+  onPermissionProfileChange,
   autoLaunch,
   setAutoLaunchState,
   onSave,
@@ -105,7 +113,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               return (
                 <button
                   key={opt.id}
-                  onClick={() => setUiFontSize(opt.id)}
+                    onClick={() => void onUiFontSizeChange(opt.id)}
                   title={opt.desc}
                   style={{
                     padding: "6px 14px",
@@ -136,7 +144,73 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* 2. LLM Provider Settings */}
+      {/* 2. Permission Profile Settings */}
+      <section
+        data-permission-profile="true"
+        style={{
+          background: THEME_TOKENS.colors.surfaceCard,
+          borderRadius: THEME_TOKENS.radii.lg,
+          padding: "16px",
+          border: `1px solid ${THEME_TOKENS.colors.border}`,
+          boxShadow: THEME_TOKENS.shadows.sm,
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontSize: THEME_TOKENS.typography.fontSizes.title,
+            fontWeight: 700,
+            color: THEME_TOKENS.colors.accent,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          🛡️ 权限方案 (Permission Scheme)
+        </h3>
+        <div style={{ color: THEME_TOKENS.colors.textSecondary, fontSize: THEME_TOKENS.typography.fontSizes.label }}>
+          这是用户配置方案，始终继续遵守能力注册、沙箱范围和本次授权边界。
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          {PERMISSION_PROFILE_OPTIONS.map((option) => {
+            const isSelected = permissionProfile === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => void onPermissionProfileChange(option.value)}
+                title={option.description}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: THEME_TOKENS.radii.full,
+                  border: isSelected
+                    ? `1.5px solid ${THEME_TOKENS.colors.accent}`
+                    : `1px solid ${THEME_TOKENS.colors.border}`,
+                  background: isSelected
+                    ? THEME_TOKENS.colors.accentPill
+                    : THEME_TOKENS.colors.surface,
+                  color: isSelected
+                    ? THEME_TOKENS.colors.accent
+                    : THEME_TOKENS.colors.textSecondary,
+                  fontSize: THEME_TOKENS.typography.fontSizes.label,
+                  fontWeight: isSelected ? 700 : 500,
+                  cursor: "pointer",
+                }}
+              >
+                {isSelected ? "✓ " : ""}{option.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ color: THEME_TOKENS.colors.textMuted, fontSize: THEME_TOKENS.typography.fontSizes.caption, lineHeight: 1.45 }}>
+          {PERMISSION_PROFILE_OPTIONS.find((option) => option.value === permissionProfile)?.description}
+        </div>
+      </section>
+
+      {/* 3. LLM Provider Settings */}
       <section
         style={{
           background: THEME_TOKENS.colors.surfaceCard,
@@ -262,7 +336,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* 3. TTS Voice Settings */}
+      {/* 4. TTS Voice Settings */}
       <section
         style={{
           background: THEME_TOKENS.colors.surfaceCard,
@@ -325,7 +399,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* 4. Startup & General Options */}
+      {/* 5. Startup & General Options */}
       <section
         style={{
           background: THEME_TOKENS.colors.surfaceCard,

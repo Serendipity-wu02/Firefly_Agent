@@ -17,6 +17,8 @@ import { RecoveryManager } from "./recovery/recovery-manager";
 import { BoundedPlanner } from "./planning/bounded-planner";
 import type { PlannerConfig } from "./planning/plan-types";
 import { FireflyHarness } from "./harness/firefly-harness";
+import type { HarnessAuthorizationAdapter } from "./harness/harness-authorization-adapter";
+import type { MainAgentDelegationService } from "../runtime/subagents/main-agent-delegation";
 
 export interface FireflyAgentCoreOptions {
   provider?: IFireflyLlmProvider;
@@ -26,6 +28,8 @@ export interface FireflyAgentCoreOptions {
   contextManager?: ContextManager;
   toolPolicy?: Partial<ToolPolicyConfig>;
   executionEngine?: ToolExecutionEngine;
+  authorizationAdapter?: HarnessAuthorizationAdapter;
+  mainDelegationService?: MainAgentDelegationService;
   checkpointManager?: CheckpointManager;
   recoveryManager?: RecoveryManager;
   planner?: BoundedPlanner;
@@ -60,6 +64,8 @@ export class FireflyAgentCore implements IAgentCore {
       eventBus,
       contextManager,
       executionEngine,
+      authorizationAdapter: options.authorizationAdapter,
+      mainDelegationService: options.mainDelegationService,
       checkpointManager,
       recoveryManager,
       planner,

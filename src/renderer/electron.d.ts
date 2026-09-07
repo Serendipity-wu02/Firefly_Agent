@@ -5,20 +5,14 @@ import type { TtsSettings } from "../shared/tts-types";
 import type { ChatMessage } from "../shared/chat-types";
 import type { ProviderStatus } from "../shared/provider-types";
 import type { ProactiveLinePayload } from "../shared/proactive-types";
-import type { UiPreferences } from "../shared/ui-types";
-
-interface FireflySettingsSnapshot {
-  llm?: {
-    provider: "local" | "openai" | "deepseek" | "openrouter" | "custom";
-    baseUrl: string;
-    apiKey: string;
-    model: string;
-    temperature: number;
-    enableStreaming: boolean;
-  };
-  tts?: TtsSettings;
-  ui?: UiPreferences;
-}
+import type { WindowStateSnapshot } from "../shared/window-types";
+import type { FireflySettingsSnapshot, FireflySettingsUpdate } from "../shared/settings-types";
+import type {
+  ApprovalChangedEvent,
+  ApprovalIpcResponse,
+  ApprovalResolveRequest,
+} from "../shared/approval-ipc-types";
+import type { ApprovalRecord } from "../shared/approval-types";
 
 declare global {
   interface Window {
@@ -27,6 +21,8 @@ declare global {
       hide: () => void;
       close: () => void;
       toggleMaximize: () => void;
+      getWindowState: () => Promise<WindowStateSnapshot>;
+      onWindowStateChanged: (cb: (state: WindowStateSnapshot) => void) => () => void;
       quit: () => void;
       setInteractive: (interactive: boolean) => Promise<void>;
       moveBy: (dx: number, dy: number) => void;
@@ -41,7 +37,6 @@ declare global {
       openChat: () => void;
       openStatus: () => void;
       openSettings: () => void;
-      onOpenSettings?: (cb: () => void) => () => void;
       openSummary: () => void;
       onSummaryUpdated?: (cb: (summary: any) => void) => () => void;
       showContextMenu: () => void;
@@ -86,12 +81,17 @@ declare global {
     };
     settings?: {
       load: () => Promise<FireflySettingsSnapshot>;
-      save: (settings: Partial<FireflySettingsSnapshot>) => Promise<boolean>;
+      save: (settings: FireflySettingsUpdate) => Promise<boolean>;
       onSettingsChanged: (cb: (settings: FireflySettingsSnapshot) => void) => () => void;
     };
     startup?: {
       get: () => Promise<boolean>;
       set: (enabled: boolean) => Promise<boolean>;
+    };
+    approval?: {
+      getApprovalRequest: () => Promise<ApprovalRecord | null>;
+      resolveApproval: (request: ApprovalResolveRequest) => Promise<ApprovalIpcResponse>;
+      onApprovalChanged: (cb: (event: ApprovalChangedEvent) => void) => () => void;
     };
   }
 }

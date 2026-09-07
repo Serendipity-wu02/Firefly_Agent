@@ -1,6 +1,8 @@
 import type { ChatMessage } from "./chat-types";
 import type { CharacterStateData } from "./firefly-state";
 import type { ToolCall } from "./tool-types";
+import type { MusicContextEvent } from "./music-context-types";
+import type { AgentExecutionProfile } from "./subagent-types";
 
 export type AgentRunStatus =
   | "created"
@@ -48,6 +50,7 @@ export interface AgentRunInput {
   planMode?: boolean;
   customSteps?: string[];
   signal?: AbortSignal;
+  executionProfile?: AgentExecutionProfile;
 }
 
 export interface AgentRunResult {
@@ -104,6 +107,36 @@ export type AgentEvent =
       durationMs: number;
       toolCallsCount: number;
       stepsCount: number;
+      timestamp: number;
+    }
+  | {
+      type: "subagent:started";
+      runId: string;
+      subAgentId: string;
+      taskId: string;
+      parentRunId?: string;
+      timestamp: number;
+    }
+  | {
+      type: "subagent:completed";
+      runId: string;
+      subAgentId: string;
+      taskId: string;
+      timestamp: number;
+    }
+  | {
+      type: "subagent:failed";
+      runId: string;
+      subAgentId: string;
+      taskId: string;
+      error: string;
+      timestamp: number;
+    }
+  | {
+      type: "subagent:cancelled";
+      runId: string;
+      subAgentId: string;
+      taskId: string;
       timestamp: number;
     }
   | {
@@ -250,6 +283,7 @@ export type AgentEvent =
       runId: string;
       planId: string;
       timestamp: number;
-    };
+    }
+  | MusicContextEvent;
 
 export type AgentEventType = AgentEvent["type"];

@@ -1,4 +1,8 @@
-import type { GptsovitsConfig } from "../../../../shared/tts-types";
+import {
+  DEFAULT_GPTSOVITS_SEED,
+  DEFAULT_GPTSOVITS_TEXT_SPLIT_METHOD,
+  type GptsovitsConfig,
+} from "../../../../shared/tts-types";
 import type { TtsAudioFormat } from "../../../../shared/tts-session";
 import { traceTtsTextIntegrity } from "../../../../shared/tts-text-integrity";
 
@@ -13,7 +17,9 @@ export interface GptsovitsSynthesizeResult {
  * homophone to the external synthesizer for this canonical term.
  */
 export function normalizeGptsovitsText(text: string): string {
-  return text.replace(/失熵症/g, "失商症");
+  return text
+    .replace(/AR-26710/g, "AR二六七一零")
+    .replace(/失熵症/g, "失商症");
 }
 
 /**
@@ -29,6 +35,7 @@ export function normalizeGptsovitsText(text: string): string {
  * - media_type: "wav"
  * - speed_factor: Speech speed rate (e.g. 1.0)
  * - seed: Fixed semantic sampling seed for stable pronunciation
+ * - text_split_method: GPT-SoVITS text segmentation method
  */
 export async function synthesizeGptsovits(
   text: string,
@@ -39,6 +46,7 @@ export async function synthesizeGptsovits(
   const baseUrl = (config.baseUrl || "http://127.0.0.1:9880").replace(/\/+$/, "");
   const endpoint = `${baseUrl}/tts`;
   const synthesisText = normalizeGptsovitsText(text);
+  const textSplitMethod = config.textSplitMethod ?? DEFAULT_GPTSOVITS_TEXT_SPLIT_METHOD;
 
   const refAudioPath = config.refAudioPath;
   const promptText = config.promptText;
@@ -51,7 +59,8 @@ export async function synthesizeGptsovits(
     prompt_lang: "zh",
     media_type: config.format || "wav",
     speed_factor: config.speed ?? 1.0,
-    seed: config.seed ?? 5,
+    seed: config.seed ?? DEFAULT_GPTSOVITS_SEED,
+    text_split_method: textSplitMethod,
     streaming_mode: false,
   };
 

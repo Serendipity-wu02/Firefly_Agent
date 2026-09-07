@@ -3,16 +3,49 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeGptsovitsText, synthesizeGptsovits } from "../../../dist/main/main/runtime/tts/engines/gptsovits-engine.js";
 import { FireflyTtsDispatcher } from "../../../dist/main/main/runtime/tts/tts-dispatcher.js";
 import { TtsSessionService } from "../../../dist/main/main/runtime/tts/tts-session-service.js";
 import { TtsCache } from "../../../dist/main/main/runtime/tts/tts-cache.js";
+import { buildTtsCacheKey, TTS_CACHE_VERSION, versionTtsCacheKey } from "../../../dist/main/main/runtime/tts/tts-cache-key.js";
 import { TtsPlaybackOwnership } from "../../../dist/main/main/runtime/tts/playback-owner.js";
+import {
+  DEFAULT_GPTSOVITS_SEED,
+  DEFAULT_GPTSOVITS_TEXT_SPLIT_METHOD,
+  DEFAULT_TTS_SETTINGS,
+  TTS_SETTINGS_SCHEMA_VERSION,
+  migrateTtsSettings,
+} from "../../../dist/main/shared/tts-types.js";
 import { getTtsTextIntegrity } from "../../../dist/main/shared/tts-text-integrity.js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+
+test("0. Canonical TTS defaults and legacy seed migration", () => {
+  assert.equal(DEFAULT_GPTSOVITS_SEED, 15);
+  assert.equal(DEFAULT_TTS_SETTINGS.gptsovits.seed, 15);
+  assert.equal(DEFAULT_TTS_SETTINGS.gptsovits.textSplitMethod, "cut5");
+  assert.equal(DEFAULT_GPTSOVITS_TEXT_SPLIT_METHOD, "cut5");
+  assert.equal(DEFAULT_TTS_SETTINGS.schemaVersion, TTS_SETTINGS_SCHEMA_VERSION);
+
+  const legacy = migrateTtsSettings({
+    engine: "gptsovits",
+    gptsovits: { seed: 5 },
+  });
+  assert.equal(legacy.migratedLegacySeed, true);
+  assert.equal(legacy.settings.gptsovits.seed, 15);
+  assert.equal(legacy.settings.schemaVersion, TTS_SETTINGS_SCHEMA_VERSION);
+
+  const currentExplicitFive = migrateTtsSettings({
+    schemaVersion: TTS_SETTINGS_SCHEMA_VERSION,
+    engine: "gptsovits",
+    gptsovits: { seed: 5 },
+  });
+  assert.equal(currentExplicitFive.migratedLegacySeed, false);
+  assert.equal(currentExplicitFive.settings.gptsovits.seed, 5);
+});
 
 // Helper to create a local Mock GPT-SoVITS HTTP Server
 function createMockGptsovitsServer(options = {}) {
@@ -89,7 +122,7 @@ test("1. GPT-SoVITS Provider Config & Request Construction", async () => {
       promptText: "在梦里，我见到了焦土……",
       format: "wav",
       speed: 1.1,
-      seed: 5,
+      seed: 15,
     };
 
     const res = await synthesizeGptsovits("你好，开拓者！", config);
@@ -105,22 +138,26 @@ test("1. GPT-SoVITS Provider Config & Request Construction", async () => {
     assert.equal(payload.prompt_text, "在梦里，我见到了焦土……");
     assert.equal(payload.prompt_lang, "zh");
     assert.equal(payload.speed_factor, 1.1);
-    assert.equal(payload.seed, 5);
+    assert.equal(payload.seed, 15);
     assert.equal(payload.media_type, "wav");
+    assert.equal(payload.text_split_method, "cut5");
     assert.equal(payload.streaming_mode, false);
   } finally {
     await mockServer.close();
   }
 });
 test("1a. GPT-SoVITS Chinese pronunciation normalization keeps visible text unchanged", () => {
+  assert.equal(normalizeGptsovitsText("AR-26710"), "AR二六七一零");
+  assert.equal(normalizeGptsovitsText("格拉默"), "格拉默");
   assert.equal(normalizeGptsovitsText("失熵症的身体会慢性解离。"), "失商症的身体会慢性解离。");
   assert.equal(normalizeGptsovitsText("今天的天气很好。"), "今天的天气很好。");
 });
 
 test("2. FireflyTtsDispatcher: Synthesis, Caching, and Skip", async () => {
   const mockServer = await createMockGptsovitsServer();
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-tts-test-"));
   try {
-    const dispatcher = new FireflyTtsDispatcher(new TtsCache());
+    const dispatcher = new FireflyTtsDispatcher(new TtsCache(cacheDir));
     const settings = {
       engine: "gptsovits",
       speed: 1.0,
@@ -142,6 +179,8 @@ test("2. FireflyTtsDispatcher: Synthesis, Caching, and Skip", async () => {
     assert.equal(res1.format, "wav");
     assert.ok(res1.base64);
     assert.equal(mockServer.getRequestCount(), 1);
+    assert.equal(mockServer.getLastPayload().seed, 15);
+    assert.equal(mockServer.getLastPayload().text_split_method, "cut5");
 
     // 2nd request with same text -> Cached
     const res2 = await dispatcher.synthesize({ requestId: "r2", speechText: "第一句测试" }, settings);
@@ -154,6 +193,7 @@ test("2. FireflyTtsDispatcher: Synthesis, Caching, and Skip", async () => {
     assert.equal(res3.status, "skipped");
   } finally {
     await mockServer.close();
+    fs.rmSync(cacheDir, { recursive: true, force: true });
   }
 });
 
@@ -266,6 +306,93 @@ test("6. UTF-8 text integrity is preserved through GPT-SoVITS request serializat
     assert.equal(crypto.createHash("sha256").update(Buffer.from(payload.text, "utf8")).digest("hex"), expectedHash);
   } finally {
     await mockServer.close();
+  }
+});
+
+test("6a. Complete Firefly reply preserves exact lexical text and canonical speech normalization", async () => {
+  const text = "我是流萤啊。AR-26710，前格拉默铁骑萨姆的驾驶员……也是和你一起在匹诺康尼看过烟花的那个人。如果你觉得我不像，那可能是我表达得不够好。但站在这里的，确实是流萤没错。……开拓者是遇到什么让你怀疑的事了吗？";
+  const speechText = "我是流萤啊。AR二六七一零，前格拉默铁骑萨姆的驾驶员……也是和你一起在匹诺康尼看过烟花的那个人。如果你觉得我不像，那可能是我表达得不够好。但站在这里的，确实是流萤没错。……开拓者是遇到什么让你怀疑的事了吗？";
+  const expectedHash = crypto.createHash("sha256").update(Buffer.from(speechText, "utf8")).digest("hex");
+  const mockServer = await createMockGptsovitsServer();
+  try {
+    await synthesizeGptsovits(
+      text,
+      {
+        baseUrl: mockServer.baseUrl,
+        refAudioPath: "samples/ref.wav",
+        promptText: "参考文本",
+        format: "wav",
+        speed: 0.9,
+        seed: 15,
+      },
+      undefined,
+      "lexical-integrity-full-reply",
+    );
+    const payload = mockServer.getLastPayload();
+    assert.equal(payload.text, speechText);
+    assert.equal(crypto.createHash("sha256").update(Buffer.from(payload.text, "utf8")).digest("hex"), expectedHash);
+    assert.equal(payload.text_split_method, "cut5");
+    assert.equal(payload.seed, 15);
+    assert.ok(payload.text.includes("格拉默"));
+    assert.ok(!payload.text.includes("AR-26710"));
+  } finally {
+    await mockServer.close();
+  }
+});
+
+test("6b. TTS cache key includes effective seed and the new schema version", async () => {
+  const mockServer = await createMockGptsovitsServer();
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-tts-cache-test-"));
+  try {
+    const dispatcher = new FireflyTtsDispatcher(new TtsCache(cacheDir));
+    const createSettings = (seed) => ({
+      engine: "gptsovits",
+      speed: 1.0,
+      volume: 1.0,
+      voiceProfile: "firefly-v2proplus",
+      gptsovits: {
+        baseUrl: mockServer.baseUrl,
+        refAudioPath: "samples/ref.wav",
+        promptText: "参考文本",
+        format: "wav",
+        speed: 1.0,
+        seed,
+        textSplitMethod: "cut5",
+      },
+    });
+    const seed5Settings = createSettings(5);
+    const seed15Settings = createSettings(15);
+    const speechText = "缓存键测试";
+    const seed5Result = await dispatcher.synthesize(
+      { requestId: "cache-seed5", speechText },
+      seed5Settings,
+    );
+    const seed15Result = await dispatcher.synthesize(
+      { requestId: "cache-seed15", speechText },
+      seed15Settings,
+    );
+
+    const seed15Payload = {
+      text: speechText,
+      behaviorType: undefined,
+      pace: undefined,
+      ...seed15Settings.gptsovits,
+      speed: 1.0,
+      seed: 15,
+      textSplitMethod: "cut5",
+    };
+    const baseCacheKey = buildTtsCacheKey("gptsovits", seed15Payload);
+    const expectedVersionedKey = versionTtsCacheKey(baseCacheKey, TTS_CACHE_VERSION);
+    assert.equal(seed15Result.cacheKey, expectedVersionedKey);
+    assert.notEqual(seed15Result.cacheKey, baseCacheKey);
+    assert.notEqual(seed5Result.cacheKey, seed15Result.cacheKey);
+    assert.notEqual(seed15Result.cacheKey, versionTtsCacheKey(baseCacheKey, "tts-lexical-integrity-v2"));
+    assert.equal(mockServer.getLastPayload().seed, 15);
+    assert.equal(mockServer.getLastPayload().text_split_method, "cut5");
+    assert.equal(mockServer.getRequestCount(), 2);
+  } finally {
+    await mockServer.close();
+    fs.rmSync(cacheDir, { recursive: true, force: true });
   }
 });
 

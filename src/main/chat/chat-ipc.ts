@@ -53,6 +53,7 @@ export function registerChatIpc(
         userPrompt: payload.message,
         history: payload.history || [],
         characterState: state,
+        executionProfile: { kind: "MAIN", allowSubAgentDelegation: true },
       });
       console.log(
         `[Harness Trace] agent.complete status=${result.status} text="${result.finalText?.slice(0, 30)}..."`,

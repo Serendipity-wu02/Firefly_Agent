@@ -4,6 +4,8 @@ export const IPC = {
   WINDOW_HIDE: "window:hide",
   WINDOW_CLOSE: "window:close",
   WINDOW_MAXIMIZE_TOGGLE: "window:maximize-toggle",
+  WINDOW_GET_STATE: "window:get-state",
+  WINDOW_STATE_CHANGED: "window:state-changed",
   WINDOW_QUIT: "window:quit",
   PET_SET_INTERACTIVE: "pet:set-interactive",
   PET_MOVE_BY: "pet:move-by",
@@ -23,6 +25,11 @@ export const IPC = {
   WINDOW_OPEN_SETTINGS: "window:open-settings",
   WINDOW_OPEN_SUMMARY: "window:open-summary",
   CHARACTER_SUMMARY_UPDATED: "character:summary-updated",
+
+  // Human Approval Surface
+  APPROVAL_GET: "approval:get",
+  APPROVAL_RESOLVE: "approval:resolve",
+  APPROVAL_CHANGED: "approval:changed",
 
   // Live2D / Action Execution
   LIVE2D_PLAY_ACTION: "live2d:play-action",

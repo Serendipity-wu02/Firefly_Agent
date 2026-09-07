@@ -1,4 +1,8 @@
 import type { CharacterStateData } from "../../../shared/firefly-state";
+import type {
+  MusicContextSnapshot,
+  MusicContextSnapshotReader,
+} from "../../../shared/music-context-types";
 import { SystemPromptBuilder } from "./system-prompt-builder";
 import type { TokenMeter } from "./token-meter";
 
@@ -237,5 +241,32 @@ export class PlanSlot implements IContextSlot {
   estimateTokens(ctx: SlotRenderContext, meter: TokenMeter): number {
     const content = this.render(ctx);
     return content ? meter.estimateTokens(content) : 0;
+  }
+}
+
+/**
+ * Ephemeral runtime music context. It deliberately renders no prompt text:
+ * consumers may read the latest fact through ContextManager when task-relevant.
+ */
+export class MusicContextSlot implements IContextSlot {
+  readonly id = "music-context";
+  readonly priority = ContextSlotPriority.CUSTOM;
+  readonly enabled = true;
+  private readonly reader: MusicContextSnapshotReader;
+
+  constructor(reader: MusicContextSnapshotReader) {
+    this.reader = reader;
+  }
+
+  getSnapshot(): MusicContextSnapshot | undefined {
+    return this.reader.getSnapshot();
+  }
+
+  render(_ctx: SlotRenderContext): string {
+    return "";
+  }
+
+  estimateTokens(_ctx: SlotRenderContext, _meter: TokenMeter): number {
+    return 0;
   }
 }

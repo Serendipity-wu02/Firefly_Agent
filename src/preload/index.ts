@@ -5,6 +5,14 @@ import type { StartTtsRequest, TtsPlaybackStopRequest, TtsStartResult, TtsSessio
 import type { TtsSettings } from "../shared/tts-types";
 import type { ChatMessage } from "../shared/chat-types";
 import type { ProactiveLinePayload } from "../shared/proactive-types";
+import type { WindowStateSnapshot } from "../shared/window-types";
+import type { FireflySettingsSnapshot, FireflySettingsUpdate } from "../shared/settings-types";
+import type {
+  ApprovalChangedEvent,
+  ApprovalIpcResponse,
+  ApprovalResolveRequest,
+} from "../shared/approval-ipc-types";
+import type { ApprovalRecord } from "../shared/approval-types";
 
 /**
  * Sandbox-safe channel table (mirror of src/shared/ipc-channels.ts).
@@ -25,6 +33,8 @@ const IPC = {
   WINDOW_HIDE: "window:hide",
   WINDOW_CLOSE: "window:close",
   WINDOW_MAXIMIZE_TOGGLE: "window:maximize-toggle",
+  WINDOW_GET_STATE: "window:get-state",
+  WINDOW_STATE_CHANGED: "window:state-changed",
   WINDOW_QUIT: "window:quit",
   PET_SET_INTERACTIVE: "pet:set-interactive",
   PET_MOVE_BY: "pet:move-by",
@@ -44,6 +54,11 @@ const IPC = {
   WINDOW_OPEN_SETTINGS: "window:open-settings",
   WINDOW_OPEN_SUMMARY: "window:open-summary",
   CHARACTER_SUMMARY_UPDATED: "character:summary-updated",
+
+  // Human Approval Surface
+  APPROVAL_GET: "approval:get",
+  APPROVAL_RESOLVE: "approval:resolve",
+  APPROVAL_CHANGED: "approval:changed",
 
   // Live2D / Action Execution
   LIVE2D_PLAY_ACTION: "live2d:play-action",
@@ -96,6 +111,12 @@ contextBridge.exposeInMainWorld("firefly", {
   hide: () => ipcRenderer.send(IPC.WINDOW_HIDE),
   close: () => ipcRenderer.send(IPC.WINDOW_CLOSE),
   toggleMaximize: () => ipcRenderer.send(IPC.WINDOW_MAXIMIZE_TOGGLE),
+  getWindowState: (): Promise<WindowStateSnapshot> => ipcRenderer.invoke(IPC.WINDOW_GET_STATE),
+  onWindowStateChanged: (cb: (state: WindowStateSnapshot) => void) => {
+    const listener = (_: unknown, state: WindowStateSnapshot) => cb(state);
+    ipcRenderer.on(IPC.WINDOW_STATE_CHANGED, listener);
+    return () => { ipcRenderer.removeListener(IPC.WINDOW_STATE_CHANGED, listener); };
+  },
   quit: () => ipcRenderer.send(IPC.WINDOW_QUIT),
   setInteractive: (interactive: boolean) => ipcRenderer.invoke(IPC.PET_SET_INTERACTIVE, interactive),
   moveBy: (dx: number, dy: number) => ipcRenderer.send(IPC.PET_MOVE_BY, { dx, dy }),
@@ -119,11 +140,6 @@ contextBridge.exposeInMainWorld("firefly", {
   openChat: () => ipcRenderer.send(IPC.WINDOW_OPEN_CHAT),
   openStatus: () => ipcRenderer.send(IPC.WINDOW_OPEN_STATUS),
   openSettings: () => ipcRenderer.send(IPC.WINDOW_OPEN_SETTINGS),
-  onOpenSettings: (cb: () => void) => {
-    const listener = () => cb();
-    ipcRenderer.on(IPC.WINDOW_OPEN_SETTINGS, listener);
-    return () => { ipcRenderer.removeListener(IPC.WINDOW_OPEN_SETTINGS, listener); };
-  },
   openSummary: () => ipcRenderer.send(IPC.WINDOW_OPEN_SUMMARY),
   onSummaryUpdated: (cb: (summary: any) => void) => {
     const listener = (_: unknown, summary: any) => cb(summary);
@@ -212,10 +228,10 @@ contextBridge.exposeInMainWorld("chat", {
 });
 
 contextBridge.exposeInMainWorld("settings", {
-  load: (): Promise<any> => ipcRenderer.invoke(IPC.SETTINGS_LOAD),
-  save: (settings: any): Promise<boolean> => ipcRenderer.invoke(IPC.SETTINGS_SAVE, settings),
-  onSettingsChanged: (cb: (settings: any) => void) => {
-    const listener = (_: unknown, settings: any) => cb(settings);
+  load: (): Promise<FireflySettingsSnapshot> => ipcRenderer.invoke(IPC.SETTINGS_LOAD),
+  save: (settings: FireflySettingsUpdate): Promise<boolean> => ipcRenderer.invoke(IPC.SETTINGS_SAVE, settings),
+  onSettingsChanged: (cb: (settings: FireflySettingsSnapshot) => void) => {
+    const listener = (_: unknown, settings: FireflySettingsSnapshot) => cb(settings);
     ipcRenderer.on(IPC.SETTINGS_CHANGED, listener);
     return () => { ipcRenderer.removeListener(IPC.SETTINGS_CHANGED, listener); };
   },
@@ -224,4 +240,15 @@ contextBridge.exposeInMainWorld("settings", {
 contextBridge.exposeInMainWorld("startup", {
   get: (): Promise<boolean> => ipcRenderer.invoke(IPC.STARTUP_GET),
   set: (enabled: boolean): Promise<boolean> => ipcRenderer.invoke(IPC.STARTUP_SET, enabled),
+});
+
+contextBridge.exposeInMainWorld("approval", {
+  getApprovalRequest: (): Promise<ApprovalRecord | null> => ipcRenderer.invoke(IPC.APPROVAL_GET),
+  resolveApproval: (request: ApprovalResolveRequest): Promise<ApprovalIpcResponse> =>
+    ipcRenderer.invoke(IPC.APPROVAL_RESOLVE, request),
+  onApprovalChanged: (cb: (event: ApprovalChangedEvent) => void) => {
+    const listener = (_unknown: unknown, event: ApprovalChangedEvent) => cb(event);
+    ipcRenderer.on(IPC.APPROVAL_CHANGED, listener);
+    return () => { ipcRenderer.removeListener(IPC.APPROVAL_CHANGED, listener); };
+  },
 });

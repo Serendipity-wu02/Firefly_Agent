@@ -16,8 +16,6 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "../../..");
-const CHAT_OUTER_RADIUS = "16px";
-
 const { THEME_TOKENS } = await import("../../../dist/renderer/assets/chat-BWus1paF.js").catch(() => ({}));
 const { globalAvatarResolver } = await import("../../../src/renderer/ui/avatar-resolver.ts");
 
@@ -40,13 +38,16 @@ test("2. Real Firefly Avatar: Default avatar resolver points to physical firefly
   assert.ok(fs.existsSync(avatarDiskPath), "Physical firefly.png must exist on disk");
 });
 
-test("3. Top Navigation Header: Renders clean navigation tabs and a status dot without provider text", () => {
+test("3. Firefly Header: Renders compact identity and status without navigation/provider labels", () => {
   const headerSource = fs.readFileSync(path.join(rootDir, "src", "renderer", "ui", "components", "Header.tsx"), "utf-8");
-  assert.ok(headerSource.includes("💬 对话"), "Header must include 对话 tab");
-  assert.ok(headerSource.includes("⚙ 设置"), "Header must include 设置 tab");
+  assert.ok(headerSource.includes('data-firefly-identity="true"'), "Header must expose the Firefly identity area");
+  assert.ok(headerSource.includes("<span>Firefly</span>"), "Header must display Firefly");
+  assert.ok(headerSource.includes('alt="Firefly"'), "Header must use the Firefly avatar");
   assert.ok(headerSource.includes("data-provider-status={providerStatus.status}"), "Header must expose the actual provider status on the indicator");
   assert.ok(headerSource.includes("statusColor"), "Header indicator color must derive from actual provider status");
   assert.ok(!headerSource.includes("{providerStatus.label}"), "Header must not render provider/model label text");
+  assert.ok(!headerSource.includes("💬 对话"), "Header must not contain a Chat tab");
+  assert.ok(!headerSource.includes("⚙ 设置"), "Header must not contain a Settings tab");
 });
 
 test("4. Assistant Message Rendering: Includes avatar, Firefly label, speech bubble, and TTS action", () => {
@@ -226,7 +227,9 @@ test("19. GUI Fix Round 2: Chat shell, transparent page, compact Pet overlay, an
 
   assert.ok(uiHtmlSource.includes("html, body, #root"), "Chat page must define the transparent full-size root");
   assert.ok(uiHtmlSource.includes("background: transparent"), "Chat page background must be transparent for the frameless window");
-  assert.ok(appSource.includes(`borderRadius: "${CHAT_OUTER_RADIUS}"`), `Chat shell must use ${CHAT_OUTER_RADIUS} radius`);
+  const uiTypesSource = fs.readFileSync(path.join(rootDir, "src", "shared", "ui-types.ts"), "utf-8");
+  assert.ok(uiTypesSource.includes('CHAT_OUTER_RADIUS = "16px"'), "Chat shell radius contract must remain 16px");
+  assert.ok(appSource.includes("CHAT_OUTER_RADIUS"), "Chat shell must use the shared radius contract");
   assert.ok(appSource.includes('overflow: "hidden"'), "Chat shell must clip content to its radius");
 
   assert.ok(petHtmlSource.includes("top: 8px"), "Pet overlay must be positioned from the top");

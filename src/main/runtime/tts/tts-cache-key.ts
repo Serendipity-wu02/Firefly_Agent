@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+export const TTS_CACHE_VERSION = "tts-voice-baseline-v3";
+
 export function buildTtsCacheKey(engine: string, payload: Record<string, unknown>): string {
   const normalized = JSON.stringify(payload, Object.keys(payload).sort());
   const hash = crypto.createHash("sha256").update(normalized, "utf8").digest("hex");
