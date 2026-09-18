@@ -64,48 +64,63 @@ export function registerApprovalIpc(options: {
   const isApprovalSurfaceSender = (sender: unknown): boolean =>
     options.windowManager.isApprovalSurfaceSender(sender);
 
-  ipcMain.handle(IPC.APPROVAL_GET, (event) => {
-    if (!isApprovalSurfaceSender(event.sender)) {
-      throw new Error("Approval IPC is only available in Chat or the approval window.");
+  let disposed = false;
+  const registeredChannels = new Set<string>();
+  const dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+    coordinator.dispose();
+    for (const channel of registeredChannels) {
+      ipcMain.removeHandler(channel);
     }
-    return coordinator.getCurrentRecord();
-  });
+    registeredChannels.clear();
+  };
 
-  ipcMain.handle(IPC.APPROVAL_RESOLVE, (event, payload: unknown): ApprovalIpcResponse => {
-    if (!isApprovalSurfaceSender(event.sender)) {
-      return {
-        ok: false,
-        code: "INVALID_APPROVAL_REQUEST",
-        message: "Approval IPC is only available in Chat or the approval window.",
-      };
-    }
-    if (!isApprovalResolveRequest(payload)) {
-      return {
-        ok: false,
-        code: "APPROVAL_INVALID_ACTION",
-        message: "Approval resolution must contain an approval request ID and action.",
-      };
-    }
+  try {
+    ipcMain.handle(IPC.APPROVAL_GET, (event) => {
+      if (!isApprovalSurfaceSender(event.sender)) {
+        throw new Error("Approval IPC is only available in Chat or the approval window.");
+      }
+      return coordinator.getCurrentRecord();
+    });
+    registeredChannels.add(IPC.APPROVAL_GET);
 
-    try {
-      const record = coordinator.resolveCurrent(
-        toApprovalRequestId(payload.approvalRequestId),
-        payload.action,
-      );
-      return { ok: true, record };
-    } catch (error) {
-      coordinator.refresh();
-      return toIpcError(error);
-    }
-  });
+    ipcMain.handle(IPC.APPROVAL_RESOLVE, (event, payload: unknown): ApprovalIpcResponse => {
+      if (!isApprovalSurfaceSender(event.sender)) {
+        return {
+          ok: false,
+          code: "INVALID_APPROVAL_REQUEST",
+          message: "Approval IPC is only available in Chat or the approval window.",
+        };
+      }
+      if (!isApprovalResolveRequest(payload)) {
+        return {
+          ok: false,
+          code: "APPROVAL_INVALID_ACTION",
+          message: "Approval resolution must contain an approval request ID and action.",
+        };
+      }
+
+      try {
+        const record = coordinator.resolveCurrent(
+          toApprovalRequestId(payload.approvalRequestId),
+          payload.action,
+        );
+        return { ok: true, record };
+      } catch (error) {
+        coordinator.refresh();
+        return toIpcError(error);
+      }
+    });
+    registeredChannels.add(IPC.APPROVAL_RESOLVE);
+  } catch (error: unknown) {
+    dispose();
+    throw error;
+  }
 
   return {
     coordinator,
     notifyPending: () => coordinator.notifyPending(),
-    dispose: () => {
-      coordinator.dispose();
-      ipcMain.removeHandler(IPC.APPROVAL_GET);
-      ipcMain.removeHandler(IPC.APPROVAL_RESOLVE);
-    },
+    dispose,
   };
 }

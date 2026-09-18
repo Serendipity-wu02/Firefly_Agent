@@ -1,12 +1,8 @@
-export type ProactiveTriggerReason =
-  | "sick"
-  | "tired"
-  | "hungry"
-  | "attention"
-  | "ignored"
-  | "special_dialogue"
-  | "idle_presence"
-  | "manual";
+/**
+ * A structured reason supplied by a future, product-approved proactive source.
+ * This type deliberately carries no automatic trigger vocabulary.
+ */
+export type ProactiveTriggerReason = string;
 
 export interface ProactiveLinePayload {
   text: string;
@@ -35,18 +31,13 @@ export interface ProactiveEvent {
   timestamp: number;
 }
 
-export interface ProactiveConfig {
-  enabled: boolean;
-  checkIntervalMs: number;
-  actionCooldownMs: number;
-  specialDialogueCooldownMs: number;
-  specialDialogueChance: number;
+/**
+ * Lifecycle-only execution request. Creating this value does not create a
+ * production trigger; a product-approved source must be wired explicitly.
+ */
+export interface ProactiveExecutionRequest {
+  runId?: string;
+  reason: ProactiveTriggerReason;
+  actionId: string;
+  instruction: string;
 }
-
-export const DEFAULT_PROACTIVE_CONFIG: ProactiveConfig = {
-  enabled: true,
-  checkIntervalMs: 45_000, // 45 seconds (matches pet_window.py)
-  actionCooldownMs: 180_000, // 3 minutes per specific condition
-  specialDialogueCooldownMs: 300_000, // 5 minutes
-  specialDialogueChance: 0.12, // 12% (matches pet_window.py)
-};

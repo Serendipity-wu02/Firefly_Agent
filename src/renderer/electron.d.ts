@@ -1,5 +1,4 @@
 import type { FireflyTarget } from "../shared/firefly-actions";
-import type { CareActionType } from "../shared/firefly-state";
 import type { StartTtsRequest, TtsPlaybackStopRequest, TtsStartResult, TtsSessionEvent } from "../shared/tts-session";
 import type { TtsSettings } from "../shared/tts-types";
 import type { ChatMessage } from "../shared/chat-types";
@@ -47,11 +46,6 @@ declare global {
     live2dAction?: {
       onPlayAction: (cb: (target: FireflyTarget) => void) => () => void;
     };
-    characterState?: {
-      getState: () => Promise<any>;
-      careAction: (action: CareActionType) => Promise<{ state: any; actionId: string; feedback?: string }>;
-      onStateChanged: (cb: (state: any) => void) => () => void;
-    };
     tts?: {
       startSession: (request: StartTtsRequest) => Promise<TtsStartResult>;
       cancelSession: (requestId: string) => Promise<boolean>;
@@ -63,6 +57,7 @@ declare global {
       onSessionEvent: (cb: (event: TtsSessionEvent) => void) => () => void;
     };
     chat?: {
+      getHistory: () => Promise<ChatMessage[]>;
       sendMessage: (
         message: string,
         history?: ChatMessage[],

@@ -1,2 +1,2 @@
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-& node "$ScriptDir\..\npm.mjs" @args
+& node --experimental-strip-types "$ScriptDir\..\npm.mts" @args

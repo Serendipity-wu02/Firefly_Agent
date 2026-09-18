@@ -8,6 +8,7 @@
 import type {
   ApprovalDecision,
   ApprovalGrant,
+  ApprovalGrantLifetime,
   ApprovalRequest,
   ApprovalRequestId,
   ApprovalRequirement,
@@ -22,6 +23,7 @@ import type {
   CapabilityRequester,
 } from "./capability-types";
 import {
+  cloneSandboxScope,
   isSandboxScopeWithin,
   type SandboxDecision,
   type SandboxProfileId,
@@ -52,6 +54,7 @@ export interface CapabilityAuthorizationApprovalInput {
   readonly summary: string;
   readonly reason: string;
   readonly expiresAt: number;
+  readonly grantLifetime?: ApprovalGrantLifetime;
 }
 
 /**
@@ -84,7 +87,7 @@ export type AuthorizedCapabilityProvenance =
   | {
       readonly type: "approval-grant";
       readonly approvalRequestId: ApprovalRequestId;
-      readonly grantLifetime: "once";
+      readonly grantLifetime: ApprovalGrantLifetime;
     };
 
 /**
@@ -163,7 +166,9 @@ export type CapabilityAuthorizationFailureCode =
   | "CAPABILITY_NOT_FOUND"
   | "BINDING_NOT_FOUND"
   | "SANDBOX_DENIED"
+  | "SANDBOX_SCOPE_CHANGED"
   | "PERMISSION_PROFILE_DENIED"
+  | "AUTHORIZATION_POLICY_CHANGED"
   | "APPROVAL_DENIED"
   | "APPROVAL_CANCELLED"
   | "APPROVAL_EXPIRED"
@@ -177,6 +182,19 @@ export interface CapabilityAuthorizationDenial {
   readonly approvalRequestId?: ApprovalRequestId;
   readonly details?: CapabilityJsonValue;
 }
+
+export interface CapabilityAuthorizationRevalidationInput {
+  readonly profileId: SandboxProfileId;
+  readonly requestedScope: SandboxScope;
+}
+
+export type CapabilityAuthorizationRevalidation =
+  | { readonly valid: true }
+  | {
+      readonly valid: false;
+      readonly stage: CapabilityAuthorizationStage;
+      readonly reason: CapabilityAuthorizationDenial;
+    };
 
 export type CapabilityAuthorizationOutcome<
   TInput extends CapabilityJsonValue = CapabilityJsonValue,
@@ -218,7 +236,7 @@ function cloneRequest<TInput extends CapabilityJsonValue>(
 }
 
 function cloneScope(scope: SandboxScope): SandboxScope {
-  return Object.freeze({ ...scope });
+  return cloneSandboxScope(scope);
 }
 
 function cloneApprovalGrant(grant: ApprovalGrant): ApprovalGrant {
@@ -318,11 +336,13 @@ export function createAuthorizedCapabilityInvocation<
   }
   if (
     input.approvalRequirement === "required" &&
-    (approvalGrant === undefined || approvalGrant.lifetime !== "once" || typeof approvalGrant.scope !== "object")
+    (approvalGrant === undefined ||
+      (approvalGrant.lifetime !== "once" && approvalGrant.lifetime !== "process") ||
+      typeof approvalGrant.scope !== "object")
   ) {
     throw new AuthorizedInvocationError(
       "INVALID_APPROVAL_DECISION",
-      "An approved invocation requires a valid ONCE approval grant.",
+      "An approved invocation requires a valid scoped approval grant.",
     );
   }
   if (

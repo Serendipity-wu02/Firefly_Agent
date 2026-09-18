@@ -12,10 +12,10 @@
 - **npm**: `>= 11.0.0` (项目通过 `package.json` 中的 `packageManager: "npm@11.17.0"` 与 `engines` 锁定)
 - **开发者无需手动升级全局 npm**：项目随附提供 Corepack 自动调度与项目级 CLI 封装器，满足任意一种启动方式即可统一运行 npm 11：
   1. **一键初始化（推荐）**：双击运行 `setup.bat`，自动完成依赖安装、环境基线自检与全工程构建；
-  2. **项目级脚本启动**：使用 `node tools/npm/npm.mjs <command>` 或 `tools\npm\npm.cmd <command>`（例如 `node tools/npm/npm.mjs install`、`node tools/npm/npm.mjs test`）；
+  2. **项目级脚本启动**：使用 `node --experimental-strip-types tools/npm/npm.mts <command>` 或 `tools\npm\npm.cmd <command>`（例如 `node --experimental-strip-types tools/npm/npm.mts install`、`node --experimental-strip-types tools/npm/npm.mts test`）；
   3. **Corepack 原生支持**：执行 `corepack enable` 后直接运行标准 `npm <command>`。
 - **强制引擎校验**: 项目根目录配置 `.npmrc` (`engine-strict=true`)，杜绝非兼容版本安装
-- **基线自检**: 执行 `node tools/test/distribution/environment-baseline.test.mjs` 验证当前环境与工具链是否 100% 就绪
+- **基线自检**: 执行 `node --experimental-strip-types tools/test/distribution/environment-baseline.test.ts` 验证当前环境与工具链是否就绪
 
 ---
 
@@ -46,17 +46,17 @@ npm run build
 npm test
 
 # 或单独执行环境基线自检：
-node tools/test/distribution/environment-baseline.test.mjs
+node --experimental-strip-types tools/test/distribution/environment-baseline.test.ts
 ```
 
 ### 多模态实机链路回归测试
 ```bash
-node tools/test/runtime/tts.test.mjs
+node --experimental-strip-types tools/test/runtime/tts.test.ts
 ```
 
 ### 真实模型推理与 Electron 烟雾测试
 ```bash
-node tools/verify/live-voice.mjs
+node --experimental-strip-types tools/verify/live-voice.mts
 $env:ELECTRON_SMOKE_TEST="1"; npx electron .
 ```
 

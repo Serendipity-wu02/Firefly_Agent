@@ -40,10 +40,17 @@ function riskLabel(risk: ToolRiskLevel | undefined): string {
 
 function sideEffectLabel(sideEffect: ToolSideEffect | undefined): string {
   if (sideEffect === "read_only") return "只读";
+  if (sideEffect === "external_network_read") return "外部网络读取";
   if (sideEffect === "idempotent") return "幂等操作";
   if (sideEffect === "state_mutation") return "状态变更";
   if (sideEffect === "external_action") return "外部操作";
   return "未声明";
+}
+
+function grantLifetimeLabel(record: ApprovalRecord): string {
+  return record.request.grantLifetime === "process"
+    ? "本进程范围 · FULL_ACCESS"
+    : "一次授权 · ONCE";
 }
 
 export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({ record, onStale }) => {
@@ -93,23 +100,28 @@ export const InlineApprovalCard: React.FC<InlineApprovalCardProps> = ({ record, 
         color: "#f2fff9",
         boxShadow: "0 10px 28px rgba(10, 24, 29, 0.22)",
         userSelect: "none",
+        maxHeight: "min(34vh, 300px)",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "baseline" }}>
         <strong style={{ fontSize: "14px" }}>需要你的确认</strong>
-        <span style={{ color: "#a7c8bb", fontSize: "11px" }}>一次授权 · ONCE</span>
+        <span style={{ color: "#a7c8bb", fontSize: "11px" }}>{grantLifetimeLabel(record)}</span>
       </div>
       <div style={{ marginTop: "4px", color: "#b7d7ca", fontSize: "12px" }}>{requesterLabel(record)}</div>
-      <div style={{ display: "grid", gap: "6px", marginTop: "10px" }}>
-        <InlineField label="摘要" value={record.request.summary} />
-        <InlineField label="原因" value={record.request.reason} />
-        <InlineField label="能力" value={record.request.capabilityId} />
-        <InlineField label="风险" value={riskLabel(record.request.risk)} />
-        <InlineField label="副作用" value={sideEffectLabel(record.request.sideEffect)} />
-        <InlineField label="有效范围" value={scopeLabel(record.request.effectiveScope)} />
+      <div style={{ overflowY: "auto", minHeight: 0, paddingRight: "4px" }}>
+        <div style={{ display: "grid", gap: "6px", marginTop: "10px" }}>
+          <InlineField label="操作/摘要" value={record.request.summary} />
+          <InlineField label="原因" value={record.request.reason} />
+          <InlineField label="能力" value={record.request.capabilityId} />
+          <InlineField label="风险" value={riskLabel(record.request.risk)} />
+          <InlineField label="副作用" value={sideEffectLabel(record.request.sideEffect)} />
+          <InlineField label="有效范围" value={scopeLabel(record.request.effectiveScope)} />
+        </div>
+        {error ? <div role="alert" style={{ marginTop: "8px", color: "#ffb3aa", fontSize: "12px" }}>{error}</div> : null}
       </div>
-      {error ? <div role="alert" style={{ marginTop: "8px", color: "#ffb3aa", fontSize: "12px" }}>{error}</div> : null}
-      <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+      <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexShrink: 0, position: "sticky", bottom: 0, paddingTop: "6px", background: "rgba(22, 30, 35, 0.96)" }}>
         <button type="button" onClick={() => void resolve("deny")} disabled={busy !== null} style={buttonStyle(false, busy !== null)}>
           {busy === "deny" ? "处理中…" : "拒绝"}
         </button>

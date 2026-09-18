@@ -31,11 +31,9 @@ import {
   type BehaviorType,
 } from "./behavior-types";
 import type { EmbodimentPlan, VisualEmbodimentTarget } from "./embodiment-types";
-import type { CharacterStateData } from "../../shared/firefly-state";
 import { FIREFLY_ACTIONS, resolveFireflyTarget } from "../../shared/firefly-actions";
 
 export interface SystemPromptProjectionOptions {
-  state?: CharacterStateData;
   semanticState?: SemanticInnerState;
   userPrompt?: string;
   memoryContext?: string;
@@ -132,7 +130,7 @@ export class CharacterPolicyEngine {
   }
 
   /**
-   * 构建 19 个可用 Live2D 动作说明列表
+   * 构建当前可用 Live2D 动作说明列表
    */
   buildActionListString(): string {
     return FIREFLY_ACTIONS.map((a) => `- ${a.alias}（${a.id}）: ${a.description}`).join("\n");
@@ -161,6 +159,22 @@ export class CharacterPolicyEngine {
     correlationId?: string,
   ): EmbodimentPlan {
     return EmbodimentAdapter.createPlan(decision, spokenText, correlationId);
+  }
+
+  /**
+   * 生成角色拥有的音乐控制澄清表达。
+   *
+   * 方向不明确时不能交给自由模型猜测动作；这条安全表达仍通过
+   * Character 的 Persona 约束组织，而不是由 Chat IPC 直接维护人格台词。
+   */
+  createMusicControlClarification(): string {
+    const profile = this.getPersona();
+    const address = profile.vocabulary.preferred.includes("开拓者") ? "开拓者" : "你";
+    const thinkingPause = profile.vocabulary.outputRules.some((rule) => rule.includes("嗯…"))
+      ? "嗯…"
+      : "";
+    const pausePrefix = thinkingPause ? `${thinkingPause} ` : "";
+    return `${address}，${pausePrefix}你想切换下一首，还是上一首呀？告诉我一声，我就帮你操作。`;
   }
 
   /**
@@ -240,22 +254,11 @@ export class CharacterPolicyEngine {
     };
   }
 
-  /**
-   * 格式化当前角色生理/心理状态数据 (支持 SemanticInnerState 与向下兼容 CharacterStateData)
-   */
-  buildStateString(state?: CharacterStateData | SemanticInnerState): string {
-    if (!state) {
-      const def = SemanticStateInterpreter.getDefaultState("daily");
-      return SemanticStateInterpreter.formatInnerStateForPrompt(def);
-    }
-
-    if ("emotion" in state && "cognitiveContext" in state) {
-      return SemanticStateInterpreter.formatInnerStateForPrompt(state as SemanticInnerState);
-    }
-
-    const legacyData = state as CharacterStateData;
-    const semantic = SemanticStateInterpreter.interpret({ legacyState: legacyData });
-    return `${SemanticStateInterpreter.formatInnerStateForPrompt(semantic)}\n- 状态基线（兼容）：精力 ${legacyData.energy}/100，饱食度 ${legacyData.hunger}/100，好感度 ${legacyData.affection}/100，健康：${legacyData.health}，心情：${legacyData.mood}`;
+  /** 格式化语义状态；旧数值养成状态不再作为 Character 输入。 */
+  buildStateString(state?: SemanticInnerState): string {
+    return SemanticStateInterpreter.formatInnerStateForPrompt(
+      state ?? SemanticStateInterpreter.getDefaultState("daily"),
+    );
   }
 
   /**
@@ -265,14 +268,13 @@ export class CharacterPolicyEngine {
     const profile = this.getPersona();
     const actionListStr = this.buildActionListString();
 
-    const semanticState = options.semanticState || SemanticStateInterpreter.interpret({
+    const semanticState = options.semanticState ?? SemanticStateInterpreter.interpret({
       userPrompt: options.userPrompt,
       mode: options.mode,
       memoryContext: options.memoryContext,
       ragContext: options.ragContext,
-      legacyState: options.state,
     });
-    const stateStr = this.buildStateString(options.state ? options.state : semanticState);
+    const stateStr = this.buildStateString(semanticState);
 
     const perspectiveSection = KnowledgePerspectiveEvaluator.buildPerspectiveSystemPromptSection();
     const relationshipSection = RelationshipRegistry.formatRelationshipSummaryForPrompt();

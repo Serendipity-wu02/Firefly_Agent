@@ -29,6 +29,8 @@ export interface ContextUsageSnapshot {
   ragTokens: number;
   toolSchemaTokens: number;
   conversationTokens: number;
+  /** Token estimate for the exact message array sent to the Provider. */
+  outgoingMessageTokens: number;
   totalInputTokens: number;
   pressureRatio: number;
   needsCompaction: boolean;
@@ -41,6 +43,7 @@ export interface SlotTokenBreakdown {
   ragTokens?: number;
   toolSchemaTokens?: number;
   conversationTokens?: number;
+  outgoingMessageTokens?: number;
 }
 
 export function computeContextBudget(
@@ -53,17 +56,20 @@ export function computeContextBudget(
   const ragTokens = breakdown.ragTokens || 0;
   const toolSchemaTokens = breakdown.toolSchemaTokens || 0;
   const conversationTokens = breakdown.conversationTokens || 0;
+  const outgoingMessageTokens = breakdown.outgoingMessageTokens;
 
   const usableInputBudget =
     config.contextWindowTokens - config.reservedOutputTokens - config.safetyMarginTokens;
 
   const totalInputTokens =
-    systemTokens +
-    characterStateTokens +
-    memoryTokens +
-    ragTokens +
-    toolSchemaTokens +
-    conversationTokens;
+    (outgoingMessageTokens ?? (
+      systemTokens +
+      characterStateTokens +
+      memoryTokens +
+      ragTokens +
+      conversationTokens
+    )) +
+    toolSchemaTokens;
 
   const pressureRatio = usableInputBudget > 0 ? totalInputTokens / usableInputBudget : 1.0;
   const needsCompaction = pressureRatio >= config.compactionThreshold;
@@ -77,6 +83,13 @@ export function computeContextBudget(
     ragTokens,
     toolSchemaTokens,
     conversationTokens,
+    outgoingMessageTokens: outgoingMessageTokens ?? (
+      systemTokens +
+      characterStateTokens +
+      memoryTokens +
+      ragTokens +
+      conversationTokens
+    ),
     totalInputTokens,
     pressureRatio,
     needsCompaction,

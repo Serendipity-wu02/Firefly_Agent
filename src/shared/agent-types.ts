@@ -1,5 +1,4 @@
 import type { ChatMessage } from "./chat-types";
-import type { CharacterStateData } from "./firefly-state";
 import type { ToolCall } from "./tool-types";
 import type { MusicContextEvent } from "./music-context-types";
 import type { AgentExecutionProfile } from "./subagent-types";
@@ -16,7 +15,86 @@ export type AgentRunStatus =
   | "timeout"
   | "error";
 
+export type AgentBudgetKind = "rounds" | "tool_calls" | "delegation";
+
+export type AgentTerminationReason =
+  | { readonly kind: "completed" }
+  | { readonly kind: "cancelled" }
+  | { readonly kind: "timeout" }
+  | { readonly kind: "error" }
+  | { readonly kind: "budget_exhausted"; readonly budget: AgentBudgetKind };
+
+/** Structured, non-executing rejection reasons for the Resume V1 fail-closed gate. */
+export type AgentResumeRejectionCode =
+  | "checkpoint_not_found"
+  | "checkpoint_read_failed"
+  | "checkpoint_invalid_format"
+  | "checkpoint_unsupported_version"
+  | "checkpoint_terminal"
+  | "checkpoint_facts_missing";
+
+export type AgentResumeReadFailureCode = "io_error";
+
+export interface AgentResumeRejection {
+  readonly code: AgentResumeRejectionCode;
+  readonly checkpointId: string;
+  readonly message: string;
+  readonly runId?: string;
+  readonly observedRunState?: string;
+  readonly observedVersion?: number;
+  readonly readFailureCode?: AgentResumeReadFailureCode;
+}
+
 export type ToolCallOutcome = "success" | "failure" | "unknown" | "not_executed";
+
+/**
+ * A typed Main-orchestrator requirement for one specific tool operation.
+ *
+ * It does not authorize or execute the tool. The canonical Harness,
+ * authorization adapter, Sandbox, Approval, and ToolExecutionEngine still own
+ * those stages. `correction: "once"` permits one additional LLM round only
+ * when the required tool call was never produced.
+ */
+export interface AgentRequiredToolExecution {
+  readonly toolName: string;
+  readonly arguments: Readonly<Record<string, unknown>>;
+  /**
+   * Defaults to structural exact matching. Browser URL requirements use the
+   * canonical URL form already established by the Main-owned target parser.
+   */
+  readonly argumentMatching?: "exact" | "normalized_url";
+  readonly successContract: "json_ok_true";
+  readonly correction: "once";
+}
+
+/** Per-run evidence for a model tool call and its actual execution outcome. */
+export interface AgentToolCallEvidence {
+  readonly runId: string;
+  readonly step: number;
+  readonly toolCallId: string;
+  readonly toolName: string;
+  /** Exact transcript message that originally carried this real tool call. */
+  readonly assistantMessageId?: string;
+  /** Exact transcript message that originally carried this real tool result. */
+  readonly toolMessageId?: string;
+  readonly arguments: Readonly<Record<string, unknown>>;
+  readonly outcome: ToolCallOutcome;
+  readonly output: string;
+  readonly isError: boolean;
+}
+
+export type AgentRequiredToolExecutionStatus =
+  | "succeeded"
+  | "failed"
+  | "unknown"
+  | "not_called";
+
+export interface AgentRequiredToolExecutionResult {
+  readonly requirement: AgentRequiredToolExecution;
+  readonly status: AgentRequiredToolExecutionStatus;
+  readonly correctionAttempts: number;
+  readonly evidence?: AgentToolCallEvidence;
+}
 
 export interface AgentConfig {
   maxRounds: number;
@@ -49,26 +127,56 @@ export interface AgentRunInput {
   source?: AgentRunSource;
   userPrompt: string;
   history?: ChatMessage[];
-  characterState?: CharacterStateData;
   memoryContext?: string;
   systemPromptOverride?: string;
   planMode?: boolean;
   customSteps?: string[];
   signal?: AbortSignal;
+  /** Main-owned normalized URLs explicitly present in the current user turn. */
+  browserRequestTargets?: readonly string[];
   executionProfile?: AgentExecutionProfile;
+  /** Optional typed requirement supplied by the Main orchestrator. */
+  requiredToolExecution?: AgentRequiredToolExecution;
 }
 
 export interface AgentRunResult {
   runId: string;
   conversationId?: string;
   status: AgentRunStatus;
+  terminationReason: AgentTerminationReason;
   finalText: string;
   transcript: ChatMessage[];
   toolCallsCount: number;
+  /** Present on production Harness results; optional for existing IAgentCore test doubles. */
+  toolCallEvidence?: readonly AgentToolCallEvidence[];
+  /** Present when the caller supplied `requiredToolExecution`. */
+  requiredToolExecution?: AgentRequiredToolExecutionResult;
   roundsCount: number;
   error?: string;
   durationMs: number;
 }
+
+/**
+ * Resume V1 returns this result without creating an Agent run when the legacy
+ * checkpoint cannot prove the original execution boundary.
+ */
+export interface AgentResumeRejectionResult {
+  readonly kind: "resume_rejected";
+  readonly checkpointId: string;
+  readonly rejection: AgentResumeRejection;
+  readonly runId?: string;
+  readonly conversationId?: string;
+  readonly status: "error";
+  readonly terminationReason: { readonly kind: "error" };
+  readonly finalText: "";
+  readonly transcript: ChatMessage[];
+  readonly toolCallsCount: 0;
+  readonly roundsCount: 0;
+  readonly durationMs: number;
+  readonly error: string;
+}
+
+export type AgentResumeResult = AgentRunResult | AgentResumeRejectionResult;
 
 export type AgentEvent =
   | { type: "agent:started"; runId: string; prompt: string; timestamp: number }
@@ -109,6 +217,7 @@ export type AgentEvent =
       type: "agent:finished";
       runId: string;
       status: AgentRunStatus;
+      terminationReason: AgentTerminationReason;
       durationMs: number;
       toolCallsCount: number;
       stepsCount: number;

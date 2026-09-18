@@ -1,13 +1,16 @@
 import type { ToolCall, ToolCallResult } from "../../../shared/tool-types";
 import type { CapabilityRequester } from "../../../shared/capability-types";
-import type { ToolCallOutcome } from "../../../shared/agent-types";
+import type {
+  AgentRequiredToolExecution,
+  ToolCallOutcome,
+} from "../../../shared/agent-types";
 import type { ApprovalRequest } from "../../../shared/approval-types";
 import type { CapabilityAuthorizationOutcome } from "../../../shared/runtime-integration-types";
-import type { ToolExecutionEngine } from "../../runtime/execution/tool-execution-engine";
+import type { ToolExecutionEngine } from "../tools/execution/tool-execution-engine";
 import type {
   MainAgentDelegationBudget,
   MainAgentDelegationService,
-} from "../../runtime/subagents/main-agent-delegation";
+} from "../subagents/main-agent-delegation";
 import type { HarnessAuthorizationAdapter } from "./harness-authorization-adapter";
 
 export interface ToolRoundOptions {
@@ -15,6 +18,8 @@ export interface ToolRoundOptions {
   runId: string;
   step: number;
   userQuery: string;
+  /** Main-owned normalized URLs extracted from this user turn. */
+  browserRequestTargets?: readonly string[];
   conversationId?: string;
   signal?: AbortSignal;
   toolCallsCount: number;
@@ -24,6 +29,10 @@ export interface ToolRoundOptions {
   requireAuthorizationForAllTools?: boolean;
   /** Rejects model tool calls before authorization or ToolExecutionEngine. */
   rejectAllToolCalls?: boolean;
+  /** Restricts a typed execution-intent run to one exact required tool operation. */
+  requiredToolExecution?: AgentRequiredToolExecution;
+  /** True after this run has already observed its required tool call. */
+  requiredToolCallAlreadyObserved?: boolean;
   requester?: CapabilityRequester;
   mainDelegationService?: MainAgentDelegationService;
   getMainDelegationBudget?: () => MainAgentDelegationBudget;
@@ -125,6 +134,81 @@ function restrictedToolRejectionResult(call: ToolCall): ToolCallResult {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requiredValueMatches(expected: unknown, actual: unknown): boolean {
+  if (Object.is(expected, actual)) return true;
+  if (Array.isArray(expected)) {
+    return Array.isArray(actual) &&
+      expected.length === actual.length &&
+      expected.every((value, index) => requiredValueMatches(value, actual[index]));
+  }
+  if (!isRecord(expected) || !isRecord(actual)) return false;
+  const entries = Object.entries(expected);
+  return entries.every(([key, value]) =>
+    Object.prototype.hasOwnProperty.call(actual, key) && requiredValueMatches(value, actual[key])
+  );
+}
+
+function normalizeRequiredUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
+    if ((parsed.protocol === "http:" && parsed.port === "80") ||
+      (parsed.protocol === "https:" && parsed.port === "443")) {
+      parsed.port = "";
+    }
+    parsed.hash = "";
+    return parsed.href;
+  } catch {
+    return undefined;
+  }
+}
+
+function requiredArgumentsMatch(
+  expected: Readonly<Record<string, unknown>>,
+  actual: Readonly<Record<string, unknown>>,
+  argumentMatching: AgentRequiredToolExecution["argumentMatching"],
+): boolean {
+  if (argumentMatching !== "normalized_url") {
+    return requiredValueMatches(expected, actual);
+  }
+
+  const expectedUrl = normalizeRequiredUrl(expected.requestUrl);
+  const actualUrl = normalizeRequiredUrl(actual.requestUrl);
+  if (expectedUrl === undefined || actualUrl === undefined || expectedUrl !== actualUrl) {
+    return false;
+  }
+
+  const { requestUrl: _expectedRequestUrl, ...expectedRest } = expected;
+  const { requestUrl: _actualRequestUrl, ...actualRest } = actual;
+  return requiredValueMatches(expectedRest, actualRest);
+}
+
+export function matchesRequiredToolExecution(
+  call: ToolCall,
+  requirement: AgentRequiredToolExecution,
+): boolean {
+  return call.name === requirement.toolName &&
+    requiredArgumentsMatch(requirement.arguments, call.arguments, requirement.argumentMatching);
+}
+
+function requiredToolRejectionResult(
+  call: ToolCall,
+  error: "required_tool_mismatch" | "required_tool_already_submitted",
+  message: string,
+): ToolCallResult {
+  return {
+    toolCallId: call.id,
+    name: call.name,
+    output: JSON.stringify({ ok: false, error, outcome: "not_executed", message }),
+    isError: true,
+  };
+}
+
 /**
  * Tool-round orchestration only.
  *
@@ -140,6 +224,7 @@ export async function executeToolRound(
   const observations: ExecutedToolObservation[] = [];
   let approvalBarrier: ApprovalBarrier | undefined;
   let delegationBarrier: DelegationBarrier | undefined;
+  let requiredToolCallObserved = options.requiredToolCallAlreadyObserved === true;
 
   for (let index = 0; index < toolCalls.length; index++) {
     const call = toolCalls[index];
@@ -154,6 +239,40 @@ export async function executeToolRound(
         preview: result.output.slice(0, 100),
       });
       continue;
+    }
+
+    if (options.requiredToolExecution !== undefined) {
+      if (!matchesRequiredToolExecution(call, options.requiredToolExecution)) {
+        const result = requiredToolRejectionResult(
+          call,
+          "required_tool_mismatch",
+          "This call does not match the typed tool operation required for the current user request.",
+        );
+        observations.push({
+          call,
+          result,
+          outcome: "not_executed",
+          preview: result.output.slice(0, 100),
+        });
+        continue;
+      }
+      if (requiredToolCallObserved) {
+        const result = requiredToolRejectionResult(
+          call,
+          "required_tool_already_submitted",
+          "The required tool operation was already submitted once for this Agent run.",
+        );
+        observations.push({
+          call,
+          result,
+          outcome: "not_executed",
+          preview: result.output.slice(0, 100),
+        });
+        continue;
+      }
+      // Mark before authorization/execution so timeout or unknown submission
+      // can never cause this run to submit the external operation again.
+      requiredToolCallObserved = true;
     }
 
     if (options.allowedToolIds !== undefined && !options.allowedToolIds.has(call.name)) {
@@ -193,6 +312,7 @@ export async function executeToolRound(
       toolCallId: call.id,
       conversationId: options.conversationId,
       userQuery: options.userQuery,
+      browserRequestTargets: options.browserRequestTargets,
       signal: options.signal,
       toolCallsCount: options.toolCallsCount + index + 1,
       maxToolCallsPerRun: options.maxToolCallsPerRun,

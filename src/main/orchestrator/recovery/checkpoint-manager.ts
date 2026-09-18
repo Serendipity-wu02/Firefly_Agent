@@ -3,6 +3,7 @@ import type { AgentEventBus } from "../agent-events";
 import {
   CHECKPOINT_SCHEMA_VERSION,
   type Checkpoint,
+  type CheckpointReadResult,
   type CheckpointTrigger,
   type ICheckpointPolicy,
   type ICheckpointStore,
@@ -84,6 +85,7 @@ export class CheckpointManager {
       trigger,
       plan: sanitizedPlan,
       providerMetadata,
+      terminationReason: state.terminationReason,
     };
 
     await this.store.save(checkpoint);
@@ -102,20 +104,20 @@ export class CheckpointManager {
   /**
    * 恢复指定快照
    */
-  async restoreCheckpoint(checkpointId: string): Promise<Checkpoint | undefined> {
-    const checkpoint = await this.store.get(checkpointId);
-    if (!checkpoint) {
-      return undefined;
+  async restoreCheckpoint(checkpointId: string): Promise<CheckpointReadResult> {
+    const result = await this.store.read(checkpointId);
+    if (result.kind !== "found") {
+      return result;
     }
 
     this.eventBus?.emit({
       type: "checkpoint:restored",
-      runId: checkpoint.runId,
+      runId: result.checkpoint.runId,
       checkpointId,
       timestamp: Date.now(),
     });
 
-    return checkpoint;
+    return result;
   }
 
   async getLatestForRun(runId: string): Promise<Checkpoint | undefined> {

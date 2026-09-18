@@ -3,31 +3,101 @@ import * as path from "node:path";
 import {
   CHECKPOINT_SCHEMA_VERSION,
   type Checkpoint,
+  type CheckpointReadResult,
   type ICheckpointStore,
 } from "./checkpoint-types";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isValidCheckpointVersion(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value);
+}
+
+function isCheckpointRecord(value: unknown): value is Checkpoint {
+  if (!isRecord(value)) return false;
+  const record = value;
+  return (
+    typeof record.checkpointId === "string" &&
+    typeof record.runId === "string" &&
+    typeof record.sessionId === "string" &&
+    typeof record.step === "number" &&
+    typeof record.runState === "string" &&
+    typeof record.stepState === "string" &&
+    Array.isArray(record.messages) &&
+    Array.isArray(record.activeToolCalls) &&
+    typeof record.recoveryAttempts === "number" &&
+    typeof record.createdAt === "number" &&
+    isValidCheckpointVersion(record.version) &&
+    typeof record.trigger === "string"
+  );
+}
+
+type ParsedCheckpointReadResult = Extract<
+  CheckpointReadResult,
+  { readonly kind: "found" | "invalid_format" | "unsupported_version" }
+>;
+
+function classifyCheckpointValue(
+  checkpointId: string,
+  value: unknown,
+): ParsedCheckpointReadResult {
+  if (!isRecord(value) || !isValidCheckpointVersion(value.version)) {
+    return { kind: "invalid_format", checkpointId };
+  }
+
+  if (value.version !== CHECKPOINT_SCHEMA_VERSION) {
+    return { kind: "unsupported_version", checkpointId, version: value.version };
+  }
+
+  if (!isCheckpointRecord(value)) {
+    return { kind: "invalid_format", checkpointId };
+  }
+
+  return { kind: "found", checkpoint: value };
+}
+
+function cloneCheckpoint(checkpoint: Checkpoint): Checkpoint {
+  return JSON.parse(JSON.stringify(checkpoint)) as Checkpoint;
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return isRecord(error) && error.code === "ENOENT";
+}
 
 /**
  * InMemoryCheckpointStore (内存快照存储器 - 适合轻量测试与无盘环境)
  */
 export class InMemoryCheckpointStore implements ICheckpointStore {
-  private readonly checkpoints = new Map<string, Checkpoint>();
+  private readonly checkpoints = new Map<string, unknown>();
 
   save(checkpoint: Checkpoint): void {
     const serialized = JSON.stringify(checkpoint);
     this.checkpoints.set(checkpoint.checkpointId, JSON.parse(serialized));
   }
 
+  read(checkpointId: string): CheckpointReadResult {
+    if (!this.checkpoints.has(checkpointId)) {
+      return { kind: "not_found", checkpointId };
+    }
+    const result = classifyCheckpointValue(checkpointId, this.checkpoints.get(checkpointId));
+    return result.kind === "found"
+      ? { kind: "found", checkpoint: cloneCheckpoint(result.checkpoint) }
+      : result;
+  }
+
   get(checkpointId: string): Checkpoint | undefined {
-    const found = this.checkpoints.get(checkpointId);
-    if (!found) return undefined;
-    return JSON.parse(JSON.stringify(found));
+    const result = this.read(checkpointId);
+    return result.kind === "found" ? result.checkpoint : undefined;
   }
 
   getByRunId(runId: string): Checkpoint[] {
     const list: Checkpoint[] = [];
-    for (const cp of this.checkpoints.values()) {
-      if (cp.runId === runId) {
-        list.push(JSON.parse(JSON.stringify(cp)));
+    for (const checkpointId of this.checkpoints.keys()) {
+      const result = this.read(checkpointId);
+      if (result.kind === "found" && result.checkpoint.runId === runId) {
+        list.push(result.checkpoint);
       }
     }
     return list.sort((a, b) => a.createdAt - b.createdAt);
@@ -85,29 +155,51 @@ export class FileCheckpointStore implements ICheckpointStore {
     await fs.promises.rename(tempPath, filePath);
   }
 
-  async get(checkpointId: string): Promise<Checkpoint | undefined> {
+  async read(checkpointId: string): Promise<CheckpointReadResult> {
     const filePath = this.getFilePath(checkpointId);
-    if (!fs.existsSync(filePath)) {
-      return undefined;
-    }
 
     try {
-      const raw = await fs.promises.readFile(filePath, "utf-8");
-      const parsed = JSON.parse(raw);
-
-      // 架构版本校验
-      if (!parsed || parsed.version !== CHECKPOINT_SCHEMA_VERSION) {
-        console.warn(
-          `[FileCheckpointStore] Checkpoint version mismatch or corrupt: ${checkpointId}`,
-        );
-        return undefined;
+      const baseDirectory = await fs.promises.stat(this.baseDir);
+      if (!baseDirectory.isDirectory()) {
+        console.warn(`[FileCheckpointStore] Checkpoint store path is not a directory.`);
+        return { kind: "read_error", checkpointId, errorCode: "io_error" };
       }
-
-      return parsed as Checkpoint;
-    } catch (err) {
-      console.warn(`[FileCheckpointStore] Corrupt checkpoint file for "${checkpointId}":`, err);
-      return undefined;
+    } catch {
+      console.warn(`[FileCheckpointStore] Checkpoint store directory could not be read.`);
+      return { kind: "read_error", checkpointId, errorCode: "io_error" };
     }
+
+    let raw: string;
+    try {
+      raw = await fs.promises.readFile(filePath, "utf-8");
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return { kind: "not_found", checkpointId };
+      }
+      console.warn(`[FileCheckpointStore] Checkpoint read failed for "${checkpointId}".`);
+      return { kind: "read_error", checkpointId, errorCode: "io_error" };
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      console.warn(`[FileCheckpointStore] Invalid checkpoint JSON: ${checkpointId}`);
+      return { kind: "invalid_format", checkpointId };
+    }
+
+    const result = classifyCheckpointValue(checkpointId, parsed);
+    if (result.kind === "invalid_format") {
+      console.warn(`[FileCheckpointStore] Invalid checkpoint format: ${checkpointId}`);
+    } else if (result.kind === "unsupported_version") {
+      console.warn(`[FileCheckpointStore] Unsupported checkpoint version: ${checkpointId}`);
+    }
+    return result;
+  }
+
+  async get(checkpointId: string): Promise<Checkpoint | undefined> {
+    const result = await this.read(checkpointId);
+    return result.kind === "found" ? result.checkpoint : undefined;
   }
 
   async getByRunId(runId: string): Promise<Checkpoint[]> {

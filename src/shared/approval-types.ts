@@ -12,7 +12,7 @@ import type {
   CapabilityRequestId,
   CapabilityRequester,
 } from "./capability-types";
-import type { SandboxScope } from "./sandbox-types";
+import type { SandboxProfileId, SandboxScope } from "./sandbox-types";
 import type { ToolRiskLevel, ToolSideEffect } from "./tool-types";
 
 declare const approvalRequestIdBrand: unique symbol;
@@ -44,7 +44,7 @@ export type ApprovalState =
   | "cancelled"
   | "expired";
 
-export type ApprovalGrantLifetime = "once";
+export type ApprovalGrantLifetime = "once" | "process";
 
 export interface ApprovalGrant {
   readonly lifetime: ApprovalGrantLifetime;
@@ -84,13 +84,16 @@ export interface ApprovalRequest {
   readonly risk?: ToolRiskLevel;
   readonly sideEffect?: ToolSideEffect;
   readonly effectiveScope: SandboxScope;
+  /** The lifetime requested by the Main authorization policy for this approval. */
+  readonly grantLifetime: ApprovalGrantLifetime;
   readonly createdAt: number;
   readonly expiresAt: number;
 }
 
 /** Input accepted by ApprovalService before it assigns request identity/time. */
-export type ApprovalRequestInput = Omit<ApprovalRequest, "approvalRequestId" | "createdAt"> & {
+export type ApprovalRequestInput = Omit<ApprovalRequest, "approvalRequestId" | "createdAt" | "grantLifetime"> & {
   readonly createdAt?: number;
+  readonly grantLifetime?: ApprovalGrantLifetime;
 };
 
 export interface ApprovalRecord {
@@ -98,4 +101,21 @@ export interface ApprovalRecord {
   readonly state: ApprovalState;
   readonly decision?: ApprovalDecision;
   readonly resolvedAt?: number;
+}
+
+/**
+ * Exact Main-process identity for a reusable approval scope. It is never
+ * persisted and is only used for the current application's approval memory.
+ */
+export interface ApprovalProcessGrantKey {
+  readonly capabilityId: CapabilityId;
+  readonly toolId: string;
+  readonly sandboxProfileId: SandboxProfileId;
+  readonly scope: SandboxScope;
+}
+
+export interface ApprovalProcessGrant {
+  readonly approvalRequestId: ApprovalRequestId;
+  readonly scope: SandboxScope;
+  readonly grantedAt: number;
 }

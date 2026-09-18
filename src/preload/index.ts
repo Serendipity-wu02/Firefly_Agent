@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { FireflyTarget } from "../shared/firefly-actions";
-import type { CharacterStateData, CareActionType } from "../shared/firefly-state";
 import type { StartTtsRequest, TtsPlaybackStopRequest, TtsStartResult, TtsSessionEvent } from "../shared/tts-session";
 import type { TtsSettings } from "../shared/tts-types";
 import type { ChatMessage } from "../shared/chat-types";
@@ -63,11 +62,6 @@ const IPC = {
   // Live2D / Action Execution
   LIVE2D_PLAY_ACTION: "live2d:play-action",
 
-  // Character State & Care
-  STATE_GET: "state:get",
-  STATE_CHANGED: "state:changed",
-  CARE_ACTION: "care:action",
-
   // TTS Speech System
   TTS_SESSION_START: "tts:session-start",
   TTS_SESSION_CANCEL: "tts:session-cancel",
@@ -80,6 +74,7 @@ const IPC = {
 
   // Chat & AI
   CHAT_SEND_MESSAGE: "chat:send-message",
+  CHAT_GET_HISTORY: "chat:get-history",
 
   // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",
@@ -168,17 +163,6 @@ contextBridge.exposeInMainWorld("live2dAction", {
   },
 });
 
-contextBridge.exposeInMainWorld("characterState", {
-  getState: (): Promise<CharacterStateData> => ipcRenderer.invoke(IPC.STATE_GET),
-  careAction: (action: CareActionType): Promise<{ state: CharacterStateData; actionId: string; feedback?: string }> =>
-    ipcRenderer.invoke(IPC.CARE_ACTION, action),
-  onStateChanged: (cb: (state: CharacterStateData) => void) => {
-    const listener = (_: unknown, state: CharacterStateData) => cb(state);
-    ipcRenderer.on(IPC.STATE_CHANGED, listener);
-    return () => { ipcRenderer.removeListener(IPC.STATE_CHANGED, listener); };
-  },
-});
-
 contextBridge.exposeInMainWorld("tts", {
   startSession: async (request: StartTtsRequest): Promise<TtsStartResult> => {
     try {
@@ -206,6 +190,7 @@ contextBridge.exposeInMainWorld("tts", {
 });
 
 contextBridge.exposeInMainWorld("chat", {
+  getHistory: (): Promise<ChatMessage[]> => ipcRenderer.invoke(IPC.CHAT_GET_HISTORY),
   sendMessage: (
     message: string,
     history?: ChatMessage[],

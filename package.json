@@ -4,17 +4,15 @@
   "description": "Firefly Desktop AI Agent - 流萤桌面智能体",
   "main": "dist/main/main/index.js",
   "bin": {
-    "firefly": "./src/cli/firefly.mjs",
-    "firefly-agent": "./src/cli/firefly.mjs"
+    "firefly": "./dist/cli/firefly.mjs",
+    "firefly-agent": "./dist/cli/firefly.mjs"
   },
   "files": [
     "dist",
-    "src/cli",
-    "src/main/runtime/music/scripts",
     "src/main/character/resources",
     "src/renderer/models",
-    "src/settings/settings.example.json",
-    "src/rag/knowledge",
+    "src/main/settings/settings.example.json",
+    "src/main/rag/knowledge",
     "README.md",
     "LICENSE"
   ],
@@ -24,16 +22,21 @@
   },
   "packageManager": "npm@11.17.0",
   "scripts": {
-    "build:main": "tsc -p tsconfig.main.json",
+    "build:cli": "tsc -p tsconfig.cli.json",
+    "build:main": "tsc -p tsconfig.main.json && node --experimental-strip-types tools/build/copy-runtime-resources.mts",
     "build:preload": "tsc -p tsconfig.preload.json",
     "build:renderer": "vite build",
-    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "build": "npm run build:cli && npm run build:main && npm run build:preload && npm run build:renderer",
     "dev": "npm run build:main && npm run build:preload && concurrently \"vite\" \"cross-env VITE_DEV=1 electron .\"",
     "start": "electron .",
-    "verify:typescript": "node tools/verify/verify-typescript-production.mjs",
-    "verify:architecture": "node tools/verify/verify-architecture.mjs",
-    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit && tsc -p tsconfig.json --noEmit",
-    "test": "node tools/test/distribution/environment-baseline.test.mjs && node tools/test/distribution/npm-distribution.test.mjs && node tools/test/core/agent-core.test.mjs && node tools/test/core/harness.test.mjs && node tools/test/core/context.test.mjs && node tools/test/core/compaction.test.mjs && node tools/test/core/recovery.test.mjs && node tools/test/core/planning.test.mjs && node tools/test/runtime/tool-execution.test.mjs && node tools/test/runtime/capabilities.test.mjs && node tools/test/runtime/sandbox.test.mjs && node tools/test/runtime/approval.test.mjs && node tools/test/runtime/approval-ipc.test.mjs && node tools/test/runtime/approval-ux-v2.test.mjs && node tools/test/runtime/permission-profile.test.mjs && node tools/test/runtime/subagents.test.mjs && node tools/test/runtime/subagent-worker-runtime.test.mjs && node tools/test/runtime/main-agent-delegation.test.mjs && node tools/test/runtime/capability-authorization-pipeline.test.mjs && node tools/test/runtime/authorized-invocation-execution.test.mjs && node tools/test/runtime/harness-authorization-integration.test.mjs && node tools/test/runtime/harness-authorization-pilot-audit.test.mjs && node tools/test/runtime/runtime-integration-contracts.test.mjs && node tools/test/runtime/tts.test.mjs && node tools/test/runtime/music.test.mjs && node tools/test/runtime/qqmusic-bridge.test.mjs && node tools/test/runtime/music-context.test.mjs && node tools/test/runtime/qqmusic-control-capability.test.mjs && node tools/test/memory/store.test.mjs && node tools/test/memory/retrieval.test.mjs && node tools/test/memory/write-policy.test.mjs && node tools/test/memory/evolution.test.mjs && node tools/test/memory/context-integration.test.mjs && node tools/test/memory/music-preference-memory.test.mjs && node tools/test/rag/ingestion.test.mjs && node tools/test/rag/vector-store.test.mjs && node tools/test/rag/hybrid-retrieval.test.mjs && node tools/test/rag/context-integration.test.mjs && node tools/test/rag/embedding.test.mjs && node tools/test/character/persona-ssot.test.mjs && node tools/test/character/persona-policy.test.mjs && node tools/test/character/knowledge-perspective.test.mjs && node tools/test/character/relationships.test.mjs && node tools/test/character/relationship-ssot.test.mjs && node tools/test/character/embodiment.test.mjs && node tools/test/live2d/live2d-contract.test.mjs && node tools/test/presentation/desktop-pet.test.mjs && node tools/test/presentation/chat-shell.test.mjs && node tools/test/presentation/approval-ui.test.mjs && node tools/test/presentation/integration.test.mjs && node tools/test/presentation/typescript-first.test.mjs && node tools/test/presentation/font-size-live-sync.test.mjs && node tools/test/presentation/permission-profile-quick-switcher.test.mjs"
+    "verify:typescript": "node --experimental-strip-types tools/verify/verify-typescript-production.mts",
+    "verify:architecture": "node --experimental-strip-types tools/verify/verify-architecture.mts",
+    "verify:browser-electron-parser": "node --experimental-strip-types tools/verify/browser-electron-parser.mts",
+    "verify:browser-electron-proxy": "node --experimental-strip-types tools/verify/browser-electron-proxy.mts",
+    "typecheck:tools": "tsc -p tsconfig.tools.json --noEmit && tsc -p tsconfig.cli.json --noEmit",
+    "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit && tsc -p tsconfig.json --noEmit && npm run typecheck:tests && npm run typecheck:tools",
+  "test": "node --experimental-strip-types tools/test/distribution/environment-baseline.test.ts && node --experimental-strip-types tools/test/distribution/npm-distribution.test.ts && node --experimental-strip-types tools/test/core/agent-core.test.ts && node --experimental-strip-types tools/test/core/harness.test.ts && node --experimental-strip-types tools/test/core/context.test.ts && node --experimental-strip-types tools/test/core/application.test.ts && node --experimental-strip-types tools/test/core/application-composition.test.ts && node --experimental-strip-types tools/test/core/agent-directory-realignment.test.ts && node --experimental-strip-types tools/test/core/memory-rag-settings-realignment.test.ts && node --experimental-strip-types tools/test/core/proactive-media-directory-realignment.test.ts && node --experimental-strip-types tools/test/core/compaction.test.ts && node --experimental-strip-types tools/test/core/recovery.test.ts && node --experimental-strip-types tools/test/core/planning.test.ts && node --experimental-strip-types tools/test/runtime/tool-execution.test.ts && node --experimental-strip-types tools/test/runtime/capabilities.test.ts && node --experimental-strip-types tools/test/runtime/sandbox.test.ts && node --experimental-strip-types tools/test/runtime/browser-read-backend.test.ts && node --experimental-strip-types tools/test/runtime/browser-transport.test.ts && node --experimental-strip-types tools/test/runtime/browser-proxy.test.ts && node --experimental-strip-types tools/test/runtime/browser-settings.test.ts && node --experimental-strip-types tools/test/runtime/browser-authorization.test.ts && node --experimental-strip-types tools/test/runtime/browser-production-integration.test.ts && node --experimental-strip-types tools/test/runtime/browser-chat-routing.test.ts && node --experimental-strip-types tools/test/runtime/approval.test.ts && node --experimental-strip-types tools/test/runtime/approval-ipc.test.ts && node --experimental-strip-types tools/test/runtime/approval-ux-v2.test.ts && node --experimental-strip-types tools/test/runtime/permission-profile.test.ts && node --experimental-strip-types tools/test/runtime/subagents.test.ts && node --experimental-strip-types tools/test/runtime/subagent-worker-runtime.test.ts && node --experimental-strip-types tools/test/runtime/main-agent-delegation.test.ts && node --experimental-strip-types tools/test/runtime/capability-authorization-pipeline.test.ts && node --experimental-strip-types tools/test/runtime/authorized-invocation-execution.test.ts && node --experimental-strip-types tools/test/runtime/harness-authorization-integration.test.ts && node --experimental-strip-types tools/test/runtime/harness-authorization-pilot-audit.test.ts && node --experimental-strip-types tools/test/runtime/runtime-integration-contracts.test.ts && node --experimental-strip-types tools/test/runtime/tts.test.ts && node --experimental-strip-types tools/test/runtime/music.test.ts && node --experimental-strip-types tools/test/runtime/qqmusic-bridge.test.ts && node --experimental-strip-types tools/test/runtime/music-context.test.ts && node --experimental-strip-types tools/test/runtime/qqmusic-control-capability.test.ts && node --experimental-strip-types tools/test/runtime/music-control-truthfulness.test.ts && node --experimental-strip-types tools/test/memory/store.test.ts && node --experimental-strip-types tools/test/memory/retrieval.test.ts && node --experimental-strip-types tools/test/memory/write-policy.test.ts && node --experimental-strip-types tools/test/memory/evolution.test.ts && node --experimental-strip-types tools/test/memory/context-integration.test.ts && node --experimental-strip-types tools/test/memory/music-preference-memory.test.ts && node --experimental-strip-types tools/test/rag/ingestion.test.ts && node --experimental-strip-types tools/test/rag/vector-store.test.ts && node --experimental-strip-types tools/test/rag/hybrid-retrieval.test.ts && node --experimental-strip-types tools/test/rag/context-integration.test.ts && node --experimental-strip-types tools/test/rag/embedding.test.ts && node --experimental-strip-types tools/test/character/persona-ssot.test.ts && node --experimental-strip-types tools/test/character/persona-policy.test.ts && node --experimental-strip-types tools/test/character/knowledge-perspective.test.ts && node --experimental-strip-types tools/test/character/relationships.test.ts && node --experimental-strip-types tools/test/character/relationship-ssot.test.ts && node --experimental-strip-types tools/test/character/embodiment.test.ts && node --experimental-strip-types tools/test/live2d/live2d-contract.test.ts && node --experimental-strip-types tools/test/presentation/desktop-pet.test.ts && node --experimental-strip-types tools/test/presentation/legacy-state-retirement.test.ts && node --experimental-strip-types tools/test/presentation/chat-shell.test.ts && node --experimental-strip-types tools/test/presentation/approval-ui.test.ts && node --experimental-strip-types tools/test/presentation/integration.test.ts && node --experimental-strip-types tools/test/presentation/typescript-first.test.ts && node --experimental-strip-types tools/test/presentation/font-size-live-sync.test.ts && node --experimental-strip-types tools/test/presentation/permission-profile-quick-switcher.test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
@@ -51,6 +54,7 @@
     "electron": "^33.2.0",
     "js-yaml": "^4.1.0",
     "lucide-react": "^0.468.0",
+    "parse5": "^7.3.0",
     "pixi-live2d-display": "0.5.0-beta",
     "pixi.js": "^7.4.2",
     "react": "^19.0.0",

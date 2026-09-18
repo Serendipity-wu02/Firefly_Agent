@@ -1,0 +1,38 @@
+{
+  "permissionProfile": "RESTRICTED_SCOPE",
+  "llm": {
+    "provider": "local",
+    "baseUrl": "",
+    "apiKey": "",
+    "model": "local-firefly-v1",
+    "temperature": 0.7,
+    "enableStreaming": true
+  },
+  "tts": {
+    "engine": "gptsovits",
+    "speed": 0.9,
+    "volume": 1,
+    "autoPlay": true,
+    "voiceProfile": "firefly-v2proplus",
+    "gptsovits": {
+      "baseUrl": "http://127.0.0.1:9880",
+      "refAudioPath": "",
+      "promptText": "谢谢你，我们快去体验一下附近的游乐设施吧，目标就暂定为——用光所有代币！",
+      "format": "wav",
+      "speed": 0.9,
+      "seed": 15,
+      "textSplitMethod": "cut5"
+    }
+  },
+  "ui": {
+    "fontSize": "medium"
+  },
+  "window": {
+    "x": 100,
+    "y": 100,
+    "pet_scale": 1.0
+  },
+  "startup": {
+    "openAtLogin": false
+  }
+}

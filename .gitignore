@@ -8,6 +8,8 @@ env/
 dist/
 dist-electron/
 build/
+!tools/build/
+!tools/build/copy-runtime-resources.mts
 *.tsbuildinfo
 
 # Python caches

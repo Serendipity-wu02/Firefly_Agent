@@ -1,4 +1,5 @@
-import type { ToolState } from "../../runtime/execution/tool-policy";
+import type { ToolState } from "../tools/execution/tool-policy";
+import type { AgentTerminationReason } from "../../../shared/agent-types";
 
 export type ToolExecutionState = ToolState;
 
@@ -55,6 +56,7 @@ export interface RunExecutionState {
   startedAt: number;
   updatedAt: number;
   plan?: Plan;
+  terminationReason?: AgentTerminationReason;
 }
 
 const VALID_RUN_TRANSITIONS: Record<RunState, RunState[]> = {

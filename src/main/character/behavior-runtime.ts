@@ -87,7 +87,7 @@ export class BehaviorRuntime {
    */
   static decide(input: BehaviorEvaluationInput = {}): BehaviorDecision {
     const prompt = (input.userPrompt || "").trim().toLowerCase();
-    const mode: "daily" | "work" = input.mode || input.innerState?.mode || (input.legacyState?.current_action === "work_mode" ? "work" : "daily");
+    const mode: "daily" | "work" = input.mode || input.innerState?.mode || "daily";
 
     // 1. 获取或推导当前语义内在状态 (Semantic Inner State)
     const innerState =
@@ -102,7 +102,6 @@ export class BehaviorRuntime {
         ragContext: input.ragContext,
         mode,
         selfPhysicalContext: input.selfPhysicalContext,
-        legacyState: input.legacyState,
       });
 
     // 2. 检查长期记忆 (Memory) 个性化影响 (Read-Only)

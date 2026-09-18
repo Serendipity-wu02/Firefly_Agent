@@ -7,7 +7,6 @@
 import type { CharacterIntent } from "./persona-types";
 import type { PerspectiveEvaluation } from "./knowledge-perspective";
 import type { RelationshipQueryResult } from "./relationship-types";
-import type { CharacterStateData } from "../../shared/firefly-state";
 
 /**
  * YAML 中定义的 7 个权威情绪键名 (Canonical Emotion Keys in firefly.yaml)
@@ -126,6 +125,4 @@ export interface EmotionInterpretationInput {
   readonly mode?: CharacterMode;
   /** 流萤自身身体/病理状态上下文（如失熵症探讨，区别于外部用户不适） */
   readonly selfPhysicalContext?: string;
-  /** 历史旧版桌宠数据 (仅作向下兼容参考，不作为核心决策源) */
-  readonly legacyState?: CharacterStateData;
 }

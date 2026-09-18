@@ -108,7 +108,7 @@ terminal record 不会被再次改写。取消会沿 `AbortSignal` 传递给 Har
 
 ## 测试覆盖
 
-`tools/test/runtime/subagent-worker-runtime.test.mjs` 覆盖：
+`tools/test/runtime/subagent-worker-runtime.test.ts` 覆盖：
 
 - canonical Harness loop 与共享执行引擎
 - capability/tool schema 过滤

@@ -2,7 +2,7 @@ import type {
   CapabilityBinding,
   CapabilityId,
 } from "../../../shared/capability-types";
-import type { FireflyToolRegistry } from "../../tools/tool-registry";
+import type { FireflyToolRegistry } from "../../orchestrator/tools/registry/tool-registry";
 import type { CapabilityRegistry } from "./capability-registry";
 
 export type CapabilityBindingErrorCode =

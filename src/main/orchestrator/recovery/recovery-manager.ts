@@ -50,7 +50,13 @@ export class RecoveryManager {
     return { ...this.budget };
   }
 
-  evaluate(err: unknown, currentAttempts: number): RecoveryDecision {
+  /**
+   * Evaluate a provider failure using the number of recovery actions that
+   * have already completed. The action returned by this method is the next
+   * recovery attempt; callers increment their execution state only after
+   * that action finishes.
+   */
+  evaluate(err: unknown, completedRecoveryAttempts: number): RecoveryDecision {
     const classified = ErrorClassifier.classify(err);
 
     // 1. 用户主动取消，绝不执行自动恢复
@@ -64,18 +70,18 @@ export class RecoveryManager {
     }
 
     // 2. 检查全局恢复预算
-    if (currentAttempts >= this.budget.maxRecoveryAttempts) {
+    if (completedRecoveryAttempts >= this.budget.maxRecoveryAttempts) {
       return {
         action: "fail_run",
         delayMs: 0,
-        reason: `Max recovery attempts exhausted (${currentAttempts}/${this.budget.maxRecoveryAttempts}).`,
+        reason: `Max recovery attempts exhausted (${completedRecoveryAttempts}/${this.budget.maxRecoveryAttempts}).`,
         classifiedError: classified,
       };
     }
 
     // 3. 上下文超限 (Context Overflow) 恢复路径
     if (classified.type === "context_overflow") {
-      if (currentAttempts < this.budget.maxOverflowRetries) {
+      if (completedRecoveryAttempts < this.budget.maxOverflowRetries) {
         return {
           action: "retry_with_compaction",
           delayMs: 0,
@@ -93,7 +99,7 @@ export class RecoveryManager {
 
     // 4. 限流 (429 Rate Limit) 退避恢复路径
     if (classified.type === "rate_limit") {
-      const delayMs = this.budget.initialBackoffMs * Math.pow(2, currentAttempts);
+      const delayMs = this.budget.initialBackoffMs * Math.pow(2, completedRecoveryAttempts);
       return {
         action: "retry_with_backoff",
         delayMs,
@@ -104,7 +110,7 @@ export class RecoveryManager {
 
     // 5. 服务端异常与网络故障 (5xx / Socket Error) 重试路径
     if (classified.type === "server_error" || classified.type === "network_error") {
-      const delayMs = Math.min(2000, this.budget.initialBackoffMs * (currentAttempts + 1));
+      const delayMs = Math.min(2000, this.budget.initialBackoffMs * (completedRecoveryAttempts + 1));
       return {
         action: "retry_immediate",
         delayMs,

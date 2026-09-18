@@ -34,12 +34,6 @@ export const IPC = {
   // Live2D / Action Execution
   LIVE2D_PLAY_ACTION: "live2d:play-action",
 
-  // Character State & Care
-  STATE_GET: "state:get",
-  STATE_UPDATE: "state:update",
-  STATE_CHANGED: "state:changed",
-  CARE_ACTION: "care:action",
-
   // TTS Speech System
   TTS_SESSION_START: "tts:session-start",
   TTS_SESSION_CANCEL: "tts:session-cancel",

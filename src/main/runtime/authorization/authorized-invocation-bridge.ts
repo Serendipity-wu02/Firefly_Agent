@@ -13,9 +13,10 @@ import type {
   UpstreamAuthorizationContext,
 } from "../../../shared/runtime-integration-types";
 import type { ToolCall, ToolCallResult } from "../../../shared/tool-types";
-import type { ToolExecutionContext } from "../execution/tool-execution-context";
-import { ToolExecutionEngine } from "../execution/tool-execution-engine";
-import type { FireflyToolRegistry } from "../../tools/tool-registry";
+import { isSandboxScopeShape } from "../../../shared/sandbox-types";
+import type { ToolExecutionContext } from "../../orchestrator/tools/execution/tool-execution-context";
+import { ToolExecutionEngine } from "../../orchestrator/tools/execution/tool-execution-engine";
+import type { FireflyToolRegistry } from "../../orchestrator/tools/registry/tool-registry";
 
 export type AuthorizedInvocationRuntimeContext = Omit<
   ToolExecutionContext,
@@ -110,25 +111,16 @@ function isRequester(value: unknown): value is CapabilityRequester {
 }
 
 function isScope(value: unknown): value is AllowedSandboxDecision["effectiveScope"] {
-  if (!isRecord(value) || !isNonEmptyString(value.kind)) return false;
-  switch (value.kind) {
-    case "filesystem":
-      return isNonEmptyString(value.path) && (value.access === "read" || value.access === "write");
-    case "network":
-      return isNonEmptyString(value.host) &&
-        (value.port === undefined || (typeof value.port === "number" && Number.isInteger(value.port)));
-    case "process":
-      return isNonEmptyString(value.executable);
-    case "desktop":
-      return isNonEmptyString(value.target);
-    default:
-      return false;
-  }
+  return isSandboxScopeShape(value);
 }
 
 function isSignal(value: unknown): value is AbortSignal {
   return isRecord(value) && typeof value.aborted === "boolean" &&
     typeof value.addEventListener === "function";
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 function isRuntimeContext(value: unknown): value is AuthorizedInvocationRuntimeContext {
@@ -137,6 +129,7 @@ function isRuntimeContext(value: unknown): value is AuthorizedInvocationRuntimeC
   if (value.conversationId !== undefined && !isNonEmptyString(value.conversationId)) return false;
   if (value.toolCallId !== undefined && !isNonEmptyString(value.toolCallId)) return false;
   if (value.userQuery !== undefined && typeof value.userQuery !== "string") return false;
+  if (value.browserRequestTargets !== undefined && !isStringArray(value.browserRequestTargets)) return false;
   if (value.signal !== undefined && !isSignal(value.signal)) return false;
   if (value.maxToolCallsPerRun !== undefined && !isFiniteNumber(value.maxToolCallsPerRun)) return false;
   if (value.metadata !== undefined && !isRecord(value.metadata)) return false;
@@ -147,7 +140,7 @@ function isProvenance(value: unknown): value is AuthorizedCapabilityProvenance {
   if (!isRecord(value)) return false;
   if (value.type === "sandbox-only") return true;
   return value.type === "approval-grant" &&
-    value.grantLifetime === "once" &&
+    (value.grantLifetime === "once" || value.grantLifetime === "process") &&
     isNonEmptyString(value.approvalRequestId);
 }
 
@@ -206,12 +199,12 @@ function validateInvocation(value: unknown): ValidationResult {
     if (
       value.authorization.type !== "approval-grant" ||
       !isRecord(value.approvalGrant) ||
-      value.approvalGrant.lifetime !== "once" ||
+      (value.approvalGrant.lifetime !== "once" && value.approvalGrant.lifetime !== "process") ||
       !isScope(value.approvalGrant.scope)
     ) {
       return {
         code: "INVALID_AUTHORIZED_INVOCATION",
-        message: "An approval-required invocation must carry an ONCE approval grant.",
+        message: "An approval-required invocation must carry a valid scoped approval grant.",
       };
     }
   }
@@ -358,6 +351,7 @@ export class AuthorizedInvocationBridge {
 
     if (
       identity.authorization.type === "approval-grant" &&
+      identity.authorization.grantLifetime === "once" &&
       this.consumedApprovalRequestIds.has(identity.authorization.approvalRequestId)
     ) {
       return failure(
@@ -366,7 +360,10 @@ export class AuthorizedInvocationBridge {
         identity,
       );
     }
-    if (identity.authorization.type === "approval-grant") {
+    if (
+      identity.authorization.type === "approval-grant" &&
+      identity.authorization.grantLifetime === "once"
+    ) {
       this.consumedApprovalRequestIds.add(identity.authorization.approvalRequestId);
     }
 

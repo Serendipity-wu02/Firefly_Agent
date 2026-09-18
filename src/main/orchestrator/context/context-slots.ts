@@ -1,5 +1,5 @@
-import type { CharacterStateData } from "../../../shared/firefly-state";
 import type { AgentRunSource } from "../../../shared/agent-types";
+import type { SemanticInnerState } from "../../character/semantic-state-types";
 import type {
   MusicContextSnapshot,
   MusicContextSnapshotReader,
@@ -17,11 +17,12 @@ export enum ContextSlotPriority {
 }
 
 export interface SlotRenderContext {
-  characterState?: CharacterStateData;
+  semanticState?: SemanticInnerState;
   memoryContext?: string;
   ragContext?: string;
   planContext?: string;
   userPrompt?: string;
+  mode?: "daily" | "work";
   source?: AgentRunSource;
   customData?: Record<string, unknown>;
 }
@@ -49,9 +50,11 @@ export class SystemPromptSlot implements IContextSlot {
 
   render(ctx: SlotRenderContext): string {
     return SystemPromptBuilder.build({
-      state: ctx.characterState,
+      semanticState: ctx.semanticState,
+      userPrompt: ctx.userPrompt,
       memoryContext: ctx.memoryContext,
       ragContext: ctx.ragContext,
+      mode: ctx.mode,
     });
   }
 
@@ -69,7 +72,7 @@ export class CharacterStateSlot implements IContextSlot {
   readonly enabled = true;
 
   render(ctx: SlotRenderContext): string {
-    return SystemPromptBuilder.buildStateString(ctx.characterState);
+    return SystemPromptBuilder.buildStateString(ctx.semanticState);
   }
 
   estimateTokens(ctx: SlotRenderContext, meter: TokenMeter): number {

@@ -1,6 +1,11 @@
 import type { ChatMessage } from "../../../shared/chat-types";
+import type { CompactionTaskFactsStatus } from "../../../shared/compaction-task-facts";
 import type { ContextUsageSnapshot } from "../context/context-budget";
-import { ToolResultPruner, type PruningConfig } from "./tool-result-pruner";
+import {
+  ToolResultPruner,
+  type PruningConfig,
+  type ToolResultPruneFailureReason,
+} from "./tool-result-pruner";
 import { PairedSafeCut } from "./safe-cut";
 
 export type CompactionStrategy = "none" | "soft" | "hard" | "emergency";
@@ -12,6 +17,10 @@ export interface CompactorOptions {
   emergencyRetainCount: number;
   pruningConfig?: Partial<PruningConfig>;
   summaryGenerator?: (olderMessages: ChatMessage[]) => string;
+  /** Exact Main-owned messages that a compaction pass must retain. */
+  protectedMessageIds?: readonly string[];
+  /** Exact Main-owned summary id for replacing this run's prior summary. */
+  summaryMessageId?: string;
 }
 
 export const DEFAULT_COMPACTOR_OPTIONS: CompactorOptions = {
@@ -21,12 +30,25 @@ export const DEFAULT_COMPACTOR_OPTIONS: CompactorOptions = {
   emergencyRetainCount: 2,
 };
 
+export const DEFAULT_EMERGENCY_PRUNING_CONFIG: PruningConfig = {
+  maxResultChars: 1_024,
+  headChars: 512,
+  tailChars: 128,
+  middleMarker: "\n[... 紧急压缩截断 ...]\n",
+  preserveErrors: false,
+};
+
 export interface CompactionResult {
   messages: ChatMessage[];
   strategyApplied: CompactionStrategy;
   compacted: boolean;
   prunedToolCount: number;
   summarizedCount: number;
+  taskFactsStatus?: CompactionTaskFactsStatus;
+  compactionFailure?: {
+    readonly kind: "tool_result_pruning";
+    readonly reasons: readonly ToolResultPruneFailureReason[];
+  };
 }
 
 /**
@@ -99,16 +121,30 @@ export class ContextCompactor {
   ): CompactionResult {
     try {
       const opts: CompactorOptions = { ...DEFAULT_COMPACTOR_OPTIONS, ...customOptions };
-      const { messages: prunedMessages, prunedCount } = ToolResultPruner.pruneMessages(
+      const pruning = ToolResultPruner.pruneMessages(
         messages,
         opts.pruningConfig,
       );
 
+      if (pruning.failedCount > 0) {
+        return {
+          messages: pruning.messages,
+          strategyApplied: "soft",
+          compacted: false,
+          prunedToolCount: pruning.prunedCount,
+          summarizedCount: 0,
+          compactionFailure: {
+            kind: "tool_result_pruning",
+            reasons: pruning.failureReasons,
+          },
+        };
+      }
+
       return {
-        messages: prunedMessages,
+        messages: pruning.messages,
         strategyApplied: "soft",
-        compacted: prunedCount > 0,
-        prunedToolCount: prunedCount,
+        compacted: pruning.prunedCount > 0,
+        prunedToolCount: pruning.prunedCount,
         summarizedCount: 0,
       };
     } catch (err) {
@@ -137,10 +173,27 @@ export class ContextCompactor {
       const opts: CompactorOptions = { ...DEFAULT_COMPACTOR_OPTIONS, ...customOptions };
 
       // 1. 先执行工具修剪
-      const { messages: prunedMessages, prunedCount } = ToolResultPruner.pruneMessages(
+      const pruning = ToolResultPruner.pruneMessages(
         messages,
         opts.pruningConfig,
       );
+
+      if (pruning.failedCount > 0) {
+        return {
+          messages: pruning.messages,
+          strategyApplied: "hard",
+          compacted: false,
+          prunedToolCount: pruning.prunedCount,
+          summarizedCount: 0,
+          compactionFailure: {
+            kind: "tool_result_pruning",
+            reasons: pruning.failureReasons,
+          },
+        };
+      }
+
+      const prunedMessages = pruning.messages;
+      const prunedCount = pruning.prunedCount;
 
       const systemMessages = prunedMessages.filter((m) => m.role === "system");
       const nonSystemMessages = prunedMessages.filter((m) => m.role !== "system");
@@ -169,20 +222,23 @@ export class ContextCompactor {
 
       const older = nonSystemMessages.slice(0, cutIndex);
       const recent = nonSystemMessages.slice(cutIndex);
+      const protectedIds = new Set(opts.protectedMessageIds ?? []);
+      const protectedOlder = older.filter((message) => protectedIds.has(message.id));
+      const summarizableOlder = older.filter((message) => !protectedIds.has(message.id));
 
       // 3. 构建 Summary Node
       const summaryText = opts.summaryGenerator
-        ? opts.summaryGenerator(older)
-        : this.generateDefaultSummary(older);
+        ? opts.summaryGenerator(summarizableOlder)
+        : this.generateDefaultSummary(summarizableOlder);
 
       const summaryNode: ChatMessage = {
-        id: `summary-${Date.now()}`,
+        id: opts.summaryMessageId ?? `summary-${Date.now()}`,
         role: "system",
         content: summaryText,
         timestamp: Date.now(),
       };
 
-      const result = [...systemMessages, summaryNode, ...recent];
+      const result = [...systemMessages, ...protectedOlder, summaryNode, ...recent];
 
       // 4. 完整性校验
       const integrity = PairedSafeCut.validateIntegrity(result);
@@ -202,7 +258,7 @@ export class ContextCompactor {
         strategyApplied: "hard",
         compacted: true,
         prunedToolCount: prunedCount,
-        summarizedCount: older.length,
+        summarizedCount: summarizableOlder.length,
       };
     } catch (err) {
       console.warn("[ContextCompactor] Hard compaction failed safely:", err);
@@ -230,11 +286,7 @@ export class ContextCompactor {
         ...customOptions,
         retainCount: customOptions?.emergencyRetainCount || 2,
         pruningConfig: {
-          maxResultChars: 1_024,
-          headChars: 512,
-          tailChars: 128,
-          middleMarker: "\n[... 紧急压缩截断 ...]\n",
-          preserveErrors: false,
+          ...DEFAULT_EMERGENCY_PRUNING_CONFIG,
           ...(customOptions?.pruningConfig || {}),
         },
       };

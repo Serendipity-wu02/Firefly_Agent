@@ -9,7 +9,6 @@ import type { SemanticInnerState } from "./semantic-state-types";
 import type { CharacterIntent } from "./persona-types";
 import type { RelationshipQueryResult } from "./relationship-types";
 import type { PerspectiveEvaluation } from "./knowledge-perspective";
-import type { CharacterStateData } from "../../shared/firefly-state";
 
 /**
  * 角色高维行为语义类型 (Semantic Behavior Types)
@@ -101,6 +100,4 @@ export interface BehaviorEvaluationInput {
   readonly mode?: "daily" | "work";
   /** 流萤自身病理/身世探讨上下文 */
   readonly selfPhysicalContext?: string;
-  /** 历史旧版桌宠数据 (仅向下兼容，不作为核心决策源) */
-  readonly legacyState?: CharacterStateData;
 }

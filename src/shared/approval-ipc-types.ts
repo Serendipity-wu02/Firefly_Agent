@@ -2,7 +2,7 @@
  * Serializable IPC contracts for the minimal Approval window.
  *
  * The renderer can submit only an action. ApprovalService creates and
- * validates the ONCE grant in the main process.
+ * validates the scoped grant in the main process.
  */
 
 import type {

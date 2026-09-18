@@ -50,7 +50,11 @@ export class PermissionProfilePolicyResolver {
       };
     }
 
-    if (profile === "READ_ONLY" && input.sideEffect !== "read_only") {
+    if (
+      profile === "READ_ONLY" &&
+      input.sideEffect !== "read_only" &&
+      input.sideEffect !== "external_network_read"
+    ) {
       return {
         profile,
         capabilityAllowed: false,
@@ -58,7 +62,10 @@ export class PermissionProfilePolicyResolver {
       };
     }
 
-    const approvalRequirement = profile === "ASK_EVERY_TIME" && input.sideEffect !== "read_only"
+    const approvalRequirement = (
+      (profile === "READ_ONLY" || profile === "RESTRICTED_SCOPE" || profile === "ASK_EVERY_TIME") &&
+      input.sideEffect === "external_network_read"
+    ) || (profile === "ASK_EVERY_TIME" && input.sideEffect !== "read_only")
       ? "required"
       : input.declaredApprovalRequirement;
     const sandboxProfileId = this.sandboxProfileByProfile[profile];

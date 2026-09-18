@@ -234,7 +234,7 @@ Approval presentation remains outside Harness:
 ## Validation
 
 The focused audit suite is
-`tools/test/runtime/harness-authorization-pilot-audit.test.mjs`. It uses
+`tools/test/runtime/harness-authorization-pilot-audit.test.ts`. It uses
 injected clocks and Promise control points, not real sleeps. The existing pilot
 integration, Harness, ToolExecutionEngine, Capability, Sandbox, Approval,
 Permission Profile, SubAgent, and presentation tests remain in the full test

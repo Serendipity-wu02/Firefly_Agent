@@ -1,4 +1,4 @@
-import type { AgentRunInput, AgentRunResult } from "./agent-types";
+import type { AgentResumeResult, AgentRunInput, AgentRunResult } from "./agent-types";
 import type { IFireflyLlmProvider } from "./provider-types";
 
 /**
@@ -23,7 +23,7 @@ export interface IAgentCore {
   /**
    * Resume an interrupted run from the canonical checkpoint manager.
    */
-  resume(checkpointId: string, signal?: AbortSignal): Promise<AgentRunResult>;
+  resume(checkpointId: string, signal?: AbortSignal): Promise<AgentResumeResult>;
 
   /**
    * Cancel a specific in-flight run by its runId.

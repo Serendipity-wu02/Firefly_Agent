@@ -164,7 +164,7 @@ SubAgent remains unwired by design.
 
 ## Test coverage
 
-`tools/test/runtime/harness-authorization-integration.test.mjs` covers the
+`tools/test/runtime/harness-authorization-integration.test.ts` covers the
 production-shaped path, approval wait/resume/deny/cancel/expire, same-round
 barrier and re-planning, profile changes, structured failures, no double
 confirmation, execution count, message/result association, and architecture

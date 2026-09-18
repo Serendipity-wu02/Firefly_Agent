@@ -107,13 +107,13 @@ enabled.
   supports explicit resume/cancellation after the ApprovalService lifecycle.
 - `AuthorizedCapabilityInvocation` is the typed, non-executing hand-off
   object. Its factory requires a matching binding, an allowed Sandbox decision,
-  and an approved `ONCE` decision when the resolver says `required`. It carries
-  both the effective Sandbox scope and the final authorized scope; approval may
-  narrow but never widen that boundary.
+  and an approved `once` or eligible `process` decision when the resolver says
+  `required`. It carries both the effective Sandbox scope and the final
+  authorized scope; approval may narrow but never widen that boundary.
 
 The invocation contract preserves the original `CapabilityRequest`, including
 requester, capability identity, request identity, and input. It carries the
-Sandbox effective scope and, when required, the `ONCE` Approval grant. It does
+Sandbox effective scope and, when required, the scoped Approval grant. It does
 not contain an executor, callback, BrowserWindow, session, or LLM object.
 
 The opt-in seam at
@@ -128,7 +128,10 @@ timeout, cancellation, retry, concurrency, dispatch, and result policy.
 with the same `ToolExecutionEngine` supplied to `FireflyAgentCore`. The Harness
 routes only `music_status` and `music_control` through
 `HarnessAuthorizationAdapter`; all other tools continue to use the legacy
-`ToolCall`/`ToolExecutionContext` route directly.
+`ToolCall`/`ToolExecutionContext` route directly. Browser remains outside this
+production graph; its dynamic authorization contracts are documented in
+`browser-authorization-contracts-v1.md` and are not registered in the
+Composition Root.
 
 ## 4. Legacy ToolPolicy and Approval migration
 
@@ -293,7 +296,7 @@ engine, single tool registry, and ApprovalService state ownership.
 
 ## 13. RAG embedding test entry
 
-`tools/test/rag/embedding.test.mjs` is included in the default `npm test`
+`tools/test/rag/embedding.test.ts` is included in the default `npm test`
 script. Its provider-discovery assertions deliberately expect the current
 local production embedding state to be `unconfigured`; they do not require a
 model file, API key, network service, or external embedding process. The

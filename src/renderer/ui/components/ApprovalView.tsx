@@ -36,6 +36,12 @@ function stateLabel(state: ApprovalRecord["state"]): string {
   return "已过期";
 }
 
+function grantLifetimeLabel(record: ApprovalRecord): string {
+  return record.request.grantLifetime === "process"
+    ? "本进程范围 · FULL_ACCESS"
+    : "一次授权 · ONCE";
+}
+
 function riskLabel(risk: ToolRiskLevel | undefined): string {
   if (risk === "safe") return "安全";
   if (risk === "read_only") return "只读";
@@ -46,6 +52,7 @@ function riskLabel(risk: ToolRiskLevel | undefined): string {
 
 function sideEffectLabel(sideEffect: ToolSideEffect | undefined): string {
   if (sideEffect === "read_only") return "只读";
+  if (sideEffect === "external_network_read") return "外部网络读取";
   if (sideEffect === "idempotent") return "幂等操作";
   if (sideEffect === "state_mutation") return "状态变更";
   if (sideEffect === "external_action") return "外部操作";
@@ -150,7 +157,7 @@ export const ApprovalView: React.FC = () => {
           <div>
             <div style={{ fontSize: THEME_TOKENS.typography.fontSizes.title, fontWeight: 700 }}>需要你的确认</div>
             <div style={{ marginTop: "3px", color: THEME_TOKENS.colors.textMuted, fontSize: THEME_TOKENS.typography.fontSizes.caption }}>
-              一次授权 · ONCE
+              {record ? grantLifetimeLabel(record) : "等待授权范围"}
             </div>
           </div>
           <button
@@ -210,7 +217,7 @@ export const ApprovalView: React.FC = () => {
               </div>
 
               <div style={{ display: "grid", gap: "10px" }}>
-                <InfoBlock label="摘要" value={request.summary} />
+                <InfoBlock label="操作/摘要" value={request.summary} />
                 <InfoBlock label="原因" value={request.reason} />
                 <InfoBlock label="能力" value={request.capabilityId} />
                 <InfoBlock label="风险" value={riskLabel(request.risk)} />

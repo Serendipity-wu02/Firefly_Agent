@@ -1,2 +1,2 @@
 @echo off
-node "%~dp0..\npm.mjs" %*
+node --experimental-strip-types "%~dp0..\npm.mts" %*

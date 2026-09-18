@@ -92,11 +92,7 @@ export class SemanticStateInterpreter {
    * 确定性评估并生成当前角色的语义内在状态 (100% Deterministic, 0 Math.random)
    */
   static interpret(input: EmotionInterpretationInput = {}): SemanticInnerState {
-    const mode: CharacterMode = input.mode
-      ? input.mode
-      : input.legacyState?.current_action === "work_mode"
-        ? "work"
-        : "daily";
+    const mode: CharacterMode = input.mode ?? "daily";
     const prompt = (input.userPrompt || "").trim().toLowerCase();
 
     // 1. 无输入或纯空输入：返回标准默认状态

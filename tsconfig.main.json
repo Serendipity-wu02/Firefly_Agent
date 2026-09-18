@@ -12,13 +12,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": false,
+    "declaration": true,
     "sourceMap": true
   },
   "include": [
     "src/main/**/*.ts",
-    "src/rag/**/*.ts",
-    "src/settings/**/*.ts",
     "src/shared/**/*.ts"
   ],
   "exclude": [

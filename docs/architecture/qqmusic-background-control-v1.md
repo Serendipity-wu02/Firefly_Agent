@@ -15,9 +15,9 @@ It does not search, resolve, download, or start a track. `music_search`,
 ## Existing execution authority
 
 The one production desktop authority is
-`src/main/runtime/music/qqmusic-desktop-bridge.ts`. It uses Windows System
+`src/main/music/qqmusic-desktop-bridge.ts`. It uses Windows System
 Media Transport Controls (GSMTC) through
-`src/main/runtime/music/scripts/qqmusic_gsmtc.ps1`.
+`src/main/music/scripts/qqmusic_gsmtc.ps1`.
 
 The script selects the first media session whose source identity is an exact,
 case-insensitive match for the observed canonical QQ Music ID:
@@ -80,8 +80,14 @@ fixed desktop target `QQMusic`.
 
 The current four-scheme resolver applies the declared Approval requirement to
 this side-effect capability for `RESTRICTED_SCOPE`, `ASK_EVERY_TIME`, and
-`FULL_ACCESS`. `READ_ONLY` rejects it before Approval. Capability, Sandbox,
-and the existing Approval lifecycle remain the only authorization chain.
+`FULL_ACCESS`. `READ_ONLY` rejects it before Approval. Under `FULL_ACCESS`,
+the first approved request may create an in-memory, process-scoped grant only
+for this exact capability, `music_control` tool, QQMusic Sandbox profile, and
+desktop scope. Each later control still creates and consumes a distinct
+capability request and `AuthorizedCapabilityInvocation`; the process grant is
+not a bypass for Capability, Sandbox, current permission checks, or the
+ToolExecutionEngine. Leaving `FULL_ACCESS` clears these process grants, and
+they are never persisted across an application restart.
 
 ## Execution and cancellation contract
 
@@ -102,6 +108,63 @@ legacy callers. Only an upstream authorization context with capability
 `music.control`, tool `music_control`, and desktop target `QQMusic` selects the
 new fixed QQ Music action set. Any other upstream context is rejected as a
 target mismatch.
+
+## Repeated controls and result truthfulness
+
+An explicit transport request is classified in Main by
+`src/main/orchestrator/tools/music-control-intent.ts`. Discussion, quotation,
+questions, instructions, conditional wording, and negative wording are not
+classified as control requests. Renderer does not infer control intent and
+Chat IPC does not call the player directly.
+
+Each accepted control request creates a new typed `requiredToolExecution`
+requirement for the same `FireflyHarness` run. The requirement contains the
+exact `music_control` tool name and action. Harness exposes only that tool for
+the bounded control step. If the first model response omits the required call,
+Harness performs at most one correction in the same run and sends an explicit
+provider `tool_choice`. A matching call is marked as observed before
+authorization or external execution, so duplicate model callbacks and an
+unknown or timed-out submission cannot issue the same transport command a
+second time.
+
+Every independent request receives its own run and authorization decision.
+For the `FULL_ACCESS` music-control rule, the first approval is a process-scoped
+authorization decision, while every later request still receives a new
+one-time execution authorization. Other capabilities and permission profiles
+retain their existing one-time approval behavior. A prior tool result, restored
+Chat message, or model claim is not evidence for a later request.
+
+The visible result is derived from current-run structured evidence, not from
+assistant wording. A successful result requires the current `runId`, the exact
+tool and action, an executed tool outcome, and a canonical result containing
+`ok: true`, the same action and target, and `commandSubmission: "accepted"`.
+`toolCalled`, Approval permission, and model prose are insufficient.
+
+An imperative request without a direction, such as `切换歌曲`, is not mapped
+to `next` or `previous`. Main answers with a direction clarification before
+Agent execution, so an unconstrained model reply cannot claim a control that
+did not run.
+
+QQ Music control now reports two separate facts:
+
+| Field | Meaning |
+| --- | --- |
+| `commandSubmission` | Whether the GSMTC command call was accepted, rejected, not submitted, or has an unknown submission state |
+| `playerStateObservation` | `changed`, `unchanged`, `failed`, or `not_observed` after one bounded state read |
+| `observedState` | The QQMusic playback state and current track returned by that read when the session remains available |
+
+After a successful command, the bridge waits the existing bounded 300 ms
+settling delay for `next`/`prev` and performs one existing GSMTC `get-state`
+read; the other transport actions perform the same read immediately after the
+command. The executor's existing 4-second bound remains the read boundary.
+No control command is retried. `changed` is reported only when the relevant
+track or playback state differs from the pre-command snapshot. A successful
+command with no observed difference remains a submission fact, not a claim of
+successfully changing the player. A failed read is returned as `failed` and
+the Chat reply explicitly says that the command was not repeated. Rejection,
+denial, cancellation, expiration, zero tool calls, and mismatched tool calls
+report non-completion. Timeout or an unknown external result explicitly
+remains unknown and is never automatically replayed.
 
 ## Native smoke result
 
@@ -138,7 +201,10 @@ fall back to MPV or launch another player.
 
 ## Verification
 
-The focused capability test covers route registration, fixed QQMusic target,
+The focused capability and truthfulness tests cover route registration, fixed QQMusic target,
 the five authorized actions, approval profiles, denial, cancellation, stale
 correlation, duplicate dispatch, same-round barrier, player absence without
-MPV fallback, and the absence of a second desktop control path.
+MPV fallback, the absence of a second desktop control path, three sequential
+independent controls, bounded zero-call correction, provider `tool_choice`,
+current-run evidence grounding, Chat history isolation, and no replay after an
+unknown or timed-out command submission.

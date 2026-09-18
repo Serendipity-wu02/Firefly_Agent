@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../../../shared/chat-types";
+import type { AgentTerminationReason } from "../../../shared/agent-types";
 import type {
   ActiveToolCallState,
   RunExecutionState,
@@ -36,7 +37,23 @@ export interface Checkpoint {
   trigger: CheckpointTrigger;
   plan?: Plan;
   providerMetadata?: Record<string, unknown>;
+  terminationReason?: AgentTerminationReason;
 }
+
+export type CheckpointReadResult =
+  | { readonly kind: "found"; readonly checkpoint: Checkpoint }
+  | { readonly kind: "not_found"; readonly checkpointId: string }
+  | {
+      readonly kind: "read_error";
+      readonly checkpointId: string;
+      readonly errorCode: "io_error";
+    }
+  | { readonly kind: "invalid_format"; readonly checkpointId: string }
+  | {
+      readonly kind: "unsupported_version";
+      readonly checkpointId: string;
+      readonly version: unknown;
+    };
 
 export interface ICheckpointPolicy {
   shouldCheckpoint(trigger: CheckpointTrigger, state: RunExecutionState): boolean;
@@ -44,6 +61,7 @@ export interface ICheckpointPolicy {
 
 export interface ICheckpointStore {
   save(checkpoint: Checkpoint): Promise<void> | void;
+  read(checkpointId: string): Promise<CheckpointReadResult> | CheckpointReadResult;
   get(checkpointId: string): Promise<Checkpoint | undefined> | Checkpoint | undefined;
   getByRunId(runId: string): Promise<Checkpoint[] | undefined> | Checkpoint[] | undefined;
   getLatestForRun(runId: string): Promise<Checkpoint | undefined> | Checkpoint | undefined;

@@ -27,6 +27,13 @@ export interface ChatCompletionRequest {
       parameters: Record<string, unknown>;
     };
   }>;
+  /** Optional provider-level constraint used only for a bounded required-tool correction. */
+  toolChoice?: {
+    type: "function";
+    function: {
+      name: string;
+    };
+  };
   temperature?: number;
 }
 

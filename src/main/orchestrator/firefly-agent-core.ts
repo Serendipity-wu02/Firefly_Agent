@@ -1,16 +1,17 @@
 import type {
   AgentConfig,
+  AgentResumeResult,
   AgentRunInput,
   AgentRunResult,
 } from "../../shared/agent-types";
 import { DEFAULT_AGENT_CONFIG } from "../../shared/agent-types";
 import type { IFireflyLlmProvider } from "../../shared/provider-types";
 import type { IAgentCore } from "../../shared/agent-core";
-import { LocalFireflyProvider } from "../llm/providers/local-firefly-provider";
-import { FireflyToolRegistry } from "../tools/tool-registry";
+import { LocalFireflyProvider } from "./providers/local-firefly-provider";
+import { FireflyToolRegistry } from "./tools/registry/tool-registry";
 import { ContextManager } from "./context/context-manager";
-import { ToolExecutionEngine } from "../runtime/execution/tool-execution-engine";
-import type { ToolPolicyConfig } from "../runtime/execution/tool-policy";
+import { ToolExecutionEngine } from "./tools/execution/tool-execution-engine";
+import type { ToolPolicyConfig } from "./tools/execution/tool-policy";
 import { AgentEventBus } from "./agent-events";
 import { CheckpointManager } from "./recovery/checkpoint-manager";
 import { RecoveryManager } from "./recovery/recovery-manager";
@@ -18,7 +19,7 @@ import { BoundedPlanner } from "./planning/bounded-planner";
 import type { PlannerConfig } from "./planning/plan-types";
 import { FireflyHarness } from "./harness/firefly-harness";
 import type { HarnessAuthorizationAdapter } from "./harness/harness-authorization-adapter";
-import type { MainAgentDelegationService } from "../runtime/subagents/main-agent-delegation";
+import type { MainAgentDelegationService } from "./subagents/main-agent-delegation";
 
 export interface FireflyAgentCoreOptions {
   provider?: IFireflyLlmProvider;
@@ -112,7 +113,7 @@ export class FireflyAgentCore implements IAgentCore {
     });
   }
 
-  resume(checkpointId: string, signal?: AbortSignal): Promise<AgentRunResult> {
+  resume(checkpointId: string, signal?: AbortSignal): Promise<AgentResumeResult> {
     return this.harness.resume(checkpointId, signal);
   }
 

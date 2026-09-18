@@ -2,12 +2,19 @@ import type { UpstreamAuthorizationContext } from "./runtime-integration-types";
 
 export type ToolRiskLevel = "safe" | "read_only" | "side_effect" | "high_risk";
 export type ToolSafetyLevel = "safe" | "confirm_required" | "high_risk";
-export type ToolSideEffect = "read_only" | "idempotent" | "state_mutation" | "external_action";
+export type ToolSideEffect =
+  | "read_only"
+  | "external_network_read"
+  | "idempotent"
+  | "state_mutation"
+  | "external_action";
 
 export interface ToolContext {
   userQuery: string;
   conversationId?: string;
   signal?: AbortSignal;
+  /** Trusted Main-owned normalized URLs from the current user turn only. */
+  browserRequestTargets?: readonly string[];
   /** Present only when the canonical authorization seam has completed. */
   upstreamAuthorization?: UpstreamAuthorizationContext;
 }

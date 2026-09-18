@@ -77,4 +77,4 @@ Memory/RAG, TTS, and Live2D ownership.
 
 Focused coverage is in:
 
-`tools/test/runtime/authorized-invocation-execution.test.mjs`
+`tools/test/runtime/authorized-invocation-execution.test.ts`

@@ -22,6 +22,14 @@ import {
 import { parseRendererView, type RendererView } from "../../shared/window-types";
 import type { ChatMessage } from "../../shared/chat-types";
 import type { ApprovalRecord } from "../../shared/approval-types";
+import type {
+  BrowserProxyEndpoint,
+  BrowserTransportMode,
+} from "../../shared/browser-types";
+import type {
+  BrowserSettingsSnapshot,
+  BrowserSettingsUpdate,
+} from "../../shared/settings-types";
 import {
   DEFAULT_PERMISSION_PROFILE,
   type PermissionProfile,
@@ -51,6 +59,21 @@ interface MainAppProps {
   readonly rendererView: Exclude<RendererView, "approval">;
 }
 
+const createInitialChatMessages = (): ChatMessage[] => [
+  {
+    id: "init-1",
+    role: "assistant",
+    content: "开拓者，今天也要一起看星星吗？想和流萤聊聊什么呢？",
+    timestamp: Date.now(),
+    behaviorType: "warm_conversation",
+  },
+];
+
+const formatBrowserProxyEndpoint = (endpoint: BrowserProxyEndpoint): string => {
+  const host = endpoint.hostname.includes(":") ? `[${endpoint.hostname}]` : endpoint.hostname;
+  return `${endpoint.protocol}//${host}:${endpoint.port}`;
+};
+
 const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -67,6 +90,10 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
   const [ttsSettings, setTtsSettings] = useState<TtsSettings>(DEFAULT_TTS_SETTINGS);
   const [uiFontSize, setUiFontSize] = useState<UiFontSize>(DEFAULT_UI_PREFERENCES.fontSize);
   const [permissionProfile, setPermissionProfile] = useState<PermissionProfile>(DEFAULT_PERMISSION_PROFILE);
+  const [browserSettingsSnapshot, setBrowserSettingsSnapshot] = useState<BrowserSettingsSnapshot>();
+  const [browserTransportMode, setBrowserTransportMode] = useState<BrowserTransportMode>("direct");
+  const [browserProxyEndpoint, setBrowserProxyEndpoint] = useState("");
+  const [browserAllowedOriginsText, setBrowserAllowedOriginsText] = useState("");
   const [autoLaunch, setAutoLaunchState] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string>("");
 
@@ -77,20 +104,37 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
   });
 
   // Chat State
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "init-1",
-      role: "assistant",
-      content: "开拓者，今天也要一起看星星吗？想和流萤聊聊什么呢？",
-      timestamp: Date.now(),
-      behaviorType: "warm_conversation",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentToolStatus, setCurrentToolStatus] = useState<string | null>(null);
   const [inlineApproval, setInlineApproval] = useState<ApprovalRecord | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatHistoryHydratedRef = useRef(false);
+  const chatHistoryLoadPromiseRef = useRef<Promise<ChatMessage[]> | null>(null);
+
+  const restoreChatHistory = (): Promise<ChatMessage[]> => {
+    if (!chatHistoryLoadPromiseRef.current) {
+      const historyRequest =
+        rendererView === "chat" && window.chat?.getHistory
+          ? window.chat.getHistory()
+          : Promise.resolve([] as ChatMessage[]);
+      chatHistoryLoadPromiseRef.current = historyRequest
+        .then((history) => {
+          const nextMessages = history.length > 0 ? history : createInitialChatMessages();
+          if (rendererView === "chat") setMessages(nextMessages);
+          chatHistoryHydratedRef.current = true;
+          return nextMessages;
+        })
+        .catch((error: unknown) => {
+          chatHistoryHydratedRef.current = false;
+          chatHistoryLoadPromiseRef.current = null;
+          console.warn("[Chat History] Failed to restore process-local transcript:", error);
+          throw error;
+        });
+    }
+    return chatHistoryLoadPromiseRef.current;
+  };
 
   useEffect(() => {
     if (rendererView === "settings") {
@@ -110,6 +154,25 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
       });
     }
 
+    const applyBrowserSettingsSnapshot = (snapshot: BrowserSettingsSnapshot | undefined): void => {
+      setBrowserSettingsSnapshot(snapshot);
+      if (!snapshot || snapshot.status === "unavailable") {
+        // This is only an editing fallback. The snapshot remains unavailable
+        // until the user explicitly saves a valid replacement.
+        setBrowserTransportMode("direct");
+        setBrowserProxyEndpoint("");
+        setBrowserAllowedOriginsText("");
+        return;
+      }
+      setBrowserTransportMode(snapshot.settings.transportMode);
+      setBrowserProxyEndpoint(
+        snapshot.settings.transportMode === "http_proxy"
+          ? formatBrowserProxyEndpoint(snapshot.settings.httpProxy)
+          : "",
+      );
+      setBrowserAllowedOriginsText(snapshot.settings.allowedOrigins.join("\n"));
+    };
+
     // Load Settings
     window.settings?.load().then((res) => {
       if (res?.llm) {
@@ -119,7 +182,14 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
       if (res?.tts) setTtsSettings(res.tts);
       if (res?.ui?.fontSize) setUiFontSize(res.ui.fontSize);
       if (res?.permissionProfile) setPermissionProfile(res.permissionProfile);
+      applyBrowserSettingsSnapshot(res?.browser);
     });
+
+    if (rendererView === "chat") {
+      void restoreChatHistory().catch(() => undefined);
+    } else {
+      chatHistoryHydratedRef.current = true;
+    }
 
     if (window.chat?.getProviderStatus) {
       window.chat.getProviderStatus().then((status) => {
@@ -174,6 +244,7 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
         if (newSettings?.permissionProfile) {
           setPermissionProfile(newSettings.permissionProfile);
         }
+        applyBrowserSettingsSnapshot(newSettings?.browser);
       });
     }
 
@@ -214,6 +285,16 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
     const text = inputValue.trim();
     if (!text || isLoading) return;
 
+    let historyForRequest = messages;
+    if (!chatHistoryHydratedRef.current) {
+      try {
+        historyForRequest = await restoreChatHistory();
+      } catch (error: unknown) {
+        console.warn("[Chat History] Send blocked because transcript restore failed:", error);
+        return;
+      }
+    }
+
     debugLog(`[Harness Trace] composer.send prompt="${text}"`);
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -229,7 +310,7 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
 
     try {
       if (window.chat) {
-        const res = await window.chat.sendMessage(text, messages);
+        const res = await window.chat.sendMessage(text, historyForRequest);
 
         // Real Agent/Provider failure must be shown as a real failure —
         // never replaced by a fake persona reply, never fed into TTS/Live2D/Mood.
@@ -237,15 +318,7 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
           console.error(
             `[Harness Trace] renderer.reply.failed status=${res.status ?? "error"} error="${res.error ?? ""}"`,
           );
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `err-${Date.now()}`,
-              role: "assistant",
-              content: `❌ 流萤这次没能回应（${res.status ?? "error"}）。${res.error ? `原因：${res.error}` : "未收到有效回复，请检查模型连接设置后重试。"}`,
-              timestamp: Date.now(),
-            },
-          ]);
+          setMessages(res.history);
           return;
         }
 
@@ -253,9 +326,12 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
         debugLog(
           `[Harness Trace] renderer.reply.received text="${res.replyText?.slice(0, 30)}..." correlationId=${correlationId}`,
         );
-        const asstMsg: ChatMessage = {
+        setMessages(res.history);
+        const asstMsg = [...res.history]
+          .reverse()
+          .find((message) => message.role === "assistant" && message.content === res.replyText) ?? {
           id: `asst-${Date.now()}`,
-          role: "assistant",
+          role: "assistant" as const,
           content: res.replyText,
           timestamp: Date.now(),
           behaviorType: res.embodimentPlan?.behaviorType,
@@ -263,7 +339,6 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
           voiceIntent: res.embodimentPlan?.voice?.voiceIntent,
           prosodyHint: res.embodimentPlan?.voice?.prosodyHint,
         };
-        setMessages((prev) => [...prev, asstMsg]);
 
         // Directly consume SSoT presentationSummary from EmbodimentPlan (Zero UI keyword/branch guessing)
         if (res.embodimentPlan?.presentationSummary) {
@@ -299,11 +374,23 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
           },
         ]);
       }
-    } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        { id: `err-${Date.now()}`, role: "assistant", content: `❌ ${err?.message || "与流萤交流时发生异常"}` },
-      ]);
+    } catch (err: unknown) {
+      let historyRestored = false;
+      if (window.chat?.getHistory) {
+        try {
+          setMessages(await window.chat.getHistory());
+          historyRestored = true;
+        } catch (historyError: unknown) {
+          console.warn("[Chat History] Failed to read Main transcript after send error:", historyError);
+        }
+      }
+      if (!historyRestored) {
+        const message = err instanceof Error ? err.message : String(err);
+        setMessages((prev) => [
+          ...prev,
+          { id: `err-${Date.now()}`, role: "assistant", content: `❌ ${message || "与流萤交流时发生异常"}` },
+        ]);
+      }
     } finally {
       setIsLoading(false);
       setCurrentToolStatus(null);
@@ -327,12 +414,25 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
   const handleSaveSettings = async () => {
     try {
       if (window.settings) {
-        await window.settings.save({
+        const browserAllowedOrigins = browserAllowedOriginsText
+          .split(/\r?\n/u)
+          .map((origin) => origin.trim())
+          .filter((origin) => origin.length > 0);
+        const browser: BrowserSettingsUpdate = browserTransportMode === "http_proxy"
+          ? { transportMode: "http_proxy", httpProxy: browserProxyEndpoint, allowedOrigins: browserAllowedOrigins }
+          : { transportMode: "direct", allowedOrigins: browserAllowedOrigins };
+        const settingsSaved = await window.settings.save({
           llm: llmConfig,
           tts: ttsSettings,
           ui: { fontSize: uiFontSize },
           permissionProfile,
+          browser,
         });
+        if (!settingsSaved) {
+          setSaveStatus("❌ Browser 网络配置无效，设置未保存");
+          window.setTimeout(() => setSaveStatus(""), 3000);
+          return;
+        }
       }
       if (window.tts) {
         await window.tts.saveSettings(ttsSettings);
@@ -450,13 +550,6 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
               WebkitAppRegion: "no-drag",
             } as React.CSSProperties}
           >
-            {inlineApproval ? (
-              <InlineApprovalCard
-                record={inlineApproval}
-                onStale={() => setInlineApproval(null)}
-              />
-            ) : null}
-
             {/* Messages List */}
             {messages.map((msg) => (
               <ChatMessageItem
@@ -472,7 +565,25 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
             <div ref={chatBottomRef} style={{ height: "4px" }} />
           </div>
 
-          {/* 3. Bottom Composer */}
+          {/* 3. Approval stays beside the composer, outside the message scroll area. */}
+          {inlineApproval ? (
+            <div
+              data-approval-anchor="composer"
+              style={{
+                flexShrink: 0,
+                padding: "0 16px",
+                background: THEME_TOKENS.colors.surfaceElevated,
+                WebkitAppRegion: "no-drag",
+              } as React.CSSProperties}
+            >
+              <InlineApprovalCard
+                record={inlineApproval}
+                onStale={() => setInlineApproval(null)}
+              />
+            </div>
+          ) : null}
+
+          {/* 4. Bottom Composer */}
           <Composer
             value={inputValue}
             onChange={setInputValue}
@@ -505,6 +616,13 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
             onUiFontSizeChange={handleUiFontSizeChange}
             permissionProfile={permissionProfile}
             onPermissionProfileChange={handlePermissionProfileChange}
+            browserSettingsSnapshot={browserSettingsSnapshot}
+            browserTransportMode={browserTransportMode}
+            setBrowserTransportMode={setBrowserTransportMode}
+            browserProxyEndpoint={browserProxyEndpoint}
+            setBrowserProxyEndpoint={setBrowserProxyEndpoint}
+            browserAllowedOriginsText={browserAllowedOriginsText}
+            setBrowserAllowedOriginsText={setBrowserAllowedOriginsText}
             autoLaunch={autoLaunch}
             setAutoLaunchState={setAutoLaunchState}
             onSave={handleSaveSettings}

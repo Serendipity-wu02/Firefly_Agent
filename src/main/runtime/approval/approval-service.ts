@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
+  ApprovalProcessGrant,
+  ApprovalProcessGrantKey,
   ApprovalDecision,
   ApprovalRecord,
   ApprovalRequest,
@@ -12,6 +14,8 @@ import {
   type ApprovalGrant,
 } from "../../../shared/approval-types";
 import {
+  cloneSandboxScope,
+  isSandboxScopeShape,
   isSandboxScopeWithin,
   type SandboxScope,
 } from "../../../shared/sandbox-types";
@@ -46,39 +50,21 @@ function isFiniteTimestamp(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function isValidPort(value: number): boolean {
-  return Number.isInteger(value) && value >= 1 && value <= 65535;
-}
-
 function isScopeShape(scope: unknown): scope is SandboxScope {
-  if (typeof scope !== "object" || scope === null || !isNonEmptyString((scope as { kind?: unknown }).kind)) {
-    return false;
-  }
-
-  const typedScope = scope as Record<string, unknown>;
-  switch (typedScope.kind) {
-    case "filesystem":
-      return (
-        isNonEmptyString(typedScope.path) &&
-        (typedScope.access === "read" || typedScope.access === "write")
-      );
-    case "network":
-      return (
-        isNonEmptyString(typedScope.host) &&
-        (typedScope.port === undefined ||
-          (typeof typedScope.port === "number" && isValidPort(typedScope.port)))
-      );
-    case "process":
-      return isNonEmptyString(typedScope.executable);
-    case "desktop":
-      return isNonEmptyString(typedScope.target);
-    default:
-      return false;
-  }
+  return isSandboxScopeShape(scope);
 }
 
 function cloneScope(scope: SandboxScope): SandboxScope {
-  return Object.freeze({ ...scope });
+  return cloneSandboxScope(scope);
+}
+
+function processGrantKey(key: ApprovalProcessGrantKey): string {
+  return JSON.stringify([
+    key.capabilityId,
+    key.toolId,
+    key.sandboxProfileId,
+    key.scope,
+  ]);
 }
 
 function cloneRequester(requester: ApprovalRequest["requester"]): ApprovalRequest["requester"] {
@@ -144,6 +130,12 @@ function validateRequestInput(input: ApprovalRequestInput): void {
       "Approval request expiresAt must be a finite timestamp.",
     );
   }
+  if (input.grantLifetime !== undefined && input.grantLifetime !== "once" && input.grantLifetime !== "process") {
+    throw new ApprovalServiceError(
+      "INVALID_APPROVAL_REQUEST",
+      "Approval request grant lifetime is invalid.",
+    );
+  }
 }
 
 function freezeDecision(decision: ApprovalDecision): ApprovalDecision {
@@ -180,6 +172,7 @@ export class ApprovalService {
   private readonly now: () => number;
   private readonly createRequestId: () => ApprovalRequestId;
   private readonly listeners = new Set<ApprovalRecordListener>();
+  private readonly processGrants = new Map<string, ApprovalProcessGrant>();
 
   constructor(options: ApprovalServiceOptions = {}) {
     this.store = options.store ?? new InMemoryApprovalStore();
@@ -208,6 +201,7 @@ export class ApprovalService {
     const request: ApprovalRequest = Object.freeze({
       ...input,
       approvalRequestId,
+      grantLifetime: input.grantLifetime ?? "once",
       createdAt,
       requester: cloneRequester(input.requester),
       effectiveScope: cloneScope(input.effectiveScope),
@@ -247,7 +241,7 @@ export class ApprovalService {
     }
 
     const grant: ApprovalGrant = {
-      lifetime: "once",
+      lifetime: record.request.grantLifetime,
       scope: cloneScope(grantScope),
     };
     return this.transition(
@@ -255,6 +249,38 @@ export class ApprovalService {
       "approved",
       { approved: true, grant },
     );
+  }
+
+  getProcessGrant(key: ApprovalProcessGrantKey): ApprovalProcessGrant | undefined {
+    const grant = this.processGrants.get(processGrantKey(key));
+    if (grant === undefined) return undefined;
+    return Object.freeze({
+      ...grant,
+      scope: cloneScope(grant.scope),
+    });
+  }
+
+  rememberProcessGrant(
+    key: ApprovalProcessGrantKey,
+    approvalRequestId: ApprovalRequestId,
+    scope: SandboxScope,
+  ): void {
+    if (!isScopeShape(scope) || !isSandboxScopeWithin(key.scope, scope)) {
+      throw new ApprovalServiceError(
+        "INVALID_APPROVAL_GRANT",
+        "Process approval grant scope must be contained by the effective Sandbox scope.",
+      );
+    }
+    const grant: ApprovalProcessGrant = Object.freeze({
+      approvalRequestId,
+      scope: cloneScope(scope),
+      grantedAt: this.now(),
+    });
+    this.processGrants.set(processGrantKey(key), grant);
+  }
+
+  revokeProcessGrants(): void {
+    this.processGrants.clear();
   }
 
   deny(id: ApprovalRequestId, message = "The user denied this approval request."): ApprovalRecord {

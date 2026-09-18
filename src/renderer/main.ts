@@ -9,7 +9,6 @@ import { InteractionController, DefaultHitAreaAbstraction } from "./live2d/inter
 import { Live2DRendererLifecycleTracker } from "./live2d/lifecycle-diagnostics";
 import { globalTtsPlayback } from "./tts/tts-playback";
 import type { FireflyTarget } from "../shared/firefly-actions";
-import type { CareActionType } from "../shared/firefly-state";
 import type { ProactiveLinePayload } from "../shared/proactive-types";
 
 window.addEventListener("error", (event) => {

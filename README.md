@@ -65,23 +65,24 @@ Firefly-Pet/
 │   └── manifest.json          # 语料清单 SHA-256
 ├── docs/                      # 架构全景、阶段交付与验收报告
 ├── src/
-│   ├── cli/                   # 命令行启动入口 (firefly.mjs)
+│   ├── cli/                   # TypeScript CLI 源码，构建输出到 dist/cli
 │   ├── main/                  # Electron 主进程
 │   │   ├── character/         # 角色策略、具身映射与 806 篇官方原始语料 resources
 │   │   ├── chat/              # Chat IPC 通信与 EmbodimentPlan 调度
-│   │   ├── llm/               # LLM Provider 工厂与适配层
-│   │   ├── orchestrator/      # AgentCore facade, FireflyHarness, ContextManager, ProactiveScheduler
+│   │   ├── orchestrator/      # AgentCore、Harness、Context、Provider、工具与 SubAgent
+│   │   ├── proactive/         # 主动运行时边界（当前无自动生产注册）
+│   │   ├── music/             # MusicService、QQMusic 桥接与偏好上下文
+│   │   ├── tts/               # TTS 会话、分发、引擎与缓存
 │   │   ├── rag/               # RAG 协调器与检索流水线
-│   │   ├── runtime/           # Runtime 服务 (TTS, Music, Execution)
-│   │   ├── state/             # 角色状态管理器
-│   │   ├── tools/             # 工具注册中心与分发器
 │   │   └── windows/           # WindowManager (Pet, Chat, Mood, Settings)
 │   ├── preload/               # 上下文安全隔离 Preload 脚本
 │   ├── renderer/              # 渲染层 (PixiJS Live2D + Light Sky React UI)
 │   │   ├── public/            # Live2D 模型、动作与表情资产
 │   │   ├── tts/               # TTS 音频播放器与状态追踪
 │   │   └── ui/                # React 对话与心境卡片组件
-│   ├── settings/              # SettingsManager 与默认模板
+│   ├── main/memory/           # Memory 存储、检索与写入策略
+│   ├── main/rag/              # RAG 协调器与知识资源
+│   ├── main/settings/         # SettingsManager 与默认模板
 │   └── shared/                # 跨进程类型定义与 IPC 信道常量
 └── tools/
     ├── npm/                  # 项目级 npm 11 封装器
@@ -124,11 +125,11 @@ npm run dev
 
 ### 3. 全局 CLI 启动
 ```powershell
-# 运行烟雾测试
-node src/cli/firefly.mjs --smoke-test
+# 运行烟雾测试（先完成 npm run build）
+node dist/cli/firefly.mjs --smoke-test
 
 # 查看版本
-node src/cli/firefly.mjs --version
+node dist/cli/firefly.mjs --version
 ```
 
 ---
@@ -148,7 +149,7 @@ npm test
 npm pack --dry-run
 
 # 4. 运行 Electron 启动与销毁烟雾测试
-node src/cli/firefly.mjs --smoke-test
+node dist/cli/firefly.mjs --smoke-test
 ```
 
 ---

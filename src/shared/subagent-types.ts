@@ -13,6 +13,7 @@ import type {
   CapabilityJsonValue,
   CapabilityRequester,
 } from "./capability-types";
+import type { AgentTerminationReason } from "./agent-types";
 
 declare const subAgentIdBrand: unique symbol;
 declare const subAgentTaskIdBrand: unique symbol;
@@ -89,12 +90,14 @@ export type SubAgentFailureCode =
   | "TIMEOUT"
   | "CAPABILITY_FAILURE"
   | "INVALID_OUTPUT"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "BUDGET_EXHAUSTED";
 
 export interface SubAgentFailure {
   readonly code: SubAgentFailureCode;
   readonly message: string;
   readonly details?: CapabilityJsonValue;
+  readonly terminationReason?: AgentTerminationReason;
 }
 
 export type SubAgentResult<TOutput extends CapabilityJsonValue = CapabilityJsonValue> =

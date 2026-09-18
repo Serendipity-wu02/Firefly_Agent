@@ -24,20 +24,68 @@ import {
   AuthorizedInvocationBridge,
   type AuthorizedInvocationRuntimeContext,
 } from "../../runtime/authorization/authorized-invocation-bridge";
+import { emitDiagnosticTrace, summarizeBrowserUrl } from "../../diagnostics/diagnostic-trace";
 
 export type HarnessAuthorizationText =
   | string
   | ((input: Readonly<Record<string, CapabilityJsonValue>>) => string);
 
-export interface HarnessAuthorizationRoute {
+export type HarnessAuthorizationRouteResolution =
+  | {
+      readonly ok: true;
+      readonly requestedScope: SandboxScope;
+      readonly approvalSummary: string;
+      readonly approvalReason: string;
+    }
+  | {
+      readonly ok: false;
+      readonly code: string;
+      readonly message: string;
+  };
+
+export interface HarnessAuthorizationFactsContext {
+  /** Main-owned normalized URLs explicitly present in the current user turn. */
+  readonly browserRequestTargets: readonly string[];
+}
+
+export type HarnessAuthorizationFactsResolver = (
+  input: Readonly<Record<string, CapabilityJsonValue>>,
+  context: HarnessAuthorizationFactsContext,
+) => HarnessAuthorizationRouteResolution;
+
+interface HarnessAuthorizationRouteBase {
   readonly toolId: string;
   readonly capabilityId: CapabilityId;
   readonly sandboxProfileId: SandboxProfileId;
-  readonly requestedScope: SandboxScope;
-  readonly approvalSummary: HarnessAuthorizationText;
-  readonly approvalReason: HarnessAuthorizationText;
   readonly approvalTtlMs: number;
 }
+
+export type HarnessAuthorizationRoute = HarnessAuthorizationRouteBase & (
+  | {
+      readonly requestedScope: SandboxScope;
+      readonly approvalSummary: HarnessAuthorizationText;
+      readonly approvalReason: HarnessAuthorizationText;
+      readonly resolveAuthorizationFacts?: never;
+    }
+  | {
+      readonly requestedScope?: never;
+      readonly approvalSummary?: never;
+      readonly approvalReason?: never;
+      /** Trusted Main-side dynamic scope and approval-fact construction. */
+      readonly resolveAuthorizationFacts: HarnessAuthorizationFactsResolver;
+    }
+);
+
+type HarnessAuthorizationWaitResult =
+  | {
+      readonly kind: "outcome";
+      readonly outcome: CapabilityAuthorizationOutcome;
+    }
+  | {
+      readonly kind: "error";
+      readonly result: ToolCallResult;
+      readonly outcome?: CapabilityAuthorizationOutcome;
+    };
 
 export interface HarnessAuthorizationAdapterOptions {
   readonly routes: readonly HarnessAuthorizationRoute[];
@@ -133,6 +181,30 @@ function resolveAuthorizationText(
   return resolved;
 }
 
+function resolveRouteFacts(
+  route: HarnessAuthorizationRoute,
+  input: Readonly<Record<string, CapabilityJsonValue>>,
+  context: HarnessAuthorizationFactsContext,
+): HarnessAuthorizationRouteResolution {
+  try {
+    if (route.resolveAuthorizationFacts !== undefined) {
+      return route.resolveAuthorizationFacts(input, context);
+    }
+    return {
+      ok: true,
+      requestedScope: route.requestedScope,
+      approvalSummary: resolveAuthorizationText(route.approvalSummary, input),
+      approvalReason: resolveAuthorizationText(route.approvalReason, input),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "INVALID_AUTHORIZATION_CONTEXT",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 /**
  * Canonical Harness adapter for the small declarative set of migrated tools.
  * It authorizes and waits, then delegates completed invocations to the existing
@@ -187,9 +259,25 @@ export class HarnessAuthorizationAdapter {
       );
     }
 
+    const authorizationFactsContext: HarnessAuthorizationFactsContext = {
+      browserRequestTargets: context.browserRequestTargets ?? [],
+    };
+    if (call.name === "browser_read") {
+      const requestUrl = typeof input.requestUrl === "string" ? input.requestUrl : "invalid";
+      emitDiagnosticTrace(
+        `[Browser Trace] authorization requestUrl=${summarizeBrowserUrl(requestUrl)}`
+          + ` targets=${authorizationFactsContext.browserRequestTargets.map(summarizeBrowserUrl).join(",") || "none"}`,
+      );
+    }
+    const initialFacts = resolveRouteFacts(route, input, authorizationFactsContext);
+    if (!initialFacts.ok) {
+      return errorResult(call, initialFacts.code, initialFacts.message);
+    }
+
     const requestId = createCapabilityRequestId(
       `harness:${context.runId}:${context.step}:${context.toolCallsCount}:${call.id}`,
     );
+    const permissionProfile = this.options.getPermissionProfile();
     let outcome: CapabilityAuthorizationOutcome = this.options.pipeline.authorize({
       request: {
         requestId,
@@ -199,9 +287,9 @@ export class HarnessAuthorizationAdapter {
       },
       sandbox: {
         profileId: route.sandboxProfileId,
-        requestedScope: route.requestedScope,
+        requestedScope: initialFacts.requestedScope,
       },
-      permissionProfile: this.options.getPermissionProfile(),
+      permissionProfile,
       runtimeContext: {
         runId: context.runId,
         ...(context.conversationId !== undefined
@@ -211,16 +299,42 @@ export class HarnessAuthorizationAdapter {
         ...(context.signal !== undefined ? { signal: context.signal } : {}),
       },
       approval: {
-        summary: resolveAuthorizationText(route.approvalSummary, input),
-        reason: resolveAuthorizationText(route.approvalReason, input),
+        summary: initialFacts.approvalSummary,
+        reason: initialFacts.approvalReason,
         expiresAt: this.now() + route.approvalTtlMs,
       },
     });
 
+    if (call.name === "browser_read") {
+      const outcomeDetails = outcome.status === "DENIED"
+        ? ` stage=${outcome.stage} code=${outcome.reason.code}`
+        : outcome.status === "PENDING_APPROVAL"
+          ? ` approvalRequestId=${outcome.approvalRequest.approvalRequestId}`
+          : "";
+      emitDiagnosticTrace(
+        `[Browser Trace] authorization outcome status=${outcome.status}`
+          + ` permissionProfile=${permissionProfile}${outcomeDetails}`,
+      );
+    }
+
     if (outcome.status === "PENDING_APPROVAL") {
       const approvalRequest = outcome.approvalRequest;
       await hooks.onPendingApproval?.(approvalRequest);
-      outcome = await this.waitForApproval(approvalRequest, context, call.id, context.signal);
+      const waitResult = await this.waitForApproval(
+        approvalRequest,
+        call,
+        route,
+        input,
+        context,
+        context.signal,
+      );
+      if (waitResult.kind === "error") {
+        if (waitResult.outcome !== undefined) {
+          await hooks.onApprovalResolved?.(approvalRequest, waitResult.outcome);
+        }
+        return waitResult.result;
+      }
+      outcome = waitResult.outcome;
       await hooks.onApprovalResolved?.(approvalRequest, outcome);
     }
 
@@ -239,8 +353,33 @@ export class HarnessAuthorizationAdapter {
       return errorResult(call, "CANCELLED", "The Harness run was cancelled before tool execution.");
     }
 
+    const currentFacts = resolveRouteFacts(route, input, authorizationFactsContext);
+    if (!currentFacts.ok) {
+      return errorResult(call, currentFacts.code, currentFacts.message);
+    }
+    const revalidation = this.options.pipeline.revalidateAuthorizedInvocation(
+      outcome.invocation,
+      {
+        profileId: route.sandboxProfileId,
+        requestedScope: currentFacts.requestedScope,
+      },
+    );
+    if (!revalidation.valid) {
+      return errorResult(call, revalidation.reason.code, revalidation.reason.message);
+    }
+
     const execution = await this.options.bridge.execute(outcome.invocation, context);
     if (execution.ok) {
+      return remapCanonicalResult(call, execution.canonicalResult);
+    }
+
+    // The canonical result is the only source that can distinguish an
+    // explicit domain rejection from a timeout or an unknown external
+      // submission. Preserve it whenever canonical execution was reached.
+    if (
+      execution.error.code === "TOOL_EXECUTION_FAILURE" &&
+      execution.canonicalResult !== undefined
+    ) {
       return remapCanonicalResult(call, execution.canonicalResult);
     }
 
@@ -249,10 +388,12 @@ export class HarnessAuthorizationAdapter {
 
   private waitForApproval(
     approvalRequest: ApprovalRequest,
+    call: ToolCall,
+    route: HarnessAuthorizationRoute,
+    input: Readonly<Record<string, CapabilityJsonValue>>,
     context: AuthorizedInvocationRuntimeContext,
-    toolCallId: string,
     signal: AbortSignal | undefined,
-  ): Promise<CapabilityAuthorizationOutcome> {
+  ): Promise<HarnessAuthorizationWaitResult> {
     return new Promise((resolve) => {
       let settled = false;
       let expiryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -263,7 +404,7 @@ export class HarnessAuthorizationAdapter {
         ...(context.conversationId !== undefined
           ? { conversationId: context.conversationId }
           : {}),
-        toolCallId,
+        toolCallId: call.id,
       };
       const expected: CapabilityAuthorizationResumeExpectation = {
         capabilityRequestId: approvalRequest.capabilityRequestId as CapabilityRequestId,
@@ -271,22 +412,37 @@ export class HarnessAuthorizationAdapter {
         correlation,
       };
 
-      const finish = (outcome: CapabilityAuthorizationOutcome): void => {
+      const finish = (result: HarnessAuthorizationWaitResult): void => {
         if (settled) return;
         settled = true;
         if (expiryTimer !== undefined) clearTimeout(expiryTimer);
         removeAbortListener?.();
         unsubscribe();
-        resolve(outcome);
+        resolve(result);
       };
 
       const resume = (): void => {
         if (settled) return;
+        const currentFacts = resolveRouteFacts(route, input, {
+          browserRequestTargets: context.browserRequestTargets ?? [],
+        });
+        if (!currentFacts.ok) {
+          const invalidated = this.options.pipeline.invalidatePending(
+            approvalRequest.approvalRequestId,
+            currentFacts.message,
+          );
+          finish({
+            kind: "error",
+            result: errorResult(call, currentFacts.code, currentFacts.message),
+            outcome: invalidated,
+          });
+          return;
+        }
         const outcome = this.options.pipeline.resumeAfterApproval(
           approvalRequest.approvalRequestId,
-          expected,
+          { ...expected, requestedScope: currentFacts.requestedScope },
         );
-        if (outcome.status !== "PENDING_APPROVAL") finish(outcome);
+        if (outcome.status !== "PENDING_APPROVAL") finish({ kind: "outcome", outcome });
       };
 
       unsubscribe = this.options.approvalService.onChanged((record) => {
@@ -303,9 +459,9 @@ export class HarnessAuthorizationAdapter {
           const outcome = this.options.pipeline.cancelPending(
             approvalRequest.approvalRequestId,
             "The Harness run was cancelled while waiting for approval.",
-            expected,
+            { ...expected, requestedScope: undefined },
           );
-          finish(outcome);
+          finish({ kind: "outcome", outcome });
         };
         signal.addEventListener("abort", onAbort, { once: true });
         removeAbortListener = () => signal.removeEventListener("abort", onAbort);

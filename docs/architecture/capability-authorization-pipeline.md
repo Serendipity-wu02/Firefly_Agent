@@ -94,4 +94,4 @@ and SubAgent execution are intentionally not imported or called. The future
 execution adapter may consume an authorized invocation, but that adapter is
 not part of V1.
 
-Tests: `tools/test/runtime/capability-authorization-pipeline.test.mjs`
+Tests: `tools/test/runtime/capability-authorization-pipeline.test.ts`

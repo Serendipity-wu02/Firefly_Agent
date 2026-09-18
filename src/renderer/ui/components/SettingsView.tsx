@@ -9,6 +9,8 @@ import type { LlmProviderConfig, ProviderId } from "../../../shared/provider-typ
 import { PROVIDER_PRESETS } from "../../../shared/provider-types";
 import type { TtsSettings, TtsEngine } from "../../../shared/tts-types";
 import type { UiFontSize } from "../../../shared/ui-types";
+import type { BrowserSettingsSnapshot } from "../../../shared/settings-types";
+import type { BrowserTransportMode } from "../../../shared/browser-types";
 import {
   PERMISSION_PROFILE_OPTIONS,
   type PermissionProfile,
@@ -24,6 +26,13 @@ export interface SettingsViewProps {
   onUiFontSizeChange: (fontSize: UiFontSize) => void | Promise<void>;
   permissionProfile: PermissionProfile;
   onPermissionProfileChange: (profile: PermissionProfile) => void | Promise<void>;
+  browserSettingsSnapshot: BrowserSettingsSnapshot | undefined;
+  browserTransportMode: BrowserTransportMode;
+  setBrowserTransportMode: React.Dispatch<React.SetStateAction<BrowserTransportMode>>;
+  browserProxyEndpoint: string;
+  setBrowserProxyEndpoint: React.Dispatch<React.SetStateAction<string>>;
+  browserAllowedOriginsText: string;
+  setBrowserAllowedOriginsText: React.Dispatch<React.SetStateAction<string>>;
   autoLaunch: boolean;
   setAutoLaunchState: React.Dispatch<React.SetStateAction<boolean>>;
   onSave: () => void;
@@ -45,6 +54,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUiFontSizeChange,
   permissionProfile,
   onPermissionProfileChange,
+  browserSettingsSnapshot,
+  browserTransportMode,
+  setBrowserTransportMode,
+  browserProxyEndpoint,
+  setBrowserProxyEndpoint,
+  browserAllowedOriginsText,
+  setBrowserAllowedOriginsText,
   autoLaunch,
   setAutoLaunchState,
   onSave,
@@ -210,7 +226,138 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* 3. LLM Provider Settings */}
+      {/* 3. Browser Network Settings */}
+      <section
+        data-browser-network-settings="true"
+        style={{
+          background: THEME_TOKENS.colors.surfaceCard,
+          borderRadius: THEME_TOKENS.radii.lg,
+          padding: "16px",
+          border: `1px solid ${THEME_TOKENS.colors.border}`,
+          boxShadow: THEME_TOKENS.shadows.sm,
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontSize: THEME_TOKENS.typography.fontSizes.title,
+            fontWeight: 700,
+            color: THEME_TOKENS.colors.accent,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          🌐 Browser 网络访问
+        </h3>
+        <div style={{ color: THEME_TOKENS.colors.textSecondary, fontSize: THEME_TOKENS.typography.fontSizes.label, lineHeight: 1.5 }}>
+          这里只保存 Browser 的网络模式与受限 Origin 列表。只有当前用户在 Chat 消息中明确提供网页地址时，Browser 才会进入现有授权链；保存设置不代表连接测试成功。
+        </div>
+
+        {browserSettingsSnapshot?.status === "unavailable" ? (
+          <div
+            role="alert"
+            style={{
+              color: THEME_TOKENS.colors.accent,
+              fontSize: THEME_TOKENS.typography.fontSizes.label,
+              lineHeight: 1.5,
+            }}
+          >
+            已保存的 Browser 网络配置不可用。请显式选择直连，或填写新的合法 HTTP 代理端点后保存；不会自动切换为直连。
+          </div>
+        ) : null}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <label htmlFor="browser-transport-mode" style={{ fontSize: THEME_TOKENS.typography.fontSizes.label, color: THEME_TOKENS.colors.textSecondary }}>
+            连接模式
+          </label>
+          <select
+            id="browser-transport-mode"
+            value={browserTransportMode}
+            onChange={(event) => setBrowserTransportMode(event.target.value as BrowserTransportMode)}
+            style={{
+              padding: "8px 10px",
+              borderRadius: THEME_TOKENS.radii.sm,
+              border: `1px solid ${THEME_TOKENS.colors.border}`,
+              fontSize: THEME_TOKENS.typography.fontSizes.input,
+              color: THEME_TOKENS.colors.textPrimary,
+              background: THEME_TOKENS.colors.bgSubtle,
+              outline: "none",
+            }}
+          >
+            <option value="direct">直连（不使用系统或环境代理）</option>
+            <option value="http_proxy">HTTP 代理（由用户显式指定）</option>
+          </select>
+        </div>
+
+        {browserTransportMode === "http_proxy" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <label htmlFor="browser-http-proxy" style={{ fontSize: THEME_TOKENS.typography.fontSizes.label, color: THEME_TOKENS.colors.textSecondary }}>
+              HTTP 代理端点（必须包含显式端口）
+            </label>
+            <input
+              id="browser-http-proxy"
+              type="text"
+              value={browserProxyEndpoint}
+              onChange={(event) => setBrowserProxyEndpoint(event.target.value)}
+              placeholder="http://代理主机:显式端口"
+              aria-invalid={browserProxyEndpoint.trim().length === 0}
+              style={{
+                padding: "8px 10px",
+                borderRadius: THEME_TOKENS.radii.sm,
+                border: `1px solid ${THEME_TOKENS.colors.border}`,
+                fontSize: THEME_TOKENS.typography.fontSizes.input,
+                color: THEME_TOKENS.colors.textPrimary,
+                background: THEME_TOKENS.colors.bgSubtle,
+                outline: "none",
+              }}
+            />
+            <div style={{ color: THEME_TOKENS.colors.textMuted, fontSize: THEME_TOKENS.typography.fontSizes.caption, lineHeight: 1.45 }}>
+              {browserProxyEndpoint.trim().length === 0
+                ? "请填写 HTTP 代理端点；Main 保存时会按 Browser 端点规则权威校验。"
+                : "代理负责解析网页域名；Firefly 不独立观察代理实际连接的网页 IP。Main 保存时会再次权威校验。"}
+            </div>
+          </div>
+        ) : (
+          <div style={{ color: THEME_TOKENS.colors.textMuted, fontSize: THEME_TOKENS.typography.fontSizes.caption, lineHeight: 1.45 }}>
+            直连不会自动采用系统代理、环境变量、PAC 或 Clash 配置。
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <label htmlFor="browser-allowed-origins" style={{ fontSize: THEME_TOKENS.typography.fontSizes.label, color: THEME_TOKENS.colors.textSecondary }}>
+            受限权限允许 Origin（每行一个，根 Origin）
+          </label>
+          <textarea
+            id="browser-allowed-origins"
+            value={browserAllowedOriginsText}
+            onChange={(event) => setBrowserAllowedOriginsText(event.target.value)}
+            placeholder="https://example.com\nhttps://docs.example.com"
+            rows={3}
+            spellCheck={false}
+            style={{
+              resize: "vertical",
+              minHeight: "72px",
+              padding: "8px 10px",
+              borderRadius: THEME_TOKENS.radii.sm,
+              border: `1px solid ${THEME_TOKENS.colors.border}`,
+              fontSize: THEME_TOKENS.typography.fontSizes.input,
+              color: THEME_TOKENS.colors.textPrimary,
+              background: THEME_TOKENS.colors.bgSubtle,
+              outline: "none",
+              fontFamily: "inherit",
+            }}
+          />
+          <div style={{ color: THEME_TOKENS.colors.textMuted, fontSize: THEME_TOKENS.typography.fontSizes.caption, lineHeight: 1.45 }}>
+            仅用于 RESTRICTED_SCOPE 的精确匹配；不支持通配符、子域继承、路径、查询或片段。Main 会再次校验，保存不会执行 DNS 或网络请求。
+          </div>
+        </div>
+      </section>
+
+      {/* 4. LLM Provider Settings */}
       <section
         style={{
           background: THEME_TOKENS.colors.surfaceCard,
@@ -336,7 +483,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* 4. TTS Voice Settings */}
+      {/* 5. TTS Voice Settings */}
       <section
         style={{
           background: THEME_TOKENS.colors.surfaceCard,
@@ -399,7 +546,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* 5. Startup & General Options */}
+      {/* 6. Startup & General Options */}
       <section
         style={{
           background: THEME_TOKENS.colors.surfaceCard,

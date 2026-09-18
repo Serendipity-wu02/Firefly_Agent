@@ -31,6 +31,7 @@ export class WindowManager {
   private chatWindow: BrowserWindow | null = null;
   private settingsWindow: BrowserWindow | null = null;
   private summaryWindow: BrowserWindow | null = null;
+  private summaryPreferredVisible = true;
   private approvalWindow: BrowserWindow | null = null;
   private approvalWindowCloseHandler: (() => void) | null = null;
   private approvalPresentationRefreshHandler: (() => void) | null = null;
@@ -297,7 +298,7 @@ export class WindowManager {
     });
 
     win.on("restore", () => {
-      if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
+      if (this.summaryPreferredVisible && this.summaryWindow && !this.summaryWindow.isDestroyed()) {
         this.summaryWindow.show();
       }
       this.notifyApprovalPresentationAvailability();
@@ -309,7 +310,7 @@ export class WindowManager {
     });
 
     win.on("show", () => {
-      if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
+      if (this.summaryPreferredVisible && this.summaryWindow && !this.summaryWindow.isDestroyed()) {
         this.summaryWindow.show();
       }
       this.notifyApprovalPresentationAvailability();
@@ -538,7 +539,9 @@ export class WindowManager {
 
   createSummaryWindow(): BrowserWindow {
     if (this.summaryWindow && !this.summaryWindow.isDestroyed()) {
-      this.summaryWindow.show();
+      if (this.summaryPreferredVisible) {
+        this.summaryWindow.show();
+      }
       return this.summaryWindow;
     }
 
@@ -581,11 +584,14 @@ export class WindowManager {
     }
 
     win.once("ready-to-show", () => {
-      win.show();
+      if (this.summaryPreferredVisible) {
+        win.show();
+      }
     });
 
     win.on("closed", () => {
       this.summaryWindow = null;
+      this.summaryPreferredVisible = false;
     });
 
     this.summaryWindow = win;
@@ -594,12 +600,15 @@ export class WindowManager {
 
   toggleSummaryWindow(): void {
     if (!this.summaryWindow || this.summaryWindow.isDestroyed()) {
+      this.summaryPreferredVisible = true;
       this.createSummaryWindow();
       return;
     }
     if (this.summaryWindow.isVisible()) {
+      this.summaryPreferredVisible = false;
       this.summaryWindow.hide();
     } else {
+      this.summaryPreferredVisible = true;
       this.summaryWindow.show();
     }
   }
