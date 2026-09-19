@@ -14,6 +14,7 @@ import type {
 import type { ApprovalRecord } from "../shared/approval-types";
 import type {
   WorkCreatePlanRequest,
+  WorkMarkdownExportResult,
   WorkTaskOperationResult,
   WorkTaskSnapshot,
 } from "../shared/work-types";
@@ -96,6 +97,7 @@ declare global {
       createPlan: (request: WorkCreatePlanRequest) => Promise<WorkTaskOperationResult>;
       confirmPlan: (proposalId: string) => Promise<WorkTaskOperationResult>;
       cancel: () => Promise<WorkTaskOperationResult>;
+      exportMarkdown: () => Promise<WorkMarkdownExportResult>;
       onStateChanged: (cb: (snapshot: WorkTaskSnapshot) => void) => () => void;
     };
     startup?: {

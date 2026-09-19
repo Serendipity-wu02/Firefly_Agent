@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { AgentEventBus } from "../orchestrator/agent-events";
 import type {
   AgentRunResult,
@@ -11,6 +13,7 @@ import { extractBrowserUserTargetUrls } from "../browser/browser-user-targets";
 import type {
   WorkCreatePlanRequest,
   WorkFileReadMode,
+  WorkMarkdownExportResult,
   WorkPlanGenerationResult,
   WorkStepSnapshot,
   WorkTaskOperationResult,
@@ -18,6 +21,7 @@ import type {
   WorkTaskSnapshot,
   WorkVerificationStatus,
 } from "../../shared/work-types";
+import { renderWorkMarkdown } from "../../shared/work-markdown";
 import {
   WorkFileSelectionError,
   WorkFileSelectionStore,
@@ -83,6 +87,7 @@ interface MutableWorkTask {
   currentStepIndex?: number;
   cancelRequested: boolean;
   terminationReason?: AgentTerminationReason;
+  finalText?: string;
   error?: string;
   updatedAt: number;
   proposalConsumed: boolean;
@@ -137,6 +142,7 @@ function cloneSnapshot(task: MutableWorkTask | null): WorkTaskSnapshot | null {
     ...(task.currentStepIndex === undefined ? {} : { currentStepIndex: task.currentStepIndex }),
     cancelRequested: task.cancelRequested,
     ...(task.terminationReason === undefined ? {} : { terminationReason: task.terminationReason }),
+    ...(task.finalText === undefined ? {} : { finalText: task.finalText }),
     ...(task.error === undefined ? {} : { error: task.error }),
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
@@ -219,6 +225,43 @@ export class WorkTaskCoordinator {
 
   getCurrentFileSelection(): WorkFileSelectionSnapshot | undefined {
     return this.currentFileSelection;
+  }
+
+  async exportMarkdown(targetPath: string): Promise<WorkMarkdownExportResult> {
+    const task = this.currentTask;
+    if (
+      this.disposed ||
+      task === null ||
+      !isTerminalPhase(task.phase) ||
+      typeof targetPath !== "string" ||
+      targetPath.trim().length === 0
+    ) {
+      return {
+        ok: false,
+        code: "not_exportable",
+        message: "只有已结束的 Work 任务可以导出 Markdown。",
+      };
+    }
+
+    const snapshot = cloneSnapshot(task);
+    if (snapshot === null) {
+      return {
+        ok: false,
+        code: "not_exportable",
+        message: "当前没有可导出的 Work 任务。",
+      };
+    }
+
+    try {
+      await fs.writeFile(targetPath, renderWorkMarkdown(snapshot), { encoding: "utf8" });
+      return { ok: true, fileName: path.basename(targetPath) };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        code: "write_failed",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   async selectFiles(filePaths: readonly string[]): Promise<WorkFileSelectionOperationResult> {
@@ -747,6 +790,7 @@ export class WorkTaskCoordinator {
 
   private applyAgentResult(task: MutableWorkTask, result: AgentRunResult): void {
     task.terminationReason = result.terminationReason;
+    task.finalText = result.finalText;
     task.error = result.error;
     if (result.status === "completed" && task.fileReadRequirement !== undefined &&
         task.runId !== undefined && !hasRequiredFileReadEvidence(result, task.runId, task.fileReadRequirement)) {

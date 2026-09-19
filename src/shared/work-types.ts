@@ -80,6 +80,7 @@ export interface WorkTaskSnapshot {
   readonly currentStepIndex?: number;
   readonly cancelRequested: boolean;
   readonly terminationReason?: AgentTerminationReason;
+  readonly finalText?: string;
   readonly error?: string;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -108,3 +109,12 @@ export interface WorkTaskOperationFailure {
 export type WorkTaskOperationResult =
   | WorkTaskOperationSuccess
   | WorkTaskOperationFailure;
+
+export type WorkMarkdownExportResult =
+  | { readonly ok: true; readonly fileName: string }
+  | { readonly ok: true; readonly cancelled: true }
+  | {
+      readonly ok: false;
+      readonly code: "not_exportable" | "write_failed";
+      readonly message: string;
+    };

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { ProviderStatus } from "../../../shared/provider-types";
 import type {
   WorkCreatePlanRequest,
+  WorkMarkdownExportResult,
   WorkTaskOperationResult,
   WorkTaskSnapshot,
 } from "../../../shared/work-types";
@@ -112,6 +113,7 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
   const [fileReadMode, setFileReadMode] = useState<WorkCreatePlanRequest["fileReadMode"]>("optional");
   const [task, setTask] = useState("");
   const [error, setError] = useState("");
+  const [exportMessage, setExportMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -144,6 +146,7 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
     if (!window.work || busy || isActive) return;
     setBusy(true);
     setError("");
+    setExportMessage("");
     try {
       const result: WorkFileSelectionOperationResult = await window.work.selectFiles();
       if (result.selection !== undefined) {
@@ -161,6 +164,9 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
   const isActive = snapshot?.phase === "planning" ||
     snapshot?.phase === "awaiting_confirmation" ||
     snapshot?.phase === "running";
+  const isTerminal = snapshot?.phase === "completed" ||
+    snapshot?.phase === "failed" ||
+    snapshot?.phase === "cancelled";
   const canConfirm = snapshot?.phase === "awaiting_confirmation" && snapshot.proposalId !== undefined;
   const actionLabel = useMemo(() => {
     if (snapshot?.phase === "planning") return "正在生成计划…";
@@ -206,6 +212,27 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
       updateFromResult(result, setSnapshot, setError);
     } catch (cancelError: unknown) {
       setError(cancelError instanceof Error ? cancelError.message : String(cancelError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const exportMarkdown = async (): Promise<void> => {
+    if (!window.work || !isTerminal || busy) return;
+    setBusy(true);
+    setError("");
+    setExportMessage("");
+    try {
+      const result: WorkMarkdownExportResult = await window.work.exportMarkdown();
+      if (!result.ok) {
+        setError(result.message);
+      } else if ("cancelled" in result && result.cancelled) {
+        setExportMessage("已取消导出。");
+      } else if ("fileName" in result) {
+        setExportMessage(`已导出 Markdown：${result.fileName}`);
+      }
+    } catch (exportError: unknown) {
+      setError(exportError instanceof Error ? exportError.message : String(exportError));
     } finally {
       setBusy(false);
     }
@@ -284,6 +311,12 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
                   本任务要求执行时读取所选文件；缺少对应的本次成功读取证据不能完成。
                 </p>
               ) : null}
+              {snapshot.finalText ? (
+                <section style={{ margin: "12px 0", padding: 12, borderRadius: 10, background: "rgba(244,248,247,0.9)" }}>
+                  <strong>最终结果</strong>
+                  <p style={{ whiteSpace: "pre-wrap", margin: "8px 0 0" }}>{snapshot.finalText}</p>
+                </section>
+              ) : null}
               {snapshot.browserRequestTargets.length > 0 ? (
                 <p style={{ margin: "8px 0", color: THEME_TOKENS.colors.textSecondary }}>
                   当前用户消息中的网页目标：{snapshot.browserRequestTargets.join("、")}
@@ -315,7 +348,13 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
                   确认计划并执行
                 </button>
               ) : null}
+              {isTerminal ? (
+                <button type="button" onClick={() => void exportMarkdown()} disabled={busy}>
+                  导出 Markdown
+                </button>
+              ) : null}
               {snapshot.error ? <p style={{ color: "#a33", whiteSpace: "pre-wrap" }}>{snapshot.error}</p> : null}
+              {exportMessage ? <p style={{ color: THEME_TOKENS.colors.textSecondary }}>{exportMessage}</p> : null}
               {snapshot.terminationReason ? <p style={{ color: THEME_TOKENS.colors.textSecondary }}>终态：{snapshot.terminationReason.kind}</p> : null}
             </section>
           ) : null}

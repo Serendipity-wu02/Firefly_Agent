@@ -14,6 +14,7 @@ import type {
 import type { ApprovalRecord } from "../shared/approval-types";
 import type {
   WorkCreatePlanRequest,
+  WorkMarkdownExportResult,
   WorkTaskOperationResult,
   WorkTaskSnapshot,
 } from "../shared/work-types";
@@ -91,6 +92,7 @@ const IPC = {
   WORK_CREATE_PLAN: "work:create-plan",
   WORK_CONFIRM_PLAN: "work:confirm-plan",
   WORK_CANCEL: "work:cancel",
+  WORK_EXPORT_MARKDOWN: "work:export-markdown",
   WORK_STATE_CHANGED: "work:state-changed",
 
   // Settings & Startup & Provider
@@ -256,6 +258,7 @@ contextBridge.exposeInMainWorld("work", {
   confirmPlan: (proposalId: string): Promise<WorkTaskOperationResult> =>
     ipcRenderer.invoke(IPC.WORK_CONFIRM_PLAN, proposalId),
   cancel: (): Promise<WorkTaskOperationResult> => ipcRenderer.invoke(IPC.WORK_CANCEL),
+  exportMarkdown: (): Promise<WorkMarkdownExportResult> => ipcRenderer.invoke(IPC.WORK_EXPORT_MARKDOWN),
   onStateChanged: (cb: (snapshot: WorkTaskSnapshot) => void) => {
     const listener = (_unknown: unknown, snapshot: WorkTaskSnapshot) => cb(snapshot);
     ipcRenderer.on(IPC.WORK_STATE_CHANGED, listener);

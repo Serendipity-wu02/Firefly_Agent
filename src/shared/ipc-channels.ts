@@ -59,6 +59,7 @@ export const IPC = {
   WORK_CREATE_PLAN: "work:create-plan",
   WORK_CONFIRM_PLAN: "work:confirm-plan",
   WORK_CANCEL: "work:cancel",
+  WORK_EXPORT_MARKDOWN: "work:export-markdown",
   WORK_STATE_CHANGED: "work:state-changed",
 
   // Settings & Startup & Provider

@@ -76,6 +76,19 @@ export function registerWorkIpc(options: {
       return options.coordinator.cancel();
     });
     registeredChannels.add(IPC.WORK_CANCEL);
+
+    ipcMain.handle(IPC.WORK_EXPORT_MARKDOWN, async (event) => {
+      requireWorkSender(event.sender);
+      const selected = await dialog.showSaveDialog({
+        title: "导出 Work Markdown",
+        defaultPath: "work-result.md",
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+        properties: ["showOverwriteConfirmation"],
+      });
+      if (selected.canceled) return { ok: true, cancelled: true };
+      return options.coordinator.exportMarkdown(selected.filePath);
+    });
+    registeredChannels.add(IPC.WORK_EXPORT_MARKDOWN);
   } catch (error: unknown) {
     dispose();
     throw error;
