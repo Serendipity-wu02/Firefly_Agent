@@ -116,7 +116,9 @@ test("Work coordinator writes a terminal snapshot to the user-selected Markdown 
     assert.equal(confirmed.ok, true);
 
     const target = path.join(directory, "work-result.md");
-    const exported = await coordinator.exportMarkdown(target);
+    const historyId = coordinator.getHistory().records[0]?.historyId;
+    assert.ok(historyId);
+    const exported = await coordinator.exportMarkdown(historyId, target);
     assert.deepEqual(exported, { ok: true, fileName: "work-result.md" });
     assert.match(await fs.readFile(target, "utf8"), /导出的最终结果/);
     coordinator.dispose();
@@ -154,9 +156,11 @@ test("Repeated Work exports preserve the same terminal result", async () => {
     assert.equal((await coordinator.confirmPlan(created.snapshot.proposalId)).ok, true);
 
     const target = path.join(directory, "repeated.md");
+    const historyId = coordinator.getHistory().records[0]?.historyId;
+    assert.ok(historyId);
     const results = await Promise.all([
-      coordinator.exportMarkdown(target),
-      coordinator.exportMarkdown(target),
+      coordinator.exportMarkdown(historyId, target),
+      coordinator.exportMarkdown(historyId, target),
     ]);
     assert.deepEqual(results, [
       { ok: true, fileName: "repeated.md" },
@@ -202,7 +206,9 @@ test("Work export keeps the original snapshot when a new task is created", async
 
     await complete("第一个任务");
     const target = path.join(directory, "first-task.md");
-    const firstExport = coordinator.exportMarkdown(target);
+    const firstHistoryId = coordinator.getHistory().records[0]?.historyId;
+    assert.ok(firstHistoryId);
+    const firstExport = coordinator.exportMarkdown(firstHistoryId, target);
     await complete("第二个任务");
     assert.equal((await firstExport).ok, true);
     assert.match(await fs.readFile(target, "utf8"), /任务结果 1/);
@@ -225,7 +231,7 @@ test("Work Markdown export rejects an active task without writing a file", async
   const coordinator = new WorkTaskCoordinator({ agentCore: core });
   const created = await coordinator.createPlan({ task: "不能导出活动任务", fileReadMode: "optional" });
   assert.equal(created.ok, true);
-  const exported = await coordinator.exportMarkdown("ignored.md");
+  const exported = await coordinator.exportMarkdown("missing-history", "ignored.md");
   assert.equal(exported.ok, false);
   if (!exported.ok) assert.equal(exported.code, "not_exportable");
   coordinator.dispose();

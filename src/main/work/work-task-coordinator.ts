@@ -21,7 +21,9 @@ import type {
   WorkTaskSnapshot,
   WorkVerificationStatus,
 } from "../../shared/work-types";
-import { renderWorkMarkdown } from "../../shared/work-markdown";
+import type { WorkHistorySnapshot } from "../../shared/work-history-types";
+import { renderWorkHistoryMarkdown } from "../../shared/work-markdown";
+import { WorkHistoryStore, projectWorkHistoryRecord } from "./work-history-store";
 import {
   WorkFileSelectionError,
   WorkFileSelectionStore,
@@ -51,6 +53,7 @@ export interface WorkAgentCore {
 export interface WorkTaskCoordinatorOptions {
   readonly agentCore: WorkAgentCore;
   readonly onChanged?: (snapshot: WorkTaskSnapshot) => void;
+  readonly onHistoryChanged?: (history: WorkHistorySnapshot) => void;
   readonly onActivityChanged?: (active: boolean) => void;
   readonly fileSelectionStore?: WorkFileSelectionStore;
   readonly bindFileSelectionToSandbox?: (
@@ -91,6 +94,7 @@ interface MutableWorkTask {
   error?: string;
   updatedAt: number;
   proposalConsumed: boolean;
+  historyRecorded: boolean;
 }
 
 function isActivePhase(phase: WorkTaskPhase): boolean {
@@ -195,6 +199,7 @@ function hasRequiredFileReadEvidence(
 export class WorkTaskCoordinator {
   private readonly agentCore: WorkAgentCore;
   private readonly onChanged: (snapshot: WorkTaskSnapshot) => void;
+  private readonly onHistoryChanged: (history: WorkHistorySnapshot) => void;
   private readonly onActivityChanged: (active: boolean) => void;
   private readonly removeEventListener: () => void;
   private currentTask: MutableWorkTask | null = null;
@@ -204,12 +209,14 @@ export class WorkTaskCoordinator {
   private readonly fileSelectionStore?: WorkFileSelectionStore;
   private readonly bindFileSelectionToSandbox?: WorkTaskCoordinatorOptions["bindFileSelectionToSandbox"];
   private readonly diagnosticSink?: WorkDiagnosticSink;
+  private readonly historyStore = new WorkHistoryStore();
   private currentFileSelection?: WorkFileSelectionSnapshot;
   private fileScopeLease: (() => void) | undefined;
 
   constructor(options: WorkTaskCoordinatorOptions) {
     this.agentCore = options.agentCore;
     this.onChanged = options.onChanged ?? (() => undefined);
+    this.onHistoryChanged = options.onHistoryChanged ?? (() => undefined);
     this.onActivityChanged = options.onActivityChanged ?? (() => undefined);
     this.fileSelectionStore = options.fileSelectionStore;
     this.bindFileSelectionToSandbox = options.bindFileSelectionToSandbox;
@@ -227,12 +234,15 @@ export class WorkTaskCoordinator {
     return this.currentFileSelection;
   }
 
-  async exportMarkdown(targetPath: string): Promise<WorkMarkdownExportResult> {
-    const task = this.currentTask;
+  getHistory(): WorkHistorySnapshot {
+    return this.historyStore.getSnapshot();
+  }
+
+  async exportMarkdown(historyId: string, targetPath: string): Promise<WorkMarkdownExportResult> {
     if (
       this.disposed ||
-      task === null ||
-      !isTerminalPhase(task.phase) ||
+      typeof historyId !== "string" ||
+      historyId.trim().length === 0 ||
       typeof targetPath !== "string" ||
       targetPath.trim().length === 0
     ) {
@@ -243,17 +253,17 @@ export class WorkTaskCoordinator {
       };
     }
 
-    const snapshot = cloneSnapshot(task);
-    if (snapshot === null) {
+    const record = this.historyStore.get(historyId);
+    if (record === undefined) {
       return {
         ok: false,
         code: "not_exportable",
-        message: "当前没有可导出的 Work 任务。",
+        message: "所选 Work 历史不存在或已被淘汰。",
       };
     }
 
     try {
-      await fs.writeFile(targetPath, renderWorkMarkdown(snapshot), { encoding: "utf8" });
+      await fs.writeFile(targetPath, renderWorkHistoryMarkdown(record), { encoding: "utf8" });
       return { ok: true, fileName: path.basename(targetPath) };
     } catch (error: unknown) {
       return {
@@ -353,6 +363,7 @@ export class WorkTaskCoordinator {
       createdAt,
       updatedAt: createdAt,
       proposalConsumed: false,
+      historyRecorded: false,
     };
     this.currentTask = task;
     this.diagnosticSink?.record({
@@ -767,6 +778,7 @@ export class WorkTaskCoordinator {
     this.fileScopeLease = undefined;
     this.removeEventListener();
     this.fileSelectionStore?.dispose();
+    this.historyStore.clear();
     this.onActivityChanged(false);
     this.lastActivity = false;
   }
@@ -864,11 +876,19 @@ export class WorkTaskCoordinator {
     if (this.currentTask === null) return;
     const snapshot = cloneSnapshot(this.currentTask);
     if (snapshot === null) return;
+    this.recordTerminalTask(this.currentTask, snapshot);
     const active = isActivePhase(snapshot.phase);
     if (active !== this.lastActivity) {
       this.lastActivity = active;
       this.onActivityChanged(active);
     }
     this.onChanged(snapshot);
+  }
+
+  private recordTerminalTask(task: MutableWorkTask, snapshot: WorkTaskSnapshot): void {
+    if (!isTerminalPhase(task.phase) || task.historyRecorded) return;
+    task.historyRecorded = true;
+    const stored = this.historyStore.add(projectWorkHistoryRecord(snapshot));
+    if (stored) this.onHistoryChanged(this.historyStore.getSnapshot());
   }
 }

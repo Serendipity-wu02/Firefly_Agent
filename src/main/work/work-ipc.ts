@@ -35,6 +35,12 @@ export function registerWorkIpc(options: {
     });
     registeredChannels.add(IPC.WORK_GET_STATE);
 
+    ipcMain.handle(IPC.WORK_GET_HISTORY, (event) => {
+      requireWorkSender(event.sender);
+      return options.coordinator.getHistory();
+    });
+    registeredChannels.add(IPC.WORK_GET_HISTORY);
+
     ipcMain.handle(IPC.WORK_GET_FILE_SELECTION, (event) => {
       requireWorkSender(event.sender);
       return options.coordinator.getCurrentFileSelection();
@@ -77,7 +83,7 @@ export function registerWorkIpc(options: {
     });
     registeredChannels.add(IPC.WORK_CANCEL);
 
-    ipcMain.handle(IPC.WORK_EXPORT_MARKDOWN, async (event) => {
+    ipcMain.handle(IPC.WORK_EXPORT_MARKDOWN, async (event, historyId: unknown) => {
       requireWorkSender(event.sender);
       const selected = await dialog.showSaveDialog({
         title: "导出 Work Markdown",
@@ -86,7 +92,10 @@ export function registerWorkIpc(options: {
         properties: ["showOverwriteConfirmation"],
       });
       if (selected.canceled) return { ok: true, cancelled: true };
-      return options.coordinator.exportMarkdown(selected.filePath);
+      return options.coordinator.exportMarkdown(
+        typeof historyId === "string" ? historyId : "",
+        selected.filePath,
+      );
     });
     registeredChannels.add(IPC.WORK_EXPORT_MARKDOWN);
   } catch (error: unknown) {

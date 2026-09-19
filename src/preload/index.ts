@@ -18,6 +18,7 @@ import type {
   WorkTaskOperationResult,
   WorkTaskSnapshot,
 } from "../shared/work-types";
+import type { WorkHistorySnapshot } from "../shared/work-history-types";
 import type {
   WorkFileSelectionOperationResult,
   WorkFileSelectionSnapshot,
@@ -87,6 +88,7 @@ const IPC = {
   CHAT_SEND_MESSAGE: "chat:send-message",
   CHAT_GET_HISTORY: "chat:get-history",
   WORK_GET_STATE: "work:get-state",
+  WORK_GET_HISTORY: "work:get-history",
   WORK_GET_FILE_SELECTION: "work:get-file-selection",
   WORK_SELECT_FILES: "work:select-files",
   WORK_CREATE_PLAN: "work:create-plan",
@@ -94,6 +96,7 @@ const IPC = {
   WORK_CANCEL: "work:cancel",
   WORK_EXPORT_MARKDOWN: "work:export-markdown",
   WORK_STATE_CHANGED: "work:state-changed",
+  WORK_HISTORY_CHANGED: "work:history-changed",
 
   // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",
@@ -249,6 +252,7 @@ contextBridge.exposeInMainWorld("startup", {
 
 contextBridge.exposeInMainWorld("work", {
   getState: (): Promise<WorkTaskSnapshot | null> => ipcRenderer.invoke(IPC.WORK_GET_STATE),
+  getHistory: (): Promise<WorkHistorySnapshot> => ipcRenderer.invoke(IPC.WORK_GET_HISTORY),
   getFileSelection: (): Promise<WorkFileSelectionSnapshot | undefined> =>
     ipcRenderer.invoke(IPC.WORK_GET_FILE_SELECTION),
   selectFiles: (): Promise<WorkFileSelectionOperationResult> =>
@@ -258,11 +262,17 @@ contextBridge.exposeInMainWorld("work", {
   confirmPlan: (proposalId: string): Promise<WorkTaskOperationResult> =>
     ipcRenderer.invoke(IPC.WORK_CONFIRM_PLAN, proposalId),
   cancel: (): Promise<WorkTaskOperationResult> => ipcRenderer.invoke(IPC.WORK_CANCEL),
-  exportMarkdown: (): Promise<WorkMarkdownExportResult> => ipcRenderer.invoke(IPC.WORK_EXPORT_MARKDOWN),
+  exportMarkdown: (historyId: string): Promise<WorkMarkdownExportResult> =>
+    ipcRenderer.invoke(IPC.WORK_EXPORT_MARKDOWN, historyId),
   onStateChanged: (cb: (snapshot: WorkTaskSnapshot) => void) => {
     const listener = (_unknown: unknown, snapshot: WorkTaskSnapshot) => cb(snapshot);
     ipcRenderer.on(IPC.WORK_STATE_CHANGED, listener);
     return () => { ipcRenderer.removeListener(IPC.WORK_STATE_CHANGED, listener); };
+  },
+  onHistoryChanged: (cb: (history: WorkHistorySnapshot) => void) => {
+    const listener = (_unknown: unknown, history: WorkHistorySnapshot) => cb(history);
+    ipcRenderer.on(IPC.WORK_HISTORY_CHANGED, listener);
+    return () => { ipcRenderer.removeListener(IPC.WORK_HISTORY_CHANGED, listener); };
   },
 });
 

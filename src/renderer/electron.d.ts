@@ -18,6 +18,7 @@ import type {
   WorkTaskOperationResult,
   WorkTaskSnapshot,
 } from "../shared/work-types";
+import type { WorkHistorySnapshot } from "../shared/work-history-types";
 import type {
   WorkFileSelectionOperationResult,
   WorkFileSelectionSnapshot,
@@ -92,13 +93,15 @@ declare global {
     };
     work?: {
       getState: () => Promise<WorkTaskSnapshot | null>;
+      getHistory: () => Promise<WorkHistorySnapshot>;
       getFileSelection: () => Promise<WorkFileSelectionSnapshot | undefined>;
       selectFiles: () => Promise<WorkFileSelectionOperationResult>;
       createPlan: (request: WorkCreatePlanRequest) => Promise<WorkTaskOperationResult>;
       confirmPlan: (proposalId: string) => Promise<WorkTaskOperationResult>;
       cancel: () => Promise<WorkTaskOperationResult>;
-      exportMarkdown: () => Promise<WorkMarkdownExportResult>;
+      exportMarkdown: (historyId: string) => Promise<WorkMarkdownExportResult>;
       onStateChanged: (cb: (snapshot: WorkTaskSnapshot) => void) => () => void;
+      onHistoryChanged: (cb: (history: WorkHistorySnapshot) => void) => () => void;
     };
     startup?: {
       get: () => Promise<boolean>;

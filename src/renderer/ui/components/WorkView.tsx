@@ -7,6 +7,10 @@ import type {
   WorkTaskSnapshot,
 } from "../../../shared/work-types";
 import type {
+  WorkHistoryRecord,
+  WorkHistorySnapshot,
+} from "../../../shared/work-history-types";
+import type {
   WorkFileSelectionOperationResult,
   WorkFileSelectionSnapshot,
 } from "../../../shared/work-file-types";
@@ -107,8 +111,57 @@ function updateFromResult(
   else setError("");
 }
 
+function HistoryRecordView({
+  record,
+  onExport,
+}: {
+  readonly record: WorkHistoryRecord;
+  readonly onExport: (historyId: string) => Promise<void>;
+}): React.ReactElement {
+  return (
+    <div style={{ marginTop: 16, padding: 14, borderRadius: 10, background: "rgba(244,248,247,0.9)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <strong>{phaseLabel(record.phase)} · 历史任务</strong>
+        <button type="button" onClick={() => void onExport(record.historyId)}>导出 Markdown</button>
+      </div>
+      <p style={{ whiteSpace: "pre-wrap", margin: "10px 0" }}>{record.userPrompt}</p>
+      {record.fileSelection ? (
+        <div style={{ color: THEME_TOKENS.colors.textSecondary, fontSize: 13 }}>
+          资料：{record.fileSelection.files.map((file) => `${file.displayName} · ${file.fileKind} · ${formatFileBytes(file.byteLength)}`).join("；")}
+        </div>
+      ) : null}
+      <ol style={{ margin: "12px 0", paddingLeft: 24 }}>
+        {record.steps.map((step) => (
+          <li key={`${record.historyId}-${step.index}`} style={{ marginBottom: 10 }}>
+            <div><strong>{step.description}</strong></div>
+            <div style={{ color: THEME_TOKENS.colors.textSecondary, fontSize: 13 }}>
+              {requirementLabel(step.completionRequirement)} · 状态：{step.status}
+              {step.verificationStatus ? ` · 验证：${step.verificationStatus}` : ""}
+            </div>
+            {step.plannedOperation ? (
+              <div style={{ color: THEME_TOKENS.colors.textSecondary, fontSize: 13 }}>
+                预定操作：{step.plannedOperation}
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+      {record.finalText ? (
+        <section style={{ margin: "12px 0", padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.72)" }}>
+          <strong>最终结果</strong>
+          <p style={{ whiteSpace: "pre-wrap", margin: "8px 0 0" }}>{record.finalText}</p>
+        </section>
+      ) : null}
+      {record.error ? <p style={{ color: "#a33", whiteSpace: "pre-wrap" }}>{record.error}</p> : null}
+      {record.terminationReason ? <p style={{ color: THEME_TOKENS.colors.textSecondary }}>终态：{record.terminationReason.kind}</p> : null}
+    </div>
+  );
+}
+
 export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized }) => {
   const [snapshot, setSnapshot] = useState<WorkTaskSnapshot | null>(null);
+  const [history, setHistory] = useState<WorkHistorySnapshot | null>(null);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | undefined>();
   const [fileSelection, setFileSelection] = useState<WorkFileSelectionSnapshot | undefined>();
   const [fileReadMode, setFileReadMode] = useState<WorkCreatePlanRequest["fileReadMode"]>("optional");
   const [task, setTask] = useState("");
@@ -128,6 +181,11 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
     }).catch((loadError: unknown) => {
       if (active) setError(loadError instanceof Error ? loadError.message : String(loadError));
     });
+    void work.getHistory().then((records) => {
+      if (active) setHistory(records);
+    }).catch((loadError: unknown) => {
+      if (active) setError(loadError instanceof Error ? loadError.message : String(loadError));
+    });
     void work.getFileSelection().then((selection) => {
       if (active) setFileSelection(selection);
     }).catch((loadError: unknown) => {
@@ -136,9 +194,13 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
     const unsubscribe = work.onStateChanged((state) => {
       if (active) setSnapshot(state);
     });
+    const unsubscribeHistory = work.onHistoryChanged((records) => {
+      if (active) setHistory(records);
+    });
     return () => {
       active = false;
       unsubscribe();
+      unsubscribeHistory();
     };
   }, []);
 
@@ -217,13 +279,13 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
     }
   };
 
-  const exportMarkdown = async (): Promise<void> => {
-    if (!window.work || !isTerminal || busy) return;
+  const exportMarkdown = async (historyId: string): Promise<void> => {
+    if (!window.work || busy) return;
     setBusy(true);
     setError("");
     setExportMessage("");
     try {
-      const result: WorkMarkdownExportResult = await window.work.exportMarkdown();
+      const result: WorkMarkdownExportResult = await window.work.exportMarkdown(historyId);
       if (!result.ok) {
         setError(result.message);
       } else if ("cancelled" in result && result.cancelled) {
@@ -237,6 +299,10 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
       setBusy(false);
     }
   };
+
+  const selectedHistory: WorkHistoryRecord | undefined = history?.records.find(
+    (record) => record.historyId === selectedHistoryId,
+  );
 
   return (
     <div
@@ -349,13 +415,42 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
                 </button>
               ) : null}
               {isTerminal ? (
-                <button type="button" onClick={() => void exportMarkdown()} disabled={busy}>
+                <button type="button" onClick={() => void exportMarkdown(snapshot.taskId)} disabled={busy}>
                   导出 Markdown
                 </button>
               ) : null}
               {snapshot.error ? <p style={{ color: "#a33", whiteSpace: "pre-wrap" }}>{snapshot.error}</p> : null}
               {exportMessage ? <p style={{ color: THEME_TOKENS.colors.textSecondary }}>{exportMessage}</p> : null}
               {snapshot.terminationReason ? <p style={{ color: THEME_TOKENS.colors.textSecondary }}>终态：{snapshot.terminationReason.kind}</p> : null}
+            </section>
+          ) : null}
+
+          {history ? (
+            <section style={{ marginTop: 24, padding: 18, borderRadius: 14, background: "rgba(255,255,255,0.78)", border: "1px solid #d8e9e0" }}>
+              <strong>任务历史</strong>
+              <p style={{ margin: "8px 0", color: THEME_TOKENS.colors.textSecondary, fontSize: 13 }}>
+                仅在本次应用进程中保存已结束任务，最多 {history.limits.maxRecords} 条、总计 {formatFileBytes(history.limits.maxTotalBytes)}。浏览历史不会取消或重新执行当前任务。
+              </p>
+              {history.records.length === 0 ? (
+                <p style={{ color: THEME_TOKENS.colors.textSecondary }}>暂无已结束任务。</p>
+              ) : (
+                <ol style={{ margin: "12px 0", paddingLeft: 24 }}>
+                  {history.records.map((record) => (
+                    <li key={record.historyId} style={{ marginBottom: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedHistoryId(record.historyId)}
+                        style={{ textAlign: "left", width: "100%" }}
+                      >
+                        {phaseLabel(record.phase)} · {record.userPrompt}
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {selectedHistory ? (
+                <HistoryRecordView record={selectedHistory} onExport={exportMarkdown} />
+              ) : null}
             </section>
           ) : null}
 

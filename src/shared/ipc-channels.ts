@@ -54,6 +54,7 @@ export const IPC = {
 
   // Work plan and execution surface
   WORK_GET_STATE: "work:get-state",
+  WORK_GET_HISTORY: "work:get-history",
   WORK_GET_FILE_SELECTION: "work:get-file-selection",
   WORK_SELECT_FILES: "work:select-files",
   WORK_CREATE_PLAN: "work:create-plan",
@@ -61,6 +62,7 @@ export const IPC = {
   WORK_CANCEL: "work:cancel",
   WORK_EXPORT_MARKDOWN: "work:export-markdown",
   WORK_STATE_CHANGED: "work:state-changed",
+  WORK_HISTORY_CHANGED: "work:history-changed",
 
   // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",

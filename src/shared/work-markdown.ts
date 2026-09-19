@@ -1,6 +1,11 @@
-import type { WorkTaskSnapshot } from "./work-types";
+import type {
+  WorkPlanStepRequirement,
+  WorkTaskPhase,
+  WorkTaskSnapshot,
+} from "./work-types";
+import type { WorkHistoryRecord } from "./work-history-types";
 
-function phaseLabel(phase: WorkTaskSnapshot["phase"]): string {
+function phaseLabel(phase: WorkTaskPhase): string {
   switch (phase) {
     case "planning": return "正在生成计划";
     case "awaiting_confirmation": return "等待确认";
@@ -11,11 +16,11 @@ function phaseLabel(phase: WorkTaskSnapshot["phase"]): string {
   }
 }
 
-function requirementLabel(requirement: "analysis" | "tool"): string {
+function requirementLabel(requirement: WorkPlanStepRequirement): string {
   return requirement === "tool" ? "真实工具结果" : "分析观察结果";
 }
 
-function toolOperationLabel(step: WorkTaskSnapshot["steps"][number]): string | undefined {
+export function workStepOperationLabel(step: WorkTaskSnapshot["steps"][number]): string | undefined {
   if (step.completionRequirement !== "tool" || step.toolBinding === undefined) return undefined;
   const args = step.toolBinding.arguments;
   switch (step.toolBinding.toolName) {
@@ -97,7 +102,7 @@ export function renderWorkMarkdown(snapshot: WorkTaskSnapshot): string {
       lines.push(`- 状态：${step.status}`);
       if (step.verificationStatus !== undefined) lines.push(`- 验证：${step.verificationStatus}`);
       if (step.verificationReason !== undefined) lines.push(`- 验证说明：${step.verificationReason}`);
-      const operation = toolOperationLabel(step);
+      const operation = workStepOperationLabel(step);
       if (operation !== undefined) lines.push(`- 预定操作：${operation}`);
       if (step.observation !== undefined) lines.push(`- 观察结果：${step.observation}`);
       lines.push("");
@@ -110,6 +115,56 @@ export function renderWorkMarkdown(snapshot: WorkTaskSnapshot): string {
     lines.push(`- 终止原因：${terminationReasonLabel(snapshot.terminationReason)}`, "");
   }
   appendMultiline(lines, "错误信息", snapshot.error);
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+/** Render the safe, immutable history projection without execution-only data. */
+export function renderWorkHistoryMarkdown(record: WorkHistoryRecord): string {
+  const lines: string[] = [
+    "# Work 历史任务",
+    "",
+    "## 概览",
+    "",
+    `- 状态：${phaseLabel(record.phase)}`,
+    `- 创建时间：${new Date(record.createdAt).toISOString()}`,
+    `- 更新时间：${new Date(record.updatedAt).toISOString()}`,
+    "",
+    "### 用户请求",
+    "",
+    record.userPrompt,
+    "",
+  ];
+
+  if (record.fileSelection !== undefined) {
+    lines.push("## 选择的资料", "");
+    for (const file of record.fileSelection.files) {
+      lines.push(`- ${file.displayName} · ${file.fileKind} · ${file.byteLength} B${file.symbolicLink ? " · 符号链接目标" : ""}`);
+    }
+    lines.push(`- 选择总量：${record.fileSelection.totalBytes} B`, "");
+    if (record.fileReadMode === "required") {
+      lines.push("本任务要求执行时读取所选文件，并使用本次读取结果完成任务。", "");
+    }
+  }
+
+  if (record.steps.length > 0) {
+    lines.push("## 执行步骤", "");
+    for (const step of record.steps) {
+      lines.push(`### ${step.index + 1}. ${step.description}`, "");
+      lines.push(`- 完成要求：${requirementLabel(step.completionRequirement)}`);
+      lines.push(`- 状态：${step.status}`);
+      if (step.verificationStatus !== undefined) lines.push(`- 验证：${step.verificationStatus}`);
+      if (step.verificationReason !== undefined) lines.push(`- 验证说明：${step.verificationReason}`);
+      if (step.plannedOperation !== undefined) lines.push(`- 预定操作：${step.plannedOperation}`);
+      lines.push("");
+    }
+  }
+
+  appendMultiline(lines, "最终结果", record.finalText);
+  if (record.terminationReason !== undefined) {
+    lines.push(`- 终止原因：${terminationReasonLabel(record.terminationReason)}`, "");
+  }
+  appendMultiline(lines, "错误信息", record.error);
 
   return `${lines.join("\n").trimEnd()}\n`;
 }

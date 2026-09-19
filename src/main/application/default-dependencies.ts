@@ -842,6 +842,9 @@ export async function createDefaultApplicationRuntime(
       onChanged: (snapshot) => {
         windowManager.sendToWork(IPC.WORK_STATE_CHANGED, snapshot);
       },
+      onHistoryChanged: (history) => {
+        windowManager.sendToWork(IPC.WORK_HISTORY_CHANGED, history);
+      },
       onActivityChanged: (active) => {
         windowManager.setWorkTaskActive(active);
       },
