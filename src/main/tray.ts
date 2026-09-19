@@ -5,6 +5,7 @@ import fs from "node:fs";
 export interface TrayDependencies {
   togglePetWindow: () => void;
   createChatWindow: () => void;
+  createWorkWindow: () => void;
   createStatusWindow: () => void;
   createSettingsWindow: () => void;
 }
@@ -14,6 +15,10 @@ export function buildTrayMenuTemplate(deps: TrayDependencies): MenuItemConstruct
     {
       label: "💬 与流萤对话",
       click: () => deps.createChatWindow(),
+    },
+    {
+      label: "📋 Work 任务",
+      click: () => deps.createWorkWindow(),
     },
     {
       label: "⚙ 设置",

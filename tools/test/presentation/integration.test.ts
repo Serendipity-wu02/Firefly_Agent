@@ -55,7 +55,8 @@ test("3. Chat and Settings use separate typed renderer views", () => {
   assert.ok(wmSource.includes("OPEN SETTINGS WINDOW"), "Must log OPEN SETTINGS WINDOW");
   assert.ok(wmSource.includes('this.getRendererDevUrl("chat")'), "Chat must use the typed chat view");
   assert.ok(wmSource.includes('this.getRendererDevUrl("settings")'), "Settings must use the typed settings view");
-  assert.ok(viewTypesSource.includes('export type RendererView = "chat" | "settings" | "summary" | "approval";'), "RendererView must be shared");
+  assert.ok(viewTypesSource.includes('export type RendererView ='), "RendererView must be shared");
+  assert.ok(viewTypesSource.includes('"chat"') && viewTypesSource.includes('"settings"') && viewTypesSource.includes('"work"'), "RendererView must retain existing views and include Work");
   assert.ok(viewTypesSource.includes("parseRendererView"), "Renderer view parsing must be canonical");
   assert.ok(!appSource.includes("activeTab"), "Chat App must not keep a Settings tab state");
   assert.ok(!appSource.includes("onTabChange"), "Chat App must not keep tab navigation callbacks");

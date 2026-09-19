@@ -65,7 +65,7 @@ test("1. Harness owns the unique loop and legacy modules are absent", () => {
   const harnessSource = fs.readFileSync(harnessPath, "utf8");
   const coreSource = fs.readFileSync(corePath, "utf8");
 
-  assert.ok(harnessSource.includes("while (status === \"running\" && stepCount < this.config.maxRounds)"));
+  assert.ok(harnessSource.includes("while (status === \"running\" && stepCount < maxRounds)"));
   assert.ok(harnessSource.includes("executeToolRound"));
   assert.equal(harnessSource.includes("FireflyToolDispatcher"), false);
   assert.equal(harnessSource.includes("buildFireflySystemPrompt"), false);
@@ -1120,4 +1120,498 @@ test("29. Safe structured tool-body pruning lets real Harness facts fit before P
   assert.equal(parsed.untrustedContent, true);
   assert.equal(parsed.bodyTruncated, true);
   assert.equal(parsed._fireflyResultPruned, true);
+});
+
+test("30. Repeated read results stop the same run with structured no-progress evidence", async () => {
+  const registry = new FireflyToolRegistry();
+  let executions = 0;
+  registry.register({
+    id: "stable-read",
+    name: "Stable read",
+    description: "Returns the same read-only observation.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      executions++;
+      return JSON.stringify({ ok: true, value: "unchanged" });
+    },
+  });
+
+  let providerCalls = 0;
+  const eventBus = new AgentEventBus();
+  const events: AgentEvent[] = [];
+  eventBus.onAny((event) => events.push(event));
+  const provider = createProvider(async () => {
+    providerCalls++;
+    return {
+      message: {
+        role: "assistant",
+        content: "继续读取。",
+        toolCalls: [{ id: "stable-read-call-" + providerCalls, name: "stable-read", arguments: {} }],
+      },
+    };
+  });
+
+  const result = await createHarness({
+    provider,
+    toolRegistry: registry,
+    eventBus,
+    config: { maxRounds: 6 },
+  }).run({ runId: "harness-no-progress-read", userPrompt: "重复读取测试" });
+
+  assert.equal(result.status, "error");
+  assert.equal(result.error, "agent_no_progress");
+  assert.deepEqual(result.noProgress, {
+    reason: "repeated_read_result",
+    toolName: "stable-read",
+    toolCallId: "stable-read-call-3",
+    step: 3,
+    consecutiveRounds: 3,
+    threshold: 3,
+  });
+  assert.equal(providerCalls, 3);
+  assert.equal(executions, 3);
+  assert.equal(result.toolCallEvidence?.length, 3);
+  assert.equal(result.finalText, "");
+  assert.equal(events.filter((event) => event.type === "agent:final-answer").length, 0);
+  assert.equal(events.filter((event) => event.type === "agent:error").length, 1);
+});
+
+test("31. Repeated read failures stop without turning the run into a normal completion", async () => {
+  const registry = new FireflyToolRegistry();
+  registry.register({
+    id: "stable-failure-read",
+    name: "Stable failure read",
+    description: "Returns the same read-only failure.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => JSON.stringify({
+      ok: false,
+      error: "stable_read_failure",
+      message: "The same failure remains.",
+    }),
+  });
+
+  let providerCalls = 0;
+  const provider = createProvider(async () => {
+    providerCalls++;
+    return {
+      message: {
+        role: "assistant",
+        content: "继续尝试读取。",
+        toolCalls: [{ id: "stable-failure-call-" + providerCalls, name: "stable-failure-read", arguments: {} }],
+      },
+    };
+  });
+
+  const result = await createHarness({
+    provider,
+    toolRegistry: registry,
+    config: { maxRounds: 6 },
+  }).run({ runId: "harness-no-progress-failure", userPrompt: "重复失败测试" });
+
+  assert.equal(result.status, "error");
+  assert.equal(result.error, "agent_no_progress");
+  assert.equal(result.noProgress?.reason, "repeated_read_failure");
+  assert.equal(result.noProgress?.consecutiveRounds, 3);
+  assert.equal(result.noProgress?.threshold, 3);
+  assert.equal(providerCalls, 3);
+  assert.equal(result.toolCallEvidence?.every((evidence) => evidence.outcome === "failure"), true);
+});
+
+test("32. Different arguments and changed read results do not trigger no-progress", async () => {
+  const registry = new FireflyToolRegistry();
+  let executions = 0;
+  registry.register({
+    id: "variable-read",
+    name: "Variable read",
+    description: "Returns a controlled read observation.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    inputSchema: {
+      type: "object",
+      properties: { requestUrl: { type: "string" } },
+      required: ["requestUrl"],
+    },
+    enabled: true,
+    execute: async () => {
+      executions++;
+      return JSON.stringify({ ok: true, value: executions === 3 ? "changed" : "same" });
+    },
+  });
+
+  let providerCalls = 0;
+  const provider = createProvider(async () => {
+    providerCalls++;
+    if (providerCalls <= 3) {
+      const requestUrl = providerCalls === 1
+        ? "https://example.com/a"
+        : "https://example.com/b?x=1";
+      return {
+        message: {
+          role: "assistant",
+          content: "继续读取。",
+          toolCalls: [{
+            id: "variable-read-call-" + providerCalls,
+            name: "variable-read",
+            arguments: { requestUrl },
+          }],
+        },
+      };
+    }
+    return { message: { role: "assistant", content: "读取结果已变化，继续回答。" } };
+  });
+
+  const result = await createHarness({
+    provider,
+    toolRegistry: registry,
+    config: { maxRounds: 4 },
+  }).run({ runId: "harness-no-progress-variation", userPrompt: "变化结果测试" });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.noProgress, undefined);
+  assert.equal(providerCalls, 4);
+  assert.equal(result.toolCallEvidence?.length, 3);
+  assert.deepEqual(
+    result.toolCallEvidence?.map((evidence) => evidence.arguments.requestUrl),
+    ["https://example.com/a", "https://example.com/b?x=1", "https://example.com/b?x=1"],
+  );
+  assert.deepEqual(
+    result.toolCallEvidence?.map((evidence) => JSON.parse(evidence.output).value),
+    ["same", "same", "changed"],
+  );
+});
+
+test("33. Repeated external actions are not classified from identical success text", async () => {
+  const registry = new FireflyToolRegistry();
+  let executions = 0;
+  registry.register({
+    id: "repeatable-action",
+    name: "Repeatable action",
+    description: "A side-effecting action whose result text can repeat.",
+    risk: "side_effect",
+    sideEffect: "external_action",
+    retryable: false,
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      executions++;
+      return JSON.stringify({ ok: true, action: "next", message: "submitted" });
+    },
+  });
+
+  let providerCalls = 0;
+  const provider = createProvider(async () => {
+    providerCalls++;
+    if (providerCalls <= 4) {
+      return {
+        message: {
+          role: "assistant",
+          content: "继续执行。",
+          toolCalls: [{ id: "repeatable-action-call-" + providerCalls, name: "repeatable-action", arguments: {} }],
+        },
+      };
+    }
+    return { message: { role: "assistant", content: "操作链已完成。" } };
+  });
+
+  const result = await createHarness({
+    provider,
+    toolRegistry: registry,
+    config: { maxRounds: 5 },
+  }).run({ runId: "harness-no-progress-side-effect", userPrompt: "重复副作用测试" });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.noProgress, undefined);
+  assert.equal(providerCalls, 5);
+  assert.equal(executions, 4);
+});
+
+test("34. Internal tool retries produce one cross-round observation and runs do not share state", async () => {
+  const registry = new FireflyToolRegistry();
+  let executions = 0;
+  registry.register({
+    id: "retryable-read",
+    name: "Retryable read",
+    description: "Fails transiently once, then returns a stable observation.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    retryable: true,
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      executions++;
+      return executions === 1
+        ? JSON.stringify({ ok: false, error: "transient_network_failure" })
+        : JSON.stringify({ ok: true, value: "stable" });
+    },
+  });
+
+  let providerCalls = 0;
+  const provider = createProvider(async () => {
+    providerCalls++;
+    if (providerCalls === 1 || providerCalls === 2 || providerCalls === 4) {
+      return {
+        message: {
+          role: "assistant",
+          content: "继续查询。",
+          toolCalls: [{ id: "retryable-read-call-" + providerCalls, name: "retryable-read", arguments: {} }],
+        },
+      };
+    }
+    return { message: { role: "assistant", content: "查询完成。" } };
+  });
+
+  const harness = createHarness({
+    provider,
+    toolRegistry: registry,
+    toolPolicy: { defaultMaxRetries: 1, defaultRetryBackoffMs: 1 },
+    config: { maxRounds: 4 },
+  });
+  const first = await harness.run({ runId: "harness-no-progress-first", userPrompt: "第一次查询" });
+  const second = await harness.run({ runId: "harness-no-progress-second", userPrompt: "第二次查询" });
+
+  assert.equal(first.status, "completed");
+  assert.equal(first.noProgress, undefined);
+  assert.equal(first.toolCallEvidence?.length, 2);
+  assert.equal(second.status, "completed");
+  assert.equal(second.noProgress, undefined);
+  assert.equal(second.toolCallEvidence?.length, 1);
+  assert.equal(executions, 4);
+  assert.equal(providerCalls, 5);
+});
+
+test("35. Cancellation and round-budget termination keep priority over no-progress", async () => {
+  const createStableRegistry = (onExecute?: () => void): FireflyToolRegistry => {
+    const registry = new FireflyToolRegistry();
+    registry.register({
+      id: "priority-read",
+      name: "Priority read",
+      description: "Stable read used for terminal precedence.",
+      risk: "read_only",
+      sideEffect: "read_only",
+      inputSchema: { type: "object", properties: {} },
+      enabled: true,
+      execute: async () => {
+        onExecute?.();
+        return JSON.stringify({ ok: true, value: "unchanged" });
+      },
+    });
+    return registry;
+  };
+
+  let budgetProviderCalls = 0;
+  const budgetProvider = createProvider(async () => {
+    budgetProviderCalls++;
+    return {
+      message: {
+        role: "assistant",
+        content: "继续读取。",
+        toolCalls: [{ id: "priority-budget-call-" + budgetProviderCalls, name: "priority-read", arguments: {} }],
+      },
+    };
+  });
+  const budgetResult = await createHarness({
+    provider: budgetProvider,
+    toolRegistry: createStableRegistry(),
+    config: { maxRounds: 3 },
+  }).run({ runId: "harness-no-progress-budget", userPrompt: "预算优先级测试" });
+
+  assert.equal(budgetResult.status, "error");
+  assert.deepEqual(budgetResult.terminationReason, { kind: "budget_exhausted", budget: "rounds" });
+  assert.equal(budgetResult.noProgress, undefined);
+  assert.equal(budgetProviderCalls, 3);
+
+  const controller = new AbortController();
+  let cancellationExecutions = 0;
+  let cancellationProviderCalls = 0;
+  const cancellationProvider = createProvider(async () => {
+    cancellationProviderCalls++;
+    return {
+      message: {
+        role: "assistant",
+        content: "继续读取。",
+        toolCalls: [{
+          id: "priority-cancel-call-" + cancellationProviderCalls,
+          name: "priority-read",
+          arguments: {},
+        }],
+      },
+    };
+  });
+  const cancellationResult = await createHarness({
+    provider: cancellationProvider,
+    toolRegistry: createStableRegistry(() => {
+      cancellationExecutions++;
+      if (cancellationExecutions === 3) controller.abort();
+    }),
+    config: { maxRounds: 6 },
+  }).run({
+    runId: "harness-no-progress-cancel",
+    userPrompt: "取消优先级测试",
+    signal: controller.signal,
+  });
+
+  assert.equal(cancellationResult.status, "cancelled");
+  assert.deepEqual(cancellationResult.terminationReason, { kind: "cancelled" });
+  assert.equal(cancellationResult.noProgress, undefined);
+  assert.equal(cancellationProviderCalls, 3);
+});
+
+test("36. A mixed same-round read result breaks the prior consecutive count", async () => {
+  const registry = new FireflyToolRegistry();
+  const outputs = ["A", "A", "B", "A"];
+  let executions = 0;
+  registry.register({
+    id: "same-round-mixed-read-a",
+    name: "Same-round mixed read A",
+    description: "Returns controlled read results for same-round regression coverage.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    inputSchema: {
+      type: "object",
+      properties: { requestUrl: { type: "string" } },
+      required: ["requestUrl"],
+    },
+    enabled: true,
+    execute: async () => {
+      executions++;
+      return JSON.stringify({ ok: true, value: outputs.shift() });
+    },
+  });
+
+  let providerCalls = 0;
+  const provider = createProvider(async () => {
+    providerCalls++;
+    if (providerCalls === 1 || providerCalls === 3) {
+      return {
+        message: {
+          role: "assistant",
+          content: "继续读取。",
+          toolCalls: [{
+            id: "same-round-mixed-a-call-" + providerCalls,
+            name: "same-round-mixed-read-a",
+            arguments: { requestUrl: "https://example.com/a" },
+          }],
+        },
+      };
+    }
+    if (providerCalls === 2) {
+      return {
+        message: {
+          role: "assistant",
+          content: "同轮继续读取。",
+          toolCalls: [
+            {
+              id: "same-round-mixed-a-call-2a",
+              name: "same-round-mixed-read-a",
+              arguments: { requestUrl: "https://example.com/a" },
+            },
+            {
+              id: "same-round-mixed-a-call-2b",
+              name: "same-round-mixed-read-a",
+              arguments: { requestUrl: "https://example.com/a" },
+            },
+          ],
+        },
+      };
+    }
+    return { message: { role: "assistant", content: "读取完成。" } };
+  });
+
+  const result = await createHarness({
+    provider,
+    toolRegistry: registry,
+    config: { maxRounds: 5 },
+  }).run({ runId: "harness-no-progress-same-round-mixed-a", userPrompt: "同轮结果变化测试" });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.noProgress, undefined);
+  assert.equal(providerCalls, 4);
+  assert.equal(executions, 4);
+  assert.deepEqual(
+    result.toolCallEvidence?.map((evidence) => JSON.parse(evidence.output).value),
+    ["A", "A", "B", "A"],
+  );
+});
+
+test("37. A mixed final read round cannot retain an earlier pending stop", async () => {
+  const registry = new FireflyToolRegistry();
+  const outputs = ["A", "A", "A", "B"];
+  let executions = 0;
+  registry.register({
+    id: "same-round-mixed-read-b",
+    name: "Same-round mixed read B",
+    description: "Returns controlled read results for final-round regression coverage.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    inputSchema: {
+      type: "object",
+      properties: { requestUrl: { type: "string" } },
+      required: ["requestUrl"],
+    },
+    enabled: true,
+    execute: async () => {
+      executions++;
+      return JSON.stringify({ ok: true, value: outputs.shift() });
+    },
+  });
+
+  let providerCalls = 0;
+  const provider = createProvider(async () => {
+    providerCalls++;
+    if (providerCalls === 1 || providerCalls === 2) {
+      return {
+        message: {
+          role: "assistant",
+          content: "继续读取。",
+          toolCalls: [{
+            id: "same-round-mixed-b-call-" + providerCalls,
+            name: "same-round-mixed-read-b",
+            arguments: { requestUrl: "https://example.com/a" },
+          }],
+        },
+      };
+    }
+    if (providerCalls === 3) {
+      return {
+        message: {
+          role: "assistant",
+          content: "同轮继续读取。",
+          toolCalls: [
+            {
+              id: "same-round-mixed-b-call-3a",
+              name: "same-round-mixed-read-b",
+              arguments: { requestUrl: "https://example.com/a" },
+            },
+            {
+              id: "same-round-mixed-b-call-3b",
+              name: "same-round-mixed-read-b",
+              arguments: { requestUrl: "https://example.com/a" },
+            },
+          ],
+        },
+      };
+    }
+    return { message: { role: "assistant", content: "读取完成。" } };
+  });
+
+  const result = await createHarness({
+    provider,
+    toolRegistry: registry,
+    config: { maxRounds: 5 },
+  }).run({ runId: "harness-no-progress-same-round-mixed-b", userPrompt: "末轮结果变化测试" });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.noProgress, undefined);
+  assert.equal(providerCalls, 4);
+  assert.equal(executions, 4);
+  assert.deepEqual(
+    result.toolCallEvidence?.map((evidence) => JSON.parse(evidence.output).value),
+    ["A", "A", "A", "B"],
+  );
 });

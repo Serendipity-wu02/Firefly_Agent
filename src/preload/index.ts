@@ -12,6 +12,10 @@ import type {
   ApprovalResolveRequest,
 } from "../shared/approval-ipc-types";
 import type { ApprovalRecord } from "../shared/approval-types";
+import type {
+  WorkTaskOperationResult,
+  WorkTaskSnapshot,
+} from "../shared/work-types";
 
 /**
  * Sandbox-safe channel table (mirror of src/shared/ipc-channels.ts).
@@ -52,6 +56,7 @@ const IPC = {
   WINDOW_OPEN_STATUS: "window:open-status",
   WINDOW_OPEN_SETTINGS: "window:open-settings",
   WINDOW_OPEN_SUMMARY: "window:open-summary",
+  WINDOW_OPEN_WORK: "window:open-work",
   CHARACTER_SUMMARY_UPDATED: "character:summary-updated",
 
   // Human Approval Surface
@@ -75,6 +80,11 @@ const IPC = {
   // Chat & AI
   CHAT_SEND_MESSAGE: "chat:send-message",
   CHAT_GET_HISTORY: "chat:get-history",
+  WORK_GET_STATE: "work:get-state",
+  WORK_CREATE_PLAN: "work:create-plan",
+  WORK_CONFIRM_PLAN: "work:confirm-plan",
+  WORK_CANCEL: "work:cancel",
+  WORK_STATE_CHANGED: "work:state-changed",
 
   // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",
@@ -136,6 +146,7 @@ contextBridge.exposeInMainWorld("firefly", {
   openStatus: () => ipcRenderer.send(IPC.WINDOW_OPEN_STATUS),
   openSettings: () => ipcRenderer.send(IPC.WINDOW_OPEN_SETTINGS),
   openSummary: () => ipcRenderer.send(IPC.WINDOW_OPEN_SUMMARY),
+  openWork: () => ipcRenderer.send(IPC.WINDOW_OPEN_WORK),
   onSummaryUpdated: (cb: (summary: any) => void) => {
     const listener = (_: unknown, summary: any) => cb(summary);
     ipcRenderer.on(IPC.CHARACTER_SUMMARY_UPDATED, listener);
@@ -225,6 +236,20 @@ contextBridge.exposeInMainWorld("settings", {
 contextBridge.exposeInMainWorld("startup", {
   get: (): Promise<boolean> => ipcRenderer.invoke(IPC.STARTUP_GET),
   set: (enabled: boolean): Promise<boolean> => ipcRenderer.invoke(IPC.STARTUP_SET, enabled),
+});
+
+contextBridge.exposeInMainWorld("work", {
+  getState: (): Promise<WorkTaskSnapshot | null> => ipcRenderer.invoke(IPC.WORK_GET_STATE),
+  createPlan: (task: string): Promise<WorkTaskOperationResult> =>
+    ipcRenderer.invoke(IPC.WORK_CREATE_PLAN, task),
+  confirmPlan: (proposalId: string): Promise<WorkTaskOperationResult> =>
+    ipcRenderer.invoke(IPC.WORK_CONFIRM_PLAN, proposalId),
+  cancel: (): Promise<WorkTaskOperationResult> => ipcRenderer.invoke(IPC.WORK_CANCEL),
+  onStateChanged: (cb: (snapshot: WorkTaskSnapshot) => void) => {
+    const listener = (_unknown: unknown, snapshot: WorkTaskSnapshot) => cb(snapshot);
+    ipcRenderer.on(IPC.WORK_STATE_CHANGED, listener);
+    return () => { ipcRenderer.removeListener(IPC.WORK_STATE_CHANGED, listener); };
+  },
 });
 
 contextBridge.exposeInMainWorld("approval", {

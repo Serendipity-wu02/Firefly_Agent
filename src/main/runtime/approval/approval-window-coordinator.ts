@@ -12,7 +12,9 @@ export interface ApprovalWindowHost {
   closeApprovalWindow(): boolean;
   sendApprovalChanged(event: ApprovalChangedEvent): void;
   setApprovalWindowCloseHandler(handler: (() => void) | null): void;
+  isApprovalWindowOpen?: () => boolean;
   isChatInlineReady?: () => boolean;
+  isWorkTaskActive?: () => boolean;
   sendApprovalInline?: (event: ApprovalChangedEvent) => void;
   clearApprovalInline?: () => void;
   setApprovalPresentationRefreshHandler?: (handler: (() => void) | null) => void;
@@ -87,7 +89,12 @@ export class ApprovalPresentationCoordinator {
 
   /** Deterministic test/runtime hook for clock-driven expiration. */
   refresh(forcePresentation = false): void {
-    if (this.waitingForTerminalWindowClose) return;
+    if (this.waitingForTerminalWindowClose) {
+      const pending = this.approvalService.listPending();
+      const windowIsOpen = this.windowHost.isApprovalWindowOpen?.();
+      if (pending.length === 0 || windowIsOpen !== false) return;
+      this.waitingForTerminalWindowClose = false;
+    }
 
     if (this.currentApprovalRequestId) {
       const current = this.approvalService.get(this.currentApprovalRequestId);
@@ -153,7 +160,8 @@ export class ApprovalPresentationCoordinator {
   }
 
   private presentPending(record: ApprovalRecord, forcePresentation: boolean): void {
-    const inlineReady = this.windowHost.isChatInlineReady?.() === true &&
+    const inlineReady = this.windowHost.isWorkTaskActive?.() !== true &&
+      this.windowHost.isChatInlineReady?.() === true &&
       this.windowHost.sendApprovalInline !== undefined;
     if (inlineReady) {
       const needsInlineEvent = forcePresentation || this.activeSurface !== "chat-inline";
@@ -175,8 +183,10 @@ export class ApprovalPresentationCoordinator {
       this.windowHost.clearApprovalInline?.();
     }
     const needsWindow = this.activeSurface !== "approval-window";
+    const windowWasOpen = this.windowHost.isApprovalWindowOpen?.() === true;
     this.activeSurface = "approval-window";
     if (needsWindow) this.windowHost.openApprovalWindow();
+    if (windowWasOpen) this.windowHost.sendApprovalChanged({ record });
   }
 
   private clearActivePresentation(): void {

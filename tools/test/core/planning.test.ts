@@ -15,7 +15,7 @@ import { AgentEventBus } from "../../../dist/main/main/orchestrator/agent-events
 import { FireflyAgentCore } from "../../../dist/main/main/orchestrator/firefly-agent-core.js";
 import { InMemoryCheckpointStore } from "../../../dist/main/main/orchestrator/recovery/checkpoint-store.js";
 import { CheckpointManager } from "../../../dist/main/main/orchestrator/recovery/checkpoint-manager.js";
-import type { AgentEvent } from "../../../dist/main/shared/agent-types.js";
+import type { AgentEvent, AgentToolCallEvidence } from "../../../dist/main/shared/agent-types.js";
 import type { IFireflyLlmProvider } from "../../../dist/main/shared/provider-types.js";
 import type { ChatMessage } from "../../../dist/main/shared/chat-types.js";
 import type { RunExecutionState } from "../../../dist/main/main/orchestrator/recovery/execution-state.js";
@@ -102,24 +102,36 @@ test("5. Step Dependency: Sequential dependency indices assigned correctly", () 
 
 test("6. Step Verification Success: Valid observation advances step", () => {
   const planner = new BoundedPlanner();
-  const plan = planner.createPlan("run-p6", "测试任务", ["第1步", "第2步"]);
+  const plan = planner.createPlan("run-p6", "测试任务", [
+    { description: "第1步", completionRequirement: "analysis" },
+    { description: "第2步", completionRequirement: "analysis" },
+  ]);
 
-  const res1 = planner.advanceStep(plan, "已成功获取城市天气数据: 晴朗 22℃", false);
+  const analysisContext = { currentToolEvidence: [] };
+  const res1 = planner.advanceStep(plan, "已成功获取城市天气数据: 晴朗 22℃", false, analysisContext);
   assert.equal(res1.action, "next");
   assert.equal(res1.verification.status, "success");
   assert.equal(plan.currentStepIndex, 1);
   assert.equal(plan.steps[0].status, "completed");
 
-  const res2 = planner.advanceStep(plan, "已成功完成全部汇报", false);
+  const res2 = planner.advanceStep(plan, "已成功完成全部汇报", false, analysisContext);
   assert.equal(res2.action, "complete");
   assert.equal(plan.status, "completed");
 });
 
 test("7. Step Verification Failure: Error observation marks failure", () => {
   const planner = new BoundedPlanner();
-  const plan = planner.createPlan("run-p7", "失败任务", ["第1步", "第2步"]);
+  const plan = planner.createPlan("run-p7", "失败任务", [
+    { description: "第1步", completionRequirement: "analysis" },
+    { description: "第2步", completionRequirement: "analysis" },
+  ]);
 
-  const res = planner.advanceStep(plan, '{"ok":false,"error":"sensor_offline"}', false);
+  const res = planner.advanceStep(
+    plan,
+    '{"ok":false,"error":"sensor_offline"}',
+    false,
+    { currentToolEvidence: [] },
+  );
   assert.equal(res.action, "fail");
   assert.equal(res.verification.status, "failure");
   assert.equal(plan.status, "failed");
@@ -127,7 +139,18 @@ test("7. Step Verification Failure: Error observation marks failure", () => {
 
 test("8. Step Verification Uncertain: Empty observation triggers retry", () => {
   const verifier = new StepVerifier();
-  const result = verifier.verifyStep({ stepId: "s1", index: 0, description: "test", status: "running" }, "", false);
+  const result = verifier.verifyStep(
+    {
+      stepId: "s1",
+      index: 0,
+      description: "test",
+      completionRequirement: "analysis",
+      status: "running",
+    },
+    "",
+    false,
+    { currentToolEvidence: [] },
+  );
   assert.equal(result.status, "uncertain");
 });
 
@@ -166,7 +189,8 @@ test("10. Plan Cancellation: User cancellation marks plan cancelled and emits ev
 
   const runPromise = core.run({
     userPrompt: "第一步搜索，然后处理",
-    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [{ description: "等待外部操作完成", completionRequirement: "analysis" }],
   });
 
   setTimeout(() => core.cancelAll(), 20);
@@ -200,7 +224,8 @@ test("11. Plan Timeout: Total timeout safely terminates plan", async () => {
 
   const res = await core.run({
     userPrompt: "第一步耗时操作，然后完成",
-    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [{ description: "等待耗时操作完成", completionRequirement: "analysis" }],
   });
 
   assert.equal(res.status, "timeout");
@@ -277,8 +302,11 @@ test("12. Tool Execution Integration: Multi-step plan executes tools through Too
 
   const res = await core.run({
     userPrompt: "第一步获取数据，然后执行处理",
-    planMode: true,
-    customSteps: ["第一步获取数据", "第二步执行处理"],
+    planExecutionMode: "required",
+    customSteps: [
+      { description: "第一步获取数据", completionRequirement: "tool" },
+      { description: "第二步执行处理", completionRequirement: "tool" },
+    ],
   });
 
   assert.equal(res.status, "completed");
@@ -483,7 +511,8 @@ test("17. Plan Loop Termination Guarantee: Cannot loop forever", async () => {
 
   const res = await core.run({
     userPrompt: "计划任务",
-    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [{ description: "持续执行计划步骤", completionRequirement: "tool" }],
   });
 
   assert.equal(res.status, "error");
@@ -513,7 +542,9 @@ test("18. Final Answer Synthesis after Successful Plan", async () => {
 
   const eventBus = new AgentEventBus();
   const finishedEvents: AgentEvent[] = [];
+  const planCompletedEvents: AgentEvent[] = [];
   eventBus.on("agent:finished", (e) => finishedEvents.push(e));
+  eventBus.on("plan:completed", (e) => planCompletedEvents.push(e));
 
   const core = new FireflyAgentCore({
     provider: mockProvider,
@@ -523,10 +554,528 @@ test("18. Final Answer Synthesis after Successful Plan", async () => {
 
   const res = await core.run({
     userPrompt: "帮我制定计划并执行",
-    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [
+      { description: "整理最终回答", completionRequirement: "analysis" },
+    ],
   });
 
   assert.equal(res.status, "completed");
   assert.equal(res.finalText, "开拓者，所有计划步骤均已完成，流萤已为您整理好最终结果！");
   assert.equal(finishedEvents.length, 1);
+  assert.equal(planCompletedEvents.length, 1);
+});
+
+function createStepEvidence(
+  overrides: Partial<AgentToolCallEvidence> = {},
+): AgentToolCallEvidence {
+  return {
+    runId: "run-step-evidence",
+    step: 1,
+    toolCallId: "step-tool-call",
+    toolName: "step-tool",
+    assistantMessageId: "assistant-step-1",
+    toolMessageId: "tool-step-1",
+    arguments: { requestUrl: "https://example.com/a" },
+    outcome: "success",
+    output: JSON.stringify({ ok: true, value: "observed" }),
+    isError: false,
+    ...overrides,
+  };
+}
+
+test("19. Tool-step text alone remains unverified without current execution evidence", () => {
+  const verifier = new StepVerifier();
+  const result = verifier.verifyStep(
+    {
+      stepId: "tool-step",
+      index: 0,
+      description: "执行外部读取",
+      completionRequirement: "tool",
+      status: "running",
+    },
+    "已经成功读取页面。",
+    false,
+    { currentToolEvidence: [] },
+  );
+
+  assert.equal(result.status, "uncertain");
+});
+
+test("20. A failed current tool result cannot be overridden by assistant success text", () => {
+  const verifier = new StepVerifier();
+  const result = verifier.verifyStep(
+    {
+      stepId: "tool-failure-step",
+      index: 0,
+      description: "执行外部操作",
+      completionRequirement: "tool",
+      status: "running",
+    },
+    "操作已经成功完成。",
+    false,
+    {
+      currentToolEvidence: [createStepEvidence({
+        outcome: "failure",
+        output: JSON.stringify({ ok: false, error: "tool_failed" }),
+        isError: true,
+      })],
+    },
+  );
+
+  assert.equal(result.status, "failure");
+});
+
+test("21. Evidence from another step is not reused when the current step has none", () => {
+  const verifier = new StepVerifier();
+  const previousStepEvidence = createStepEvidence({ step: 1, output: JSON.stringify({ ok: true }) });
+  assert.equal(previousStepEvidence.outcome, "success");
+
+  const result = verifier.verifyStep(
+    {
+      stepId: "current-step",
+      index: 1,
+      description: "执行第二个外部读取",
+      completionRequirement: "tool",
+      status: "running",
+    },
+    "第二步已经完成。",
+    false,
+    { currentToolEvidence: [] },
+  );
+
+  assert.equal(result.status, "uncertain");
+});
+
+test("22. A successful current tool result is valid step completion evidence", () => {
+  const verifier = new StepVerifier();
+  const result = verifier.verifyStep(
+    {
+      stepId: "tool-success-step",
+      index: 0,
+      description: "读取页面",
+      completionRequirement: "tool",
+      status: "running",
+    },
+    "读取完成。",
+    false,
+    {
+      currentToolEvidence: [createStepEvidence()],
+    },
+  );
+
+  assert.equal(result.status, "success");
+});
+
+test("22a. Unknown and not-executed tool outcomes cannot complete a step", () => {
+  const verifier = new StepVerifier();
+  for (const outcome of ["unknown", "not_executed"] as const) {
+    const result = verifier.verifyStep(
+      {
+        stepId: `tool-${outcome}-step`,
+        index: 0,
+        description: "执行外部操作",
+        completionRequirement: "tool",
+        status: "running",
+      },
+      "操作已经完成。",
+      false,
+      {
+        currentToolEvidence: [createStepEvidence({
+          outcome,
+          output: JSON.stringify({ ok: false, error: outcome }),
+          isError: false,
+        })],
+      },
+    );
+
+    assert.equal(result.status, "uncertain");
+  }
+});
+
+test("23. Pure analysis steps can complete from a non-empty answer", () => {
+  const verifier = new StepVerifier();
+  const result = verifier.verifyStep(
+    {
+      stepId: "analysis-step",
+      index: 0,
+      description: "整理观察结果",
+      completionRequirement: "analysis",
+      status: "running",
+    },
+    "整理后的结论如下。",
+    false,
+    { currentToolEvidence: [] },
+  );
+
+  assert.equal(result.status, "success");
+});
+
+test("24. A failed tool step cannot emit plan completion after a success-claiming final answer", async () => {
+  const registry = new FireflyToolRegistry();
+  registry.register({
+    id: "failing-plan-tool",
+    name: "Failing plan tool",
+    description: "Fails the current plan step.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => JSON.stringify({ ok: false, error: "external_failed" }),
+  });
+
+  let providerCalls = 0;
+  const provider: IFireflyLlmProvider = {
+    ...testProviderMetadata,
+    async generateCompletion() {
+      providerCalls++;
+      if (providerCalls === 1) {
+        return {
+          message: {
+            role: "assistant",
+            content: "正在执行外部读取。",
+            toolCalls: [{ id: "failing-plan-call", name: "failing-plan-tool", arguments: {} }],
+          },
+        };
+      }
+      return { message: { role: "assistant", content: "外部读取已经成功完成。" } };
+    },
+  };
+
+  const eventBus = new AgentEventBus();
+  const events: AgentEvent[] = [];
+  eventBus.onAny((event) => events.push(event));
+  const core = new FireflyAgentCore({ provider, toolRegistry: registry, eventBus });
+
+  const result = await core.run({
+    userPrompt: "第一步读取外部数据，然后整理结果",
+    planExecutionMode: "required",
+    customSteps: [
+      { description: "读取外部数据", completionRequirement: "tool" },
+      { description: "整理结果", completionRequirement: "analysis" },
+    ],
+  });
+
+  assert.equal(result.status, "error");
+  assert.equal(result.finalText, "");
+  assert.deepEqual(result.terminationReason, {
+    kind: "plan_incomplete",
+    planId: result.terminationReason.kind === "plan_incomplete"
+      ? result.terminationReason.planId
+      : undefined,
+    stepIndex: 0,
+    reason: "step_failed",
+  });
+  assert.equal(providerCalls, 2);
+  assert.equal(events.filter((event) => event.type === "plan:verification" && event.result === "failure").length, 1);
+  assert.equal(events.filter((event) => event.type === "plan:step-completed").length, 0);
+  assert.equal(events.filter((event) => event.type === "plan:completed").length, 0);
+  assert.equal(events.filter((event) => event.type === "plan:step-failed").length, 1);
+  assert.equal(events.filter((event) => event.type === "plan:failed").length, 1);
+});
+
+test("25. An explicitly tool-required step cannot complete from a zero-call success claim", async () => {
+  const registry = new FireflyToolRegistry();
+  let providerCalls = 0;
+  const provider: IFireflyLlmProvider = {
+    ...testProviderMetadata,
+    async generateCompletion() {
+      providerCalls++;
+      return { message: { role: "assistant", content: "外部操作已经成功完成。" } };
+    },
+  };
+
+  const eventBus = new AgentEventBus();
+  const events: AgentEvent[] = [];
+  eventBus.onAny((event) => events.push(event));
+  const core = new FireflyAgentCore({
+    provider,
+    toolRegistry: registry,
+    eventBus,
+    config: { maxRounds: 1 },
+  });
+
+  const input = {
+    runId: "run-27",
+    userPrompt: "执行外部读取",
+    planExecutionMode: "required" as const,
+    customSteps: [{
+      description: "执行外部读取",
+      completionRequirement: "tool" as const,
+    }],
+  };
+  await core.run(input);
+
+  assert.equal(providerCalls, 1);
+  assert.equal(events.filter((event) => event.type === "plan:step-completed").length, 0);
+  assert.equal(events.filter((event) => event.type === "plan:completed").length, 0);
+  assert.equal(events.filter((event) => event.type === "plan:verification" && event.result === "uncertain").length, 1);
+});
+
+test("26. A legacy string step without a requirement remains unverified", () => {
+  const planner = new BoundedPlanner();
+  const plan = planner.createPlan("run-legacy-step", "旧计划", ["旧字符串步骤"]);
+  const result = planner.getVerifier().verifyStep(
+    plan.steps[0],
+    "步骤已经完成。",
+    false,
+    { currentToolEvidence: [] },
+  );
+
+  assert.equal(plan.steps[0].completionRequirement, undefined);
+  assert.equal(result.status, "uncertain");
+});
+
+test("27. A required plan cannot complete from a zero-call success claim", async () => {
+  const store = new InMemoryCheckpointStore();
+  const checkpointManager = new CheckpointManager({ store });
+  let providerCalls = 0;
+  const provider: IFireflyLlmProvider = {
+    ...testProviderMetadata,
+    async generateCompletion() {
+      providerCalls++;
+      return { message: { role: "assistant", content: "外部操作已经成功完成。" } };
+    },
+  };
+
+  const eventBus = new AgentEventBus();
+  const events: AgentEvent[] = [];
+  eventBus.onAny((event) => events.push(event));
+  const core = new FireflyAgentCore({
+    provider,
+    toolRegistry: new FireflyToolRegistry(),
+    eventBus,
+    checkpointManager,
+    config: { maxRounds: 1 },
+  });
+
+  const input = {
+    runId: "run-27-gate",
+    userPrompt: "执行外部读取",
+    planExecutionMode: "required" as const,
+    customSteps: [{
+      description: "执行外部读取",
+      completionRequirement: "tool" as const,
+    }],
+  };
+  const result = await core.run(input);
+
+  assert.equal(providerCalls, 1);
+  assert.equal(result.status, "error");
+  assert.equal(result.finalText, "");
+  assert.equal(result.terminationReason.kind, "plan_incomplete");
+  if (result.terminationReason.kind === "plan_incomplete") {
+    assert.equal(result.terminationReason.reason, "step_unverified");
+    assert.equal(result.terminationReason.stepIndex, 0);
+  }
+  assert.equal(events.filter((event) => event.type === "agent:final-answer").length, 0);
+  const finished = events.filter((event) => event.type === "agent:finished");
+  assert.equal(finished.length, 1);
+  assert.equal(finished[0].status, "error");
+  assert.deepEqual(finished[0].terminationReason, result.terminationReason);
+
+  const checkpoint = await checkpointManager.getLatestForRun("run-27-gate");
+  assert.ok(checkpoint);
+  assert.equal(checkpoint.runState, "failed");
+  assert.deepEqual(checkpoint.terminationReason, result.terminationReason);
+});
+
+test("28. An unknown tool result leaves a required step unverified", async () => {
+  const registry = new FireflyToolRegistry();
+  registry.register({
+    id: "unknown-plan-tool",
+    name: "Unknown plan tool",
+    description: "Returns an unknown external submission.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => JSON.stringify({
+      commandSubmission: "unknown",
+      error: "external_submission_unknown",
+    }),
+  });
+
+  let providerCalls = 0;
+  const provider: IFireflyLlmProvider = {
+    ...testProviderMetadata,
+    async generateCompletion() {
+      providerCalls++;
+      return providerCalls === 1
+        ? {
+            message: {
+              role: "assistant",
+              content: "正在执行外部操作。",
+              toolCalls: [{ id: "unknown-plan-call", name: "unknown-plan-tool", arguments: {} }],
+            },
+          }
+        : { message: { role: "assistant", content: "外部操作已经成功完成。" } };
+    },
+  };
+
+  const result = await new FireflyAgentCore({
+    provider,
+    toolRegistry: registry,
+    config: { maxRounds: 2 },
+  }).run({
+    runId: "run-28-unknown",
+    userPrompt: "执行外部操作",
+    planExecutionMode: "required",
+    customSteps: [{ description: "执行外部操作", completionRequirement: "tool" }],
+  });
+
+  assert.equal(providerCalls, 2);
+  assert.equal(result.status, "error");
+  assert.equal(result.terminationReason.kind, "plan_incomplete");
+  if (result.terminationReason.kind === "plan_incomplete") {
+    assert.equal(result.terminationReason.reason, "step_unverified");
+  }
+  assert.equal(result.toolCallEvidence?.[0]?.outcome, "unknown");
+  assert.equal(result.finalText, "");
+});
+
+test("29. A not-executed tool result cannot complete a required plan", async () => {
+  const registry = new FireflyToolRegistry();
+  registry.register({
+    id: "restricted-plan-tool",
+    name: "Restricted plan tool",
+    description: "Is present only to verify the empty execution surface.",
+    risk: "read_only",
+    sideEffect: "read_only",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => JSON.stringify({ ok: true }),
+  });
+
+  let providerCalls = 0;
+  const provider: IFireflyLlmProvider = {
+    ...testProviderMetadata,
+    async generateCompletion() {
+      providerCalls++;
+      return providerCalls === 1
+        ? {
+            message: {
+              role: "assistant",
+              content: "尝试执行受限操作。",
+              toolCalls: [{ id: "restricted-plan-call", name: "restricted-plan-tool", arguments: {} }],
+            },
+          }
+        : { message: { role: "assistant", content: "外部操作已经成功完成。" } };
+    },
+  };
+
+  const result = await new FireflyAgentCore({
+    provider,
+    toolRegistry: registry,
+    config: { maxRounds: 2 },
+  }).run({
+    runId: "run-29-not-executed",
+    userPrompt: "执行受限操作",
+    planExecutionMode: "required",
+    executionProfile: { kind: "MAIN", toolSurface: "none" },
+    customSteps: [{ description: "执行受限操作", completionRequirement: "tool" }],
+  });
+
+  assert.equal(providerCalls, 2);
+  assert.equal(result.status, "error");
+  assert.equal(result.terminationReason.kind, "plan_incomplete");
+  if (result.terminationReason.kind === "plan_incomplete") {
+    assert.equal(result.terminationReason.reason, "step_failed");
+  }
+  assert.equal(result.toolCallEvidence?.[0]?.outcome, "not_executed");
+  assert.equal(result.finalText, "");
+});
+
+test("30. Main required-plan entry enables the completion gate without changing ordinary Chat", async () => {
+  const registry = new FireflyToolRegistry();
+  let providerCalls = 0;
+  const eventBus = new AgentEventBus();
+  const planEvents: AgentEvent[] = [];
+  eventBus.onAny((event) => planEvents.push(event));
+  const core = new FireflyAgentCore({
+    provider: {
+      ...testProviderMetadata,
+      async generateCompletion() {
+        providerCalls++;
+        return { message: { role: "assistant", content: "计划步骤已完成。" } };
+      },
+    },
+    toolRegistry: registry,
+    eventBus,
+  });
+
+  const result = await core.runRequiredPlan({
+    planExecutionMode: "required",
+    userPrompt: "执行明确计划",
+    steps: [{ description: "整理结果", completionRequirement: "analysis" }],
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("Expected required plan entry to accept the request");
+  assert.equal(result.result.status, "completed");
+  assert.equal(providerCalls, 1);
+  assert.equal(planEvents.filter((event) => event.type === "plan:created").length, 1);
+  assert.equal(planEvents.filter((event) => event.type === "plan:completed").length, 1);
+});
+
+test("31. Main required-plan entry rejects invalid mode and malformed steps before execution", async () => {
+  let providerCalls = 0;
+  const eventBus = new AgentEventBus();
+  const events: AgentEvent[] = [];
+  eventBus.onAny((event) => events.push(event));
+  const core = new FireflyAgentCore({
+    provider: {
+      ...testProviderMetadata,
+      async generateCompletion() {
+        providerCalls++;
+        return { message: { role: "assistant", content: "不应执行" } };
+      },
+    },
+    toolRegistry: new FireflyToolRegistry(),
+    eventBus,
+  });
+
+  const invalidMode = await core.runRequiredPlan({
+    planExecutionMode: "assist",
+    userPrompt: "不应降级",
+    steps: [{ description: "步骤", completionRequirement: "analysis" }],
+  });
+  const malformedSteps = await core.runRequiredPlan({
+    planExecutionMode: "required",
+    userPrompt: "不应执行畸形步骤",
+    steps: [{ description: "缺少完成要求" }],
+  });
+
+  assert.equal(invalidMode.ok, false);
+  if (invalidMode.ok) throw new Error("Expected invalid mode rejection");
+  assert.equal(invalidMode.code, "invalid_plan_execution_mode");
+  assert.equal(malformedSteps.ok, false);
+  if (malformedSteps.ok) throw new Error("Expected malformed step rejection");
+  assert.equal(malformedSteps.code, "invalid_plan_steps");
+  assert.equal(providerCalls, 0);
+  assert.equal(events.filter((event) => event.type === "agent:started").length, 0);
+});
+
+test("32. Direct required AgentRunInput rejects legacy string steps instead of treating them as analysis", async () => {
+  let providerCalls = 0;
+  const core = new FireflyAgentCore({
+    provider: {
+      ...testProviderMetadata,
+      async generateCompletion() {
+        providerCalls++;
+        return { message: { role: "assistant", content: "不应执行" } };
+      },
+    },
+    toolRegistry: new FireflyToolRegistry(),
+  });
+
+  const result = await core.run({
+    userPrompt: "旧字符串步骤不能降级",
+    planExecutionMode: "required",
+    customSteps: ["旧字符串步骤"],
+  });
+
+  assert.equal(result.status, "error");
+  assert.equal(result.error?.startsWith("invalid_plan_steps:"), true);
+  assert.equal(providerCalls, 0);
 });

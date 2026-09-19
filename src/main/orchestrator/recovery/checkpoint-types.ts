@@ -6,6 +6,7 @@ import type {
   RunState,
   StepState,
 } from "./execution-state";
+import type { ResumeCheckpointFacts } from "./resume-types";
 
 export const CHECKPOINT_SCHEMA_VERSION = 1;
 
@@ -17,6 +18,7 @@ export type CheckpointTrigger =
   | "tool_round_completed"
   | "compaction_completed"
   | "recovery_started"
+  | "resumable"
   | "run_completed"
   | "manual";
 
@@ -38,6 +40,8 @@ export interface Checkpoint {
   plan?: Plan;
   providerMetadata?: Record<string, unknown>;
   terminationReason?: AgentTerminationReason;
+  /** Present only on a newly created, same-process R2 resumable snapshot. */
+  resumeFacts?: ResumeCheckpointFacts;
 }
 
 export type CheckpointReadResult =

@@ -46,6 +46,7 @@ import { SettingsView } from "./components/SettingsView";
 import { CharacterSummary } from "./components/CharacterSummary";
 import { ApprovalView } from "./components/ApprovalView";
 import { InlineApprovalCard } from "./components/InlineApprovalCard";
+import { WorkView } from "./components/WorkView";
 
 export const App: React.FC = () => {
   const rendererView = parseRendererView(window.location.search);
@@ -141,6 +142,8 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
       document.title = "流萤 · 设置";
     } else if (rendererView === "summary") {
       document.title = "流萤 · 认知心境";
+    } else if (rendererView === "work") {
+      document.title = "流萤 · Work";
     } else {
       document.title = "流萤 · Firefly";
     }
@@ -536,7 +539,9 @@ const MainApp: React.FC<MainAppProps> = ({ rendererView }) => {
       <Header providerStatus={providerStatus} isMaximized={isMaximized} />
 
       {/* 2. Main Body Area */}
-      {rendererView === "chat" ? (
+      {rendererView === "work" ? (
+        <WorkView providerStatus={providerStatus} isMaximized={isMaximized} />
+      ) : rendererView === "chat" ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minHeight: 0, WebkitAppRegion: "no-drag" } as React.CSSProperties}>
           {/* Conversation Area with Messages */}
           <div

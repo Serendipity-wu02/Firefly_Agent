@@ -17,9 +17,15 @@ import { CheckpointManager } from "./recovery/checkpoint-manager";
 import { RecoveryManager } from "./recovery/recovery-manager";
 import { BoundedPlanner } from "./planning/bounded-planner";
 import type { PlannerConfig } from "./planning/plan-types";
+import {
+  runMainRequiredPlan,
+  validateAgentRunPlanInput,
+  type MainPlanExecutionResult,
+} from "./planning/plan-execution-entry";
 import { FireflyHarness } from "./harness/firefly-harness";
 import type { HarnessAuthorizationAdapter } from "./harness/harness-authorization-adapter";
 import type { MainAgentDelegationService } from "./subagents/main-agent-delegation";
+import type { WorkPlanGenerationResult } from "../../shared/work-types";
 
 export interface FireflyAgentCoreOptions {
   provider?: IFireflyLlmProvider;
@@ -105,12 +111,49 @@ export class FireflyAgentCore implements IAgentCore {
     return this.harness.getEventBus();
   }
 
+  proposeRequiredPlan(userPrompt: string, signal?: AbortSignal): Promise<WorkPlanGenerationResult> {
+    return this.harness.proposeRequiredPlan(userPrompt, signal);
+  }
+
   run(input: AgentRunInput): Promise<AgentRunResult> {
+    const validation = validateAgentRunPlanInput(
+      input,
+      this.harness.getPlanner().getConfig().maxSteps,
+    );
+    if (!validation.ok) {
+      return Promise.resolve({
+        runId: input.runId ?? "plan-request-rejected",
+        conversationId: input.conversationId,
+        status: "error",
+        terminationReason: { kind: "error" },
+        finalText: "",
+        transcript: [],
+        toolCallsCount: 0,
+        roundsCount: 0,
+        error: `${validation.code}: ${validation.message}`,
+        durationMs: 0,
+      });
+    }
     return this.harness.run({
       ...input,
       history: input.history ? input.history.map((message) => ({ ...message })) : undefined,
-      customSteps: input.customSteps ? [...input.customSteps] : undefined,
+      customSteps: input.customSteps
+        ? input.customSteps.map((step) => typeof step === "string" ? step : { ...step })
+        : undefined,
     });
+  }
+
+  /**
+   * Trusted Main-only entry for an explicitly selected execution plan.
+   * It is intentionally absent from IAgentCore, Renderer IPC, and Worker
+   * inputs; ordinary Chat continues to call run().
+   */
+  runRequiredPlan(request: unknown): Promise<MainPlanExecutionResult> {
+    return runMainRequiredPlan(
+      this,
+      request,
+      this.harness.getPlanner().getConfig().maxSteps,
+    );
   }
 
   resume(checkpointId: string, signal?: AbortSignal): Promise<AgentResumeResult> {

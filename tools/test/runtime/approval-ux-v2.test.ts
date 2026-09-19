@@ -29,12 +29,18 @@ interface ApprovalUxHost extends ApprovalWindowHost {
   readonly closeCount: number;
   readonly clearInlineCount: number;
   userClose(): void;
+  flushDeferredClose(): void;
   refreshPresentation(): void;
 }
 
-function createHost(inlineReady: InlineReadyState): ApprovalUxHost {
+function createHost(
+  inlineReady: InlineReadyState,
+  workTaskActive: InlineReadyState = { value: false },
+  deferWindowClose = false,
+): ApprovalUxHost {
   let closeHandler: (() => void) | null = null;
   let presentationRefreshHandler: (() => void) | null = null;
+  let deferredCloseHandler: (() => void) | null = null;
   let windowOpen = false;
   const windowEvents: ApprovalChangedEvent[] = [];
   const inlineEvents: ApprovalChangedEvent[] = [];
@@ -49,16 +55,19 @@ function createHost(inlineReady: InlineReadyState): ApprovalUxHost {
     get closeCount() { return closeCount; },
     get clearInlineCount() { return clearInlineCount; },
     openApprovalWindow() { windowOpen = true; openCount += 1; },
+    isApprovalWindowOpen() { return windowOpen; },
     closeApprovalWindow() {
       if (!windowOpen) return false;
       windowOpen = false;
       closeCount += 1;
-      closeHandler?.();
+      if (deferWindowClose) deferredCloseHandler = closeHandler;
+      else closeHandler?.();
       return true;
     },
     sendApprovalChanged(event: ApprovalChangedEvent) { windowEvents.push(event); },
     setApprovalWindowCloseHandler(handler: (() => void) | null) { closeHandler = handler; },
     isChatInlineReady() { return inlineReady.value; },
+    isWorkTaskActive() { return workTaskActive.value; },
     sendApprovalInline(event: ApprovalChangedEvent) { inlineEvents.push(event); },
     clearApprovalInline() {
       clearInlineCount += 1;
@@ -71,17 +80,23 @@ function createHost(inlineReady: InlineReadyState): ApprovalUxHost {
       windowOpen = false;
       closeHandler?.();
     },
+    flushDeferredClose() {
+      const handler = deferredCloseHandler;
+      deferredCloseHandler = null;
+      handler?.();
+    },
   };
 }
 
-function createFixture(inlineReadyValue = false) {
+function createFixture(inlineReadyValue = false, workTaskActiveValue = false, deferWindowClose = false) {
   let sequence = 0;
   const inlineReady = { value: inlineReadyValue };
+  const workTaskActive = { value: workTaskActiveValue };
   const service = new ApprovalService({
     now: () => 1_000,
     createRequestId: () => createApprovalRequestId(`approval-ux-v2-${++sequence}`),
   });
-  const host = createHost(inlineReady);
+  const host = createHost(inlineReady, workTaskActive, deferWindowClose);
   const timers: Array<ReturnType<typeof setTimeout>> = [];
   const coordinator = new ApprovalPresentationCoordinator({
     approvalService: service,
@@ -94,7 +109,7 @@ function createFixture(inlineReadyValue = false) {
     },
     cancelScheduled: (timer: ReturnType<typeof setTimeout>) => { clearTimeout(timer); },
   });
-  return { service, host, coordinator, inlineReady, timers };
+  return { service, host, coordinator, inlineReady, workTaskActive, timers };
 }
 
 function createInput(overrides: Partial<ApprovalRequestInput> = {}): ApprovalRequestInput {
@@ -133,6 +148,30 @@ test("B-C. Hidden Chat selects one fallback window and never both surfaces", () 
   const current = fixture.coordinator.getCurrentRecord();
   assert.ok(current);
   assert.equal(current.request.approvalRequestId, pending.request.approvalRequestId);
+});
+
+test("Work task activity forces the dedicated approval window even when Chat is inline-ready", () => {
+  const fixture = createFixture(true, true);
+  fixture.service.createPending(createInput());
+  fixture.coordinator.notifyPending();
+
+  assert.equal(fixture.host.openCount, 1);
+  assert.equal(fixture.host.windowOpen, true);
+  assert.equal(fixture.host.inlineEvents.length, 0);
+});
+
+test("A new pending request is presented when the previous approval window close callback is delayed", () => {
+  const fixture = createFixture(false, true, true);
+  const first = fixture.service.createPending(createInput());
+  fixture.coordinator.notifyPending();
+  assert.equal(fixture.host.openCount, 1);
+
+  fixture.coordinator.resolveCurrent(first.request.approvalRequestId, "deny");
+  const second = fixture.service.createPending(createInput());
+  fixture.coordinator.notifyPending();
+
+  assert.equal(fixture.host.openCount, 2);
+  assert.equal(fixture.coordinator.getCurrentRecord()?.request.approvalRequestId, second.request.approvalRequestId);
 });
 
 test("D. ApprovalService remains the canonical state owner while surfaces switch", () => {

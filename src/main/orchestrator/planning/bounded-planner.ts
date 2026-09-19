@@ -3,10 +3,12 @@ import {
   type Plan,
   type PlanResult,
   type PlanStep,
+  type PlanStepDefinition,
+  type PlanStepInput,
   type PlannerConfig,
   type StepVerificationResult,
 } from "./plan-types";
-import { StepVerifier } from "./step-verifier";
+import { StepVerifier, type StepVerificationContext } from "./step-verifier";
 
 export class BoundedPlanner {
   private readonly config: PlannerConfig;
@@ -67,12 +69,14 @@ export class BoundedPlanner {
   /**
    * 创建有限有界执行计划 (Bounded Plan)
    */
-  createPlan(runId: string, goal: string, customSteps?: string[]): Plan {
+  createPlan(runId: string, goal: string, customSteps?: readonly PlanStepInput[]): Plan {
     const planId = `plan-${runId}-${Date.now()}`;
-    const rawStepDescriptions: string[] = [];
+    const rawStepDefinitions: PlanStepDefinition[] = [];
 
     if (customSteps && customSteps.length > 0) {
-      rawStepDescriptions.push(...customSteps);
+      rawStepDefinitions.push(...customSteps.map((step) =>
+        typeof step === "string" ? { description: step } : { ...step },
+      ));
     } else {
       // 简单启发式拆分多步骤意图
       const cleaned = goal.replace(/^(请|帮我|麻烦)/, "");
@@ -82,20 +86,26 @@ export class BoundedPlanner {
         .filter((s) => s.length > 0);
 
       if (splits.length > 1) {
-        rawStepDescriptions.push(...splits);
+        rawStepDefinitions.push(...splits.map((description) => ({ description })));
       } else {
         // 单个复合意图的默认双步骨架
-        rawStepDescriptions.push(`分析并执行前置操作: ${goal}`, `综合结果并生成最终回复`);
+        rawStepDefinitions.push(
+          { description: `分析并执行前置操作: ${goal}` },
+          { description: "综合结果并生成最终回复" },
+        );
       }
     }
 
     // 严格限制最大步数 (Bounded Limit)
-    const boundedDescriptions = rawStepDescriptions.slice(0, this.config.maxSteps);
+    const boundedDefinitions = rawStepDefinitions.slice(0, this.config.maxSteps);
 
-    const steps: PlanStep[] = boundedDescriptions.map((desc, idx) => ({
+    const steps: PlanStep[] = boundedDefinitions.map((definition, idx) => ({
       stepId: `step-${idx + 1}-${Date.now()}`,
       index: idx,
-      description: desc,
+      description: definition.description,
+      ...(definition.completionRequirement === undefined
+        ? {}
+        : { completionRequirement: definition.completionRequirement }),
       status: idx === 0 ? "running" : "pending",
       dependsOn: idx > 0 ? [idx - 1] : undefined,
       startedAt: idx === 0 ? Date.now() : undefined,
@@ -119,6 +129,7 @@ export class BoundedPlanner {
     plan: Plan,
     observation: string,
     isError: boolean,
+    verificationContext: StepVerificationContext,
   ): {
     plan: Plan;
     verification: StepVerificationResult;
@@ -142,7 +153,12 @@ export class BoundedPlanner {
       };
     }
 
-    const verification = this.verifier.verifyStep(currentStep, observation, isError);
+    const verification = this.verifier.verifyStep(
+      currentStep,
+      observation,
+      isError,
+      verificationContext,
+    );
     currentStep.observation = observation;
     currentStep.verification = verification;
 

@@ -1,3 +1,9 @@
+import type {
+  AgentPlanStepCompletionRequirement,
+  AgentPlanStepDefinition,
+  AgentPlanStepInput,
+} from "../../../shared/agent-types";
+
 export type PlanStatus =
   | "draft"
   | "ready"
@@ -25,10 +31,15 @@ export interface StepVerificationResult {
   reason?: string;
 }
 
+export type PlanStepCompletionRequirement = AgentPlanStepCompletionRequirement;
+export type PlanStepDefinition = AgentPlanStepDefinition;
+export type PlanStepInput = AgentPlanStepInput;
+
 export interface PlanStep {
   stepId: string;
   index: number;
   description: string;
+  completionRequirement?: PlanStepCompletionRequirement;
   status: PlanStepStatus;
   dependsOn?: number[];
   observation?: string;

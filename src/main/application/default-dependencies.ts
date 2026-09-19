@@ -71,6 +71,8 @@ import type { WindowStateSnapshot } from "../../shared/window-types";
 import type { FireflySettingsUpdate } from "../../shared/settings-types";
 import type { BrowserSettingsSnapshot } from "../../shared/settings-types";
 import type { MemoryItem } from "../../shared/memory-types";
+import { WorkTaskCoordinator } from "../work/work-task-coordinator";
+import { registerWorkIpc, type WorkIpcRegistration } from "../work/work-ipc";
 
 const MUSIC_STATUS_CAPABILITY_ID = createCapabilityId("music.status.read");
 const MUSIC_CONTROL_CAPABILITY_ID = createCapabilityId("music.control");
@@ -177,6 +179,12 @@ function registerWindowAndSettingsIpc(
     };
     ipcMain.on(IPC.WINDOW_OPEN_CHAT, openChat);
     cleanup.push(() => ipcMain.removeListener(IPC.WINDOW_OPEN_CHAT, openChat));
+
+    const openWork = (): void => {
+      dependencies.windowManager.createWorkWindow();
+    };
+    ipcMain.on(IPC.WINDOW_OPEN_WORK, openWork);
+    cleanup.push(() => ipcMain.removeListener(IPC.WINDOW_OPEN_WORK, openWork));
 
     const openSettings = (): void => {
       dependencies.windowManager.createSettingsWindow();
@@ -355,6 +363,7 @@ interface DefaultApplicationDependencies {
   readonly knowledgeCoordinator: KnowledgeCoordinator;
   readonly agentCore: IAgentCore;
   readonly subAgentWorkerRuntime: SubAgentWorkerRuntime;
+  readonly workTaskCoordinator: WorkTaskCoordinator;
   readonly restoreTools: () => void;
   readonly registerWindowAndSettingsIpc: () => () => void;
 }
@@ -366,6 +375,7 @@ class DefaultApplicationRuntime implements ApplicationRuntime {
   private unregisterAssetsProtocol: (() => void) | null = null;
   private unregisterWindowAndSettingsIpc: (() => void) | null = null;
   private unregisterChatIpc: (() => void) | null = null;
+  private workIpc: WorkIpcRegistration | null = null;
   private unregisterMusicIpc: (() => void) | null = null;
   private unregisterMusicPreferenceSignals: (() => void) | null = null;
   private unregisterApprovalPresentationListener: (() => void) | null = null;
@@ -411,12 +421,17 @@ class DefaultApplicationRuntime implements ApplicationRuntime {
       this.tray = createTray({
         togglePetWindow: () => this.dependencies.windowManager.togglePetWindow(),
         createChatWindow: () => this.dependencies.windowManager.createChatWindow(),
+        createWorkWindow: () => this.dependencies.windowManager.createWorkWindow(),
         createStatusWindow: () => this.dependencies.windowManager.createStatusWindow(),
         createSettingsWindow: () => this.dependencies.windowManager.createSettingsWindow(),
       });
 
       this.unregisterAssetsProtocol = registerAssetsProtocol();
       this.unregisterWindowAndSettingsIpc = this.dependencies.registerWindowAndSettingsIpc();
+      this.workIpc = registerWorkIpc({
+        coordinator: this.dependencies.workTaskCoordinator,
+        windowManager: this.dependencies.windowManager,
+      });
       this.approvalIpc = registerApprovalIpc({
         approvalService: this.dependencies.approvalService,
         windowManager: this.dependencies.windowManager,
@@ -462,6 +477,7 @@ class DefaultApplicationRuntime implements ApplicationRuntime {
     this.disposed = true;
 
     // Stop accepting new work before awaiting any asynchronous resource shutdown.
+    this.dependencies.workTaskCoordinator.dispose();
     this.dependencies.subAgentWorkerRuntime.cancelAll();
     this.dependencies.agentCore.cancelAll();
     await this.dependencies.browserReadService.dispose();
@@ -475,6 +491,8 @@ class DefaultApplicationRuntime implements ApplicationRuntime {
     this.approvalIpc = null;
     this.unregisterWindowAndSettingsIpc?.();
     this.unregisterWindowAndSettingsIpc = null;
+    this.workIpc?.dispose();
+    this.workIpc = null;
     this.unregisterChatIpc?.();
     this.unregisterChatIpc = null;
     this.unregisterMusicIpc?.();
@@ -517,6 +535,7 @@ export async function createDefaultApplicationRuntime(
   let musicService: MusicService | null = null;
   let musicContextService: MusicContextService | null = null;
   let browserReadService: BrowserReadService | null = null;
+  let workTaskCoordinator: WorkTaskCoordinator | null = null;
   let restoreToolsOnAssemblyFailure: (() => void) | null = null;
 
   try {
@@ -709,7 +728,7 @@ export async function createDefaultApplicationRuntime(
     const subAgentRegistry = new SubAgentRegistry();
     subAgentRegistry.register(DEFAULT_MUSIC_STATUS_SUBAGENT_DESCRIPTOR);
     const subAgentTaskService = new SubAgentTaskService({ registry: subAgentRegistry });
-    let agentCore: IAgentCore | null = null;
+    let agentCore: FireflyAgentCore | null = null;
     const workerRuntime = new SubAgentWorkerRuntime({
       registry: subAgentRegistry,
       taskService: subAgentTaskService,
@@ -740,6 +759,15 @@ export async function createDefaultApplicationRuntime(
     const musicPreferenceService = new MusicPreferenceService({ memory: memoryService });
     const agentCoreInstance = agentCore;
     if (!agentCoreInstance) throw new Error("AgentCore construction did not complete.");
+    workTaskCoordinator = new WorkTaskCoordinator({
+      agentCore: agentCoreInstance,
+      onChanged: (snapshot) => {
+        windowManager.sendToWork(IPC.WORK_STATE_CHANGED, snapshot);
+      },
+      onActivityChanged: (active) => {
+        windowManager.setWorkTaskActive(active);
+      },
+    });
     const runtimeDependencies: DefaultApplicationDependencies = {
       windowManager,
       memoryService,
@@ -754,6 +782,7 @@ export async function createDefaultApplicationRuntime(
       knowledgeCoordinator,
       agentCore: agentCoreInstance,
       subAgentWorkerRuntime: workerRuntime,
+      workTaskCoordinator,
       restoreTools: toolRegistration.restore,
       registerWindowAndSettingsIpc: () =>
         registerWindowAndSettingsIpc({
@@ -774,6 +803,7 @@ export async function createDefaultApplicationRuntime(
   } catch (error: unknown) {
     restoreToolsOnAssemblyFailure?.();
     restoreToolsOnAssemblyFailure = null;
+    workTaskCoordinator?.dispose();
     musicContextService?.dispose();
     await browserReadService?.dispose();
     if (musicService) await musicService.shutdown();

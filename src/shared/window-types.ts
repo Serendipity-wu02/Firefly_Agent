@@ -7,7 +7,7 @@
  * strings.
  */
 
-export type RendererView = "chat" | "settings" | "summary" | "approval";
+export type RendererView = "chat" | "settings" | "summary" | "approval" | "work";
 
 export const RENDERER_VIEW_QUERY_PARAM = "view";
 
@@ -17,7 +17,7 @@ export interface WindowStateSnapshot {
 
 export function parseRendererView(search: string): RendererView {
   const value = new URLSearchParams(search).get(RENDERER_VIEW_QUERY_PARAM);
-  if (value === "settings" || value === "summary" || value === "approval") {
+  if (value === "settings" || value === "summary" || value === "approval" || value === "work") {
     return value;
   }
   return "chat";

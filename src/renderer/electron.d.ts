@@ -12,6 +12,10 @@ import type {
   ApprovalResolveRequest,
 } from "../shared/approval-ipc-types";
 import type { ApprovalRecord } from "../shared/approval-types";
+import type {
+  WorkTaskOperationResult,
+  WorkTaskSnapshot,
+} from "../shared/work-types";
 
 declare global {
   interface Window {
@@ -37,6 +41,7 @@ declare global {
       openStatus: () => void;
       openSettings: () => void;
       openSummary: () => void;
+      openWork: () => void;
       onSummaryUpdated?: (cb: (summary: any) => void) => () => void;
       showContextMenu: () => void;
       setScale: (scale: number) => void;
@@ -78,6 +83,13 @@ declare global {
       load: () => Promise<FireflySettingsSnapshot>;
       save: (settings: FireflySettingsUpdate) => Promise<boolean>;
       onSettingsChanged: (cb: (settings: FireflySettingsSnapshot) => void) => () => void;
+    };
+    work?: {
+      getState: () => Promise<WorkTaskSnapshot | null>;
+      createPlan: (task: string) => Promise<WorkTaskOperationResult>;
+      confirmPlan: (proposalId: string) => Promise<WorkTaskOperationResult>;
+      cancel: () => Promise<WorkTaskOperationResult>;
+      onStateChanged: (cb: (snapshot: WorkTaskSnapshot) => void) => () => void;
     };
     startup?: {
       get: () => Promise<boolean>;

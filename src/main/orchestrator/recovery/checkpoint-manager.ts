@@ -11,11 +11,20 @@ import {
 import { DefaultCheckpointPolicy } from "./checkpoint-policy";
 import { InMemoryCheckpointStore } from "./checkpoint-store";
 import type { RunExecutionState } from "./execution-state";
+import type {
+  ResumeCheckpointFacts,
+  ResumeClaimResult,
+} from "./resume-types";
 
 export interface CheckpointManagerOptions {
   store?: ICheckpointStore;
   policy?: ICheckpointPolicy;
   eventBus?: AgentEventBus;
+}
+
+export interface CheckpointCreationOptions {
+  /** Defer the created event until the caller confirms the saved boundary. */
+  deferCreatedEvent?: boolean;
 }
 
 /**
@@ -27,6 +36,13 @@ export class CheckpointManager {
   private readonly store: ICheckpointStore;
   private readonly policy: ICheckpointPolicy;
   private readonly eventBus?: AgentEventBus;
+  private readonly claimedCheckpointIds = new Set<string>();
+  private readonly claimedChains = new Map<
+    string,
+    { checkpointId: string; generation: number; ownerRunId: string }
+  >();
+  private readonly invalidatedResumeCheckpoints = new Map<string, string>();
+  private checkpointSequence = 0;
 
   constructor(options: CheckpointManagerOptions = {}) {
     this.store = options.store || new InMemoryCheckpointStore();
@@ -50,12 +66,15 @@ export class CheckpointManager {
     messages: ChatMessage[],
     trigger: CheckpointTrigger,
     providerMetadata?: Record<string, unknown>,
+    resumeFacts?: ResumeCheckpointFacts,
+    options: CheckpointCreationOptions = {},
   ): Promise<Checkpoint | null> {
     if (!this.policy.shouldCheckpoint(trigger, state)) {
       return null;
     }
 
-    const checkpointId = `cp-${state.runId}-s${state.step}-${Date.now()}`;
+    const checkpointId =
+      `cp-${state.runId}-s${state.step}-${Date.now()}-${++this.checkpointSequence}`;
 
     // 深度防御性脱敏与拷贝（确保无未决 Promise、函数、AbortController 等不可序列化对象）
     const sanitizedMessages: ChatMessage[] = messages.map((m) => ({
@@ -86,19 +105,118 @@ export class CheckpointManager {
       plan: sanitizedPlan,
       providerMetadata,
       terminationReason: state.terminationReason,
+      ...(resumeFacts === undefined
+        ? {}
+        : { resumeFacts: JSON.parse(JSON.stringify(resumeFacts)) }),
     };
 
-    await this.store.save(checkpoint);
+    try {
+      await this.store.save(checkpoint);
+    } catch (error) {
+      if (trigger === "resumable") {
+        this.invalidateResume(checkpointId, "checkpoint_save_failed");
+      }
+      throw error;
+    }
 
+    let readBack: CheckpointReadResult;
+    try {
+      readBack = await this.store.read(checkpointId);
+    } catch (error) {
+      if (trigger === "resumable") {
+        this.invalidateResume(checkpointId, "checkpoint_readback_failed");
+      }
+      throw error;
+    }
+    if (
+      readBack.kind !== "found" ||
+      JSON.stringify(readBack.checkpoint) !== JSON.stringify(checkpoint)
+    ) {
+      if (trigger === "resumable") {
+        this.invalidateResume(checkpointId, "checkpoint_readback_failed");
+      }
+      return null;
+    }
+
+    if (!options.deferCreatedEvent) {
+      this.publishCheckpointCreated(readBack.checkpoint);
+    }
+
+    return readBack.checkpoint;
+  }
+
+  publishCheckpointCreated(checkpoint: Checkpoint): boolean {
+    if (this.invalidatedResumeCheckpoints.has(checkpoint.checkpointId)) return false;
     this.eventBus?.emit({
       type: "checkpoint:created",
-      runId: state.runId,
-      checkpointId,
-      step: state.step,
+      runId: checkpoint.runId,
+      checkpointId: checkpoint.checkpointId,
+      step: checkpoint.step,
       timestamp: Date.now(),
     });
+    return true;
+  }
 
-    return checkpoint;
+  invalidateResume(checkpointId: string, reason: string): void {
+    this.invalidatedResumeCheckpoints.set(checkpointId, reason);
+  }
+
+  getResumeInvalidation(checkpointId: string): string | undefined {
+    return this.invalidatedResumeCheckpoints.get(checkpointId);
+  }
+
+  /**
+   * Atomically claims one R2 snapshot in this process.  The method is
+   * synchronous on purpose: callers must not await between eligibility
+   * validation and occupation of the recovery chain.
+   */
+  claimResume(
+    checkpoint: Checkpoint,
+    ownerRunId: string,
+  ): ResumeClaimResult {
+    const facts = checkpoint.resumeFacts;
+    if (facts === undefined) {
+      return {
+        ok: false,
+        code: "resume_chain_claimed",
+        message: "The checkpoint has no R2 facts to claim.",
+      };
+    }
+    if (facts.executionRunId !== checkpoint.runId) {
+      return {
+        ok: false,
+        code: "resume_chain_claimed",
+        message: "The checkpoint execution owner does not match its owning run.",
+      };
+    }
+    if (this.claimedCheckpointIds.has(checkpoint.checkpointId)) {
+      return {
+        ok: false,
+        code: "resume_already_claimed",
+        message: `Checkpoint "${checkpoint.checkpointId}" was already claimed in this process.`,
+      };
+    }
+
+    const existing = this.claimedChains.get(facts.originRunId);
+    if (existing !== undefined && (
+      facts.parentCheckpointId !== existing.checkpointId ||
+      facts.generation !== existing.generation + 1 ||
+      facts.executionRunId !== existing.ownerRunId
+    )) {
+      return {
+        ok: false,
+        code: "resume_chain_claimed",
+        message: `Recovery chain for run "${facts.originRunId}" is already claimed by another snapshot.`,
+      };
+    }
+
+    this.claimedCheckpointIds.add(checkpoint.checkpointId);
+    this.claimedChains.set(facts.originRunId, {
+      checkpointId: checkpoint.checkpointId,
+      generation: facts.generation,
+      ownerRunId,
+    });
+    return { ok: true, ownerRunId };
   }
 
   /**

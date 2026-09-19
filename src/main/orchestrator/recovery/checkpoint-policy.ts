@@ -14,6 +14,7 @@ export const DEFAULT_CHECKPOINT_TRIGGERS: CheckpointTrigger[] = [
   "tool_round_completed",
   "compaction_completed",
   "recovery_started",
+  "resumable",
   "run_completed",
 ];
 

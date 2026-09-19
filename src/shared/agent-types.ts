@@ -17,12 +17,28 @@ export type AgentRunStatus =
 
 export type AgentBudgetKind = "rounds" | "tool_calls" | "delegation";
 
+/** New contract: whether a plan is advisory or a required execution contract. */
+export type AgentPlanExecutionMode = "assist" | "required";
+
+/** New structured terminal reason for a required plan that lacks completion evidence. */
+export type AgentPlanCompletionFailureReason =
+  | "plan_not_created"
+  | "step_failed"
+  | "step_unverified"
+  | "step_not_executed";
+
 export type AgentTerminationReason =
   | { readonly kind: "completed" }
   | { readonly kind: "cancelled" }
   | { readonly kind: "timeout" }
   | { readonly kind: "error" }
-  | { readonly kind: "budget_exhausted"; readonly budget: AgentBudgetKind };
+  | { readonly kind: "budget_exhausted"; readonly budget: AgentBudgetKind }
+  | {
+      readonly kind: "plan_incomplete";
+      readonly planId?: string;
+      readonly stepIndex?: number;
+      readonly reason: AgentPlanCompletionFailureReason;
+    };
 
 /** Structured, non-executing rejection reasons for the Resume V1 fail-closed gate. */
 export type AgentResumeRejectionCode =
@@ -31,7 +47,13 @@ export type AgentResumeRejectionCode =
   | "checkpoint_invalid_format"
   | "checkpoint_unsupported_version"
   | "checkpoint_terminal"
-  | "checkpoint_facts_missing";
+  | "checkpoint_facts_missing"
+  | "resume_eligibility_invalid"
+  | "resume_budget_expired"
+  | "resume_clock_mismatch"
+  | "resume_checkpoint_invalidated"
+  | "resume_already_claimed"
+  | "resume_chain_claimed";
 
 export type AgentResumeReadFailureCode = "io_error";
 
@@ -83,6 +105,18 @@ export interface AgentToolCallEvidence {
   readonly isError: boolean;
 }
 
+/** Structured non-success reason produced by the run-owned no-progress gate. */
+export type AgentNoProgressReason = "repeated_read_result" | "repeated_read_failure";
+
+export interface AgentNoProgressInfo {
+  readonly reason: AgentNoProgressReason;
+  readonly toolName: string;
+  readonly toolCallId: string;
+  readonly step: number;
+  readonly consecutiveRounds: number;
+  readonly threshold: number;
+}
+
 export type AgentRequiredToolExecutionStatus =
   | "succeeded"
   | "failed"
@@ -120,6 +154,20 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   compactionRetainCount: 4,
 };
 
+/** New plan contract: the source of a step's completion evidence. */
+export type AgentPlanStepCompletionRequirement = "analysis" | "tool";
+
+/**
+ * New plan creation input. A legacy string intentionally carries no
+ * completion requirement and remains unverified until a caller supplies one.
+ */
+export interface AgentPlanStepDefinition {
+  readonly description: string;
+  readonly completionRequirement?: AgentPlanStepCompletionRequirement;
+}
+
+export type AgentPlanStepInput = string | AgentPlanStepDefinition;
+
 export interface AgentRunInput {
   runId?: string;
   conversationId?: string;
@@ -130,7 +178,9 @@ export interface AgentRunInput {
   memoryContext?: string;
   systemPromptOverride?: string;
   planMode?: boolean;
-  customSteps?: string[];
+  /** New trusted Main-side contract; absent/assist plans remain advisory. */
+  planExecutionMode?: AgentPlanExecutionMode;
+  customSteps?: AgentPlanStepInput[];
   signal?: AbortSignal;
   /** Main-owned normalized URLs explicitly present in the current user turn. */
   browserRequestTargets?: readonly string[];
@@ -152,6 +202,10 @@ export interface AgentRunResult {
   /** Present when the caller supplied `requiredToolExecution`. */
   requiredToolExecution?: AgentRequiredToolExecutionResult;
   roundsCount: number;
+  /** Set only when an internal R2 stop saved a resumable checkpoint. */
+  resumeCheckpointId?: string;
+  /** Present only when the run stopped at the run-owned no-progress gate. */
+  noProgress?: AgentNoProgressInfo;
   error?: string;
   durationMs: number;
 }

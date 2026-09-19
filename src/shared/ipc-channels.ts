@@ -24,6 +24,7 @@ export const IPC = {
   WINDOW_OPEN_STATUS: "window:open-status",
   WINDOW_OPEN_SETTINGS: "window:open-settings",
   WINDOW_OPEN_SUMMARY: "window:open-summary",
+  WINDOW_OPEN_WORK: "window:open-work",
   CHARACTER_SUMMARY_UPDATED: "character:summary-updated",
 
   // Human Approval Surface
@@ -50,6 +51,13 @@ export const IPC = {
   CHAT_STREAM_END: "chat:stream-end",
   CHAT_CLEAR_HISTORY: "chat:clear-history",
   CHAT_GET_HISTORY: "chat:get-history",
+
+  // Work plan and execution surface
+  WORK_GET_STATE: "work:get-state",
+  WORK_CREATE_PLAN: "work:create-plan",
+  WORK_CONFIRM_PLAN: "work:confirm-plan",
+  WORK_CANCEL: "work:cancel",
+  WORK_STATE_CHANGED: "work:state-changed",
 
   // Settings & Startup & Provider
   SETTINGS_LOAD: "settings:load",

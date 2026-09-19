@@ -29,6 +29,7 @@ const APPROVAL_WINDOW_HEIGHT = 600;
 export class WindowManager {
   private petWindow: BrowserWindow | null = null;
   private chatWindow: BrowserWindow | null = null;
+  private workWindow: BrowserWindow | null = null;
   private settingsWindow: BrowserWindow | null = null;
   private summaryWindow: BrowserWindow | null = null;
   private summaryPreferredVisible = true;
@@ -36,6 +37,7 @@ export class WindowManager {
   private approvalWindowCloseHandler: (() => void) | null = null;
   private approvalPresentationRefreshHandler: (() => void) | null = null;
   private chatRendererReady = false;
+  private workTaskActive = false;
   private readonly petVisibilityListeners = new Set<(visible: boolean) => void>();
   private isDev: boolean;
   private configPath: string;
@@ -329,6 +331,61 @@ export class WindowManager {
     return win;
   }
 
+  createWorkWindow(): BrowserWindow {
+    if (this.workWindow && !this.workWindow.isDestroyed()) {
+      this.workWindow.show();
+      this.workWindow.focus();
+      this.notifyApprovalPresentationAvailability();
+      return this.workWindow;
+    }
+
+    const win = new BrowserWindow({
+      width: CHAT_WINDOW_WIDTH,
+      height: CHAT_WINDOW_HEIGHT,
+      center: true,
+      title: "流萤 · Work",
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      resizable: true,
+      autoHideMenuBar: true,
+      show: false,
+      webPreferences: {
+        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    win.setMenu(null);
+    this.bindWindowState(win);
+
+    const targetUrl = this.isDev
+      ? this.getRendererDevUrl("work")
+      : path.join(app.getAppPath(), "dist", "renderer", "ui", "index.html");
+    console.log(`[WindowManager] OPEN WORK WINDOW -> Target: ${targetUrl}`);
+
+    if (this.isDev) {
+      win.loadURL(targetUrl);
+    } else {
+      win.loadFile(targetUrl, {
+        query: { [RENDERER_VIEW_QUERY_PARAM]: "work" },
+      });
+    }
+
+    win.once("ready-to-show", () => {
+      win.center();
+      win.show();
+      win.focus();
+    });
+    win.on("closed", () => {
+      this.workWindow = null;
+      this.notifyApprovalPresentationAvailability();
+    });
+
+    this.workWindow = win;
+    return win;
+  }
+
   createSettingsWindow(): BrowserWindow {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       this.settingsWindow.show();
@@ -449,12 +506,20 @@ export class WindowManager {
     return this.approvalWindow;
   }
 
+  isApprovalWindowOpen(): boolean {
+    return this.getApprovalWindow()?.isVisible() === true;
+  }
+
   isApprovalWindowSender(sender: unknown): boolean {
     return this.getApprovalWindow()?.webContents === sender;
   }
 
   isApprovalSurfaceSender(sender: unknown): boolean {
     return this.isApprovalWindowSender(sender) || this.getChatWindow()?.webContents === sender;
+  }
+
+  isWorkWindowSender(sender: unknown): boolean {
+    return this.getWorkWindow()?.webContents === sender;
   }
 
   sendApprovalChanged(event: ApprovalChangedEvent): void {
@@ -486,6 +551,16 @@ export class WindowManager {
 
   setApprovalPresentationRefreshHandler(handler: (() => void) | null): void {
     this.approvalPresentationRefreshHandler = handler;
+  }
+
+  setWorkTaskActive(active: boolean): void {
+    if (this.workTaskActive === active) return;
+    this.workTaskActive = active;
+    this.notifyApprovalPresentationAvailability();
+  }
+
+  isWorkTaskActive(): boolean {
+    return this.workTaskActive;
   }
 
   private notifyApprovalPresentationAvailability(): void {
@@ -637,6 +712,10 @@ export class WindowManager {
         click: () => this.createChatWindow(),
       },
       {
+        label: "📋 Work 任务",
+        click: () => this.createWorkWindow(),
+      },
+      {
         label: "💭 流萤认知心境",
         click: () => this.toggleSummaryWindow(),
       },
@@ -674,9 +753,21 @@ export class WindowManager {
     return this.chatWindow;
   }
 
+  getWorkWindow(): BrowserWindow | null {
+    if (!this.workWindow || this.workWindow.isDestroyed()) return null;
+    return this.workWindow;
+  }
+
   sendToPet(channel: string, payload?: unknown): void {
     const win = this.getPetWindow();
     if (win) {
+      win.webContents.send(channel, payload);
+    }
+  }
+
+  sendToWork(channel: string, payload?: unknown): void {
+    const win = this.getWorkWindow();
+    if (win && !win.webContents.isDestroyed()) {
       win.webContents.send(channel, payload);
     }
   }

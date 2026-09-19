@@ -16,7 +16,7 @@ When all conditions hold, the request is sent to the Chat renderer as a compact 
 
 Both surfaces use the same typed preload API and resolve through the same coordinator and `ApprovalService`. Settled records (`APPROVED`, `DENIED`, `CANCELLED`, and `EXPIRED`) clear the inline card or close the fallback window. A stale resolve response clears the inline presentation instead of leaving a zombie card.
 
-The inline card displays only structured fields from `ApprovalRequest`: requester, operation-bearing summary, reason, capability, the existing `risk` and `sideEffect` metadata, effective Sandbox scope, and the grant lifetime. The fallback Approval Window shows the same fields. It does not parse raw tool arguments. The current production target is `music.control`; its operation and `QQMusic` desktop target are represented by the exact Main-generated summary, capability, metadata, and effective scope. A process-scoped request is labelled `本进程范围 · FULL_ACCESS`; other requests remain `一次授权 · ONCE`.
+The inline card displays only structured fields from `ApprovalRequest`: requester, operation-bearing summary, reason, capability, the existing `risk` and `sideEffect` metadata, effective Sandbox scope, and the grant lifetime. The fallback Approval Window shows the same fields. It does not parse raw tool arguments. Current production requests include the existing `music.control` path and the static Browser read path; each operation and target is represented by the exact Main-generated summary, capability, metadata, and effective scope. A process-scoped request is labelled `本进程范围 · FULL_ACCESS`; other requests remain `一次授权 · ONCE`.
 
 In Chat, the inline approval is rendered in a dedicated non-message region immediately above the composer, outside the scrollable message list. Its details area scrolls internally when the window is small and its buttons remain accessible. The coordinator continues to present only the oldest pending request at a time and advances to the next pending record after terminal resolution; `ApprovalService` remains the sole state owner.
 
@@ -26,6 +26,12 @@ notification channel currently carries `PET_PROACTIVE_LINE`, which is a
 speech-triggering presentation event rather than a pure approval notice, so it
 is not reused for authorization decisions. No speech-panel refactor is part of
 this contract.
+
+## Work 专用审批与关闭竞态
+
+While a Work task is planning, awaiting confirmation, or running, `WindowManager.isWorkTaskActive()` prevents a ready Chat window from taking the inline surface; the dedicated singleton Approval Window is used instead. `ApprovalPresentationCoordinator.refresh()` only clears its terminal-window wait when there is no pending request or the old window is actually closed. When an already-open fallback window is reused, `presentPending()` sends the new `ApprovalChangedEvent` to that window. This prevents a delayed close callback from hiding a new request and keeps one request on one canonical `ApprovalService` lifecycle.
+
+The regression is covered by `tools/test/runtime/approval-ux-v2.test.ts`: Work activity selects the dedicated surface, a delayed close callback does not suppress the next pending request, and Chat inline/fallback behavior remains covered.
 
 ## Firefly hint
 

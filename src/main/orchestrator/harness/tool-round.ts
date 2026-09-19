@@ -138,6 +138,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isUnknownExecutionOutput(output: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (!isRecord(parsed)) return false;
+    if (parsed.commandSubmission === "unknown" || parsed.outcome === "unknown") return true;
+    const error = parsed.error;
+    return error === "tool_timeout" ||
+      error === "tool_cancelled" ||
+      error === "CANCELLED" ||
+      error === "execution_exception" ||
+      error === "engine_internal_error";
+  } catch {
+    return false;
+  }
+}
+
 function requiredValueMatches(expected: unknown, actual: unknown): boolean {
   if (Object.is(expected, actual)) return true;
   if (Array.isArray(expected)) {
@@ -358,7 +374,11 @@ export async function executeToolRound(
       result = await options.executionEngine.executeToolCall(call, context);
     }
 
-    let outcome: ToolCallOutcome = result.isError ? "failure" : "success";
+    let outcome: ToolCallOutcome = isUnknownExecutionOutput(result.output)
+      ? "unknown"
+      : result.isError
+        ? "failure"
+        : "success";
     try {
       const parsed = JSON.parse(result.output);
       if (parsed && parsed.ok === false) {
