@@ -10,6 +10,8 @@ export type ToolSideEffect =
   | "external_action";
 
 export interface ToolContext {
+  /** Main-owned execution identity; present for Harness-dispatched tools. */
+  runId?: string;
   userQuery: string;
   conversationId?: string;
   signal?: AbortSignal;

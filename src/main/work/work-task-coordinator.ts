@@ -9,6 +9,8 @@ import type {
 } from "../orchestrator/planning/plan-execution-entry";
 import { extractBrowserUserTargetUrls } from "../browser/browser-user-targets";
 import type {
+  WorkCreatePlanRequest,
+  WorkFileReadMode,
   WorkPlanGenerationResult,
   WorkStepSnapshot,
   WorkTaskOperationResult,
@@ -16,6 +18,18 @@ import type {
   WorkTaskSnapshot,
   WorkVerificationStatus,
 } from "../../shared/work-types";
+import {
+  WorkFileSelectionError,
+  WorkFileSelectionStore,
+} from "./work-file-selection-store";
+import type {
+  WorkFileReadRequirement,
+  WorkFileSelectionBinding,
+  WorkFileSelectionOperationResult,
+  WorkFileSelectionSnapshot,
+} from "../../shared/work-file-types";
+import { createWorkFileReadRequirement } from "../../shared/work-file-types";
+import type { WorkDiagnosticSink } from "./work-diagnostics";
 
 export interface WorkAgentCore {
   getEventBus(): AgentEventBus;
@@ -23,6 +37,8 @@ export interface WorkAgentCore {
     userPrompt: string,
     signal?: AbortSignal,
     browserRequestTargets?: readonly string[],
+    fileSelection?: WorkFileSelectionSnapshot,
+    fileReadRequirement?: WorkFileReadRequirement,
   ): Promise<WorkPlanGenerationResult>;
   runRequiredPlan(request: unknown): Promise<MainPlanExecutionResult>;
   cancel(runId: string): boolean;
@@ -32,6 +48,12 @@ export interface WorkTaskCoordinatorOptions {
   readonly agentCore: WorkAgentCore;
   readonly onChanged?: (snapshot: WorkTaskSnapshot) => void;
   readonly onActivityChanged?: (active: boolean) => void;
+  readonly fileSelectionStore?: WorkFileSelectionStore;
+  readonly bindFileSelectionToSandbox?: (
+    runId: string,
+    selection: WorkFileSelectionSnapshot,
+  ) => () => void;
+  readonly diagnosticSink?: WorkDiagnosticSink;
 }
 
 interface MutableWorkStep {
@@ -49,6 +71,9 @@ interface MutableWorkTask {
   readonly taskId: string;
   readonly userPrompt: string;
   readonly browserRequestTargets: readonly string[];
+  readonly fileReadMode: WorkFileReadMode;
+  readonly fileSelection?: WorkFileSelectionSnapshot;
+  readonly fileReadRequirement?: WorkFileReadRequirement;
   readonly createdAt: number;
   phase: WorkTaskPhase;
   proposalId?: string;
@@ -77,6 +102,17 @@ function cloneSnapshot(task: MutableWorkTask | null): WorkTaskSnapshot | null {
     taskId: task.taskId,
     userPrompt: task.userPrompt,
     browserRequestTargets: [...task.browserRequestTargets],
+    ...(task.fileSelection === undefined ? {} : { fileSelection: task.fileSelection }),
+    fileReadMode: task.fileReadMode,
+    ...(task.fileReadRequirement === undefined
+      ? {}
+      : {
+          fileReadRequirement: {
+            selectionId: task.fileReadRequirement.selectionId,
+            fileSelectionId: task.fileReadRequirement.fileSelectionId,
+            fileIds: [...task.fileReadRequirement.fileIds],
+          },
+        }),
     phase: task.phase,
     ...(task.proposalId === undefined ? {} : { proposalId: task.proposalId }),
     ...(task.runId === undefined ? {} : { runId: task.runId }),
@@ -111,6 +147,45 @@ function isTerminalPhase(phase: WorkTaskPhase): boolean {
   return phase === "completed" || phase === "failed" || phase === "cancelled";
 }
 
+function isWorkCreatePlanRequest(value: unknown): value is WorkCreatePlanRequest {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.task === "string" && record.task.trim().length > 0 &&
+    (record.fileReadMode === "optional" || record.fileReadMode === "required");
+}
+
+function hasRequiredFileReadEvidence(
+  result: AgentRunResult,
+  runId: string,
+  requirement: WorkFileReadRequirement,
+): boolean {
+  const evidence = result.toolCallEvidence ?? [];
+  return requirement.fileIds.every((fileId) => evidence.some((entry) => {
+    if (entry.runId !== runId || entry.toolName !== "file_read" ||
+        entry.outcome !== "success" || entry.isError) return false;
+    if (entry.arguments.selectionId !== requirement.selectionId ||
+        entry.arguments.fileId !== fileId) return false;
+    let output: unknown;
+    try {
+      output = JSON.parse(entry.output);
+    } catch {
+      return false;
+    }
+    if (typeof output !== "object" || output === null || Array.isArray(output)) return false;
+    const record = output as Record<string, unknown>;
+    return record.ok === true &&
+      record.selectionId === requirement.selectionId &&
+      record.fileSelectionId === requirement.fileSelectionId &&
+      record.fileId === fileId &&
+      record.complete === true &&
+      record.contentTruncated === false &&
+      record.integrity === "verified" &&
+      record.encoding === "utf-8" &&
+      record.untrustedContent === true &&
+      typeof record.body === "string";
+  }));
+}
+
 export class WorkTaskCoordinator {
   private readonly agentCore: WorkAgentCore;
   private readonly onChanged: (snapshot: WorkTaskSnapshot) => void;
@@ -120,11 +195,19 @@ export class WorkTaskCoordinator {
   private planningController: AbortController | null = null;
   private disposed = false;
   private lastActivity = false;
+  private readonly fileSelectionStore?: WorkFileSelectionStore;
+  private readonly bindFileSelectionToSandbox?: WorkTaskCoordinatorOptions["bindFileSelectionToSandbox"];
+  private readonly diagnosticSink?: WorkDiagnosticSink;
+  private currentFileSelection?: WorkFileSelectionSnapshot;
+  private fileScopeLease: (() => void) | undefined;
 
   constructor(options: WorkTaskCoordinatorOptions) {
     this.agentCore = options.agentCore;
     this.onChanged = options.onChanged ?? (() => undefined);
     this.onActivityChanged = options.onActivityChanged ?? (() => undefined);
+    this.fileSelectionStore = options.fileSelectionStore;
+    this.bindFileSelectionToSandbox = options.bindFileSelectionToSandbox;
+    this.diagnosticSink = options.diagnosticSink;
     this.removeEventListener = this.agentCore.getEventBus().onAny((event) => {
       this.handleAgentEvent(event);
     });
@@ -132,6 +215,52 @@ export class WorkTaskCoordinator {
 
   getSnapshot(): WorkTaskSnapshot | null {
     return cloneSnapshot(this.currentTask);
+  }
+
+  getCurrentFileSelection(): WorkFileSelectionSnapshot | undefined {
+    return this.currentFileSelection;
+  }
+
+  async selectFiles(filePaths: readonly string[]): Promise<WorkFileSelectionOperationResult> {
+    if (this.disposed) {
+      return { ok: false, code: "selection_failed", message: "Work is no longer available." };
+    }
+    if (this.fileSelectionStore === undefined) {
+      return { ok: false, code: "selection_failed", message: "Work file selection is not configured." };
+    }
+    if (this.currentTask !== null && isActivePhase(this.currentTask.phase)) {
+      return {
+        ok: false,
+        code: "selection_busy",
+        message: "Files cannot be reselected while a Work proposal or run is active.",
+        ...(this.currentFileSelection === undefined ? {} : { selection: this.currentFileSelection }),
+      };
+    }
+    const previousSelection = this.currentFileSelection;
+    try {
+      const selection = await this.fileSelectionStore.createSelection(filePaths);
+      if (previousSelection !== undefined) {
+        this.fileSelectionStore.releaseSelection(previousSelection.selectionId);
+      }
+      this.currentFileSelection = selection;
+      this.diagnosticSink?.record({
+        type: "selection_created",
+        selectionId: selection.selectionId,
+        fileIds: selection.files.map((file) => file.fileId),
+        fileCount: selection.files.length,
+        totalBytes: selection.totalBytes,
+      });
+      return { ok: true, selection };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        code: "selection_failed",
+        message: error instanceof WorkFileSelectionError
+          ? error.message
+          : error instanceof Error ? error.message : String(error),
+        ...(this.currentFileSelection === undefined ? {} : { selection: this.currentFileSelection }),
+      };
+    }
   }
 
   async createPlan(input: unknown): Promise<WorkTaskOperationResult> {
@@ -146,17 +275,36 @@ export class WorkTaskCoordinator {
         snapshot: cloneSnapshot(this.currentTask) ?? undefined,
       };
     }
-    if (typeof input !== "string" || input.trim().length === 0) {
-      return { ok: false, code: "invalid_request", message: "Work requires a non-empty task." };
+    if (!isWorkCreatePlanRequest(input)) {
+      return {
+        ok: false,
+        code: "invalid_request",
+        message: "Work requires a task and an explicit fileReadMode.",
+      };
     }
 
-    const userPrompt = input;
+    const userPrompt = input.task;
+    if (input.fileReadMode === "required" && this.currentFileSelection === undefined) {
+      return {
+        ok: false,
+        code: "invalid_request",
+        message: "fileReadMode=required needs a current file selection.",
+      };
+    }
+    const fileReadRequirement = input.fileReadMode === "required" && this.currentFileSelection !== undefined
+      ? createWorkFileReadRequirement(this.currentFileSelection)
+      : undefined;
     const createdAt = Date.now();
     const task: MutableWorkTask = {
       taskId: createId("work-task"),
       userPrompt,
       browserRequestTargets: extractBrowserUserTargetUrls(userPrompt),
       phase: "planning",
+      fileReadMode: input.fileReadMode,
+      ...(input.fileReadMode !== "required" || this.currentFileSelection === undefined
+        ? {}
+        : { fileSelection: this.currentFileSelection }),
+      ...(fileReadRequirement === undefined ? {} : { fileReadRequirement }),
       steps: [],
       cancelRequested: false,
       createdAt,
@@ -164,6 +312,13 @@ export class WorkTaskCoordinator {
       proposalConsumed: false,
     };
     this.currentTask = task;
+    this.diagnosticSink?.record({
+      type: "plan_started",
+      taskId: task.taskId,
+      selectionId: task.fileReadRequirement?.selectionId,
+      fileIds: task.fileReadRequirement?.fileIds,
+      fileReadMode: task.fileReadMode,
+    });
     this.planningController = new AbortController();
     this.publish();
 
@@ -174,13 +329,23 @@ export class WorkTaskCoordinator {
         userPrompt,
         planningController.signal,
         task.browserRequestTargets,
+        task.fileSelection,
+        task.fileReadRequirement,
       );
     } catch (error: unknown) {
       this.planningController = null;
       if (this.disposed || this.currentTask !== task) {
+        if (task.fileSelection !== undefined) {
+          this.releaseTaskFileSelection(task);
+          this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+        }
         return { ok: false, code: "disposed", message: "Work was disposed before planning completed." };
       }
       if (task.phase !== "planning" || planningController.signal.aborted) {
+        if (task.fileSelection !== undefined) {
+          this.releaseTaskFileSelection(task);
+          this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+        }
         return {
           ok: false,
           code: "cancel_unavailable",
@@ -191,6 +356,10 @@ export class WorkTaskCoordinator {
       task.phase = "failed";
       task.error = error instanceof Error ? error.message : String(error);
       task.updatedAt = Date.now();
+      if (task.fileSelection !== undefined) {
+        this.releaseTaskFileSelection(task);
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      }
       this.publish();
       return {
         ok: false,
@@ -202,9 +371,17 @@ export class WorkTaskCoordinator {
     this.planningController = null;
 
     if (this.disposed || this.currentTask !== task) {
+      if (task.fileSelection !== undefined) {
+        this.releaseTaskFileSelection(task);
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      }
       return { ok: false, code: "disposed", message: "Work was disposed before planning completed." };
     }
     if (task.phase !== "planning") {
+      if (task.fileSelection !== undefined) {
+        this.releaseTaskFileSelection(task);
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      }
       return {
         ok: false,
         code: "cancel_unavailable",
@@ -216,7 +393,20 @@ export class WorkTaskCoordinator {
       task.phase = generated.code === "cancelled" ? "cancelled" : "failed";
       task.error = generated.message;
       task.updatedAt = Date.now();
+      if (task.fileSelection !== undefined) {
+        this.releaseTaskFileSelection(task);
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      }
       this.publish();
+      this.diagnosticSink?.record({
+        type: "plan_finished",
+        taskId: task.taskId,
+        selectionId: task.fileReadRequirement?.selectionId,
+        fileIds: task.fileReadRequirement?.fileIds,
+        fileReadMode: task.fileReadMode,
+        ok: false,
+        errorCode: generated.code,
+      });
       return {
         ok: false,
         code: generated.code === "cancelled" ? "cancel_unavailable" : "execution_failed",
@@ -232,6 +422,43 @@ export class WorkTaskCoordinator {
       task.phase = "failed";
       task.error = "The Work proposal contained an invalid tool binding.";
       task.updatedAt = Date.now();
+      if (task.fileSelection !== undefined) {
+        this.releaseTaskFileSelection(task);
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      }
+      this.publish();
+      return {
+        ok: false,
+        code: "execution_failed",
+        message: task.error,
+        snapshot: cloneSnapshot(task) ?? undefined,
+      };
+    }
+
+    const fileReadSteps = generated.steps.filter((step) => step.toolBinding?.toolName === "file_read");
+    if (task.fileReadRequirement === undefined && fileReadSteps.length > 0) {
+      task.phase = "failed";
+      task.error = "A file_read step requires an explicit file-read requirement.";
+      task.updatedAt = Date.now();
+      this.publish();
+      return {
+        ok: false,
+        code: "execution_failed",
+        message: task.error,
+        snapshot: cloneSnapshot(task) ?? undefined,
+      };
+    }
+    if (task.fileReadRequirement !== undefined &&
+        !task.fileReadRequirement.fileIds.every((fileId) => fileReadSteps.some((step) =>
+          step.toolBinding?.arguments.fileId === fileId,
+        ))) {
+      task.phase = "failed";
+      task.error = "The Work proposal did not include a file_read step for every required file.";
+      task.updatedAt = Date.now();
+      this.releaseTaskFileSelection(task);
+      if (task.fileSelection !== undefined) {
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      }
       this.publish();
       return {
         ok: false,
@@ -242,6 +469,22 @@ export class WorkTaskCoordinator {
     }
 
     task.proposalId = createId("work-proposal");
+    if (task.fileSelection !== undefined &&
+        (this.fileSelectionStore === undefined ||
+          !this.fileSelectionStore.bindProposal(task.fileSelection.selectionId, task.proposalId))) {
+      task.phase = "failed";
+      task.error = "The selected file scope could not be bound to this proposal.";
+      task.updatedAt = Date.now();
+      this.releaseTaskFileSelection(task);
+      this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      this.publish();
+      return {
+        ok: false,
+        code: "execution_failed",
+        message: task.error,
+        snapshot: cloneSnapshot(task) ?? undefined,
+      };
+    }
     task.steps = generated.steps.map((step, index) => ({
       index,
       description: step.description,
@@ -260,6 +503,16 @@ export class WorkTaskCoordinator {
     task.phase = "awaiting_confirmation";
     task.updatedAt = Date.now();
     this.publish();
+    this.diagnosticSink?.record({
+      type: "plan_finished",
+      taskId: task.taskId,
+      selectionId: task.fileReadRequirement?.selectionId,
+      fileIds: task.fileReadRequirement?.fileIds,
+      fileReadMode: task.fileReadMode,
+      toolNames: task.steps.flatMap((step) => step.toolBinding?.toolName ?? []),
+      toolCallCount: task.steps.filter((step) => step.toolBinding !== undefined).length,
+      ok: true,
+    });
     return { ok: true, snapshot: cloneSnapshot(task)! };
   }
 
@@ -287,6 +540,14 @@ export class WorkTaskCoordinator {
     task.phase = "running";
     task.runId = createId("work-run");
     task.updatedAt = Date.now();
+    this.diagnosticSink?.record({
+      type: "run_started",
+      taskId: task.taskId,
+      runId: task.runId,
+      selectionId: task.fileReadRequirement?.selectionId,
+      fileIds: task.fileReadRequirement?.fileIds,
+      fileReadMode: task.fileReadMode,
+    });
     const request: MainRequiredPlanRequest = {
       planExecutionMode: "required",
       userPrompt: task.userPrompt,
@@ -304,7 +565,65 @@ export class WorkTaskCoordinator {
       })),
       runId: task.runId,
       browserRequestTargets: [...task.browserRequestTargets],
+      ...(task.fileSelection === undefined
+        ? {}
+        : {
+            fileSelection: {
+              selectionId: task.fileSelection.selectionId,
+              fileSelectionId: task.fileSelection.fileSelectionId,
+              fileIds: task.fileSelection.files.map((file) => file.fileId),
+            } satisfies WorkFileSelectionBinding,
+          }),
+      ...(task.fileReadRequirement === undefined
+        ? {}
+        : {
+            fileReadRequirement: {
+              selectionId: task.fileReadRequirement.selectionId,
+              fileSelectionId: task.fileReadRequirement.fileSelectionId,
+              fileIds: [...task.fileReadRequirement.fileIds],
+            },
+          }),
     };
+    if (task.fileSelection !== undefined &&
+        (this.fileSelectionStore === undefined ||
+          !this.fileSelectionStore.bindRun(
+            task.fileSelection.selectionId,
+            proposalId,
+            task.runId,
+          ))) {
+      task.phase = "failed";
+      task.error = "The selected file scope could not be bound to this execution run.";
+      this.fileSelectionStore?.releaseProposal(task.fileSelection.selectionId, proposalId);
+      this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      this.releaseTaskFileSelection(task);
+      task.updatedAt = Date.now();
+      this.publish();
+      return {
+        ok: false,
+        code: "execution_failed",
+        message: task.error,
+        snapshot: cloneSnapshot(task) ?? undefined,
+      };
+    }
+    if (task.fileSelection !== undefined && this.bindFileSelectionToSandbox !== undefined) {
+      try {
+        this.fileScopeLease = this.bindFileSelectionToSandbox(task.runId, task.fileSelection);
+      } catch (error: unknown) {
+        this.fileSelectionStore?.releaseRun(task.runId);
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+        this.releaseTaskFileSelection(task);
+        task.phase = "failed";
+        task.error = error instanceof Error ? error.message : String(error);
+        task.updatedAt = Date.now();
+        this.publish();
+        return {
+          ok: false,
+          code: "execution_failed",
+          message: task.error,
+          snapshot: cloneSnapshot(task) ?? undefined,
+        };
+      }
+    }
     this.publish();
 
     try {
@@ -329,6 +648,15 @@ export class WorkTaskCoordinator {
         message: task.error,
         snapshot: cloneSnapshot(task) ?? undefined,
       };
+    } finally {
+      if (task.fileSelection !== undefined && task.runId !== undefined) {
+        this.fileScopeLease?.();
+        this.fileScopeLease = undefined;
+        this.fileSelectionStore?.releaseRun(task.runId);
+        if (this.currentFileSelection?.selectionId === task.fileSelection.selectionId) {
+          this.currentFileSelection = undefined;
+        }
+      }
     }
   }
 
@@ -350,6 +678,10 @@ export class WorkTaskCoordinator {
       task.phase = "cancelled";
       task.cancelRequested = true;
       task.updatedAt = Date.now();
+      this.releaseTaskFileSelection(task);
+      if (task.fileSelection !== undefined) {
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      }
       this.publish();
       return { ok: true, snapshot: cloneSnapshot(task)! };
     }
@@ -357,6 +689,13 @@ export class WorkTaskCoordinator {
       task.phase = "cancelled";
       task.cancelRequested = true;
       task.updatedAt = Date.now();
+      if (task.fileSelection !== undefined && task.proposalId !== undefined) {
+        this.fileSelectionStore?.releaseProposal(task.fileSelection.selectionId, task.proposalId);
+      }
+      this.releaseTaskFileSelection(task);
+      if (task.fileSelection !== undefined) {
+        this.fileSelectionStore?.releaseSelection(task.fileSelection.selectionId);
+      }
       this.publish();
       return { ok: true, snapshot: cloneSnapshot(task)! };
     }
@@ -381,7 +720,10 @@ export class WorkTaskCoordinator {
     if (this.currentTask?.phase === "running" && this.currentTask.runId !== undefined) {
       this.agentCore.cancel(this.currentTask.runId);
     }
+    this.fileScopeLease?.();
+    this.fileScopeLease = undefined;
     this.removeEventListener();
+    this.fileSelectionStore?.dispose();
     this.onActivityChanged(false);
     this.lastActivity = false;
   }
@@ -396,13 +738,35 @@ export class WorkTaskCoordinator {
     this.applyAgentResult(task, execution.result);
   }
 
+  private releaseTaskFileSelection(task: MutableWorkTask): void {
+    if (task.fileSelection === undefined) return;
+    if (this.currentFileSelection?.selectionId === task.fileSelection.selectionId) {
+      this.currentFileSelection = undefined;
+    }
+  }
+
   private applyAgentResult(task: MutableWorkTask, result: AgentRunResult): void {
     task.terminationReason = result.terminationReason;
     task.error = result.error;
-    if (result.status === "completed") task.phase = "completed";
+    if (result.status === "completed" && task.fileReadRequirement !== undefined &&
+        task.runId !== undefined && !hasRequiredFileReadEvidence(result, task.runId, task.fileReadRequirement)) {
+      task.phase = "failed";
+      task.terminationReason = { kind: "error" };
+      task.error = "required_file_read_evidence_missing: the run completed without successful evidence for every required file.";
+    } else if (result.status === "completed") task.phase = "completed";
     else if (result.status === "cancelled") task.phase = "cancelled";
     else task.phase = "failed";
     task.updatedAt = Date.now();
+    this.diagnosticSink?.record({
+      type: "run_finished",
+      taskId: task.taskId,
+      runId: task.runId,
+      selectionId: task.fileReadRequirement?.selectionId,
+      fileIds: task.fileReadRequirement?.fileIds,
+      fileReadMode: task.fileReadMode,
+      status: task.phase,
+      ok: task.phase === "completed",
+    });
   }
 
   private handleAgentEvent(event: Parameters<AgentEventBus["onAny"]>[0] extends (event: infer E) => void ? E : never): void {

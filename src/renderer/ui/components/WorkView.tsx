@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { ProviderStatus } from "../../../shared/provider-types";
 import type {
+  WorkCreatePlanRequest,
   WorkTaskOperationResult,
   WorkTaskSnapshot,
 } from "../../../shared/work-types";
+import type {
+  WorkFileSelectionOperationResult,
+  WorkFileSelectionSnapshot,
+} from "../../../shared/work-file-types";
 import { THEME_TOKENS } from "../theme/tokens";
 import { Header } from "./Header";
 
@@ -55,9 +60,40 @@ function toolOperationLabel(step: WorkTaskSnapshot["steps"][number]): string | u
           : "播放音乐";
     case "music_status":
       return "查询音乐状态";
+    case "file_read":
+      return "读取用户选择的文件";
     default:
       return `执行工具：${step.toolBinding.toolName}`;
   }
+}
+
+function formatFileBytes(value: number): string {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function FileSelectionSummary({
+  selection,
+}: {
+  readonly selection: WorkFileSelectionSnapshot;
+}): React.ReactElement {
+  return (
+    <div style={{ padding: 12, borderRadius: 10, background: "rgba(235,247,240,0.8)", border: "1px solid #cfe4d8" }}>
+      <strong>已选择的文本资料</strong>
+      <ul style={{ margin: "8px 0 0", paddingLeft: 22 }}>
+        {selection.files.map((file) => (
+          <li key={file.fileId}>
+            {file.displayName} · {file.fileKind} · {formatFileBytes(file.byteLength)}
+            {file.symbolicLink ? " · 符号链接目标" : ""}
+          </li>
+        ))}
+      </ul>
+      <div style={{ marginTop: 8, color: THEME_TOKENS.colors.textSecondary, fontSize: 13 }}>
+        执行读取后，文件内容会发送给当前配置的模型服务用于处理。
+      </div>
+    </div>
+  );
 }
 
 function updateFromResult(
@@ -72,6 +108,8 @@ function updateFromResult(
 
 export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized }) => {
   const [snapshot, setSnapshot] = useState<WorkTaskSnapshot | null>(null);
+  const [fileSelection, setFileSelection] = useState<WorkFileSelectionSnapshot | undefined>();
+  const [fileReadMode, setFileReadMode] = useState<WorkCreatePlanRequest["fileReadMode"]>("optional");
   const [task, setTask] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -88,6 +126,11 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
     }).catch((loadError: unknown) => {
       if (active) setError(loadError instanceof Error ? loadError.message : String(loadError));
     });
+    void work.getFileSelection().then((selection) => {
+      if (active) setFileSelection(selection);
+    }).catch((loadError: unknown) => {
+      if (active) setError(loadError instanceof Error ? loadError.message : String(loadError));
+    });
     const unsubscribe = work.onStateChanged((state) => {
       if (active) setSnapshot(state);
     });
@@ -96,6 +139,24 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
       unsubscribe();
     };
   }, []);
+
+  const selectFiles = async (): Promise<void> => {
+    if (!window.work || busy || isActive) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result: WorkFileSelectionOperationResult = await window.work.selectFiles();
+      if (result.selection !== undefined) {
+        setFileSelection(result.selection);
+        if (result.ok && !result.cancelled) setFileReadMode("optional");
+      }
+      if (!result.ok) setError(result.message);
+    } catch (selectError: unknown) {
+      setError(selectError instanceof Error ? selectError.message : String(selectError));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const isActive = snapshot?.phase === "planning" ||
     snapshot?.phase === "awaiting_confirmation" ||
@@ -113,7 +174,8 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
     setBusy(true);
     setError("");
     try {
-      const result = await window.work.createPlan(value);
+      const request: WorkCreatePlanRequest = { task: value, fileReadMode };
+      const result = await window.work.createPlan(request);
       updateFromResult(result, setSnapshot, setError);
     } catch (createError: unknown) {
       setError(createError instanceof Error ? createError.message : String(createError));
@@ -178,6 +240,21 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
 
           {!snapshot || snapshot.phase === "completed" || snapshot.phase === "failed" || snapshot.phase === "cancelled" ? (
             <section style={{ display: "grid", gap: 12 }}>
+              {fileSelection ? <FileSelectionSummary selection={fileSelection} /> : null}
+              <button type="button" onClick={() => void selectFiles()} disabled={busy}>
+                选择文本或 Markdown 文件（可选）
+              </button>
+              {fileSelection ? (
+                <label style={{ display: "flex", gap: 8, alignItems: "center", color: THEME_TOKENS.colors.textSecondary }}>
+                  <input
+                    type="checkbox"
+                    checked={fileReadMode === "required"}
+                    onChange={(event) => setFileReadMode(event.target.checked ? "required" : "optional")}
+                    disabled={busy}
+                  />
+                  执行时必须读取所选文件，并使用读取结果完成任务
+                </label>
+              ) : null}
               <textarea
                 value={task}
                 onChange={(event) => setTask(event.target.value)}
@@ -201,6 +278,12 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
                 ) : null}
               </div>
               <p style={{ whiteSpace: "pre-wrap", margin: "12px 0", color: THEME_TOKENS.colors.textPrimary }}>{snapshot.userPrompt}</p>
+              {snapshot.fileSelection ? <FileSelectionSummary selection={snapshot.fileSelection} /> : null}
+              {snapshot.fileReadMode === "required" ? (
+                <p style={{ margin: "8px 0", color: THEME_TOKENS.colors.textSecondary }}>
+                  本任务要求执行时读取所选文件；缺少对应的本次成功读取证据不能完成。
+                </p>
+              ) : null}
               {snapshot.browserRequestTargets.length > 0 ? (
                 <p style={{ margin: "8px 0", color: THEME_TOKENS.colors.textSecondary }}>
                   当前用户消息中的网页目标：{snapshot.browserRequestTargets.join("、")}

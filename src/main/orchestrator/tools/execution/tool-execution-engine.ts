@@ -203,6 +203,7 @@ export class ToolExecutionEngine {
 
         try {
           const rawResult = await this.dispatcher.executeToolCall(call, {
+            runId: ctx.runId,
             userQuery: ctx.userQuery || "",
             conversationId: ctx.conversationId,
             browserRequestTargets: ctx.browserRequestTargets,

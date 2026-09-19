@@ -13,6 +13,7 @@ import {
 import type { WorkPlanGenerationResult } from "../../../src/shared/work-types.ts";
 import type { ChatCompletionRequest, ChatCompletionResponse } from "../../../src/shared/chat-types.ts";
 import type { IFireflyLlmProvider } from "../../../src/shared/provider-types.ts";
+import type { FireflyHarness } from "../../../dist/main/main/orchestrator/harness/firefly-harness.js";
 
 function completedResult(runId: string): AgentRunResult {
   return {
@@ -83,9 +84,10 @@ test("Work proposal confirmation preserves the original task and URL targets", a
     }),
   });
 
-  const created = await coordinator.createPlan(
-    "请读取 [https://example.com/hello](https://example.com/hello)，不要访问其他地址。",
-  );
+  const created = await coordinator.createPlan({
+    task: "请读取 [https://example.com/hello](https://example.com/hello)，不要访问其他地址。",
+    fileReadMode: "optional",
+  });
   assert.equal(created.ok, true);
   if (!created.ok) return;
   assert.equal(created.snapshot.phase, "awaiting_confirmation");
@@ -124,7 +126,7 @@ test("Work confirmation is atomically consumed and duplicate confirmation cannot
     },
   });
 
-  const created = await coordinator.createPlan("执行一个明确的两步任务");
+  const created = await coordinator.createPlan({ task: "执行一个明确的两步任务", fileReadMode: "optional" });
   assert.equal(created.ok, true);
   if (!created.ok || !created.snapshot.proposalId) return;
 
@@ -155,7 +157,7 @@ test("cancelling Work plan generation leaves no confirmable proposal", async () 
     },
   });
 
-  const creating = coordinator.createPlan("需要取消的任务");
+  const creating = coordinator.createPlan({ task: "需要取消的任务", fileReadMode: "optional" });
   await new Promise<void>((resolve) => setImmediate(resolve));
   const cancelled = await coordinator.cancel();
   assert.equal(cancelled.ok, true);
@@ -181,7 +183,7 @@ test("a planning Provider exception becomes a failed task without leaving a prop
     },
   });
 
-  const result = await coordinator.createPlan("需要报告规划失败的任务");
+  const result = await coordinator.createPlan({ task: "需要报告规划失败的任务", fileReadMode: "optional" });
   assert.equal(result.ok, false);
   assert.equal(result.code, "execution_failed");
   assert.equal(coordinator.getSnapshot()?.phase, "failed");
@@ -275,4 +277,50 @@ test("Harness rejects invalid Work planner output without producing a proposal",
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.equal(result.code, "invalid_output");
+});
+
+test("Harness rejects an all-analysis proposal when Main requires the selected file", async () => {
+  const { FireflyHarness } = await import("../../../dist/main/main/orchestrator/harness/firefly-harness.js");
+  const { FireflyToolRegistry } = await import("../../../dist/main/main/orchestrator/tools/registry/tool-registry.js");
+  const provider: IFireflyLlmProvider = {
+    id: "required-file-plan-test",
+    name: "Required file plan test provider",
+    capabilities: { supportsNativeToolCalling: true, supportsStreaming: false },
+    generateCompletion: async (): Promise<ChatCompletionResponse> => ({
+      message: {
+        role: "assistant",
+        content: JSON.stringify({
+          steps: [{ description: "只整理输入", completionRequirement: "analysis" }],
+        }),
+      },
+    }),
+  };
+  type HarnessSelection = NonNullable<Parameters<FireflyHarness["proposeRequiredPlan"]>[3]>;
+  const selection = {
+    selectionId: "selection-required-test",
+    fileSelectionId: "selection-required-test",
+    files: [{
+      fileId: "file-required-test",
+      displayName: "opaque.txt",
+      fileKind: "text" as const,
+      byteLength: 3,
+      symbolicLink: false,
+    }],
+    totalBytes: 3,
+  } as unknown as HarnessSelection;
+  const harness = new FireflyHarness({ provider, toolRegistry: new FireflyToolRegistry() });
+  const result = await harness.proposeRequiredPlan(
+    "读取并总结所选文件",
+    undefined,
+    [],
+    selection,
+    {
+      selectionId: selection.selectionId,
+      fileSelectionId: selection.fileSelectionId,
+      fileIds: [selection.files[0].fileId],
+    },
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.message, /required file-read plan|file_read/i);
 });

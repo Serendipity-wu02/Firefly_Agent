@@ -13,9 +13,14 @@ import type {
 } from "../shared/approval-ipc-types";
 import type { ApprovalRecord } from "../shared/approval-types";
 import type {
+  WorkCreatePlanRequest,
   WorkTaskOperationResult,
   WorkTaskSnapshot,
 } from "../shared/work-types";
+import type {
+  WorkFileSelectionOperationResult,
+  WorkFileSelectionSnapshot,
+} from "../shared/work-file-types";
 
 declare global {
   interface Window {
@@ -86,7 +91,9 @@ declare global {
     };
     work?: {
       getState: () => Promise<WorkTaskSnapshot | null>;
-      createPlan: (task: string) => Promise<WorkTaskOperationResult>;
+      getFileSelection: () => Promise<WorkFileSelectionSnapshot | undefined>;
+      selectFiles: () => Promise<WorkFileSelectionOperationResult>;
+      createPlan: (request: WorkCreatePlanRequest) => Promise<WorkTaskOperationResult>;
       confirmPlan: (proposalId: string) => Promise<WorkTaskOperationResult>;
       cancel: () => Promise<WorkTaskOperationResult>;
       onStateChanged: (cb: (snapshot: WorkTaskSnapshot) => void) => () => void;

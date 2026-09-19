@@ -3,8 +3,20 @@ import type {
   AgentRequiredToolExecution,
   AgentTerminationReason,
 } from "./agent-types";
+import type {
+  WorkFileReadRequirement,
+  WorkFileSelectionSnapshot,
+} from "./work-file-types";
 
 export type WorkPlanStepRequirement = AgentPlanStepCompletionRequirement;
+
+export type WorkFileReadMode = "optional" | "required";
+
+/** Explicit Main-owned choice; no natural-language inference is allowed. */
+export interface WorkCreatePlanRequest {
+  readonly task: string;
+  readonly fileReadMode: WorkFileReadMode;
+}
 
 export interface WorkPlanStep {
   readonly description: string;
@@ -57,6 +69,9 @@ export interface WorkTaskSnapshot {
   readonly taskId: string;
   readonly userPrompt: string;
   readonly browserRequestTargets: readonly string[];
+  readonly fileSelection?: WorkFileSelectionSnapshot;
+  readonly fileReadMode: WorkFileReadMode;
+  readonly fileReadRequirement?: WorkFileReadRequirement;
   readonly phase: WorkTaskPhase;
   readonly proposalId?: string;
   readonly runId?: string;

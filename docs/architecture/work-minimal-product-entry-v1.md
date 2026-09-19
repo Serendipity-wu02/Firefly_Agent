@@ -7,7 +7,7 @@
 ## 收口基线与累计工作树边界
 
 - 分支：`firefly-v1.1.0`。
-- 当前 HEAD：`f2ebc50b42a49557a960504365c3355b35ee58f6`。
+- 当前 HEAD：`069efc3e177592896e268658bf9655017d30f197`。
 - `package.json` 版本：`1.1.1`；本次实机启动命令为 `npm run start`。
 - 当前工作树相对 HEAD 仍有累计未提交修改；本文件只记录 Work V1，不把累计差异描述成只有 Work。
 - 当前 HEAD 已包含 Browser V1、Settings、Capability/Sandbox/Approval 基础及其网络策略；本次 HEAD→工作树的待提交差异没有重新添加 Browser 后端，而是继续复用这些既有能力。
@@ -37,6 +37,8 @@ Pet context menu / Tray
 
 Each generated step must contain both `description` and `completionRequirement` (`analysis` or `tool`). The Main-side `createMainRequiredPlanInput` validator is reused for the structured contract. The plan text is never used as the original user task and cannot add Browser targets. Browser targets are extracted once from the original task by `extractBrowserUserTargetUrls`; the resulting normalized list is copied into the Main-owned request.
 
+文件任务另有一个显式的 `WorkCreatePlanRequest.fileReadMode`：`optional` 保留选择范围但不把它当作本次读取要求，`required` 才由 Main 从当前选择创建 `WorkFileReadRequirement`。必读模式的提案必须为每个 Main-owned `fileId` 提供独立的 `file_read` 步骤，不能由全分析步骤或模型文字替代；确认后的执行结果还必须包含当前 `runId`、准确选择／文件身份和完整成功结构的读取证据，缺少任一文件时不得完成。该选择不是关键词推断，也不是工具审批。
+
 ## 提案与确认
 
 `WorkTaskCoordinator` owns the process-local task state. Its `WorkTaskSnapshot` contains the original task, Main-owned Browser target list, proposal/run identifiers, immutable step descriptions and completion requirements, current phase, verification observations, cancellation state, terminal reason and error.
@@ -65,7 +67,7 @@ Plan completion and step verification remain governed by the existing Harness re
 
 - Work state is process-local and is not persisted across application restarts.
 - No Work IPC is exposed to Chat, Worker, proactive execution, or external callers; `registerWorkIpc` rejects non-Work window senders.
-- No new tools or capabilities were added. Existing Browser and Music tools are the only available Main tools.
+- This Work follow-up adds the Main-owned `file_read` capability only for an explicitly selected, required-plan Work run. Browser and Music keep their existing scope and authorization behavior; ordinary Chat, Worker and proactive runs do not receive the file scope.
 - No Resume UI, cross-process checkpoint, parallel execution, or Work-specific permission is added.
 - No real-model or public-network test is part of the default automated suite. The manual evidence below is recorded separately and is not inferred from automated tests.
 

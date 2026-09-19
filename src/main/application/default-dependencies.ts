@@ -50,6 +50,14 @@ import {
 } from "../browser/browser-tool";
 import { BrowserReadService } from "../browser/browser-read-service";
 import { createBrowserAuthorizationFactsResolver } from "../browser/browser-authorization";
+import {
+  createFileAuthorizationFactsResolver,
+  createFileReadTool,
+  FILE_READ_CAPABILITY_ID,
+  FILE_READ_SANDBOX_PROFILE_ID,
+  FILE_READ_TOOL_ID,
+} from "../orchestrator/tools/adapters/file-read-tool";
+import { WorkFileSelectionStore } from "../work/work-file-selection-store";
 import { emitDiagnosticTrace } from "../diagnostics/diagnostic-trace";
 import {
   createApplicationToolRegistration,
@@ -73,6 +81,7 @@ import type { BrowserSettingsSnapshot } from "../../shared/settings-types";
 import type { MemoryItem } from "../../shared/memory-types";
 import { WorkTaskCoordinator } from "../work/work-task-coordinator";
 import { registerWorkIpc, type WorkIpcRegistration } from "../work/work-ipc";
+import { FileWorkDiagnosticSink } from "../work/work-diagnostics";
 
 const MUSIC_STATUS_CAPABILITY_ID = createCapabilityId("music.status.read");
 const MUSIC_CONTROL_CAPABILITY_ID = createCapabilityId("music.control");
@@ -81,6 +90,8 @@ const MUSIC_STATUS_SANDBOX_PROFILE_ID = createSandboxProfileId("firefly-music-st
 const MUSIC_CONTROL_SANDBOX_PROFILE_ID = createSandboxProfileId("firefly-music-control-v1");
 const MUSIC_STATUS_SANDBOX_SCOPE = Object.freeze({ kind: "desktop", target: "QQMusic" } as const);
 const MUSIC_CONTROL_SANDBOX_SCOPE = Object.freeze({ kind: "desktop", target: "QQMusic" } as const);
+const FILE_READ_CAPABILITY = createCapabilityId(FILE_READ_CAPABILITY_ID);
+const FILE_READ_SANDBOX_PROFILE = createSandboxProfileId(FILE_READ_SANDBOX_PROFILE_ID);
 
 const MUSIC_CONTROL_ACTION_LABELS: Readonly<Record<string, string>> = Object.freeze({
   play: "播放",
@@ -535,7 +546,11 @@ export async function createDefaultApplicationRuntime(
   let musicService: MusicService | null = null;
   let musicContextService: MusicContextService | null = null;
   let browserReadService: BrowserReadService | null = null;
-  let workTaskCoordinator: WorkTaskCoordinator | null = null;
+    let workTaskCoordinator: WorkTaskCoordinator | null = null;
+    let fileSelectionStore: WorkFileSelectionStore | null = null;
+    const workDiagnosticSink = new FileWorkDiagnosticSink(
+      path.join(app.getPath("logs"), "firefly-work"),
+    );
   let restoreToolsOnAssemblyFailure: (() => void) | null = null;
 
   try {
@@ -558,7 +573,10 @@ export async function createDefaultApplicationRuntime(
     musicService = musicServiceInstance;
     const musicTools = createMusicTools(musicServiceInstance);
     const browserReadTool = createBrowserReadTool(browserReadServiceInstance);
-    const tools = [playActionTool, ...musicTools, browserReadTool];
+    const fileSelectionStoreInstance = new WorkFileSelectionStore();
+    fileSelectionStore = fileSelectionStoreInstance;
+    const fileReadTool = createFileReadTool(fileSelectionStoreInstance);
+    const tools = [playActionTool, ...musicTools, browserReadTool, fileReadTool];
     const toolRegistration = createApplicationToolRegistration(globalToolRegistry, tools);
     restoreToolsOnAssemblyFailure = toolRegistration.restore;
 
@@ -590,6 +608,15 @@ export async function createDefaultApplicationRuntime(
       risk: "read_only",
       sideEffect: "external_network_read",
     });
+    capabilityRegistry.register({
+      id: FILE_READ_CAPABILITY,
+      name: "Read selected local text files",
+      description: "Reads only text or Markdown files selected in the current Work task.",
+      version: "1.0.0",
+      category: createCapabilityCategory("filesystem"),
+      risk: "read_only",
+      sideEffect: "read_only",
+    });
     const capabilityBindingResolver = new CapabilityBindingResolver(
       capabilityRegistry,
       globalToolRegistry,
@@ -606,6 +633,10 @@ export async function createDefaultApplicationRuntime(
       {
         capabilityId: BROWSER_STATIC_READ_CAPABILITY_ID,
         toolId: BROWSER_READ_TOOL_ID,
+      },
+      {
+        capabilityId: FILE_READ_CAPABILITY,
+        toolId: FILE_READ_TOOL_ID,
       },
     ]);
     emitDiagnosticTrace(
@@ -625,6 +656,11 @@ export async function createDefaultApplicationRuntime(
         rules: [{ kind: "desktop", allowedTargets: [MUSIC_CONTROL_SANDBOX_SCOPE.target] }],
       },
       createBrowserSandboxProfile(browserSettingsSnapshot),
+      {
+        id: FILE_READ_SANDBOX_PROFILE,
+        version: "1.0.0",
+        rules: [{ kind: "filesystem", allowedRoots: [], access: ["read"] }],
+      },
     ]);
     const permissionProfilePolicyResolver = new PermissionProfilePolicyResolver();
     const approvalRequirementResolver = createApprovalRequirementResolver(
@@ -632,6 +668,7 @@ export async function createDefaultApplicationRuntime(
         { capabilityId: MUSIC_STATUS_CAPABILITY_ID, requirement: "none" },
         { capabilityId: MUSIC_CONTROL_CAPABILITY_ID, requirement: "required" },
         { capabilityId: BROWSER_STATIC_READ_CAPABILITY_ID, requirement: "none" },
+        { capabilityId: FILE_READ_CAPABILITY, requirement: "required" },
       ],
       {
         permissionPolicyResolver: permissionProfilePolicyResolver,
@@ -723,6 +760,13 @@ export async function createDefaultApplicationRuntime(
           }),
           approvalTtlMs: DEFAULT_AGENT_CONFIG.totalTimeoutMs,
         },
+        {
+          toolId: FILE_READ_TOOL_ID,
+          capabilityId: FILE_READ_CAPABILITY,
+          sandboxProfileId: FILE_READ_SANDBOX_PROFILE,
+          resolveAuthorizationFacts: createFileAuthorizationFactsResolver(fileSelectionStoreInstance),
+          approvalTtlMs: DEFAULT_AGENT_CONFIG.totalTimeoutMs,
+        },
       ],
     });
     const subAgentRegistry = new SubAgentRegistry();
@@ -754,6 +798,9 @@ export async function createDefaultApplicationRuntime(
       executionEngine: toolExecutionEngine,
       authorizationAdapter: harnessAuthorizationAdapter,
       mainDelegationService: mainAgentDelegationService,
+      fileSelectionValidator: (binding, runId) =>
+        runId !== undefined && fileSelectionStoreInstance.validateSelectionBinding(runId, binding),
+      workDiagnosticSink,
     });
 
     const musicPreferenceService = new MusicPreferenceService({ memory: memoryService });
@@ -761,6 +808,37 @@ export async function createDefaultApplicationRuntime(
     if (!agentCoreInstance) throw new Error("AgentCore construction did not complete.");
     workTaskCoordinator = new WorkTaskCoordinator({
       agentCore: agentCoreInstance,
+      fileSelectionStore: fileSelectionStoreInstance,
+      diagnosticSink: workDiagnosticSink,
+      bindFileSelectionToSandbox: (runId, selection) => {
+        const releases: Array<() => void> = [];
+        try {
+          for (const file of selection.files) {
+            const bound = fileSelectionStoreInstance.getBoundFile(
+              runId,
+              selection.selectionId,
+              file.fileId,
+            );
+            if (bound === undefined) {
+              throw new Error("The selected file scope was not bound to the Work run.");
+            }
+            releases.push(sandboxPolicy.registerRuntimeFilesystemScope(
+              FILE_READ_SANDBOX_PROFILE,
+              runId,
+              { kind: "filesystem", path: bound.path, access: "read" },
+            ));
+          }
+        } catch (error) {
+          for (const release of releases) release();
+          throw error;
+        }
+        let released = false;
+        return () => {
+          if (released) return;
+          released = true;
+          for (const release of releases) release();
+        };
+      },
       onChanged: (snapshot) => {
         windowManager.sendToWork(IPC.WORK_STATE_CHANGED, snapshot);
       },
@@ -804,6 +882,7 @@ export async function createDefaultApplicationRuntime(
     restoreToolsOnAssemblyFailure?.();
     restoreToolsOnAssemblyFailure = null;
     workTaskCoordinator?.dispose();
+    fileSelectionStore?.dispose();
     musicContextService?.dispose();
     await browserReadService?.dispose();
     if (musicService) await musicService.shutdown();

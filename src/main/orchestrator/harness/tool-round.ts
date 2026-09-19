@@ -29,6 +29,8 @@ export interface ToolRoundOptions {
   requireAuthorizationForAllTools?: boolean;
   /** Rejects model tool calls before authorization or ToolExecutionEngine. */
   rejectAllToolCalls?: boolean;
+  /** File reads are available only to a Main Work run with a bound selection. */
+  fileReadAllowed?: boolean;
   /** Restricts a typed execution-intent run to one exact required tool operation. */
   requiredToolExecution?: AgentRequiredToolExecution;
   /** True after this run has already observed its required tool call. */
@@ -248,6 +250,21 @@ export async function executeToolRound(
 
     if (options.rejectAllToolCalls === true) {
       const result = restrictedToolRejectionResult(call);
+      observations.push({
+        call,
+        result,
+        outcome: "not_executed",
+        preview: result.output.slice(0, 100),
+      });
+      continue;
+    }
+
+    if (call.name === "file_read" && options.fileReadAllowed !== true) {
+      const result = workerToolRejectionResult(
+        call,
+        "file_scope_not_bound",
+        "The file_read tool is unavailable without a Main-owned Work file selection.",
+      );
       observations.push({
         call,
         result,

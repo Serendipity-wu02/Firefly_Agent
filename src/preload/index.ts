@@ -13,9 +13,14 @@ import type {
 } from "../shared/approval-ipc-types";
 import type { ApprovalRecord } from "../shared/approval-types";
 import type {
+  WorkCreatePlanRequest,
   WorkTaskOperationResult,
   WorkTaskSnapshot,
 } from "../shared/work-types";
+import type {
+  WorkFileSelectionOperationResult,
+  WorkFileSelectionSnapshot,
+} from "../shared/work-file-types";
 
 /**
  * Sandbox-safe channel table (mirror of src/shared/ipc-channels.ts).
@@ -81,6 +86,8 @@ const IPC = {
   CHAT_SEND_MESSAGE: "chat:send-message",
   CHAT_GET_HISTORY: "chat:get-history",
   WORK_GET_STATE: "work:get-state",
+  WORK_GET_FILE_SELECTION: "work:get-file-selection",
+  WORK_SELECT_FILES: "work:select-files",
   WORK_CREATE_PLAN: "work:create-plan",
   WORK_CONFIRM_PLAN: "work:confirm-plan",
   WORK_CANCEL: "work:cancel",
@@ -240,8 +247,12 @@ contextBridge.exposeInMainWorld("startup", {
 
 contextBridge.exposeInMainWorld("work", {
   getState: (): Promise<WorkTaskSnapshot | null> => ipcRenderer.invoke(IPC.WORK_GET_STATE),
-  createPlan: (task: string): Promise<WorkTaskOperationResult> =>
-    ipcRenderer.invoke(IPC.WORK_CREATE_PLAN, task),
+  getFileSelection: (): Promise<WorkFileSelectionSnapshot | undefined> =>
+    ipcRenderer.invoke(IPC.WORK_GET_FILE_SELECTION),
+  selectFiles: (): Promise<WorkFileSelectionOperationResult> =>
+    ipcRenderer.invoke(IPC.WORK_SELECT_FILES),
+  createPlan: (request: WorkCreatePlanRequest): Promise<WorkTaskOperationResult> =>
+    ipcRenderer.invoke(IPC.WORK_CREATE_PLAN, request),
   confirmPlan: (proposalId: string): Promise<WorkTaskOperationResult> =>
     ipcRenderer.invoke(IPC.WORK_CONFIRM_PLAN, proposalId),
   cancel: (): Promise<WorkTaskOperationResult> => ipcRenderer.invoke(IPC.WORK_CANCEL),

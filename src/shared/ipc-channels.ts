@@ -54,6 +54,8 @@ export const IPC = {
 
   // Work plan and execution surface
   WORK_GET_STATE: "work:get-state",
+  WORK_GET_FILE_SELECTION: "work:get-file-selection",
+  WORK_SELECT_FILES: "work:select-files",
   WORK_CREATE_PLAN: "work:create-plan",
   WORK_CONFIRM_PLAN: "work:confirm-plan",
   WORK_CANCEL: "work:cancel",

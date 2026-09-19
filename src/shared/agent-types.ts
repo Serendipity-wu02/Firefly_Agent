@@ -2,6 +2,10 @@ import type { ChatMessage } from "./chat-types";
 import type { ToolCall } from "./tool-types";
 import type { MusicContextEvent } from "./music-context-types";
 import type { AgentExecutionProfile } from "./subagent-types";
+import type {
+  WorkFileReadRequirement,
+  WorkFileSelectionBinding,
+} from "./work-file-types";
 
 /** Identifies the producer of an Agent run for Context and execution policy. */
 export type AgentRunSource = "user" | "proactive" | "worker";
@@ -189,6 +193,10 @@ export interface AgentRunInput {
   executionProfile?: AgentExecutionProfile;
   /** Optional typed requirement supplied by the Main orchestrator. */
   requiredToolExecution?: AgentRequiredToolExecution;
+  /** Main-owned opaque file scope; absent for Chat, Worker, and proactive runs. */
+  fileSelection?: WorkFileSelectionBinding;
+  /** Main-owned set of selected file identities this required Work run must read. */
+  fileReadRequirement?: WorkFileReadRequirement;
 }
 
 export interface AgentRunResult {

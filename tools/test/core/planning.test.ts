@@ -932,7 +932,7 @@ test("25. An explicitly tool-required step cannot complete from a zero-call succ
     provider,
     toolRegistry: registry,
     eventBus,
-    config: { maxRounds: 1 },
+    config: { maxRounds: 2 },
   });
 
   const input = {
@@ -947,7 +947,7 @@ test("25. An explicitly tool-required step cannot complete from a zero-call succ
   };
   await core.run(input);
 
-  assert.equal(providerCalls, 1);
+  assert.equal(providerCalls, 2);
   assert.equal(events.filter((event) => event.type === "plan:step-completed").length, 0);
   assert.equal(events.filter((event) => event.type === "plan:completed").length, 0);
   assert.equal(events.filter((event) => event.type === "plan:verification" && event.result === "uncertain").length, 1);
@@ -996,7 +996,7 @@ test("27. A required plan cannot complete from a zero-call success claim", async
     toolRegistry: registry,
     eventBus,
     checkpointManager,
-    config: { maxRounds: 1 },
+    config: { maxRounds: 2 },
   });
 
   const input = {
@@ -1011,7 +1011,7 @@ test("27. A required plan cannot complete from a zero-call success claim", async
   };
   const result = await core.run(input);
 
-  assert.equal(providerCalls, 1);
+  assert.equal(providerCalls, 2);
   assert.equal(result.status, "error");
   assert.equal(result.finalText, "");
   assert.equal(result.terminationReason.kind, "plan_incomplete");

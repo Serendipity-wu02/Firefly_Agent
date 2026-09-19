@@ -46,6 +46,8 @@ export type HarnessAuthorizationRouteResolution =
 export interface HarnessAuthorizationFactsContext {
   /** Main-owned normalized URLs explicitly present in the current user turn. */
   readonly browserRequestTargets: readonly string[];
+  /** Current Harness run identity for Main-owned dynamic scopes. */
+  readonly runId: string;
 }
 
 export type HarnessAuthorizationFactsResolver = (
@@ -261,6 +263,7 @@ export class HarnessAuthorizationAdapter {
 
     const authorizationFactsContext: HarnessAuthorizationFactsContext = {
       browserRequestTargets: context.browserRequestTargets ?? [],
+      runId: context.runId,
     };
     if (call.name === "browser_read") {
       const requestUrl = typeof input.requestUrl === "string" ? input.requestUrl : "invalid";
@@ -425,6 +428,7 @@ export class HarnessAuthorizationAdapter {
         if (settled) return;
         const currentFacts = resolveRouteFacts(route, input, {
           browserRequestTargets: context.browserRequestTargets ?? [],
+          runId: context.runId,
         });
         if (!currentFacts.ok) {
           const invalidated = this.options.pipeline.invalidatePending(

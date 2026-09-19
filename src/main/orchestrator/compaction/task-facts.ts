@@ -130,6 +130,7 @@ function boundedObservation(output: string, toolName: string): CompactionStructu
   const message = boundedStringValue(parsed, "message", TASK_FACTS_TEXT_PREVIEW_CODE_POINTS);
   const reason = exactStringValue(parsed, "reason");
   const title = boundedStringValue(parsed, "title", TASK_FACTS_TEXT_PREVIEW_CODE_POINTS);
+  const displayName = boundedStringValue(parsed, "displayName", TASK_FACTS_TEXT_PREVIEW_CODE_POINTS);
   const originalTitleTruncated = booleanValue(parsed, "titleTruncated") === true;
   const originalBodyTruncated = booleanValue(parsed, "bodyTruncated") === true;
   const originalBodyPreviewTruncated = booleanValue(parsed, "bodyPreviewTruncated") === true;
@@ -182,6 +183,36 @@ function boundedObservation(output: string, toolName: string): CompactionStructu
     ...(bodyPreview === undefined ? {} : { bodyPreview }),
     ...(bodyPreviewTruncated ? { bodyPreviewTruncated: true } : {}),
     ...(originalBodyTruncated ? { bodyTruncated: true } : {}),
+    ...(exactStringValue(parsed, "selectionId") === undefined
+      ? {}
+      : { selectionId: exactStringValue(parsed, "selectionId") }),
+    ...(exactStringValue(parsed, "fileSelectionId") === undefined
+      ? {}
+      : { fileSelectionId: exactStringValue(parsed, "fileSelectionId") }),
+    ...(exactStringValue(parsed, "fileId") === undefined
+      ? {}
+      : { fileId: exactStringValue(parsed, "fileId") }),
+    ...(displayName.value === undefined
+      ? {}
+      : { displayName: displayName.value }),
+    ...(displayName.truncated ? { displayNameTruncated: true } : {}),
+    ...(exactStringValue(parsed, "fileKind") === "text" || exactStringValue(parsed, "fileKind") === "markdown"
+      ? { fileKind: exactStringValue(parsed, "fileKind") as "text" | "markdown" }
+      : {}),
+    ...(numberValue(parsed, "byteLength") === undefined ? {} : { byteLength: numberValue(parsed, "byteLength") }),
+    ...(numberValue(parsed, "bytesRead") === undefined ? {} : { bytesRead: numberValue(parsed, "bytesRead") }),
+    ...(numberValue(parsed, "bodyCodePoints") === undefined
+      ? {}
+      : { bodyCodePoints: numberValue(parsed, "bodyCodePoints") }),
+    ...(typeof parsed.complete === "boolean" ? { complete: parsed.complete } : {}),
+    ...(typeof parsed.contentTruncated === "boolean" ? { contentTruncated: parsed.contentTruncated } : {}),
+    ...(exactStringValue(parsed, "integrity") === "verified" ||
+      exactStringValue(parsed, "integrity") === "unverified" ||
+      exactStringValue(parsed, "integrity") === "changed" ||
+      exactStringValue(parsed, "integrity") === "failed"
+      ? { integrity: exactStringValue(parsed, "integrity") as "verified" | "unverified" | "changed" | "failed" }
+      : {}),
+    ...(exactStringValue(parsed, "encoding") === "utf-8" ? { encoding: "utf-8" as const } : {}),
     ...(parsed.untrustedContent === true ? { untrustedContent: true as const } : {}),
   };
 
@@ -203,6 +234,9 @@ const SAFE_TOOL_ARGUMENT_KEYS = new Set([
   "action",
   "volume",
   "name",
+  "selectionId",
+  "fileSelectionId",
+  "fileId",
 ]);
 
 function cloneSafeToolArguments(
@@ -307,10 +341,12 @@ export function createCompactionPlanFact(plan: Plan): CompactionPlanFact {
     steps: plan.steps.map((step) => {
       const observation = boundedPlanObservation(step.observation);
       const reason = boundedPlanObservation(step.verification?.reason);
+      const toolBinding = cloneRequirement(step.toolBinding);
       const stepFact: CompactionPlanStepFact = {
         stepId: step.stepId,
         index: step.index,
         description: step.description,
+        ...(toolBinding === undefined ? {} : { toolBinding }),
         status: step.status,
         ...(step.dependsOn === undefined ? {} : { dependsOn: [...step.dependsOn] }),
         ...(observation.value === undefined ? {} : { observation: observation.value }),
@@ -338,24 +374,28 @@ function clonePlanFact(plan: CompactionPlanFact | undefined): CompactionPlanFact
     goal: plan.goal,
     status: plan.status,
     currentStepIndex: plan.currentStepIndex,
-    steps: plan.steps.map((step) => ({
-      stepId: step.stepId,
-      index: step.index,
-      description: step.description,
-      status: step.status,
-      ...(step.dependsOn === undefined ? {} : { dependsOn: [...step.dependsOn] }),
-      ...(step.observation === undefined ? {} : { observation: step.observation }),
-      ...(step.observationTruncated ? { observationTruncated: true } : {}),
-      ...(step.verification === undefined
-        ? {}
-        : {
-            verification: {
-              status: step.verification.status,
-              ...(step.verification.reason === undefined ? {} : { reason: step.verification.reason }),
-              ...(step.verification.reasonTruncated ? { reasonTruncated: true } : {}),
-            },
-          }),
-    })),
+    steps: plan.steps.map((step) => {
+      const toolBinding = cloneRequirement(step.toolBinding);
+      return {
+        stepId: step.stepId,
+        index: step.index,
+        description: step.description,
+        ...(toolBinding === undefined ? {} : { toolBinding }),
+        status: step.status,
+        ...(step.dependsOn === undefined ? {} : { dependsOn: [...step.dependsOn] }),
+        ...(step.observation === undefined ? {} : { observation: step.observation }),
+        ...(step.observationTruncated ? { observationTruncated: true } : {}),
+        ...(step.verification === undefined
+          ? {}
+          : {
+              verification: {
+                status: step.verification.status,
+                ...(step.verification.reason === undefined ? {} : { reason: step.verification.reason }),
+                ...(step.verification.reasonTruncated ? { reasonTruncated: true } : {}),
+              },
+            }),
+      };
+    }),
   };
 }
 
@@ -381,6 +421,24 @@ export function createCompactionTaskFacts(
     trustedExecutionConstraints: {
       browserRequestTargets: [...(input.browserRequestTargets ?? [])],
       ...(requirement === undefined ? {} : { requiredToolExecution: requirement }),
+      ...(input.fileSelection === undefined
+        ? {}
+        : {
+            fileSelection: {
+              selectionId: input.fileSelection.selectionId,
+              fileSelectionId: input.fileSelection.fileSelectionId,
+              fileIds: [...input.fileSelection.fileIds],
+            },
+          }),
+      ...(input.fileReadRequirement === undefined
+        ? {}
+        : {
+            fileReadRequirement: {
+              selectionId: input.fileReadRequirement.selectionId,
+              fileSelectionId: input.fileReadRequirement.fileSelectionId,
+              fileIds: [...input.fileReadRequirement.fileIds],
+            },
+          }),
     },
     currentRunEvidence: createEvidence(input.toolCallEvidence),
     unfinishedWork: {

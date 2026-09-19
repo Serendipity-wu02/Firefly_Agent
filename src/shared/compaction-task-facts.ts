@@ -5,6 +5,10 @@ import type {
   AgentToolCallEvidence,
   ToolCallOutcome,
 } from "./agent-types";
+import type {
+  WorkFileReadRequirement,
+  WorkFileSelectionBinding,
+} from "./work-file-types";
 
 export const COMPACTION_TASK_FACTS_SCHEMA_VERSION = 1 as const;
 export const COMPACTION_TASK_FACTS_BUDGET_ERROR = "context_task_facts_exceed_budget" as const;
@@ -94,6 +98,19 @@ export interface CompactionStructuredObservation {
   readonly bodyPreview?: string;
   readonly bodyPreviewTruncated?: boolean;
   readonly bodyTruncated?: boolean;
+  readonly selectionId?: string;
+  readonly fileSelectionId?: string;
+  readonly fileId?: string;
+  readonly displayName?: string;
+  readonly displayNameTruncated?: boolean;
+  readonly fileKind?: "text" | "markdown";
+  readonly byteLength?: number;
+  readonly bytesRead?: number;
+  readonly bodyCodePoints?: number;
+  readonly complete?: boolean;
+  readonly contentTruncated?: boolean;
+  readonly integrity?: "verified" | "unverified" | "changed" | "failed";
+  readonly encoding?: "utf-8";
   readonly untrustedContent?: true;
 }
 
@@ -145,6 +162,8 @@ export interface CompactionPlanStepFact {
   readonly stepId: string;
   readonly index: number;
   readonly description: string;
+  /** Main-owned immutable execution target copied into the assistant plan fact. */
+  readonly toolBinding?: AgentRequiredToolExecution;
   readonly status: CompactionPlanStepStatus;
   readonly dependsOn?: readonly number[];
   readonly observation?: string;
@@ -179,6 +198,8 @@ export interface CompactionTaskFactsV1 {
   readonly trustedExecutionConstraints: {
     readonly browserRequestTargets: readonly string[];
     readonly requiredToolExecution?: AgentRequiredToolExecution;
+    readonly fileSelection?: WorkFileSelectionBinding;
+    readonly fileReadRequirement?: WorkFileReadRequirement;
   };
   readonly currentRunEvidence: readonly CompactionToolEvidence[];
   readonly unfinishedWork: {
@@ -204,6 +225,8 @@ export type CompactionTaskFactsInput = {
   readonly source: AgentRunSource;
   readonly userPrompt: string;
   readonly browserRequestTargets?: readonly string[];
+  readonly fileSelection?: WorkFileSelectionBinding;
+  readonly fileReadRequirement?: WorkFileReadRequirement;
   readonly requiredToolExecution?: AgentRequiredToolExecution;
   readonly requiredToolCallObserved: boolean;
   readonly requiredToolStatus?: AgentRequiredToolExecutionStatus;

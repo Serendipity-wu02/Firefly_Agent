@@ -584,6 +584,92 @@ test("required plan switches the exposed tool between bound tool steps", async (
   assert.equal(result.status, "completed");
 });
 
+test("required plan forces one correction when a later tool step returns no call", async () => {
+  const registry = new FireflyToolRegistry();
+  const executions: string[] = [];
+  for (const name of ["safe_a", "safe_b"]) {
+    registry.register({
+      id: name,
+      name,
+      description: name,
+      inputSchema: { type: "object", properties: {} },
+      enabled: true,
+      execute: async () => {
+        executions.push(name);
+        return JSON.stringify({ ok: true, name });
+      },
+    });
+  }
+
+  let providerCalls = 0;
+  const requestToolNames: string[][] = [];
+  const requestToolChoices: Array<string | undefined> = [];
+  const provider = createProvider(async (request) => {
+    providerCalls++;
+    requestToolNames.push(request.tools?.map((tool) => tool.function.name) ?? []);
+    requestToolChoices.push(request.toolChoice?.function.name);
+    if (providerCalls === 1) {
+      return {
+        message: {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "safe-a-call", name: "safe_a", arguments: {} }],
+        },
+      };
+    }
+    if (providerCalls === 2) {
+      return { message: { role: "assistant", content: "未调用第二个工具。" } };
+    }
+    if (providerCalls === 3) {
+      return {
+        message: {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "safe-b-call", name: "safe_b", arguments: {} }],
+        },
+      };
+    }
+    return { message: { role: "assistant", content: "两个步骤均已完成。" } };
+  });
+
+  const result = await createHarness({ provider, toolRegistry: registry }).run({
+    runId: "harness-required-plan-later-step-correction",
+    source: "user",
+    userPrompt: "依次执行两个读取",
+    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [
+      {
+        description: "执行第一个读取",
+        completionRequirement: "tool",
+        toolBinding: {
+          toolName: "safe_a",
+          arguments: {},
+          successContract: "json_ok_true",
+          correction: "once",
+        },
+      },
+      {
+        description: "执行第二个读取",
+        completionRequirement: "tool",
+        toolBinding: {
+          toolName: "safe_b",
+          arguments: {},
+          successContract: "json_ok_true",
+          correction: "once",
+        },
+      },
+    ],
+  });
+
+  assert.equal(providerCalls, 4);
+  assert.deepEqual(requestToolNames, [["safe_a"], ["safe_b"], ["safe_b"], []]);
+  assert.deepEqual(requestToolChoices, [undefined, undefined, "safe_b", undefined]);
+  assert.deepEqual(executions, ["safe_a", "safe_b"]);
+  assert.equal(result.status, "completed");
+  assert.equal(result.terminationReason.kind, "completed");
+});
+
 test("4. Multiple tool calls preserve toolCallId pairing and transcript order", async () => {
   const registry = new FireflyToolRegistry();
   const executed: string[] = [];

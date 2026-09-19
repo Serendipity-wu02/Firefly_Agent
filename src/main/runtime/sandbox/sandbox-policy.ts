@@ -16,7 +16,10 @@ import type {
   SandboxScope,
   SandboxRule,
 } from "../../../shared/sandbox-types";
-import { cloneSandboxScope } from "../../../shared/sandbox-types";
+import {
+  cloneSandboxScope,
+  isSandboxScopeExactlyEqual,
+} from "../../../shared/sandbox-types";
 import { normalizeBrowserUrl } from "../../browser/browser-policy";
 import { SandboxPolicyError } from "./sandbox-errors";
 
@@ -238,6 +241,10 @@ function matchesRule(scope: SandboxScope, rule: SandboxRule): boolean {
 
 export class SandboxPolicyEvaluator {
   private readonly profiles: Map<SandboxProfile["id"], SandboxProfile>;
+  private readonly runtimeFilesystemScopes = new Map<
+    string,
+    Map<SandboxProfile["id"], FilesystemScope[]>
+  >();
 
   constructor(profiles: readonly SandboxProfile[] = []) {
     const profileMap = new Map<SandboxProfile["id"], SandboxProfile>();
@@ -271,6 +278,60 @@ export class SandboxPolicyEvaluator {
     );
   }
 
+  /**
+   * Register one exact filesystem authority for one active Main run.  This is
+   * a runtime lease, not a mutation of a shared Sandbox profile.
+   */
+  registerRuntimeFilesystemScope(
+    profileId: SandboxProfile["id"],
+    runId: string,
+    scope: FilesystemScope,
+  ): () => void {
+    if (runId.trim().length === 0) {
+      throw new SandboxPolicyError("INVALID_PROFILE", "Runtime Sandbox scope requires a runId.");
+    }
+    if (scope.kind !== "filesystem" || scope.access !== "read") {
+      throw new SandboxPolicyError(
+        "INVALID_PROFILE",
+        "Runtime file scopes must be read-only filesystem scopes.",
+      );
+    }
+    const profile = this.profiles.get(profileId);
+    if (!profile || !profile.rules.some((rule) =>
+      rule.kind === "filesystem" && rule.access.includes("read"),
+    )) {
+      throw new SandboxPolicyError(
+        "INVALID_PROFILE",
+        `Sandbox profile "${profileId}" does not declare a read filesystem rule.`,
+      );
+    }
+    const perRun = this.runtimeFilesystemScopes.get(runId) ?? new Map();
+    const scopes = perRun.get(profileId) ?? [];
+    const cloned = cloneSandboxScope(scope) as FilesystemScope;
+    if (!scopes.some((entry: FilesystemScope) => isSandboxScopeExactlyEqual(entry, cloned))) {
+      scopes.push(cloned);
+    }
+    perRun.set(profileId, scopes);
+    this.runtimeFilesystemScopes.set(runId, perRun);
+
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const currentRun = this.runtimeFilesystemScopes.get(runId);
+      const currentScopes = currentRun?.get(profileId);
+      if (!currentRun || !currentScopes) return;
+      const remaining = currentScopes.filter((entry) => !isSandboxScopeExactlyEqual(entry, cloned));
+      if (remaining.length === 0) currentRun.delete(profileId);
+      else currentRun.set(profileId, remaining);
+      if (currentRun.size === 0) this.runtimeFilesystemScopes.delete(runId);
+    };
+  }
+
+  releaseRuntimeScopes(runId: string): void {
+    this.runtimeFilesystemScopes.delete(runId);
+  }
+
   evaluate(input: SandboxEvaluationInput): SandboxDecision {
     const profile = this.profiles.get(input.profileId);
     if (!profile) {
@@ -296,7 +357,12 @@ export class SandboxPolicyEvaluator {
         `Sandbox profile "${profile.id}" has no rule for "${input.requestedScope.kind}" resources.`,
       );
     }
-    if (!rulesForKind.some((profileRule) => matchesRule(input.requestedScope, profileRule))) {
+    const exactRuntimeGrant = input.requestedScope.kind === "filesystem" &&
+      input.context !== undefined &&
+      this.runtimeFilesystemScopes.get(input.context.runId)?.get(profile.id)?.some((scope) =>
+        isSandboxScopeExactlyEqual(scope, input.requestedScope),
+      ) === true;
+    if (!exactRuntimeGrant && !rulesForKind.some((profileRule) => matchesRule(input.requestedScope, profileRule))) {
       return outsideScope(
         `Requested ${input.requestedScope.kind} resource is outside sandbox profile "${profile.id}".`,
       );

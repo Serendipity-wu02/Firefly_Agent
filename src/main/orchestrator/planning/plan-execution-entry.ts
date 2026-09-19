@@ -7,6 +7,11 @@ import type {
 import type { IAgentCore } from "../../../shared/agent-core";
 import { BROWSER_READ_TOOL_ID } from "../../browser/browser-tool";
 import { normalizeBrowserUrl } from "../../browser/browser-policy";
+import type {
+  WorkFileReadRequirement,
+  WorkFileSelectionBinding,
+  WorkFileSelectionSnapshot,
+} from "../../../shared/work-file-types";
 
 /**
  * Main-only request contract for an explicitly selected execution plan.
@@ -30,6 +35,10 @@ export interface MainRequiredPlanRequest {
   readonly browserRequestTargets?: readonly string[];
   readonly runId?: string;
   readonly conversationId?: string;
+  /** Main-created opaque file scope; paths never cross this boundary. */
+  readonly fileSelection?: WorkFileSelectionBinding;
+  /** Main-created identities that this execution must read before completion. */
+  readonly fileReadRequirement?: WorkFileReadRequirement;
 }
 
 export type MainPlanExecutionRejectionCode =
@@ -46,6 +55,11 @@ export interface MainAvailableToolSchema {
 /** Main-owned validation inputs; this is not a user or model payload. */
 export interface MainRequiredPlanValidationContext {
   readonly availableToolSchemas?: readonly MainAvailableToolSchema[];
+  readonly fileSelection?: WorkFileSelectionSnapshot;
+  readonly validateFileSelection?: (
+    binding: WorkFileSelectionBinding,
+    runId: string | undefined,
+  ) => boolean;
 }
 
 export interface MainPlanExecutionRejection {
@@ -85,6 +99,42 @@ function isOptionalStringArray(value: unknown): value is readonly string[] | und
   return value === undefined || (
     Array.isArray(value) && value.every((entry) => typeof entry === "string")
   );
+}
+
+function isWorkFileSelectionBinding(value: unknown): value is WorkFileSelectionBinding {
+  if (!isRecord(value) || typeof value.selectionId !== "string" ||
+      value.selectionId.length === 0 || value.fileSelectionId !== value.selectionId ||
+      !Array.isArray(value.fileIds) || value.fileIds.length === 0) {
+    return false;
+  }
+  return value.fileIds.every((fileId) => typeof fileId === "string" && fileId.length > 0);
+}
+
+function isWorkFileReadRequirement(value: unknown): value is WorkFileReadRequirement {
+  if (!isWorkFileSelectionBinding(value)) return false;
+  return new Set(value.fileIds).size === value.fileIds.length;
+}
+
+function fileSelectionContainsBinding(
+  selection: WorkFileSelectionSnapshot | undefined,
+  binding: WorkFileSelectionBinding,
+): boolean {
+  if (selection === undefined) return true;
+  if (selection.selectionId !== binding.selectionId ||
+      selection.fileSelectionId !== binding.fileSelectionId) return false;
+  const files = new Set(selection.files.map((file) => file.fileId));
+  return binding.fileIds.every((fileId) => files.has(fileId));
+}
+
+function fileSelectionContainsReadRequirement(
+  selection: WorkFileSelectionSnapshot | undefined,
+  requirement: WorkFileReadRequirement,
+): boolean {
+  if (selection === undefined) return false;
+  if (selection.selectionId !== requirement.selectionId ||
+      selection.fileSelectionId !== requirement.fileSelectionId) return false;
+  const files = new Set(selection.files.map((file) => file.fileId));
+  return requirement.fileIds.every((fileId) => files.has(fileId));
 }
 
 function isJsonValue(value: unknown): boolean {
@@ -178,6 +228,8 @@ function validateStructuredSteps(
   maxSteps: number,
   context: MainRequiredPlanValidationContext = {},
   browserRequestTargets?: readonly string[],
+  fileSelection?: WorkFileSelectionBinding,
+  fileReadRequirement?: WorkFileReadRequirement,
 ): MainPlanExecutionRejection | MainRequiredPlanStep[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > maxSteps) {
     return {
@@ -237,6 +289,26 @@ function validateStructuredSteps(
           message: "A Browser tool binding must match an HTTP(S) URL explicitly present in the original user message.",
         };
       }
+      if (binding.toolName === "file_read") {
+        if (fileSelection === undefined || !isWorkFileSelectionBinding(fileSelection) ||
+            fileReadRequirement === undefined || !isWorkFileReadRequirement(fileReadRequirement)) {
+          return {
+            ok: false,
+            code: "invalid_plan_tool_binding",
+            message: "A file_read step requires a Main-owned required file-read binding.",
+          };
+        }
+        const selectionId = binding.arguments.selectionId;
+        const fileId = binding.arguments.fileId;
+        if (selectionId !== fileSelection.selectionId ||
+            typeof fileId !== "string" || !fileReadRequirement.fileIds.some((entry) => entry === fileId)) {
+          return {
+            ok: false,
+            code: "invalid_plan_tool_binding",
+            message: "The file_read binding must target a file explicitly required by this Work task.",
+          };
+        }
+      }
       validatedToolBinding = cloneToolBinding(binding);
     }
     steps.push({
@@ -246,6 +318,24 @@ function validateStructuredSteps(
         ? {}
         : { toolBinding: validatedToolBinding }),
     });
+  }
+  if (fileSelection !== undefined && fileReadRequirement === undefined) {
+    return {
+      ok: false,
+      code: "invalid_plan_tool_binding",
+      message: "A file-backed Work plan must declare which selected files are required to be read.",
+    };
+  }
+  if (fileReadRequirement !== undefined && !fileReadRequirement.fileIds.every((fileId) =>
+    steps.some((step) =>
+      step.toolBinding?.toolName === "file_read" && step.toolBinding.arguments.fileId === fileId,
+    ),
+  )) {
+    return {
+      ok: false,
+      code: "invalid_plan_tool_binding",
+      message: "A required file-read plan must contain one bound file_read step for every required file.",
+    };
   }
   return steps;
 }
@@ -271,11 +361,45 @@ export function createMainRequiredPlanInput(
   }
   if (typeof request.userPrompt !== "string" || request.userPrompt.trim().length === 0 ||
       !isOptionalString(request.runId) || !isOptionalString(request.conversationId) ||
-      !isOptionalStringArray(request.browserRequestTargets)) {
+      !isOptionalStringArray(request.browserRequestTargets) ||
+      (request.fileSelection !== undefined && !isWorkFileSelectionBinding(request.fileSelection)) ||
+      (request.fileReadRequirement !== undefined && !isWorkFileReadRequirement(request.fileReadRequirement))) {
     return {
       ok: false,
       code: "invalid_plan_request",
       message: "A required plan request must contain a non-empty userPrompt and valid identifiers.",
+    };
+  }
+
+  const requestedSelection = request.fileSelection as WorkFileSelectionBinding | undefined;
+  const requestedFileReadRequirement = request.fileReadRequirement as WorkFileReadRequirement | undefined;
+
+  if (requestedFileReadRequirement !== undefined && requestedSelection === undefined) {
+    return {
+      ok: false,
+      code: "invalid_plan_request",
+      message: "A required file-read plan must carry its Main-owned file selection.",
+    };
+  }
+  if (requestedSelection !== undefined && requestedFileReadRequirement === undefined) {
+    return {
+      ok: false,
+      code: "invalid_plan_request",
+      message: "A file selection cannot be used without an explicit file-read requirement.",
+    };
+  }
+  if (requestedFileReadRequirement !== undefined && requestedSelection !== undefined &&
+      !fileSelectionContainsReadRequirement(
+        context.fileSelection,
+        requestedFileReadRequirement,
+      ) &&
+      !requestedFileReadRequirement.fileIds.every((fileId) =>
+        requestedSelection.fileIds.includes(fileId),
+      )) {
+    return {
+      ok: false,
+      code: "invalid_plan_request",
+      message: "The required file-read identities are not contained in the confirmed selection.",
     };
   }
 
@@ -284,8 +408,26 @@ export function createMainRequiredPlanInput(
     maxSteps,
     context,
     request.browserRequestTargets,
+    requestedSelection,
+    requestedFileReadRequirement,
   );
   if (!Array.isArray(steps)) return steps;
+  if (request.fileSelection !== undefined && context.fileSelection !== undefined &&
+      !fileSelectionContainsBinding(context.fileSelection, request.fileSelection)) {
+    return {
+      ok: false,
+      code: "invalid_plan_request",
+      message: "The required plan file selection does not match the current Main-owned selection.",
+    };
+  }
+  if (request.fileSelection !== undefined && context.fileSelection === undefined &&
+      context.validateFileSelection?.(request.fileSelection, request.runId) !== true) {
+    return {
+      ok: false,
+      code: "invalid_plan_request",
+      message: "The required plan file selection is not available to this Main run.",
+    };
+  }
 
   return {
     ok: true,
@@ -305,6 +447,22 @@ export function createMainRequiredPlanInput(
       ...(request.browserRequestTargets === undefined
         ? {}
         : { browserRequestTargets: [...request.browserRequestTargets] }),
+      ...(request.fileSelection === undefined
+        ? {}
+        : {
+            fileSelection: {
+              ...request.fileSelection,
+              fileIds: [...request.fileSelection.fileIds],
+            },
+          }),
+      ...(request.fileReadRequirement === undefined
+        ? {}
+        : {
+            fileReadRequirement: {
+              ...request.fileReadRequirement,
+              fileIds: [...request.fileReadRequirement.fileIds],
+            },
+          }),
       executionProfile: { kind: "MAIN", allowSubAgentDelegation: true },
     },
   };
@@ -344,8 +502,30 @@ export function validateAgentRunPlanInput(
     maxSteps,
     context,
     input.browserRequestTargets,
+    input.fileSelection,
+    input.fileReadRequirement,
   );
   if (!Array.isArray(steps)) return steps;
+  if (input.fileSelection !== undefined &&
+      (!isWorkFileSelectionBinding(input.fileSelection) ||
+        (context.fileSelection !== undefined &&
+          !fileSelectionContainsBinding(context.fileSelection, input.fileSelection)) ||
+        (context.fileSelection === undefined &&
+          context.validateFileSelection?.(input.fileSelection, input.runId) !== true))) {
+    return {
+      ok: false,
+      code: "invalid_plan_request",
+      message: "The required plan file selection is not available to this Main run.",
+    };
+  }
+  if (input.fileReadRequirement !== undefined &&
+      (!isWorkFileReadRequirement(input.fileReadRequirement) || input.fileSelection === undefined)) {
+    return {
+      ok: false,
+      code: "invalid_plan_request",
+      message: "The required file-read identities are not available to this Main run.",
+    };
+  }
   return { ok: true };
 }
 

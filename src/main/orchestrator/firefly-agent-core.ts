@@ -26,6 +26,12 @@ import { FireflyHarness } from "./harness/firefly-harness";
 import type { HarnessAuthorizationAdapter } from "./harness/harness-authorization-adapter";
 import type { MainAgentDelegationService } from "./subagents/main-agent-delegation";
 import type { WorkPlanGenerationResult } from "../../shared/work-types";
+import type {
+  WorkFileReadRequirement,
+  WorkFileSelectionBinding,
+  WorkFileSelectionSnapshot,
+} from "../../shared/work-file-types";
+import type { WorkDiagnosticSink } from "../work/work-diagnostics";
 
 export interface FireflyAgentCoreOptions {
   provider?: IFireflyLlmProvider;
@@ -41,6 +47,11 @@ export interface FireflyAgentCoreOptions {
   recoveryManager?: RecoveryManager;
   planner?: BoundedPlanner;
   plannerConfig?: Partial<PlannerConfig>;
+  fileSelectionValidator?: (
+    binding: WorkFileSelectionBinding,
+    runId: string | undefined,
+  ) => boolean;
+  workDiagnosticSink?: WorkDiagnosticSink;
 }
 
 /**
@@ -53,8 +64,10 @@ export interface FireflyAgentCoreOptions {
  */
 export class FireflyAgentCore implements IAgentCore {
   private readonly harness: FireflyHarness;
+  private readonly fileSelectionValidator?: FireflyAgentCoreOptions["fileSelectionValidator"];
 
   constructor(options: FireflyAgentCoreOptions) {
+    this.fileSelectionValidator = options.fileSelectionValidator;
     const eventBus = options.eventBus || new AgentEventBus();
     const contextManager = options.contextManager || new ContextManager();
     const executionEngine =
@@ -76,6 +89,8 @@ export class FireflyAgentCore implements IAgentCore {
       checkpointManager,
       recoveryManager,
       planner,
+      fileSelectionValidator: options.fileSelectionValidator,
+      workDiagnosticSink: options.workDiagnosticSink,
     });
   }
 
@@ -115,15 +130,26 @@ export class FireflyAgentCore implements IAgentCore {
     userPrompt: string,
     signal?: AbortSignal,
     browserRequestTargets?: readonly string[],
+    fileSelection?: WorkFileSelectionSnapshot,
+    fileReadRequirement?: WorkFileReadRequirement,
   ): Promise<WorkPlanGenerationResult> {
-    return this.harness.proposeRequiredPlan(userPrompt, signal, browserRequestTargets);
+    return this.harness.proposeRequiredPlan(
+      userPrompt,
+      signal,
+      browserRequestTargets,
+      fileSelection,
+      fileReadRequirement,
+    );
   }
 
   run(input: AgentRunInput): Promise<AgentRunResult> {
     const validation = validateAgentRunPlanInput(
       input,
       this.harness.getPlanner().getConfig().maxSteps,
-      { availableToolSchemas: this.harness.getMainToolSchemas() },
+      {
+        availableToolSchemas: this.harness.getMainToolSchemas(input.fileReadRequirement !== undefined),
+        validateFileSelection: this.fileSelectionValidator,
+      },
     );
     if (!validation.ok) {
       return Promise.resolve({
@@ -170,7 +196,10 @@ export class FireflyAgentCore implements IAgentCore {
       this,
       request,
       this.harness.getPlanner().getConfig().maxSteps,
-      { availableToolSchemas: this.harness.getMainToolSchemas() },
+      {
+        availableToolSchemas: this.harness.getMainToolSchemas(true),
+        validateFileSelection: this.fileSelectionValidator,
+      },
     );
   }
 

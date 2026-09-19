@@ -63,6 +63,19 @@ const EXACT_RESULT_KEYS = new Set([
   "executionId",
   "correlationId",
   "connection",
+  "selectionId",
+  "fileSelectionId",
+  "fileId",
+  "fileKind",
+  "byteLength",
+  "bytesRead",
+  "bodyCodePoints",
+  "complete",
+  "contentTruncated",
+  "integrity",
+  "encoding",
+  "displayName",
+  "displayNameTruncated",
 ]);
 
 const OPTIONAL_RESULT_KEYS = new Set([
@@ -122,7 +135,14 @@ function serializedCodePointLength(value: Record<string, unknown>): number {
 
 function setFieldTruncated(result: Record<string, unknown>, key: string): void {
   if (key === "title") result.titleTruncated = true;
-  if (key === "body") result.bodyTruncated = true;
+  if (key === "body") {
+    result.bodyTruncated = true;
+    if (Object.prototype.hasOwnProperty.call(result, "fileId") ||
+        Object.prototype.hasOwnProperty.call(result, "fileSelectionId")) {
+      result.contentTruncated = true;
+      result.complete = false;
+    }
+  }
   if (key === "bodyPreview") result.bodyPreviewTruncated = true;
   if (key === "message") result.messageTruncated = true;
 }
