@@ -106,6 +106,14 @@ export class BoundedPlanner {
       ...(definition.completionRequirement === undefined
         ? {}
         : { completionRequirement: definition.completionRequirement }),
+      ...(definition.toolBinding === undefined
+        ? {}
+        : {
+            toolBinding: {
+              ...definition.toolBinding,
+              arguments: { ...definition.toolBinding.arguments },
+            },
+          }),
       status: idx === 0 ? "running" : "pending",
       dependsOn: idx > 0 ? [idx - 1] : undefined,
       startedAt: idx === 0 ? Date.now() : undefined,

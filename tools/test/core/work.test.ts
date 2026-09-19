@@ -27,6 +27,16 @@ function completedResult(runId: string): AgentRunResult {
   };
 }
 
+function browserReadBinding(url: string) {
+  return {
+    toolName: "browser_read",
+    arguments: { requestUrl: url },
+    argumentMatching: "normalized_url" as const,
+    successContract: "json_ok_true" as const,
+    correction: "once" as const,
+  };
+}
+
 function createFakeCore(options: {
   readonly proposal?: WorkPlanGenerationResult;
   readonly runResult?: MainPlanExecutionResult;
@@ -38,7 +48,7 @@ function createFakeCore(options: {
     proposeRequiredPlan: async () => options.proposal ?? {
       ok: true,
       steps: [
-        { description: "读取用户指定页面", completionRequirement: "tool" },
+        { description: "整理用户目标", completionRequirement: "analysis" },
         { description: "整理真实结果", completionRequirement: "analysis" },
       ],
     },
@@ -56,7 +66,21 @@ test("Work proposal confirmation preserves the original task and URL targets", a
   const eventBus = new AgentEventBus();
   let request: MainRequiredPlanRequest | undefined;
   const coordinator = new WorkTaskCoordinator({
-    agentCore: createFakeCore({ eventBus, onRun: (value) => { request = value; } }),
+    agentCore: createFakeCore({
+      eventBus,
+      onRun: (value) => { request = value; },
+      proposal: {
+        ok: true,
+        steps: [
+          {
+            description: "读取用户指定页面",
+            completionRequirement: "tool",
+            toolBinding: browserReadBinding("https://example.com/hello"),
+          },
+          { description: "整理真实结果", completionRequirement: "analysis" },
+        ],
+      },
+    }),
   });
 
   const created = await coordinator.createPlan(
@@ -72,7 +96,11 @@ test("Work proposal confirmation preserves the original task and URL targets", a
   assert.equal(request?.userPrompt, "请读取 [https://example.com/hello](https://example.com/hello)，不要访问其他地址。");
   assert.deepEqual(request?.browserRequestTargets, ["https://example.com/hello"]);
   assert.deepEqual(request?.steps, [
-    { description: "读取用户指定页面", completionRequirement: "tool" },
+    {
+      description: "读取用户指定页面",
+      completionRequirement: "tool",
+      toolBinding: browserReadBinding("https://example.com/hello"),
+    },
     { description: "整理真实结果", completionRequirement: "analysis" },
   ]);
   coordinator.dispose();
@@ -164,6 +192,19 @@ test("a planning Provider exception becomes a failed task without leaving a prop
 test("Harness plan generation sends one no-tool request and validates structured steps", async () => {
   const { FireflyHarness } = await import("../../../dist/main/main/orchestrator/harness/firefly-harness.js");
   const { FireflyToolRegistry } = await import("../../../dist/main/main/orchestrator/tools/registry/tool-registry.js");
+  const registry = new FireflyToolRegistry();
+  registry.register({
+    id: "work_read",
+    name: "work_read",
+    description: "Controlled Work test reader.",
+    inputSchema: {
+      type: "object",
+      properties: { requestUrl: { type: "string" } },
+      required: ["requestUrl"],
+    },
+    enabled: true,
+    execute: async () => JSON.stringify({ ok: true }),
+  });
   let request: ChatCompletionRequest | undefined;
   const provider: IFireflyLlmProvider = {
     id: "work-plan-test",
@@ -176,7 +217,17 @@ test("Harness plan generation sends one no-tool request and validates structured
           role: "assistant",
           content: JSON.stringify({
             steps: [
-              { description: "读取用户目标", completionRequirement: "tool" },
+              {
+                description: "读取用户目标",
+                completionRequirement: "tool",
+                toolBinding: {
+                  toolName: "work_read",
+                  arguments: { requestUrl: "https://example.com/" },
+                  argumentMatching: "normalized_url",
+                  successContract: "json_ok_true",
+                  correction: "once",
+                },
+              },
               { description: "整理读取结果", completionRequirement: "analysis" },
             ],
           }),
@@ -184,13 +235,23 @@ test("Harness plan generation sends one no-tool request and validates structured
       };
     },
   };
-  const harness = new FireflyHarness({ provider, toolRegistry: new FireflyToolRegistry() });
+  const harness = new FireflyHarness({ provider, toolRegistry: registry });
 
   const result = await harness.proposeRequiredPlan("读取用户提供的网页");
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.deepEqual(result.steps, [
-    { description: "读取用户目标", completionRequirement: "tool" },
+    {
+      description: "读取用户目标",
+      completionRequirement: "tool",
+      toolBinding: {
+        toolName: "work_read",
+        arguments: { requestUrl: "https://example.com/" },
+        argumentMatching: "normalized_url",
+        successContract: "json_ok_true",
+        correction: "once",
+      },
+    },
     { description: "整理读取结果", completionRequirement: "analysis" },
   ]);
   assert.equal(request?.tools, undefined);

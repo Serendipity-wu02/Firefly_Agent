@@ -164,6 +164,8 @@ export type AgentPlanStepCompletionRequirement = "analysis" | "tool";
 export interface AgentPlanStepDefinition {
   readonly description: string;
   readonly completionRequirement?: AgentPlanStepCompletionRequirement;
+  /** V1 Main-owned binding for a tool step; absent legacy steps remain unverified. */
+  readonly toolBinding?: AgentRequiredToolExecution;
 }
 
 export type AgentPlanStepInput = string | AgentPlanStepDefinition;

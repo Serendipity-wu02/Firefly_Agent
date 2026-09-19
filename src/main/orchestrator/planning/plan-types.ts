@@ -40,6 +40,8 @@ export interface PlanStep {
   index: number;
   description: string;
   completionRequirement?: PlanStepCompletionRequirement;
+  /** V1 immutable tool/parameter target copied from the confirmed plan. */
+  toolBinding?: AgentPlanStepDefinition["toolBinding"];
   status: PlanStepStatus;
   dependsOn?: number[];
   observation?: string;

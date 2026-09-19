@@ -155,6 +155,435 @@ test("3. One tool round uses ToolExecutionEngine and feeds the result to the nex
   assert.ok(createHarness({ toolRegistry: registry }).getExecutionEngine() instanceof ToolExecutionEngine);
 });
 
+test("required plan rejects a model tool outside the current step binding before execution", async () => {
+  const registry = new FireflyToolRegistry();
+  let allowedExecutions = 0;
+  let forbiddenExecutions = 0;
+  registry.register({
+    id: "safe_lookup",
+    name: "safe_lookup",
+    description: "Returns a deterministic observation.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      allowedExecutions++;
+      return JSON.stringify({ ok: true, value: "observed" });
+    },
+  });
+  registry.register({
+    id: "forbidden_lookup",
+    name: "forbidden_lookup",
+    description: "Must not run for this required plan step.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      forbiddenExecutions++;
+      return JSON.stringify({ ok: true });
+    },
+  });
+
+  const requestToolNames: string[][] = [];
+  const provider = createProvider(async (request) => {
+    requestToolNames.push(request.tools?.map((tool) => tool.function.name) ?? []);
+    return {
+      message: {
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "forbidden-call", name: "forbidden_lookup", arguments: {} }],
+      },
+    };
+  });
+
+  const result = await createHarness({ provider, toolRegistry: registry }).run({
+    runId: "harness-required-plan-binding-rejection",
+    source: "user",
+    userPrompt: "执行指定读取",
+    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [
+      {
+        description: "执行指定读取",
+        completionRequirement: "tool",
+        toolBinding: {
+          toolName: "safe_lookup",
+          arguments: {},
+          successContract: "json_ok_true",
+          correction: "once",
+        },
+      },
+      { description: "整理读取结果", completionRequirement: "analysis" },
+    ],
+  });
+
+  assert.equal(requestToolNames.length, 1);
+  assert.equal(requestToolNames[0]?.includes("safe_lookup"), true);
+  assert.equal(requestToolNames[0]?.includes("forbidden_lookup"), false);
+  assert.equal(forbiddenExecutions, 0);
+  assert.equal(allowedExecutions, 0);
+  assert.equal(result.status, "error");
+  assert.equal(result.terminationReason.kind, "plan_incomplete");
+});
+
+test("required plan executes the bound tool and verifies its current-step evidence", async () => {
+  const registry = new FireflyToolRegistry();
+  let executions = 0;
+  registry.register({
+    id: "safe_lookup",
+    name: "safe_lookup",
+    description: "Returns a deterministic observation.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      executions++;
+      return JSON.stringify({ ok: true, value: "observed" });
+    },
+  });
+
+  let calls = 0;
+  const provider = createProvider(async (request) => {
+    calls++;
+    if (calls === 1) {
+      return {
+        message: {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "bound-call", name: "safe_lookup", arguments: {} }],
+        },
+      };
+    }
+    assert.equal(request.messages.some((message) => message.role === "tool" && message.toolCallId === "bound-call"), true);
+    return { message: { role: "assistant", content: "读取结果已整理。" } };
+  });
+
+  const result = await createHarness({ provider, toolRegistry: registry }).run({
+    runId: "harness-required-plan-binding-success",
+    source: "user",
+    userPrompt: "执行指定读取",
+    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [
+      {
+        description: "执行指定读取",
+        completionRequirement: "tool",
+        toolBinding: {
+          toolName: "safe_lookup",
+          arguments: {},
+          successContract: "json_ok_true",
+          correction: "once",
+        },
+      },
+      { description: "整理读取结果", completionRequirement: "analysis" },
+    ],
+  });
+
+  assert.equal(executions, 1);
+  assert.equal(result.status, "completed");
+  assert.equal(result.terminationReason.kind, "completed");
+  assert.equal(result.roundsCount, 2);
+});
+
+test("required plan rejects same-name tool calls with mismatched bound arguments", async () => {
+  const registry = new FireflyToolRegistry();
+  let executions = 0;
+  registry.register({
+    id: "bound_lookup",
+    name: "bound_lookup",
+    description: "Requires an exact query argument.",
+    inputSchema: {
+      type: "object",
+      properties: { query: { type: "string" } },
+      required: ["query"],
+    },
+    enabled: true,
+    execute: async () => {
+      executions++;
+      return JSON.stringify({ ok: true });
+    },
+  });
+
+  const requestToolNames: string[][] = [];
+  const provider = createProvider(async (request) => {
+    requestToolNames.push(request.tools?.map((tool) => tool.function.name) ?? []);
+    return {
+      message: {
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "wrong-args-call", name: "bound_lookup", arguments: { query: "wrong" } }],
+      },
+    };
+  });
+
+  const result = await createHarness({ provider, toolRegistry: registry }).run({
+    runId: "harness-required-plan-binding-wrong-args",
+    source: "user",
+    userPrompt: "执行带参数的读取",
+    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [{
+      description: "执行带参数的读取",
+      completionRequirement: "tool",
+      toolBinding: {
+        toolName: "bound_lookup",
+        arguments: { query: "expected" },
+        successContract: "json_ok_true",
+        correction: "once",
+      },
+    }],
+  });
+
+  assert.deepEqual(requestToolNames, [["bound_lookup"]]);
+  assert.equal(executions, 0);
+  assert.equal(result.status, "error");
+  assert.equal(result.terminationReason.kind, "plan_incomplete");
+});
+
+test("required plan rejects extra tool calls during an analysis step before execution", async () => {
+  const registry = new FireflyToolRegistry();
+  let boundExecutions = 0;
+  let forbiddenExecutions = 0;
+  registry.register({
+    id: "bound_lookup",
+    name: "bound_lookup",
+    description: "The bound first-step tool.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      boundExecutions++;
+      return JSON.stringify({ ok: true });
+    },
+  });
+  registry.register({
+    id: "forbidden_lookup",
+    name: "forbidden_lookup",
+    description: "Must not run during analysis.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      forbiddenExecutions++;
+      return JSON.stringify({ ok: true });
+    },
+  });
+
+  let providerCalls = 0;
+  const requestToolNames: string[][] = [];
+  const requestProvidedTools: boolean[] = [];
+  const provider = createProvider(async (request) => {
+    providerCalls++;
+    requestProvidedTools.push(request.tools !== undefined);
+    requestToolNames.push(request.tools?.map((tool) => tool.function.name) ?? []);
+    if (providerCalls === 1) {
+      return {
+        message: {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "bound-call", name: "bound_lookup", arguments: {} }],
+        },
+      };
+    }
+    return {
+      message: {
+        role: "assistant",
+        content: "分析步骤不应调用工具。",
+        toolCalls: [{ id: "analysis-forbidden-call", name: "forbidden_lookup", arguments: {} }],
+      },
+    };
+  });
+
+  const result = await createHarness({ provider, toolRegistry: registry }).run({
+    runId: "harness-required-plan-analysis-tool-rejection",
+    source: "user",
+    userPrompt: "先读取再分析",
+    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [
+      {
+        description: "执行读取",
+        completionRequirement: "tool",
+        toolBinding: {
+          toolName: "bound_lookup",
+          arguments: {},
+          successContract: "json_ok_true",
+          correction: "once",
+        },
+      },
+      { description: "分析读取结果", completionRequirement: "analysis" },
+    ],
+  });
+
+  assert.equal(providerCalls, 2);
+  assert.deepEqual(requestProvidedTools, [true, false]);
+  assert.deepEqual(requestToolNames, [["bound_lookup"], []]);
+  assert.equal(boundExecutions, 1);
+  assert.equal(forbiddenExecutions, 0);
+  assert.equal(result.status, "error");
+  assert.equal(result.terminationReason.kind, "plan_incomplete");
+  assert.equal(result.toolCallEvidence?.[1]?.outcome, "not_executed");
+});
+
+test("required plan keeps the final summary tool-free even when the Provider returns a tool call", async () => {
+  const registry = new FireflyToolRegistry();
+  let boundExecutions = 0;
+  let forbiddenExecutions = 0;
+  registry.register({
+    id: "bound_lookup",
+    name: "bound_lookup",
+    description: "The bound tool.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      boundExecutions++;
+      return JSON.stringify({ ok: true });
+    },
+  });
+  registry.register({
+    id: "forbidden_lookup",
+    name: "forbidden_lookup",
+    description: "Must not run during final summary.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => {
+      forbiddenExecutions++;
+      return JSON.stringify({ ok: true });
+    },
+  });
+
+  let providerCalls = 0;
+  const requestToolNames: string[][] = [];
+  const requestProvidedTools: boolean[] = [];
+  const provider = createProvider(async (request) => {
+    providerCalls++;
+    requestProvidedTools.push(request.tools !== undefined);
+    requestToolNames.push(request.tools?.map((tool) => tool.function.name) ?? []);
+    if (providerCalls === 1) {
+      return {
+        message: {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "bound-call", name: "bound_lookup", arguments: {} }],
+        },
+      };
+    }
+    if (providerCalls === 2) {
+      return {
+        message: {
+          role: "assistant",
+          content: "总结阶段不应执行工具。",
+          toolCalls: [{ id: "summary-forbidden-call", name: "forbidden_lookup", arguments: {} }],
+        },
+      };
+    }
+    return { message: { role: "assistant", content: "读取结果已完成总结。" } };
+  });
+
+  const result = await createHarness({ provider, toolRegistry: registry }).run({
+    runId: "harness-required-plan-summary-tool-rejection",
+    source: "user",
+    userPrompt: "读取并总结",
+    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [{
+      description: "执行读取",
+      completionRequirement: "tool",
+      toolBinding: {
+        toolName: "bound_lookup",
+        arguments: {},
+        successContract: "json_ok_true",
+        correction: "once",
+      },
+    }],
+  });
+
+  assert.equal(providerCalls, 3);
+  assert.deepEqual(requestProvidedTools, [true, false, false]);
+  assert.deepEqual(requestToolNames, [["bound_lookup"], [], []]);
+  assert.equal(boundExecutions, 1);
+  assert.equal(forbiddenExecutions, 0);
+  assert.equal(result.status, "completed");
+  assert.equal(result.toolCallEvidence?.[1]?.outcome, "not_executed");
+});
+
+test("required plan switches the exposed tool between bound tool steps", async () => {
+  const registry = new FireflyToolRegistry();
+  const executions: string[] = [];
+  for (const name of ["safe_a", "safe_b"]) {
+    registry.register({
+      id: name,
+      name,
+      description: name,
+      inputSchema: { type: "object", properties: {} },
+      enabled: true,
+      execute: async () => {
+        executions.push(name);
+        return JSON.stringify({ ok: true, name });
+      },
+    });
+  }
+
+  let providerCalls = 0;
+  const requestToolNames: string[][] = [];
+  const requestProvidedTools: boolean[] = [];
+  const provider = createProvider(async (request) => {
+    providerCalls++;
+    requestProvidedTools.push(request.tools !== undefined);
+    requestToolNames.push(request.tools?.map((tool) => tool.function.name) ?? []);
+    if (providerCalls === 1) {
+      return {
+        message: {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "safe-a-call", name: "safe_a", arguments: {} }],
+        },
+      };
+    }
+    if (providerCalls === 2) {
+      return {
+        message: {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "safe-b-call", name: "safe_b", arguments: {} }],
+        },
+      };
+    }
+    return { message: { role: "assistant", content: "两个步骤均已完成。" } };
+  });
+
+  const result = await createHarness({ provider, toolRegistry: registry }).run({
+    runId: "harness-required-plan-tool-switch",
+    source: "user",
+    userPrompt: "依次执行两个读取",
+    planMode: true,
+    planExecutionMode: "required",
+    customSteps: [
+      {
+        description: "执行第一个读取",
+        completionRequirement: "tool",
+        toolBinding: {
+          toolName: "safe_a",
+          arguments: {},
+          successContract: "json_ok_true",
+          correction: "once",
+        },
+      },
+      {
+        description: "执行第二个读取",
+        completionRequirement: "tool",
+        toolBinding: {
+          toolName: "safe_b",
+          arguments: {},
+          successContract: "json_ok_true",
+          correction: "once",
+        },
+      },
+    ],
+  });
+
+  assert.equal(providerCalls, 3);
+  assert.deepEqual(requestProvidedTools, [true, true, false]);
+  assert.deepEqual(requestToolNames, [["safe_a"], ["safe_b"], []]);
+  assert.deepEqual(executions, ["safe_a", "safe_b"]);
+  assert.equal(result.status, "completed");
+});
+
 test("4. Multiple tool calls preserve toolCallId pairing and transcript order", async () => {
   const registry = new FireflyToolRegistry();
   const executed: string[] = [];
@@ -173,8 +602,12 @@ test("4. Multiple tool calls preserve toolCallId pairing and transcript order", 
   }
 
   let calls = 0;
+  let firstRequestToolNames: string[] = [];
   const provider = createProvider(async (request) => {
     calls++;
+    if (calls === 1) {
+      firstRequestToolNames = request.tools?.map((tool) => tool.function.name) ?? [];
+    }
     if (calls === 1) {
       return {
         message: {
@@ -204,6 +637,7 @@ test("4. Multiple tool calls preserve toolCallId pairing and transcript order", 
   });
 
   assert.deepEqual(executed, ["safe_a", "safe_b"]);
+  assert.deepEqual(firstRequestToolNames, ["safe_a", "safe_b"]);
   assert.equal(result.toolCallsCount, 2);
   assert.equal(result.status, "completed");
 });

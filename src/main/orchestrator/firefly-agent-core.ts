@@ -111,14 +111,19 @@ export class FireflyAgentCore implements IAgentCore {
     return this.harness.getEventBus();
   }
 
-  proposeRequiredPlan(userPrompt: string, signal?: AbortSignal): Promise<WorkPlanGenerationResult> {
-    return this.harness.proposeRequiredPlan(userPrompt, signal);
+  proposeRequiredPlan(
+    userPrompt: string,
+    signal?: AbortSignal,
+    browserRequestTargets?: readonly string[],
+  ): Promise<WorkPlanGenerationResult> {
+    return this.harness.proposeRequiredPlan(userPrompt, signal, browserRequestTargets);
   }
 
   run(input: AgentRunInput): Promise<AgentRunResult> {
     const validation = validateAgentRunPlanInput(
       input,
       this.harness.getPlanner().getConfig().maxSteps,
+      { availableToolSchemas: this.harness.getMainToolSchemas() },
     );
     if (!validation.ok) {
       return Promise.resolve({
@@ -138,7 +143,19 @@ export class FireflyAgentCore implements IAgentCore {
       ...input,
       history: input.history ? input.history.map((message) => ({ ...message })) : undefined,
       customSteps: input.customSteps
-        ? input.customSteps.map((step) => typeof step === "string" ? step : { ...step })
+        ? input.customSteps.map((step) => typeof step === "string"
+          ? step
+          : {
+              ...step,
+              ...(step.toolBinding === undefined
+                ? {}
+                : {
+                    toolBinding: {
+                      ...step.toolBinding,
+                      arguments: { ...step.toolBinding.arguments },
+                    },
+                  }),
+            })
         : undefined,
     });
   }
@@ -153,6 +170,7 @@ export class FireflyAgentCore implements IAgentCore {
       this,
       request,
       this.harness.getPlanner().getConfig().maxSteps,
+      { availableToolSchemas: this.harness.getMainToolSchemas() },
     );
   }
 

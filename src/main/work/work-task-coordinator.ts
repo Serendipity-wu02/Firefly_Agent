@@ -22,6 +22,7 @@ export interface WorkAgentCore {
   proposeRequiredPlan(
     userPrompt: string,
     signal?: AbortSignal,
+    browserRequestTargets?: readonly string[],
   ): Promise<WorkPlanGenerationResult>;
   runRequiredPlan(request: unknown): Promise<MainPlanExecutionResult>;
   cancel(runId: string): boolean;
@@ -37,6 +38,7 @@ interface MutableWorkStep {
   readonly index: number;
   readonly description: string;
   readonly completionRequirement: WorkStepSnapshot["completionRequirement"];
+  readonly toolBinding?: WorkStepSnapshot["toolBinding"];
   status: WorkStepSnapshot["status"];
   observation?: string;
   verificationStatus?: WorkVerificationStatus;
@@ -83,6 +85,14 @@ function cloneSnapshot(task: MutableWorkTask | null): WorkTaskSnapshot | null {
       index: step.index,
       description: step.description,
       completionRequirement: step.completionRequirement,
+      ...(step.toolBinding === undefined
+        ? {}
+        : {
+            toolBinding: {
+              ...step.toolBinding,
+              arguments: { ...step.toolBinding.arguments },
+            },
+          }),
       status: step.status,
       ...(step.verificationStatus === undefined ? {} : { verificationStatus: step.verificationStatus }),
       ...(step.verificationReason === undefined ? {} : { verificationReason: step.verificationReason }),
@@ -163,6 +173,7 @@ export class WorkTaskCoordinator {
       generated = await this.agentCore.proposeRequiredPlan(
         userPrompt,
         planningController.signal,
+        task.browserRequestTargets,
       );
     } catch (error: unknown) {
       this.planningController = null;
@@ -214,11 +225,35 @@ export class WorkTaskCoordinator {
       };
     }
 
+    if (generated.steps.some((step) =>
+      (step.completionRequirement === "tool" && step.toolBinding === undefined) ||
+      (step.completionRequirement === "analysis" && step.toolBinding !== undefined),
+    )) {
+      task.phase = "failed";
+      task.error = "The Work proposal contained an invalid tool binding.";
+      task.updatedAt = Date.now();
+      this.publish();
+      return {
+        ok: false,
+        code: "execution_failed",
+        message: task.error,
+        snapshot: cloneSnapshot(task) ?? undefined,
+      };
+    }
+
     task.proposalId = createId("work-proposal");
     task.steps = generated.steps.map((step, index) => ({
       index,
       description: step.description,
       completionRequirement: step.completionRequirement,
+      ...(step.toolBinding === undefined
+        ? {}
+        : {
+            toolBinding: {
+              ...step.toolBinding,
+              arguments: { ...step.toolBinding.arguments },
+            },
+          }),
       status: "pending",
     }));
     task.currentStepIndex = 0;
@@ -258,6 +293,14 @@ export class WorkTaskCoordinator {
       steps: task.steps.map((step) => ({
         description: step.description,
         completionRequirement: step.completionRequirement,
+        ...(step.toolBinding === undefined
+          ? {}
+          : {
+              toolBinding: {
+                ...step.toolBinding,
+                arguments: { ...step.toolBinding.arguments },
+              },
+            }),
       })),
       runId: task.runId,
       browserRequestTargets: [...task.browserRequestTargets],

@@ -1,5 +1,6 @@
 import type {
   AgentPlanStepCompletionRequirement,
+  AgentRequiredToolExecution,
   AgentTerminationReason,
 } from "./agent-types";
 
@@ -8,6 +9,8 @@ export type WorkPlanStepRequirement = AgentPlanStepCompletionRequirement;
 export interface WorkPlanStep {
   readonly description: string;
   readonly completionRequirement: WorkPlanStepRequirement;
+  /** V1 pre-confirmation tool/parameter binding; absent on analysis steps. */
+  readonly toolBinding?: AgentRequiredToolExecution;
 }
 
 export type WorkPlanGenerationErrorCode =

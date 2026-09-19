@@ -20,6 +20,15 @@ or any tool execution policy.
 automatically split step have no requirement and therefore remain unverified;
 the Harness does not infer their category from the next model response.
 
+For a tool step, the V1 `toolBinding` field is also fixed before confirmation.
+It reuses `AgentRequiredToolExecution` and contains the exact enabled tool name,
+the arguments to compare, the existing URL matching mode, and the existing
+`json_ok_true`/`once` contract. Main validates the binding against the enabled
+`FireflyToolRegistry` schemas. A Browser binding must additionally match one
+of the normalized URLs extracted from the original user message; plan text
+cannot add a target. Analysis steps cannot carry a binding. A legacy tool step
+without a binding remains unverified rather than being relaxed.
+
 Plan activation and plan completion are separate contracts. The new
 `AgentRunInput.planExecutionMode` field is Main-supplied and has the values
 `"assist"` and `"required"`:
@@ -64,14 +73,16 @@ silently reused for a later step.
 
 ## Completion rules
 
-`AgentPlanStepDefinition.completionRequirement` is the new plan-creation field
-in `src/shared/agent-types.ts`; `PlanStep.completionRequirement` carries the
-stored decision into verification. `StepVerificationContext` in
+`AgentPlanStepDefinition.completionRequirement` and its V1 `toolBinding` are
+the plan-creation fields in `src/shared/agent-types.ts`; `PlanStep` carries
+both immutable decisions into verification. `StepVerificationContext` in
 `src/main/orchestrator/planning/step-verifier.ts` contains only the current
-round evidence:
+round evidence and the current Harness run identity:
 
-- `completionRequirement: "tool"` requires at least one current-round
-  `AgentToolCallEvidence` record.
+- `completionRequirement: "tool"` requires a current-round
+  `AgentToolCallEvidence` record whose `runId`, tool name, and arguments match
+  the stored binding through the existing `matchesRequiredToolExecution`
+  matcher.
 - Every current record must have `outcome: "success"` and `isError: false`.
 - `failure`, `unknown`, `not_executed`, cancellation/timeout results represented
   as non-success evidence, and an empty current evidence set cannot produce
@@ -81,6 +92,10 @@ round evidence:
   restricted or deferred call remains `"not_executed"`.
 - The assistant's text is observation text only in a tool step; it cannot
   override a failed or unknown execution result.
+- A valid `json_ok_true` result proves only the declared operation. When a
+  music result reports `commandSubmission: "accepted"` without an observed
+  state change, the verifier records submission-only evidence and does not
+  claim that the player state changed.
 - `completionRequirement: "analysis"` permits a non-empty observation. It is
   selected before execution by the plan contract, not by whether this round
   happened to contain a tool call.
@@ -141,14 +156,21 @@ new assist facts; a snapshot explicitly marked `"required"` is rejected by
 `ResumeProtocol` as missing the plan facts needed for safe restoration.  No
 required plan is downgraded to assist, and no R2 resume entry is added.
 
-## Contract limitation
+## Binding scope and limitations
 
-`PlanStep` currently has no structured expected-tool, target URL, or operation
-field. This implementation therefore binds proof to the current tool round and
-does not invent a semantic target matcher. It prevents reuse of prior-step
-evidence because only the current round is supplied, but it cannot prove that a
-successful tool call semantically matches every natural-language step. Adding
-that contract requires an explicit plan schema change and is outside V1.
+The V1 binding is intentionally structural. Main checks the tool's current
+enabled schema and the binding's parameters before the run; the verifier then
+checks the actual current-run evidence with the existing exact or normalized
+URL matcher. Different tools, URLs, paths, query parameters, or operations do
+not substitute for the declared binding. This does not infer a natural-language
+meaning for arbitrary descriptions. It also does not turn a command submission
+into proof of an external state change. Tool steps from old plans that lack a
+binding remain unverified.
+
+Work confirmation renders known bindings as human-readable operations. The
+execution context also includes the fixed operation so the Provider can emit
+the declared tool call; the raw binding remains Main-owned execution data and
+is not a new permission or authorization source.
 
 ## Verification
 
@@ -171,10 +193,87 @@ The planning suite covers:
     retaining their existing terminal priority and checkpoint/result reason.
 13. `FireflyAgentCore.runRequiredPlan()` accepting one explicit structured
     required plan and completing through the existing Harness loop;
-14. invalid mode, missing completion requirements, and legacy string steps being
-    rejected before Provider/tool execution.
+14. invalid mode, missing completion requirements, missing/unknown tool bindings,
+    schema-mismatched arguments, and out-of-scope Browser targets being rejected
+    before Provider/tool execution;
+15. different tools, different parameters, historical evidence, unknown results,
+    and submission-only music results not being upgraded into the declared
+    operation or an external state change.
 
 These tests use the existing Harness/Planner path where integration behavior
 is needed and use the existing `AgentToolCallEvidence` contract for direct
 boundary cases. No real model, public network, Browser request, or Resume
 entry is used.
+
+## Tool-target binding V1 verification
+
+The binding-specific implementation and regression tests add the following
+Main-owned contract:
+
+- `AgentPlanStepDefinition.toolBinding` is copied into the immutable runtime
+  `PlanStep` and the Work snapshot before confirmation;
+- Main rejects an unavailable tool, schema-mismatched arguments, an analysis
+  step carrying a binding, and a Browser URL outside the original user target
+  set before Provider or tool execution;
+- `StepVerifier` accepts only current-run evidence matching the declared tool
+  and parameters. A different tool, different URL, prior-run evidence,
+  failure, or unknown result cannot satisfy the step;
+- Work confirmation and the plan context render the declared operation in
+  readable form. A `commandSubmission` result is not presented as proof that
+  a player state changed.
+
+The affected checks passed in this worktree: planning `37/37`, Work `6/6`,
+and Harness `43/43`. The current round also passed `npm run typecheck`,
+`npm run build:main`, and `git diff --check`. The full test suite, public
+network, and the final GUI recheck were not run in this round.
+
+The final GUI recheck was blocked before any app input: the Computer Use
+inventory returned no native application surface, while the existing Electron
+process was independently observed as PID `28020` with window title
+`Firefly Agent - Desktop Pet` and window handle `6817234`. The available
+Computer Use API could not bind that returned window. The process was not
+force-terminated, and its existing state was not treated as a new-build
+verification. The latest `build:main` output was generated, but the running
+process was not restarted and therefore is not evidence that it loaded the
+latest tool-surface implementation.
+
+Controlled Harness tests prove that a required Work tool step sends only its
+bound schema, that analysis and final-summary rounds send no schema and reject
+unexpected calls before dispatch, and that ordinary Chat keeps its existing
+tool surface. They do not prove that a real model will always emit the
+declared binding or that a real external side effect occurred.
+
+## Work final manual evidence boundary
+
+The prior Firefly process PID `28020` was closed through the normal application
+exit path; its Electron child processes also disappeared. The latest compiled
+`dist/main/main/orchestrator/harness/firefly-harness.js` was written at
+`2026-09-19 14:59:57`, and `dist/main/main/index.js` at `14:59:58`. The
+verified `npm.cmd start` command uses `electron .` and the package entry
+`dist/main/main/index.js`.
+
+The replacement process PID `28172` started at `2026-09-19 15:00:04`, with
+Electron children `23724`, `33740`, and `30056`. It therefore started after
+the latest Main build. Diagnostic output showed the tool registry and window
+ready events before the run.
+
+The correlated Work run was
+`work-run-1789801399401-f8zt7b`:
+
+1. Plan generation sent no tool schema and returned a structured proposal.
+2. The required tool step sent exactly one schema, `music_status`; the
+   Provider returned `toolCalls=music_status`.
+3. The next summary request sent `schemas=0`, `toolNames=none`, and the
+   Provider returned `toolCalls=none` with final text.
+
+The user-provided Work screenshot shows the same task with the QQMusic step
+`completed`, verification `success`, and terminal state `completed`. The
+console trace does not print the tool result body, but the Harness emits the
+`agent:tool-result` event and the UI displayed the matching successful step.
+No extra summary-stage tool execution occurred, and no unexpected model tool
+call required rejection in this run.
+
+The ordinary Chat regression used run
+`run-1789801452441-evjs5`. It retained the normal MAIN surface with eight
+schemas, returned no tool call, and completed with a normal short reply. This
+confirms the required-plan tool restriction did not affect ordinary Chat.

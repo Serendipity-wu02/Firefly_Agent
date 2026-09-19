@@ -27,6 +27,39 @@ function requirementLabel(requirement: "analysis" | "tool"): string {
   return requirement === "tool" ? "需要真实工具结果" : "需要分析观察结果";
 }
 
+function toolOperationLabel(step: WorkTaskSnapshot["steps"][number]): string | undefined {
+  if (step.completionRequirement !== "tool" || step.toolBinding === undefined) return undefined;
+  const args = step.toolBinding.arguments;
+  switch (step.toolBinding.toolName) {
+    case "browser_read":
+      return typeof args.requestUrl === "string" ? `读取网页：${args.requestUrl}` : "读取网页";
+    case "music_control": {
+      const labels: Record<string, string> = {
+        next: "切换下一首",
+        previous: "切换上一首",
+        pause: "暂停播放",
+        play: "继续播放",
+        toggle: "切换播放状态",
+      };
+      return typeof args.action === "string" && labels[args.action]
+        ? `控制音乐：${labels[args.action]}`
+        : "控制音乐";
+    }
+    case "music_search":
+      return typeof args.query === "string" ? `搜索音乐：${args.query}` : "搜索音乐";
+    case "music_play":
+      return typeof args.title === "string"
+        ? `播放音乐：${args.title}`
+        : typeof args.selection === "string"
+          ? `播放音乐：${args.selection}`
+          : "播放音乐";
+    case "music_status":
+      return "查询音乐状态";
+    default:
+      return `执行工具：${step.toolBinding.toolName}`;
+  }
+}
+
 function updateFromResult(
   result: WorkTaskOperationResult,
   setSnapshot: (snapshot: WorkTaskSnapshot | null) => void,
@@ -182,6 +215,11 @@ export const WorkView: React.FC<WorkViewProps> = ({ providerStatus, isMaximized 
                         {requirementLabel(step.completionRequirement)} · 状态：{step.status}
                         {step.verificationStatus ? ` · 验证：${step.verificationStatus}` : ""}
                       </div>
+                      {toolOperationLabel(step) ? (
+                        <div style={{ color: THEME_TOKENS.colors.textSecondary, fontSize: 13 }}>
+                          预定操作：{toolOperationLabel(step)}
+                        </div>
+                      ) : null}
                       {step.verificationReason ? <div style={{ color: THEME_TOKENS.colors.textSecondary, fontSize: 13 }}>{step.verificationReason}</div> : null}
                     </li>
                   ))}

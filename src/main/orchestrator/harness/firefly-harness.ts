@@ -37,6 +37,8 @@ import { formatPlanContext } from "../planning/plan-lifecycle";
 import type { Plan, PlannerConfig } from "../planning/plan-types";
 import {
   createMainRequiredPlanInput,
+  type MainAvailableToolSchema,
+  type MainRequiredPlanValidationContext,
   type MainRequiredPlanStep,
 } from "../planning/plan-execution-entry";
 import type { AgentExecutionProfile, WorkerExecutionProfile } from "../../../shared/subagent-types";
@@ -275,6 +277,12 @@ interface PlanCompletionGateFailure {
   readonly reason: AgentPlanCompletionFailureReason;
 }
 
+interface RequiredPlanToolSurface {
+  readonly requiredToolExecution?: AgentRequiredToolExecution;
+  /** Required plans reject model tool calls when no step owns a tool surface. */
+  readonly rejectUnexpectedToolCalls: boolean;
+}
+
 function findPlanCompletionGateFailure(plan: Plan | undefined): PlanCompletionGateFailure | undefined {
   if (plan === undefined) {
     return { reason: "plan_not_created" };
@@ -325,14 +333,24 @@ function planCompletionGateMessage(failure: PlanCompletionGateFailure): string {
   }
 }
 
-const WORK_PLAN_SYSTEM_PROMPT = [
-  "You are the Firefly Work plan generator.",
-  "Return only one JSON object with a non-empty steps array.",
-  "Every step must be an object with a concise description and completionRequirement.",
-  'completionRequirement must be exactly "analysis" or "tool".',
-  "Do not include URLs that are not present in the user task.",
-  "Do not execute tools, request approvals, read Memory/RAG, or add commentary.",
-].join("\n");
+function buildWorkPlanSystemPrompt(
+  availableToolSchemas: readonly MainAvailableToolSchema[],
+  browserRequestTargets: readonly string[],
+): string {
+  return [
+    "You are the Firefly Work plan generator.",
+    "Return only one JSON object with a non-empty steps array.",
+    "Every step must be an object with a concise description and completionRequirement.",
+    'completionRequirement must be exactly "analysis" or "tool".',
+    "An analysis step must not include toolBinding.",
+    "A tool step must include toolBinding with toolName, arguments, successContract \"json_ok_true\", and correction \"once\".",
+    "Use only the listed enabled tools and arguments accepted by their schemas; never infer a tool from prose after execution.",
+    "Do not include URLs that are not present in the user task.",
+    `Main-owned Browser targets from the current user message: ${JSON.stringify(browserRequestTargets)}.`,
+    `Enabled Main tool schemas: ${JSON.stringify(availableToolSchemas)}.`,
+    "Do not execute tools, request approvals, read Memory/RAG, or add commentary.",
+  ].join("\n");
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -342,6 +360,8 @@ function parseWorkPlanOutput(
   content: unknown,
   userPrompt: string,
   maxSteps: number,
+  validationContext: MainRequiredPlanValidationContext,
+  browserRequestTargets: readonly string[],
 ): WorkPlanGenerationResult {
   if (typeof content !== "string" || content.trim().length === 0) {
     return {
@@ -373,7 +393,8 @@ function parseWorkPlanOutput(
     planExecutionMode: "required",
     userPrompt,
     steps: parsed.steps,
-  }, maxSteps);
+    browserRequestTargets,
+  }, maxSteps, validationContext);
   if (!validation.ok) {
     return {
       ok: false,
@@ -399,6 +420,9 @@ function parseWorkPlanOutput(
     steps.push({
       description: step.description,
       completionRequirement: step.completionRequirement,
+      ...(step.toolBinding === undefined
+        ? {}
+        : { toolBinding: { ...step.toolBinding, arguments: { ...step.toolBinding.arguments } } }),
     });
   }
   return { ok: true, steps };
@@ -470,6 +494,14 @@ export class FireflyHarness implements IAgentCore {
     return this.eventBus;
   }
 
+  /** Main-only snapshot of enabled registered tool schemas for plan validation. */
+  getMainToolSchemas(): readonly MainAvailableToolSchema[] {
+    return this.toolRegistry.getToolSchemas().map((schema) => ({
+      name: schema.function.name,
+      parameters: { ...schema.function.parameters },
+    }));
+  }
+
   /**
    * Generate a Work proposal through this Harness' Provider boundary.
    * This is a single no-tool request, not an Agent execution loop.
@@ -477,6 +509,7 @@ export class FireflyHarness implements IAgentCore {
   async proposeRequiredPlan(
     userPrompt: string,
     signal?: AbortSignal,
+    browserRequestTargets: readonly string[] = [],
   ): Promise<WorkPlanGenerationResult> {
     if (signal?.aborted) {
       return {
@@ -503,7 +536,7 @@ export class FireflyHarness implements IAgentCore {
             {
               id: "work-plan-system",
               role: "system",
-              content: WORK_PLAN_SYSTEM_PROMPT,
+              content: buildWorkPlanSystemPrompt(this.getMainToolSchemas(), browserRequestTargets),
             },
             {
               id: "work-plan-user",
@@ -540,6 +573,8 @@ export class FireflyHarness implements IAgentCore {
         response.message.content,
         userPrompt,
         this.planner.getConfig().maxSteps,
+        { availableToolSchemas: this.getMainToolSchemas() },
+        browserRequestTargets,
       );
     } catch (error: unknown) {
       if (timedOut) {
@@ -786,7 +821,7 @@ export class FireflyHarness implements IAgentCore {
       executionProfile,
       restrictedProactiveSurface || resumedRun,
     );
-    const toolSchemas = requiredToolExecution === undefined
+    let toolSchemas = requiredToolExecution === undefined
       ? profileToolSchemas
       : profileToolSchemas.filter(
           (schema) => schema.function.name === requiredToolExecution.toolName,
@@ -878,6 +913,47 @@ export class FireflyHarness implements IAgentCore {
       });
     }
 
+    let planRequiredToolStepIndex: number | undefined;
+    let planRequiredToolCallObserved = false;
+    const getCurrentPlanToolSurface = (): RequiredPlanToolSurface => {
+      if (!requiresPlanCompletion) {
+        return { rejectUnexpectedToolCalls: false };
+      }
+      if (plan === undefined || plan.status !== "running") {
+        planRequiredToolStepIndex = undefined;
+        planRequiredToolCallObserved = false;
+        return { rejectUnexpectedToolCalls: true };
+      }
+      const currentStep = plan.steps[plan.currentStepIndex];
+      if (planRequiredToolStepIndex !== plan.currentStepIndex) {
+        planRequiredToolStepIndex = plan.currentStepIndex;
+        planRequiredToolCallObserved = false;
+      }
+      if (currentStep?.completionRequirement === "tool" && currentStep.toolBinding !== undefined) {
+        return {
+          requiredToolExecution: currentStep.toolBinding,
+          rejectUnexpectedToolCalls: false,
+        };
+      }
+      return { rejectUnexpectedToolCalls: true };
+    };
+    let currentPlanToolSurface: RequiredPlanToolSurface = {
+      rejectUnexpectedToolCalls: false,
+    };
+    const refreshToolSurface = (): AgentRequiredToolExecution | undefined => {
+      currentPlanToolSurface = getCurrentPlanToolSurface();
+      const currentRequiredToolExecution = requiredToolExecution ??
+        currentPlanToolSurface.requiredToolExecution;
+      toolSchemas = currentPlanToolSurface.rejectUnexpectedToolCalls &&
+          requiredToolExecution === undefined
+        ? []
+        : currentRequiredToolExecution === undefined
+          ? profileToolSchemas
+          : profileToolSchemas.filter(
+              (schema) => schema.function.name === currentRequiredToolExecution.toolName,
+            );
+      return currentRequiredToolExecution;
+    };
     let taskFactsSequence = continuation?.facts.taskFactsSequence ?? 0;
     const toolCallEvidence: AgentToolCallEvidence[] = continuation === undefined
       ? []
@@ -891,8 +967,21 @@ export class FireflyHarness implements IAgentCore {
       ? undefined
       : continuation?.facts.taskFactsMessageIdentity ??
         createCompactionTaskFactsMessageIdentity(runId, plan !== undefined);
-    const getOutgoingToolSchemas = (): typeof toolSchemas =>
-      requiredToolCallObserved ? [] : toolSchemas;
+    const getOutgoingToolSchemas = (): typeof toolSchemas => {
+      const currentRequiredToolExecution = requiredToolExecution ??
+        currentPlanToolSurface.requiredToolExecution;
+      const currentToolAlreadyObserved = requiredToolExecution === undefined
+        ? planRequiredToolCallObserved
+        : requiredToolCallObserved;
+      if (requiredToolExecution === undefined && currentPlanToolSurface.rejectUnexpectedToolCalls) {
+        return [];
+      }
+      return currentToolAlreadyObserved && currentRequiredToolExecution !== undefined
+        ? []
+        : toolSchemas;
+    };
+
+    refreshToolSurface();
 
     const createTaskFacts = (state?: RunExecutionState): CompactionTaskFactsV1 => {
       const requiredToolStatus = requiredToolExecution === undefined
@@ -1102,6 +1191,29 @@ export class FireflyHarness implements IAgentCore {
       });
     };
 
+    const terminateForPlanCompletionFailure = (): boolean => {
+      if (!requiresPlanCompletion) return false;
+      const planFailure = findPlanCompletionGateFailure(plan);
+      if (planFailure === undefined) return false;
+
+      status = "error";
+      terminationReason = {
+        kind: "plan_incomplete",
+        ...(planFailure.planId === undefined ? {} : { planId: planFailure.planId }),
+        ...(planFailure.stepIndex === undefined ? {} : { stepIndex: planFailure.stepIndex }),
+        reason: planFailure.reason,
+      };
+      errorMsg = planCompletionGateMessage(planFailure);
+      executionState.stepState = "failed";
+      this.eventBus.emit({
+        type: "agent:error",
+        runId,
+        error: errorMsg,
+        timestamp: Date.now(),
+      });
+      return true;
+    };
+
     /**
      * Enforces the input budget immediately before a Provider request.
      * ContextProjector remains the compaction owner; this guard only measures
@@ -1274,6 +1386,7 @@ export class FireflyHarness implements IAgentCore {
         executionState.step = stepCount;
         executionState.stepState = "waiting_llm";
         executionState.updatedAt = Date.now();
+        const currentRequiredToolExecution = refreshToolSurface();
         if (!refreshTaskFacts()) {
           terminateForTaskFactsBudget();
           break;
@@ -1328,10 +1441,10 @@ export class FireflyHarness implements IAgentCore {
           try {
             const forceToolChoiceForThisRound = forceRequiredToolChoice;
             forceRequiredToolChoice = false;
-            const effectiveToolChoice = forceToolChoiceForThisRound && requiredToolExecution !== undefined
+            const effectiveToolChoice = forceToolChoiceForThisRound && currentRequiredToolExecution !== undefined
               ? {
                   type: "function" as const,
-                  function: { name: requiredToolExecution.toolName },
+                  function: { name: currentRequiredToolExecution.toolName },
                 }
               : undefined;
             emitDiagnosticTrace(
@@ -1339,17 +1452,15 @@ export class FireflyHarness implements IAgentCore {
               `profile=${executionProfile.kind} toolSurface=${executionProfile.kind === "MAIN" ? executionProfile.toolSurface ?? "default" : "worker"} ` +
               `restricted=${restrictedProactiveSurface} schemas=${toolSchemas.length} ` +
               `toolNames=${toolSchemas.map((schema) => schema.function.name).join(",") || "none"} ` +
-              `requiredTool=${requiredToolExecution?.toolName ?? "none"} ` +
+              `requiredTool=${currentRequiredToolExecution?.toolName ?? "none"} ` +
               `toolChoice=${effectiveToolChoice?.function.name ?? "auto"}`,
             );
+            const outgoingToolSchemas = getOutgoingToolSchemas();
             roundResponse = await requestHarnessCompletion(
               this.provider,
               {
                 messages: session.getMessages(),
-                tools:
-                  !requiredToolCallObserved && toolSchemas.length > 0
-                    ? toolSchemas
-                    : undefined,
+                tools: outgoingToolSchemas.length > 0 ? outgoingToolSchemas : undefined,
                 ...(effectiveToolChoice === undefined ? {} : { toolChoice: effectiveToolChoice }),
               },
               runAbortController.signal,
@@ -1723,9 +1834,12 @@ export class FireflyHarness implements IAgentCore {
             authorizationAdapter: this.authorizationAdapter,
             allowedToolIds: workerRun ? new Set(executionProfile.allowedToolIds) : undefined,
             requireAuthorizationForAllTools: workerRun,
-            rejectAllToolCalls: restrictedProactiveSurface,
-            requiredToolExecution,
-            requiredToolCallAlreadyObserved: requiredToolCallObserved,
+            rejectAllToolCalls: restrictedProactiveSurface ||
+              (requiresPlanCompletion && currentPlanToolSurface.rejectUnexpectedToolCalls),
+            requiredToolExecution: currentRequiredToolExecution,
+            requiredToolCallAlreadyObserved: requiredToolExecution === undefined
+              ? planRequiredToolCallObserved
+              : requiredToolCallObserved,
             requester: workerRun ? executionProfile.requester : undefined,
             mainDelegationService,
             getMainDelegationBudget: mainDelegationService
@@ -1822,6 +1936,14 @@ export class FireflyHarness implements IAgentCore {
             ) {
               requiredToolCallObserved = true;
             }
+            if (
+              requiredToolExecution === undefined &&
+              currentRequiredToolExecution !== undefined &&
+              matchesRequiredToolExecution(call, currentRequiredToolExecution) &&
+              outcome !== "not_executed"
+            ) {
+              planRequiredToolCallObserved = true;
+            }
             roundObservation += "[" + call.name + "]: " + result.output + "\n";
             if (result.isError) roundHasError = true;
 
@@ -1890,6 +2012,7 @@ export class FireflyHarness implements IAgentCore {
               roundHasError,
               {
                 currentToolEvidence: roundToolEvidence,
+                currentRunId: runId,
               },
             );
             this.eventBus.emit({
@@ -1935,6 +2058,9 @@ export class FireflyHarness implements IAgentCore {
                 reason: advance.verification.reason || "Step verification failure",
                 timestamp: Date.now(),
               });
+              if (terminateForPlanCompletionFailure()) {
+                break;
+              }
             }
           }
 
@@ -2016,6 +2142,7 @@ export class FireflyHarness implements IAgentCore {
               false,
               {
                 currentToolEvidence: [],
+                currentRunId: runId,
               },
             );
             this.eventBus.emit({
@@ -2079,23 +2206,7 @@ export class FireflyHarness implements IAgentCore {
           }
 
           if (requiresPlanCompletion) {
-            const planFailure = findPlanCompletionGateFailure(plan);
-            if (planFailure !== undefined) {
-              status = "error";
-              terminationReason = {
-                kind: "plan_incomplete",
-                ...(planFailure.planId === undefined ? {} : { planId: planFailure.planId }),
-                ...(planFailure.stepIndex === undefined ? {} : { stepIndex: planFailure.stepIndex }),
-                reason: planFailure.reason,
-              };
-              errorMsg = planCompletionGateMessage(planFailure);
-              executionState.stepState = "failed";
-              this.eventBus.emit({
-                type: "agent:error",
-                runId,
-                error: errorMsg,
-                timestamp: Date.now(),
-              });
+            if (terminateForPlanCompletionFailure()) {
               break;
             }
           }

@@ -15,17 +15,36 @@ import { AgentEventBus } from "../../../dist/main/main/orchestrator/agent-events
 import { FireflyAgentCore } from "../../../dist/main/main/orchestrator/firefly-agent-core.js";
 import { InMemoryCheckpointStore } from "../../../dist/main/main/orchestrator/recovery/checkpoint-store.js";
 import { CheckpointManager } from "../../../dist/main/main/orchestrator/recovery/checkpoint-manager.js";
-import type { AgentEvent, AgentToolCallEvidence } from "../../../dist/main/shared/agent-types.js";
+import type {
+  AgentEvent,
+  AgentRequiredToolExecution,
+  AgentToolCallEvidence,
+} from "../../../dist/main/shared/agent-types.js";
 import type { IFireflyLlmProvider } from "../../../dist/main/shared/provider-types.js";
 import type { ChatMessage } from "../../../dist/main/shared/chat-types.js";
 import type { RunExecutionState } from "../../../dist/main/main/orchestrator/recovery/execution-state.js";
 import type { Checkpoint } from "../../../dist/main/main/orchestrator/recovery/checkpoint-types.js";
+import type { PlanStep } from "../../../src/main/orchestrator/planning/plan-types.ts";
 
 const testProviderMetadata = {
   id: "planning-test-provider",
   name: "Planning Test Provider",
   capabilities: { supportsNativeToolCalling: true, supportsStreaming: false },
 };
+
+function createToolBinding(
+  toolName: string,
+  args: Record<string, unknown> = {},
+  argumentMatching: AgentRequiredToolExecution["argumentMatching"] = "exact",
+): AgentRequiredToolExecution {
+  return {
+    toolName,
+    arguments: args,
+    ...(argumentMatching === undefined ? {} : { argumentMatching }),
+    successContract: "json_ok_true",
+    correction: "once",
+  };
+}
 
 test("1. Direct Mode: Simple question does NOT trigger plan mode", async () => {
   const planner = new BoundedPlanner();
@@ -304,8 +323,16 @@ test("12. Tool Execution Integration: Multi-step plan executes tools through Too
     userPrompt: "第一步获取数据，然后执行处理",
     planExecutionMode: "required",
     customSteps: [
-      { description: "第一步获取数据", completionRequirement: "tool" },
-      { description: "第二步执行处理", completionRequirement: "tool" },
+      {
+        description: "第一步获取数据",
+        completionRequirement: "tool",
+        toolBinding: createToolBinding("tool_step1"),
+      },
+      {
+        description: "第二步执行处理",
+        completionRequirement: "tool",
+        toolBinding: createToolBinding("tool_step2"),
+      },
     ],
   });
 
@@ -512,7 +539,11 @@ test("17. Plan Loop Termination Guarantee: Cannot loop forever", async () => {
   const res = await core.run({
     userPrompt: "计划任务",
     planExecutionMode: "required",
-    customSteps: [{ description: "持续执行计划步骤", completionRequirement: "tool" }],
+    customSteps: [{
+      description: "持续执行计划步骤",
+      completionRequirement: "tool",
+      toolBinding: createToolBinding("dummy_tool"),
+    }],
   });
 
   assert.equal(res.status, "error");
@@ -610,6 +641,7 @@ test("20. A failed current tool result cannot be overridden by assistant success
       index: 0,
       description: "执行外部操作",
       completionRequirement: "tool",
+      toolBinding: createToolBinding("step-tool", { requestUrl: "https://example.com/a" }, "normalized_url"),
       status: "running",
     },
     "操作已经成功完成。",
@@ -637,11 +669,15 @@ test("21. Evidence from another step is not reused when the current step has non
       index: 1,
       description: "执行第二个外部读取",
       completionRequirement: "tool",
+      toolBinding: createToolBinding("step-tool", { requestUrl: "https://example.com/a" }, "normalized_url"),
       status: "running",
     },
     "第二步已经完成。",
     false,
-    { currentToolEvidence: [] },
+    {
+      currentRunId: "run-current-step",
+      currentToolEvidence: [previousStepEvidence],
+    },
   );
 
   assert.equal(result.status, "uncertain");
@@ -655,6 +691,7 @@ test("22. A successful current tool result is valid step completion evidence", (
       index: 0,
       description: "读取页面",
       completionRequirement: "tool",
+      toolBinding: createToolBinding("step-tool", { requestUrl: "https://example.com/a" }, "normalized_url"),
       status: "running",
     },
     "读取完成。",
@@ -667,6 +704,96 @@ test("22. A successful current tool result is valid step completion evidence", (
   assert.equal(result.status, "success");
 });
 
+test("22b. A successful different tool cannot satisfy a bound tool step", () => {
+  const verifier = new StepVerifier();
+  const result = verifier.verifyStep(
+    {
+      stepId: "bound-tool-step",
+      index: 0,
+      description: "读取页面",
+      completionRequirement: "tool",
+      toolBinding: {
+        toolName: "browser_read",
+        arguments: { requestUrl: "https://example.com/a" },
+        argumentMatching: "normalized_url",
+        successContract: "json_ok_true",
+        correction: "once",
+      },
+      status: "running",
+    } as PlanStep & { readonly toolBinding: Record<string, unknown> },
+    "已经读取完成。",
+    false,
+    {
+      currentToolEvidence: [createStepEvidence({
+        toolName: "music_status",
+        arguments: {},
+      })],
+    },
+  );
+
+  assert.equal(result.status, "failure");
+  assert.match(result.reason ?? "", /does not match/u);
+});
+
+test("22c. A successful bound tool with different parameters cannot satisfy the step", () => {
+  const verifier = new StepVerifier();
+  const result = verifier.verifyStep(
+    {
+      stepId: "bound-parameter-step",
+      index: 0,
+      description: "读取指定页面",
+      completionRequirement: "tool",
+      toolBinding: createToolBinding(
+        "browser_read",
+        { requestUrl: "https://example.com/a" },
+        "normalized_url",
+      ),
+      status: "running",
+    },
+    "已经读取完成。",
+    false,
+    {
+      currentToolEvidence: [createStepEvidence({
+        toolName: "browser_read",
+        arguments: { requestUrl: "https://example.com/b" },
+      })],
+    },
+  );
+
+  assert.equal(result.status, "failure");
+  assert.match(result.reason ?? "", /does not match/u);
+});
+
+test("22d. Command submission does not claim that player state changed", () => {
+  const verifier = new StepVerifier();
+  const result = verifier.verifyStep(
+    {
+      stepId: "music-command-step",
+      index: 0,
+      description: "提交下一首命令",
+      completionRequirement: "tool",
+      toolBinding: createToolBinding("music_control", { action: "next" }),
+      status: "running",
+    },
+    "命令已提交。",
+    false,
+    {
+      currentToolEvidence: [createStepEvidence({
+        toolName: "music_control",
+        arguments: { action: "next" },
+        output: JSON.stringify({
+          ok: true,
+          commandSubmission: "accepted",
+          playerStateObservation: "not_observed",
+        }),
+      })],
+    },
+  );
+
+  assert.equal(result.status, "success");
+  assert.match(result.reason ?? "", /state change is not proven/u);
+});
+
 test("22a. Unknown and not-executed tool outcomes cannot complete a step", () => {
   const verifier = new StepVerifier();
   for (const outcome of ["unknown", "not_executed"] as const) {
@@ -676,6 +803,7 @@ test("22a. Unknown and not-executed tool outcomes cannot complete a step", () =>
         index: 0,
         description: "执行外部操作",
         completionRequirement: "tool",
+        toolBinding: createToolBinding("step-tool", { requestUrl: "https://example.com/a" }, "normalized_url"),
         status: "running",
       },
       "操作已经完成。",
@@ -751,7 +879,11 @@ test("24. A failed tool step cannot emit plan completion after a success-claimin
     userPrompt: "第一步读取外部数据，然后整理结果",
     planExecutionMode: "required",
     customSteps: [
-      { description: "读取外部数据", completionRequirement: "tool" },
+      {
+        description: "读取外部数据",
+        completionRequirement: "tool",
+        toolBinding: createToolBinding("failing-plan-tool"),
+      },
       { description: "整理结果", completionRequirement: "analysis" },
     ],
   });
@@ -766,7 +898,7 @@ test("24. A failed tool step cannot emit plan completion after a success-claimin
     stepIndex: 0,
     reason: "step_failed",
   });
-  assert.equal(providerCalls, 2);
+  assert.equal(providerCalls, 1);
   assert.equal(events.filter((event) => event.type === "plan:verification" && event.result === "failure").length, 1);
   assert.equal(events.filter((event) => event.type === "plan:step-completed").length, 0);
   assert.equal(events.filter((event) => event.type === "plan:completed").length, 0);
@@ -776,6 +908,14 @@ test("24. A failed tool step cannot emit plan completion after a success-claimin
 
 test("25. An explicitly tool-required step cannot complete from a zero-call success claim", async () => {
   const registry = new FireflyToolRegistry();
+  registry.register({
+    id: "required-plan-tool",
+    name: "Required plan tool",
+    description: "A no-call regression tool.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => JSON.stringify({ ok: true }),
+  });
   let providerCalls = 0;
   const provider: IFireflyLlmProvider = {
     ...testProviderMetadata,
@@ -802,6 +942,7 @@ test("25. An explicitly tool-required step cannot complete from a zero-call succ
     customSteps: [{
       description: "执行外部读取",
       completionRequirement: "tool" as const,
+      toolBinding: createToolBinding("required-plan-tool"),
     }],
   };
   await core.run(input);
@@ -841,9 +982,18 @@ test("27. A required plan cannot complete from a zero-call success claim", async
   const eventBus = new AgentEventBus();
   const events: AgentEvent[] = [];
   eventBus.onAny((event) => events.push(event));
+  const registry = new FireflyToolRegistry();
+  registry.register({
+    id: "required-plan-tool",
+    name: "Required plan tool",
+    description: "A no-call regression tool.",
+    inputSchema: { type: "object", properties: {} },
+    enabled: true,
+    execute: async () => JSON.stringify({ ok: true }),
+  });
   const core = new FireflyAgentCore({
     provider,
-    toolRegistry: new FireflyToolRegistry(),
+    toolRegistry: registry,
     eventBus,
     checkpointManager,
     config: { maxRounds: 1 },
@@ -856,6 +1006,7 @@ test("27. A required plan cannot complete from a zero-call success claim", async
     customSteps: [{
       description: "执行外部读取",
       completionRequirement: "tool" as const,
+      toolBinding: createToolBinding("required-plan-tool"),
     }],
   };
   const result = await core.run(input);
@@ -921,7 +1072,11 @@ test("28. An unknown tool result leaves a required step unverified", async () =>
     runId: "run-28-unknown",
     userPrompt: "执行外部操作",
     planExecutionMode: "required",
-    customSteps: [{ description: "执行外部操作", completionRequirement: "tool" }],
+    customSteps: [{
+      description: "执行外部操作",
+      completionRequirement: "tool",
+      toolBinding: createToolBinding("unknown-plan-tool"),
+    }],
   });
 
   assert.equal(providerCalls, 2);
@@ -973,10 +1128,14 @@ test("29. A not-executed tool result cannot complete a required plan", async () 
     userPrompt: "执行受限操作",
     planExecutionMode: "required",
     executionProfile: { kind: "MAIN", toolSurface: "none" },
-    customSteps: [{ description: "执行受限操作", completionRequirement: "tool" }],
+    customSteps: [{
+      description: "执行受限操作",
+      completionRequirement: "tool",
+      toolBinding: createToolBinding("restricted-plan-tool"),
+    }],
   });
 
-  assert.equal(providerCalls, 2);
+  assert.equal(providerCalls, 1);
   assert.equal(result.status, "error");
   assert.equal(result.terminationReason.kind, "plan_incomplete");
   if (result.terminationReason.kind === "plan_incomplete") {
@@ -1054,6 +1213,85 @@ test("31. Main required-plan entry rejects invalid mode and malformed steps befo
   assert.equal(malformedSteps.code, "invalid_plan_steps");
   assert.equal(providerCalls, 0);
   assert.equal(events.filter((event) => event.type === "agent:started").length, 0);
+});
+
+test("31b. Main required-plan entry rejects unavailable tools, invalid arguments, and out-of-scope Browser targets", async () => {
+  let providerCalls = 0;
+  const registry = new FireflyToolRegistry();
+  registry.register({
+    id: "bound-plan-tool",
+    name: "bound-plan-tool",
+    description: "A schema-bound test tool.",
+    inputSchema: {
+      type: "object",
+      properties: { requestUrl: { type: "string" } },
+      required: ["requestUrl"],
+    },
+    enabled: true,
+    execute: async () => JSON.stringify({ ok: true }),
+  });
+  registry.register({
+    id: "browser_read",
+    name: "browser_read",
+    description: "A controlled Browser schema for boundary validation.",
+    inputSchema: {
+      type: "object",
+      properties: { requestUrl: { type: "string" } },
+      required: ["requestUrl"],
+    },
+    enabled: true,
+    execute: async () => JSON.stringify({ ok: true }),
+  });
+  const core = new FireflyAgentCore({
+    provider: {
+      ...testProviderMetadata,
+      async generateCompletion() {
+        providerCalls++;
+        return { message: { role: "assistant", content: "不应执行" } };
+      },
+    },
+    toolRegistry: registry,
+  });
+
+  const unavailable = await core.runRequiredPlan({
+    planExecutionMode: "required",
+    userPrompt: "绑定未启用工具",
+    steps: [{
+      description: "执行未启用工具",
+      completionRequirement: "tool",
+      toolBinding: createToolBinding("not_enabled_tool"),
+    }],
+  });
+  const invalidArguments = await core.runRequiredPlan({
+    planExecutionMode: "required",
+    userPrompt: "绑定错误参数",
+    steps: [{
+      description: "执行错误参数",
+      completionRequirement: "tool",
+      toolBinding: createToolBinding("bound-plan-tool", { unexpected: true }),
+    }],
+  });
+  const outOfScopeBrowser = await core.runRequiredPlan({
+    planExecutionMode: "required",
+    userPrompt: "读取用户指定页面",
+    browserRequestTargets: ["https://example.com/a"],
+    steps: [{
+      description: "读取未指定页面",
+      completionRequirement: "tool",
+      toolBinding: createToolBinding(
+        "browser_read",
+        { requestUrl: "https://example.com/b" },
+        "normalized_url",
+      ),
+    }],
+  });
+
+  for (const result of [unavailable, invalidArguments, outOfScopeBrowser]) {
+    assert.equal(result.ok, false);
+    if (result.ok) continue;
+    assert.equal(result.code, "invalid_plan_tool_binding");
+  }
+  assert.equal(providerCalls, 0);
 });
 
 test("32. Direct required AgentRunInput rejects legacy string steps instead of treating them as analysis", async () => {

@@ -1,4 +1,5 @@
 import type { Plan, PlanStatus, PlanStepStatus } from "./plan-types";
+import type { AgentRequiredToolExecution } from "../../../shared/agent-types";
 
 const VALID_PLAN_TRANSITIONS: Record<PlanStatus, PlanStatus[]> = {
   draft: ["ready", "cancelled", "failed"],
@@ -34,6 +35,15 @@ export function validateStepStatusTransition(from: PlanStepStatus, to: PlanStepS
   return allowed ? allowed.includes(to) : false;
 }
 
+function formatToolBinding(binding: AgentRequiredToolExecution): string {
+  const parameters = Object.entries(binding.arguments)
+    .map(([key, value]) => `${key}=${typeof value === "string" ? value : JSON.stringify(value)}`)
+    .join(", ");
+  return parameters.length === 0
+    ? `工具 ${binding.toolName}`
+    : `工具 ${binding.toolName}（${parameters}）`;
+}
+
 /**
  * 将当前计划结构格式化为 LLM-visible Context Slot
  */
@@ -57,6 +67,9 @@ export function formatPlanContext(plan: Plan): string {
             : "[  待执行]";
 
     lines.push(`  ${i + 1}. ${marker} ${step.description}`);
+    if (step.toolBinding !== undefined) {
+      lines.push(`     → 预定工具操作: ${formatToolBinding(step.toolBinding)}`);
+    }
     if (step.observation) {
       const shortObs =
         step.observation.length > 200
