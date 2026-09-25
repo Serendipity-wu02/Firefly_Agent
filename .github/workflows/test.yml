@@ -1,0 +1,51 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node.js 24 LTS
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Install dependencies
+        run: npm ci --foreground-scripts
+
+      - name: Verify Electron installation
+        run: npx electron --version
+
+      # 生产依赖审计：高危基线清零或限期登记前仅留存报告，不阻断合入。
+      # 处置清单见 docs/refactor/2026-09-14-dependency-audit-baseline.md；
+      # 基线清零后把本步骤改为 npm audit --omit=dev --audit-level=high 并移除 continue-on-error。
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --json > npm-audit-prod.json
+        continue-on-error: true
+
+      - name: Upload production dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-audit-prod
+          path: npm-audit-prod.json
+
+      - name: Build
+        run: npm run build
+
+      # 插件清单契约检查：源码类型与 manifest.schema.json 保持一致
+      - name: Check plugin schema contract
+        run: npm run check:plugin-schema
+
+      # 全量测试：vitest.config.ts 的 include 即权威测试集，新增测试自动纳入门禁
+      - name: Run full test suite
+        run: npm test -- --reporter=dot

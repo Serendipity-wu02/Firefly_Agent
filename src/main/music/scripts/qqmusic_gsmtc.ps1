@@ -1,4 +1,3 @@
-# qqmusic_gsmtc.ps1 - Windows GSMTC Bridge for QQ Music
 [CmdletBinding()]
 param(
     [ValidateSet("get-state", "play", "pause", "toggle", "next", "prev")]
@@ -7,7 +6,6 @@ param(
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
-
 $ErrorActionPreference = 'Stop'
 
 try {
@@ -24,84 +22,47 @@ try {
     }
 
     [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime] | Out-Null
-    $managerOp = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()
-    $manager = Await-AsyncOp $managerOp ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-
-    $sessions = $manager.GetSessions()
-    $qqSession = $sessions | Where-Object { $_.SourceAppUserModelId -match 'QQMusic' } | Select-Object -First 1
+    $manager = Await-AsyncOp ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
+    $qqSession = $manager.GetSessions() |
+        Where-Object { ([string]$_.SourceAppUserModelId) -ieq "QQMusic.exe" } |
+        Select-Object -First 1
 
     if (-not $qqSession) {
-        @{
-            ok    = $true
-            found = $false
-            error = "QQ_MUSIC_SESSION_NOT_FOUND"
-        } | ConvertTo-Json -Compress
+        @{ ok = $true; found = $false; error = "QQ_MUSIC_SESSION_NOT_FOUND" } | ConvertTo-Json -Compress
         exit 0
     }
 
-    switch ($Action) {
-        "play" {
-            $op = $qqSession.TryPlayAsync()
-            $res = Await-AsyncOp $op ([bool])
-            @{ ok = [bool]$res; action = "play" } | ConvertTo-Json -Compress
-            exit 0
+    if ($Action -ne "get-state") {
+        switch ($Action) {
+            "play" { $operation = $qqSession.TryPlayAsync() }
+            "pause" { $operation = $qqSession.TryPauseAsync() }
+            "toggle" { $operation = $qqSession.TryTogglePlayPauseAsync() }
+            "next" { $operation = $qqSession.TrySkipNextAsync() }
+            "prev" { $operation = $qqSession.TrySkipPreviousAsync() }
         }
-        "pause" {
-            $op = $qqSession.TryPauseAsync()
-            $res = Await-AsyncOp $op ([bool])
-            @{ ok = [bool]$res; action = "pause" } | ConvertTo-Json -Compress
-            exit 0
-        }
-        "toggle" {
-            $op = $qqSession.TryTogglePlayPauseAsync()
-            $res = Await-AsyncOp $op ([bool])
-            @{ ok = [bool]$res; action = "toggle" } | ConvertTo-Json -Compress
-            exit 0
-        }
-        "next" {
-            $op = $qqSession.TrySkipNextAsync()
-            $res = Await-AsyncOp $op ([bool])
-            @{ ok = [bool]$res; action = "next" } | ConvertTo-Json -Compress
-            exit 0
-        }
-        "prev" {
-            $op = $qqSession.TrySkipPreviousAsync()
-            $res = Await-AsyncOp $op ([bool])
-            @{ ok = [bool]$res; action = "prev" } | ConvertTo-Json -Compress
-            exit 0
-        }
-        "get-state" {
-            $mediaOp = $qqSession.TryGetMediaPropertiesAsync()
-            $media = Await-AsyncOp $mediaOp ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
-            $playback = $qqSession.GetPlaybackInfo()
-            $timeline = $qqSession.GetTimelineProperties()
-
-            $res = @{
-                ok             = $true
-                found          = $true
-                appId          = [string]$qqSession.SourceAppUserModelId
-                title          = if ($media) { [string]$media.Title } else { "" }
-                artist         = if ($media) { [string]$media.Artist } else { "" }
-                albumTitle     = if ($media) { [string]$media.AlbumTitle } else { "" }
-                hasThumbnail   = if ($media) { [bool]($media.Thumbnail -ne $null) } else { $false }
-                playbackStatus = if ($playback) { [string]$playback.PlaybackStatus } else { "Closed" }
-                position       = if ($timeline) { [double]$timeline.Position.TotalSeconds } else { 0.0 }
-                duration       = if ($timeline) { [double]$timeline.EndTime.TotalSeconds } else { 0.0 }
-                canPlay        = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPlayEnabled } else { $false }
-                canPause       = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPauseEnabled } else { $false }
-                canNext        = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsNextEnabled } else { $false }
-                canPrev        = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPreviousEnabled } else { $false }
-            }
-            $res | ConvertTo-Json -Compress
-            exit 0
-        }
+        $accepted = Await-AsyncOp $operation ([bool])
+        @{ ok = [bool]$accepted; found = $true; appId = [string]$qqSession.SourceAppUserModelId; action = $Action } | ConvertTo-Json -Compress
+        exit 0
     }
-}
-catch {
+
+    $media = Await-AsyncOp ($qqSession.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
+    $playback = $qqSession.GetPlaybackInfo()
+    $timeline = $qqSession.GetTimelineProperties()
     @{
-        ok    = $false
-        found = $false
-        error = [string]$_.Exception.Message
+        ok = $true
+        found = $true
+        appId = [string]$qqSession.SourceAppUserModelId
+        title = if ($media) { [string]$media.Title } else { "" }
+        artist = if ($media) { [string]$media.Artist } else { "" }
+        albumTitle = if ($media) { [string]$media.AlbumTitle } else { "" }
+        playbackStatus = if ($playback) { [string]$playback.PlaybackStatus } else { "Closed" }
+        position = if ($timeline) { [double]$timeline.Position.TotalSeconds } else { 0.0 }
+        duration = if ($timeline) { [double]$timeline.EndTime.TotalSeconds } else { 0.0 }
+        canPlay = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPlayEnabled } else { $false }
+        canPause = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPauseEnabled } else { $false }
+        canNext = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsNextEnabled } else { $false }
+        canPrev = if ($playback -and $playback.Controls) { [bool]$playback.Controls.IsPreviousEnabled } else { $false }
     } | ConvertTo-Json -Compress
-    exit 0
+} catch {
+    @{ ok = $false; found = $false; error = [string]$_.Exception.Message } | ConvertTo-Json -Compress
 }

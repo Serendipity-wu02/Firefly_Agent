@@ -1,0 +1,63 @@
+appId: com.serendipitywu02.firefly
+productName: Firefly
+publish: []
+directories:
+  output: release
+asar: true
+asarUnpack:
+  - "**/vendor/srt-win/**"
+  - "**/node_modules/@ast-grep/**"
+  # Playwright MCP 以 ELECTRON_RUN_AS_NODE 模式运行，读不了 asar 虚拟路径，
+  # 需真实磁盘文件（cli.js + 其依赖的 playwright / playwright-core）
+  - "**/node_modules/@playwright/**"
+  - "**/node_modules/playwright/**"
+  - "**/node_modules/playwright-core/**"
+electronDist: node_modules/electron/dist
+files:
+  - dist/**/*
+  - "!dist/renderer/models/cyrene/**/*"
+  - "!dist/components/**/*"
+  - package.json
+  - assets/**/*
+  - "!assets/models/cyrene/**/*"
+  - vendor/**/*
+  - "!vendor/cyrene-skills/**/*"
+  - "!models/**/*"
+  # prompts / skills 作为安装目录根下的独立文件夹，方便用户修改
+extraFiles:
+  - from: LICENSE
+    to: LICENSE
+  - from: MODEL_LICENSE.md
+    to: MODEL_LICENSE.md
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+  - from: node_modules/katex/LICENSE
+    to: licenses/KaTeX-LICENSE
+  - from: prompts
+    to: prompts
+  - from: skills
+    to: skills
+extraResources:
+  - from: resources/bin/cyrene-screenshot.exe
+    to: bin/cyrene-screenshot.exe
+  - from: src/main/music/scripts/qqmusic_gsmtc.ps1
+    to: music/qqmusic_gsmtc.ps1
+  - from: resources/mingit
+    to: mingit
+  # 第三方 skills 快照归档：首启解压到 userData/skills（见 src/main/skills/snapshot-install.ts）
+  - from: vendor/cyrene-skills
+    to: cyrene-skills
+win:
+  icon: assets/icon-presets/firefly.png
+  target:
+    - nsis
+nsis:
+  artifactName: Firefly-Setup-${version}.${ext}
+  oneClick: false
+  differentialPackage: false
+  allowToChangeInstallationDirectory: true
+  # Shortcut creation is controlled by the assisted install page below.
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  menuCategory: Firefly
+  include: build/installer/installer.nsh
