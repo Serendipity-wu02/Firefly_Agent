@@ -1,67 +1,53 @@
-import { app, Menu, nativeImage, Tray, type MenuItemConstructorOptions, type NativeImage } from "electron";
-import path from "node:path";
-import fs from "node:fs";
+import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
+import { type WindowActivationRequest } from "./application/window-activation";
+import { getCurrentAppIconPath } from "./windows/window-state";
 
-export interface TrayDependencies {
-  togglePetWindow: () => void;
-  createChatWindow: () => void;
-  createStatusWindow: () => void;
-  createSettingsWindow: () => void;
+export interface CreateTrayDependencies {
+  /** 托盘窗口类菜单统一走激活请求；是否立即打开由 activation broker 决定。 */
+  requestActivation(request: WindowActivationRequest): void;
+  /** 桌宠开关保持立即执行：桌宠不接收通用主窗口激活请求。 */
+  togglePetWindow(): void;
+  quit(): void;
 }
 
-export function buildTrayMenuTemplate(deps: TrayDependencies): MenuItemConstructorOptions[] {
+export function buildTrayMenuTemplate(deps: CreateTrayDependencies): MenuItemConstructorOptions[] {
   return [
     {
-      label: "💬 打开聊天窗口",
-      click: () => deps.createChatWindow(),
+      label: "打开聊天窗口",
+      click: () => { deps.requestActivation({ kind: "chat" }); },
     },
     {
-      label: "📊 打开状态面板",
-      click: () => deps.createStatusWindow(),
+      label: "打开状态面板",
+      click: () => { deps.requestActivation({ kind: "sidebar" }); },
     },
     {
-      label: "⚙ 设置",
-      click: () => deps.createSettingsWindow(),
+      label: "QQ Music 状态",
+      click: () => { deps.requestActivation({ kind: "music" }); },
     },
     {
-      label: "✨ 显示/隐藏流萤",
-      click: () => deps.togglePetWindow(),
+      label: "设置",
+      click: () => { deps.requestActivation({ kind: "settings" }); },
+    },
+    {
+      label: "显示/隐藏桌宠",
+      click: () => { deps.togglePetWindow(); },
     },
     { type: "separator" },
     {
-      label: "❌ 退出",
-      click: () => app.quit(),
+      label: "退出",
+      click: () => { deps.quit(); },
     },
   ];
 }
 
-export function createTray(deps: TrayDependencies): Tray {
-  // Use app icon or generate 16x16 fallback nativeImage
-  const iconPath = path.join(app.getAppPath(), "assets", "icons", "tray.png");
-  let icon: NativeImage;
-  if (fs.existsSync(iconPath)) {
-    icon = nativeImage.createFromPath(iconPath);
-  } else {
-    // Generate a default 16x16 RGBA buffer for tray
-    const buffer = Buffer.alloc(16 * 16 * 4, 0);
-    for (let i = 0; i < 16 * 16; i++) {
-      buffer[i * 4] = 90;     // R
-      buffer[i * 4 + 1] = 200; // G
-      buffer[i * 4 + 2] = 160; // B
-      buffer[i * 4 + 3] = 255; // A
-    }
-    icon = nativeImage.createFromBuffer(buffer, { width: 16, height: 16 });
-  }
-
+export function createTray(deps: CreateTrayDependencies): Tray {
+  const icon = nativeImage.createFromPath(getCurrentAppIconPath());
   const tray = new Tray(icon);
+
   const contextMenu = Menu.buildFromTemplate(buildTrayMenuTemplate(deps));
 
-  tray.setToolTip("流萤 Firefly-Agent");
+  tray.setToolTip("Firefly");
   tray.setContextMenu(contextMenu);
-
-  tray.on("double-click", () => {
-    deps.togglePetWindow();
-  });
 
   return tray;
 }

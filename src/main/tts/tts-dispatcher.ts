@@ -1,87 +1,130 @@
-import type { TtsSettings } from "../../shared/tts-types";
-import type { StartTtsRequest, TtsStartResult, TtsAudioFormat } from "../../shared/tts-session";
-import { TtsCache } from "./tts-cache";
-import { buildTtsCacheKey } from "./tts-cache-key";
-import { synthesizeCustomCloud } from "./engines/custom-cloud-engine";
-import { synthesizeGptsovits } from "./engines/gptsovits-engine";
-import { synthesizeMinimax } from "./engines/minimax-engine";
+// 主进程内的 TTS 引擎分发。仅 call-manager 调用（不经 IPC）。
+// chat/main.ts 走两个独立 IPC 通道，不用这个 dispatcher。
 
-export class FireflyTtsDispatcher {
-  private cache: TtsCache;
+import { synthesize as minimaxSynthesize } from "./minimax-engine";
+import { synthesize as gptsovitsSynthesize } from "./gptsovits-engine";
+import { synthesize as customCloudSynthesize } from "./custom-cloud-engine";
+import { synthesize as mimoSynthesize } from "./mimo-engine";
+import { synthesize as mosslandSynthesize } from "./mossland-engine";
+import { DEFAULT_MOSSLAND_TTS_MODEL, type TtsEngine } from "../../shared/tts-types";
+import type { MiniMaxVocalEnhanceOptions } from "./minimax-vocal-enhancer";
 
-  constructor(cache?: TtsCache) {
-    this.cache = cache || new TtsCache();
+export interface SynthesizeByEnginePayload {
+  text: string;
+  speed?: number;
+  volume?: number;
+  // minimax 专用
+  apiKey?: string;
+  voiceId?: string;
+  model?: string;
+  vocalEnhance?: MiniMaxVocalEnhanceOptions;
+  // gptsovits 专用
+  baseUrl?: string;
+  refAudioPath?: string;
+  promptText?: string;
+  format?: "wav" | "mp3";
+  timeoutMs?: number; // gptsovits / custom-cloud 共用
+  // custom-cloud 专用
+  endpointUrl?: string;
+  // mimo 专用
+  voiceAudioPath?: string;
+  stylePrompt?: string;
+  // mossland 专用（与 minimax 字段重叠：apiKey/voiceId/model/format）
+  mosslandFormat?: "mp3" | "wav";
+}
+
+export interface SynthesizeByEngineResult {
+  audio: Buffer;
+  format: "wav" | "mp3" | "pcm";
+}
+
+/**
+ * 按 engine 分发到对应引擎合成。
+ * 通话 TTS 不走缓存（实时性优先）。
+ * engine === "off" 时抛错。
+ */
+export async function synthesizeByEngine(
+  engine: TtsEngine,
+  payload: SynthesizeByEnginePayload,
+): Promise<SynthesizeByEngineResult> {
+  if (engine === "minimax") {
+    if (!payload.apiKey || !payload.voiceId) {
+      throw new Error("MiniMax TTS 未配置 apiKey/voiceId");
+    }
+    const audio = await minimaxSynthesize({
+      apiKey: payload.apiKey,
+      voiceId: payload.voiceId,
+      text: payload.text,
+      speed: payload.speed,
+      volume: payload.volume,
+      model: payload.model ?? "speech-2.8-turbo",
+      format: payload.format ?? "mp3",
+      vocalEnhance: payload.vocalEnhance,
+    });
+    return { audio, format: payload.format ?? "mp3" };
   }
 
-  async synthesize(
-    request: StartTtsRequest,
-    settings: TtsSettings,
-    signal?: AbortSignal,
-  ): Promise<TtsStartResult> {
-    const engine = settings.engine;
-    if (engine === "off" || !request.speechText.trim()) {
-      return { requestId: request.requestId, status: "skipped" };
+  if (engine === "gptsovits") {
+    if (!payload.baseUrl || !payload.refAudioPath || !payload.promptText) {
+      throw new Error("GPT-SoVITS TTS 未配置 baseUrl/refAudioPath/promptText");
     }
+    const result = await gptsovitsSynthesize({
+      baseUrl: payload.baseUrl,
+      refAudioPath: payload.refAudioPath,
+      promptText: payload.promptText,
+      text: payload.text,
+      speed: payload.speed,
+      format: payload.format ?? "wav",
+      timeoutMs: payload.timeoutMs,
+    });
+    return { audio: result.audio, format: result.format };
+  }
 
-    const text = request.speechText.trim();
-    let format: TtsAudioFormat = "mp3";
-    let payloadForCache: Record<string, unknown> = { text, speed: settings.speed };
-
-    // Build payload signature
-    if (engine === "gptsovits") {
-      format = settings.gptsovits.format || "wav";
-      payloadForCache = { text, ...settings.gptsovits };
-    } else if (engine === "custom-cloud") {
-      format = settings.customCloud.format || "mp3";
-      payloadForCache = { text, ...settings.customCloud };
-    } else if (engine === "minimax") {
-      format = "mp3";
-      payloadForCache = { text, ...settings.minimax };
+  if (engine === "custom-cloud") {
+    if (!payload.endpointUrl) {
+      throw new Error("自定义云端 TTS 未配置 endpointUrl");
     }
+    const result = await customCloudSynthesize({
+      endpointUrl: payload.endpointUrl,
+      apiKey: payload.apiKey,
+      voiceId: payload.voiceId,
+      text: payload.text,
+      speed: payload.speed,
+      volume: payload.volume,
+      format: payload.format ?? "mp3",
+      timeoutMs: payload.timeoutMs,
+    });
+    return { audio: result.audio, format: result.format };
+  }
 
-    const cacheKey = buildTtsCacheKey(engine, payloadForCache);
-
-    // 1. Check cache
-    const cachedBuffer = this.cache.read(cacheKey, format);
-    if (cachedBuffer) {
-      return {
-        requestId: request.requestId,
-        status: "ready",
-        base64: cachedBuffer.toString("base64"),
-        cacheKey,
-        format,
-        cached: true,
-      };
+  if (engine === "mimo") {
+    if (!payload.apiKey || !payload.voiceAudioPath) {
+      throw new Error("MiMo TTS 未配置 apiKey/克隆音频");
     }
+    const result = await mimoSynthesize({
+      apiKey: payload.apiKey,
+      voiceAudioPath: payload.voiceAudioPath,
+      text: payload.text,
+      stylePrompt: payload.stylePrompt ?? payload.promptText,
+      model: "mimo-v2.5-tts-voiceclone",
+    });
+    return { audio: result.audio, format: result.format };
+  }
 
-    // 2. Synthesize via selected Engine
-    let audioBuffer: Buffer;
-    if (engine === "gptsovits") {
-      const res = await synthesizeGptsovits(text, settings.gptsovits, signal);
-      audioBuffer = res.buffer;
-      format = res.format;
-    } else if (engine === "custom-cloud") {
-      const res = await synthesizeCustomCloud(text, settings.customCloud, signal);
-      audioBuffer = res.buffer;
-      format = res.format;
-    } else if (engine === "minimax") {
-      const res = await synthesizeMinimax(text, settings.minimax, signal);
-      audioBuffer = res.buffer;
-      format = res.format;
-    } else {
-      return { requestId: request.requestId, status: "skipped" };
+  if (engine === "mossland") {
+    if (!payload.apiKey || !payload.voiceId) {
+      throw new Error("Mossland TTS 未配置 apiKey/voiceId");
     }
-
-    // 3. Write cache
-    this.cache.write(cacheKey, audioBuffer, format);
-
-    return {
-      requestId: request.requestId,
-      status: "ready",
-      base64: audioBuffer.toString("base64"),
-      cacheKey,
+    const format = payload.mosslandFormat ?? "mp3";
+    const result = await mosslandSynthesize({
+      apiKey: payload.apiKey,
+      voiceId: payload.voiceId,
+      text: payload.text,
+      model: payload.model ?? DEFAULT_MOSSLAND_TTS_MODEL,
       format,
-      cached: false,
-    };
+    });
+    return { audio: result.audio, format: result.format };
   }
+
+  throw new Error(`TTS 引擎未启用（engine=${engine}）`);
 }

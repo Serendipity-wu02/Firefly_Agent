@@ -1,47 +1,57 @@
+import type { Live2DModel } from "pixi-live2d-display/cubism4";
+
 export interface ExpressionResetOptions {
-  defaultDurationMs?: number;
-  onReset?: () => void;
+  intervalMs?: number;
+  expressionName?: string;
 }
 
+/** Periodically returns the model to its neutral expression. */
 export class ExpressionResetController {
-  private timerId: number | null = null;
-  private readonly defaultDurationMs: number;
-  private readonly onReset?: () => void;
+  private readonly model: Live2DModel;
+  private readonly intervalMs: number;
+  private readonly expressionName: string;
+  private timer: number | null = null;
   private disposed = false;
 
-  constructor(options: ExpressionResetOptions = {}) {
-    this.defaultDurationMs = options.defaultDurationMs ?? 5000;
-    this.onReset = options.onReset;
+  constructor(model: Live2DModel, options: ExpressionResetOptions = {}) {
+    this.model = model;
+    this.intervalMs = options.intervalMs ?? 3 * 60 * 1000;
+    this.expressionName = options.expressionName ?? "表情回正";
+    this.start();
   }
 
-  /**
-   * Schedule resetting the expression back to default after durationMs
-   */
-  trigger(durationMs?: number): void {
+  restart(): void {
     if (this.disposed) return;
-    this.cancel();
-
-    const timeout = durationMs ?? this.defaultDurationMs;
-    if (timeout <= 0) return;
-
-    this.timerId = window.setTimeout(() => {
-      this.timerId = null;
-      if (!this.disposed) {
-        this.onReset?.();
-      }
-    }, timeout);
+    this.stop();
+    this.start();
   }
 
-  cancel(): void {
-    if (this.timerId !== null) {
-      window.clearTimeout(this.timerId);
-      this.timerId = null;
+  async resetNow(): Promise<boolean> {
+    if (this.disposed) return false;
+    try {
+      return await this.model.expression(this.expressionName);
+    } catch (err) {
+      console.warn("[Cyrene] expression reset failed", this.expressionName, err);
+      return false;
     }
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.cancel();
+    this.stop();
+  }
+
+  private start(): void {
+    if (this.timer !== null) return;
+    this.timer = window.setInterval(() => {
+      void this.resetNow();
+    }, this.intervalMs);
+  }
+
+  private stop(): void {
+    if (this.timer === null) return;
+    window.clearInterval(this.timer);
+    this.timer = null;
   }
 }

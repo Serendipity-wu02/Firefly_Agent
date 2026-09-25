@@ -1,12 +1,12 @@
-import crypto from "node:crypto";
+import { createHash } from "crypto";
 
-export function buildTtsCacheKey(engine: string, payload: Record<string, unknown>): string {
-  const normalized = JSON.stringify(payload, Object.keys(payload).sort());
-  const hash = crypto.createHash("sha256").update(normalized, "utf8").digest("hex");
-  return `${engine}-${hash}`;
-}
+const CACHE_KEY_PREFIX = /^(minimax|gptsovits|custom-cloud|mimo|mossland)-/;
 
-export function versionTtsCacheKey(cacheKey: string, version: string = "v1"): string {
-  const hash = crypto.createHash("sha256").update(`${cacheKey}:${version}`, "utf8").digest("hex");
-  return `${cacheKey.split("-")[0]}-${hash}`;
+/** Adds the speech converter version without losing compound provider prefixes. */
+export function versionTtsCacheKey(cacheKey: string, converterVersion: string): string {
+  const prefix = CACHE_KEY_PREFIX.exec(cacheKey)?.[1] ?? "tts";
+  const digest = createHash("sha256")
+    .update(`${cacheKey}\0${converterVersion}`, "utf8")
+    .digest("hex");
+  return `${prefix}-${digest}`;
 }

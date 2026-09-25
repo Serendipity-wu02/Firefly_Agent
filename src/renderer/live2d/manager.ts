@@ -1,404 +1,322 @@
 import * as PIXI from "pixi.js";
-import { Live2DModel } from "pixi-live2d-display/cubism4";
-import type { FireflyTarget } from "../../shared/firefly-actions";
+import { Live2DModel, MotionPriority } from "pixi-live2d-display/cubism4";
+import type { HitAreaDef } from "./interaction";
+import { type Live2DTarget } from "../../shared/live2d-actions";
+import { buildMotionIndexMap } from "./model-manifest";
 
-// Ensure PIXI is available globally for pixi-live2d-display
-(window as any).PIXI = PIXI;
-try {
-  Live2DModel.registerTicker(PIXI.Ticker);
-} catch {
-  // Ignored if already registered
-}
+export type { HitAreaDef } from "./interaction";
 
-export interface ParsedHitArea {
-  name: string;
-  id: string;
-  group?: string;
-  motionName?: string;
-  motionIndex?: number;
-  expressionName?: string;
-  rawMotion?: string;
-}
-
-export interface MotionGroupItem {
-  index: number;
-  name: string;
-  file: string;
-}
+/**
+ * Base window dimensions at zoom = 1.0. Must stay in sync with the matching
+ * constants in src/main/index.ts (PET_WINDOW_BASE_WIDTH/HEIGHT). baseScale is
+ * always computed against these fixed values so it stays zoom-invariant.
+ */
+const PET_WINDOW_BASE_WIDTH = 400;
+const PET_WINDOW_BASE_HEIGHT = 500;
+const PET_TARGET_FPS = 60;
 
 export interface Live2DManagerOptions {
   canvas: HTMLCanvasElement;
   width: number;
   height: number;
-  modelPath?: string;
+  modelPath: string;
   onLoad?: () => void;
-  onModelUnavailable?: () => void;
-  onError?: (error: unknown) => void;
+  onError?: (err: Error) => void;
+}
+
+export interface Live2DResourceMetrics {
+  appActive: boolean;
+  modelLoaded: boolean;
+  disposed: boolean;
+  tickerStarted: boolean | null;
+  stageChildren: number | null;
+  textureCacheSize: number | null;
+  rendererType: "webgl" | "unknown" | null;
+  drawingBufferWidth: number | null;
+  drawingBufferHeight: number | null;
+}
+
+interface MotionEntry {
+  Name?: string;
+  File?: string;
+  Expression?: string;
+  [k: string]: unknown;
+}
+
+interface ModelJsonShape {
+  HitAreas?: { Name?: string; Id?: string }[];
+  FileReferences?: {
+    Motions?: Record<string, MotionEntry[]>;
+    Expressions?: Array<{ Name: string; File: string }>;
+  };
+}
+
+function buildHitAreaDefs(json: ModelJsonShape): HitAreaDef[] {
+  const out: HitAreaDef[] = [];
+  const hitAreas = json.HitAreas ?? [];
+  for (const area of hitAreas) {
+    const name = area.Name;
+    const id = area.Id;
+    if (!name || !id) continue;
+    const expressionName = name === "Head" ? "expression4" : name === "Body" ? "expression3" : null;
+    if (expressionName && json.FileReferences?.Expressions?.some((entry) => entry.Name === expressionName)) {
+      out.push({ name, id, target: { kind: "expression", name: expressionName } });
+    }
+  }
+  return out;
 }
 
 export class Live2DManager {
-  private readonly canvas: HTMLCanvasElement;
-  private readonly modelPath: string;
-
   private app: PIXI.Application | null = null;
   private model: Live2DModel | null = null;
-  private isLive2DAvailable = false;
-  private isDisposed = false;
-  private isPaused = false;
-  private currentZoom = 1.0;
-  private baseWidth: number;
-  private baseHeight: number;
-
-  private hitAreas: ParsedHitArea[] = [];
-  private motionMap = new Map<string, number>();
-  private groupMotions = new Map<string, MotionGroupItem[]>();
-  private availableExpressions = new Set<string>();
-  private rawModelJson: any = null;
+  private hitAreaDefs: HitAreaDef[] = [];
+  /** group -> motionName -> index in internalModel.motionManager.definitions[group]. */
+  private motionIndexMap: Map<string, Map<string, number>> = new Map();
+  private expressionNames = new Set<string>();
+  private options: Live2DManagerOptions;
+  private disposed = false;
+  private initPromise: Promise<void> | null = null;
+  /** Scale that fits the model into the base window (zoom=1.0). Cached once
+   *  at load so applyZoom can multiply it by the user's zoom factor. */
+  private baseScale = 1;
+  /** Current zoom factor (1.0 = default). Window size is driven separately by
+   *  the main process; this only scales the model relative to baseScale. */
+  private zoom = 1;
 
   constructor(options: Live2DManagerOptions) {
-    this.canvas = options.canvas;
-    this.baseWidth = options.width;
-    this.baseHeight = options.height;
-    this.modelPath = options.modelPath ?? "assets://firefly/models/Firefly.model3.json";
+    this.options = options;
+  }
 
-    // 1. Initialize PIXI WebGL Application
+  async init(): Promise<void> {
+    if (this.disposed) return;
+    if (this.initPromise) return this.initPromise;
+    this.initPromise = this.initialize();
     try {
-      this.app = new PIXI.Application({
-        view: this.canvas,
-        width: this.baseWidth,
-        height: this.baseHeight,
-        backgroundAlpha: 0,
-        resolution: window.devicePixelRatio || 1,
-        autoDensity: true,
-        antialias: true,
-      });
-    } catch (err) {
-      console.warn("[Live2DManager] PIXI Application initialization failed:", err);
+      await this.initPromise;
+    } finally {
+      this.initPromise = null;
     }
-
-    // 2. Start Model loading
-    void this.initModel(options);
   }
 
-  private async initModel(options: Live2DManagerOptions): Promise<void> {
-    if (this.isDisposed) return;
-
+  private async initialize(): Promise<void> {
+    const { canvas, width, height } = this.options;
+    this.app = new PIXI.Application({
+      view: canvas,
+      width,
+      height,
+      transparent: true,
+      backgroundAlpha: 0,
+      antialias: true,
+      // Preserve the drawing buffer so callers can read pixels back out of
+      // it at any time (e.g. the click-through controller sampling the alpha
+      // under the cursor to decide transparent vs. opaque). Without this the
+      // WebGL framebuffer is cleared after each frame and readPixels is UB.
+      preserveDrawingBuffer: true,
+      // Cap DPR to avoid an oversized WebGL drawing buffer on high-DPI
+      // displays; 2x is enough visual fidelity for the pet window.
+      resolution: Math.min(window.devicePixelRatio || 1, 2),
+      autoDensity: true,
+    });
+    this.app.ticker.maxFPS = PET_TARGET_FPS;
     try {
-      // Step A: Fetch and inspect raw model3.json
-      const res = await fetch(this.modelPath);
-      if (!res.ok) {
-        throw new Error(`HTTP status ${res.status}`);
-      }
-      const json = await res.json();
-      this.rawModelJson = json;
-      this.parseModelJson(json);
-
-      if (this.isDisposed) return;
-
-      // Step B: Load Live2D Model via pixi-live2d-display
-      if (!this.app) {
-        throw new Error("PIXI.Application is not initialized");
-      }
-
-      const model = await Live2DModel.from(this.modelPath, {
-        autoInteract: false,
-      });
-
-      if (this.isDisposed) {
-        model.destroy({ children: true, texture: true, baseTexture: true });
-        return;
-      }
-
-      this.model = model;
-      this.isLive2DAvailable = true;
-      this.canvas.style.display = "block";
-
-      this.setupModelTransform();
-      this.app.stage.addChild(model);
-
-      console.log(
-        `[Live2DManager] Live2D model loaded successfully from "${this.modelPath}". ` +
-          `HitAreas: ${this.hitAreas.length}, Motions: ${this.motionMap.size}, Expressions: ${this.availableExpressions.size}`
-      );
-      options.onLoad?.();
+      await this.loadModel();
     } catch (err) {
-      console.info(
-        `[Live2DManager] Live2D model unavailable at "${this.modelPath}" (${(err as any)?.message || err}).`
-      );
-      this.isLive2DAvailable = false;
-      this.canvas.style.display = "none";
-      options.onModelUnavailable?.();
-      options.onError?.(err);
-    }
-  }
-
-  private parseModelJson(json: any): void {
-    if (!json || typeof json !== "object") return;
-
-    // Parse HitAreas
-    this.hitAreas = [];
-    if (Array.isArray(json.HitAreas)) {
-      for (const item of json.HitAreas) {
-        if (!item || typeof item !== "object") continue;
-        const parsed: ParsedHitArea = {
-          name: String(item.Name ?? ""),
-          id: String(item.Id ?? ""),
-          rawMotion: item.Motion ? String(item.Motion) : undefined,
-        };
-
-        if (item.Motion && typeof item.Motion === "string") {
-          const parts = item.Motion.split(":");
-          if (parts.length >= 2) {
-            const group = parts[0];
-            const motionRef = parts[1];
-            parsed.group = group;
-
-            if (group.toLowerCase() === "expression") {
-              parsed.expressionName = motionRef;
-            } else {
-              const parsedNum = parseInt(motionRef, 10);
-              if (!isNaN(parsedNum)) {
-                parsed.motionIndex = parsedNum;
-                parsed.motionName = motionRef;
-              } else {
-                parsed.motionName = motionRef;
-              }
-            }
-          } else if (parts.length === 1) {
-            parsed.group = parts[0];
-            parsed.motionIndex = 0;
-          }
-        }
-        this.hitAreas.push(parsed);
-      }
-    }
-
-    // Parse Motions
-    this.motionMap.clear();
-    this.groupMotions.clear();
-    const fileRefs = json.FileReferences ?? {};
-    const motions = fileRefs.Motions ?? {};
-    if (typeof motions === "object" && motions !== null) {
-      for (const [group, list] of Object.entries(motions)) {
-        if (!Array.isArray(list)) continue;
-        const groupItems: MotionGroupItem[] = [];
-        list.forEach((item, index) => {
-          let name = item?.Name;
-          const file = item?.File ? String(item.File) : "";
-          if (!name && file) {
-            const fileName = file.split("/").pop() || file;
-            name = fileName.replace(/\.motion3\.json$/i, "");
-          }
-          const finalName = name ? String(name) : String(index);
-          groupItems.push({ index, name: finalName, file });
-          this.motionMap.set(`${group}:${finalName}`.toLowerCase(), index);
-          this.motionMap.set(`${group}:${index}`.toLowerCase(), index);
-        });
-        this.groupMotions.set(group, groupItems);
-      }
-    }
-
-    // Parse Expressions
-    this.availableExpressions.clear();
-    const expressions = fileRefs.Expressions ?? [];
-    if (Array.isArray(expressions)) {
-      for (const exp of expressions) {
-        if (exp?.Name) {
-          this.availableExpressions.add(String(exp.Name));
-        }
+      this.options.onError?.(err instanceof Error ? err : new Error(String(err)));
+      if (this.app) {
+        this.app.destroy(false, { children: true, texture: true });
+        this.app = null;
       }
     }
   }
 
-  private setupModelTransform(): void {
+  private async loadModel(): Promise<void> {
+    const { modelPath } = this.options;
+    // Kick off the Live2D load and the raw JSON fetch in parallel so the
+    // hit-area / motion index map is ready the moment the model is.
+    const modelPromise = Live2DModel.from(modelPath, {
+      ticker: this.app!.ticker,
+      autoHitTest: false,
+      autoFocus: false,
+    });
+    const jsonPromise = fetch(modelPath).then((r) => {
+      if (!r.ok) throw new Error("Failed to fetch " + modelPath + ": " + r.status);
+      return r.json() as Promise<ModelJsonShape>;
+    });
+    let model: Live2DModel;
+    let json: ModelJsonShape;
+    try {
+      [model, json] = await Promise.all([modelPromise, jsonPromise]);
+    } catch (err) {
+      // A JSON fetch failure can race with a successful Cubism load. Wait for
+      // that model and destroy it before propagating the error so its textures
+      // never survive an unsuccessful initialization attempt.
+      const loadedModel = await modelPromise.catch(() => null);
+      loadedModel?.destroy();
+      throw err;
+    }
+    if (!this.app || this.disposed) {
+      model.destroy();
+      return;
+    }
+    this.model = model;
+    this.hitAreaDefs = buildHitAreaDefs(json);
+    this.motionIndexMap = buildMotionIndexMap(json);
+    this.expressionNames = new Set(json.FileReferences?.Expressions?.map((entry) => entry.Name) ?? []);
+    this.app.stage.addChild(this.model);
+    this.model.anchor.set(0.5, 0.5);
+    // baseScale is always computed against the *base* window size, never the
+    // current (possibly zoomed) one. The main process resizes the window to
+    // base × zoom before the renderer loads, so reading the live window here
+    // would fold zoom into baseScale and then applyZoom would double-count
+    // it. Using fixed base dimensions keeps baseScale zoom-invariant.
+    const baseScaleX = PET_WINDOW_BASE_WIDTH / this.model.width;
+    const baseScaleY = PET_WINDOW_BASE_HEIGHT / this.model.height;
+    this.baseScale = Math.min(baseScaleX, baseScaleY, 1.0);
+    this.applyZoom(this.zoom);
+    this.options.onLoad?.();
+  }
+
+  /**
+   * Apply the user's zoom factor on top of the cached base scale. The window
+   * itself is resized separately by the main process (window = base × zoom),
+   * so this just sets model scale = baseScale × zoom and re-centres it in the
+   * (now resized) canvas. Reads the live window size rather than the stale
+   * constructor options, since the main process has already resized the
+   * window by the time this is invoked. Proportions never change, so the
+   * model always fills the window and is never clipped.
+   */
+  applyZoom(zoom: number): void {
+    this.zoom = zoom;
     if (!this.model) return;
-    this.model.anchor.set(0.5, 1.0);
-    this.model.x = this.baseWidth / 2;
-    this.model.y = this.baseHeight;
-
-    if (this.model.width > 0 && this.model.height > 0) {
-      const scaleX = (this.baseWidth * 0.9) / this.model.width;
-      const scaleY = (this.baseHeight * 0.95) / this.model.height;
-      const fitScale = Math.min(scaleX, scaleY);
-      this.model.scale.set(fitScale * this.currentZoom);
-    }
-  }
-
-  private resolveMotionIndex(groupOrName: string, motionNameOrIndex?: string | number): number | undefined {
-    if (motionNameOrIndex !== undefined) {
-      if (typeof motionNameOrIndex === "number") {
-        return motionNameOrIndex;
-      }
-      const parsedNum = parseInt(motionNameOrIndex, 10);
-      if (!isNaN(parsedNum)) {
-        return parsedNum;
-      }
-      const key = `${groupOrName}:${motionNameOrIndex}`.toLowerCase();
-      if (this.motionMap.has(key)) {
-        return this.motionMap.get(key);
-      }
-      return undefined;
-    }
-
-    // Single argument passed
-    const key = groupOrName.toLowerCase();
-    if (this.motionMap.has(key)) {
-      return this.motionMap.get(key);
-    }
-    const parsedNum = parseInt(groupOrName, 10);
-    if (!isNaN(parsedNum)) {
-      return parsedNum;
-    }
-    if (this.groupMotions.has(groupOrName)) {
-      return 0;
-    }
-    return undefined;
-  }
-
-  playTarget(target: FireflyTarget): void {
-    if (!this.isLive2DAvailable || !this.model) return;
-
-    if (target.kind === "motion") {
-      const index = this.resolveMotionIndex(target.group, target.motionName);
-      this.model.motion(target.group, index);
-    } else if (target.kind === "expression") {
-      this.model.expression(target.name);
-    }
-  }
-
-  playActionId(actionId: string): void {
-    if (!this.isLive2DAvailable || !this.model) return;
-
-    const index = this.resolveMotionIndex(actionId);
-    if (index !== undefined) {
-      this.model.motion(actionId, index);
-    } else if (this.availableExpressions.has(actionId)) {
-      this.model.expression(actionId);
-    }
-  }
-
-  playMotion(group: string, motionNameOrIndex?: string | number, priority?: number): Promise<boolean> | undefined {
-    if (this.isLive2DAvailable && this.model) {
-      const index = this.resolveMotionIndex(group, motionNameOrIndex);
-      return this.model.motion(group, index, priority);
-    }
-    return undefined;
-  }
-
-  setExpression(name: string): void {
-    if (this.isLive2DAvailable && this.model) {
-      this.model.expression(name);
-    }
-  }
-
-  resize(width: number, height: number): void {
-    this.baseWidth = width;
-    this.baseHeight = height;
-
-    if (this.app) {
-      this.app.renderer.resize(width, height);
-    }
-
-    if (this.isLive2DAvailable) {
-      this.setupModelTransform();
-    }
-  }
-
-  applyZoom(scale: number): void {
-    this.currentZoom = scale;
-    if (this.isLive2DAvailable) {
-      this.setupModelTransform();
-    }
-  }
-
-  pause(): void {
-    this.isPaused = true;
-    if (this.app) {
-      this.app.ticker.stop();
-    }
-  }
-
-  resume(): void {
-    if (this.isDisposed) return;
-    this.isPaused = false;
-    if (this.app) {
-      this.app.ticker.start();
-    }
-  }
-
-  getPixelAlpha(clientX: number, clientY: number): number {
-    if (this.isLive2DAvailable && this.app && this.canvas) {
-      try {
-        const gl = (this.app.renderer as PIXI.Renderer)?.gl;
-        if (gl) {
-          const rect = this.canvas.getBoundingClientRect();
-          const relX = clientX - rect.left;
-          const relY = clientY - rect.top;
-          if (relX < 0 || relY < 0 || relX >= rect.width || relY >= rect.height) {
-            return 0;
-          }
-          const res = this.app.renderer.resolution || 1;
-          const x = Math.floor(relX * res);
-          const y = Math.floor((rect.height - relY) * res);
-          const pixel = new Uint8Array(4);
-          gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-          return pixel[3];
-        }
-      } catch {
-        return 255;
-      }
-    }
-    return 0;
+    this.model.scale.set(this.baseScale * zoom);
+    this.resize(window.innerWidth, window.innerHeight);
   }
 
   getModel(): Live2DModel | null {
     return this.model;
   }
 
-  getHitAreas(): readonly ParsedHitArea[] {
-    return this.hitAreas;
+  /**
+   * The underlying WebGL rendering context, or null before init/disposed.
+   * Used by the click-through controller to sample pixel alpha under the
+   * cursor (transparent -> click passes through, opaque -> capture).
+   *
+   * `app.renderer` is typed as the abstract `IRenderer`; only the concrete
+   * WebGL `Renderer` exposes `.gl`, so we narrow with an instanceof check.
+   */
+  getGL(): WebGL2RenderingContext | null {
+    const renderer = this.app?.renderer;
+    return renderer instanceof PIXI.Renderer ? renderer.gl : null;
   }
 
-  getIsLive2DAvailable(): boolean {
-    return this.isLive2DAvailable;
+  getHitAreaDefs(): HitAreaDef[] {
+    return this.hitAreaDefs;
   }
 
-  getRawModelJson(): any {
-    return this.rawModelJson;
+  hasAction(target: Live2DTarget): boolean {
+    if (!this.model) return false;
+    return target.kind === "motion"
+      ? this.motionIndexMap.get(target.group)?.has(target.motionName) === true
+      : this.expressionNames.has(target.name);
   }
 
-  getAvailableExpressions(): readonly string[] {
-    return Array.from(this.availableExpressions);
+  getResourceMetrics(): Live2DResourceMetrics {
+    const gl = this.getGL();
+    const textureCache = (PIXI as unknown as { utils?: { TextureCache?: Record<string, unknown> } }).utils?.TextureCache;
+    return {
+      appActive: this.app !== null,
+      modelLoaded: this.model !== null,
+      disposed: this.disposed,
+      tickerStarted: this.app ? Boolean((this.app.ticker as unknown as { started?: boolean }).started) : null,
+      stageChildren: this.app ? ((this.app.stage as unknown as { children?: unknown[] }).children?.length ?? null) : null,
+      textureCacheSize: textureCache ? Object.keys(textureCache).length : null,
+      rendererType: gl ? "webgl" : this.app ? "unknown" : null,
+      drawingBufferWidth: gl?.drawingBufferWidth ?? null,
+      drawingBufferHeight: gl?.drawingBufferHeight ?? null,
+    };
+  }
+
+  /**
+   * Play a Live2D motion or expression described by a catalog target.
+   *
+   * Returns true only when Cubism confirms the requested motion or expression
+   * started. A missing model, missing resource, refusal, or error returns false.
+   */
+  async playAction(target: Live2DTarget): Promise<boolean> {
+    if (!this.model || !this.hasAction(target)) return false;
+    try {
+      if (target.kind === "motion") {
+        const inner = this.motionIndexMap.get(target.group);
+        const index = inner?.get(target.motionName);
+        if (typeof index !== "number") return false;
+        const priority = target.group === "Idle" && target.motionName === "0"
+          ? MotionPriority.IDLE
+          : MotionPriority.NORMAL;
+        return await this.model.motion(target.group, index, priority);
+      }
+      if (!this.expressionNames.has(target.name)) return false;
+      return await this.model.expression(target.name);
+    } catch (err) {
+      console.warn("[Firefly] playAction failed", target, err);
+      return false;
+    }
+  }
+
+  resize(width: number, height: number): void {
+    if (!this.app) return;
+    this.app.renderer.resize(width, height);
+    if (this.model) {
+      this.model.x = width / 2;
+      this.model.y = height / 2;
+    }
+  }
+
+  /**
+   * Pause the PIXI ticker. Stops all per-frame controllers (AutoBreath,
+   * EyeBlink, MouseTracking, Physics) from advancing. The model freezes
+   * on its last rendered frame.
+   *
+   * Used while the user is dragging the window, so that the Windows DWM
+   * "drag image" stays bit-identical to the live canvas content -- this
+   * kills the ghosting/flicker that transparent Electron windows show
+   * during a drag on Windows.
+   */
+  pause(): void {
+    if (this.app) this.app.ticker.stop();
+  }
+
+  /** Resume the PIXI ticker. See pause(). */
+  resume(): void {
+    if (!this.app) return;
+    this.app.render();
+    this.app.ticker.start();
   }
 
   dispose(): void {
-    if (this.isDisposed) return;
-    this.isDisposed = true;
-
+    this.disposed = true;
     if (this.model) {
-      try {
-        this.model.destroy({ children: true, texture: true, baseTexture: true });
-      } catch {}
+      this.model.destroy();
       this.model = null;
     }
-
+    this.hitAreaDefs = [];
+    this.motionIndexMap.clear();
+    this.expressionNames.clear();
     if (this.app) {
-      try {
-        this.app.destroy(true, { children: true, texture: true, baseTexture: true });
-      } catch {}
+      this.app.destroy(false, { children: true, texture: true, baseTexture: true });
       this.app = null;
     }
-
-    try {
-      if ((PIXI.utils as any)?.clearTextureCache) {
-        (PIXI.utils as any).clearTextureCache();
+    // Explicitly clear PIXI global texture caches so a reload/reinit does not
+    // retain GPU memory from the previous model session.
+    const pixiUtils = (PIXI as unknown as { utils?: { TextureCache?: Record<string, unknown>; BaseTextureCache?: Record<string, unknown> } }).utils;
+    if (pixiUtils?.TextureCache) {
+      for (const key of Object.keys(pixiUtils.TextureCache)) {
+        delete pixiUtils.TextureCache[key];
       }
-      if ((PIXI.utils as any)?.destroyTextureCache) {
-        (PIXI.utils as any).destroyTextureCache();
+    }
+    if (pixiUtils?.BaseTextureCache) {
+      for (const key of Object.keys(pixiUtils.BaseTextureCache)) {
+        delete pixiUtils.BaseTextureCache[key];
       }
-    } catch {}
+    }
   }
 }
-
-// Export alias for backward compatibility
-export { Live2DManager as FireflyLive2DManager };

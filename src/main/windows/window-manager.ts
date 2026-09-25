@@ -1,407 +1,282 @@
-import { app, BrowserWindow, Menu, screen } from "electron";
-import fs from "node:fs";
-import path from "node:path";
+import { BrowserWindow, screen, type NativeImage } from "electron";
 import { IPC } from "../../shared/ipc-channels";
+import { createPetWindow, PET_WINDOW_BASE_HEIGHT, PET_WINDOW_BASE_WIDTH, type PetWindowSettingsSlice } from "../startup/create-pet-window";
+import {
+  createCallWindow,
+  createReactChatWindowShell,
+  createSettingsWindow,
+  createSidebarWindow,
+  createStickerManagerWindow,
+  createTasksWindow,
+  loadReactChatWindowPage,
+  type ReactChatWindowHandle,
+  showReactChatWindow,
+} from "./create-aux-windows";
+import { CHAT_READY_TIMEOUT_MS, loadWindowForStartup } from "./startup-window-load";
+import { broadcastToAllWindows } from "./broadcast";
+import { PetWindowMoveController } from "../pet-window-movement";
 
-const PET_WINDOW_BASE_WIDTH = 340;
-const PET_WINDOW_BASE_HEIGHT = 440;
-const STATUS_WINDOW_WIDTH = 420;
-const STATUS_WINDOW_HEIGHT = 560;
-const CHAT_WINDOW_WIDTH = 440;
-const CHAT_WINDOW_HEIGHT = 620;
-const SETTINGS_WINDOW_WIDTH = 500;
-const SETTINGS_WINDOW_HEIGHT = 600;
+export interface WindowManagerOptions {
+  getCurrentAppIconPath: () => string;
+  isDev: boolean;
+  loadPetWindowSettingsSlice: () => PetWindowSettingsSlice;
+  persistPetWindowPosition: (position: { x: number; y: number }) => void;
+}
 
-export class WindowManager {
-  private petWindow: BrowserWindow | null = null;
-  private statusWindow: BrowserWindow | null = null;
-  private chatWindow: BrowserWindow | null = null;
-  private settingsWindow: BrowserWindow | null = null;
-  private isDev: boolean;
-  private configPath: string;
-  private petScale = 1.0;
+export interface WindowManager {
+  createPetWindow(showOnReady?: boolean): BrowserWindow;
+  /** 创建（或复用）未加载页面的聊天窗口壳；页面加载由显式 load() 驱动。 */
+  createReactChatWindowShell(): ReactChatWindowHandle;
+  /** 打开聊天窗口：必要时创建壳并加载页面，然后显示并分发会话。 */
+  openReactChatWindow(sessionId?: string): Promise<BrowserWindow>;
+  createSidebarWindow(): void;
+  createSettingsWindow(section?: string): void;
+  createTasksWindow(): void;
+  createStickerManagerWindow(): void;
+  createCallWindow(): void;
 
-  constructor(isDev: boolean) {
-    this.isDev = isDev;
-    try {
-      this.configPath = path.join(app.getAppPath(), "config", "settings.json");
-    } catch {
-      this.configPath = path.join(process.cwd(), "config", "settings.json");
-    }
-    this.loadPetScale();
+  showPetWindow(): void;
+  hidePetWindow(): void;
+  togglePetWindow(): void;
+  minimizePetWindow(): void;
+  setPetWindowAlwaysOnTop(alwaysOnTop: boolean): void;
+  setPetWindowInteractive(interactive: boolean): void;
+  setPetWindowDragging(isDragging: boolean): void;
+  movePetWindowRelative(dx: number, dy: number): void;
+  movePetWindowTo(x: number, y: number): void;
+  applyPetWindowZoom(zoom: number): void;
+  capturePetWindowFrame(): Promise<string | null>;
+  capturePetWindow(): Promise<Electron.NativeImage | null>;
+  getCursorScreenPosition(): { x: number; y: number };
+  setIconForAllWindows(icon: NativeImage): void;
+  sendToPetWindow(channel: string, payload?: unknown): boolean;
+  isPetWindowSender(webContentsId: number): boolean;
+  broadcast(channel: string, payload: unknown): void;
+
+  onPetWindowReady(handler: (win: BrowserWindow) => void): void;
+  onPetWindowClosed(handler: () => void): void;
+  onPetWindowMoved(handler: (position: { x: number; y: number }) => void): void;
+
+  dispose(): void;
+}
+
+export function createWindowManager(options: WindowManagerOptions): WindowManager {
+  let petWindow: BrowserWindow | null = null;
+  let chatShell: ReactChatWindowHandle | null = null;
+  let chatLoadPromise: Promise<void> | null = null;
+  const readyHandlers: Array<(win: BrowserWindow) => void> = [];
+  const closedHandlers: Array<() => void> = [];
+  const movedHandlers: Array<(position: { x: number; y: number }) => void> = [];
+
+  const petWindowMoveController = new PetWindowMoveController(
+    () => petWindow,
+    (position) => {
+      options.persistPetWindowPosition(position);
+    },
+  );
+
+  function getUsablePetWindow(): BrowserWindow | null {
+    if (!petWindow || petWindow.isDestroyed()) return null;
+    return petWindow;
   }
 
-  private loadPetScale(): void {
-    try {
-      if (fs.existsSync(this.configPath)) {
-        const json = JSON.parse(fs.readFileSync(this.configPath, "utf-8"));
-        if (typeof json.window?.pet_scale === "number") {
-          this.petScale = json.window.pet_scale;
+  function setPetWindow(window: BrowserWindow, showOnReady = true): void {
+    petWindow = window;
+    window.once("ready-to-show", () => {
+      if (!petWindow || petWindow.isDestroyed()) return;
+      if (showOnReady) {
+        petWindow.show();
+      }
+      for (const handler of readyHandlers) {
+        try { handler(petWindow); } catch (err) { console.error("[WindowManager] ready handler failed:", err); }
+      }
+    });
+    window.on("closed", () => {
+      petWindow = null;
+      for (const handler of closedHandlers) {
+        try { handler(); } catch (err) { console.error("[WindowManager] closed handler failed:", err); }
+      }
+    });
+    window.on("moved", () => {
+      const win = petWindow;
+      if (!win || win.isDestroyed()) return;
+      try {
+        const [x, y] = win.getPosition();
+        for (const handler of movedHandlers) {
+          try { handler({ x, y }); } catch (err) { console.error("[WindowManager] moved handler failed:", err); }
         }
+      } catch {
+        // ignore
       }
-    } catch {}
+    });
   }
 
-  saveWindowPosition(x: number, y: number): void {
-    try {
-      let data: any = {};
-      if (fs.existsSync(this.configPath)) {
-        try {
-          data = JSON.parse(fs.readFileSync(this.configPath, "utf-8"));
-        } catch {
-          data = {};
-        }
+  return {
+    createPetWindow(showOnReady = true): BrowserWindow {
+      if (petWindow && !petWindow.isDestroyed()) return petWindow;
+      const win = createPetWindow(
+        {
+          getCurrentAppIconPath: options.getCurrentAppIconPath,
+          isDev: options.isDev,
+          loadGeneralSettings: options.loadPetWindowSettingsSlice,
+        },
+        { showOnReady },
+      );
+      setPetWindow(win, showOnReady);
+      return win;
+    },
+
+    createReactChatWindowShell(): ReactChatWindowHandle {
+      if (chatShell && !chatShell.window.isDestroyed()) return chatShell;
+      const window = createReactChatWindowShell();
+      const handle: ReactChatWindowHandle = {
+        window,
+        load(sessionId?: string): Promise<void> {
+          // load() 缓存同一个 Promise：重复调用不会二次加载；
+          // sessionId 通过 show() 分发，而非重新加载页面。
+          if (!chatLoadPromise || window.isDestroyed()) {
+            chatLoadPromise = loadWindowForStartup({
+              window,
+              load: () => loadReactChatWindowPage(window, sessionId),
+              timeoutMs: CHAT_READY_TIMEOUT_MS,
+            }).catch((error) => {
+              console.error("[WindowManager] chat page load failed:", error);
+              throw error;
+            });
+          }
+          return chatLoadPromise;
+        },
+        show(sessionId?: string): void {
+          showReactChatWindow(sessionId);
+        },
+      };
+      chatShell = handle;
+      chatLoadPromise = null;
+      return handle;
+    },
+
+    async openReactChatWindow(sessionId?: string): Promise<BrowserWindow> {
+      const handle = this.createReactChatWindowShell();
+      await handle.load(sessionId);
+      handle.show(sessionId);
+      return handle.window;
+    },
+
+    createSidebarWindow,
+    createSettingsWindow,
+    createTasksWindow,
+    createStickerManagerWindow,
+    createCallWindow,
+
+    showPetWindow(): void {
+      const win = getUsablePetWindow();
+      if (win) {
+        win.show();
+        return;
       }
-
-      if (!data.window) data.window = {};
-      data.window.x = x;
-      data.window.y = y;
-      data.window.pet_scale = this.petScale;
-
-      fs.writeFileSync(this.configPath, JSON.stringify(data, null, 2), "utf-8");
-    } catch (err) {
-      console.warn("[WindowManager] Failed to save window position:", err);
-    }
-  }
-
-  setPetScale(scale: number): void {
-    this.petScale = Math.max(0.5, Math.min(1.5, scale));
-    const width = Math.round(PET_WINDOW_BASE_WIDTH * this.petScale);
-    const height = Math.round(PET_WINDOW_BASE_HEIGHT * this.petScale);
-
-    if (this.petWindow && !this.petWindow.isDestroyed()) {
-      this.petWindow.setSize(width, height);
-      this.petWindow.webContents.send(IPC.PET_ZOOM, this.petScale);
-      const [x, y] = this.petWindow.getPosition();
-      this.saveWindowPosition(x, y);
-    }
-  }
-
-  getPetScale(): number {
-    return this.petScale;
-  }
-
-  createPetWindow(): BrowserWindow {
-    if (this.petWindow && !this.petWindow.isDestroyed()) {
-      this.petWindow.show();
-      this.petWindow.focus();
-      return this.petWindow;
-    }
-
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const workArea = primaryDisplay.workArea;
-
-    let savedX: number | null = null;
-    let savedY: number | null = null;
-
-    try {
-      if (fs.existsSync(this.configPath)) {
-        const json = JSON.parse(fs.readFileSync(this.configPath, "utf-8"));
-        if (typeof json.window?.x === "number") savedX = json.window.x;
-        if (typeof json.window?.y === "number") savedY = json.window.y;
+      // 窗口不存在（如被意外销毁）时兜底重建，保证托盘/设置永远能救回桌宠
+      this.createPetWindow(true);
+    },
+    hidePetWindow(): void {
+      getUsablePetWindow()?.hide();
+    },
+    togglePetWindow(): void {
+      const win = getUsablePetWindow();
+      if (!win) {
+        this.createPetWindow(true);
+        return;
       }
-    } catch {}
-
-    const width = Math.round(PET_WINDOW_BASE_WIDTH * this.petScale);
-    const height = Math.round(PET_WINDOW_BASE_HEIGHT * this.petScale);
-
-    const defaultX = savedX !== null ? savedX : workArea.x + workArea.width - width - 24;
-    const defaultY = savedY !== null ? savedY : workArea.y + workArea.height - height - 32;
-
-    const win = new BrowserWindow({
-      x: defaultX,
-      y: defaultY,
-      width,
-      height,
-      transparent: true,
-      frame: false,
-      skipTaskbar: true,
-      resizable: false,
-      hasShadow: false,
-      alwaysOnTop: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-      },
-    });
-
-    if (this.isDev) {
-      win.loadURL("http://localhost:5173");
-    } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "index.html"));
-    }
-
-    win.once("ready-to-show", () => {
-      win.show();
-    });
-
-    win.on("moved", () => {
-      const [x, y] = win.getPosition();
-      this.saveWindowPosition(x, y);
-    });
-
-    win.on("closed", () => {
-      this.petWindow = null;
-    });
-
-    this.petWindow = win;
-    return win;
-  }
-
-  createStatusWindow(): BrowserWindow {
-    if (this.statusWindow && !this.statusWindow.isDestroyed()) {
-      this.statusWindow.show();
-      this.statusWindow.focus();
-      return this.statusWindow;
-    }
-
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const workArea = primaryDisplay.workArea;
-
-    const petBounds = this.petWindow?.getBounds();
-    const defaultX = petBounds
-      ? Math.max(workArea.x, petBounds.x - STATUS_WINDOW_WIDTH - 16)
-      : workArea.x + workArea.width - STATUS_WINDOW_WIDTH - 420;
-    const defaultY = petBounds ? petBounds.y : workArea.y + workArea.height - STATUS_WINDOW_HEIGHT - 32;
-
-    const win = new BrowserWindow({
-      x: defaultX,
-      y: defaultY,
-      width: STATUS_WINDOW_WIDTH,
-      height: STATUS_WINDOW_HEIGHT,
-      title: "流萤 状态与照料",
-      frame: true,
-      resizable: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    });
-
-    if (this.isDev) {
-      win.loadURL("http://localhost:5173/react/index.html?tab=status");
-    } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "react", "index.html"), {
-        query: { tab: "status" },
-      });
-    }
-
-    win.once("ready-to-show", () => {
-      win.show();
-    });
-
-    win.on("closed", () => {
-      this.statusWindow = null;
-    });
-
-    this.statusWindow = win;
-    return win;
-  }
-
-  createChatWindow(): BrowserWindow {
-    if (this.chatWindow && !this.chatWindow.isDestroyed()) {
-      this.chatWindow.show();
-      this.chatWindow.focus();
-      return this.chatWindow;
-    }
-
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const workArea = primaryDisplay.workArea;
-
-    const petBounds = this.petWindow?.getBounds();
-    const defaultX = petBounds
-      ? Math.max(workArea.x, petBounds.x - CHAT_WINDOW_WIDTH - 16)
-      : workArea.x + workArea.width - CHAT_WINDOW_WIDTH - 420;
-    const defaultY = petBounds ? petBounds.y : workArea.y + workArea.height - CHAT_WINDOW_HEIGHT - 32;
-
-    const win = new BrowserWindow({
-      x: defaultX,
-      y: defaultY,
-      width: CHAT_WINDOW_WIDTH,
-      height: CHAT_WINDOW_HEIGHT,
-      title: "与流萤对话",
-      frame: true,
-      resizable: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    });
-
-    if (this.isDev) {
-      win.loadURL("http://localhost:5173/react/index.html?tab=chat");
-    } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "react", "index.html"), {
-        query: { tab: "chat" },
-      });
-    }
-
-    win.once("ready-to-show", () => {
-      win.show();
-    });
-
-    win.on("closed", () => {
-      this.chatWindow = null;
-    });
-
-    this.chatWindow = win;
-    return win;
-  }
-
-  createSettingsWindow(): BrowserWindow {
-    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      this.settingsWindow.show();
-      this.settingsWindow.focus();
-      return this.settingsWindow;
-    }
-
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const workArea = primaryDisplay.workArea;
-
-    const win = new BrowserWindow({
-      x: workArea.x + Math.round((workArea.width - SETTINGS_WINDOW_WIDTH) / 2),
-      y: workArea.y + Math.round((workArea.height - SETTINGS_WINDOW_HEIGHT) / 2),
-      width: SETTINGS_WINDOW_WIDTH,
-      height: SETTINGS_WINDOW_HEIGHT,
-      title: "流萤 设置",
-      frame: true,
-      resizable: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    });
-
-    if (this.isDev) {
-      win.loadURL("http://localhost:5173/react/index.html?tab=settings");
-    } else {
-      win.loadFile(path.join(app.getAppPath(), "dist", "renderer", "react", "index.html"), {
-        query: { tab: "settings" },
-      });
-    }
-
-    win.once("ready-to-show", () => {
-      win.show();
-    });
-
-    win.on("closed", () => {
-      this.settingsWindow = null;
-    });
-
-    this.settingsWindow = win;
-    return win;
-  }
-
-  togglePetWindow(): void {
-    if (!this.petWindow || this.petWindow.isDestroyed()) {
-      this.createPetWindow();
-      return;
-    }
-    if (this.petWindow.isVisible()) {
-      this.petWindow.hide();
-    } else {
-      this.petWindow.show();
-      this.petWindow.focus();
-    }
-  }
-
-  showContextMenu(): void {
-    if (!this.petWindow || this.petWindow.isDestroyed()) return;
-
-    const template: Electron.MenuItemConstructorOptions[] = [
-      {
-        label: "💬 与流萤对话",
-        click: () => this.createChatWindow(),
-      },
-      {
-        label: "📊 角色状态与照料",
-        click: () => this.createStatusWindow(),
-      },
-      {
-        label: "📐 角色大小",
-        submenu: [
-          {
-            label: "小 (0.70)",
-            type: "radio",
-            checked: Math.abs(this.petScale - 0.70) < 0.05,
-            click: () => this.setPetScale(0.70),
-          },
-          {
-            label: "标准 (0.90)",
-            type: "radio",
-            checked: Math.abs(this.petScale - 0.90) < 0.05,
-            click: () => this.setPetScale(0.90),
-          },
-          {
-            label: "大 (1.00)",
-            type: "radio",
-            checked: Math.abs(this.petScale - 1.00) < 0.05,
-            click: () => this.setPetScale(1.00),
-          },
-          {
-            label: "特大 (1.25)",
-            type: "radio",
-            checked: Math.abs(this.petScale - 1.25) < 0.05,
-            click: () => this.setPetScale(1.25),
-          },
-        ],
-      },
-      {
-        label: "⚙ 设置",
-        click: () => this.createSettingsWindow(),
-      },
-      { type: "separator" },
-      {
-        label: "❌ 退出",
-        click: () => app.quit(),
-      },
-    ];
-
-    const menu = Menu.buildFromTemplate(template);
-    menu.popup({ window: this.petWindow });
-  }
-
-  getPetWindow(): BrowserWindow | null {
-    if (!this.petWindow || this.petWindow.isDestroyed()) return null;
-    return this.petWindow;
-  }
-
-  getStatusWindow(): BrowserWindow | null {
-    if (!this.statusWindow || this.statusWindow.isDestroyed()) return null;
-    return this.statusWindow;
-  }
-
-  getChatWindow(): BrowserWindow | null {
-    if (!this.chatWindow || this.chatWindow.isDestroyed()) return null;
-    return this.chatWindow;
-  }
-
-  getSettingsWindow(): BrowserWindow | null {
-    if (!this.settingsWindow || this.settingsWindow.isDestroyed()) return null;
-    return this.settingsWindow;
-  }
-
-  sendToPet(channel: string, payload?: unknown): void {
-    const win = this.getPetWindow();
-    if (win) {
-      win.webContents.send(channel, payload);
-    }
-  }
-
-  broadcast(channel: string, payload?: unknown): void {
-    for (const win of BrowserWindow.getAllWindows()) {
+      win.isVisible() ? win.hide() : win.show();
+    },
+    minimizePetWindow(): void {
+      getUsablePetWindow()?.minimize();
+    },
+    setPetWindowAlwaysOnTop(alwaysOnTop: boolean): void {
+      const win = getUsablePetWindow();
+      if (!win) return;
+      win.setAlwaysOnTop(alwaysOnTop, alwaysOnTop ? "screen-saver" : "normal");
+    },
+    setPetWindowInteractive(interactive: boolean): void {
+      const win = getUsablePetWindow();
+      if (!win) return;
+      win.setIgnoreMouseEvents(!interactive, { forward: true });
+    },
+    setPetWindowDragging(isDragging: boolean): void {
+      const win = getUsablePetWindow();
+      if (!win) return;
+      if (!isDragging) petWindowMoveController.finishDragging();
+      try {
+        win.setOpacity(isDragging ? 0.99 : 1.0);
+      } catch (error) {
+        console.warn("[WindowManager] Failed to update pet window dragging opacity:", error);
+      }
+    },
+    movePetWindowRelative(dx: number, dy: number): void {
+      petWindowMoveController.moveRelative(dx, dy);
+    },
+    movePetWindowTo(x: number, y: number): void {
+      petWindowMoveController.queueAbsolute(x, y);
+    },
+    applyPetWindowZoom(zoom: number): void {
+      const win = getUsablePetWindow();
+      if (!win) return;
+      const width = Math.round(PET_WINDOW_BASE_WIDTH * zoom);
+      const height = Math.round(PET_WINDOW_BASE_HEIGHT * zoom);
+      win.setSize(width, height);
       if (!win.isDestroyed()) {
-        win.webContents.send(channel, payload);
+        win.webContents.send(IPC.PET_ZOOM, zoom);
       }
-    }
-  }
+    },
+    async capturePetWindowFrame(): Promise<string | null> {
+      const image = await this.capturePetWindow();
+      return image ? image.toDataURL() : null;
+    },
+    async capturePetWindow(): Promise<Electron.NativeImage | null> {
+      const win = getUsablePetWindow();
+      if (!win) return null;
+      try {
+        return await win.webContents.capturePage();
+      } catch (err) {
+        console.error("[WindowManager] capturePetWindow failed:", err);
+        return null;
+      }
+    },
+    getCursorScreenPosition(): { x: number; y: number } {
+      return screen.getCursorScreenPoint();
+    },
+    setIconForAllWindows(icon: NativeImage): void {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.setIcon(icon);
+      }
+    },
+    sendToPetWindow(channel: string, payload?: unknown): boolean {
+      const win = getUsablePetWindow();
+      if (!win || win.webContents.isDestroyed()) return false;
+      if (payload === undefined) win.webContents.send(channel);
+      else win.webContents.send(channel, payload);
+      return true;
+    },
+    isPetWindowSender(webContentsId: number): boolean {
+      return getUsablePetWindow()?.webContents.id === webContentsId;
+    },
+    broadcast(channel: string, payload: unknown): void {
+      broadcastToAllWindows(channel, payload);
+    },
+
+    onPetWindowReady(handler: (win: BrowserWindow) => void): void {
+      readyHandlers.push(handler);
+      if (petWindow && !petWindow.isDestroyed() && petWindow.isVisible()) {
+        try { handler(petWindow); } catch (err) { console.error("[WindowManager] ready handler failed:", err); }
+      }
+    },
+    onPetWindowClosed(handler: () => void): void {
+      closedHandlers.push(handler);
+    },
+    onPetWindowMoved(handler: (position: { x: number; y: number }) => void): void {
+      movedHandlers.push(handler);
+    },
+
+    dispose(): void {
+    },
+  };
 }

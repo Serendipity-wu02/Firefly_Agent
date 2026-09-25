@@ -1,0 +1,651 @@
+# Firefly 累计未提交文件清单（2026-09-25）
+
+依据 `git -c core.quotePath=false status --porcelain=v1 -uall` 更新，覆盖累计修改、删除和未跟踪文件。` M`=修改，` D`=删除，`??`=未跟踪；暂存区为空。路径为项目相对路径，当前工作树没有被回退或筛除。
+
+本清单不是执行暂存的授权。提交与历史保留方案见 [最终可靠性与提交准备](./firefly-reliability-and-submission-2026-09-25.md)。必要源素材的公开再分发仍须许可归档。
+
+| 分类 | 数量 |
+| --- | ---: |
+| 源码与配置 | 274 |
+| 测试 | 102 |
+| 文档与许可 | 19 |
+| 必要资源与角色资料 | 165 |
+| 已跟踪生成副本删除（审核删除，不恢复） | 26 |
+| 生成副本（排除提交） | 24 |
+| 合计 | 610 |
+
+## 排除与删除说明
+
+- 24 个现存 `dist/renderer` 差异文件均与 `src/renderer/public` 对应源文件 SHA-256 一致，排除重复生成副本；不排除对应源资源。
+- 26 个已跟踪 `dist` 旧资源删除项单列，批准提交时审核移除旧副本，不恢复错误角色。旧 ignore 注释不构成将产物当源文件的依据。
+- 其余删除项为停用网易云实现／UI／打包依赖与旧角色资源／资料，准确路径和状态保留在以下各类；不是删除用户历史。
+- `release/`、`node_modules/`、Main／Preload／Vite 构建输出、截图助手生成 exe、缓存、用户配置、密钥、日志、临时截图和验收输出不进入提交。当前目录路径与常见 token 检查不替代最终逐项 diff 审阅。
+- 此分类清单替代此前 602 项快照作为当前提交准备范围；不改写此前审计的历史事实。
+
+## 源码与配置
+
+- ` M .github/ISSUE_TEMPLATE/bug.yml`
+- ` M .github/ISSUE_TEMPLATE/runtime-bug.yml`
+- ` M .github/workflows/package-windows.yml`
+- ` M build/installer/installer.nsh`
+- ` M electron-builder.yml`
+- ` M package-lock.json`
+- ` M package.json`
+- ` D scripts/packaging/build-music-component.mjs`
+- ` D scripts/packaging/music-component-entry.py`
+- ` M scripts/verify/installer-artifacts.mjs`
+- ` M scripts/verify/music-smoke.mjs`
+- ` M src/cli/banner/ascii.ts`
+- ` M src/cli/banner/text.ts`
+- ` M src/cli/commands/handlers.ts`
+- ` M src/cli/commands/run.ts`
+- ` M src/main/agui-bridge.ts`
+- ` M src/main/app-icon.ts`
+- ` M src/main/app-identity.ts`
+- ` M src/main/application/application.ts`
+- ` M src/main/application/default-dependencies.ts`
+- ` M src/main/application/shell-bootstrap.ts`
+- ` M src/main/call/call-manager.ts`
+- ` M src/main/channels/adapters/wechat/ilink-bot-adapter.ts`
+- ` M src/main/channels/adapters/wechat/inbound-media.ts`
+- ` M src/main/channels/settings-store.ts`
+- ` M src/main/chats/chats-ipc.ts`
+- ` M src/main/chats/chats-store.ts`
+- ` M src/main/external-content-migration.ts`
+- ` M src/main/index.ts`
+- ` M src/main/learn/obsidian/vault-templates.ts`
+- ` M src/main/logger.ts`
+- ` M src/main/moments/character-personas.ts`
+- ` M src/main/moments/moments-agent.ts`
+- ` M src/main/moments/moments-context.ts`
+- ` M src/main/music/bootstrap.ts`
+- ` D src/main/music/cache-downloader.ts`
+- ` D src/main/music/ipc-handlers.ts`
+- ` D src/main/music/local-music-scanner.ts`
+- ` D src/main/music/log-sanitizer.ts`
+- ` D src/main/music/lyrics-cache.ts`
+- ` D src/main/music/lyrics-parser.ts`
+- ` D src/main/music/music-provider.ts`
+- ` D src/main/music/music-router.ts`
+- ` D src/main/music/music-service.ts`
+- ` M src/main/music/music-smoke-entry.ts`
+- ` D src/main/music/netease-openapi-client.ts`
+- ` D src/main/music/netease-openapi-provider.ts`
+- ` D src/main/music/openapi-config.ts`
+- ` D src/main/music/openapi-login-orchestrator.ts`
+- ` D src/main/music/openapi-result-normalizer.ts`
+- ` D src/main/music/paths.ts`
+- ` D src/main/music/playback-session.ts`
+- ` D src/main/music/protocol-detector.ts`
+- ` D src/main/music/selection-set-cache.ts`
+- ` D src/main/music/smoke-codes.ts`
+- ` D src/main/music/token-vault.ts`
+- ` D src/main/music/types.ts`
+- ` M src/main/orchestrator/agent-runtime.ts`
+- ` M src/main/orchestrator/build-options.ts`
+- ` M src/main/orchestrator/context-manager.ts`
+- ` M src/main/orchestrator/conversation-transcript-types.ts`
+- ` M src/main/orchestrator/cyrene-agent.ts`
+- ` M src/main/orchestrator/environment.ts`
+- ` M src/main/orchestrator/harness/adapter/tool-runtime.ts`
+- ` M src/main/orchestrator/harness/builtin-tools.ts`
+- ` M src/main/orchestrator/harness/tool-round.ts`
+- ` M src/main/orchestrator/mode-prompt-profile.ts`
+- ` M src/main/orchestrator/task-runtime.ts`
+- ` M src/main/orchestrator/tools/__snapshots__/built-in-tools.snapshot.test.ts.snap`
+- ` M src/main/orchestrator/tools/built-in-tools.ts`
+- ` M src/main/orchestrator/tools/builtin-tools/install-mcp-tool.ts`
+- ` M src/main/orchestrator/tools/builtin-tools/play-live2d-action.ts`
+- ` M src/main/orchestrator/tools/document-tools.ts`
+- ` M src/main/orchestrator/tools/fs-tools.ts`
+- ` M src/main/orchestrator/tools/history-tools.ts`
+- ` M src/main/orchestrator/tools/music-tools.ts`
+- ` M src/main/orchestrator/tools/registry/tool-context.ts`
+- ` M src/main/orchestrator/tools/registry/tool-registry.ts`
+- ` M src/main/orchestrator/transcript-sink.ts`
+- ` M src/main/permission.ts`
+- ` M src/main/pet-window-movement.ts`
+- ` M src/main/plugin-runtime.ts`
+- ` M src/main/proactive/proactive-lifecycle.ts`
+- ` M src/main/rag/worldbook-constants.ts`
+- ` M src/main/rag/worldbook.ts`
+- ` M src/main/services/tts/tts-synthesis-service.ts`
+- ` M src/main/settings/general-settings.ts`
+- ` M src/main/settings/model-settings.ts`
+- ` M src/main/settings/settings-facade.ts`
+- ` M src/main/settings/settings-ipc.ts`
+- ` M src/main/sticker-storage.ts`
+- ` M src/main/tasks/task-character-pool.ts`
+- ` M src/main/toast/toast-service.ts`
+- ` M src/main/tray.ts`
+- ` M src/main/tts/gptsovits-engine.ts`
+- ` M src/main/tts/tts-cache.ts`
+- ` M src/main/tts/tts-session-service.ts`
+- ` M src/main/updater/app-update-service.ts`
+- ` M src/main/updater/github-app-updater.ts`
+- ` M src/main/windows/create-aux-windows.ts`
+- ` D src/main/windows/create-music-player-window.ts`
+- ` M src/main/windows/create-toast-window.ts`
+- ` M src/main/windows/window-manager.ts`
+- ` M src/main/windows/window-state.ts`
+- ` M src/main/windows/window-system-ipc.ts`
+- ` M src/preload/index.ts`
+- ` M src/preload/music.ts`
+- ` M src/renderer/call/index.html`
+- ` M src/renderer/call/main.ts`
+- ` M src/renderer/index.html`
+- ` M src/renderer/live2d/interaction.ts`
+- ` M src/renderer/live2d/manager.ts`
+- ` M src/renderer/live2d/model-manifest.ts`
+- ` M src/renderer/main.ts`
+- ` D src/renderer/music/App.tsx`
+- ` D src/renderer/music/components/LoadingScreen.css`
+- ` D src/renderer/music/components/LoadingScreen.tsx`
+- ` D src/renderer/music/components/LyricsView.tsx`
+- ` D src/renderer/music/components/MusicPlayer.tsx`
+- ` D src/renderer/music/components/ProgressBar.tsx`
+- ` D src/renderer/music/components/QueueList.tsx`
+- ` D src/renderer/music/components/SearchResults.tsx`
+- ` D src/renderer/music/components/Slider.tsx`
+- ` D src/renderer/music/components/VolumeControl.tsx`
+- ` D src/renderer/music/index.html`
+- ` D src/renderer/music/main.tsx`
+- ` D src/renderer/music/playback-queue.ts`
+- ` D src/renderer/music/player-source.ts`
+- ` D src/renderer/music/player.css`
+- ` D src/renderer/music/types.ts`
+- ` M src/renderer/react-perf/fake-bridges.ts`
+- ` M src/renderer/react-perf/index.html`
+- ` M src/renderer/react/character-avatars.ts`
+- ` M src/renderer/react/character-portraits.ts`
+- ` M src/renderer/react/components/ui/CharacterStatusPill.tsx`
+- ` M src/renderer/react/components/ui/ModelModeButton.tsx`
+- ` M src/renderer/react/components/ui/MomentsModeButton.tsx`
+- ` M src/renderer/react/components/ui/NewTaskButton.css`
+- ` M src/renderer/react/components/ui/NewTaskButton.tsx`
+- ` M src/renderer/react/components/ui/PluginModeButton.tsx`
+- ` M src/renderer/react/components/ui/SkillModeButton.tsx`
+- ` M src/renderer/react/components/ui/ToolModeButton.tsx`
+- ` M src/renderer/react/features/chat/components/ChatComposer.css`
+- ` M src/renderer/react/features/chat/components/ChatComposer.tsx`
+- ` M src/renderer/react/features/chat/components/ChatMessageList.css`
+- ` M src/renderer/react/features/chat/components/ChatMessageList.tsx`
+- ` M src/renderer/react/features/chat/components/ChatPageNavigation.tsx`
+- ` M src/renderer/react/features/chat/components/ChatWorkspaceNotices.tsx`
+- ` M src/renderer/react/features/chat/components/CodeGitPanel.css`
+- ` M src/renderer/react/features/chat/components/CodeGitPanel.tsx`
+- ` M src/renderer/react/features/chat/components/ContextUsageRing.tsx`
+- ` M src/renderer/react/features/chat/components/ConversationSidebar.css`
+- ` M src/renderer/react/features/chat/components/ConversationSidebar.tsx`
+- ` M src/renderer/react/features/chat/components/FileTreePanel.css`
+- ` M src/renderer/react/features/chat/components/InteractionPanel.tsx`
+- ` M src/renderer/react/features/chat/components/ModelModePanel.css`
+- ` M src/renderer/react/features/chat/components/ModelModePanel.tsx`
+- ` M src/renderer/react/features/chat/components/ModelSelector.tsx`
+- ` M src/renderer/react/features/chat/components/OpenWorkspaceMenu.css`
+- ` M src/renderer/react/features/chat/components/PlanModeToggle.css`
+- ` M src/renderer/react/features/chat/components/PlanModeToggle.tsx`
+- ` M src/renderer/react/features/chat/components/PluginModePanel.css`
+- ` M src/renderer/react/features/chat/components/PluginModePanel.tsx`
+- ` M src/renderer/react/features/chat/components/ReasoningControl.css`
+- ` M src/renderer/react/features/chat/components/ReasoningControl.tsx`
+- ` M src/renderer/react/features/chat/components/ReviewPanel.tsx`
+- ` M src/renderer/react/features/chat/components/RightInspector.css`
+- ` M src/renderer/react/features/chat/components/RunExperience.css`
+- ` M src/renderer/react/features/chat/components/SkillModePanel.css`
+- ` M src/renderer/react/features/chat/components/SkillModePanel.tsx`
+- ` M src/renderer/react/features/chat/components/StatusFloat.tsx`
+- ` M src/renderer/react/features/chat/components/StyleControl.css`
+- ` M src/renderer/react/features/chat/components/StyleControl.tsx`
+- ` M src/renderer/react/features/chat/components/TaskDelegationRow.tsx`
+- ` M src/renderer/react/features/chat/components/TodoPanel.css`
+- ` M src/renderer/react/features/chat/components/TodoPanel.tsx`
+- ` M src/renderer/react/features/chat/components/ToolModePanel.css`
+- ` M src/renderer/react/features/chat/components/ToolModePanel.tsx`
+- ` M src/renderer/react/features/chat/components/TtsButton.tsx`
+- ` M src/renderer/react/features/chat/components/agent-rounds.ts`
+- ` M src/renderer/react/features/chat/components/task-delegations.ts`
+- ` M src/renderer/react/features/chat/components/tts-playback.ts`
+- ` M src/renderer/react/features/chat/components/weather/weather-card.css`
+- ` M src/renderer/react/features/chat/pages/ChatPage.tsx`
+- ` M src/renderer/react/features/chat/pages/chat-page-bridge.ts`
+- ` M src/renderer/react/features/chat/pages/chat-page-normalizers.ts`
+- ` M src/renderer/react/features/chat/pages/pending-queue-flow.ts`
+- ` M src/renderer/react/features/chat/pages/run/AgentRunController.ts`
+- ` M src/renderer/react/features/chat/pages/session-runtime-state.ts`
+- ` M src/renderer/react/features/chat/tts/markdown-to-speech-text.ts`
+- ` M src/renderer/react/features/moments/MomentComposer.tsx`
+- ` M src/renderer/react/features/moments/MomentPostCard.tsx`
+- ` M src/renderer/react/features/moments/MomentsPanel.css`
+- ` M src/renderer/react/features/moments/MomentsPanel.tsx`
+- ` M src/renderer/react/hooks/useUserNickname.ts`
+- ` M src/renderer/react/i18n/en.json`
+- ` M src/renderer/react/i18n/zh-CN.json`
+- ` M src/renderer/react/index.html`
+- ` M src/renderer/react/styles/react-root.css`
+- ` M src/renderer/settings/api/state.ts`
+- ` M src/renderer/settings/i18n/zh-CN.json`
+- ` M src/renderer/settings/index.html`
+- ` M src/renderer/settings/mcp/panel.ts`
+- ` M src/renderer/settings/memory/panel.ts`
+- ` M src/renderer/settings/music/dom.ts`
+- ` D src/renderer/settings/music/local-panel.ts`
+- ` D src/renderer/settings/music/panel.ts`
+- ` D src/renderer/settings/music/state.ts`
+- ` D src/renderer/settings/music/types.ts`
+- ` M src/renderer/settings/plugins/dom.ts`
+- ` M src/renderer/settings/plugins/permission.ts`
+- ` M src/renderer/settings/settings.css`
+- ` M src/renderer/settings/settings.ts`
+- ` M src/renderer/settings/tokens/panel.ts`
+- ` M src/renderer/settings/tts/panel.ts`
+- ` M src/renderer/sidebar/index.html`
+- ` M src/renderer/sidebar/sidebar.css`
+- ` M src/renderer/sidebar/sidebar.ts`
+- ` M src/renderer/sticker-manager/style.css`
+- ` M src/renderer/tasks/index.html`
+- ` M src/renderer/tasks/tasks.css`
+- ` M src/renderer/toast/index.html`
+- ` M src/renderer/toast/toast.ts`
+- ` M src/renderer/ui/base.css`
+- ` M src/renderer/ui/chart.css`
+- ` M src/renderer/ui/modal.css`
+- ` M src/renderer/ui/preview.html`
+- ` M src/renderer/ui/theme.css`
+- ` M src/renderer/ui/theme.ts`
+- ` M src/renderer/ui/tokens.css`
+- ` M src/shared/banner.ts`
+- ` M src/shared/chat-types.ts`
+- ` M src/shared/ipc-channels.ts`
+- ` M src/shared/live2d-actions.ts`
+- ` M src/shared/minimax-voice.ts`
+- ` M src/shared/renderer-base.ts`
+- ` M src/shared/ui-icon.ts`
+- ` D vendor/cloud-music-mcp/.gitignore`
+- ` D vendor/cloud-music-mcp/LICENSE`
+- ` D vendor/cloud-music-mcp/pyproject.toml`
+- ` D vendor/cloud-music-mcp/src/__init__.py`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/__init__.py`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/__main__.py`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/api.py`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/auth.py`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/log.py`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/main.py`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/__init__.py`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_add_to_playlist.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_album_info.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_artist_info.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_create_playlist.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_get_daily_recommend.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_login.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_my_playlists.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_my_subscriptions.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_play.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_playlist_detail.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_search.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/prompts/cloud_music_status.txt`
+- ` D vendor/cloud-music-mcp/src/cloud_music_mcp/run_login.py`
+- ` D vendor/cloud-music-mcp/uv.lock`
+- ` M vite.config.ts`
+- `?? src/main/chats/work-file-evidence.ts`
+- `?? src/main/chats/work-markdown-export.ts`
+- `?? src/main/chats/work-read-scope.ts`
+- `?? src/main/music/qqmusic-service.ts`
+- `?? src/main/music/scripts/qqmusic_gsmtc.ps1`
+- `?? src/renderer/live2d/action-controller.ts`
+- `?? src/renderer/live2d/expression-state.ts`
+- `?? src/renderer/live2d/mood-expression.ts`
+- `?? src/renderer/settings/music/qqmusic-panel.ts`
+- `?? src/shared/task-characters.ts`
+- `?? src/shared/user-address.ts`
+
+## 测试
+
+- ` M scripts/packaging/electron-builder-config.test.mjs`
+- ` M src/cli/app.test.ts`
+- ` M src/cli/banner/render.test.ts`
+- ` M src/main/agui-bridge.test.ts`
+- ` M src/main/app-identity.test.ts`
+- ` M src/main/channels/adapters/wechat/ilink-bot-adapter.test.ts`
+- ` M src/main/channels/adapters/wechat/inbound-media.test.ts`
+- ` M src/main/character-migration.test.ts`
+- ` M src/main/chats/chats-ipc.test.ts`
+- ` M src/main/external-content-migration.test.ts`
+- ` M src/main/live2d-actions.test.ts`
+- ` M src/main/moments/character-personas.test.ts`
+- ` M src/main/moments/moments-agent.test.ts`
+- ` M src/main/moments/moments-context.test.ts`
+- ` M src/main/music/bootstrap.test.ts`
+- ` D src/main/music/cache-downloader.test.ts`
+- ` D src/main/music/ipc-handlers.test.ts`
+- ` D src/main/music/local-music-scanner.test.ts`
+- ` D src/main/music/log-sanitizer.test.ts`
+- ` D src/main/music/lyrics-cache.test.ts`
+- ` D src/main/music/lyrics-parser.test.ts`
+- ` D src/main/music/music-router.test.ts`
+- ` D src/main/music/music-service-mpv-retry.test.ts`
+- ` D src/main/music/music-service.test.ts`
+- ` D src/main/music/netease-openapi-client.test.ts`
+- ` D src/main/music/netease-openapi-provider.test.ts`
+- ` D src/main/music/openapi-config.test.ts`
+- ` D src/main/music/openapi-login-orchestrator.test.ts`
+- ` D src/main/music/openapi-result-normalizer.test.ts`
+- ` D src/main/music/paths.test.ts`
+- ` D src/main/music/playback-session.test.ts`
+- ` D src/main/music/protocol-detector.test.ts`
+- ` D src/main/music/selection-set-cache.test.ts`
+- ` D src/main/music/token-vault.test.ts`
+- ` M src/main/orchestrator/build-options.test.ts`
+- ` M src/main/orchestrator/environment.test.ts`
+- ` M src/main/orchestrator/harness-adapter.test.ts`
+- ` M src/main/orchestrator/harness/builtin-tools.test.ts`
+- ` M src/main/orchestrator/harness/tool-dispatcher.test.ts`
+- ` M src/main/orchestrator/mode-prompt-profile.test.ts`
+- ` M src/main/orchestrator/run-capabilities.test.ts`
+- ` M src/main/orchestrator/task-runtime.test.ts`
+- ` M src/main/orchestrator/tools/built-in-tools.snapshot.test.ts`
+- ` M src/main/orchestrator/tools/builtin-tools/play-live2d-action.test.ts`
+- ` M src/main/orchestrator/tools/fs-tools.test.ts`
+- ` M src/main/orchestrator/tools/music-tools.test.ts`
+- ` M src/main/settings/settings-facade.test.ts`
+- ` M src/main/tasks/task-character-pool.test.ts`
+- ` M src/main/tray.test.ts`
+- ` M src/main/tts/gptsovits-engine.test.ts`
+- ` M src/main/tts/tts-session-service.test.ts`
+- ` M src/main/ui-icon.test.ts`
+- ` M src/main/updater/app-update-service.test.ts`
+- ` M src/main/updater/update-packaging-config.test.ts`
+- ` M src/main/window-position.test.ts`
+- ` M src/renderer/live2d/manager.test.ts`
+- ` M src/renderer/live2d/model-manifest.test.ts`
+- ` D src/renderer/music/playback-queue.test.ts`
+- ` D src/renderer/music/player-source.test.ts`
+- ` M src/renderer/react/features/chat/components/ChatComposer.sender-integration.test.ts`
+- ` M src/renderer/react/features/chat/components/ChatMessageList.test.ts`
+- ` M src/renderer/react/features/chat/components/ChatPageNavigation.test.ts`
+- ` M src/renderer/react/features/chat/components/ContextUsageRing.test.ts`
+- ` M src/renderer/react/features/chat/components/RightInspector.visual.test.ts`
+- ` M src/renderer/react/features/chat/components/TaskDelegationRow.test.ts`
+- ` M src/renderer/react/features/chat/components/agent-rounds.test.ts`
+- ` M src/renderer/react/features/chat/components/run-presentation.test.ts`
+- ` M src/renderer/react/features/chat/components/task-delegations.test.ts`
+- ` M src/renderer/react/features/chat/pages/pending-queue-flow.test.ts`
+- ` M src/renderer/react/features/chat/pages/run/AgentRunController.test.ts`
+- ` M src/renderer/react/features/chat/pages/session-runtime-state.test.ts`
+- ` M src/renderer/react/features/chat/tts/markdown-to-speech-text.test.ts`
+- ` M src/renderer/react/styles/react-root.visual.test.ts`
+- ` M src/renderer/settings/appearance-settings-markup.test.ts`
+- ` M src/renderer/settings/mcp/modal-interaction.test.ts`
+- ` M src/renderer/settings/mcp/panel.test.ts`
+- ` D src/renderer/settings/music/local-panel.test.ts`
+- ` M src/renderer/settings/music/platform-list.dom.test.ts`
+- ` M src/renderer/settings/tts/panel.test.ts`
+- ` M src/shared/minimax-voice.test.ts`
+- ` D vendor/cloud-music-mcp/tests/test_auth.py`
+- ` D vendor/cloud-music-mcp/tests/test_entrypoint.py`
+- `?? src/main/chats/chats-read-failure.test.ts`
+- `?? src/main/chats/work-file-evidence.test.ts`
+- `?? src/main/chats/work-markdown-export.test.ts`
+- `?? src/main/chats/work-read-scope.test.ts`
+- `?? src/main/logger.test.ts`
+- `?? src/main/moments/character-personas-firefly.test.ts`
+- `?? src/main/music/qqmusic-service.test.ts`
+- `?? src/main/rag/worldbook-firefly.test.ts`
+- `?? src/main/settings/settings-read-failure.test.ts`
+- `?? src/main/settings/settings-read-ipc.test.ts`
+- `?? src/renderer/live2d/action-controller.test.ts`
+- `?? src/renderer/live2d/expression-state.test.ts`
+- `?? src/renderer/live2d/interaction.test.ts`
+- `?? src/renderer/react/character-avatars.test.ts`
+- `?? src/renderer/react/features/chat/components/ConversationSidebar.load-state.test.ts`
+- `?? src/renderer/react/features/chat/components/model-catalog-load-state.test.ts`
+- `?? src/renderer/react/features/chat/components/tts-playback.test.ts`
+- `?? src/renderer/settings/music/qqmusic-panel.test.ts`
+- `?? src/renderer/settings/user/theme-details.test.ts`
+- `?? src/shared/user-address.test.ts`
+
+## 文档与许可
+
+- ` M .github/CONTRIBUTING.md`
+- ` M LICENSE`
+- ` M MODEL_LICENSE.md`
+- ` M README.en.md`
+- ` M README.md`
+- ` M THIRD_PARTY_NOTICES.md`
+- ` M scripts/README.md`
+- ` D vendor/cloud-music-mcp/README.md`
+- ` D vendor/cloud-music-mcp/UPSTREAM.md`
+- `?? docs/migration/firefly-batch1-implementation-2026-09-23.md`
+- `?? docs/migration/firefly-batch2-implementation-2026-09-24.md`
+- `?? docs/migration/firefly-batch3-implementation-2026-09-24.md`
+- `?? docs/migration/firefly-batch4-implementation-2026-09-25.md`
+- `?? docs/migration/firefly-batch5-implementation-2026-09-25.md`
+- `?? docs/migration/firefly-batch6-implementation-2026-09-25.md`
+- `?? docs/migration/firefly-final-gap-closeout-2026-09-25.md`
+- `?? docs/migration/firefly-final-handoff-2026-09-25.md`
+- `?? docs/migration/firefly-reliability-and-submission-2026-09-25.md`
+- `?? docs/migration/firefly-uncommitted-files-2026-09-25.md`
+
+## 必要资源与角色资料
+
+- ` D assets/icon-presets/cyrene-pink.png`
+- ` D assets/icon-presets/cyrene-sun.png`
+- ` D assets/models/cyrene/Cyrene.model3.json`
+- ` D assets/models/cyrene/expressions/0.exp3.json`
+- ` D assets/models/cyrene/expressions/1.exp3.json`
+- ` D assets/models/cyrene/expressions/10.exp3.json`
+- ` D assets/models/cyrene/expressions/11.exp3.json`
+- ` D assets/models/cyrene/expressions/2.exp3.json`
+- ` D assets/models/cyrene/expressions/3.exp3.json`
+- ` D assets/models/cyrene/expressions/4.exp3.json`
+- ` D assets/models/cyrene/expressions/5.exp3.json`
+- ` D assets/models/cyrene/expressions/6.exp3.json`
+- ` D assets/models/cyrene/expressions/7.exp3.json`
+- ` D assets/models/cyrene/expressions/8.exp3.json`
+- ` D assets/models/cyrene/expressions/9.exp3.json`
+- ` D assets/models/cyrene/model.moc3`
+- ` D assets/models/cyrene/model.physics3.json`
+- ` D assets/models/cyrene/motions/Tick3_3.motion3.json`
+- ` D assets/models/cyrene/motions/动作#6_0.motion3.json`
+- ` D assets/models/cyrene/motions/动作#6_1.motion3.json`
+- ` D assets/models/cyrene/motions/动作#6_2.motion3.json`
+- ` D assets/models/cyrene/motions/动作#6_3.motion3.json`
+- ` D assets/models/cyrene/texture_0.png`
+- ` M assets/ui/cyrene-surface-pattern.svg`
+- ` M prompts/chat_system.md`
+- ` M prompts/code_remark.md`
+- ` M prompts/code_system.md`
+- ` M prompts/cyrene_harness.md`
+- ` M prompts/learn_system.md`
+- ` M prompts/moments_personas/_header.md`
+- ` D prompts/moments_personas/万敌.md`
+- ` M prompts/moments_personas/丹恒.md`
+- ` D prompts/moments_personas/刻律德菈.md`
+- ` D prompts/moments_personas/昔涟.md`
+- ` D prompts/moments_personas/海瑟音.md`
+- ` D prompts/moments_personas/白厄.md`
+- ` D prompts/moments_personas/缇宝.md`
+- ` D prompts/moments_personas/赛飞儿.md`
+- ` D prompts/moments_personas/遐蝶.md`
+- ` D prompts/moments_personas/那刻夏.md`
+- ` D prompts/moments_personas/长夜月.md`
+- ` D prompts/moments_personas/阿格莱雅.md`
+- ` D prompts/moments_personas/风堇.md`
+- ` M prompts/phone_identity.md`
+- ` M prompts/phone_style.md`
+- ` M prompts/phone_system.md`
+- ` M prompts/soul.md`
+- ` M prompts/styles/01_default.md`
+- ` M prompts/styles/02_lively.md`
+- ` M prompts/styles/03_healing.md`
+- ` M prompts/styles/04_focused.md`
+- ` M prompts/styles/05_sweet.md`
+- ` M prompts/work_remark.md`
+- ` M prompts/work_system.md`
+- ` D prompts/worldbook/Cyrene.md`
+- ` M prompts/worldbook/characters.md`
+- ` M prompts/worldbook/world.md`
+- ` D src/renderer/music/assets/logo.png`
+- ` D src/renderer/music/assets/music2.png`
+- ` D src/renderer/public/avatars/cyrene-avatar.png`
+- ` D src/renderer/public/icons/cyrene-avatar-line-white.png`
+- ` D src/renderer/public/icons/cyrene-avatar-line.svg`
+- ` D src/renderer/public/icons/cyrene-pink.png`
+- ` D src/renderer/public/icons/cyrene-sun.png`
+- ` D src/renderer/public/models/cyrene/Cyrene.model3.json`
+- ` D src/renderer/public/models/cyrene/expressions/0.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/1.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/10.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/11.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/2.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/3.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/4.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/5.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/6.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/7.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/8.exp3.json`
+- ` D src/renderer/public/models/cyrene/expressions/9.exp3.json`
+- ` D src/renderer/public/models/cyrene/model.moc3`
+- ` D src/renderer/public/models/cyrene/model.physics3.json`
+- ` D src/renderer/public/models/cyrene/motions/Tick3_3.motion3.json`
+- ` D src/renderer/public/models/cyrene/motions/动作#6_0.motion3.json`
+- ` D src/renderer/public/models/cyrene/motions/动作#6_1.motion3.json`
+- ` D src/renderer/public/models/cyrene/motions/动作#6_2.motion3.json`
+- ` D src/renderer/public/models/cyrene/motions/动作#6_3.motion3.json`
+- ` D src/renderer/public/models/cyrene/texture_0.png`
+- ` M src/renderer/public/splash.html`
+- ` D src/renderer/react/assets/avatars/avatar-dark.png`
+- ` D src/renderer/react/assets/avatars/avatar-light.png`
+- ` D src/renderer/react/assets/status-float/提醒.png`
+- ` D src/renderer/react/assets/status-float/离线.png`
+- ` D src/renderer/react/assets/status-float/聆听中.png`
+- ` D src/renderer/react/assets/status-float/陪伴中.png`
+- ` D src/renderer/react/assets/status-moods/元气.png`
+- ` D src/renderer/react/assets/status-moods/学习.png`
+- ` D src/renderer/react/assets/status-moods/工作中.png`
+- ` D src/renderer/react/assets/status-moods/已中断.png`
+- ` D src/renderer/react/assets/status-moods/已处理.png`
+- ` D src/renderer/react/assets/status-moods/平静.png`
+- ` D src/renderer/react/assets/status-moods/思考中.png`
+- ` D src/renderer/react/assets/status-moods/思考强度.png`
+- ` D src/renderer/react/assets/status-moods/提醒.png`
+- ` D src/renderer/react/assets/status-moods/撒娇.png`
+- ` D src/renderer/react/assets/status-moods/治愈.png`
+- ` D src/renderer/react/assets/status-moods/温柔.png`
+- ` D src/renderer/react/assets/status-moods/知性.png`
+- ` D src/renderer/react/assets/status-moods/离线.png`
+- ` D src/renderer/react/assets/status-moods/自定义.png`
+- ` D src/renderer/react/assets/status-moods/连接中.png`
+- ` D src/renderer/react/assets/status-moods/陪伴中.png`
+- ` D src/renderer/react/assets/welcome/chat.png`
+- ` D src/renderer/react/assets/welcome/code.png`
+- ` D src/renderer/react/assets/welcome/learn.png`
+- ` D src/renderer/react/assets/welcome/work.png`
+- ` D src/renderer/react/avatars/万敌.png`
+- ` D src/renderer/react/avatars/丹恒.png`
+- ` D src/renderer/react/avatars/刻律德菈.png`
+- ` D src/renderer/react/avatars/昔涟.png`
+- ` D src/renderer/react/avatars/海瑟音.png`
+- ` D src/renderer/react/avatars/白厄.png`
+- ` D src/renderer/react/avatars/缇宝.png`
+- ` D src/renderer/react/avatars/赛飞儿.png`
+- ` D src/renderer/react/avatars/遐蝶.png`
+- ` D src/renderer/react/avatars/那刻夏.png`
+- ` D src/renderer/react/avatars/长夜月.png`
+- ` D src/renderer/react/avatars/阿格莱雅.png`
+- ` D src/renderer/react/avatars/风堇.png`
+- ` D src/renderer/settings/assets/netease-logo.svg`
+- ` D src/renderer/tast/万敌.png`
+- ` M src/renderer/tast/丹恒.png`
+- ` D src/renderer/tast/刻律德菈.png`
+- ` D src/renderer/tast/海瑟音.png`
+- ` D src/renderer/tast/白厄.png`
+- ` D src/renderer/tast/缇宝.png`
+- ` D src/renderer/tast/赛飞儿.png`
+- ` D src/renderer/tast/遐蝶.png`
+- ` D src/renderer/tast/那刻夏.png`
+- ` D src/renderer/tast/长夜月.png`
+- ` D src/renderer/tast/阿格莱雅.png`
+- ` D src/renderer/tast/风堇.png`
+- ` D src/renderer/toast/assets/toast-avatar.png`
+- ` D vendor/cloud-music-mcp/logo.png`
+- `?? prompts/moments_personas/三月七.md`
+- `?? prompts/moments_personas/刃.md`
+- `?? prompts/moments_personas/卡芙卡.md`
+- `?? prompts/moments_personas/大黑塔.md`
+- `?? prompts/moments_personas/姬子.md`
+- `?? prompts/moments_personas/帕姆.md`
+- `?? prompts/moments_personas/星期日.md`
+- `?? prompts/moments_personas/瓦尔特.md`
+- `?? prompts/moments_personas/知更鸟.md`
+- `?? prompts/moments_personas/艾利欧.md`
+- `?? prompts/moments_personas/银狼.md`
+- `?? prompts/worldbook/Firefly.md`
+- `?? prompts/worldbook/firefly-relations.md`
+- `?? src/renderer/tast/三月七.png`
+- `?? src/renderer/tast/刃.png`
+- `?? src/renderer/tast/卡夫卡.png`
+- `?? src/renderer/tast/大黑塔.png`
+- `?? src/renderer/tast/姬子.png`
+- `?? src/renderer/tast/帕姆.png`
+- `?? src/renderer/tast/星期日.png`
+- `?? src/renderer/tast/瓦尔特.png`
+- `?? src/renderer/tast/知更鸟.png`
+- `?? src/renderer/tast/艾利欧.png`
+- `?? src/renderer/tast/银狼.png`
+
+## 已跟踪生成副本删除（审核删除，不恢复）
+
+- ` D dist/renderer/avatars/cyrene-avatar.png`
+- ` D dist/renderer/icons/cyrene-avatar-line-white.png`
+- ` D dist/renderer/icons/cyrene-avatar-line.svg`
+- ` D dist/renderer/icons/cyrene-pink.png`
+- ` D dist/renderer/icons/cyrene-sun.png`
+- ` D dist/renderer/models/cyrene/Cyrene.model3.json`
+- ` D dist/renderer/models/cyrene/expressions/0.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/1.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/10.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/11.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/2.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/3.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/4.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/5.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/6.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/7.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/8.exp3.json`
+- ` D dist/renderer/models/cyrene/expressions/9.exp3.json`
+- ` D dist/renderer/models/cyrene/model.moc3`
+- ` D dist/renderer/models/cyrene/model.physics3.json`
+- ` D dist/renderer/models/cyrene/motions/Tick3_3.motion3.json`
+- ` D dist/renderer/models/cyrene/motions/动作#6_0.motion3.json`
+- ` D dist/renderer/models/cyrene/motions/动作#6_1.motion3.json`
+- ` D dist/renderer/models/cyrene/motions/动作#6_2.motion3.json`
+- ` D dist/renderer/models/cyrene/motions/动作#6_3.motion3.json`
+- ` D dist/renderer/models/cyrene/texture_0.png`
+
+## 生成副本（排除提交）
+
+- ` M dist/renderer/splash.html`
+- `?? dist/renderer/avatars/firefly-avatar.png`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_0_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_10_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_1_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_2_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_3_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_4_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_5_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_6_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_7_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_8_File_0.json`
+- `?? dist/renderer/models/firefly/Expressions/Expressions_9_File_0.json`
+- `?? dist/renderer/models/firefly/Firefly.model3.json`
+- `?? dist/renderer/models/firefly/Moc_0.moc3`
+- `?? dist/renderer/models/firefly/Motions/Motions_Tick2_0_File_0.json`
+- `?? dist/renderer/models/firefly/Motions/Motions_Tick2_1_File_0.json`
+- `?? dist/renderer/models/firefly/Motions/Motions_Tick2_2_File_0.json`
+- `?? dist/renderer/models/firefly/Motions/Motions_表情组_0_File_0.json`
+- `?? dist/renderer/models/firefly/Motions/Motions_表情组_1_File_0.json`
+- `?? dist/renderer/models/firefly/Motions/Motions_表情组_2_File_0.json`
+- `?? dist/renderer/models/firefly/Physics_0.json`
+- `?? dist/renderer/models/firefly/README.md`
+- `?? dist/renderer/models/firefly/Textures_0_0.png`

@@ -1,64 +1,23 @@
-﻿# Firefly-Pet 开发与贡献指南 (V1 Baseline)
+# Firefly 开发说明
 
-- **当前状态**：V1.0.0 COMPLETE (FROZEN)
-- **技术栈**：Electron + TypeScript + React 19 + PixiJS Live2D + Vite
+本分支以 Cyrene 的 Electron、TypeScript、React 和既有 Agent 运行架构为基础。功能与验证边界以 [README](./README.md) 和 [迁移记录](./docs/migration/firefly-reliability-and-submission-2026-09-25.md) 为准；远程旧版 Firefly 的 Python 入口和测试脚本不再属于当前运行链。
 
----
+## 环境与构建
 
-## 1. 工程规范与构建指令
+需要 Windows、Node.js 24、npm 10 及项目锁文件对应的依赖。
 
-### 开发模式
-```bash
-npm run dev
-```
-
-### 类型检查
-```bash
-npm run typecheck
-```
-
-### 正式构建
-```bash
+```powershell
+npm ci
+npm run check:renderer
 npm run build
 ```
 
----
+`npm run build` 生成 Main、Preload、CLI 和 Renderer，不制作安装器。开发模式使用 `npm run dev`。单元测试使用 `npm test`，局部测试使用 `npx vitest run <实际测试文件>`。
 
-## 2. 自动化测试套件
+原生截图助手源码位于 `native/cyrene-screenshot/`，构建入口是 `npm run build:screenshot-helper`。此步骤还需要 Rust/Cargo 的 Windows MSVC 工具链；编译出的 `resources/bin/cyrene-screenshot.exe` 是本地产物，不进入 Git。Windows 本地打包脚本见 `package.json` 和 `electron-builder.yml`。
 
-### Node.js 核心回归测试
-```bash
-# 执行全部 Node.js 测试
-npm test
+## 数据与发布
 
-# 或单独执行特定测试：
-node tools/test_firefly_agent_core_freeze.mjs
-node tools/test_firefly_agent_core_v1.mjs
-node tools/test_firefly_voice_v1.mjs
-node tools/test_llm_tts_live2d_chain.mjs
-node tools/test_music_system.mjs
-node tools/test_qqmusic_desktop_bridge.mjs
-```
+应用用户数据在 `%APPDATA%\Firefly`，包括设置、会话和日志。不要将用户数据、私有语音资源或构建产物复制进源码树。GPT-SoVITS 是用户自行配置的外部服务；自动更新保持关闭。流萤模型与其他素材的公开再分发范围、安装器和更新元数据仍需在发布前核实。
 
-### Python 资产与意图校验
-```bash
-python tools/validate_ai_intent.py
-python tools/validate_asset_structure.py
-python tools/validate_character_resources.py
-python tools/validate_firefly_assets.py
-python tools/validate_persistence.py
-```
-
-### 真实模型推理与 Electron 烟雾测试
-```bash
-node tools/verify_live_voice.mjs
-$env:ELECTRON_SMOKE_TEST="1"; npx electron .
-```
-
----
-
-## 3. 架构分层约定
-
-1. **Agent Core 纯粹性**：`src/main/agent/firefly-agent-core.ts` 严禁直接引入渲染层、UI 层、Live2D、TTS 或窗口对象，必须保持纯逻辑状态。
-2. **多进程通信**：所有主进程向渲染进程广播通过 `WindowManager.broadcast(channel, data)` 统一分发，信道常量必须集中定义在 `src/shared/ipc-channels.ts`。
-3. **音频处理原则**：真实语音推理仅通过 HTTP API 访问外部 GPT-SoVITS 服务，大型权重文件严禁复制入 Electron 代码仓库。
+保留现有 Agent Loop、工具权限、审批和任务状态所有者。修改提示词、角色卡或资源时，保留安全与任务执行约束。贡献流程和许可证见 [贡献指南](./.github/CONTRIBUTING.md)、[LICENSE](./LICENSE) 与 [第三方来源说明](./THIRD_PARTY_NOTICES.md)。

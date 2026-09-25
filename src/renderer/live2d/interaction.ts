@@ -1,196 +1,127 @@
-import type { FireflyLive2DManager } from "./manager";
+import type { Live2DModel } from "pixi-live2d-display/cubism4";
+import type { Live2DTarget } from "../../shared/live2d-actions";
 
-export type HitAreaType = "head" | "body" | "special";
-
-export interface HitAreaAbstraction {
-  /**
-   * Evaluates which logical hit area is targeted at canvas relative coordinates
-   */
-  hitTest(x: number, y: number, canvasWidth: number, canvasHeight: number): HitAreaType;
-}
-
-export class DefaultHitAreaAbstraction implements HitAreaAbstraction {
-  constructor(private managerGetter?: () => FireflyLive2DManager) {}
-
-  hitTest(x: number, y: number, canvasWidth: number, canvasHeight: number): HitAreaType {
-    const manager = this.managerGetter?.();
-    if (manager?.getIsLive2DAvailable()) {
-      const model = manager.getModel();
-      if (model) {
-        try {
-          const hitNames = model.hitTest(x, y);
-          if (Array.isArray(hitNames) && hitNames.length > 0) {
-            const lowerNames = hitNames.map((h: string) => h.toLowerCase());
-            if (lowerNames.some((h: string) => h.includes("head") || h.includes("hair") || h.includes("face"))) {
-              return "head";
-            }
-            if (lowerNames.some((h: string) => h.includes("special"))) {
-              return "special";
-            }
-            return "body";
-          }
-        } catch {
-          // Fallback to proportional calculation
-        }
-      }
-    }
-
-    const relY = y / canvasHeight;
-    // Top 38% represents head (摸头), remainder is body (点击)
-    if (relY < 0.38) {
-      return "head";
-    }
-    return "body";
-  }
+/**
+ * Resolved description of a single hit area and the motion/expression it triggers.
+ *
+ * The model's HitAreas use a "group:motionName" trigger string. Some entries
+ * point at real motion files, while others are expression-only pseudo motions,
+ * so both paths are resolved here.
+ */
+export interface HitAreaDef {
+  name: string;
+  id: string;
+  target: Live2DTarget;
 }
 
 export interface InteractionOptions {
-  hitArea?: HitAreaAbstraction;
-  alphaThreshold?: number;
-  dragDistanceThreshold?: number;
-  onPetClick?: () => void;
-  onPetPet?: () => void;
-  onPetDragStart?: () => void;
-  onPetDragEnd?: () => void;
-  onContextMenu?: () => void;
+  /**
+   * Max pointer travel (in CSS pixels) between pointerdown and pointerup
+   * for the gesture to still count as a click.
+   */
+  clickThreshold?: number;
+  onTrigger?: (area: HitAreaDef) => void;
+  onMiss?: (area: HitAreaDef) => void;
+  playAction?: (target: Live2DTarget) => Promise<boolean>;
 }
 
+/**
+ * Maps pointer clicks on the Live2D canvas to model hit-area actions.
+ */
 export class InteractionController {
   private readonly canvas: HTMLCanvasElement;
-  private readonly manager: FireflyLive2DManager;
-  private readonly hitArea: HitAreaAbstraction;
-  private readonly alphaThreshold: number;
-  private readonly dragThreshold: number;
-  private readonly options: InteractionOptions;
+  private readonly model: Live2DModel;
+  private readonly hitAreaByName: Map<string, HitAreaDef>;
+  private readonly clickThreshold: number;
+  private readonly onTrigger?: (area: HitAreaDef) => void;
+  private readonly onMiss?: (area: HitAreaDef) => void;
+  private readonly playAction?: (target: Live2DTarget) => Promise<boolean>;
 
-  private isPotentialDrag = false;
-  private isDragging = false;
-  private startScreenX = 0;
-  private startScreenY = 0;
-  private lastScreenX = 0;
-  private lastScreenY = 0;
-  private startClientX = 0;
-  private startClientY = 0;
-  private startTime = 0;
+  private downHits: HitAreaDef[] = [];
+  private downPointerId: number | null = null;
+  private downScreenX = 0;
+  private downScreenY = 0;
+  private playing = false;
   private disposed = false;
 
   constructor(
     canvas: HTMLCanvasElement,
-    manager: FireflyLive2DManager,
+    model: Live2DModel,
+    hitAreaDefs: HitAreaDef[],
     options: InteractionOptions = {},
   ) {
     this.canvas = canvas;
-    this.manager = manager;
-    this.hitArea = options.hitArea ?? new DefaultHitAreaAbstraction();
-    this.alphaThreshold = options.alphaThreshold ?? 15;
-    this.dragThreshold = options.dragDistanceThreshold ?? 5;
-    this.options = options;
+    this.model = model;
+    this.clickThreshold = options.clickThreshold ?? 5;
+    this.onTrigger = options.onTrigger;
+    this.onMiss = options.onMiss;
+    this.playAction = options.playAction;
+    this.hitAreaByName = new Map(hitAreaDefs.map((a) => [a.name, a]));
 
-    window.addEventListener("pointerdown", this.handleDown);
-    window.addEventListener("pointermove", this.handleMove);
-    window.addEventListener("pointerup", this.handleUp);
-    window.addEventListener("pointercancel", this.handleCancel);
-    window.addEventListener("contextmenu", this.handleContextMenu);
+    canvas.addEventListener("pointerdown", this.handleDown);
+    canvas.addEventListener("pointerup", this.handleUp);
+    canvas.addEventListener("pointercancel", this.handleCancel);
   }
-
-  public getIsDragging(): boolean {
-    return this.isDragging;
-  }
-
-  private handleContextMenu = (e: MouseEvent): void => {
-    if (this.disposed) return;
-    const alpha = this.manager.getPixelAlpha(e.clientX, e.clientY);
-    if (alpha >= this.alphaThreshold) {
-      e.preventDefault();
-      this.options.onContextMenu?.();
-    }
-  };
 
   private handleDown = (e: PointerEvent): void => {
-    if (this.disposed) return;
-    if (e.button !== 0) return; // Left button only
-
-    const alpha = this.manager.getPixelAlpha(e.clientX, e.clientY);
-    if (alpha < this.alphaThreshold) return;
-
-    this.isPotentialDrag = true;
-    this.isDragging = false;
-    this.startScreenX = e.screenX;
-    this.startScreenY = e.screenY;
-    this.lastScreenX = e.screenX;
-    this.lastScreenY = e.screenY;
-    this.startClientX = e.clientX;
-    this.startClientY = e.clientY;
-    this.startTime = Date.now();
-  };
-
-  private handleMove = (e: PointerEvent): void => {
-    if (this.disposed || !this.isPotentialDrag) return;
-
-    const totalDist = Math.hypot(e.screenX - this.startScreenX, e.screenY - this.startScreenY);
-
-    if (!this.isDragging && totalDist >= this.dragThreshold) {
-      this.isDragging = true;
-      window.firefly?.setDragging(true);
-      this.options.onPetDragStart?.();
-    }
-
-    if (this.isDragging) {
-      const dx = e.screenX - this.lastScreenX;
-      const dy = e.screenY - this.lastScreenY;
-      this.lastScreenX = e.screenX;
-      this.lastScreenY = e.screenY;
-      window.firefly?.moveBy(dx, dy);
-    }
+    if (this.disposed || e.button !== 0) return;
+    this.downPointerId = e.pointerId;
+    this.downScreenX = e.screenX;
+    this.downScreenY = e.screenY;
+    this.downHits = this.resolveHits(e.clientX, e.clientY);
   };
 
   private handleUp = (e: PointerEvent): void => {
-    if (this.disposed || !this.isPotentialDrag) return;
-    this.isPotentialDrag = false;
-
-    if (this.isDragging) {
-      this.isDragging = false;
-      window.firefly?.setDragging(false);
-      this.options.onPetDragEnd?.();
-      return;
-    }
-
-    // It was a click/touch interaction
-    const totalDist = Math.hypot(e.screenX - this.startScreenX, e.screenY - this.startScreenY);
-    const duration = Date.now() - this.startTime;
-
-    if (totalDist < this.dragThreshold && duration < 600) {
-      const targetArea = this.hitArea.hitTest(
-        this.startClientX,
-        this.startClientY,
-        this.canvas.width,
-        this.canvas.height,
-      );
-
-      if (targetArea === "head") {
-        this.options.onPetPet?.();
-      } else {
-        this.options.onPetClick?.();
-      }
-    }
+    if (this.disposed || e.pointerId !== this.downPointerId) return;
+    this.downPointerId = null;
+    const dx = e.screenX - this.downScreenX;
+    const dy = e.screenY - this.downScreenY;
+    const dist = Math.hypot(dx, dy);
+    const hits = this.downHits;
+    this.downHits = [];
+    if (dist > this.clickThreshold || this.resolveHits(e.clientX, e.clientY).every((area) => !hits.includes(area))) return;
+    void this.fire(hits);
   };
 
   private handleCancel = (): void => {
-    if (this.isDragging) {
-      this.isDragging = false;
-      window.firefly?.setDragging(false);
-      this.options.onPetDragEnd?.();
-    }
-    this.isPotentialDrag = false;
+    this.downPointerId = null;
+    this.downHits = [];
   };
+
+  private resolveHits(x: number, y: number): HitAreaDef[] {
+    const names = this.model.hitTest(x, y);
+    if (!names || names.length === 0) return [];
+    const defs: HitAreaDef[] = [];
+    for (const name of names) {
+      const def = this.hitAreaByName.get(name);
+      if (def) defs.push(def);
+    }
+    return defs;
+  }
+
+  private async fire(hits: HitAreaDef[]): Promise<void> {
+    if (hits.length === 0 || this.playing) return;
+    this.playing = true;
+
+    try {
+      for (let i = 0; i < hits.length; i++) {
+        const def = hits[i];
+        if (await this.playAction?.(def.target)) {
+          this.onTrigger?.(def);
+          return;
+        }
+        if (i === 0) this.onMiss?.(def);
+      }
+    } finally {
+      this.playing = false;
+    }
+  }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    window.removeEventListener("pointerdown", this.handleDown);
-    window.removeEventListener("pointermove", this.handleMove);
-    window.removeEventListener("pointerup", this.handleUp);
-    window.removeEventListener("pointercancel", this.handleCancel);
-    window.removeEventListener("contextmenu", this.handleContextMenu);
+    this.canvas.removeEventListener("pointerdown", this.handleDown);
+    this.canvas.removeEventListener("pointerup", this.handleUp);
+    this.canvas.removeEventListener("pointercancel", this.handleCancel);
   }
 }

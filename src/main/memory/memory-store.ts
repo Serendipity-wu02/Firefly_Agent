@@ -1,402 +1,750 @@
-import fs from "node:fs";
-import path from "node:path";
-import type {
-  MemoryRecord,
-  EntityNode,
-  RelationEdge,
-  PreferenceItem,
-  MemoryLayer,
-  MemoryScope,
-  MemoryCategory,
-  MemoryStoreSnapshot,
-} from "./memory-types";
+import { ConflictLog, L0Profile, L1Profile, L2DmaeState, L2Memory, L2SyncStatus, MemoryConflictResolution, MemoryEvidence, MemoryStore, ReflectionLog } from "./memory-types"
+import { appendMemoryTrace } from "./memory-trace"
+import { isImportingMemory } from "./obsidian-sync-flag"
+import {
+  CURRENT_MEMORY_SCHEMA_VERSION,
+  boundMemorySnippet,
+  createDefaultMemoryStore,
+  extractMemoryKeywords,
+} from "./memory-store-defaults"
+import { repairMigrations } from "./memory-store-migrations"
+import {
+  backupMemoryFile,
+  memoryFileExists,
+  readMemoryFile,
+  resolveMemoryPath,
+  writeMemoryFile,
+} from "./memory-store-io"
 
-export interface MemoryFilter {
-  layer?: MemoryLayer;
-  scope?: MemoryScope;
-  category?: MemoryCategory;
-  key?: string;
+export { repairMigrations }
+
+const QUOTE_SNIPPET_MAX = 300
+const RESOLVER_PRIORITY_RANK: Record<string, number> = {
+  high: 3,
+  normal: 2,
+  idle: 1,
+  none: 0,
 }
 
-export interface IMemoryStore {
-  saveRecord(record: MemoryRecord): Promise<void>;
-  getRecord(id: string): Promise<MemoryRecord | undefined>;
-  deleteRecord(id: string): Promise<boolean>;
-  listRecords(filter?: MemoryFilter): Promise<readonly MemoryRecord[]>;
+export type L0WritableField = Exclude<keyof L0Profile, "updatedAt">
+export type L1WritableField = keyof L1Profile
+export type L2Input = Omit<L2Memory, "id" | "createdAt" | "lastAccessedAt" | "accessCount" | "weight" | "status" | "keywords">
 
-  saveEntity(entity: EntityNode): Promise<void>;
-  getEntity(id: string): Promise<EntityNode | undefined>;
-  deleteEntity(id: string): Promise<boolean>;
-  listEntities(scope?: MemoryScope): Promise<readonly EntityNode[]>;
+class MemoryStoreManager {
+  private cache: MemoryStore | null = null
 
-  saveRelation(relation: RelationEdge): Promise<void>;
-  getRelation(id: string): Promise<RelationEdge | undefined>;
-  deleteRelation(id: string): Promise<boolean>;
-  listRelations(scope?: MemoryScope): Promise<readonly RelationEdge[]>;
-
-  savePreference(pref: PreferenceItem): Promise<void>;
-  getPreference(id: string): Promise<PreferenceItem | undefined>;
-  deletePreference(id: string): Promise<boolean>;
-  listPreferences(scope?: MemoryScope): Promise<readonly PreferenceItem[]>;
-
-  clear(): Promise<void>;
-  reload(): Promise<void>;
-  flush(): Promise<boolean>;
-}
-
-/**
- * 纯内存存储器 (InMemoryMemoryStore) - 适用于高速单测与无盘运行环境
- */
-export class InMemoryMemoryStore implements IMemoryStore {
-  private readonly records = new Map<string, MemoryRecord>();
-  private readonly entities = new Map<string, EntityNode>();
-  private readonly relations = new Map<string, RelationEdge>();
-  private readonly preferences = new Map<string, PreferenceItem>();
-
-  async saveRecord(record: MemoryRecord): Promise<void> {
-    this.records.set(record.id, { ...record });
-  }
-
-  async getRecord(id: string): Promise<MemoryRecord | undefined> {
-    const item = this.records.get(id);
-    return item ? { ...item } : undefined;
-  }
-
-  async deleteRecord(id: string): Promise<boolean> {
-    return this.records.delete(id);
-  }
-
-  async listRecords(filter?: MemoryFilter): Promise<readonly MemoryRecord[]> {
-    let result = Array.from(this.records.values());
-    if (filter) {
-      if (filter.layer) result = result.filter((r) => r.layer === filter.layer);
-      if (filter.scope) result = result.filter((r) => r.scope === filter.scope);
-      if (filter.category) result = result.filter((r) => r.category === filter.category);
-      if (filter.key) result = result.filter((r) => r.key === filter.key);
+  async load(): Promise<MemoryStore> {
+    if (this.cache) return this.cache
+    const filePath = resolveMemoryPath()
+    if (!filePath) {
+      this.cache = createDefaultMemoryStore()
+      return this.cache
     }
-    return result.map((r) => ({ ...r }));
-  }
-
-  async saveEntity(entity: EntityNode): Promise<void> {
-    this.entities.set(entity.id, { ...entity });
-  }
-
-  async getEntity(id: string): Promise<EntityNode | undefined> {
-    const item = this.entities.get(id);
-    return item ? { ...item } : undefined;
-  }
-
-  async deleteEntity(id: string): Promise<boolean> {
-    return this.entities.delete(id);
-  }
-
-  async listEntities(scope?: MemoryScope): Promise<readonly EntityNode[]> {
-    let result = Array.from(this.entities.values());
-    if (scope) result = result.filter((e) => e.scope === scope);
-    return result.map((e) => ({ ...e }));
-  }
-
-  async saveRelation(relation: RelationEdge): Promise<void> {
-    this.relations.set(relation.id, { ...relation });
-  }
-
-  async getRelation(id: string): Promise<RelationEdge | undefined> {
-    const item = this.relations.get(id);
-    return item ? { ...item } : undefined;
-  }
-
-  async deleteRelation(id: string): Promise<boolean> {
-    return this.relations.delete(id);
-  }
-
-  async listRelations(scope?: MemoryScope): Promise<readonly RelationEdge[]> {
-    let result = Array.from(this.relations.values());
-    if (scope) result = result.filter((r) => r.scope === scope);
-    return result.map((r) => ({ ...r }));
-  }
-
-  async savePreference(pref: PreferenceItem): Promise<void> {
-    this.preferences.set(pref.id, { ...pref });
-  }
-
-  async getPreference(id: string): Promise<PreferenceItem | undefined> {
-    const item = this.preferences.get(id);
-    return item ? { ...item } : undefined;
-  }
-
-  async deletePreference(id: string): Promise<boolean> {
-    return this.preferences.delete(id);
-  }
-
-  async listPreferences(scope?: MemoryScope): Promise<readonly PreferenceItem[]> {
-    let result = Array.from(this.preferences.values());
-    if (scope) result = result.filter((p) => p.scope === scope);
-    return result.map((p) => ({ ...p }));
-  }
-
-  async clear(): Promise<void> {
-    this.records.clear();
-    this.entities.clear();
-    this.relations.clear();
-    this.preferences.clear();
-  }
-
-  async reload(): Promise<void> {
-    // In-memory store does not reload from disk
-  }
-
-  async flush(): Promise<boolean> {
-    return true;
-  }
-}
-
-export interface FileMemoryStoreOptions {
-  filePath: string;
-  legacyV1Path?: string;
-}
-
-/**
- * 文件持久化存储器 (FileMemoryStore)
- *
- * 具备特性：
- * 1. 原子持久化：采用写入 ${filePath}.tmp 并重命名保障崩溃安全；
- * 2. 模式版本校验：确保 snapshot.version 严格匹配（当前 version: 1）；
- * 3. 损坏恢复与备份：遇到非法 JSON 自动备份损坏文件并以空集合恢复，防止崩溃；
- * 4. V1 向后兼容只读读取：当 memory_v2.json 不存在时可无缝兼容读取 legacy memory.json。
- */
-export class FileMemoryStore implements IMemoryStore {
-  private readonly filePath: string;
-  private readonly legacyV1Path?: string;
-  private readonly memoryStore = new InMemoryMemoryStore();
-  private isLoaded = false;
-
-  constructor(options: FileMemoryStoreOptions) {
-    this.filePath = options.filePath;
-    this.legacyV1Path = options.legacyV1Path;
-  }
-
-  private async ensureLoaded(): Promise<void> {
-    if (!this.isLoaded) {
-      await this.reload();
-    }
-  }
-
-  async reload(): Promise<void> {
-    await this.memoryStore.clear();
-
-    if (fs.existsSync(this.filePath)) {
-      try {
-        const raw = await fs.promises.readFile(this.filePath, "utf-8");
-        const json = JSON.parse(raw);
-
-        if (json && typeof json === "object" && Array.isArray(json.records)) {
-          if (json.version !== 1) {
-            console.warn(`[FileMemoryStore] Unsupported schema version: ${json.version}`);
-          }
-          for (const rec of json.records) {
-            if (rec && typeof rec.id === "string" && typeof rec.key === "string") {
-              await this.memoryStore.saveRecord(rec);
-            }
-          }
-          if (Array.isArray(json.entities)) {
-            for (const ent of json.entities) {
-              if (ent && typeof ent.id === "string") {
-                await this.memoryStore.saveEntity(ent);
-              }
-            }
-          }
-          if (Array.isArray(json.relations)) {
-            for (const rel of json.relations) {
-              if (rel && typeof rel.id === "string") {
-                await this.memoryStore.saveRelation(rel);
-              }
-            }
-          }
-          if (Array.isArray(json.preferences)) {
-            for (const pref of json.preferences) {
-              if (pref && typeof pref.id === "string") {
-                await this.memoryStore.savePreference(pref);
-              }
-            }
-          }
-          this.isLoaded = true;
-          return;
-        }
-      } catch (err) {
-        console.warn(`[FileMemoryStore] Corrupt memory file at "${this.filePath}", backing up:`, err);
-        const backupPath = `${this.filePath}.corrupt.${Date.now()}.bak`;
-        try {
-          await fs.promises.rename(this.filePath, backupPath);
-        } catch {
-          // ignore rename error
-        }
-      }
-    }
-
-    // Fallback: Read Legacy V1 memory.json if available
-    if (this.legacyV1Path && fs.existsSync(this.legacyV1Path)) {
-      try {
-        const legacyRaw = await fs.promises.readFile(this.legacyV1Path, "utf-8");
-        const legacyJson = JSON.parse(legacyRaw);
-        if (Array.isArray(legacyJson)) {
-          for (const item of legacyJson) {
-            if (item && typeof item.key === "string" && typeof item.value === "string") {
-              const keyHex = Buffer.from(item.key).toString("hex");
-              const rec: MemoryRecord = {
-                id: `mem_v1_${keyHex}`,
-                layer: "L2_SEMANTIC",
-                category: "profile",
-                scope: "user",
-                key: item.key.trim(),
-                value: item.value.trim(),
-                importance: 0.8,
-                confidence: 1.0,
-                accessCount: 1,
-                createdAt: Date.now(),
-                updatedAt: item.updatedAt ? new Date(item.updatedAt).getTime() : Date.now(),
-                lastAccessedAt: Date.now(),
-                source: item.source || "legacy_v1_import",
-                pinned: true,
-              };
-              await this.memoryStore.saveRecord(rec);
-            }
-          }
-        }
-      } catch (legacyErr) {
-        console.warn(`[FileMemoryStore] Failed to read legacy V1 memory from "${this.legacyV1Path}":`, legacyErr);
-      }
-    }
-
-    this.isLoaded = true;
-  }
-
-  async flush(): Promise<boolean> {
-    await this.ensureLoaded();
     try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) {
-        await fs.promises.mkdir(dir, { recursive: true });
+      if (memoryFileExists(filePath)) {
+        const parsed = readMemoryFile(filePath)
+        const needsMigration = parsed.schemaVersion !== CURRENT_MEMORY_SCHEMA_VERSION
+        this.cache = repairMigrations(parsed)
+        if (needsMigration) {
+          backupMemoryFile(filePath)
+          await this.save(this.cache)
+          appendMemoryTrace({
+            op: "migration.upgrade",
+            layer: "migration",
+            status: "ok",
+            details: { schemaVersion: CURRENT_MEMORY_SCHEMA_VERSION },
+          })
+        }
+      } else {
+        this.cache = createDefaultMemoryStore()
+        await this.save(this.cache)
+        appendMemoryTrace({
+          op: "store.init",
+          layer: "store",
+          status: "ok",
+          details: { schemaVersion: CURRENT_MEMORY_SCHEMA_VERSION },
+        })
       }
-
-      const records = Array.from(await this.memoryStore.listRecords());
-      const entities = Array.from(await this.memoryStore.listEntities());
-      const relations = Array.from(await this.memoryStore.listRelations());
-      const preferences = Array.from(await this.memoryStore.listPreferences());
-
-      const snapshot: MemoryStoreSnapshot = {
-        version: 1,
-        updatedAt: Date.now(),
-        records,
-        entities,
-        relations,
-        preferences,
-      };
-
-      const tmpPath = `${this.filePath}.tmp.${Date.now()}`;
-      await fs.promises.writeFile(tmpPath, JSON.stringify(snapshot, null, 2), "utf-8");
-      await fs.promises.rename(tmpPath, this.filePath);
-      return true;
     } catch (err) {
-      console.warn(`[FileMemoryStore] Failed to flush memory snapshot to "${this.filePath}":`, err);
-      return false;
+      try {
+        backupMemoryFile(filePath)
+      } catch {
+        // 如果连备份也失败，仍然生成干净默认文件，避免主流程被记忆文件阻塞。
+      }
+      this.cache = createDefaultMemoryStore()
+      await this.save(this.cache)
+      appendMemoryTrace({
+        op: "migration.recoverDefault",
+        layer: "migration",
+        status: "error",
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    return this.cache
+  }
+
+  async save(store: MemoryStore): Promise<void> {
+    const filePath = resolveMemoryPath()
+    if (!filePath) {
+      this.cache = store
+      return
+    }
+    writeMemoryFile(filePath, store)
+    this.cache = store
+    // 通知 Obsidian vault 绑定：记忆已变更，防抖触发自动同步
+    // 回流（Obsidian→PMRS）期间同步跳过，避免双向循环。标志读取是同步的（leaf 模块），
+    // 动态 import 仅为避免循环依赖（obsidian-exporter 反向依赖 memoryStore）。
+    if (isImportingMemory()) return
+    import("./obsidian-exporter").then(({ notifyMemoryChanged }) => notifyMemoryChanged()).catch(() => {})
+  }
+
+  async getL0(): Promise<L0Profile> {
+    const store = await this.load()
+    return store.l0
+  }
+
+  async upsertL0Field(field: L0WritableField, value: L0Profile[L0WritableField]): Promise<void> {
+    const store = await this.load()
+    store.l0 = { ...store.l0, [field]: value, updatedAt: Date.now() }
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l0.update",
+      layer: "L0",
+      status: "ok",
+      details: { fields: [field] },
+    })
+  }
+
+  async updateL0(patch: Partial<L0Profile>): Promise<void> {
+    for (const [field, value] of Object.entries(patch) as Array<[keyof L0Profile, L0Profile[keyof L0Profile]]>) {
+      if (field === "updatedAt") continue
+      await this.upsertL0Field(field, value as L0Profile[L0WritableField])
     }
   }
 
-  async saveRecord(record: MemoryRecord): Promise<void> {
-    await this.ensureLoaded();
-    await this.memoryStore.saveRecord(record);
-    await this.flush();
+  async getL1(): Promise<L1Profile> {
+    const store = await this.load()
+    return store.l1
   }
 
-  async getRecord(id: string): Promise<MemoryRecord | undefined> {
-    await this.ensureLoaded();
-    return this.memoryStore.getRecord(id);
+  async replaceL1Field(field: L1WritableField, value: L1Profile[L1WritableField]): Promise<void> {
+    const store = await this.load()
+    store.l1 = { ...store.l1, [field]: value }
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l1.update",
+      layer: "L1",
+      status: "ok",
+      details: { fields: [field] },
+    })
   }
 
-  async deleteRecord(id: string): Promise<boolean> {
-    await this.ensureLoaded();
-    const deleted = await this.memoryStore.deleteRecord(id);
-    if (deleted) await this.flush();
-    return deleted;
+  async updateL1(patch: Partial<L1Profile>): Promise<void> {
+    for (const [field, value] of Object.entries(patch) as Array<[L1WritableField, L1Profile[L1WritableField]]>) {
+      await this.replaceL1Field(field, value)
+    }
   }
 
-  async listRecords(filter?: MemoryFilter): Promise<readonly MemoryRecord[]> {
-    await this.ensureLoaded();
-    return this.memoryStore.listRecords(filter);
+  async addL2Memory(input: L2Input): Promise<L2Memory> {
+    const store = await this.load()
+    const memory: L2Memory = {
+      ...input,
+      id: `l2_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: Date.now(),
+      lastAccessedAt: Date.now(),
+      accessCount: 0,
+      weight: 0,
+      status: "active",
+      syncStatus: input.syncStatus ?? (input.ragId ? "synced" : "pending_sync"),
+      evidenceIds: Array.isArray(input.evidenceIds) ? input.evidenceIds : [],
+      keywords: extractMemoryKeywords(`${input.content} ${input.triggerText}`),
+    }
+    const evidence = this.createEvidence(memory, input)
+    memory.evidenceIds = [...(memory.evidenceIds ?? []), evidence.id]
+    store.l2.push(memory)
+    if (!store.evidence) store.evidence = []
+    store.evidence.push(evidence)
+    if (!store.l2DmaeStates) store.l2DmaeStates = []
+    store.l2DmaeStates.push({
+      l2Id: memory.id,
+      activation: 0,
+      intrinsicValue: 0,
+      userSilence: 0,
+      modelSilence: 0,
+      recentUserHits: [],
+      state: "archived",
+    })
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l2.add",
+      layer: "L2",
+      status: "ok",
+      l2Id: memory.id,
+      ragId: memory.ragId,
+      details: { isSummary: memory.isSummary === true, syncStatus: memory.syncStatus },
+    })
+    appendMemoryTrace({
+      op: "evidence.add",
+      layer: "L2",
+      status: "ok",
+      l2Id: memory.id,
+      details: { evidenceId: evidence.id, sourceStatus: evidence.sourceStatus },
+    })
+    return memory
   }
 
-  async saveEntity(entity: EntityNode): Promise<void> {
-    await this.ensureLoaded();
-    await this.memoryStore.saveEntity(entity);
-    await this.flush();
+  private createEvidence(memory: L2Memory, input: L2Input): MemoryEvidence {
+    return {
+      id: `ev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      memoryId: memory.id,
+      quoteSnippet: boundMemorySnippet(input.triggerText || input.content, QUOTE_SNIPPET_MAX) ?? "",
+      conversationId: input.sourceConversationId || undefined,
+      messageIds: input.sourceMessageIds,
+      createdAt: Date.now(),
+      sourceStatus: "active",
+    }
   }
 
-  async getEntity(id: string): Promise<EntityNode | undefined> {
-    await this.ensureLoaded();
-    return this.memoryStore.getEntity(id);
+  async addL2(input: L2Input): Promise<L2Memory> {
+    return this.addL2Memory(input)
   }
 
-  async deleteEntity(id: string): Promise<boolean> {
-    await this.ensureLoaded();
-    const deleted = await this.memoryStore.deleteEntity(id);
-    if (deleted) await this.flush();
-    return deleted;
+  async updateL2RecallStats(id: string, delta = 1): Promise<void> {
+    const store = await this.load()
+    const mem = store.l2.find((m) => m.id === id)
+    if (!mem) return
+    if (mem.status !== "active" && mem.status !== "aging") {
+      appendMemoryTrace({
+        op: "l2.weight.update",
+        layer: "L2",
+        status: "skip",
+        l2Id: mem.id,
+        ragId: mem.ragId,
+        details: { delta, memoryStatus: mem.status, reason: "not_recallable" },
+      })
+      return
+    }
+    const previousStatus = mem.status
+    mem.weight = Math.max(0, Math.min(100, mem.weight + delta))
+    mem.lastAccessedAt = Date.now()
+    mem.accessCount += 1
+    if (mem.isPinned || previousStatus === "active") {
+      mem.status = "active"
+    } else if (mem.weight >= 30) {
+      mem.status = "active"
+    } else {
+      mem.status = "aging"
+    }
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l2.weight.update",
+      layer: "L2",
+      status: "ok",
+      l2Id: mem.id,
+      ragId: mem.ragId,
+      details: { delta, weight: mem.weight, accessCount: mem.accessCount, memoryStatus: mem.status },
+    })
   }
 
-  async listEntities(scope?: MemoryScope): Promise<readonly EntityNode[]> {
-    await this.ensureLoaded();
-    return this.memoryStore.listEntities(scope);
+  async pinL2(id: string, pinned: boolean): Promise<void> {
+    const store = await this.load()
+    const mem = store.l2.find((m) => m.id === id)
+    if (!mem) return
+    mem.isPinned = pinned
+    if (pinned) {
+      mem.status = "active"
+    } else if (mem.weight > 60) {
+      mem.status = "active"
+    } else if (mem.weight >= 30) {
+      mem.status = "active"
+    } else if (mem.weight >= 10) {
+      mem.status = "aging"
+    } else {
+      mem.status = "archived"
+    }
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l2.pin",
+      layer: "L2",
+      status: "ok",
+      l2Id: mem.id,
+      ragId: mem.ragId,
+      details: { pinned, memoryStatus: mem.status },
+    })
   }
 
-  async saveRelation(relation: RelationEdge): Promise<void> {
-    await this.ensureLoaded();
-    await this.memoryStore.saveRelation(relation);
-    await this.flush();
+  async deleteL2(id: string): Promise<void> {
+    const store = await this.load()
+    store.l2 = store.l2.filter((m) => m.id !== id)
+    store.evidence = (store.evidence ?? []).filter((evidence) => evidence.memoryId !== id)
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l2.delete",
+      layer: "L2",
+      status: "ok",
+      l2Id: id,
+    })
   }
 
-  async getRelation(id: string): Promise<RelationEdge | undefined> {
-    await this.ensureLoaded();
-    return this.memoryStore.getRelation(id);
+  async updateL2Weight(id: string, delta: number): Promise<void> {
+    await this.updateL2RecallStats(id, delta)
   }
 
-  async deleteRelation(id: string): Promise<boolean> {
-    await this.ensureLoaded();
-    const deleted = await this.memoryStore.deleteRelation(id);
-    if (deleted) await this.flush();
-    return deleted;
+  async markL2SyncStatus(id: string, syncStatus: L2SyncStatus, ragId?: string, error?: unknown): Promise<L2Memory | null> {
+    const store = await this.load()
+    const mem = store.l2.find((m) => m.id === id)
+    if (!mem) return null
+    mem.syncStatus = syncStatus
+    if (ragId) mem.ragId = ragId
+    await this.save(store)
+    appendMemoryTrace({
+      op: syncStatus === "synced" ? "l2.sync.success" : syncStatus === "sync_failed" ? "l2.sync.failure" : "l2.sync.pending",
+      layer: "L2",
+      status: syncStatus === "sync_failed" ? "error" : "ok",
+      l2Id: mem.id,
+      ragId: mem.ragId,
+      details: { syncStatus },
+      error: error instanceof Error ? error.message : error ? String(error) : null,
+    })
+    return mem
   }
 
-  async listRelations(scope?: MemoryScope): Promise<readonly RelationEdge[]> {
-    await this.ensureLoaded();
-    return this.memoryStore.listRelations(scope);
+  async markL2Conflict(id: string, conflictRagId: string): Promise<L2Memory | null> {
+    const store = await this.load()
+    const mem = store.l2.find((m) => m.id === id)
+    if (!mem) return null
+    const conflicts = mem.conflictWith ?? []
+    if (conflicts.includes(conflictRagId)) return null
+
+    mem.conflictWith = [...conflicts, conflictRagId]
+    if (!mem.isPinned && mem.status === "active") {
+      mem.status = "aging"
+    }
+
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l2.conflict.mark",
+      layer: "L2",
+      status: "ok",
+      l2Id: mem.id,
+      ragId: mem.ragId,
+      details: { conflictRagId, memoryStatus: mem.status },
+    })
+    return mem
   }
 
-  async savePreference(pref: PreferenceItem): Promise<void> {
-    await this.ensureLoaded();
-    await this.memoryStore.savePreference(pref);
-    await this.flush();
+  /**
+   * 仅更新某条 L2 的正文 content（用于 Obsidian 回流）。
+   * 不触碰 status / weight / createdAt 等运行时字段。
+   * 正文变化时同步重算 keywords（DMAE 命中检测依赖），并置 pending_sync：
+   * 向量重建完成前该记忆不可被语义召回，防止检索命中旧向量里的旧文本。
+   * 返回更新后的记忆；若 id 不存在或内容未变化则跳过保存（返回原记忆或 null）。
+   */
+  async updateL2Content(id: string, content: string): Promise<L2Memory | null> {
+    const store = await this.load()
+    const mem = store.l2.find((m) => m.id === id)
+    if (!mem) return null
+    if (mem.content === content) return mem
+    mem.content = content
+    mem.keywords = extractMemoryKeywords(`${content} ${mem.triggerText}`)
+    mem.syncStatus = "pending_sync"
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l2.import-content",
+      layer: "L2",
+      status: "ok",
+      l2Id: mem.id,
+      ragId: mem.ragId,
+      details: { source: "obsidian-import" },
+    })
+    return mem
   }
 
-  async getPreference(id: string): Promise<PreferenceItem | undefined> {
-    await this.ensureLoaded();
-    return this.memoryStore.getPreference(id);
+  async getAllL2(): Promise<L2Memory[]> {
+    const store = await this.load()
+    return store.l2
   }
 
-  async deletePreference(id: string): Promise<boolean> {
-    await this.ensureLoaded();
-    const deleted = await this.memoryStore.deletePreference(id);
-    if (deleted) await this.flush();
-    return deleted;
+  async getEvidenceByMemoryId(memoryId: string): Promise<MemoryEvidence[]> {
+    const store = await this.load()
+    return (store.evidence ?? []).filter((evidence) => evidence.memoryId === memoryId)
   }
 
-  async listPreferences(scope?: MemoryScope): Promise<readonly PreferenceItem[]> {
-    await this.ensureLoaded();
-    return this.memoryStore.listPreferences(scope);
+  async appendReflectionLog(log: Omit<ReflectionLog, "id" | "createdAt">): Promise<void> {
+    const store = await this.load()
+    const entry: ReflectionLog = {
+      ...log,
+      id: `ref_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: Date.now(),
+    }
+    if (!store.reflectionLogs) store.reflectionLogs = []
+    store.reflectionLogs.push(entry)
+    // 最多保留 50 条日志，防止文件膨胀
+    if (store.reflectionLogs.length > 50) {
+      store.reflectionLogs = store.reflectionLogs.slice(-50)
+    }
+    await this.save(store)
+    appendMemoryTrace({
+      op: "reflection.log.add",
+      layer: "reflection",
+      status: "ok",
+      details: { type: entry.type, id: entry.id },
+    })
   }
 
-  async clear(): Promise<void> {
-    await this.ensureLoaded();
-    await this.memoryStore.clear();
-    await this.flush();
+  async addReflectionLog(log: Omit<ReflectionLog, "id" | "createdAt">): Promise<void> {
+    await this.appendReflectionLog(log)
+  }
+
+  async getReflectionLogs(): Promise<ReflectionLog[]> {
+    const store = await this.load()
+    return store.reflectionLogs ?? []
+  }
+
+  async appendConflictLog(log: Omit<ConflictLog, "id" | "createdAt">): Promise<ConflictLog> {
+    const store = await this.load()
+    const entry: ConflictLog = {
+      ...log,
+      id: `conf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: Date.now(),
+    }
+    if (!store.conflictLogs) store.conflictLogs = []
+    store.conflictLogs.push(entry)
+    if (store.conflictLogs.length > 100) {
+      store.conflictLogs = store.conflictLogs.slice(-100)
+    }
+    await this.save(store)
+    appendMemoryTrace({
+      op: "conflict.log.add",
+      layer: "L2",
+      status: "ok",
+      l2Id: entry.sourceL2Id,
+      ragId: entry.sourceRagId,
+      details: {
+        conflictLogId: entry.id,
+        targetL2Id: entry.targetL2Id,
+        detector: entry.detector,
+        conflictStatus: entry.status,
+      },
+    })
+    return entry
+  }
+
+  async getConflictLogs(): Promise<ConflictLog[]> {
+    const store = await this.load()
+    return store.conflictLogs ?? []
+  }
+
+  async scoreConflictLog(
+    id: string,
+    score: Pick<ConflictLog, "conflictScore" | "resolverPriority" | "scoringSignals">,
+  ): Promise<ConflictLog | null> {
+    const store = await this.load()
+    const log = (store.conflictLogs ?? []).find((entry) => entry.id === id)
+    if (!log) return null
+
+    log.conflictScore = score.conflictScore
+    log.resolverPriority = score.resolverPriority
+    log.scoringSignals = score.scoringSignals
+    const shouldQueue = log.status === "candidate" && score.resolverPriority !== "none"
+    const didQueue = shouldQueue && log.resolverStatus !== "queued"
+    if (shouldQueue) {
+      log.resolverStatus = "queued"
+      log.resolverQueuedAt = log.resolverQueuedAt ?? Date.now()
+      log.resolverAttemptCount = log.resolverAttemptCount ?? 0
+    } else {
+      log.resolverStatus = "not_queued"
+      log.resolverQueuedAt = undefined
+      log.resolverAttemptCount = log.resolverAttemptCount ?? 0
+    }
+
+    await this.save(store)
+    appendMemoryTrace({
+      op: "conflict.score",
+      layer: "L2",
+      status: "ok",
+      l2Id: log.sourceL2Id,
+      ragId: log.sourceRagId,
+      details: {
+        conflictLogId: log.id,
+        targetL2Id: log.targetL2Id,
+        conflictScore: log.conflictScore,
+        resolverPriority: log.resolverPriority,
+        scoringSignals: log.scoringSignals,
+      },
+    })
+    if (didQueue) {
+      appendMemoryTrace({
+        op: "resolver.queue.add",
+        layer: "L2",
+        status: "ok",
+        l2Id: log.sourceL2Id,
+        ragId: log.sourceRagId,
+        details: {
+          conflictLogId: log.id,
+          targetL2Id: log.targetL2Id,
+          resolverPriority: log.resolverPriority,
+          conflictScore: log.conflictScore,
+        },
+      })
+    }
+    return log
+  }
+
+  async getResolverQueue(limit = 20): Promise<ConflictLog[]> {
+    const store = await this.load()
+    return (store.conflictLogs ?? [])
+      .filter((log) => (
+        log.status === "candidate" &&
+        log.resolverStatus === "queued" &&
+        log.resolverPriority !== undefined &&
+        log.resolverPriority !== "none"
+      ))
+      .sort((a, b) => {
+        const priorityDiff = RESOLVER_PRIORITY_RANK[b.resolverPriority ?? "none"] - RESOLVER_PRIORITY_RANK[a.resolverPriority ?? "none"]
+        if (priorityDiff !== 0) return priorityDiff
+        return (a.resolverQueuedAt ?? a.createdAt) - (b.resolverQueuedAt ?? b.createdAt)
+      })
+      .slice(0, limit)
+  }
+
+  async applyResolverResolution(conflictLogId: string, resolution: MemoryConflictResolution): Promise<ConflictLog | null> {
+    const store = await this.load()
+    const log = (store.conflictLogs ?? []).find((entry) => entry.id === conflictLogId)
+    if (!log) return null
+    const newMemory = store.l2.find((memory) => memory.id === log.sourceL2Id)
+    const oldMemory = store.l2.find((memory) => memory.id === log.targetL2Id)
+    if (!newMemory || !oldMemory) return null
+
+    let resolutionMemoryId: string | undefined
+    const shouldCreateResolved = resolution.actions.createResolvedMemory && Boolean(resolution.resolvedSummary?.trim())
+    if (shouldCreateResolved) {
+      const resolvedSummary = resolution.resolvedSummary!.trim()
+      const resolved: L2Memory = {
+        content: resolvedSummary,
+        triggerText: resolution.reason,
+        sourceConversationId: newMemory.sourceConversationId || oldMemory.sourceConversationId,
+        sourceMessageIds: [
+          ...(oldMemory.sourceMessageIds ?? []),
+          ...(newMemory.sourceMessageIds ?? []),
+        ],
+        isPinned: false,
+        syncStatus: "pending_sync",
+        evidenceIds: [
+          ...(oldMemory.evidenceIds ?? []),
+          ...(newMemory.evidenceIds ?? []),
+        ],
+        id: `l2_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+        accessCount: 0,
+        weight: 0,
+        status: "active",
+        keywords: extractMemoryKeywords(`${resolvedSummary} ${resolution.reason}`),
+      }
+      store.l2.push(resolved)
+      resolutionMemoryId = resolved.id
+    }
+
+    if (resolution.actions.oldMemoryStatus) {
+      oldMemory.status = resolution.actions.oldMemoryStatus
+      if (resolution.actions.oldMemoryStatus === "superseded" && resolutionMemoryId) {
+        oldMemory.supersededBy = resolutionMemoryId
+      }
+      if (resolution.actions.oldMemoryStatus === "merged" && resolutionMemoryId) {
+        oldMemory.mergedInto = resolutionMemoryId
+      }
+    }
+    if (resolution.actions.newMemoryStatus) {
+      newMemory.status = resolution.actions.newMemoryStatus
+      if (resolution.actions.newMemoryStatus === "superseded" && resolutionMemoryId) {
+        newMemory.supersededBy = resolutionMemoryId
+      }
+      if (resolution.actions.newMemoryStatus === "merged" && resolutionMemoryId) {
+        newMemory.mergedInto = resolutionMemoryId
+      }
+    }
+
+    log.resolverStatus = "resolved"
+    log.resolverFinishedAt = Date.now()
+    log.resolutionType = resolution.resolutionType
+    log.resolutionMemoryId = resolutionMemoryId
+    log.resolutionReason = resolution.reason
+    log.resolutionConfidence = resolution.confidence
+    log.shouldAskUser = resolution.actions.shouldAskUser === true
+    log.clarificationNeeded = resolution.actions.clarificationNeeded === true
+
+    if (resolution.resolutionType === "unrelated") {
+      log.status = "dismissed"
+    } else if (resolution.actions.clarificationNeeded || resolution.actions.shouldAskUser) {
+      log.status = "clarification_needed"
+    } else {
+      log.status = "resolved"
+    }
+
+    await this.save(store)
+    appendMemoryTrace({
+      op: "resolver.resolution.apply",
+      layer: "L2",
+      status: "ok",
+      l2Id: log.sourceL2Id,
+      ragId: log.sourceRagId,
+      details: {
+        conflictLogId: log.id,
+        targetL2Id: log.targetL2Id,
+        resolutionType: log.resolutionType,
+        resolutionMemoryId,
+        conflictStatus: log.status,
+      },
+    })
+    return log
+  }
+
+  /** 批量更新 L2 条目的 status */
+  async updateL2Status(ids: string[], status: L2Memory["status"]): Promise<void> {
+    const store = await this.load()
+    for (const mem of store.l2) {
+      if (ids.includes(mem.id)) {
+        mem.status = status
+      }
+    }
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l2.status.batch",
+      layer: "L2",
+      status: "ok",
+      details: { ids, memoryStatus: status },
+    })
+  }
+
+  async archiveL2Batch(ids: string[]): Promise<void> {
+    await this.updateL2Status(ids, "archived")
+  }
+
+  async decayL2Weights(delta = 1): Promise<number> {
+    const store = await this.load()
+    let changed = 0
+
+    for (const mem of store.l2) {
+      if (mem.isPinned || mem.status === "archived" || mem.weight <= 0) continue
+
+      mem.weight = Math.max(0, mem.weight - delta)
+      if (mem.weight >= 30) {
+        mem.status = "active"
+      } else if (mem.weight >= 10) {
+        mem.status = "aging"
+      } else {
+        mem.status = "archived"
+      }
+      changed += 1
+    }
+
+    if (changed > 0) {
+      await this.save(store)
+    }
+    appendMemoryTrace({
+      op: "l2.decay",
+      layer: "L2",
+      status: changed > 0 ? "ok" : "skip",
+      details: { delta, changed },
+    })
+    return changed
+  }
+
+  /** 批量插入新的 L2 条目（压缩总结用） */
+  async addL2Batch(inputs: L2Input[]): Promise<L2Memory[]> {
+    const store = await this.load()
+    const results: L2Memory[] = []
+    if (!store.l2DmaeStates) store.l2DmaeStates = []
+    for (const input of inputs) {
+      const memory: L2Memory = {
+        ...input,
+        id: `l2_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+        accessCount: 0,
+        weight: 0,
+        status: "active",
+        syncStatus: input.syncStatus ?? (input.ragId ? "synced" : "pending_sync"),
+        evidenceIds: Array.isArray(input.evidenceIds) ? input.evidenceIds : [],
+        keywords: extractMemoryKeywords(`${input.content} ${input.triggerText}`),
+      }
+      const evidence = this.createEvidence(memory, input)
+      memory.evidenceIds = [...(memory.evidenceIds ?? []), evidence.id]
+      store.l2.push(memory)
+      if (!store.evidence) store.evidence = []
+      store.evidence.push(evidence)
+      store.l2DmaeStates.push({
+        l2Id: memory.id,
+        activation: 0,
+        intrinsicValue: 0,
+        userSilence: 0,
+        modelSilence: 0,
+        recentUserHits: [],
+        state: "archived",
+      })
+      results.push(memory)
+    }
+    await this.save(store)
+    appendMemoryTrace({
+      op: "l2.add.batch",
+      layer: "L2",
+      status: "ok",
+      details: { ids: results.map((item) => item.id), count: results.length },
+    })
+    for (const memory of results) {
+      const evidenceId = memory.evidenceIds?.[memory.evidenceIds.length - 1]
+      appendMemoryTrace({
+        op: "evidence.add",
+        layer: "L2",
+        status: "ok",
+        l2Id: memory.id,
+        details: { evidenceId, sourceStatus: "active" },
+      })
+    }
+    return results
+  }
+
+  // ── V5 L2 DMAE 状态读写 ──
+  async getL2DmaeState(l2Id: string): Promise<L2DmaeState | undefined> {
+    const store = await this.load()
+    return (store.l2DmaeStates ?? []).find((s) => s.l2Id === l2Id)
+  }
+
+  async getAllL2DmaeStates(): Promise<L2DmaeState[]> {
+    const store = await this.load()
+    return store.l2DmaeStates ?? []
+  }
+
+  async updateL2DmaeState(l2Id: string, patch: Partial<L2DmaeState>): Promise<L2DmaeState | undefined> {
+    const store = await this.load()
+    if (!store.l2DmaeStates) store.l2DmaeStates = []
+    const idx = store.l2DmaeStates.findIndex((s) => s.l2Id === l2Id)
+    if (idx === -1) return undefined
+    const merged = { ...store.l2DmaeStates[idx], ...patch, l2Id }
+    store.l2DmaeStates[idx] = merged
+    await this.save(store)
+    return merged
+  }
+
+  async initL2DmaeStateIfMissing(l2Id: string): Promise<L2DmaeState> {
+    const existing = await this.getL2DmaeState(l2Id)
+    if (existing) return existing
+    const store = await this.load()
+    if (!store.l2DmaeStates) store.l2DmaeStates = []
+    const created: L2DmaeState = {
+      l2Id,
+      activation: 0,
+      intrinsicValue: 0,
+      userSilence: 0,
+      modelSilence: 0,
+      recentUserHits: [],
+      state: "archived",
+    }
+    store.l2DmaeStates.push(created)
+    await this.save(store)
+    return created
   }
 }
+
+export const memoryStore = new MemoryStoreManager()
