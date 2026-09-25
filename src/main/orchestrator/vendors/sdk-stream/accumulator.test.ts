@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CyreneStreamAccumulator } from "./accumulator";
+import { FireflyStreamAccumulator } from "./accumulator";
 import { ProviderProtocolError } from "./types";
 
-describe("CyreneStreamAccumulator", () => {
+describe("FireflyStreamAccumulator", () => {
   it("keeps interleaved reasoning and text deltas in their own channels", () => {
-    const accumulator = new CyreneStreamAccumulator();
+    const accumulator = new FireflyStreamAccumulator();
 
     accumulator.apply({ type: "reasoning_delta", delta: "先分析" });
     accumulator.apply({ type: "text_delta", delta: "答案" });
@@ -31,7 +31,7 @@ describe("CyreneStreamAccumulator", () => {
   });
 
   it("uses index while streaming and assigns the first non-empty tool id once", () => {
-    const accumulator = new CyreneStreamAccumulator();
+    const accumulator = new FireflyStreamAccumulator();
 
     accumulator.apply({ type: "tool_call_start", index: 1, nameDelta: "read_" });
     accumulator.apply({ type: "tool_call_start", index: 0, id: "call-0", nameDelta: "search" });
@@ -54,7 +54,7 @@ describe("CyreneStreamAccumulator", () => {
   });
 
   it("rejects a changed tool id instead of concatenating it", () => {
-    const accumulator = new CyreneStreamAccumulator();
+    const accumulator = new FireflyStreamAccumulator();
     accumulator.apply({ type: "tool_call_start", index: 0, id: "call-a", nameDelta: "search" });
 
     expect(() =>
@@ -100,9 +100,9 @@ describe("CyreneStreamAccumulator", () => {
       ],
     },
   ])("rejects an incomplete tool call: $name", ({ deltas }) => {
-    const accumulator = new CyreneStreamAccumulator();
+    const accumulator = new FireflyStreamAccumulator();
     for (const delta of deltas) {
-      accumulator.apply(delta as Parameters<CyreneStreamAccumulator["apply"]>[0]);
+      accumulator.apply(delta as Parameters<FireflyStreamAccumulator["apply"]>[0]);
     }
     accumulator.apply({ type: "finish", reason: "tool_calls" });
 
@@ -115,7 +115,7 @@ describe("CyreneStreamAccumulator", () => {
   });
 
   it("exposes partial usage with missing fields filled as zero", () => {
-    const accumulator = new CyreneStreamAccumulator();
+    const accumulator = new FireflyStreamAccumulator();
 
     accumulator.apply({ type: "usage", inputTokens: 12 });
     expect(accumulator.snapshot().usage).toEqual({ input: 12, output: 0 });
@@ -125,7 +125,7 @@ describe("CyreneStreamAccumulator", () => {
   });
 
   it("preserves provider-reported cached input tokens with the final usage", () => {
-    const accumulator = new CyreneStreamAccumulator();
+    const accumulator = new FireflyStreamAccumulator();
 
     accumulator.apply({ type: "usage", inputTokens: 20, cachedInputTokens: 12 });
     accumulator.apply({ type: "usage", outputTokens: 7 });
@@ -134,7 +134,7 @@ describe("CyreneStreamAccumulator", () => {
   });
 
   it("preserves refusal and terminal reason", () => {
-    const accumulator = new CyreneStreamAccumulator();
+    const accumulator = new FireflyStreamAccumulator();
     accumulator.apply({ type: "refusal", reason: "safety" });
     accumulator.apply({ type: "finish", reason: "content_filter" });
 

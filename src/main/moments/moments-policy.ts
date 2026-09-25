@@ -22,7 +22,7 @@ export const MIN_POST_INTERVAL_MS = 6 * 60 * 60 * 1000;
 export const MAX_POSTS_PER_DAY = 2;
 /**
  * 角色每日模型调用上限（post_eval + reply_eval 合计），按热闹程度分档。
- * 随机点赞零模型成本不计入；昔涟不计入，沿用她自己的频率设计。
+ * 随机点赞零模型成本不计入；流萤不计入，沿用她自己的频率设计。
  * 热闹档抽中人数更多，配额同步放宽才不会下午就集体沉默。
  */
 export const MAX_CHARACTER_MODEL_CALLS_PER_DAY_BY_LIVELINESS: Record<MomentsLiveliness, number> = {
@@ -32,7 +32,7 @@ export const MAX_CHARACTER_MODEL_CALLS_PER_DAY_BY_LIVELINESS: Record<MomentsLive
 };
 /** 兼容旧引用的默认上限：冷清档即历史原值。 */
 export const MAX_CHARACTER_MODEL_CALLS_PER_DAY = MAX_CHARACTER_MODEL_CALLS_PER_DAY_BY_LIVELINESS.quiet;
-/** 昔涟生成动态的文案长度上限（用户输入的 2000 上限是另一层，不混用） */
+/** 流萤生成动态的文案长度上限（用户输入的 2000 上限是另一层，不混用） */
 export const MOMENTS_CYRENE_POST_TEXT_MAX = 300;
 /** 去重键 FIFO 容量 */
 export const RECENT_EVENT_KEYS_CAPACITY = 64;

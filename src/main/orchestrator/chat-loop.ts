@@ -6,7 +6,7 @@ import type {
   AgentLoopSettings,
   AgentLoopEvent,
   AgentLoopResult,
-} from "./cyrene-agent";
+} from "./firefly-agent";
 import type {
   ChatMessage,
   ChatRequest,

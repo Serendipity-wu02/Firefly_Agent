@@ -989,7 +989,7 @@ export function ChatPage() {
       });
       return true;
     } catch (error) {
-      console.error("[Cyrene React] 重建最后一轮对话失败:", error);
+      console.error("[Firefly React] 重建最后一轮对话失败:", error);
       return false;
     } finally {
       lastTurnRevisionStartingRef.current = false;

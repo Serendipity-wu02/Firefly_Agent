@@ -224,7 +224,7 @@ function describeQuizAnswerValue(
 
 /**
  * 抽查卡片：作答态（分页答题 + 提交/跳过）→ 展示态（判分结果 + 解析）。
- * 提交后卡片不消失，切展示态等 Cyrene 拿到结果讲评；run 结束时统一清卡。
+ * 提交后卡片不消失，切展示态等 Firefly 拿到结果讲评；run 结束时统一清卡。
  */
 export function PopQuizPanel({
   interaction,
@@ -339,7 +339,7 @@ export function PopQuizPanel({
                     </div>
                   )}
                 </div>
-                {/* 简答题不立即展示解析：标准答案要点由 Cyrene 讲评时给出，避免剧透 */}
+                {/* 简答题不立即展示解析：标准答案要点由 Firefly 讲评时给出，避免剧透 */}
                 {result?.explanation && grading !== "pending_model" && (
                   <div className="cy-quiz-graded__explanation">
                     <MarkdownContent content={result.explanation} />

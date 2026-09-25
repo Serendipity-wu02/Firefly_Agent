@@ -7,7 +7,7 @@
  *   旧页面或错误目标返回的迟到响应；
  * - 渲染页长时间未响应按超时失败，租约侧以稳定错误码感知。
  *
- * 该 IPC 只在 Cyrene 自己的主进程与预加载层之间使用，
+ * 该 IPC 只在 Firefly 自己的主进程与预加载层之间使用，
  * 插件无法直接拿到通道名，只能通过语音租约的 commit() 间接触发。
  */
 import { webContents, type WebContents } from "electron";

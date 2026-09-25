@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { createThinkFilter } from "../../../chat/think-filter";
 import { AgentRuntimeError } from "../../agent-runtime-error";
 import type { ChatRequest, ChatResponse, ChatVendorAdapter, VendorConfig } from "../types";
-import { CyreneStreamAccumulator } from "./accumulator";
+import { FireflyStreamAccumulator } from "./accumulator";
 import { AnthropicEventNormalizer, reconcileAnthropicTerminal } from "./anthropic-normalizer";
 import { dumpRequest, dumpResponse } from "../prompt-dump";
 import {
@@ -135,7 +135,7 @@ export async function streamChatWithSdk(
     }, input.timeoutMs)
     : undefined;
 
-  const accumulator = new CyreneStreamAccumulator();
+  const accumulator = new FireflyStreamAccumulator();
   const taggedThinkFilter = createThinkFilter("leading-only");
   // LLM 调用原文 traceId —— 即使 dump 关闭也会生成，方便上层日志关联。
   let traceId = "";

@@ -145,7 +145,7 @@ export function registerChatUiIpc(deps: ChatUiIpcDependencies): void {
     try {
       return list.map((entry) => describePendingAttachment(entry.path, entry.mime));
     } catch (err: any) {
-      console.error("[Cyrene] ingestFiles ERROR:", err?.message || err);
+      console.error("[Firefly] ingestFiles ERROR:", err?.message || err);
       return [];
     }
   });

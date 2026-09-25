@@ -48,3 +48,6 @@ GPT-SoVITS 是独立运行的外部语音服务。用户须自行准备和启动
 源码使用 [MIT License](./LICENSE)。上游 Cyrene 源码的 `Copyright (c) 2026 Playa` 保留；Firefly 新增与修改内容的署名为 `Serendipity-wu02`。上游贡献与第三方依赖记录见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) 和 [docs/CONTRIBUTORS.md](./docs/CONTRIBUTORS.md)。
 
 **MIT 源码许可不覆盖角色形象、Live2D 模型、头像、字体、图标或其他第三方素材。**旧 Cyrene 模型的既有来源说明保留在 [MODEL_LICENSE.md](./MODEL_LICENSE.md)。项目所有者确认已取得流萤模型原作者授权；仓库尚无可核对的授权范围与再分发条款，头像及其他素材也需要单独核对，因此目前不发布安装包或资源包。流萤与《崩坏：星穹铁道》相关知识产权归 HoYoverse / miHoYo；本项目不是官方产品。
+# 当前源码说明
+
+Firefly 的当前运行分层、身份注入与 Skills 组织见 [架构说明](./docs/architecture/firefly-runtime.md)。本轮品牌与 Skills 的定向验证、兼容标识和集中实机记录见 [实施记录](./docs/migration/firefly-brand-skills-2026-09-25.md)。历史报告由 [归档索引](./docs/archive/README.md) 集中查阅，不作为当前已验证功能的承诺。

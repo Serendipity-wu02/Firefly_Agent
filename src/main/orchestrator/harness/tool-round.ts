@@ -11,7 +11,7 @@
  *   防止"假装完成"和"副作用被重复执行"
  *
  * 通过 HarnessRun 上下文读写运行状态；
- * 对 cyrene-harness.ts 只有 type-only import（编译后消失，无运行时循环依赖）。
+ * 对 firefly-harness.ts 只有 type-only import（编译后消失，无运行时循环依赖）。
  */
 
 import type { ChatMessage, ToolCall } from "../vendors/types";
@@ -28,7 +28,7 @@ import { classifyToolResultError } from "./error-classifier";
 import { decideRetry, getRetryParams, sleepWithJitter } from "./retry-policy";
 import { isToolBreakerTripped, nextToolFailureStreak, toolBreakerMessage } from "./tool-breaker";
 import { isCancellationError, raceWithSignal } from "../../abort-utils";
-import type { HarnessRun } from "./cyrene-harness";
+import type { HarnessRun } from "./firefly-harness";
 
 /** 工具轮结果：completed = 结果已全部写回，继续下一轮；cancelled = 用户取消。 */
 export type ToolRoundOutcome = "completed" | "cancelled";

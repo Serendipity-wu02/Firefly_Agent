@@ -2,7 +2,7 @@
 //
 // Actor 边界（不信任 renderer）：
 // - renderer 发起的 createPost / createComment / toggleLike 一律强制 author/actor = "user"；
-// - 昔涟发帖/点赞/评论走 moments-store 的昔涟内部通道，不经任何 IPC。
+// - 流萤发帖/点赞/评论走 moments-store 的流萤内部通道，不经任何 IPC。
 //
 // 任何写操作成功后向所有窗口广播 moments:changed，由各窗口自行刷新（幂等）。
 
@@ -35,10 +35,10 @@ export function registerMomentsIpc(ipcOption?: IpcScope): void {
   momentsStore.initialize();
   momentsStore.onMomentsChanged(() => broadcastChanged());
 
-  // 昔涟行为的提交时开关复核：AI 思考期间关闭开关时，迟到的结果被 moments_disabled 拒绝。
+  // 流萤行为的提交时开关复核：AI 思考期间关闭开关时，迟到的结果被 moments_disabled 拒绝。
   // 反应（点赞/评论）受 cyreneMomentsReactionsEnabled 约束；
   // 主动发帖受 cyreneMomentsPostingEnabled 约束（提交时二道闸，与 service 前置闸互补）。
-  momentsStore.setCyreneBehaviorGate((behavior) => {
+  momentsStore.setFireflyBehaviorGate((behavior) => {
     const settings = loadGeneralSettings();
     if (!settings.momentsEnabled) return false;
     if (behavior === "reaction") return settings.cyreneMomentsReactionsEnabled;
@@ -58,7 +58,7 @@ export function registerMomentsIpc(ipcOption?: IpcScope): void {
   const characterRegistry = () => new Set(loadCharacterPersonas({ log: logMoments }).keys());
   momentsStore.setCharacterAuthorRegistry(characterRegistry());
 
-  // 点名名单：渲染端选择框的数据源（昔涟 + 全部入驻角色，昵称按名排序）
+  // 点名名单：渲染端选择框的数据源（流萤 + 全部入驻角色，昵称按名排序）
   ipc.handle(IPC.MOMENTS_LIST_CHARACTERS, () => {
     const characters = [...characterRegistry()].sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
     return ["cyrene", ...characters];

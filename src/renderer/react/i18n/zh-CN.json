@@ -101,7 +101,7 @@
     "thinkingDoneTitle": "思考完成",
     "assistantStickerAlt": "流萤表情",
     "userStickerAlt": "用户表情",
-    "cyreneAvatarAlt": "流萤",
+    "fireflyAvatarAlt": "流萤",
     "userAvatarAlt": "用户",
     "toolExecutionsAria": "工具执行过程",
     "roundChangedFiles": "{{count}} 个文件已被改动",
@@ -702,7 +702,7 @@
     "replyPrefix": "回复",
     "mention": {
       "pickerEmpty": "没有匹配的名字",
-      "cyreneOptionLabel": "流萤"
+      "fireflyOptionLabel": "流萤"
     },
     "notice": {
       "title": "消息",

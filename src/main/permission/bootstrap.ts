@@ -17,5 +17,5 @@ export function bootstrapPermission(ipc?: IpcScope): void {
   initPermissionFromDisk();
   registerPermissionIpc(ipc);
   registerChoiceIpc(ipc);
-  logger.info(LogTag.Cyrene, "当前 agent 权限档位:", getCurrentLevel());
+  logger.info(LogTag.Firefly, "当前 agent 权限档位:", getCurrentLevel());
 }

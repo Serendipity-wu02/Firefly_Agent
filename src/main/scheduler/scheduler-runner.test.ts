@@ -10,8 +10,8 @@ const runnerMocks = vi.hoisted(() => ({
   agentError: undefined as Error | undefined,
 }));
 
-vi.mock("../orchestrator/cyrene-agent", () => ({
-  CyreneAgent: class {
+vi.mock("../orchestrator/firefly-agent", () => ({
+  FireflyAgent: class {
     get lastResult() {
       return runnerMocks.agentResult;
     }

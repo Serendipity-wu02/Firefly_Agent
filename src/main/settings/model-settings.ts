@@ -89,11 +89,11 @@ function migrateProviderRenames(
     if (next[newKey]) {
       // 新名已经有数据（说明用户已经在新名下存过），旧名的本地副本保留为最近一次更新优先：
       // 这里取保守路线 → 不覆盖 next[newKey]，旧名直接丢弃。
-      console.log("[Cyrene] provider rename: drop legacy", key, "→ kept", newKey);
+      console.log("[Firefly] provider rename: drop legacy", key, "→ kept", newKey);
       continue;
     }
     if (newKey !== key) {
-      console.log("[Cyrene] provider rename:", key, "→", newKey);
+      console.log("[Firefly] provider rename:", key, "→", newKey);
     }
     next[newKey] = value;
   }
@@ -489,7 +489,7 @@ function loadModelSettings0(): ModelSettings {
         fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
       } catch (writeErr) {
         // 写盘失败不阻塞启动：内存里已是迁移后的配置，下次启动会再试一次
-        console.error("[Cyrene] model settings migration persist failed:", writeErr);
+        console.error("[Firefly] model settings migration persist failed:", writeErr);
       }
     }
     return normalized;

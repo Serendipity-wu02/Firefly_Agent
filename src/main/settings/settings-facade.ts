@@ -1,3 +1,4 @@
+import { resolveSkillSettings } from "../skills/skill-id-aliases";
 import * as fs from "fs";
 import * as path from "path";
 import { logger, LogTag } from "../logger";
@@ -356,7 +357,7 @@ function normalizeToolModeOverrides(
 ): ToolModeOverrides {
   if (!input || typeof input !== "object") return {};
   const result: ToolModeOverrides = {};
-  const raw = input as Record<string, unknown>;
+  const raw = resolveSkillSettings(input as Record<string, unknown>);
   for (const [toolId, modeMap] of Object.entries(raw)) {
     if (!modeMap || typeof modeMap !== "object") continue;
     const filtered: Partial<Record<ConversationMode, boolean>> = {};

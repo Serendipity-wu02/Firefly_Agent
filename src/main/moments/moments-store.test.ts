@@ -183,9 +183,9 @@ describe("moments store", () => {
     expect(feed[0].post.title).toBe("持久");
   });
 
-  it("createCyrenePost 内部通道可发昔涟动态（不携带图片副本逻辑）", async () => {
+  it("createFireflyPost 内部通道可发昔涟动态（不携带图片副本逻辑）", async () => {
     const store = await freshStore();
-    const result = await store.createCyrenePost({ text: "今天有点想偷懒。" });
+    const result = await store.createFireflyPost({ text: "今天有点想偷懒。" });
     expect(result.applied).toBe(true);
     if (!result.applied) return;
     expect(result.value.author).toBe("cyrene");
@@ -197,11 +197,11 @@ describe("moments store", () => {
     const post = await store.createUserPost({ text: "赞我" });
     if (!post.applied) throw new Error("create failed");
 
-    expect(await store.createCyreneLike(post.value.id)).toMatchObject({ applied: true, value: { liked: true } });
-    expect(await store.createCyreneLike(post.value.id)).toMatchObject({ applied: false, reason: "reaction_exists" });
+    expect(await store.createFireflyLike(post.value.id)).toMatchObject({ applied: true, value: { liked: true } });
+    expect(await store.createFireflyLike(post.value.id)).toMatchObject({ applied: false, reason: "reaction_exists" });
     // 用户 toggle 互不影响（唯一性按 actor 区分）
     expect(await store.toggleLike(post.value.id, "user")).toMatchObject({ applied: true, value: { liked: true } });
-    expect(await store.createCyreneLike("moment_missing")).toMatchObject({ applied: false, reason: "post_not_found" });
+    expect(await store.createFireflyLike("moment_missing")).toMatchObject({ applied: false, reason: "post_not_found" });
   });
 
   it("反应开关关闭时昔涟提交被 moments_disabled 拒绝，用户操作不受影响", async () => {
@@ -209,17 +209,17 @@ describe("moments store", () => {
     const post = await store.createUserPost({ text: "开关测试" });
     if (!post.applied) throw new Error("create failed");
 
-    store.setCyreneBehaviorGate(() => false);
-    expect(await store.createCyreneLike(post.value.id)).toMatchObject({ applied: false, reason: "moments_disabled" });
+    store.setFireflyBehaviorGate(() => false);
+    expect(await store.createFireflyLike(post.value.id)).toMatchObject({ applied: false, reason: "moments_disabled" });
     expect(await store.createComment({ postId: post.value.id, content: "迟到的 AI 评论" }, "cyrene"))
       .toMatchObject({ applied: false, reason: "moments_disabled" });
-    expect(await store.createCyrenePost({ text: "发不出去" })).toMatchObject({ applied: false, reason: "moments_disabled" });
+    expect(await store.createFireflyPost({ text: "发不出去" })).toMatchObject({ applied: false, reason: "moments_disabled" });
     // 用户侧不经过昔涟门控，照常可用
     expect((await store.createComment({ postId: post.value.id, content: "用户还能评论" }, "user")).applied).toBe(true);
     expect((await store.toggleLike(post.value.id, "user")).applied).toBe(true);
     // 门控按行为种类区分：posting 放行时昔涟发帖不受反应开关影响
-    store.setCyreneBehaviorGate((behavior) => behavior === "posting");
-    expect((await store.createCyrenePost({ text: "发得出去" })).applied).toBe(true);
+    store.setFireflyBehaviorGate((behavior) => behavior === "posting");
+    expect((await store.createFireflyPost({ text: "发得出去" })).applied).toBe(true);
   });
 
   // ── 角色写通道（入驻角色互动） ─────────────────────────────────
@@ -338,7 +338,7 @@ describe("moments store", () => {
       .toMatchObject({ status: "rejected", reason: "moments_disabled" });
 
     // 昔涟与用户通道走各自门控，照常可用
-    expect((await store.createCyreneLike(post.value.id)).applied).toBe(true);
+    expect((await store.createFireflyLike(post.value.id)).applied).toBe(true);
     expect((await store.createComment({ postId: post.value.id, content: "用户评论" }, "user")).applied).toBe(true);
   });
 

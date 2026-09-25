@@ -282,7 +282,7 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     IPC.SETTINGS_TEST_VISION,
     async (_event, cfg: { baseUrl: string; apiKey: string; model: string }) => {
       const start = Date.now();
-      console.log("[Cyrene] test vision: model=" + cfg.model + " url=" + cfg.baseUrl);
+      console.log("[Firefly] test vision: model=" + cfg.model + " url=" + cfg.baseUrl);
       try {
         const { captionImage } = await import("../orchestrator/vision-captioner");
         const result = await captionImage(
@@ -302,7 +302,7 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
   );
 
   ipc.handle(IPC.EMBEDDING_SET_MODEL, async (_event, modelKey: string) => {
-    console.log("[Cyrene] embedding model switch requested:", modelKey);
+    console.log("[Firefly] embedding model switch requested:", modelKey);
     try {
       const result = await switchEmbeddingModel(modelKey);
       if (result.ok) {
@@ -315,7 +315,7 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("[Cyrene] embedding model switch failed:", message);
+      console.error("[Firefly] embedding model switch failed:", message);
       return { ok: false, clearedEntries: 0, error: message };
     }
   });
@@ -324,7 +324,7 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     const current = getModelSettings();
     saveModelSettings({ ...current, rerankerMode: mode });
     await initReranker(mode);
-    console.log("[Cyrene] reranker mode switched to", mode);
+    console.log("[Firefly] reranker mode switched to", mode);
     return true;
   });
 

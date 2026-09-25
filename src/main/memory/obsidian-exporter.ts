@@ -575,7 +575,7 @@ export async function exportMemoryToObsidianVault(outputDir: string): Promise<Ex
     };
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
 
-    logger.info(LogTag.Cyrene, `[obsidian-export] exported ${writtenFiles.length} files to ${outputDir}`);
+    logger.info(LogTag.Firefly, `[obsidian-export] exported ${writtenFiles.length} files to ${outputDir}`);
 
     return {
       ok: true,
@@ -584,7 +584,7 @@ export async function exportMemoryToObsidianVault(outputDir: string): Promise<Ex
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.error(LogTag.Cyrene, `[obsidian-export] failed: ${msg}`);
+    logger.error(LogTag.Firefly, `[obsidian-export] failed: ${msg}`);
     return { ok: false, error: msg };
   }
 }
@@ -647,9 +647,9 @@ export function notifyMemoryChanged(): void {
     syncTimer = null;
     void syncToBoundVault().then((r) => {
       if (r.ok) {
-        logger.info(LogTag.Cyrene, `[obsidian-sync] auto-synced ${r.fileCount} files to ${r.vaultPath}`);
+        logger.info(LogTag.Firefly, `[obsidian-sync] auto-synced ${r.fileCount} files to ${r.vaultPath}`);
       } else if (!r.skipped) {
-        logger.warn(LogTag.Cyrene, `[obsidian-sync] auto-sync failed: ${r.error}`);
+        logger.warn(LogTag.Firefly, `[obsidian-sync] auto-sync failed: ${r.error}`);
       }
     });
   }, SYNC_DEBOUNCE_MS);

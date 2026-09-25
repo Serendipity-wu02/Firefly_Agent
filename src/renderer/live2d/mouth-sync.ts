@@ -166,7 +166,7 @@ export class MouthSyncController {
         if (index >= 0) coreModel.setParameterValueByIndex(index, value);
       }
     } catch (err) {
-      console.warn("[Cyrene] mouth sync failed", err);
+      console.warn("[Firefly] mouth sync failed", err);
       this.detach();
     }
   }

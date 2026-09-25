@@ -13,7 +13,7 @@ interface MutableToolCall {
   ended: boolean;
 }
 
-export class CyreneStreamAccumulator {
+export class FireflyStreamAccumulator {
   private text = "";
   private thinking = "";
   private readonly toolCalls = new Map<number, MutableToolCall>();

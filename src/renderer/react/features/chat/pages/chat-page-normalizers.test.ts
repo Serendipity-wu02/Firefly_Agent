@@ -3,6 +3,38 @@ import type { ChatSession } from "../../../../../shared/chat-types";
 import { getInitialMode, LAST_MODE_STORAGE_KEY, normalizeWeatherData, stageForStep, toUiMessages } from "./chat-page-normalizers";
 
 describe("chat page normalizers", () => {
+  it.each(["completed", "failed", "cancelled"] as const)("preserves %s task portraits when reopening history", (status) => {
+    const session: ChatSession = {
+      id: "task-conversation",
+      title: "公开子任务",
+      identityId: null,
+      mode: "work",
+      schemaVersion: 1,
+      createdAt: 1,
+      updatedAt: 2,
+      messages: [{
+        id: "task-message",
+        role: "model",
+        content: "子任务结果",
+        at: 2,
+        taskDelegations: [{
+          invocationId: "child-run",
+          taskId: "task-1",
+          description: "比较公开样本",
+          nickname: "卡芙卡",
+          assetFileName: "卡夫卡.png",
+          status,
+          roundId: "round-0",
+        }],
+        runSnapshot: { runId: "parent-run", status: "terminal", terminalStatus: "success", updatedAt: 2 },
+      }],
+    };
+    const original = JSON.stringify(session);
+    expect(toUiMessages(session)[0].taskDelegations).toEqual(session.messages[0].taskDelegations);
+    expect(toUiMessages(JSON.parse(original) as ChatSession)[0].taskDelegations).toEqual(session.messages[0].taskDelegations);
+    expect(JSON.stringify(session)).toBe(original);
+  });
+
   it("preserves channel source metadata while hydrating a bound conversation", () => {
     const session: ChatSession = {
       id: "conversation-1",

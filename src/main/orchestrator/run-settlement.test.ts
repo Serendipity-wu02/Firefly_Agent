@@ -12,12 +12,12 @@
 
 import { describe, expect, it } from "vitest";
 import { RunSettlementGate } from "./run-settlement";
-import type { CyreneRunTerminalResult } from "../../shared/run-terminal";
+import type { FireflyRunTerminalResult } from "../../shared/run-terminal";
 
 describe("RunSettlementGate", () => {
   it("returns true on first trySettle and false on subsequent calls", () => {
     const gate = new RunSettlementGate();
-    const first: CyreneRunTerminalResult = {
+    const first: FireflyRunTerminalResult = {
       status: "success",
       externalEffectsMayContinue: false,
     };
@@ -33,7 +33,7 @@ describe("RunSettlementGate", () => {
 
   it("retains the first settlement regardless of later trySettle calls", () => {
     const gate = new RunSettlementGate();
-    const first: CyreneRunTerminalResult = {
+    const first: FireflyRunTerminalResult = {
       status: "cancelled",
       reason: "user_cancelled",
       externalEffectsMayContinue: true,

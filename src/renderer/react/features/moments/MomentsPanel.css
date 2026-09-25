@@ -509,7 +509,7 @@
   font-weight: 600;
 }
 
-/* 角色名标识色：与昔涟的粉色区分开，一眼认出"这是角色在说话" */
+/* 角色名标识色：与流萤的粉色区分开，一眼认出"这是角色在说话" */
 .moment-card__comment-name--character {
   color: #6c7cff;
 }
@@ -709,7 +709,7 @@
   color: #6c7cff;
 }
 
-/* 昔涟的名字走粉色主色，与角色蓝区分开 */
+/* 流萤的名字走粉色主色，与角色蓝区分开 */
 .moments-notice-item__name.is-cyrene {
   color: var(--cy-accent, #2d7a5f);
 }

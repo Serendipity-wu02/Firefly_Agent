@@ -1,6 +1,7 @@
 import { app } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { resolveSkillId, SKILL_ID_ALIASES } from "./skills/skill-id-aliases";
 
 export interface ExternalContentPathInput {
   isPackaged: boolean;
@@ -26,7 +27,7 @@ export interface SkillScanSource {
  * Resolve editable prompt/skill locations without coupling them to app.asar.
  * Packaged builds put user-editable content under userData (survives upgrades:
  * the NSIS uninstaller wipes the whole install directory on reinstall) and read
- * shipped content from folders beside Cyrene.exe, which the installer refreshes
+ * shipped content from folders beside Firefly.exe, which the installer refreshes
  * on every update. Old packages placed shipped skills directly in <install>/skills;
  * that directory remains a builtin source for backward compatibility.
  */
@@ -110,6 +111,10 @@ export function findPromptPath(
   for (const directory of promptDirectories) {
     const candidate = path.join(directory, safePath);
     if (fs.existsSync(candidate)) return candidate;
+    if (safePath === "firefly_harness.md") {
+      const legacyPath = path.join(directory, "cyrene_harness.md");
+      if (fs.existsSync(legacyPath)) return legacyPath;
+    }
   }
   return null;
 }
@@ -127,8 +132,12 @@ export function findSkillPath(
   const directories = [...paths.userSkillDirectories].reverse();
   directories.push(paths.builtinSkillDirectory);
   for (const directory of directories) {
-    const candidate = path.join(directory, safeSkillId, safePath);
-    if (fs.existsSync(candidate)) return candidate;
+    const currentId = resolveSkillId(safeSkillId);
+    const legacyId = Object.keys(SKILL_ID_ALIASES).find(id => SKILL_ID_ALIASES[id] === currentId);
+    for (const id of legacyId ? [currentId, legacyId] : [currentId]) {
+      const resolvedPath = path.join(directory, id, safePath);
+      if (fs.existsSync(resolvedPath)) return resolvedPath;
+    }
   }
   return null;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CyreneRunOptions } from "../orchestrator/cyrene-agent";
+import type { FireflyRunOptions } from "../orchestrator/firefly-agent";
 import { enforceChannelAgentPolicy, resolveChannelAgentPolicy } from "./agent-policy";
 
 describe("mobile channel agent policy", () => {
@@ -12,7 +12,7 @@ describe("mobile channel agent policy", () => {
     });
   });
 
-  it("routes all through CyreneHarness without Ask or approval", () => {
+  it("routes all through FireflyHarness without Ask or approval", () => {
     expect(resolveChannelAgentPolicy("all")).toEqual({
       executionMode: "work",
       exposeTools: true,
@@ -41,7 +41,7 @@ describe("mobile channel agent policy", () => {
         skills: [],
         skillIds: new Set<string>(),
       },
-    } as unknown as CyreneRunOptions;
+    } as unknown as FireflyRunOptions;
     enforceChannelAgentPolicy(options, policy);
     expect(options.tools).toEqual([]);
     expect(options.toolSystemContent).toBe("");

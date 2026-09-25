@@ -22,7 +22,7 @@ describe("chat workspace surface", () => {
     expect(rootStyle.getPropertyValue("--cy-bg-page").trim()).toBe("#f2f8f5");
     expect(rootStyle.getPropertyValue("--cy-bg-workspace").trim()).toBe("#ffffff");
     expect(emptyPattern).toBeDefined();
-    expect(emptyPattern?.style.backgroundImage).toContain("cyrene-surface-pattern.svg");
+    expect(emptyPattern?.style.backgroundImage).toContain("firefly-surface-pattern.svg");
     expect(emptyPattern?.style.opacity).toBe("0.9");
     expect(emptyPattern?.style.pointerEvents).toBe("none");
     expect(filledPattern?.style.opacity).toBe("0.55");

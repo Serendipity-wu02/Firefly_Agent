@@ -1,5 +1,5 @@
 // 厂商工具调用适配层 —— 统一类型
-// 调度层（CyreneHarness）只依赖这里的统一结构，绝不出现 if (provider === "xxx")。
+// 调度层（FireflyHarness）只依赖这里的统一结构，绝不出现 if (provider === "xxx")。
 // 协议事实来源：docs/vendors/tool-calling-matrix.md
 
 import type { ReasoningPreference } from "../../../shared/reasoning";

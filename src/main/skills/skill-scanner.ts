@@ -5,6 +5,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import matter from "gray-matter";
+import { resolveSkillId } from "./skill-id-aliases";
 import type { ParsedSkill, SkillEntry, SkillManifest, SkillMode } from "./types";
 import { logger } from "../../shared/logger";
 import { LogTag } from "../../shared/logger-tags";
@@ -125,8 +126,8 @@ export function scanSkills(dir: string, source: "builtin" | "user"): SkillEntry[
     }
     const manifest = readManifest(skillDir, id);
     result.push({
-      id,
-      name: parsed.name,
+      id: resolveSkillId(id),
+      name: resolveSkillId(parsed.name),
       description: parsed.description,
       tools: parsed.tools ?? manifest?.dependencies,
       version: parsed.version ?? manifest?.version,

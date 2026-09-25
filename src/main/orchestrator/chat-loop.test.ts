@@ -18,7 +18,7 @@ import { createSseReader } from "./vendors";
 import { ConversationTranscriptStore } from "./conversation-transcript-store";
 import { materializeTranscript } from "./conversation-transcript-context";
 import { createTranscriptSink, type TranscriptSink } from "./transcript-sink";
-import { runCyreneHarness } from "./harness/cyrene-harness";
+import { runFireflyHarness } from "./harness/firefly-harness";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 import os from "node:os";
 import fs from "node:fs";
@@ -648,7 +648,7 @@ describe("ChatLoop transcript cross-loop continuity", () => {
         raw: {},
       });
       const workSink = createTranscriptSink({ store, conversationId, runId: "run-work-1" });
-      const result = await runCyreneHarness({
+      const result = await runFireflyHarness({
         systemPrompt: "you are a test agent",
         messages: [...materialized.messages, { role: "user", content: "帮我查天气" }],
         tools: [crossLoopTool()],
@@ -657,7 +657,7 @@ describe("ChatLoop transcript cross-loop continuity", () => {
           baseUrl: "https://test",
           model: "m",
           apiKey: "k",
-        } as unknown as Parameters<typeof runCyreneHarness>[0]["vendorConfig"],
+        } as unknown as Parameters<typeof runFireflyHarness>[0]["vendorConfig"],
         transcriptSink: workSink,
       });
       expect(result.finalAnswer).toBe("已接上对话。");

@@ -1,0 +1,7 @@
+{
+  "id": "firefly-plan-mode",
+  "version": "1.0.0",
+  "defaultEnabled": true,
+  "entry": "SKILL.md",
+  "dependencies": []
+}

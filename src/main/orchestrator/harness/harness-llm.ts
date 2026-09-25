@@ -5,8 +5,8 @@
  * 全部为显式参数的纯函数，不依赖 HarnessRun 运行上下文。
  *
  * 调用方：
- * - cyrene-harness.ts 的 callRoundLLM（主循环每轮请求）
- * - cyrene-harness.ts 的 runCompaction（mid-loop 压缩摘要）
+ * - firefly-harness.ts 的 callRoundLLM（主循环每轮请求）
+ * - firefly-harness.ts 的 runCompaction（mid-loop 压缩摘要）
  */
 
 import { getAdapterForConfig, streamChatWithSdk, resolveTransport } from "../vendors";

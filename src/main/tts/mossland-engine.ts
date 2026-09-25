@@ -196,7 +196,7 @@ export async function cloneVoice(opts: MosslandCloneOptions): Promise<MosslandCl
   const fileBuffer = fs.readFileSync(opts.filePath);
 
   // 构造 multipart/form-data（参考 minimax-engine.uploadFile 的写法）
-  const boundary = "----CyreneMossland" + Math.random().toString(36).slice(2);
+  const boundary = "----FireflyMossland" + Math.random().toString(36).slice(2);
   const parts: Buffer[] = [];
 
   // audio_sample 文件字段

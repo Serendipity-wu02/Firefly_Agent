@@ -1,5 +1,5 @@
 /**
- * CyreneHarness 取消传播测试。
+ * FireflyHarness 取消传播测试。
  *
  * 验收不变量：
  * - Harness 在 LLM、工具、retry backoff、permission、ask_user、loop-top 任一等待阶段都可取消。
@@ -65,7 +65,7 @@ vi.mock("./tool-dispatcher", () => ({
 
 vi.mock("../../token-usage-store", () => ({ recordUsage, recordRequest }));
 
-import { runCyreneHarness } from "./cyrene-harness";
+import { runFireflyHarness } from "./firefly-harness";
 import { dispatchToolCall } from "./tool-dispatcher";
 import type { ToolDispatchResult } from "./tool-dispatcher";
 import type { HarnessEvent, HarnessInput, HarnessResult } from "./types";
@@ -247,7 +247,7 @@ function assertCancelledTerminal(result: HarnessResult, events: HarnessEvent[]):
 
 // ── Tests ──────────────────────────────────────────────
 
-describe("CyreneHarness cancellation propagation", () => {
+describe("FireflyHarness cancellation propagation", () => {
   beforeEach(() => {
     mockedDispatch.mockReset();
   });
@@ -264,7 +264,7 @@ describe("CyreneHarness cancellation propagation", () => {
     const { events, fn: onEvent } = eventCollector();
     const controller = new AbortController();
 
-    const promise = runCyreneHarness({
+    const promise = runFireflyHarness({
       systemPrompt: "test",
       messages: [{ role: "user", content: "do work" }],
       tools: [],
@@ -300,7 +300,7 @@ describe("CyreneHarness cancellation propagation", () => {
     const { events, fn: onEvent } = eventCollector();
     const controller = new AbortController();
 
-    const promise = runCyreneHarness({
+    const promise = runFireflyHarness({
       systemPrompt: "test",
       messages: [{ role: "user", content: "hello" }],
       tools: [],
@@ -335,7 +335,7 @@ describe("CyreneHarness cancellation propagation", () => {
     const toolPromise = new Promise<ToolDispatchResult>((resolve) => { resolveTool = resolve; });
     mockedDispatch.mockReturnValue(toolPromise);
 
-    const promise = runCyreneHarness({
+    const promise = runFireflyHarness({
       systemPrompt: "test",
       messages: [{ role: "user", content: "do work" }],
       tools: [readTool()],
@@ -373,7 +373,7 @@ describe("CyreneHarness cancellation propagation", () => {
     const toolPromise = new Promise<ToolDispatchResult>((resolve) => { resolveTool = resolve; });
     mockedDispatch.mockReturnValue(toolPromise);
 
-    const promise = runCyreneHarness({
+    const promise = runFireflyHarness({
       systemPrompt: "test",
       messages: [{ role: "user", content: "do work" }],
       tools: [readTool()],
@@ -416,7 +416,7 @@ describe("CyreneHarness cancellation propagation", () => {
       return allowed ? successDispatchResult("call-1") : failureDispatchResult("call-1");
     });
 
-    const promise = runCyreneHarness({
+    const promise = runFireflyHarness({
       systemPrompt: "test",
       messages: [{ role: "user", content: "do work" }],
       tools: [readTool()],
@@ -473,7 +473,7 @@ describe("CyreneHarness cancellation propagation", () => {
       }),
     };
 
-    const promise = runCyreneHarness({
+    const promise = runFireflyHarness({
       systemPrompt: "test",
       messages: [{ role: "user", content: "do work" }],
       tools: [],
@@ -513,7 +513,7 @@ describe("CyreneHarness cancellation propagation", () => {
       return successDispatchResult(`call-${toolCallCount}`);
     });
 
-    const promise = runCyreneHarness({
+    const promise = runFireflyHarness({
       systemPrompt: "test",
       messages: [{ role: "user", content: "do work" }],
       tools: [readTool()],
@@ -555,7 +555,7 @@ describe("CyreneHarness cancellation propagation", () => {
 
     const controller = new AbortController();
 
-    const promise = runCyreneHarness({
+    const promise = runFireflyHarness({
       systemPrompt: "test",
       messages: [{ role: "user", content: "hello" }],
       tools: [],

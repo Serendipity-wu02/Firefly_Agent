@@ -146,7 +146,7 @@ export function findSafeCutPointForRetainedTokens(
 
 // ── Agent 导向压缩 prompt ────────────────────────────────
 
-export const AGENT_COMPACTION_PROMPT = `你正在为 CyreneHarness 生成可恢复的执行历史检查点。请将上方较早的对话历史压缩为以下固定 Markdown 结构；每个标题都必须保留，没有内容时写“无”。
+export const AGENT_COMPACTION_PROMPT = `你正在为 FireflyHarness 生成可恢复的执行历史检查点。请将上方较早的对话历史压缩为以下固定 Markdown 结构；每个标题都必须保留，没有内容时写“无”。
 
 ## 原始任务与意图
 ## 已确认事实

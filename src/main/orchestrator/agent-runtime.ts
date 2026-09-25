@@ -44,7 +44,7 @@ import {
 import { buildModelContext } from "./conversation-transcript-context";
 import { getConversationTranscriptStore } from "./conversation-transcript-store";
 import { getHarnessRunStore } from "./harness/run-store";
-import { type CyreneRunResult, type CyreneRunOptions } from "./cyrene-agent";
+import { type FireflyRunResult, type FireflyRunOptions } from "./firefly-agent";
 import type { HarnessToolFinishedEvent } from "./harness/types";
 import type { ToolFinishedInput } from "../plugin-host/lifecycle-publisher";
 import {
@@ -96,7 +96,7 @@ export interface AgentRuntimeDeps {
   publishToolFinished?: (event: ToolFinishedInput) => void;
 }
 
-type SchedulerRunOptions = Omit<CyreneRunOptions, "toolSystemContent" | "soulSystemBaseContent">;
+type SchedulerRunOptions = Omit<FireflyRunOptions, "toolSystemContent" | "soulSystemBaseContent">;
 
 export interface AgentRunFinishedContext {
   source: PluginTurnCompletedEvent["source"];
@@ -107,8 +107,8 @@ export interface AgentRunFinishedContext {
 }
 
 export interface AgentRuntime {
-  buildOptions(input: AguiRunInput): Promise<{ options: CyreneRunOptions; latestUserText: string }>;
-  onRunFinished(result: CyreneRunResult, latestUserText: string, context: AgentRunFinishedContext): Promise<{ sticker: string | null }>;
+  buildOptions(input: AguiRunInput): Promise<{ options: FireflyRunOptions; latestUserText: string }>;
+  onRunFinished(result: FireflyRunResult, latestUserText: string, context: AgentRunFinishedContext): Promise<{ sticker: string | null }>;
   buildSchedulerOptions(task: ScheduledTask): Promise<SchedulerRunOptions>;
 }
 
@@ -153,7 +153,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
       },
       { log: false },
     ).catch((err) => {
-      console.warn("[Cyrene] observe runtime failed; keeping current feeling:", err);
+      console.warn("[Firefly] observe runtime failed; keeping current feeling:", err);
     });
   }
 

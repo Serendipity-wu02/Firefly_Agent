@@ -91,8 +91,8 @@ vi.mock("../orchestrator/tools/registry/tool-registry", () => ({
 vi.mock("../orchestrator/tools/history-tools", () => ({
   indexConversationTurn: vi.fn(),
 }));
-vi.mock("../orchestrator/cyrene-agent", () => ({
-  CyreneAgent: class {
+vi.mock("../orchestrator/firefly-agent", () => ({
+  FireflyAgent: class {
     get lastResult() {
       return channelMocks.agentResult;
     }

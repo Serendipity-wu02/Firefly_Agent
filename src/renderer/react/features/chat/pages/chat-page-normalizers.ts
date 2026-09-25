@@ -138,6 +138,7 @@ export function toUiMessages(session: ChatSession): ChatMessageItem[] {
       reasoningBlocks: message.reasoningBlocks,
       processMessages: message.processMessages,
       agentRounds: message.agentRounds,
+      taskDelegations: message.taskDelegations,
       runActivity: message.runActivity,
       ttsCacheKey: message.ttsCacheKey,
       ttsCacheVersion: message.ttsCacheVersion,

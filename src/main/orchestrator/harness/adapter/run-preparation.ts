@@ -4,7 +4,7 @@ import type { ToolDefinition } from "../../tools/registry/tool-registry";
 import { toolRegistry } from "../../tools/registry/tool-registry";
 import { prepareHarnessRecovery } from "../run-recovery";
 import { getHarnessRunStore, type HarnessRequestSnapshot } from "../run-store";
-import type { CyreneRunOptions } from "../../cyrene-agent";
+import type { FireflyRunOptions } from "../../firefly-agent";
 import type { PromptLayers } from "../../prompt-layers";
 import type { ConversationMode } from "../../../../shared/chat-types";
 import {
@@ -41,7 +41,7 @@ function fingerprint(value: unknown): string {
 }
 
 function snapshotHarnessRequest(
-  options: CyreneRunOptions,
+  options: FireflyRunOptions,
   promptLayers: PromptLayers,
   tools: ToolDefinition[],
 ): HarnessRequestSnapshot {
@@ -78,7 +78,7 @@ export interface PreparedHarnessRun {
 }
 
 export async function prepareHarnessRun(
-  options: CyreneRunOptions,
+  options: FireflyRunOptions,
   signal: AbortSignal,
 ): Promise<PreparedHarnessRun> {
   const messageId = `msg-${Date.now()}`;
@@ -86,7 +86,7 @@ export async function prepareHarnessRun(
   // 先校验 runId，避免产生无法关联到 RUN_FINISHED/恢复记录的孤儿执行。
   if (!runId) {
     throw new Error(
-      "[HarnessAdapter] options.runId is required. CyreneAgent.runWithEvents must populate it before invoking the adapter.",
+      "[HarnessAdapter] options.runId is required. FireflyAgent.runWithEvents must populate it before invoking the adapter.",
     );
   }
   const threadId = options.conversationId ?? "default";

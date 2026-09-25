@@ -15,6 +15,8 @@ describe("renderMermaidSafe", () => {
     expect(out.svg).toContain("开始");
     expect(out.svg).not.toContain("fonts.googleapis.com");
     expect(out.svg).not.toMatch(/<script/i);
+    expect(out.svg).toContain("#2d7a5f");
+    expect(out.svg).not.toMatch(/#e8a0b4|#fffafc|#d9b8c4/);
   });
 
   it("五类支持图型都能出图", () => {

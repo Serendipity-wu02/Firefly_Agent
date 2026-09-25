@@ -11,6 +11,7 @@ import type { SkillEntry } from "./types";
 import { logger, LogTag } from "../logger";
 import { getExternalContentPaths, resolveSkillScanSources, resolveSkillsSnapshotArchivePath } from "../external-content-paths";
 import { installSkillsSnapshot } from "./snapshot-install";
+import { resolveSkillId, resolveSkillSettings } from "./skill-id-aliases";
 
 const LOG_PREFIX = "[Skills]";
 
@@ -24,7 +25,7 @@ function loadEnabledState(): Record<string, boolean> {
   try {
     const p = enabledStatePath();
     if (!fs.existsSync(p)) return {};
-    return JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, boolean>;
+    return resolveSkillSettings(JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, boolean>);
   } catch {
     return {};
   }
@@ -65,6 +66,7 @@ export async function initSkills(): Promise<void> {
 
 /** 持久化某 skill 的 enabled 状态。 */
 export function setSkillEnabled(id: string, enabled: boolean): void {
+  id = resolveSkillId(id);
   skillRegistry.setEnabled(id, enabled);
   try {
     const saved = loadEnabledState();

@@ -6,12 +6,13 @@
 
 import { toolRegistry, type ToolEffectKind } from "../orchestrator/tools/registry/tool-registry";
 import { skillRegistry } from "./skill-registry";
+import { resolveSkillId } from "./skill-id-aliases";
 import { logger, LogTag } from "../logger";
 import type { ToolContext } from "../orchestrator/tools/registry/tool-context";
 
 const LOG_PREFIX = "[SkillTools]";
 
-// skill 正文 / reference 返回时的字符上限。CyreneAgent 的 FC 循环把 tool 返回值
+// skill 正文 / reference 返回时的字符上限。FireflyAgent 的 FC 循环把 tool 返回值
 // 永久留在 conversation 里，超大正文（xlsx 8.5KB、skill-creator 33KB、docx 的
 // openxml_encyclopedia 单个 144KB）会顶过推理模型单轮 30s 预算导致连续超时。
 // 官方 skill 系统靠宿主 agent（Claude Code 等）的上下文压缩兜底，我们没那层，得自己截断。
@@ -19,7 +20,7 @@ const SKILL_BODY_MAX_CHARS = 6000;
 const SKILL_REF_MAX_CHARS = 8000;
 
 export function isSkillAllowedForRun(id: string, allowedSkillIds?: ReadonlySet<string>): boolean {
-  return allowedSkillIds?.has(id) ?? true;
+  return allowedSkillIds ? Array.from(allowedSkillIds).some(allowed => resolveSkillId(allowed) === resolveSkillId(id)) : true;
 }
 
 /** 截断文本到 maxChars，超长时末尾附提示。保留前部（任务路由表/关键规则通常在前）。 */
@@ -35,7 +36,7 @@ function truncateForContext(text: string, maxChars: number, hint: string): strin
  */
 const readRefs = new Set<string>();
 
-/** 每轮 FC 循环开始前调，清空已读记录。由 cyrene-agent.ts 在循环入口调。 */
+/** 每轮 FC 循环开始前调，清空已读记录。由 firefly-agent.ts 在循环入口调。 */
 export function resetReadRefs(): void {
   readRefs.clear();
 }
@@ -72,7 +73,7 @@ export function registerSkillTools(): void {
     risk: "safe",
     effectKind: "read" as const, // 默认值，effectResolver 会根据实际 skill 覆盖
     effectResolver: (args: Record<string, unknown>): ToolEffectKind => {
-      const id = String(args.skill_id || "");
+      const id = resolveSkillId(String(args.skill_id || ""));
       const skill = skillRegistry.getById(id);
       if (!skill) return "unknown";
       // skill 未声明 effectKind → unknown（会被 ExecutionPolicyGuard 拒绝）
@@ -87,7 +88,7 @@ export function registerSkillTools(): void {
     },
     needsContext: true,
     execute: async (args, ctx?: ToolContext) => {
-      const id = String(args.skill_id || "");
+      const id = resolveSkillId(String(args.skill_id || ""));
       if (!isSkillAllowedForRun(id, ctx?.allowedSkillIds)) {
         return `[invoke_skill] E_SKILL_UNAVAILABLE_IN_MODE: ${id}`;
       }
@@ -135,7 +136,7 @@ export function registerSkillTools(): void {
     },
     needsContext: true,
     execute: async (args, ctx?: ToolContext) => {
-      const id = String(args.skill_id || "");
+      const id = resolveSkillId(String(args.skill_id || ""));
       const ref = String(args.ref || "");
       if (!isSkillAllowedForRun(id, ctx?.allowedSkillIds)) {
         return `[read_skill_reference] E_SKILL_UNAVAILABLE_IN_MODE: ${id}`;

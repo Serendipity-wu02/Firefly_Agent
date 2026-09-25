@@ -12,7 +12,7 @@
 //       ↓ onMessage (normalized LarkChannel event)
 //       ↓ LarkChannel.on('message')
 //   FeishuAdapter.handleLarkMessage → adapter.onMessage (dispatcher)
-//       ↓ CyreneAgent runs
+//       ↓ FireflyAgent runs
 //   LarkChannel.send(chatId, { text }) → 飞书服务器
 //
 // 图片/文件/音频消息：通过 SDK 的 messageResource.get 下载到 userData/channels/cache/

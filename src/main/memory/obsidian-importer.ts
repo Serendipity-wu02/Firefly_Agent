@@ -176,7 +176,7 @@ export async function importL2Markdown(md: string): Promise<ImportResult> {
         deleteUserMemoryVectors([oldRagId]);
       } catch (err) {
         logger.warn(
-          LogTag.Cyrene,
+          LogTag.Firefly,
           `[obsidian-import] failed to delete stale vector for ${id}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
@@ -186,7 +186,7 @@ export async function importL2Markdown(md: string): Promise<ImportResult> {
     // 启动一致性检查会发现"映射正确但正文不同"并重试重建
     await memoryStore.markL2SyncStatus(id, "sync_failed", undefined, err);
     logger.warn(
-      LogTag.Cyrene,
+      LogTag.Firefly,
       `[obsidian-import] vector rebuild failed for ${id}: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
@@ -217,7 +217,7 @@ function scheduleProcess(): void {
     debounceTimer = null;
     void processPending().catch((err) => {
       logger.warn(
-        LogTag.Cyrene,
+        LogTag.Firefly,
         `[obsidian-import] process failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     });
@@ -238,7 +238,7 @@ async function processPending(): Promise<void> {
     if (result.changed) changedCount++;
   }
   if (changedCount > 0) {
-    logger.info(LogTag.Cyrene, `[obsidian-import] imported ${changedCount} changed memory(ies) from vault`);
+    logger.info(LogTag.Firefly, `[obsidian-import] imported ${changedCount} changed memory(ies) from vault`);
   }
 }
 
@@ -269,14 +269,14 @@ export function startVaultWatcher(vaultPath: string): void {
     });
     watcher.on("error", (err) => {
       logger.warn(
-        LogTag.Cyrene,
+        LogTag.Firefly,
         `[obsidian-import] watcher error: ${err instanceof Error ? err.message : String(err)}`,
       );
     });
-    logger.info(LogTag.Cyrene, `[obsidian-import] watcher started on ${l2Dir}`);
+    logger.info(LogTag.Firefly, `[obsidian-import] watcher started on ${l2Dir}`);
   } catch (err) {
     logger.warn(
-      LogTag.Cyrene,
+      LogTag.Firefly,
       `[obsidian-import] fs.watch failed: ${err instanceof Error ? err.message : String(err)}`,
     );
     watcher = null;
@@ -300,7 +300,7 @@ export function stopVaultWatcher(): void {
   }
   pendingFiles.clear();
   if (watchedVaultPath) {
-    logger.info(LogTag.Cyrene, `[obsidian-import] watcher stopped`);
+    logger.info(LogTag.Firefly, `[obsidian-import] watcher stopped`);
     watchedVaultPath = null;
   }
 }

@@ -31,7 +31,7 @@ export interface CustomCloudSynthesizeRequest {
 export interface MimoSynthesizeRequest {
   apiKey: string;               // 小米 MiMo API Key，走 api-key header
   text: string;                 // 待合成文本
-  voiceAudioPath?: string;      // 昔涟克隆参考音频路径，合成时转 data URL
+  voiceAudioPath?: string;      // 流萤克隆参考音频路径，合成时转 data URL
   stylePrompt?: string;         // 可选风格提示，作为 user message
 }
 

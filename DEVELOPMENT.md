@@ -1,5 +1,7 @@
 # Firefly 开发说明
 
+当前架构入口：[Firefly 运行结构](./docs/architecture/firefly-runtime.md)。历史资料集中索引：[历史归档](./docs/archive/README.md)。自有 Skills 使用 `firefly-*` 名称；旧 ID 只用于兼容已有设置和命令，不再作为内置目录名。
+
 本分支以 Cyrene 的 Electron、TypeScript、React 和既有 Agent 运行架构为基础。功能与验证边界以 [README](./README.md) 和 [迁移记录](./docs/migration/firefly-reliability-and-submission-2026-09-25.md) 为准；远程旧版 Firefly 的 Python 入口和测试脚本不再属于当前运行链。
 
 ## 环境与构建

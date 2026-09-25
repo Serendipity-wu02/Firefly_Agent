@@ -19,7 +19,7 @@ export type {
 };
 export { getCapability, getCapabilityOrOpenAI, PROVIDER_CAPABILITIES };
 export { resolveTransport } from "./transport-detector";
-export { CyreneStreamAccumulator } from "./sdk-stream/accumulator";
+export { FireflyStreamAccumulator } from "./sdk-stream/accumulator";
 export { streamChatWithSdk } from "./sdk-stream/runtime";
 export { ProviderProtocolError } from "./sdk-stream/types";
 export type { StreamDiagnostic, UnifiedStreamDelta } from "./sdk-stream/types";

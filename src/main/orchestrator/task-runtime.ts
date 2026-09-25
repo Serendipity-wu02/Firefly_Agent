@@ -2,7 +2,7 @@ import type { TaskSessionStatus, TaskSubagentType, TaskTranscriptMessage } from 
 import { TaskSessionStore } from "../tasks/task-session-store";
 import { projectTaskTraceEvent } from "./task-events";
 import { getTaskAgentProfile, resolveTaskTools } from "./task-profiles";
-import { runCyreneHarness } from "./harness/cyrene-harness";
+import { runFireflyHarness } from "./harness/firefly-harness";
 import type { HarnessInput, HarnessResult } from "./harness/types";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 import type { VendorConfig, ChatMessage } from "./vendors/types";
@@ -39,7 +39,7 @@ export interface TaskRuntimeParentContext {
   signal?: AbortSignal;
   checkPermission?: HarnessInput["checkPermission"];
   includeInteractiveTools?: boolean;
-  permissionMode?: import("./cyrene-agent").CyreneRunOptions["permissionMode"];
+  permissionMode?: import("./firefly-agent").FireflyRunOptions["permissionMode"];
   toolOutputStore?: ToolOutputStore;
 }
 
@@ -69,11 +69,11 @@ export function buildChildPromptLayers(parent: TaskRuntimeParentContext, profile
 export function createTaskExecutor(input: {
   parent: TaskRuntimeParentContext;
   store: TaskSessionStore;
-  runHarness?: typeof runCyreneHarness;
+  runHarness?: typeof runFireflyHarness;
   characterPool?: Pick<TaskCharacterLeasePool, "acquire">;
   onLifecycle?: (event: TaskDelegationPresentation) => void;
 }): (request: TaskExecuteRequest) => Promise<TaskExecuteResult> {
-  const runHarness = input.runHarness ?? runCyreneHarness;
+  const runHarness = input.runHarness ?? runFireflyHarness;
   const characterPool = input.characterPool ?? taskCharacterLeasePool;
   return async (request) => {
     const profile = getTaskAgentProfile(request.subagentType);

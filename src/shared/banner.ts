@@ -5,7 +5,7 @@
  * Kept color-free by design: the banner is a brand artifact, not a log
  * line. Logger output (which may be colored) is a separate concern.
  */
-export const CYRENE_LOGO = [
+export const FIREFLY_LOGO = [
   "███████╗ ██╗ ██████╗  ███████╗ ███████╗ ██╗      ██╗   ██╗",
   "██╔════╝ ██║ ██╔══██╗ ██╔════╝ ██╔════╝ ██║      ╚██╗ ██╔╝",
   "█████╗   ██║ ██████╔╝ █████╗   █████╗   ██║       ╚████╔╝ ",
@@ -49,5 +49,5 @@ function frameBox(lines: readonly string[], width: number): string {
 
 /** The full banner: logo + blank line + framed box. No color, no log prefix. */
 export function renderBanner(): string {
-  return CYRENE_LOGO.join("\n") + "\n\n" + frameBox(BANNER_LINES, DEFAULT_BANNER_WIDTH);
+  return FIREFLY_LOGO.join("\n") + "\n\n" + frameBox(BANNER_LINES, DEFAULT_BANNER_WIDTH);
 }

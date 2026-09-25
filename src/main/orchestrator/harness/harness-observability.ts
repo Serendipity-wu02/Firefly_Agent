@@ -4,7 +4,7 @@
  * 职责边界：
  * - 这里只负责"怎么算、怎么发"（快照构造、指纹计算、事件发射）。
  * - "什么时候发"（preRequest / terminal、每轮请求前）属于编排决策，
- *   调用点留在 cyrene-harness.ts 主循环里。
+ *   调用点留在 firefly-harness.ts 主循环里。
  */
 
 import { createHash } from "node:crypto";
@@ -14,7 +14,7 @@ import {
   projectCacheRelevantRequest,
   type PromptLayers,
 } from "../prompt-layers";
-import type { HarnessRun } from "./cyrene-harness";
+import type { HarnessRun } from "./firefly-harness";
 
 /**
  * 上下文容量快照（docs/context-usage-viewer-construction-plan.md）：

@@ -205,7 +205,7 @@ export function getAllEntityNames(): string[] {
 /**
  * 将实体图谱中的所有实体名注册到 jieba 自定义词表。
  * 调用时机：应用启动后、图谱有更新时。
- * 这样 "昔涟"、"小鹿" 等 AI 伴侣核心名词不会被错误切分。
+ * 这样 "流萤"、"小鹿" 等 AI 伴侣核心名词不会被错误切分。
  *
  * @node-rs/jieba 没有运行时 insertWord() —— 走「后处理重组」方案：
  * 词表存到 retriever.ts 的 customWords Set，tokenize() 切完后合并回去。

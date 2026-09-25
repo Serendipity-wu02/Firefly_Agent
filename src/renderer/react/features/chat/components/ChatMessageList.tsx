@@ -98,7 +98,7 @@ interface ChatMessageListProps {
   onOpenFileLink?: (relPath: string, line?: number) => void;
 }
 
-const cyreneAvatarUrl = resolveAsset("avatars/firefly-avatar.png");
+const fireflyAvatarUrl = resolveAsset("avatars/firefly-avatar.png");
 
 // 消息是否正在流式输出。code 渲染器收不到 MarkdownContent 的 props，用 context 传下去，
 // mermaid 块靠它在流式期间显示占位而不是渲染半截语法。
@@ -832,9 +832,9 @@ function LastUserMessageEditor({
   );
 }
 
-function CyreneMessageAvatar() {
+function FireflyMessageAvatar() {
   const { t } = useTranslation();
-  return <img className="cy-message-avatar__image" src={cyreneAvatarUrl} alt={t("messageList.cyreneAvatarAlt")} draggable={false} />;
+  return <img className="cy-message-avatar__image" src={fireflyAvatarUrl} alt={t("messageList.fireflyAvatarAlt")} draggable={false} />;
 }
 
 function UserMessageAvatar({ src }: { src: string | null }) {
@@ -899,7 +899,7 @@ function createRoles(
     placement: "start" as const,
     variant: "filled" as const,
     rootClassName: "cy-message cy-message--assistant",
-    avatar: <CyreneMessageAvatar />,
+    avatar: <FireflyMessageAvatar />,
     contentRender: (content: string, info: { extraInfo?: { streaming?: boolean; stickerUrl?: string; channelSource?: ChatMessageChannelSource } }) => (
       <AssistantContent
         content={content}
@@ -1083,7 +1083,7 @@ function convertMessage(message: ChatMessageItem, enabledStickers: readonly Enab
         content: "",
         // 头像钉在运行块头部（状态行左侧）：一次运行只出现一次，不随每条消息重复。
         // 用 createElement 而非 JSX：convertMessage 在测试里直接执行，不经过 JSX 运行时
-        avatar: createElement(CyreneMessageAvatar),
+        avatar: createElement(FireflyMessageAvatar),
         extraInfo: {
           activityId: `${message.id}-activity`,
           activity: message.runActivity,
@@ -1144,7 +1144,7 @@ function convertMessage(message: ChatMessageItem, enabledStickers: readonly Enab
       role: "review",
       content: "",
       // Review 面板属于运行块：头像占位隐藏（头像钉在活动卡头部），面板与正文/时间线内容左对齐
-      avatar: createElement(CyreneMessageAvatar),
+      avatar: createElement(FireflyMessageAvatar),
       rootClassName: "cy-message cy-message--review cy-message--review-run",
       extraInfo: { runId: message.runId },
     });

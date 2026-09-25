@@ -364,7 +364,7 @@ describe("moments worldbook 注入与图片直发", () => {
         modelText: '{"shouldPost":false,"text":""}',
         worldbookText: WORLDBOOK,
       });
-      await h.agent.generatePost({ summary: "聊到了风堇的往世乐土剧情", recentCyrenePosts: [] });
+      await h.agent.generatePost({ summary: "聊到了风堇的往世乐土剧情", recentFireflyPosts: [] });
 
       expect(h.buildWorldbookContext).toHaveBeenCalledWith("聊到了风堇的往世乐土剧情");
       const messages = h.runModel.mock.calls[0][0] as Array<{ role: string; content?: unknown }>;
@@ -547,7 +547,7 @@ describe("buildPostGenerationMessages", () => {
     const messages = buildPostGenerationMessages({
       persona: PERSONA,
       summary: "[19:00] 用户：折腾好久了\n[19:01] 昔涟：快好了",
-      recentCyrenePosts: [recent],
+      recentFireflyPosts: [recent],
       localNow: new Date("2026-09-04T19:02:00"),
     });
 
@@ -569,7 +569,7 @@ describe("buildPostGenerationMessages", () => {
     const messages = buildPostGenerationMessages({
       persona: PERSONA,
       summary: "对话摘录",
-      recentCyrenePosts: [],
+      recentFireflyPosts: [],
       localNow: new Date("2026-09-04T19:02:00"),
     });
     expect(String(messages[1].content)).toContain("[你最近发过的动态]\n（暂无）");
@@ -617,7 +617,7 @@ describe("createMomentsAgent 主动发帖", () => {
     const h = makePostHarness({ modelText: '{"shouldPost":true,"text":"有人终于肯收工啦","wantImage":true}' });
     const posted = await h.agent.generatePost({
       summary: "[23:30] 用户：修完了\n[23:30] 昔涟：太棒了",
-      recentCyrenePosts: [],
+      recentFireflyPosts: [],
     });
 
     expect(posted).toBe(true);
@@ -640,7 +640,7 @@ describe("createMomentsAgent 主动发帖", () => {
       matchResult: media,
     });
 
-    const posted = await h.agent.generatePost({ summary: "深夜修完了", recentCyrenePosts: [] });
+    const posted = await h.agent.generatePost({ summary: "深夜修完了", recentFireflyPosts: [] });
 
     expect(posted).toBe(true);
     expect(h.matchMedia).toHaveBeenCalledTimes(1);
@@ -656,7 +656,7 @@ describe("createMomentsAgent 主动发帖", () => {
 
   it("wantImage=true 但未命中素材时降级纯文字", async () => {
     const h = makePostHarness({ modelText: '{"shouldPost":true,"text":"文案","wantImage":true}' });
-    await h.agent.generatePost({ summary: "摘录", recentCyrenePosts: [] });
+    await h.agent.generatePost({ summary: "摘录", recentFireflyPosts: [] });
 
     expect(h.matchMedia).toHaveBeenCalledTimes(1);
     expect(h.commitPost).toHaveBeenCalledWith({
@@ -668,7 +668,7 @@ describe("createMomentsAgent 主动发帖", () => {
 
   it("wantImage=false 时不调用配图匹配", async () => {
     const h = makePostHarness({ modelText: '{"shouldPost":true,"text":"纯文字动态"}' });
-    await h.agent.generatePost({ summary: "摘录", recentCyrenePosts: [] });
+    await h.agent.generatePost({ summary: "摘录", recentFireflyPosts: [] });
 
     expect(h.matchMedia).not.toHaveBeenCalled();
     expect(h.commitPost.mock.calls[0][0].media).toEqual([]);
@@ -676,28 +676,28 @@ describe("createMomentsAgent 主动发帖", () => {
 
   it("skip 决策不提交且返回 false", async () => {
     const h = makePostHarness({ modelText: '{"shouldPost":false,"text":""}' });
-    const posted = await h.agent.generatePost({ summary: "摘录", recentCyrenePosts: [] });
+    const posted = await h.agent.generatePost({ summary: "摘录", recentFireflyPosts: [] });
     expect(posted).toBe(false);
     expect(h.commitPost).not.toHaveBeenCalled();
   });
 
   it("决策无效时记录日志并返回 false", async () => {
     const h = makePostHarness({ modelText: "乱七八糟" });
-    const posted = await h.agent.generatePost({ summary: "摘录", recentCyrenePosts: [] });
+    const posted = await h.agent.generatePost({ summary: "摘录", recentFireflyPosts: [] });
     expect(posted).toBe(false);
     expect(h.log).toHaveBeenCalledWith("post_decision_invalid", "invalid_json");
   });
 
   it("模型调用失败时静默返回 false", async () => {
     const h = makePostHarness({ modelOutput: { kind: "error", reason: "timeout" } });
-    const posted = await h.agent.generatePost({ summary: "摘录", recentCyrenePosts: [] });
+    const posted = await h.agent.generatePost({ summary: "摘录", recentFireflyPosts: [] });
     expect(posted).toBe(false);
     expect(h.commitPost).not.toHaveBeenCalled();
   });
 
   it("提交被拒绝（开关关闭等）时返回 false", async () => {
     const h = makePostHarness({ modelText: '{"shouldPost":true,"text":"文案"}', commitApplied: false });
-    const posted = await h.agent.generatePost({ summary: "摘录", recentCyrenePosts: [] });
+    const posted = await h.agent.generatePost({ summary: "摘录", recentFireflyPosts: [] });
     expect(posted).toBe(false);
   });
 
@@ -707,7 +707,7 @@ describe("createMomentsAgent 主动发帖", () => {
       modelText: '{"shouldPost":true,"text":"文案"}',
       pluginContextText: "【测试插件】插件产出的参考数据",
     });
-    const posted = await h.agent.generatePost({ summary, recentCyrenePosts: [] });
+    const posted = await h.agent.generatePost({ summary, recentFireflyPosts: [] });
 
     expect(posted).toBe(true);
     // 场景名固定为 moments-post，userText 用发帖摘录
@@ -729,7 +729,7 @@ describe("createMomentsAgent 主动发帖", () => {
     });
     const posted = await h.agent.generatePost({
       summary: "摘录",
-      recentCyrenePosts: [],
+      recentFireflyPosts: [],
       conversationId: "conv-1",
       channel: "wechat",
     });
@@ -749,7 +749,7 @@ describe("createMomentsAgent 主动发帖", () => {
       modelText: '{"shouldPost":true,"text":"文案"}',
       pluginContextError: "插件上下文炸了",
     });
-    const posted = await h.agent.generatePost({ summary: "摘录", recentCyrenePosts: [] });
+    const posted = await h.agent.generatePost({ summary: "摘录", recentFireflyPosts: [] });
 
     // fail-safe：只记日志降级，不阻断发帖主流程
     expect(posted).toBe(true);
@@ -761,7 +761,7 @@ describe("createMomentsAgent 主动发帖", () => {
 
   it("未注入 buildPluginPromptContext 时行为与旧版一致", async () => {
     const h = makePostHarness({ modelText: '{"shouldPost":true,"text":"文案"}' });
-    const posted = await h.agent.generatePost({ summary: "摘录", recentCyrenePosts: [] });
+    const posted = await h.agent.generatePost({ summary: "摘录", recentFireflyPosts: [] });
 
     expect(posted).toBe(true);
     expect(h.commitPost).toHaveBeenCalledTimes(1);

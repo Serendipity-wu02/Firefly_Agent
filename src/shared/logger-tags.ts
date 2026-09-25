@@ -17,7 +17,7 @@ export const LogTag = {
   TodoStore: "TodoStore",
   MCP: "MCP",
   Permission: "Permission",
-  Cyrene: "Cyrene",
+  Firefly: "Firefly",
   Worldbook: "Worldbook",
   EntityGraph: "EntityGraph",
   RAG: "RAG",

@@ -291,7 +291,7 @@ export interface PostGenerationPacketInput {
   /** 触发摘录：ring buffer 组装的会话原文 */
   summary: string;
   /** 最近流萤动态（供新颖性判断，避免重复发相似内容） */
-  recentCyrenePosts: readonly MomentPost[];
+  recentFireflyPosts: readonly MomentPost[];
   /** 插件提示词上下文，moments-post 场景；空串/缺省不注入 */
   pluginContext?: string;
   localNow: Date;
@@ -303,8 +303,8 @@ export function buildPostGenerationPacket(input: PostGenerationPacketInput): str
 
   sections.push(`[最近对话摘录]\n${input.summary.trim() || "（无）"}`);
 
-  if (input.recentCyrenePosts.length > 0) {
-    const lines = input.recentCyrenePosts.map((post) => {
+  if (input.recentFireflyPosts.length > 0) {
+    const lines = input.recentFireflyPosts.map((post) => {
       const d = new Date(post.createdAt);
       return `- ${d.getMonth() + 1}月${d.getDate()}日 ${pad2(d.getHours())}:${pad2(d.getMinutes())} "${post.text.trim().slice(0, RECENT_EXCERPT_CHARS)}"`;
     });

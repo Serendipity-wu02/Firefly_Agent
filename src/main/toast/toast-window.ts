@@ -52,7 +52,7 @@ export function createToastWindowController(deps: ToastWindowDeps) {
   /**
    * 四级回退链选显示器：
    * 聊天窗口 → 最近记录的聊天窗口区域 → 鼠标所在 → 主屏（getDisplayMatching 内部兜底）。
-   * 用户最后一次把 Cyrene 放在哪块屏幕，toast 就应该在那里出来。
+   * 用户最后一次把 Firefly 放在哪块屏幕，toast 就应该在那里出来。
    */
   function resolveDisplay(): { workArea: ToastDisplayWorkArea } {
     const chat = deps.getChatWindow();

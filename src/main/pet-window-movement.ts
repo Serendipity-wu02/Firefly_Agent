@@ -28,7 +28,7 @@ export class PetWindowMoveController {
       if (!position) return;
       this.applyPosition(window, position);
     } catch (error) {
-      this.logWarning("[Cyrene] Failed to move pet window relatively:", error);
+      this.logWarning("[Firefly] Failed to move pet window relatively:", error);
     }
   }
 
@@ -40,7 +40,7 @@ export class PetWindowMoveController {
     try {
       this.applyPosition(window, position);
     } catch (error) {
-      this.logWarning("[Cyrene] Failed to move pet window:", error);
+      this.logWarning("[Firefly] Failed to move pet window:", error);
     }
   }
 
@@ -52,7 +52,7 @@ export class PetWindowMoveController {
       const position = normalizeWindowPosition(x, y);
       if (position) this.persistPosition(position);
     } catch (error) {
-      this.logWarning("[Cyrene] Failed to persist the pet window position:", error);
+      this.logWarning("[Firefly] Failed to persist the pet window position:", error);
     }
   }
 

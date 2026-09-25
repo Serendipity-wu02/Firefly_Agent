@@ -70,7 +70,7 @@ export function createPetWindow(
       restoreY = settings.petWindowY;
     } else {
       console.log(
-        "[Cyrene] 桌宠保存位置已离屏（仅 " +
+        "[Firefly] 桌宠保存位置已离屏（仅 " +
           interW + "x" + interH + " 可见），回退到屏幕中央",
       );
     }

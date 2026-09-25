@@ -88,7 +88,7 @@ body:
       label: 日志 / 截图
       description: |
         如有报错弹窗、异常截图请拖拽上传。
-        日志位于 `%APPDATA%/Firefly-Cyrene-Base/logs/`，可粘贴相关片段。提交前请移除密钥与私人内容。
+        日志位于 `%APPDATA%/Firefly/logs/`，可粘贴相关片段。提交前请移除密钥与私人内容。
     validations:
       required: false
 

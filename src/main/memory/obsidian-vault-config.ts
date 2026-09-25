@@ -38,7 +38,7 @@ export function loadObsidianVaultConfig(): ObsidianVaultConfig {
       lastSyncAt: typeof raw.lastSyncAt === "number" ? raw.lastSyncAt : 0,
     };
   } catch (err) {
-    logger.warn(LogTag.Cyrene, `[obsidian-config] load failed: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn(LogTag.Firefly, `[obsidian-config] load failed: ${err instanceof Error ? err.message : String(err)}`);
     return { ...DEFAULT_CONFIG };
   }
 }

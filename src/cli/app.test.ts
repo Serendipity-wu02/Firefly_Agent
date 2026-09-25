@@ -81,7 +81,7 @@ describe("main: help", () => {
   it("prints usage and exits 0", async () => {
     const code = await main(["--help"], VERSION);
     expect(code).toBe(0);
-    expect(stdoutBuf).toContain("Usage: cyrene");
+    expect(stdoutBuf).toContain("Usage: firefly");
   });
 });
 

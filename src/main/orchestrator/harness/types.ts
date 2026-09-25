@@ -1,5 +1,5 @@
 /**
- * CyreneHarness 核心类型定义。
+ * FireflyHarness 核心类型定义。
  *
  * 本文件只定义 Harness 特有的类型，复用现有类型：
  * - ChatMessage / ToolCall / ToolSpec 来自 vendors/types
@@ -9,7 +9,7 @@
 
 import type { ChatMessage, ToolCall, ToolSpec } from "../vendors/types";
 import type { ToolDefinition } from "../tools/registry/tool-registry";
-import type { CyreneRunTerminalResult } from "../../../shared/run-terminal";
+import type { FireflyRunTerminalResult } from "../../../shared/run-terminal";
 import type { TodoItem } from "../../../shared/task-session";
 import type { ToolErrorCategory } from "../tools/registry/tool-execution-error";
 import type { ToolRiskLevel } from "../../permission-policy";
@@ -328,7 +328,7 @@ export interface HarnessResult {
   /**
    * Canonical 终态结算（exactly-once，见 run-settlement.ts）。
    *
-   * 新消费方（CyreneAgent.runWithEvents、agui-bridge settlement gate）必须读 terminal，
+   * 新消费方（FireflyAgent.runWithEvents、agui-bridge settlement gate）必须读 terminal，
    * 不要再从 terminated / terminateReason 反推：
    *  - status="success"：模型自然收尾（无 tool call 或主动结束）。
    *  - status="timeout"：reason="timeout"。
@@ -336,9 +336,9 @@ export interface HarnessResult {
    *  - status="error"：reason 来自 AgentRuntimeError.code 或工具 fatal。
    *
    * 由 harness-adapter 根据 terminateReason 映射填充；
-   * cyrene-harness 内部仍只写 terminated / terminateReason。
+   * firefly-harness 内部仍只写 terminated / terminateReason。
    */
-  terminal?: CyreneRunTerminalResult;
+  terminal?: FireflyRunTerminalResult;
   /** 总执行轮数 */
   rounds: number;
 }

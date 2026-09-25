@@ -1,12 +1,12 @@
-// 朋友圈聊天工具 —— 昔涟在对话中主动使用朋友圈的三件套。
+// 朋友圈聊天工具 —— 流萤在对话中主动使用朋友圈的三件套。
 //
 // 设计原则：
 // - 三个工具对应三个自然动作：看动态（读）、发动态（写）、互动（点赞/评论），
 //   描述各自独立直白，不搞"带参数=写、不带=读"的复合语义（模型易传错参数）；
-// - chatBuiltin + modes: ["chat"]：这是昔涟人格的一部分，不依赖 Chat 工具
+// - chatBuiltin + modes: ["chat"]：这是流萤人格的一部分，不依赖 Chat 工具
 //   增强总开关与 opt-in 勾选，chat 会话默认可见（设置页朋友圈开关才是控制面）；
 // - 写操作走 momentsService 工具通道：闸门沿用提交时复核，被挡时返回
-//   可读原因（昔涟会据此在聊天里说"我刚发过了"之类的话，反而更拟人）；
+//   可读原因（流萤会据此在聊天里说"我刚发过了"之类的话，反而更拟人）；
 // - 看动态纯读内存缓存，零模型成本。
 
 import { loadGeneralSettings } from "../../settings/settings-facade";
@@ -16,7 +16,7 @@ import { toolRegistry } from "./registry/tool-registry";
 
 const LOG_PREFIX = "[MomentsTools]";
 
-/** 作者在工具输出里的显示名：昔涟是 AI 自己，user 是主人，角色原名直出 */
+/** 作者在工具输出里的显示名：流萤是 AI 自己，user 是主人，角色原名直出 */
 function authorLabel(author: string): string {
   if (author === "cyrene") return "我";
   if (author === "user") return "主人";
@@ -55,7 +55,7 @@ function formatFeedItem(item: MomentFeedItem, now: number): string {
 }
 
 export function registerMomentsTools(): void {
-  // 看动态：读最近 feed，供昔涟决定要不要互动或提一嘴
+  // 看动态：读最近 feed，供流萤决定要不要互动或提一嘴
   toolRegistry.register({
     id: "moments_view",
     name: "看朋友圈",
@@ -98,7 +98,7 @@ export function registerMomentsTools(): void {
     },
   });
 
-  // 发动态：昔涟当场发一条朋友圈（即时落库，不走后台延迟）
+  // 发动态：流萤当场发一条朋友圈（即时落库，不走后台延迟）
   toolRegistry.register({
     id: "moments_post",
     name: "发朋友圈",

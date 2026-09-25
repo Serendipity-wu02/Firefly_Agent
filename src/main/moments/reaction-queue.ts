@@ -2,7 +2,7 @@
 //
 // 职责边界：
 // - 只管"什么时候执行"与"崩溃后怎么续"：去重入队、到期扫描、决策缓存、失败退避；
-//   "决策怎么产生、副作用怎么落库"全部委托给注入的执行器（昔涟与角色各自的执行器由 service 装配）；
+//   "决策怎么产生、副作用怎么落库"全部委托给注入的执行器（流萤与角色各自的执行器由 service 装配）；
 // - 持久化独立文件（与 moments.json / moments-state.json 分离）：任务入队即落盘，
 //   执行成功才删除——执行中途崩溃，重启后任务还在，凭评论通道的 sourceTaskId 幂等续接；
 // - 决策幂等：模型返回合法决策后先把 resolvedDecision 落盘、再执行副作用，
@@ -25,7 +25,7 @@ export type ReactionTaskKind =
 export interface ReactionTask {
   id: string;
   kind: ReactionTaskKind;
-  /** 昔涟（"cyrene"）或角色名 */
+  /** 流萤（"cyrene"）或角色名 */
   actor: string;
   postId: string;
   /** reply_eval 时：触发本次回复的评论 id（参与去重键，不同评论的回复任务互不去重） */
@@ -113,7 +113,7 @@ const CHARACTER_REPLY_BUCKETS: readonly DelayBucket[] = [
   { weight: 20, minMs: 40 * MINUTE_MS, maxMs: 60 * MINUTE_MS },
 ];
 
-/** 昔涟表态：在线 1~8 分钟；离线 1~40 分钟（她和用户关系最好，看到就会回应，不拖长尾） */
+/** 流萤表态：在线 1~8 分钟；离线 1~40 分钟（她和用户关系最好，看到就会回应，不拖长尾） */
 const CYRENE_POST_OFFLINE_BUCKETS: readonly DelayBucket[] = [
   { weight: 50, minMs: 1 * MINUTE_MS, maxMs: 10 * MINUTE_MS },
   { weight: 30, minMs: 10 * MINUTE_MS, maxMs: 25 * MINUTE_MS },
@@ -121,7 +121,7 @@ const CYRENE_POST_OFFLINE_BUCKETS: readonly DelayBucket[] = [
   { weight: 5, minMs: 35 * MINUTE_MS, maxMs: 40 * MINUTE_MS },
 ];
 
-/** 昔涟回复：在线 1~5 分钟；离线 1~40 分钟（整体比表态偏快，被回复后她会尽快接话） */
+/** 流萤回复：在线 1~5 分钟；离线 1~40 分钟（整体比表态偏快，被回复后她会尽快接话） */
 const CYRENE_REPLY_OFFLINE_BUCKETS: readonly DelayBucket[] = [
   { weight: 50, minMs: 1 * MINUTE_MS, maxMs: 8 * MINUTE_MS },
   { weight: 30, minMs: 8 * MINUTE_MS, maxMs: 20 * MINUTE_MS },
@@ -161,12 +161,12 @@ export function computeCharacterReplyDelayMs(random: () => number): number {
   return pickBucketDelay(CHARACTER_REPLY_BUCKETS, random);
 }
 
-export function computeCyrenePostDelayMs(online: boolean, random: () => number): number {
+export function computeFireflyPostDelayMs(online: boolean, random: () => number): number {
   if (online) return MINUTE_MS + Math.floor(random() * 7 * MINUTE_MS);
   return pickBucketDelay(CYRENE_POST_OFFLINE_BUCKETS, random);
 }
 
-export function computeCyreneReplyDelayMs(online: boolean, random: () => number): number {
+export function computeFireflyReplyDelayMs(online: boolean, random: () => number): number {
   if (online) return MINUTE_MS + Math.floor(random() * 4 * MINUTE_MS);
   return pickBucketDelay(CYRENE_REPLY_OFFLINE_BUCKETS, random);
 }
@@ -185,8 +185,8 @@ const NIGHT_WINDOW_SPREAD_MS = 120 * MINUTE_MS;
 
 /**
  * 深夜窗口校正：入队时刻在凌晨 1~7 点之间时，把 dueAt 替换为当日
- * 08:00 起随机 0~120 分钟；窗口外原样返回。昔涟在线短延迟由调用方跳过本校正
- * （用户凌晨三点正和昔涟聊天，她就是醒着的）。
+ * 08:00 起随机 0~120 分钟；窗口外原样返回。流萤在线短延迟由调用方跳过本校正
+ * （用户凌晨三点正和流萤聊天，她就是醒着的）。
  */
 export function applyNightWindow(dueAt: number, now: Date, random: () => number): number {
   const hour = now.getHours();
@@ -469,7 +469,7 @@ export function createReactionQueue(deps: ReactionQueueDeps): ReactionQueue {
     },
 
     /**
-     * 取消某动作者在某动态下的全部待执行任务：昔涟在聊天里手动互动后调用，
+     * 取消某动作者在某动态下的全部待执行任务：流萤在聊天里手动互动后调用，
      * 防止自动表态任务到期后冒出第二条重复评论。返回取消条数供日志。
      */
     cancelTasks(input: { actor: string; postId: string }): number {
