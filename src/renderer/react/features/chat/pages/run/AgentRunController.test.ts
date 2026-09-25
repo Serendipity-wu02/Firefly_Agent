@@ -127,7 +127,7 @@ it("persists Main read evidence before the Work terminal checkpoint", async () =
   await flush();
   api.emit(RUN_STARTED_EVENT);
   const report = { status: "partial" as const, files: [{ name: "public.txt", status: "partial" as const, coveredLines: 2, requiredLines: 4, totalLines: 4 }] };
-  api.emit({ type: "CUSTOM", name: "cyrene.workRead", value: report, runId: "run-1" });
+  api.emit({ type: "CUSTOM", name: "firefly.workRead", value: report, runId: "run-1" });
   api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "success" } });
   await promise;
   expect(store.upsert).toHaveBeenCalledWith("session-1", expect.objectContaining({
@@ -380,10 +380,10 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "你好，" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "你好，" } });
     expect(host.patchMessage).toHaveBeenCalledWith("session-1", "assistant-1", expect.objectContaining({ transientText: "你好，" }));
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "世界" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "世界" } });
     flushFrames();
 
     api.emit({ type: "TEXT_MESSAGE_START", runId: "run-1", messageId: "m-1" });
@@ -409,13 +409,13 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
 
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "好的伙伴，" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "好的伙伴，" } });
     expect(host.patchMessage).toHaveBeenCalledWith("session-1", "assistant-1", expect.objectContaining({ transientText: "好的伙" }));
     await flushAllFrames();
 
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "人家先去摸清这边项目的底，" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "人家先去摸清这边项目的底，" } });
     flushFrames();
     const partialSecond = host.patchMessage.mock.calls
       .map((call) => call[2]?.transientText as string | undefined)
@@ -424,7 +424,7 @@ describe("AgentRunController", () => {
     expect(partialSecond.length).toBeLessThan("好的伙伴，人家先去摸清这边项目的底，".length);
     await flushAllFrames();
 
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "再决定怎么跑测试♪" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "再决定怎么跑测试♪" } });
     await flushAllFrames();
 
     const candidatePatches = host.patchMessage.mock.calls
@@ -446,11 +446,11 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "我先读取文件。" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "我先读取文件。" } });
     api.emit({
       type: "CUSTOM",
-      name: "cyrene.process_text",
+      name: "firefly.process_text",
       runId: "run-1",
       value: { content: "我先读取文件。" },
     });
@@ -461,7 +461,7 @@ describe("AgentRunController", () => {
     await Promise.resolve();
     const processPatchAtClassification = host.patchMessage.mock.calls.at(-1)?.[2];
 
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "end", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "end", roundId: "round-0" } });
     api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "cancelled" } });
     await promise;
 
@@ -480,9 +480,9 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "先确认项目结构再继续处理。" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "discard", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "先确认项目结构再继续处理。" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "discard", roundId: "round-0" } });
 
     expect(host.patchMessage.mock.calls.some((call) => call[2]?.processMessages?.some(
       (message: { content?: string }) => message.content === "先确认项目结构再继续处理。",
@@ -506,8 +506,8 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "预览草稿" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "预览草稿" } });
     await flushAllFrames();
     api.emit({ type: "TEXT_MESSAGE_START", runId: "run-1", messageId: "m-1" });
     api.emit({ type: "TEXT_MESSAGE_CONTENT", runId: "run-1", delta: "权威最终答案" });
@@ -536,11 +536,11 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-1" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "迟到旧文字" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-1", delta: "当前文字" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-1" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "迟到旧文字" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-1", delta: "当前文字" } });
     await flushAllFrames();
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "discard", roundId: "round-1" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "discard", roundId: "round-1" } });
     api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "cancelled" } });
     await promise;
 
@@ -563,11 +563,11 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "上一轮的正文" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "上一轮的正文" } });
     await flushAllFrames();
     // 没有 progress_text / discard，直接开始下一轮：上一轮候选必须被闭合保留
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-1" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-1" } });
     api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "cancelled" } });
     await promise;
 
@@ -586,16 +586,16 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
     api.emit({ type: "REASONING_MESSAGE_START", runId: "run-1", messageId: "r-0" });
     api.emit({ type: "REASONING_MESSAGE_CONTENT", runId: "run-1", messageId: "r-0", delta: "先想一下" });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "我先看结构。" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "我先看结构。" } });
     flushFrames();
-    api.emit({ type: "CUSTOM", name: "cyrene.process_text", runId: "run-1", value: { content: "我先看结构。" } });
+    api.emit({ type: "CUSTOM", name: "firefly.process_text", runId: "run-1", value: { content: "我先看结构。" } });
     api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "t-0", toolCallName: "list_dir" });
     api.emit({ type: "TOOL_CALL_END", runId: "run-1", toolCallId: "t-0" });
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "end", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-1" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "end", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-1" } });
     api.emit({ type: "REASONING_MESSAGE_START", runId: "run-1", messageId: "r-1" });
     api.emit({ type: "REASONING_MESSAGE_CONTENT", runId: "run-1", messageId: "r-1", delta: "接着找入口" });
     api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "cancelled" } });
@@ -631,11 +631,11 @@ describe("AgentRunController", () => {
 
     const longText = "已经流式输出了很长的一段正文。".repeat(24);
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: longText } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: longText } });
     flushFrames();
-    api.emit({ type: "CUSTOM", name: "cyrene.process_text", runId: "run-1", value: { content: longText } });
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "end", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.process_text", runId: "run-1", value: { content: longText } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "end", roundId: "round-0" } });
     api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "cancelled" } });
     await promise;
 
@@ -653,8 +653,8 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "只有预览没有权威" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "只有预览没有权威" } });
     await flushAllFrames();
     api.emit({ type: "TEXT_MESSAGE_START", runId: "run-1", messageId: "m-1" });
     api.emit({ type: "TEXT_MESSAGE_END", runId: "run-1", messageId: "m-1" });
@@ -677,8 +677,8 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "ABCDEF" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "ABCDEF" } });
     await flushAllFrames();
     api.emit({ type: "TEXT_MESSAGE_START", runId: "run-1", messageId: "m-1" });
     api.emit({ type: "TEXT_MESSAGE_CONTENT", runId: "run-1", delta: "ABCDE" });
@@ -704,8 +704,8 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "做到一半" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "做到一半" } });
     flushFrames();
     api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status } });
     await promise;
@@ -728,8 +728,8 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "正在处理到这里" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "正在处理到这里" } });
     flushFrames();
     api.emit({ type: "RUN_ERROR", runId: "run-1", message: "连接中断" });
     await promise;
@@ -756,9 +756,9 @@ describe("AgentRunController", () => {
     await flush();
 
     api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "CUSTOM", name: "cyrene.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "正在检查关键文件。" } });
-    api.emit({ type: "CUSTOM", name: "cyrene.process_text", runId: "run-1", value: { content: "正在检查关键文件。" } });
+    api.emit({ type: "CUSTOM", name: "firefly.round", runId: "run-1", value: { action: "start", roundId: "round-0" } });
+    api.emit({ type: "CUSTOM", name: "firefly.candidate_text", runId: "run-1", value: { action: "delta", roundId: "round-0", delta: "正在检查关键文件。" } });
+    api.emit({ type: "CUSTOM", name: "firefly.process_text", runId: "run-1", value: { content: "正在检查关键文件。" } });
     api.emit({ type: "RUN_ERROR", runId: "run-1", message: "连接中断" });
     await promise;
 
@@ -1039,7 +1039,7 @@ describe("AgentRunController", () => {
     api.emit(RUN_STARTED_EVENT);
     api.emit({
       type: "CUSTOM",
-      name: "cyrene.choice",
+      name: "firefly.choice",
       runId: "run-1",
       value: {
         interactionId: "ix-1",

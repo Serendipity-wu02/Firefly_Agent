@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { createHash } from "node:crypto";
 
 // 用独立子目录隔离 settings-store.test.ts（它用 os.tmpdir()）
 const FALLBACK_TMP = path.join(os.tmpdir(), "cyrene-fallback-test");
@@ -38,6 +39,28 @@ vi.mock("electron", () => {
 import { loadChannelsSettings, saveChannelsSettings } from "./settings-store";
 
 describe("settings-store: safeStorage 不可用 fallback", () => {
+  it("reads legacy derivation and saves current encoding with a backup", () => {
+    const file = path.join(FALLBACK_TMP, "channels-settings.json");
+    const backup = `${file}.pre-firefly.bak`;
+    fs.rmSync(backup, { force: true });
+    const key = createHash("sha256").update(`${FALLBACK_TMP}::live2d-cyrene::cyrene-bot-secret`).digest().subarray(0, 16);
+    const content = Buffer.from("public-test-secret");
+    const encrypted = Buffer.from(content.map((byte, index) => byte ^ key[index % key.length]));
+    const original = JSON.stringify({ feishu: { appSecret: `obf:${encrypted.toString("base64")}` } });
+    fs.writeFileSync(file, original);
+    expect(loadChannelsSettings().feishu.appSecret).toBe("public-test-secret");
+    saveChannelsSettings({ rateLimitPerUser: 20 });
+    expect(loadChannelsSettings().feishu.appSecret).toBe("public-test-secret");
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).feishu.appSecret).toMatch(/^obf2:/);
+    expect(fs.readFileSync(backup, "utf8")).toBe(original);
+  });
+  it("refuses to overwrite unreadable credentials", () => {
+    const file = path.join(FALLBACK_TMP, "channels-settings.json");
+    const original = '{"feishu":{"appSecret":"enc:unavailable"}}';
+    fs.writeFileSync(file, original);
+    expect(() => saveChannelsSettings({ rateLimitPerUser: 20 })).toThrow("CHANNELS_SETTINGS_READ_FAILED");
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+  });
   beforeEach(() => {
     const p = path.join(FALLBACK_TMP, "channels-settings.json");
     if (fs.existsSync(p)) fs.unlinkSync(p);
@@ -58,14 +81,14 @@ describe("settings-store: safeStorage 不可用 fallback", () => {
     expect(loaded.feishu.appSecret).toBe("fallback-roundtrip");
   });
 
-  it("save 时磁盘上不出现明文 secret（要么 enc: 要么 obf:）", () => {
+  it("save 时磁盘上不出现明文 secret（要么 enc: 要么 obf2:）", () => {
     saveChannelsSettings({
       feishu: { enabled: true, appSecret: "obscured-secret-123" },
     });
     const raw = fs.readFileSync(path.join(FALLBACK_TMP, "channels-settings.json"), "utf8");
     expect(raw).not.toContain("obscured-secret-123");
-    // 文件中要么是 enc: (safeStorage 可用) 要么是 obf: (fallback)
-    expect(raw).toMatch(/"appSecret":\s*"(enc|obf):/);
+    // 文件中要么是 enc: (safeStorage 可用) 要么是 obf2: (fallback)
+    expect(raw).toMatch(/"appSecret":\s*"(enc|obf2):/);
   });
 
   it("二次保存不覆盖已有 secret", () => {
@@ -77,12 +100,12 @@ describe("settings-store: safeStorage 不可用 fallback", () => {
     expect(loaded.feishu.enabled).toBe(false);
   });
 
-  it("预写入一个 obf: 字段到磁盘，load 能还原明文（模拟首次启动后磁盘已有数据）", () => {
-    // 第一次 save → 让 settings-store 自动写 obf:
+  it("预写入一个 obf2: 字段到磁盘，load 能还原明文（模拟首次启动后磁盘已有数据）", () => {
+    // 第一次 save → 让 settings-store 自动写 obf2:
     saveChannelsSettings({ feishu: { enabled: true, appSecret: "preboot-secret" } });
-    // 此时磁盘上应该是 obf: 形式（因为 safeStorage 不可用），验证
+    // 此时磁盘上应该是 obf2: 形式（因为 safeStorage 不可用），验证
     const raw = fs.readFileSync(path.join(FALLBACK_TMP, "channels-settings.json"), "utf8");
-    expect(raw).toContain('"appSecret": "obf:'); // 确认走了 obfuscate
+    expect(raw).toContain('"appSecret": "obf2:'); // 确认走了 obfuscate
 
     // 不调用 save, 直接 load 看 round-trip
     const loaded = loadChannelsSettings();

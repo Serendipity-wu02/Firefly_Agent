@@ -12,17 +12,8 @@ import type {
 } from "../shared/plugin-management";
 import type { PluginImportResult } from "../plugins/manager";
 
-/** 官方插件市场索引源：GitHub 为主源、Gitee 兜底；市场面板会实时探测各源死活，并允许用户手动切换指定源 */
-export const MARKET_REGISTRY_URLS = [
-  "https://raw.githubusercontent.com/Playa-0v0/Cyrene-Plugins/main/registry.json",
-  "https://gitee.com/playa0/cyrene-plugins/raw/main/registry.json",
-] as const;
-
-/** 插件包只允许来自官方仓库的直链（GitHub Releases + Gitee raw zips/ 双前缀），防止索引被篡改后下载任意来源的包 */
-export const MARKET_ZIP_URL_PREFIXES: readonly string[] = [
-  "https://github.com/Playa-0v0/Cyrene-Plugins/releases/download/",
-  "https://gitee.com/playa0/cyrene-plugins/raw/main/zips/",
-];
+export const MARKET_REGISTRY_URLS: readonly string[] = [];
+export const MARKET_ZIP_URL_PREFIXES: readonly string[] = [];
 
 export const MARKET_REGISTRY_TIMEOUT_MS = 10_000;
 export const MARKET_ZIP_DOWNLOAD_TIMEOUT_MS = 120_000;
@@ -181,6 +172,9 @@ export function createPluginMarketplaceService(deps: PluginMarketplaceDeps) {
   }
 
   async function listMarket(preferred?: string): Promise<MarketListResult> {
+    if (deps.registryUrls.length === 0) {
+      return { ok: false, error: "插件市场未配置；可从本地安装插件", plugins: [], sources: [] };
+    }
     const seq = ++listSeq;
     // 若调用方指定偏好源且在候选里，就把它提前到探测队首，其余保持原优先级顺序
     const ordered = preferred && deps.registryUrls.includes(preferred)

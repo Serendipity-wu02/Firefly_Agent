@@ -12,6 +12,8 @@
 //   标志防重入——store 幂等挡得住重复写入，但重复执行会把模型的钱烧两遍。
 
 import { randomUUID } from "node:crypto";
+import { normalizeStoredMoment } from "../../shared/legacy-firefly-contracts";
+import { writeMigratedJson } from "../migration/firefly-data";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -25,7 +27,7 @@ export type ReactionTaskKind =
 export interface ReactionTask {
   id: string;
   kind: ReactionTaskKind;
-  /** 流萤（"cyrene"）或角色名 */
+  /** 流萤（"firefly"）或角色名 */
   actor: string;
   postId: string;
   /** reply_eval 时：触发本次回复的评论 id（参与去重键，不同评论的回复任务互不去重） */
@@ -114,7 +116,7 @@ const CHARACTER_REPLY_BUCKETS: readonly DelayBucket[] = [
 ];
 
 /** 流萤表态：在线 1~8 分钟；离线 1~40 分钟（她和用户关系最好，看到就会回应，不拖长尾） */
-const CYRENE_POST_OFFLINE_BUCKETS: readonly DelayBucket[] = [
+const FIREFLY_POST_OFFLINE_BUCKETS: readonly DelayBucket[] = [
   { weight: 50, minMs: 1 * MINUTE_MS, maxMs: 10 * MINUTE_MS },
   { weight: 30, minMs: 10 * MINUTE_MS, maxMs: 25 * MINUTE_MS },
   { weight: 15, minMs: 25 * MINUTE_MS, maxMs: 35 * MINUTE_MS },
@@ -122,7 +124,7 @@ const CYRENE_POST_OFFLINE_BUCKETS: readonly DelayBucket[] = [
 ];
 
 /** 流萤回复：在线 1~5 分钟；离线 1~40 分钟（整体比表态偏快，被回复后她会尽快接话） */
-const CYRENE_REPLY_OFFLINE_BUCKETS: readonly DelayBucket[] = [
+const FIREFLY_REPLY_OFFLINE_BUCKETS: readonly DelayBucket[] = [
   { weight: 50, minMs: 1 * MINUTE_MS, maxMs: 8 * MINUTE_MS },
   { weight: 30, minMs: 8 * MINUTE_MS, maxMs: 20 * MINUTE_MS },
   { weight: 15, minMs: 20 * MINUTE_MS, maxMs: 32 * MINUTE_MS },
@@ -163,12 +165,12 @@ export function computeCharacterReplyDelayMs(random: () => number): number {
 
 export function computeFireflyPostDelayMs(online: boolean, random: () => number): number {
   if (online) return MINUTE_MS + Math.floor(random() * 7 * MINUTE_MS);
-  return pickBucketDelay(CYRENE_POST_OFFLINE_BUCKETS, random);
+  return pickBucketDelay(FIREFLY_POST_OFFLINE_BUCKETS, random);
 }
 
 export function computeFireflyReplyDelayMs(online: boolean, random: () => number): number {
   if (online) return MINUTE_MS + Math.floor(random() * 4 * MINUTE_MS);
-  return pickBucketDelay(CYRENE_REPLY_OFFLINE_BUCKETS, random);
+  return pickBucketDelay(FIREFLY_REPLY_OFFLINE_BUCKETS, random);
 }
 
 /** 被 @ 点名的回应延迟：秒回档。调用方不套深夜窗口——用户半夜点名，说明醒着在等。 */
@@ -306,19 +308,23 @@ export function createReactionQueue(deps: ReactionQueueDeps): ReactionQueue {
 
   function ensureLoaded(): void {
     if (tasks !== null) return;
-    tasks = [];
+    let raw: string;
     try {
-      const parsed = JSON.parse(fs.readFileSync(filePath(), "utf8")) as { tasks?: unknown };
-      if (Array.isArray(parsed.tasks)) {
-        tasks = parsed.tasks.filter(isValidTask);
-        const dropped = parsed.tasks.length - tasks.length;
-        if (dropped > 0) log("reaction_queue_invalid_tasks_dropped", dropped);
-      }
+      raw = fs.readFileSync(filePath(), "utf8");
     } catch (error) {
-      // 文件不存在是正常首发；损坏则从空队列开始，不阻断功能
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        log("reaction_queue_load_failed", String(error));
-      }
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw new Error("REACTION_QUEUE_READ_FAILED");
+      tasks = [];
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { tasks?: unknown };
+      if (!Array.isArray(parsed.tasks) || !parsed.tasks.every(isValidTask)) throw new Error("Invalid reaction queue");
+      const normalized = { ...parsed, tasks: parsed.tasks.map((task) => normalizeStoredMoment(task as ReactionTask)) };
+      writeMigratedJson(filePath(), parsed, normalized);
+      tasks = normalized.tasks;
+    } catch {
+      log("reaction_queue_load_failed");
+      throw new Error("REACTION_QUEUE_READ_FAILED: 原文件已保留，停止写入");
     }
   }
 

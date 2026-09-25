@@ -1,13 +1,13 @@
-// 生成第三方 skills 快照归档（vendor/cyrene-skills/skills-snapshot.zip）。
+// 生成第三方 skills 快照归档（vendor/firefly-skills/skills-snapshot.zip）。
 //
-// 背景：仓库 skills/ 只保留自研 cyrene-* skill，其余第三方 skill（docx/pdf/
+// 背景：仓库 skills/ 只保留自研 firefly-* skill，其余第三方 skill（docx/pdf/
 // xlsx/pptx、superpowers、ECC、office 等，多为本项目定制裁剪过的本地资产，
 // 无法从上游 GitHub 干净拉取）整体打成一份 zip 快照进 git。
 // 应用首次启动时把这份归档解压到 userData/skills（见 skills/snapshot-install.ts），
 // 让开发版和打包版都拿到完整 skill 集合，同时保持仓库语言统计干净。
 //
 // 生成：node scripts/packaging/build-skills-snapshot.mjs
-// 产物：vendor/cyrene-skills/skills-snapshot.zip + skills-snapshot-manifest.json
+// 产物：vendor/firefly-skills/skills-snapshot.zip + skills-snapshot-manifest.json
 //
 // 注意：必须先于「从 git 移除第三方 skills」运行，归档是唯一保留这些文件的地方。
 
@@ -23,7 +23,7 @@ const execFileAsync = promisify(execFile);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDir, "..", "..");
 const skillsDir = path.join(projectRoot, "skills");
-const vendorDir = path.join(projectRoot, "vendor", "cyrene-skills");
+const vendorDir = path.join(projectRoot, "vendor", "firefly-skills");
 
 /** 自研 skill（产品本体，留在仓库 skills/，不进归档）。 */
 const SELF_SKILLS = new Set([

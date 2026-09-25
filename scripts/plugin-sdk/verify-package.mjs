@@ -1,4 +1,4 @@
-// 校验 @playa0v0/cyrene-plugin-sdk 打包质量：
+// 校验 @firefly/plugin-sdk 打包质量：
 // 1. manifest.schema.json 与 PluginManifestInput 类型无漂移（generate-schema --check）
 // 2. 包内 vendored api.ts 与宿主 src/plugins/api.ts 逐字节一致
 // 3. npm pack --dry-run 文件清单只含 dist、package.json、README.md
@@ -45,7 +45,7 @@ const packOutput = execFileSync(
   { cwd: sdkDir, encoding: "utf8" },
 );
 const packedFiles = [...packOutput.matchAll(/^\s+\S*\s+(\S+)$/gm)].map((m) => m[1]).filter((f) => f.includes("/"));
-const allowed = /^(dist\/|package\.json$|README\.md$)/;
+const allowed = /^(dist\/|package\.json$|README\.md$|LICENSE$)/;
 const unexpected = packedFiles.filter((f) => !allowed.test(f.replace(/\\/g, "/")));
 if (unexpected.length > 0) {
   fail(`npm pack 将包含意外文件: ${unexpected.join(", ")}`);

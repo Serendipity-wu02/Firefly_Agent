@@ -26,7 +26,7 @@ const validInput = {
 };
 
 function inspectWithData(data: unknown) {
-  tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-schema-test-"));
+  tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-schema-test-"));
   const dir = path.join(tmp, "plugin");
   mkdirSync(dir, { recursive: true });
   writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(data), "utf8");

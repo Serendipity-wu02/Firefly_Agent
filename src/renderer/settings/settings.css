@@ -1233,12 +1233,12 @@ body {
   border-top: 1px solid rgba(45, 122, 95, 0.12);
 }
 
-#cyrene-panel .field-note {
+#firefly-panel .field-note {
   display: block;
   margin-top: 12px;
 }
 
-#cyrene-panel .field-note.is-hidden {
+#firefly-panel .field-note.is-hidden {
   display: none;
 }
 

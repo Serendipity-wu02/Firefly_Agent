@@ -1,6 +1,6 @@
 // LLM 调用原文 dump —— 排查"模型变痴傻"用。
-// 开启方式：set CYRENE_PROMPT_DUMP=1
-// 落盘目录：E:\cyrene-prompt-dump\<YYYYMMDD>\<HHMMSS-mmm>_<transport>_<shortId>.json
+// 开启方式：set FIREFLY_PROMPT_DUMP=1
+// 落盘目录：用户主目录下 .firefly/prompt-dumps/<YYYYMMDD>/
 //
 // 设计原则：
 //   - 单文件、零依赖、可随时删除
@@ -8,10 +8,11 @@
 //   - 不抛错；任何异常只在 console.warn 吞掉
 
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
-const DUMP_ROOT = "E:\\cyrene-prompt-dump";
-const ENV_FLAG = "CYRENE_PROMPT_DUMP";
+const DUMP_ROOT = path.join(os.homedir(), ".firefly", "prompt-dumps");
+const ENV_FLAG = "FIREFLY_PROMPT_DUMP";
 
 let enabledCache: boolean | null = null;
 let seqCounter = 0;
@@ -19,7 +20,7 @@ let seqCounter = 0;
 function isEnabled(): boolean {
   if (enabledCache !== null) return enabledCache;
   try {
-    enabledCache = process.env[ENV_FLAG] === "1";
+    enabledCache = fireflyEnvironment(process.env, "FIREFLY_PROMPT_DUMP") === "1";
   } catch {
     enabledCache = false;
   }
@@ -127,3 +128,4 @@ export function dumpResponse(traceId: string, meta: DumpResponseMeta): void {
   };
   writeFile(folder, `${traceId}_res.json`, payload);
 }
+import { fireflyEnvironment } from "../../../shared/legacy-firefly-contracts";

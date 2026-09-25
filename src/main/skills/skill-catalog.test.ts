@@ -46,7 +46,7 @@ describe("buildSkillCatalog", () => {
   });
 
   it("distinguishes auto-injected skills from skills that require invoke_skill", () => {
-    const music = e("cyrene-music-companion", "音乐陪伴");
+    const music = e("firefly-music-companion", "音乐陪伴");
     music.manifest = {
       id: music.id,
       version: "1.0.0",
@@ -65,7 +65,7 @@ describe("buildSkillCatalog", () => {
 
 describe("buildAutoInjectedSkillContext", () => {
   it("injects the full body only for enabled autoInject skills", () => {
-    const music = e("cyrene-music-companion", "音乐陪伴");
+    const music = e("firefly-music-companion", "音乐陪伴");
     music.manifest = {
       id: music.id,
       version: "1.0.0",
@@ -80,13 +80,13 @@ describe("buildAutoInjectedSkillContext", () => {
       id === music.id ? "只使用真实音乐工具结果。" : "不应注入",
     );
 
-    expect(out).toContain("cyrene-music-companion");
+    expect(out).toContain("firefly-music-companion");
     expect(out).toContain("只使用真实音乐工具结果。");
     expect(out).not.toContain("不应注入");
   });
 
   it("does not inject a disabled autoInject skill", () => {
-    const music = e("cyrene-music-companion", "音乐陪伴", undefined, false);
+    const music = e("firefly-music-companion", "音乐陪伴", undefined, false);
     music.manifest = {
       id: music.id,
       version: "1.0.0",
@@ -102,7 +102,7 @@ describe("buildAutoInjectedSkillContext", () => {
 
 describe("buildAutoInjectedSoulContext", () => {
   it("injects only the Soul reply section and excludes tool instructions", () => {
-    const music = e("cyrene-music-companion", "音乐陪伴");
+    const music = e("firefly-music-companion", "音乐陪伴");
     music.manifest = {
       id: music.id,
       version: "1.0.0",
@@ -126,7 +126,7 @@ describe("buildAutoInjectedSoulContext", () => {
   });
 
   it("reads a Soul reply section that ends at end-of-file", () => {
-    const music = e("cyrene-music-companion", "音乐陪伴");
+    const music = e("firefly-music-companion", "音乐陪伴");
     music.manifest = {
       id: music.id,
       version: "1.0.0",

@@ -15,7 +15,7 @@ let outSpy: ReturnType<typeof vi.spyOn>;
 let errSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-log-sink-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-log-sink-"));
   // e2e 用例走真实 logger：拦截 stdout/stderr，避免测试输出泄漏脏行
   outSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   errSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
@@ -31,9 +31,9 @@ function makeEntry(partial: Partial<LogEntry> = {}): LogEntry {
   return {
     ts: new Date(2026, 8, 1, 9, 32, 24, 123).getTime(),
     level: "info",
-    tag: "Cyrene",
+    tag: "Firefly",
     message: "hello",
-    line: "INFO  Cyrene         hello",
+    line: "INFO  Firefly         hello",
     ...partial,
   };
 }
@@ -53,19 +53,19 @@ describe("formatTs", () => {
 
 describe("createFileLogSink", () => {
   it("appends a timestamped line to the file", () => {
-    const logPath = path.join(tmpDir, "cyrene.log");
+    const logPath = path.join(tmpDir, "firefly.log");
     const sink = createFileLogSink(logPath);
     sink(makeEntry());
     const content = fs.readFileSync(logPath, "utf8");
     expect(content).toContain("2026-09-01 09:32:24.123");
-    expect(content).toContain("INFO  Cyrene         hello");
+    expect(content).toContain("INFO  Firefly         hello");
   });
 
   it("appends multiple entries in order", () => {
-    const logPath = path.join(tmpDir, "cyrene.log");
+    const logPath = path.join(tmpDir, "firefly.log");
     const sink = createFileLogSink(logPath);
-    sink(makeEntry({ message: "first", line: "INFO  Cyrene         first" }));
-    sink(makeEntry({ message: "second", line: "INFO  Cyrene         second" }));
+    sink(makeEntry({ message: "first", line: "INFO  Firefly         first" }));
+    sink(makeEntry({ message: "second", line: "INFO  Firefly         second" }));
     const content = fs.readFileSync(logPath, "utf8");
     const lines = content.trim().split("\n");
     expect(lines).toHaveLength(2);
@@ -75,17 +75,17 @@ describe("createFileLogSink", () => {
 
   it("survives append failures without throwing", () => {
     // 指向一个不存在的目录：appendFileSync 会抛，sink 必须静默吞掉
-    const logPath = path.join(tmpDir, "no-such-dir", "cyrene.log");
+    const logPath = path.join(tmpDir, "no-such-dir", "firefly.log");
     const sink = createFileLogSink(logPath);
     expect(() => sink(makeEntry())).not.toThrow();
   });
 
   it("rotates automatically on write when the file exceeds maxBytes", () => {
     // 注入小 maxBytes，走真实的"写入 → 轮转 → 追加"链路
-    const logPath = path.join(tmpDir, "cyrene.log");
+    const logPath = path.join(tmpDir, "firefly.log");
     const sink = createFileLogSink(logPath, 40);
-    sink(makeEntry({ message: "big-entry", line: "INFO  Cyrene         big-entry" }));
-    sink(makeEntry({ message: "next", line: "INFO  Cyrene         next" }));
+    sink(makeEntry({ message: "big-entry", line: "INFO  Firefly         big-entry" }));
+    sink(makeEntry({ message: "next", line: "INFO  Firefly         next" }));
     expect(fs.existsSync(logPath + ".1")).toBe(true);
     expect(fs.readFileSync(logPath + ".1", "utf8")).toContain("big-entry");
     expect(fs.readFileSync(logPath, "utf8")).toContain("next");
@@ -94,7 +94,7 @@ describe("createFileLogSink", () => {
 
 describe("rotateIfNeeded", () => {
   it("rotates when the current file exceeds maxBytes", () => {
-    const logPath = path.join(tmpDir, "cyrene.log");
+    const logPath = path.join(tmpDir, "firefly.log");
     fs.writeFileSync(logPath, "x".repeat(100));
     rotateIfNeeded(logPath, 50);
     expect(fs.existsSync(logPath + ".1")).toBe(true);
@@ -102,7 +102,7 @@ describe("rotateIfNeeded", () => {
   });
 
   it("keeps at most MAX_FILES generations", () => {
-    const logPath = path.join(tmpDir, "cyrene.log");
+    const logPath = path.join(tmpDir, "firefly.log");
     for (let gen = 1; gen <= 5; gen++) {
       fs.writeFileSync(logPath, "g".repeat(100));
       rotateIfNeeded(logPath, 50);
@@ -113,27 +113,27 @@ describe("rotateIfNeeded", () => {
   });
 
   it("does nothing when the file does not exist", () => {
-    const logPath = path.join(tmpDir, "cyrene.log");
+    const logPath = path.join(tmpDir, "firefly.log");
     expect(() => rotateIfNeeded(logPath, 50)).not.toThrow();
     expect(fs.existsSync(logPath + ".1")).toBe(false);
   });
 });
 
 describe("installFileLogSink", () => {
-  it("writes to <userData>/logs/cyrene.log and returns an uninstall fn", () => {
+  it("writes to <userData>/logs/firefly.log and returns an uninstall fn", () => {
     const uninstall = installFileLogSink(tmpDir);
     try {
       setLogLevel("info");
-      logger.info("Cyrene", "sink-e2e");
-      const logPath = path.join(tmpDir, "logs", "cyrene.log");
+      logger.info("Firefly", "sink-e2e");
+      const logPath = path.join(tmpDir, "logs", "firefly.log");
       expect(fs.existsSync(logPath)).toBe(true);
       expect(fs.readFileSync(logPath, "utf8")).toContain("sink-e2e");
     } finally {
       uninstall();
       // 卸载后不再写入
-      const logPath = path.join(tmpDir, "logs", "cyrene.log");
+      const logPath = path.join(tmpDir, "logs", "firefly.log");
       const before = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8") : "";
-      logger.info("Cyrene", "after-uninstall");
+      logger.info("Firefly", "after-uninstall");
       const after = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8") : "";
       expect(after).toBe(before);
     }
@@ -146,12 +146,12 @@ describe("installFileLogSink", () => {
     const uninstall = installFileLogSink(tmpDir, 80);
     try {
       setLogLevel("info");
-      const logPath = path.join(tmpDir, "logs", "cyrene.log");
+      const logPath = path.join(tmpDir, "logs", "firefly.log");
 
       // 阶段一：连续写入，每行约 120 字节 > 80 阈值 → 每次写入触发轮转
       // 滚动规则：当前文件超限 → .1 ← 当前，.2 ← .1（最多保留 3 份，最老淘汰）
       for (let i = 0; i < 5; i++) {
-        logger.info("Cyrene", `rotation-${i}-${"x".repeat(60)}`);
+        logger.info("Firefly", `rotation-${i}-${"x".repeat(60)}`);
       }
       // 5 次写入后：当前=[rot4], .1=[rot3], .2=[rot2]，rot0/rot1 已淘汰
       expect(fs.existsSync(logPath + ".1")).toBe(true);
@@ -161,7 +161,7 @@ describe("installFileLogSink", () => {
       expect(fs.readFileSync(logPath, "utf8")).toContain("rotation-4");
 
       // 阶段二：轮转后继续追加，当前文件应包含最新一行（真实追加链路）
-      logger.info("Cyrene", "after-rotate");
+      logger.info("Firefly", "after-rotate");
       expect(fs.readFileSync(logPath, "utf8")).toContain("after-rotate");
     } finally {
       uninstall();

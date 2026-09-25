@@ -73,10 +73,10 @@
   object-fit: cover;
   border: 1px solid #dcfce7;
   filter: drop-shadow(0 2px 8px rgba(76, 55, 98, 0.22));
-  animation: cyrene-avatar-float 3s ease-in-out infinite;
+  animation: firefly-avatar-float 3s ease-in-out infinite;
 }
 
-@keyframes cyrene-avatar-float {
+@keyframes firefly-avatar-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }

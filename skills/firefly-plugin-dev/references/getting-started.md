@@ -56,7 +56,7 @@ module.exports = {
 
 把 `my-first-plugin` 文件夹压成 zip（整体一个文件夹，或 manifest + 入口放 zip 根目录都行），然后：**Firefly 聊天窗口 → 插件 → 右上角添加按钮 → 选 zip**。插件默认停用，点击“启用”才真正加载。
 
-想让插件被更多人看到？提交 PR 到上游第三方收录仓库 [Cyrene-Plugins](https://github.com/Playa-0v0/Cyrene-Plugins)，审核通过后其他用户可直接下载 ZIP 导入；想装别人写的插件也去那里找。
+插件市场尚未配置；保留本地 ZIP 安装，不要求向第三方投稿。
 
 ### 5. 验证
 

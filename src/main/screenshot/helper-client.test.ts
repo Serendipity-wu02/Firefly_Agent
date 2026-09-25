@@ -61,7 +61,7 @@ function createHarness(): { client: ElectronScreenshotHelperClient; child: FakeC
   let sequence = 0;
   const client = new ElectronScreenshotHelperClient({
     spawnImpl: () => child,
-    resolveHelperPath: () => "C:\\helper\\cyrene-screenshot.exe",
+    resolveHelperPath: () => "C:\\helper\\firefly-screenshot.exe",
     screenshotDirectory: "C:\\shots",
     parentProcessId: 42,
     now: () => 1000,
@@ -194,8 +194,8 @@ describe("ElectronScreenshotHelperClient —— helper 先退出时的 stdin 写
     } as unknown as HelperChildProcess;
     return new ElectronScreenshotHelperClient({
       spawnImpl: () => child,
-      resolveHelperPath: () => "C:\helper\cyrene-screenshot.exe",
-      screenshotDirectory: "C:\shots",
+      resolveHelperPath: () => "C:\\helper\\firefly-screenshot.exe",
+      screenshotDirectory: "C:\\shots",
       logger: { debug: () => {}, warn: () => {}, error: () => {} },
     });
   }

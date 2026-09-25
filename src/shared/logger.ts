@@ -6,13 +6,14 @@
  * Levels:  debug < info < warn < error
  *
  * Color: applied when stdout is a TTY and NO_COLOR is unset.
- * Override the default via CYRENE_LOG_LEVEL=debug|info|warn|error.
+ * Override the default via FIREFLY_LOG_LEVEL=debug|info|warn|error.
  *
  * This file is the single source of truth for log formatting. The Electron
  * main process wraps it (see src/main/logger.ts) to add the `app.isPackaged`
  * default-level heuristic; that wrapper just calls setLogLevel() once.
  */
 import process from "node:process";
+import { fireflyEnvironment } from "./legacy-firefly-contracts";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -41,7 +42,7 @@ const LEVEL_COLOR: Record<LogLevel, string> = {
 let currentLevel: LogLevel = readEnvLevel() ?? "info";
 
 function readEnvLevel(): LogLevel | null {
-  const env = process.env.CYRENE_LOG_LEVEL?.toLowerCase();
+  const env = (fireflyEnvironment(process.env, "FIREFLY_LOG_LEVEL"))?.toLowerCase();
   if (env === "debug" || env === "info" || env === "warn" || env === "error") return env;
   return null;
 }
@@ -51,7 +52,7 @@ function readEnvLevel(): LogLevel | null {
  *
  * 默认 logger 只写 stdout/stderr——打包版 Electron 的 stdout 在用户机器上
  * 默认不可见（甚至可能断管），出问题无从排查。主进程可通过 addLogSink
- * 注册额外出口（例如落盘 userData/logs/cyrene.log），渲染器进程不注册
+ * 注册额外出口（例如落盘 userData/logs/firefly.log），渲染器进程不注册
  * 就不受影响。sink 抛错被吞掉，绝不干扰主链路。
  */
 export interface LogEntry {

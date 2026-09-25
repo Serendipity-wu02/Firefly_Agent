@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 function makeStore(): ConversationTranscriptStore {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-sink-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-sink-"));
   roots.push(root);
   return new ConversationTranscriptStore(root);
 }

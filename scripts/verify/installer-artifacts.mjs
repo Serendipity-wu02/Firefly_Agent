@@ -60,7 +60,7 @@ export async function verifyInstallerArtifacts(options = {}) {
 
   // 3. win-unpacked 内的随包二进制（与安装器内容一致，免去装机检查）
   const resourcesDir = path.join(outputDir, "win-unpacked", "resources");
-  const screenshot = await verifyScreenshotHelper(path.join(resourcesDir, "bin", "cyrene-screenshot.exe"));
+  const screenshot = await verifyScreenshotHelper(path.join(resourcesDir, "bin", "firefly-screenshot.exe"));
   await stat(path.join(resourcesDir, "music", "qqmusic_gsmtc.ps1"));
   // MinGit 的 cmd/git.exe 只是启动器（几十 KB），真二进制在 mingw64/bin/，
   // 体积阈值无意义，以 --version 运行探测为准（与 prepare-mingit 同一判定）
@@ -70,7 +70,7 @@ export async function verifyInstallerArtifacts(options = {}) {
     windowsHide: true,
     timeout: 10_000,
   });
-  await stat(path.join(resourcesDir, "cyrene-skills", "skills-snapshot.zip"));
+  await stat(path.join(resourcesDir, "firefly-skills", "skills-snapshot.zip"));
 
   return {
     installerPath,

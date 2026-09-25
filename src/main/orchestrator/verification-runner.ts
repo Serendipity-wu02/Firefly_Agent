@@ -34,7 +34,7 @@ export interface VerificationStep {
   trust: VerificationCommandTrust;
   executable: string;
   args: string[];
-  source: "cyrene_config" | "package_script" | "tsconfig" | "vitest" | "jest" | "builtin_fallback";
+  source: "firefly_config" | "package_script" | "tsconfig" | "vitest" | "jest" | "builtin_fallback";
 }
 
 export interface VerificationResult {

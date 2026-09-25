@@ -2,7 +2,7 @@
 
 项目主页与反馈入口：[Serendipity-wu02/Firefly_Agent](https://github.com/Serendipity-wu02/Firefly_Agent) · [Issues](https://github.com/Serendipity-wu02/Firefly_Agent/issues)
 
-当前项目正在把流萤角色与旧 Firefly 的实际能力分批适配到现有 Cyrene 底座。提议前请阅读 [README](../README.md) 的当前状态，不要根据旧版产品说明推定新底座已实现同等能力。
+当前项目正在把流萤角色与旧 Firefly 的实际能力分批适配到当前 Firefly 运行架构。提议前请阅读 [README](../README.md) 的当前状态，不要根据旧版产品说明推定新底座已实现同等能力。
 
 ## 修改边界
 

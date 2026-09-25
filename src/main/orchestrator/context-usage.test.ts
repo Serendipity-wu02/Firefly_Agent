@@ -10,7 +10,7 @@ function snapshotOf(messages: ChatMessage[], overrides: Partial<Parameters<typeo
   return buildContextUsageSnapshot({
     phase: "preRequest",
     contextWindowTokens: WINDOW,
-    personaContent: "你是昔涟。",
+    personaContent: "你是流萤。",
     messages,
     ...overrides,
   });
@@ -33,7 +33,7 @@ describe("buildContextUsageSnapshot", () => {
       buildCompactionCheckpoint("早前对话的摘要"),
     ]);
 
-    expect(tokensOf(snapshot, "systemPrompt")).toBe(estimateTokens("你是昔涟。"));
+    expect(tokensOf(snapshot, "systemPrompt")).toBe(estimateTokens("你是流萤。"));
     expect(tokensOf(snapshot, "runtimeAndToolLogs")).toBe(
       estimateTokens("晴") + 4 + estimateTokens("运行时事实") + 4,
     );
@@ -104,7 +104,7 @@ describe("buildContextUsageSnapshot", () => {
   it("空消息与空文本时各类为 0，totalTokens 恒等于 Σ categories", () => {
     const snapshot = snapshotOf([]);
     expect(snapshot.messageCount).toBe(0);
-    expect(tokensOf(snapshot, "systemPrompt")).toBe(estimateTokens("你是昔涟。"));
+    expect(tokensOf(snapshot, "systemPrompt")).toBe(estimateTokens("你是流萤。"));
     const sum = snapshot.categories.reduce((acc, category) => acc + category.tokens, 0);
     expect(snapshot.totalTokens).toBe(sum);
   });

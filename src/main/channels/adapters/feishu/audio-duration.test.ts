@@ -60,7 +60,7 @@ describe("audio-duration (零依赖方案: ffprobe + MP3 header + 文件大小�
   });
 
   it("空文件 → 返回 undefined 不崩", async () => {
-    const tmp = path.join(os.tmpdir(), `cyrene-empty-${Date.now()}.mp3`);
+    const tmp = path.join(os.tmpdir(), `firefly-empty-${Date.now()}.mp3`);
     fs.writeFileSync(tmp, "");
     try {
       const r = await getAudioDurationMs(tmp);
@@ -71,7 +71,7 @@ describe("audio-duration (零依赖方案: ffprobe + MP3 header + 文件大小�
   });
 
   it("纯文本文件 → 走兜底估算 (返回 ≥500ms)", async () => {
-    const tmp = path.join(os.tmpdir(), `cyrene-text-${Date.now()}.mp3`);
+    const tmp = path.join(os.tmpdir(), `firefly-text-${Date.now()}.mp3`);
     // 写 16000 字节触发估算 (16000 / 16000 = 1 秒)
     fs.writeFileSync(tmp, Buffer.alloc(16000, 0x20));
     try {
@@ -87,7 +87,7 @@ describe("audio-duration (零依赖方案: ffprobe + MP3 header + 文件大小�
   });
 
   it("合法 CBR mp3 → MP3 header 解析给到正毫秒数", async () => {
-    const tmp = path.join(os.tmpdir(), `cyrene-cbr-${Date.now()}.mp3`);
+    const tmp = path.join(os.tmpdir(), `firefly-cbr-${Date.now()}.mp3`);
     writeCbrMp3(tmp, 100); // 100 帧 ≈ 2.6s
     try {
       const r = await getAudioDurationMs(tmp);
@@ -105,7 +105,7 @@ describe("audio-duration (零依赖方案: ffprobe + MP3 header + 文件大小�
   });
 
   it("合法 CBR mp3 (小文件, 仅 1 帧 ~26ms) → 返回合理值", async () => {
-    const tmp = path.join(os.tmpdir(), `cyrene-tiny-${Date.now()}.mp3`);
+    const tmp = path.join(os.tmpdir(), `firefly-tiny-${Date.now()}.mp3`);
     writeCbrMp3(tmp, 1);
     try {
       const r = await getAudioDurationMs(tmp);

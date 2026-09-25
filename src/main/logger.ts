@@ -10,15 +10,16 @@
 import { setLogLevel, type LogLevel } from "../shared/logger";
 import { logger } from "../shared/logger";
 import { installFileLogSink } from "./log-sink-file";
+import { fireflyEnvironment } from "../shared/legacy-firefly-contracts";
 
 function resolveDefaultLevel(): LogLevel {
   // env wins
-  const env = process.env.CYRENE_LOG_LEVEL?.toLowerCase();
+  const env = (fireflyEnvironment(process.env, "FIREFLY_LOG_LEVEL"))?.toLowerCase();
   if (env === "debug" || env === "info" || env === "warn" || env === "error") {
     return env;
   }
   // Both dev and release: warn by default. Startup prints the banner plus
-  // whatever warn/error fires during init; set CYRENE_LOG_LEVEL=info to see
+  // whatever warn/error fires during init; set FIREFLY_LOG_LEVEL=info to see
   // the full startup trace.
   return "warn";
 }

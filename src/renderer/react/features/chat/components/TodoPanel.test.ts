@@ -8,7 +8,7 @@ describe("TodoPanel layout structure", () => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
     const html = renderToStaticMarkup(React.createElement(TodoPanel, {
       mode: "work",
-      workspaceName: "cyrene-project",
+      workspaceName: "firefly-project",
       state: {
         updatedAt: 1,
         todos: Array.from({ length: 20 }, (_, index) => ({

@@ -145,7 +145,7 @@ export type BuildOptionsFn = (input: AguiRunInput) => Promise<{
 
 /** 轨迹上下文源开关：显式 "renderer" 才回退渲染端消息（仅一个版本周期的逃生舱）。 */
 export function resolveTranscriptContextSource(
-  value = process.env.CYRENE_TRANSCRIPT_CONTEXT_SOURCE,
+  value = fireflyEnvironment(process.env, "FIREFLY_TRANSCRIPT_CONTEXT_SOURCE"),
 ): "transcript" | "renderer" {
   return value === "renderer" ? "renderer" : "transcript";
 }
@@ -164,6 +164,7 @@ export type OnRunFinishedFn = (
     conversationId: string;
     channel?: string;
     runId?: string;
+    modelProfileId?: string;
   },
 ) => Promise<void | RunFinishedEffects> | void | RunFinishedEffects;
 
@@ -248,9 +249,9 @@ let getChatWindowFn: GetChatWindowFn = () => null;
  * 计划审批流：run 成功收尾后触发，不阻塞 RUN_FINISHED。
  *
  * 1. PLAN_DISCUSSING + 本轮 write_plan → PLAN_REVIEW（moveToReview 幂等，纯讨论轮不弹卡）
- * 2. 发 cyrene.plan.review（计划全文，渲染端打开独立计划窗口）+ 弹第一段审批卡（两选项）
- * 3. 批准 → EXECUTING + cyrene.plan.approved，渲染端自动发送执行消息开新 run
- * 4. 选"我要修改 / 补充" → 弹第二段纯文本卡；提交的文本经 cyrene.plan.supplement
+ * 2. 发 firefly.plan.review（计划全文，渲染端打开独立计划窗口）+ 弹第一段审批卡（两选项）
+ * 3. 批准 → EXECUTING + firefly.plan.approved，渲染端自动发送执行消息开新 run
+ * 4. 选"我要修改 / 补充" → 弹第二段纯文本卡；提交的文本经 firefly.plan.supplement
  *    由渲染端作为用户消息发出，模型改计划后再次 write_plan 重新走审批
  * 5. 第二段卡超时 / 空文本 → 拉回 PLAN_DISCUSSING，等用户下一条消息
  */
@@ -266,14 +267,14 @@ function startPlanReviewFlow(params: {
   // 不留点不出结果的僵尸卡（与 run 内 ask_user 卡同机制）。
   const sendPlanCard = (cardData: ChoiceCardData): void => send({
     type: "CUSTOM",
-    name: "cyrene.choice",
+    name: "firefly.choice",
     value: { ...cardData, sessionId },
     threadId,
     runId,
   });
   const sendPlanDismiss = (settlement: ChoiceSettlement): void => send({
     type: "CUSTOM",
-    name: "cyrene.choice.dismiss",
+    name: "firefly.choice.dismiss",
     value: settlement,
     threadId,
     runId,
@@ -291,7 +292,7 @@ function startPlanReviewFlow(params: {
     }
     send({
       type: "CUSTOM",
-      name: "cyrene.plan.review",
+      name: "firefly.plan.review",
       value: { planPath, planContent, sessionId },
       threadId,
       runId,
@@ -309,7 +310,7 @@ function startPlanReviewFlow(params: {
     if (decision?.selectedValues?.includes("approve") && approvePlan(sessionId)) {
       console.log("[AgUiBridge][Plan] plan approved, entering EXECUTING");
       // 渲染端对此事件做持久监听（run 订阅此时已解除），按 sessionId 匹配后自动发送执行消息。
-      send({ type: "CUSTOM", name: "cyrene.plan.approved", value: { planPath, sessionId }, threadId, runId });
+      send({ type: "CUSTOM", name: "firefly.plan.approved", value: { planPath, sessionId }, threadId, runId });
       // 注意力提醒：计划已批准，ToastService 清去重记忆与残留 toast
       toastEvents.publishPlanApproved({ sessionId, runId });
       return;
@@ -331,7 +332,7 @@ function startPlanReviewFlow(params: {
       console.log("[AgUiBridge][Plan] supplement submitted, back to PLAN_DISCUSSING with user text");
       send({
         type: "CUSTOM",
-        name: "cyrene.plan.supplement",
+        name: "firefly.plan.supplement",
         value: { sessionId, text: supplementText },
         threadId,
         runId,
@@ -618,9 +619,9 @@ export function registerAgUiIpc(
       );
     }
     options.requestUserClarification = (card) => requestUserClarification(card, (cardData) => {
-      send({ type: "CUSTOM", name: "cyrene.choice", value: cardData, threadId, runId });
+      send({ type: "CUSTOM", name: "firefly.choice", value: cardData, threadId, runId });
     }, (settlement) => {
-      send({ type: "CUSTOM", name: "cyrene.choice.dismiss", value: settlement, threadId, runId });
+      send({ type: "CUSTOM", name: "firefly.choice.dismiss", value: settlement, threadId, runId });
     }, { runId, revision: 1 });
 
     // Learn 模式：配置 Obsidian Vault 并注册工具
@@ -760,7 +761,7 @@ export function registerAgUiIpc(
         const eventType = (baseEvent as { type?: string })?.type;
 
         // sticker / memory 等副作用在 complete 回调里执行。前端收到 RUN_FINISHED 后会收尾并取消监听，
-        // 所以必须把 RUN_FINISHED 延后到副作用事件之后发送，否则 cyrene.sticker 会晚到而被丢掉。
+        // 所以必须把 RUN_FINISHED 延后到副作用事件之后发送，否则 firefly.sticker 会晚到而被丢掉。
         if (eventType === "RUN_FINISHED") {
           // 兜底清理：如果 filter 仍存在（TEXT_MESSAGE_END 缺失），销毁
           endEmbeddedReasoning();
@@ -932,11 +933,12 @@ export function registerAgUiIpc(
               mode,
               conversationId: sessionId,
               runId,
+              modelProfileId: input.modelProfileId,
             }));
             if (mode !== "code" && effects?.sticker !== undefined) {
               send({
                 type: "CUSTOM",
-                name: "cyrene.sticker",
+                name: "firefly.sticker",
                 value: effects.sticker,
                 threadId,
                 runId,
@@ -988,7 +990,7 @@ export function registerAgUiIpc(
               entries: snapshot.entries,
               isCurrent: isWorkReadScopeCurrent,
             });
-            send({ type: "CUSTOM", name: "cyrene.workRead", value: report, threadId, runId });
+            send({ type: "CUSTOM", name: "firefly.workRead", value: report, threadId, runId });
           } catch (error) {
             console.error("[AgUiBridge] Work 读取证据核对失败:", error);
           }
@@ -1071,3 +1073,4 @@ export function registerAgUiIpc(
     return result;
   });
 }
+import { fireflyEnvironment } from "../shared/legacy-firefly-contracts";

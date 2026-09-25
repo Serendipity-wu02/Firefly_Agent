@@ -1,9 +1,9 @@
 /**
- * 设置页插件面板挂载（cyrene-panel/1）。
+ * 设置页插件面板挂载（firefly-panel/1）。
  *
  * 安全模型：
  * - iframe sandbox="allow-scripts allow-same-origin"，面板 origin 为
- *   cyrene-plugin://<插件id>，与设置页结构性不同源；
+ *   firefly-plugin://<插件id>，与设置页结构性不同源；
  * - iframe 注册表按 contentWindow 反查归属插件——iframe 不能选择自己是谁，
  *   消息内即使携带 pluginId 也一律忽略；
  * - event.source + event.origin 双校验（后者同时拦截 iframe 被导航到其他
@@ -23,10 +23,11 @@ import {
 
 /** 已挂载面板注册表：contentWindow → 归属插件 id（安全边界的锚点） */
 const panelRegistry = new Map<Window, string>();
+const panelProtocols = new WeakMap<Window, string>();
 
 function postToPanel(contentWindow: Window, pluginId: string, payload: Record<string, unknown>): void {
   // 宿主→面板方向：allow-same-origin 修正后可用精确 targetOrigin
-  contentWindow.postMessage({ protocol: PANEL_PROTOCOL, ...payload }, panelOriginFor(pluginId));
+  contentWindow.postMessage({ protocol: panelProtocols.get(contentWindow) ?? PANEL_PROTOCOL, ...payload }, panelOriginFor(pluginId));
 }
 
 function findContentWindow(pluginId: string): Window | undefined {
@@ -52,6 +53,7 @@ window.addEventListener("message", (event: MessageEvent) => {
   const message = parsePanelMessage(event.data);
   if (!message) return;
   const contentWindow = event.source as Window;
+  panelProtocols.set(contentWindow, message.protocol);
 
   if (message.kind === "invoke") {
     void window.pluginPanel
@@ -64,7 +66,7 @@ window.addEventListener("message", (event: MessageEvent) => {
             ? result as { ok: boolean; data?: unknown; error?: string }
             : null;
         const live = findContentWindow(pluginId);
-        if (!live) return;
+        if (!live || live !== contentWindow) return;
         if (outcome?.ok) {
           postToPanel(live, pluginId, { kind: "invoke-result", seq: message.seq, ok: true, data: outcome.data });
         } else {
@@ -99,7 +101,7 @@ function mountPanel(
 
   const iframe = document.createElement("iframe");
   // allow-same-origin 保留面板真实 origin，使双校验成立；
-  // 跨源访问由同源策略阻挡，设置页与 cyrene-plugin:// 结构性不同源
+  // 跨源访问由同源策略阻挡，设置页与 firefly-plugin:// 结构性不同源
   iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
   iframe.setAttribute("src", `${PANEL_SCHEME}://${plugin.id}/${plugin.settingsPanel}`);
   iframe.className = "plugin-panel-card__frame";

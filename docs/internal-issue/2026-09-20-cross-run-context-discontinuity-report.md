@@ -2,7 +2,7 @@
 
 > 定性：架构级缺陷（严重）
 > 状态：根因已定位，方案已定（2026-09-20 拍板：跳过短期止血，直接实施 CTA；下一步为独立设计文档）
-> 关联：`2026-09-20-harness-recovery-orphan-tool-result-400-report.md`（恢复链路修复，相关问题）；施工文档施工包 A（孤儿闸门，CTA 崩溃恢复重放的前置依赖）
+> 恢复链路与工具结果配对的当前维护边界见 [Firefly 可靠性说明](../architecture/firefly-reliability-boundaries.md)；此前施工稿原文保留于 Git 历史。
 
 ---
 
@@ -189,4 +189,4 @@ subsequent transcript suffix
 2. **CTA 立项启动**：独立设计文档为下一交付物。里程碑排序原则——**先通跨轮连续性（消灭半失明），再做渲染端投影化（所有权翻转）**，避免打断失忆活到架构全部翻完；
 3. **施工包 A 照常实施**：400 是现存 bug，与架构选型无关，且是 CTA 崩溃恢复重放的前置；
 4. **Phase 1 范围 = 桌面 chat/work/code/learn 四模式**：外部渠道（微信/飞书/QQ/QQbot）为独立入口（`channels/bootstrap.ts` 的 `buildAndRunAgent`，纯文本历史过滤，不 agui-bridge dispatch）且耦合渠道策略沙箱，列入 **Phase 2 末尾整合**；渠道路径自身同样存在跨轮失忆（症状较轻），届时将 `priorMessages` 改读权威轨迹即可；
-5. **实施路线 = 路线 2**（2026-09-20）：Phase 1 建立会话级轨迹权威源（`ConversationTranscriptStore`，JSONL + 物化快照，复用 runStore 两文件模式），Harness 与 ChatLoop 统一提交轨迹检查点，渲染端暂时双写、`session.messages` 退出模型上下文构建；正常取消在结算前闭合未配对工具调用并写 interruption 边界（写入侧协议完整性，不经 `prepareHarnessRecovery`，不属于 E）。路线 1（串接最新 run 检查点——chat 模式无检查点、模式切换断链、Phase 2 推倒重来）与路线 3（一次性全量翻转——违背里程碑排序、回归面最大）已否决。设计定稿见 `docs/design/2026-09-21-cta-conversation-transcript-architecture-design.md`。
+5. **实施路线 = 路线 2**（2026-09-20）：Phase 1 建立会话级轨迹权威源（`ConversationTranscriptStore`，JSONL + 物化快照，复用 runStore 两文件模式），Harness 与 ChatLoop 统一提交轨迹检查点，渲染端暂时双写、`session.messages` 退出模型上下文构建；正常取消在结算前闭合未配对工具调用并写 interruption 边界（写入侧协议完整性，不经 `prepareHarnessRecovery`，不属于 E）。路线 1（串接最新 run 检查点——chat 模式无检查点、模式切换断链、Phase 2 推倒重来）与路线 3（一次性全量翻转——违背里程碑排序、回归面最大）已否决。当前轨迹源码入口见 `docs/architecture/firefly-maintenance.md`；原设计定稿由 Git 历史保留。

@@ -89,7 +89,7 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   itNative("工作区文件变化触发一次防抖通知，忽略目录内的变化不触发", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "cyrene-watch-"));
+    const root = mkdtempSync(path.join(tmpdir(), "firefly-watch-"));
     const gitDir = path.join(root, ".git");
     mkdirSync(path.join(gitDir, "refs", "heads"), { recursive: true });
     writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
@@ -129,7 +129,7 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
   });
 
   itNative("worktree 场景：gitDir 在仓库外时元数据变化仍能触发", async () => {
-    const base = mkdtempSync(path.join(tmpdir(), "cyrene-worktree-"));
+    const base = mkdtempSync(path.join(tmpdir(), "firefly-worktree-"));
     const root = path.join(base, "worktree");
     const gitDir = path.join(base, "mainrepo", ".git");
     mkdirSync(root, { recursive: true });
@@ -158,7 +158,7 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
   });
 
   itNative("dispose 后句柄关闭，不再产生通知", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "cyrene-watch-"));
+    const root = mkdtempSync(path.join(tmpdir(), "firefly-watch-"));
     const gitDir = path.join(root, ".git");
     mkdirSync(gitDir, { recursive: true });
     const changed = vi.fn();

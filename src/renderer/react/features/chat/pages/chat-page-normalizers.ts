@@ -12,7 +12,8 @@ import { recoverInterruptedMessage } from "./session-runtime-state";
 const CONVERSATION_MODES: readonly ConversationMode[] = ["chat", "work", "code", "learn"];
 const CHAT_MESSAGE_CHANNELS = new Set<ChatMessageChannelSource["channel"]>(["wechat", "feishu", "qq", "qqbot"]);
 /** 最后停留模式的 localStorage 键：写入方（ChatPage）与读取方（getInitialMode）共用同一常量。 */
-export const LAST_MODE_STORAGE_KEY = "cyrene-react-last-mode";
+export const LAST_MODE_STORAGE_KEY = "firefly-react-last-mode";
+import { LEGACY_LAST_MODE_STORAGE_KEY } from "../../../../../shared/legacy-firefly-contracts";
 
 export function isConversationMode(value: string): value is ConversationMode {
   return CONVERSATION_MODES.includes(value as ConversationMode);
@@ -156,7 +157,7 @@ export function toUiMessages(session: ChatSession): ChatMessageItem[] {
 
 export function getInitialMode(): ConversationMode {
   try {
-    const saved = localStorage.getItem(LAST_MODE_STORAGE_KEY);
+    const saved = localStorage.getItem(LAST_MODE_STORAGE_KEY) ?? localStorage.getItem(LEGACY_LAST_MODE_STORAGE_KEY);
     if (saved && isConversationMode(saved)) return saved;
   } catch {
     // localStorage 不可用或数据异常时回退到默认值

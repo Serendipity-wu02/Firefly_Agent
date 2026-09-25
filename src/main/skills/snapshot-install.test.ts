@@ -28,7 +28,7 @@ function makeFs(initial: Record<string, string> = {}) {
 }
 
 describe("installSkillsSnapshot", () => {
-  const archive = "C:\\vendor\\cyrene-skills\\skills-snapshot.zip";
+  const archive = "C:\\vendor\\firefly-skills\\skills-snapshot.zip";
   const userDir = "C:\\userData\\skills";
 
   it("归档不存在 → no_archive，不碰目标目录", async () => {

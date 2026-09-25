@@ -18,6 +18,8 @@
 //   - 混淆虽然不抗逆向，但保证 secret 至少能 round-trip（重启后能恢复）
 //   - 如果将来发现 safeStorage 不可用且用户在意安全，加一个设置项让他们输口令加密
 import * as fs from "fs";
+import { writeMigratedJson } from "../migration/firefly-data";
+import { LEGACY_CHANNEL_SECRET_SUFFIX } from "../../shared/legacy-firefly-contracts";
 import * as path from "path";
 import { app, safeStorage } from "electron";
 import type { ChannelId } from "./types";
@@ -26,7 +28,7 @@ import { normalizeQqListenMode, type QqListenMode } from "../../shared/qq-listen
 /** safeStorage 加密后的前缀。读取时遇到这个前缀就解密 */
 const ENC_PREFIX = "enc:";
 /** base64 混淆前缀（safeStorage 不可用时的兜底，可 round-trip 但不抗逆向） */
-const OBF_PREFIX = "obf:";
+const OBF_PREFIX = "obf2:";
 /** 明文兜底标记（旧版数据迁移用） */
 const PLAIN_PREFIX = "plain:";
 
@@ -48,8 +50,8 @@ function isSafeStorageAvailable(): boolean {
 
 /** 机器指纹 XOR 混淆 key —— 不抗逆向但保证 round-trip。
  *  用 userData 绝对路径 + 包名做 SHA256 → 16 字节。 */
-function getMachineKey(): Buffer {
-  const seed = `${app.getPath("userData")}::${app.getName()}::cyrene-bot-secret`;
+function getMachineKey(legacy = false): Buffer {
+  const seed = `${app.getPath("userData")}::${app.getName()}::${legacy ? LEGACY_CHANNEL_SECRET_SUFFIX : "firefly-bot-secret"}`;
   // 用 node 内置 crypto（避免依赖冲突）
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { createHash } = require("crypto") as typeof import("crypto");
@@ -70,8 +72,9 @@ function obfuscate(plain: string): string {
 
 /** XOR 解混淆（必须和 obfuscate 用同一台机器 —— key 派生自 userData 路径）。 */
 function deobfuscate(stored: string): string {
-  const key = getMachineKey();
-  const b64 = stored.slice(OBF_PREFIX.length);
+  const legacy = stored.startsWith("obf:");
+  const key = getMachineKey(legacy);
+  const b64 = stored.slice(legacy ? 4 : OBF_PREFIX.length);
   const buf = Buffer.from(b64, "base64");
   const out = Buffer.alloc(buf.length);
   for (let i = 0; i < buf.length; i++) {
@@ -103,22 +106,20 @@ function decryptField(stored: string): string {
       // safeStorage 不可用时 enc: 解不开 —— 这种情况通常意味着首次加密时也没用 safeStorage
       // 兜底：直接 base64 解码（会拿到乱码但不会让用户丢失 secret）
       console.warn("[ChannelsSettings] safeStorage 不可用, 无法解密 enc: 字段");
-      return "";
+      throw new Error("CHANNEL_SECRET_DECRYPT_UNAVAILABLE");
     }
     try {
       const buf = Buffer.from(stored.slice(ENC_PREFIX.length), "base64");
       return safeStorage.decryptString(buf);
     } catch (err) {
-      console.warn("[ChannelsSettings] safeStorage.decryptString 失败:", err);
-      return "";
+      throw new Error("CHANNEL_SECRET_DECRYPT_FAILED");
     }
   }
-  if (stored.startsWith(OBF_PREFIX)) {
+  if (stored.startsWith(OBF_PREFIX) || stored.startsWith("obf:")) {
     try {
       return deobfuscate(stored);
     } catch (err) {
-      console.warn("[ChannelsSettings] deobfuscate 失败:", err);
-      return "";
+      throw new Error("CHANNEL_SECRET_DECRYPT_FAILED");
     }
   }
   if (stored.startsWith(PLAIN_PREFIX)) {
@@ -361,7 +362,7 @@ export function loadChannelsSettings(): ChannelsSettings {
     }
     return loaded;
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    throw new Error("CHANNELS_SETTINGS_READ_FAILED");
   }
 }
 
@@ -377,20 +378,20 @@ export function saveChannelsSettings(patch: Partial<ChannelsSettings>): Channels
   // 避开"密文回传"场景：检测 enc:/obf:/plain: 前缀，避免重复加密。
   if (typeof merged.feishu?.appSecret === "string" && merged.feishu.appSecret) {
     const v = merged.feishu.appSecret;
-    if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX) && !v.startsWith(PLAIN_PREFIX)) {
-      merged.feishu.appSecret = encryptField(v);
+    if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX)) {
+      merged.feishu.appSecret = encryptField(decryptField(v));
     }
   }
   if (typeof merged.qq?.accessToken === "string" && merged.qq.accessToken) {
     const v = merged.qq.accessToken;
-    if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX) && !v.startsWith(PLAIN_PREFIX)) {
-      merged.qq.accessToken = encryptField(v);
+    if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX)) {
+      merged.qq.accessToken = encryptField(decryptField(v));
     }
   }
   if (typeof merged.qqbot?.appSecret === "string" && merged.qqbot.appSecret) {
     const v = merged.qqbot.appSecret;
-    if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX) && !v.startsWith(PLAIN_PREFIX)) {
-      merged.qqbot.appSecret = encryptField(v);
+    if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX)) {
+      merged.qqbot.appSecret = encryptField(decryptField(v));
     }
   }
 
@@ -398,7 +399,11 @@ export function saveChannelsSettings(patch: Partial<ChannelsSettings>): Channels
   // 写盘时 final.appSecret / final.encryptKey 已经是密文形态（带 enc: 前缀）
   // load 时解密，运行时给上层看到明文。
   fs.mkdirSync(path.dirname(filePath()), { recursive: true });
-  fs.writeFileSync(filePath(), JSON.stringify(final, null, 2), "utf8");
+  if (fs.existsSync(filePath())) {
+    writeMigratedJson(filePath(), JSON.parse(fs.readFileSync(filePath(), "utf8")), final);
+  } else {
+    fs.writeFileSync(filePath(), JSON.stringify(final, null, 2), { encoding: "utf8", flag: "wx" });
+  }
 
   // 返回给上层时再解密一次，让 API 用户拿到明文
   const out: ChannelsSettings = {

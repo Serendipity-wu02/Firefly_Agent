@@ -167,7 +167,7 @@ export function ChatPage() {
   // 右栏拖宽布局：聊天区 + 右侧面板套 Group/Panel，宽度持久化到 localStorage。
   // onlySaveAfterUserInteractions 保证只记用户拖动结果，不在挂载/程序化布局时写盘。
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "cyrene.chat-page-dock",
+    id: "firefly.chat-page-dock",
     panelIds: ["chat", "inspector"],
     onlySaveAfterUserInteractions: true,
   });
@@ -609,12 +609,12 @@ export function ChatPage() {
     if (!api?.onEvent || !shouldListenForDeferredPlanEvents(mode) || !activeSessionId) return;
     const off = api.onEvent((event) => {
       if (event.type !== "CUSTOM" || typeof event.name !== "string") return;
-      if (event.name === "cyrene.choice") {
+      if (event.name === "firefly.choice") {
         const interaction = normalizeDeferredPlanChoice(event.value, activeSessionId);
         if (interaction) setInteractionForSession(activeSessionId, interaction);
         return;
       }
-      if (event.name === "cyrene.choice.dismiss") {
+      if (event.name === "firefly.choice.dismiss") {
         // run 事件闸之外的 dismiss（老版选择卡超时 / run 结束后发出的结算）：
         // 匹配当前 ask 卡时清掉，避免留下点不出结果的僵尸卡。
         setInteractionsBySession((current) => {
@@ -624,11 +624,11 @@ export function ChatPage() {
         });
         return;
       }
-      if (!event.name.startsWith("cyrene.plan.")) return;
+      if (!event.name.startsWith("firefly.plan.")) return;
       const value = (event.value ?? null) as { sessionId?: string; planPath?: string; planContent?: string; text?: string } | null;
       if (value?.sessionId && value.sessionId !== activeSessionId) return;
       switch (event.name) {
-        case "cyrene.plan.review":
+        case "firefly.plan.review":
           if (value?.sessionId && typeof value.planContent === "string" && value.planContent.trim()) {
             setPlanReviewBySession((current) => ({
               ...current,
@@ -642,7 +642,7 @@ export function ChatPage() {
             setActiveTabId(`plan:${value.sessionId}`);
           }
           break;
-        case "cyrene.plan.approved":
+        case "firefly.plan.approved":
           if (value?.sessionId) {
             setPlanReviewBySession((current) => current[value.sessionId!]
               ? { ...current, [value.sessionId!]: { ...current[value.sessionId!], phase: "executing" } }
@@ -650,13 +650,13 @@ export function ChatPage() {
             void sendMessage(t("chatPage.planApprovedAutoMessage"));
           }
           break;
-        case "cyrene.plan.supplement":
+        case "firefly.plan.supplement":
           // 第二段补充卡提交的文本：作为用户消息发给模型修改计划，改完会重新走审批
           if (value?.sessionId && typeof value.text === "string" && value.text.trim()) {
             void sendMessage(value.text);
           }
           break;
-        case "cyrene.plan.completed":
+        case "firefly.plan.completed":
           // adapter 发出时不带 sessionId；按当前计划会话处理
           setPlanReviewBySession((current) => current[activeSessionId]
             ? { ...current, [activeSessionId]: { ...current[activeSessionId], phase: "completed" } }

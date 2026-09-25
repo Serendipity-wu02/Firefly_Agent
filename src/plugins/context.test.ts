@@ -48,7 +48,7 @@ function createTestContext(
 
 describe("createContext", () => {
   it("registerIpc 自动加 plugin:<id>: 前缀", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     const ctx = createTestContext(rt);
     ctx.registerIpc("ping", () => "pong");
@@ -56,7 +56,7 @@ describe("createContext", () => {
   });
 
   it("dispose 清理已注册工具与 IPC", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     const ctx = createTestContext(rt);
     ctx.registerTool({
@@ -74,7 +74,7 @@ describe("createContext", () => {
   });
 
   it("停止时先取消 signal，再按逆序等待清理回调", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const ctx = createTestContext();
     const events: string[] = [];
     ctx.onDispose(() => { events.push(`first:${ctx.signal.aborted}`); });
@@ -92,7 +92,7 @@ describe("createContext", () => {
   });
 
   it("清理回调失败不阻止其他回调和框架资源释放，重复 dispose 不会重跑", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     const ctx = createTestContext(rt);
     const events: string[] = [];
@@ -110,7 +110,7 @@ describe("createContext", () => {
   });
 
   it("并发 dispose 共享同一个释放任务且不重复清理", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     const unregisterIpc = vi.spyOn(rt, "unregisterIpc");
     const ctx = createTestContext(rt);
@@ -128,7 +128,7 @@ describe("createContext", () => {
   });
 
   it("onDispose 超时后继续执行其余回调并释放框架资源", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     const ctx = createTestContext(rt);
     const events: string[] = [];
@@ -151,7 +151,7 @@ describe("createContext", () => {
   });
 
   it("停止后拒绝新增清理回调和事件订阅", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const ctx = createTestContext();
     ctx.beginStop();
     expect(() => ctx.onDispose(() => {})).toThrow(/停止后/);
@@ -160,7 +160,7 @@ describe("createContext", () => {
   });
 
   it("插件事件自动命名并在 dispose 时退订", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const bus = createPluginEventBus();
     const ctx = createContext("demo", tmp, runtime(), bus);
     const received: unknown[] = [];
@@ -176,7 +176,7 @@ describe("createContext", () => {
   });
 
   it("事件退订失败不阻止其他清理回调", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const cleanup = vi.fn();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const ctx = createContext("demo", tmp, runtime(), {
@@ -197,7 +197,7 @@ describe("createContext", () => {
   });
 
   it("只允许注销当前插件注册的提示词 Provider，并在 dispose 时自动清理", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     const ctx = createTestContext(rt);
     ctx.registerPromptProvider({ id: "context", provide: () => "PLUGIN_CONTEXT" });
@@ -218,14 +218,14 @@ describe("createContext", () => {
   });
 
   it("storage 可读写", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const ctx = createTestContext();
     ctx.storage.set("k", 1);
     expect(ctx.storage.get<number>("k")).toBe(1);
   });
 
   it("工具 id 不满足 <插件id>_ 前缀时抛错", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const ctx = createTestContext();
     expect(() =>
       ctx.registerTool({
@@ -240,7 +240,7 @@ describe("createContext", () => {
   });
 
   it("拒绝覆盖已注册工具", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     rt.toolRegistry.getById = () => ({ id: "demo_tool" } as never);
     const ctx = createTestContext(rt);
@@ -258,7 +258,7 @@ describe("createContext", () => {
   });
 
   it("拒绝覆盖已注册渠道", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     rt.channelManager.has = () => true;
     const ctx = createTestContext(rt, ["channels"]);
@@ -267,7 +267,7 @@ describe("createContext", () => {
   });
 
   it("未声明 deps 时不注入 channels；声明后注入", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const without = createTestContext();
     expect(without.deps.channels).toBeUndefined();
     const withDeps = createTestContext(runtime(), ["channels"]);
@@ -275,7 +275,7 @@ describe("createContext", () => {
   });
 
   it("只有 manifest 声明 llm 时才注入 generateText", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     const calls: string[] = [];
     rt.llm = {
@@ -297,14 +297,14 @@ describe("createContext", () => {
   });
 
   it("声明 llm 但宿主未提供该服务时，注册前直接失败", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     // 声明的依赖是硬约束：宿主没有该服务时在 createContext 就抛错，
     // 走激活回滚，而不是注入 undefined 让插件误判服务可用。
     expect(() => createTestContext(runtime(), ["llm"])).toThrow(/宿主未提供已声明的依赖: llm/);
   });
 
   it("宿主服务工厂提供的服务按 manifest 声明注入", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const marker = vi.fn();
     const rt = runtime();
     rt.hostServices = {
@@ -327,7 +327,7 @@ describe("createContext", () => {
   });
 
   it("包装 llm 服务时保留宿主提供的 runGoal", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     const runGoal = vi.fn();
     rt.llm = {
@@ -340,7 +340,7 @@ describe("createContext", () => {
   });
 
   it("dispose 返回 Promise 并等待渠道注销完成", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();
     let releaseUnregister!: () => void;
     let unregisterFinished = false;
@@ -383,7 +383,7 @@ describe("createContext", () => {
   });
 
   it("拒绝注销不属于当前插件的工具、IPC 和渠道", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-ctx-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const ctx = createTestContext(runtime(), ["channels"]);
     expect(() => ctx.unregisterTool("read_file")).toThrow(/不属于当前插件/);
     expect(() => ctx.unregisterIpc("missing")).toThrow(/不属于当前插件/);

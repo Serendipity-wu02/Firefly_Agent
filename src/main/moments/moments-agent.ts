@@ -27,7 +27,7 @@ import {
 } from "../../shared/moments-types";
 import { buildPostGenerationPacket } from "./moments-context";
 import { buildMomentImageQuery } from "./moment-media-matcher";
-import { MOMENTS_CYRENE_POST_TEXT_MAX } from "./moments-policy";
+import { MOMENTS_FIREFLY_POST_TEXT_MAX } from "./moments-policy";
 import type { ReactionDecision, ReactionDecideOutcome } from "./reaction-queue";
 
 export const MOMENTS_MODEL_MAX_TOKENS = 600;
@@ -137,7 +137,7 @@ export function formatNow(now: Date): string {
 }
 
 function authorLabel(author: MomentComment["author"]): string {
-  return author === "cyrene" ? "流萤" : "用户";
+  return author === "firefly" ? "流萤" : "用户";
 }
 
 /**
@@ -407,7 +407,7 @@ export function parsePostDecision(text: string): MomentPostDecision {
     return { kind: "invalid", reason: "empty_text" };
   }
   const cleaned = value.text.trim();
-  if (cleaned.length > MOMENTS_CYRENE_POST_TEXT_MAX) {
+  if (cleaned.length > MOMENTS_FIREFLY_POST_TEXT_MAX) {
     return { kind: "invalid", reason: "text_too_long" };
   }
   return { kind: "post", text: cleaned, wantImage: value.wantImage === true };

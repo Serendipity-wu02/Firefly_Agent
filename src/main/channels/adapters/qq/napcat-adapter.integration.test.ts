@@ -67,7 +67,7 @@ describe("NapCatAdapter fake reverse WebSocket integration", () => {
       const request = JSON.parse(raw.toString()) as { action: string; params: Record<string, unknown>; echo: string };
       actions.push(request);
       const data = request.action === "get_login_info"
-        ? { user_id: "9000", nickname: "昔涟测试号" }
+        ? { user_id: "9000", nickname: "流萤测试号" }
         : request.action === "get_version_info"
           ? { app_name: "NapCat", app_version: "4.8.115", protocol_version: "v11" }
           : request.action === "get_status"
@@ -82,13 +82,13 @@ describe("NapCatAdapter fake reverse WebSocket integration", () => {
     await waitFor(() => adapter.getStatus().phase === "running");
     expect(adapter.getConnectionInfo()).toMatchObject({
       selfId: "9000",
-      nickname: "昔涟测试号",
+      nickname: "流萤测试号",
       appVersion: "4.8.115",
       supportsStream: true,
     });
     await expect(adapter.testConnection()).resolves.toMatchObject({
       ok: true,
-      detail: { selfId: "9000", nickname: "昔涟测试号", appVersion: "4.8.115", supportsStream: true },
+      detail: { selfId: "9000", nickname: "流萤测试号", appVersion: "4.8.115", supportsStream: true },
     });
 
     const incoming: IncomingMessage[] = [];

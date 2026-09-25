@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createSchedulerStore } from "./scheduler-store";
 
 function tmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-scheduler-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "firefly-scheduler-"));
 }
 
 describe("scheduler store", () => {

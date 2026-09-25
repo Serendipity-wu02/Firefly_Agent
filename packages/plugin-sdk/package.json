@@ -1,11 +1,12 @@
 {
-  "name": "@playa0v0/cyrene-plugin-sdk",
+  "name": "@firefly/plugin-sdk",
   "version": "0.2.0",
-  "description": "Cyrene 插件开发工具包：公开契约类型、Manifest 校验与插件测试工具",
+  "description": "Firefly 插件开发工具包：公开契约类型、Manifest 校验与插件测试工具",
+  "private": true,
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Playa-0v0/Cyrene-Agent.git",
+    "url": "git+https://github.com/Serendipity-wu02/Firefly_Agent.git",
     "directory": "packages/plugin-sdk"
   },
   "main": "./dist/index.js",
@@ -25,17 +26,15 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "dependencies": {
     "ajv": "^8.17.1"
   },
   "keywords": [
-    "cyrene",
+    "firefly",
     "plugin",
     "sdk"
-  ],
-  "publishConfig": {
-    "access": "public"
-  }
+  ]
 }

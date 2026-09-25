@@ -8,7 +8,7 @@ import { migrateStagedExternalContent, type StagedContentMigrationInput } from "
 const temporaryDirectories: string[] = [];
 
 function temporaryDirectory(): string {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-content-migration-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-content-migration-"));
   temporaryDirectories.push(directory);
   return directory;
 }
@@ -32,7 +32,7 @@ interface Fixture {
 /** install 目录 + userData + 暂存目录 三层结构的测试夹具。 */
 function createFixture(): Fixture {
   const root = temporaryDirectory();
-  const installRoot = path.join(root, "Cyrene");
+  const installRoot = path.join(root, "Firefly");
   const userData = path.join(root, "user-data");
   const staging = path.join(root, ".Firefly.content-preserve");
   fs.mkdirSync(installRoot, { recursive: true });

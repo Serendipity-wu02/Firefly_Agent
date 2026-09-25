@@ -11,7 +11,7 @@ import type { ChatSession } from "../../shared/chat-types";
 const roots: string[] = [];
 
 function createStore() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-transcript-coord-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-transcript-coord-"));
   roots.push(root);
   return { root, store: new ConversationTranscriptStore(root, { now: () => 1_000 }) };
 }

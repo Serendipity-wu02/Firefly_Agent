@@ -78,7 +78,7 @@ function probeCandidates(
  * Resolve all candidate base directories in priority order.
  *
  * Priority:
- *   1. CYRENE_MODELS_DIR env var (highest — explicit override)
+ *   1. FIREFLY_MODELS_DIR or legacy FIREFLY_MODELS_DIR env var (highest — explicit override)
  *   2. process.cwd() + "models"  (when launched from project root, e.g. `electron .`)
  *   3. directory beside the executable + "models" (release users drop models here)
  *   4. app.getAppPath() + "models"  (development fallback)
@@ -93,7 +93,8 @@ function probeCandidates(
  */
 export function getProjectModelsDirCandidates(): string[] {
   const out: string[] = [];
-  if (process.env.CYRENE_MODELS_DIR) out.push(process.env.CYRENE_MODELS_DIR);
+  const modelsDirOverride = fireflyEnvironment(process.env, "FIREFLY_MODELS_DIR");
+  if (modelsDirOverride) out.push(modelsDirOverride);
   const cwdModels = path.join(process.cwd(), "models");
   if (!out.includes(cwdModels)) out.push(cwdModels);
   const executableModels = path.join(path.dirname(process.execPath), "models");
@@ -279,3 +280,4 @@ export function checkRerankerModelInstalled(): boolean {
   const detail = getModelInstallStatusDetail("reranker", "standard");
   return detail.installed;
 }
+import { fireflyEnvironment } from "../../shared/legacy-firefly-contracts";

@@ -2,7 +2,7 @@
 
 当前架构入口：[Firefly 运行结构](./docs/architecture/firefly-runtime.md)。历史资料集中索引：[历史归档](./docs/archive/README.md)。自有 Skills 使用 `firefly-*` 名称；旧 ID 只用于兼容已有设置和命令，不再作为内置目录名。
 
-本分支以 Cyrene 的 Electron、TypeScript、React 和既有 Agent 运行架构为基础。功能与验证边界以 [README](./README.md) 和 [迁移记录](./docs/migration/firefly-reliability-and-submission-2026-09-25.md) 为准；远程旧版 Firefly 的 Python 入口和测试脚本不再属于当前运行链。
+本分支以 Electron、TypeScript、React 和既有 Agent 运行架构为基础。功能与验证边界以 [README](./README.md) 和 [迁移记录](./docs/migration/firefly-reliability-and-submission-2026-09-25.md) 为准；远程旧版 Firefly 的 Python 入口和测试脚本不再属于当前运行链。
 
 ## 环境与构建
 
@@ -16,7 +16,7 @@ npm run build
 
 `npm run build` 生成 Main、Preload、CLI 和 Renderer，不制作安装器。开发模式使用 `npm run dev`。单元测试使用 `npm test`，局部测试使用 `npx vitest run <实际测试文件>`。
 
-原生截图助手源码位于 `native/cyrene-screenshot/`，构建入口是 `npm run build:screenshot-helper`。此步骤还需要 Rust/Cargo 的 Windows MSVC 工具链；编译出的 `resources/bin/cyrene-screenshot.exe` 是本地产物，不进入 Git。Windows 本地打包脚本见 `package.json` 和 `electron-builder.yml`。
+原生截图助手源码位于 `native/firefly-screenshot/`，构建入口是 `npm run build:screenshot-helper`。此步骤还需要 Rust/Cargo 的 Windows MSVC 工具链；编译出的 `resources/bin/firefly-screenshot.exe` 是本地产物，不进入 Git。Windows 本地打包脚本见 `package.json` 和 `electron-builder.yml`。
 
 ## 数据与发布
 

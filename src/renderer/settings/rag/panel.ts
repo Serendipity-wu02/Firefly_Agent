@@ -4,12 +4,13 @@
 // 模型文件由用户自行放置到 models/ 目录（见 docs/local-models.md），应用内不再提供下载/删除。
 
 import { showNotice, showAlert } from "../shared/modal";
+import { readFireflyStorage } from "../../../shared/legacy-firefly-contracts";
 
 /* ===== RAG model card toggle (embedding only) ===== */
 (function () {
   const cards = document.querySelectorAll<HTMLButtonElement>(".rag-model-card:not([data-reranker])");
-  const KEY = "cyrene.rag.model";
-  const saved = localStorage.getItem(KEY) || "bgem3";
+  const KEY = "firefly.rag.model";
+  const saved = readFireflyStorage(localStorage, KEY) || "bgem3";
   cards.forEach((card) => {
     const value = card.dataset.value;
     if (!value) return;
@@ -67,8 +68,8 @@ import { showNotice, showAlert } from "../shared/modal";
 /* ===== Reranker mode toggle ===== */
 (function () {
   const cards = document.querySelectorAll<HTMLButtonElement>(".rag-model-card[data-reranker]");
-  const KEY = "cyrene.reranker.mode";
-  const saved = localStorage.getItem(KEY) || "standard";
+  const KEY = "firefly.reranker.mode";
+  const saved = readFireflyStorage(localStorage, KEY) || "standard";
   cards.forEach((card) => {
     const value = card.dataset.value;
     if (!value) return;

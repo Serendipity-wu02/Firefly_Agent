@@ -107,7 +107,7 @@ async function waitPidsDead(pids: Array<number | null>, timeoutMs = 8000): Promi
 }
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-shell-job-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-shell-job-"));
   (globalThis as Record<string, unknown>).__shellJobTestUserData = tmpDir;
 });
 

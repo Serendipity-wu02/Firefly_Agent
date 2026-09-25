@@ -313,8 +313,8 @@ describe("PluginModePanel", () => {
   });
 
   it("点击数据源 chip 会以该源 url 重新拉取市场列表", async () => {
-    const gitee = "https://gitee.com/playa0/cyrene-plugins/raw/main/registry.json";
-    const github = "https://raw.githubusercontent.com/Playa-0v0/Cyrene-Plugins/main/registry.json";
+    const gitee = "https://mirror.example.test/registry.json";
+    const github = "https://example.test/registry.json";
     const api = apiFor([]);
     (api.marketList as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -332,7 +332,7 @@ describe("PluginModePanel", () => {
 
     const chips = [...container.querySelectorAll<HTMLButtonElement>(".plugin-panel__source-chip")];
     expect(chips).toHaveLength(2);
-    const giteeChip = chips.find((chip) => chip.textContent === "Gitee");
+    const giteeChip = chips.find((chip) => chip.textContent === "mirror.example.test");
     expect(giteeChip).toBeDefined();
     await act(async () => giteeChip?.click());
 

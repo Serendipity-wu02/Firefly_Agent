@@ -26,7 +26,7 @@ async function freshStore() {
 describe("moments store", () => {
   beforeEach(() => {
     vi.resetModules();
-    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-moments-"));
+    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-moments-"));
   });
 
   it("创建用户动态并按 createdAt 倒序出现在 feed", async () => {
@@ -117,7 +117,7 @@ describe("moments store", () => {
     expect(await store.createComment({ postId: postA.value.id, content: "x".repeat(501) }, "user"))
       .toMatchObject({ applied: false, reason: "invalid_input" });
 
-    const commentOnB = await store.createComment({ postId: postB.value.id, content: "B 下的评论" }, "cyrene");
+    const commentOnB = await store.createComment({ postId: postB.value.id, content: "B 下的评论" }, "firefly");
     expect(commentOnB.applied).toBe(true);
     if (!commentOnB.applied) return;
 
@@ -144,11 +144,11 @@ describe("moments store", () => {
 
     expect(await store.toggleLike(post.value.id, "user")).toMatchObject({ applied: true, value: { liked: true } });
     expect(await store.toggleLike(post.value.id, "user")).toMatchObject({ applied: true, value: { liked: false } });
-    expect(await store.toggleLike(post.value.id, "cyrene")).toMatchObject({ applied: true, value: { liked: true } });
+    expect(await store.toggleLike(post.value.id, "firefly")).toMatchObject({ applied: true, value: { liked: true } });
 
     const item = store.getFeedItem(post.value.id);
     expect(item?.likes).toHaveLength(1);
-    expect(item?.likes[0].actor).toBe("cyrene");
+    expect(item?.likes[0].actor).toBe("firefly");
 
     expect(await store.toggleLike("moment_missing", "user")).toMatchObject({ applied: false, reason: "post_not_found" });
   });
@@ -161,8 +161,8 @@ describe("moments store", () => {
     // 模拟「AI 还在思考时用户删了动态」：删除与迟到评论并发入队
     const [deleted, lateComment, lateLike] = await Promise.all([
       store.deletePost(post.value.id),
-      store.createComment({ postId: post.value.id, content: "迟到的评论" }, "cyrene"),
-      store.toggleLike(post.value.id, "cyrene"),
+      store.createComment({ postId: post.value.id, content: "迟到的评论" }, "firefly"),
+      store.toggleLike(post.value.id, "firefly"),
     ]);
 
     expect(deleted.applied).toBe(true);
@@ -183,16 +183,16 @@ describe("moments store", () => {
     expect(feed[0].post.title).toBe("持久");
   });
 
-  it("createFireflyPost 内部通道可发昔涟动态（不携带图片副本逻辑）", async () => {
+  it("createFireflyPost 内部通道可发流萤动态（不携带图片副本逻辑）", async () => {
     const store = await freshStore();
     const result = await store.createFireflyPost({ text: "今天有点想偷懒。" });
     expect(result.applied).toBe(true);
     if (!result.applied) return;
-    expect(result.value.author).toBe("cyrene");
+    expect(result.value.author).toBe("firefly");
     expect(result.value.media).toHaveLength(0);
   });
 
-  it("昔涟点赞只插入不撤销：重复提交被 reaction_exists 拒绝", async () => {
+  it("流萤点赞只插入不撤销：重复提交被 reaction_exists 拒绝", async () => {
     const store = await freshStore();
     const post = await store.createUserPost({ text: "赞我" });
     if (!post.applied) throw new Error("create failed");
@@ -204,20 +204,20 @@ describe("moments store", () => {
     expect(await store.createFireflyLike("moment_missing")).toMatchObject({ applied: false, reason: "post_not_found" });
   });
 
-  it("反应开关关闭时昔涟提交被 moments_disabled 拒绝，用户操作不受影响", async () => {
+  it("反应开关关闭时流萤提交被 moments_disabled 拒绝，用户操作不受影响", async () => {
     const store = await freshStore();
     const post = await store.createUserPost({ text: "开关测试" });
     if (!post.applied) throw new Error("create failed");
 
     store.setFireflyBehaviorGate(() => false);
     expect(await store.createFireflyLike(post.value.id)).toMatchObject({ applied: false, reason: "moments_disabled" });
-    expect(await store.createComment({ postId: post.value.id, content: "迟到的 AI 评论" }, "cyrene"))
+    expect(await store.createComment({ postId: post.value.id, content: "迟到的 AI 评论" }, "firefly"))
       .toMatchObject({ applied: false, reason: "moments_disabled" });
     expect(await store.createFireflyPost({ text: "发不出去" })).toMatchObject({ applied: false, reason: "moments_disabled" });
-    // 用户侧不经过昔涟门控，照常可用
+    // 用户侧不经过流萤门控，照常可用
     expect((await store.createComment({ postId: post.value.id, content: "用户还能评论" }, "user")).applied).toBe(true);
     expect((await store.toggleLike(post.value.id, "user")).applied).toBe(true);
-    // 门控按行为种类区分：posting 放行时昔涟发帖不受反应开关影响
+    // 门控按行为种类区分：posting 放行时流萤发帖不受反应开关影响
     store.setFireflyBehaviorGate((behavior) => behavior === "posting");
     expect((await store.createFireflyPost({ text: "发得出去" })).applied).toBe(true);
   });
@@ -309,16 +309,16 @@ describe("moments store", () => {
     expect(item?.comments).toHaveLength(2);
   });
 
-  it("昔涟评论同样支持 sourceTaskId 幂等", async () => {
+  it("流萤评论同样支持 sourceTaskId 幂等", async () => {
     const store = await freshStore();
-    const post = await store.createUserPost({ text: "昔涟幂等" });
+    const post = await store.createUserPost({ text: "流萤幂等" });
     if (!post.applied) throw new Error("create failed");
 
-    const first = await store.createComment({ postId: post.value.id, content: "看到了。" }, "cyrene", { sourceTaskId: "task_c1" });
+    const first = await store.createComment({ postId: post.value.id, content: "看到了。" }, "firefly", { sourceTaskId: "task_c1" });
     expect(first.applied).toBe(true);
     if (!first.applied) return;
 
-    const retry = await store.createComment({ postId: post.value.id, content: "看到了。（重跑）" }, "cyrene", { sourceTaskId: "task_c1" });
+    const retry = await store.createComment({ postId: post.value.id, content: "看到了。（重跑）" }, "firefly", { sourceTaskId: "task_c1" });
     expect(retry.applied).toBe(true);
     if (!retry.applied) return;
     expect(retry.value.id).toBe(first.value.id);
@@ -327,7 +327,7 @@ describe("moments store", () => {
     expect(store.getFeedItem(post.value.id)?.comments).toHaveLength(1);
   });
 
-  it("角色行为开关：关闭时角色点赞评论被拒，昔涟与用户不受影响", async () => {
+  it("角色行为开关：关闭时角色点赞评论被拒，流萤与用户不受影响", async () => {
     const store = await freshStoreWithCharacters(["万敌"]);
     const post = await store.createUserPost({ text: "开关" });
     if (!post.applied) throw new Error("create failed");
@@ -337,7 +337,7 @@ describe("moments store", () => {
     expect(await store.createCharacterComment("万敌", { postId: post.value.id, content: "说不出" }))
       .toMatchObject({ status: "rejected", reason: "moments_disabled" });
 
-    // 昔涟与用户通道走各自门控，照常可用
+    // 流萤与用户通道走各自门控，照常可用
     expect((await store.createFireflyLike(post.value.id)).applied).toBe(true);
     expect((await store.createComment({ postId: post.value.id, content: "用户评论" }, "user")).applied).toBe(true);
   });

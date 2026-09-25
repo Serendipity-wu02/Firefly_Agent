@@ -262,7 +262,7 @@ export function createChannelsSubsystem(
     try {
       win.webContents.send(IPC.AGUI_EVENT, {
         type: "CUSTOM",
-        name: "cyrene.botMessage",
+        name: "firefly.botMessage",
         value: event,
       });
     } catch (err) {

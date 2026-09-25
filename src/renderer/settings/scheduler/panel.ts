@@ -135,8 +135,8 @@ export async function renderSchedulerList(): Promise<void> {
 
 export async function loadSchedulerPanel(): Promise<void> {
   const [tasksResult, toolsResult, pluginsResult] = await Promise.all([
-    window.cyreneScheduler!.list(),
-    window.cyreneScheduler!.getTools(),
+    window.fireflyScheduler!.list(),
+    window.fireflyScheduler!.getTools(),
     // 插件运行状态决定"等待插件启用"提示；查询失败按未知处理，不阻塞任务列表
     window.plugins?.list().catch(() => undefined),
   ]);
@@ -158,7 +158,7 @@ export async function openSchedulerEditor(task?: ScheduledTask): Promise<void> {
   schedulerEditor?.classList.remove("is-hidden");
   // 确保工具列表已加载
   if (schedulerState.tools.length === 0) {
-    const toolsResult = await window.cyreneScheduler!.getTools();
+    const toolsResult = await window.fireflyScheduler!.getTools();
     if (toolsResult.ok) schedulerState.tools = toolsResult.value ?? [];
   }
   if (schedulerEditorTitle) schedulerEditorTitle.textContent = task ? "编辑定时任务" : "新建定时任务";
@@ -262,8 +262,8 @@ export async function saveSchedulerTask(): Promise<void> {
       allowedToolIds: collectAllowedToolIds(),
     };
     const result = schedulerState.editingTaskId
-      ? await window.cyreneScheduler!.update(schedulerState.editingTaskId, input)
-      : await window.cyreneScheduler!.add(input);
+      ? await window.fireflyScheduler!.update(schedulerState.editingTaskId, input)
+      : await window.fireflyScheduler!.add(input);
     if (!result.ok) throw new Error(result.error ?? "保存失败");
     await loadSchedulerPanel();
     closeSchedulerEditor();
@@ -295,14 +295,14 @@ export async function toggleSchedulerTask(task: ScheduledTask, enabled: boolean)
     const confirmed = await confirmPluginTaskEnable(task);
     if (!confirmed) return;
   }
-  const result = await window.cyreneScheduler!.toggle(task.id, enabled);
+  const result = await window.fireflyScheduler!.toggle(task.id, enabled);
   // 切换失败属于简短失败反馈：用非阻塞轻提示
   if (!result.ok) showNotice({ tone: "error", message: result.error ?? "切换失败" });
   await loadSchedulerPanel();
 }
 
 export async function fireSchedulerTask(id: string): Promise<void> {
-  const result = await window.cyreneScheduler!.fireNow(id);
+  const result = await window.fireflyScheduler!.fireNow(id);
   if (!result.ok) {
     const message = result.reason === "task already running"
       ? "该任务正在运行中"
@@ -317,7 +317,7 @@ export async function deleteSchedulerTask(id: string): Promise<void> {
   // 删除任务不可撤销：危险确认，默认聚焦取消
   const ok = await showConfirm({ title: "删除定时任务", message: "确定删除这个定时任务吗？", confirmText: "删除", dangerous: true });
   if (!ok) return;
-  const result = await window.cyreneScheduler!.delete(id);
+  const result = await window.fireflyScheduler!.delete(id);
   if (!result.ok) showNotice({ tone: "error", message: result.error ?? "删除失败" });
   await loadSchedulerPanel();
 }
@@ -329,7 +329,7 @@ export async function toggleSchedulerHistory(taskId: string, card: Element): Pro
     box.classList.add("is-hidden");
     return;
   }
-  const result = await window.cyreneScheduler!.getHistory(taskId, 10);
+  const result = await window.fireflyScheduler!.getHistory(taskId, 10);
   const rows = result.value ?? [];
   box.replaceChildren();
   if (!result.ok || rows.length === 0) {

@@ -14,14 +14,14 @@ vi.mock("electron", () => ({
     isPackaged: true,
     getAppPath: () => runtime.appPath,
     getPath: (name: string) => name === "exe"
-      ? path.join(runtime.installRoot, "Cyrene.exe")
+      ? path.join(runtime.installRoot, "Firefly.exe")
       : runtime.userDataPath,
   },
 }));
 
 import { loadPromptFile } from "./prompt-loader";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-prompt-loader-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-prompt-loader-"));
 runtime.installRoot = root;
 runtime.appPath = path.join(root, "resources", "app.asar");
 runtime.userDataPath = path.join(root, "user-data");
@@ -31,7 +31,7 @@ afterAll(() => {
 });
 
 describe("loadPromptFile in packaged builds", () => {
-  it("reads an editable prompt beside Cyrene.exe instead of app.asar", () => {
+  it("reads an editable prompt beside Firefly.exe instead of app.asar", () => {
     const prompts = path.join(root, "prompts");
     fs.mkdirSync(prompts, { recursive: true });
     fs.writeFileSync(path.join(prompts, "soul.md"), "editable soul\n", "utf8");
@@ -39,7 +39,7 @@ describe("loadPromptFile in packaged builds", () => {
     expect(loadPromptFile("soul.md")).toBe("editable soul");
   });
 
-  it("falls back to the shipped prompt beside Cyrene.exe", () => {
+  it("falls back to the shipped prompt beside Firefly.exe", () => {
     const defaults = path.join(root, "prompts");
     fs.mkdirSync(defaults, { recursive: true });
     fs.writeFileSync(path.join(defaults, "chat_system.md"), "default chat", "utf8");

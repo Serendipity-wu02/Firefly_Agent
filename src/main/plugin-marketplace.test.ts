@@ -12,8 +12,9 @@ import {
 
 const REGISTRY_URL_A = "https://example.test/registry-a.json";
 const REGISTRY_URL_B = "https://example.test/registry-b.json";
-const ZIP_URL = `${MARKET_ZIP_URL_PREFIXES[0]}demo-1.0.0.zip`;
-const GITEE_ZIP_URL = `${MARKET_ZIP_URL_PREFIXES[1]}demo-1.0.0.zip`;
+const TEST_ZIP_PREFIXES = ["https://example.test/releases/", "https://mirror.example.test/releases/"];
+const ZIP_URL = `${TEST_ZIP_PREFIXES[0]}demo-1.0.0.zip`;
+const GITEE_ZIP_URL = `${TEST_ZIP_PREFIXES[1]}demo-1.0.0.zip`;
 
 let tmp = "";
 
@@ -26,7 +27,7 @@ afterEach(() => {
 });
 
 function cacheDir(): string {
-  tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-market-"));
+  tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-market-"));
   return path.join(tmp, "cache");
 }
 
@@ -59,7 +60,7 @@ function jsonResponse(data: unknown): Response {
 function makeDeps(overrides: Partial<PluginMarketplaceDeps> = {}): PluginMarketplaceDeps {
   return {
     registryUrls: [REGISTRY_URL_A, REGISTRY_URL_B],
-    zipUrlPrefixes: MARKET_ZIP_URL_PREFIXES,
+    zipUrlPrefixes: TEST_ZIP_PREFIXES,
     cacheDir: cacheDir(),
     installZip: vi.fn(async () => ({ ok: true, plugin: { id: "demo", name: "Demo", version: "1.0.0" }, overview: undefined })),
     ...overrides,
@@ -67,6 +68,13 @@ function makeDeps(overrides: Partial<PluginMarketplaceDeps> = {}): PluginMarketp
 }
 
 describe("listMarket", () => {
+  it("does not contact a market when unconfigured", async () => {
+    const fetchImpl = vi.fn();
+    const service = createPluginMarketplaceService(makeDeps({ registryUrls: [], zipUrlPrefixes: MARKET_ZIP_URL_PREFIXES, fetchImpl }));
+    expect(await service.listMarket()).toEqual({ ok: false, error: "插件市场未配置；可从本地安装插件", plugins: [], sources: [] });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(MARKET_ZIP_URL_PREFIXES).toEqual([]);
+  });
   it("成功拉取并按下载量降序排序", async () => {
     const fetchImpl: MarketplaceFetch = async (input) => {
       if (input === REGISTRY_URL_A) {

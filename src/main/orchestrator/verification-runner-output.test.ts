@@ -13,7 +13,7 @@ function makeStep(overrides: Partial<VerificationStep> = {}): VerificationStep {
     trust: "builtin",
     executable: process.execPath,
     args: [],
-    source: "cyrene_config",
+    source: "firefly_config",
     ...overrides,
   };
 }

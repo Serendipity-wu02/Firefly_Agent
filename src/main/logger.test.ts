@@ -11,7 +11,7 @@ describe("main file logging", () => {
     const uninstall = initializeMainFileLogging(userDataDir);
     try {
       logger.warn("Runtime", "startup chats index", { sessionCount: 2 });
-      const output = fs.readFileSync(path.join(userDataDir, "logs", "cyrene.log"), "utf8");
+      const output = fs.readFileSync(path.join(userDataDir, "logs", "firefly.log"), "utf8");
       expect(output).toContain("sessionCount");
       expect(output).not.toContain("model-settings.json");
     } finally {

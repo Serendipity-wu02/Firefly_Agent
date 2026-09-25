@@ -21,7 +21,7 @@ describe("local sticker protocol helpers", () => {
   });
 
   it("resolves files only inside the sticker directory", () => {
-    const stickersDir = path.join("C:", "Users", "tester", "AppData", "Cyrene", "stickers");
+    const stickersDir = path.join("C:", "Users", "tester", "AppData", "Firefly", "stickers");
 
     expect(resolveLocalStickerPath(stickersDir, "cat.png")).toBe(path.resolve(stickersDir, "cat.png"));
     expect(resolveLocalStickerPath(stickersDir, "../app-settings.json")).toBeNull();

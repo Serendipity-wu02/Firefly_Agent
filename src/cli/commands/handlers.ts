@@ -4,7 +4,7 @@
  *
  * `version` is passed in (not read from a global) so tests can supply a
  * deterministic value. In production it is injected at build time by esbuild
- * as __CYRENE_VERSION__ and threaded through main().
+ * as __FIREFLY_VERSION__ and threaded through main().
  */
 import { renderAbout, renderBanner } from "../banner/render.js";
 import { ABOUT_LINES, BANNER_LINES } from "../banner/text.js";
@@ -80,7 +80,7 @@ export function cmdDefault(ctx: HandlerCtx): number {
   }
 
   if (state.kind === "corrupt") {
-    errLine("firefly: ~/.cyrene/state.json was unreadable; treating as first meeting.");
+    errLine("firefly: CLI state was unreadable; treating as first meeting.");
   }
 
   outLine(renderBanner());
@@ -95,7 +95,7 @@ export function cmdDefault(ctx: HandlerCtx): number {
     writeState({ firstLaunch: record });
   } catch {
     errLine(
-      "firefly: could not write ~/.cyrene/state.json; you may see this banner again next time.",
+      "firefly: could not write ~/.firefly/state.json; you may see this banner again next time.",
     );
   }
   return 0;

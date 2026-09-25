@@ -2,7 +2,7 @@
 
 > 快照：`npm audit --omit=dev`，共 30 项：1 严重 / 15 高危 / 14 中危
 >
-> 配套方案：[2026-09-14-engineering-governance-plan.md](./2026-09-14-engineering-governance-plan.md) 阶段 A
+> 当前维护边界：[Firefly 可靠性说明](../architecture/firefly-reliability-boundaries.md)。原配套工程治理计划阶段 A 保留于 Git 历史，不作为当前施工入口。
 >
 > CI 现状：`test.yml` 每次运行留存审计报告工件。高危项清零或限期登记后，把审计步骤改为 `npm audit --omit=dev --audit-level=high` 阻断门禁并移除 `continue-on-error`。
 >

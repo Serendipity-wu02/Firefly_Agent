@@ -71,7 +71,7 @@ function probeBash(executable: string): Promise<boolean> {
       clearTimeout(timer);
       resolve(value);
     };
-    const child = spawn(executable, ["--noprofile", "--norc", "-lc", "printf cyrene-bash-probe"], {
+    const child = spawn(executable, ["--noprofile", "--norc", "-lc", "printf firefly-bash-probe"], {
       shell: false,
       windowsHide: true,
       stdio: ["ignore", "pipe", "ignore"],
@@ -79,7 +79,7 @@ function probeBash(executable: string): Promise<boolean> {
     let stdout = "";
     child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
     child.on("error", () => finish(false));
-    child.on("close", (code) => finish(code === 0 && stdout === "cyrene-bash-probe"));
+    child.on("close", (code) => finish(code === 0 && stdout === "firefly-bash-probe"));
     const timer = setTimeout(() => {
       try { child.kill("SIGKILL"); } catch { /* already exited */ }
       finish(false);

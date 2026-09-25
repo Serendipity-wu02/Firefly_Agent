@@ -6,7 +6,7 @@
 //   { ok: true, argv, env } 或 { ok: false, reason }（disabled / not_ready / wrap_failed）。
 //   本层只归一化结果、不做 fallback 决策；拒绝还是降级由 run_shell 的 ExecutionPlan 路由
 //   （不可因 wrap 失败而 fail-open：需要沙箱的命令在 wrap 成功前不允许 spawn）。
-// - CYRENE_SRT=0 环境变量可强制禁用（reason: "disabled"）。
+// - FIREFLY_SRT=0 环境变量可强制禁用（旧 FIREFLY_SRT 仍可读取）。
 //
 // SRT API 要点（已 PoC 验证）：
 // - namespace import（无 default export）：`await import('@anthropic-ai/sandbox-runtime')`
@@ -49,7 +49,8 @@ let lastFailedSessionKey: string | null = null;
 // ── 环境开关 ────────────────────────────────────────────
 
 function isSrtDisabledByEnv(): boolean {
-  return process.env.CYRENE_SRT === "0" || process.env.CYRENE_SRT === "false";
+  const setting = fireflyEnvironment(process.env, "FIREFLY_SRT");
+  return setting === "0" || setting === "false";
 }
 
 function isWindows(): boolean {
@@ -209,7 +210,7 @@ export async function initSandbox(): Promise<void> {
     return;
   }
   if (isSrtDisabledByEnv()) {
-    logger.info(LogTag.Runtime, "[Sandbox] disabled by CYRENE_SRT env");
+    logger.info(LogTag.Runtime, "[Sandbox] disabled by FIREFLY_SRT env");
     sandboxDisabled = true;
     return;
   }
@@ -330,7 +331,7 @@ export async function ensureSandboxReady(cwd: string = process.cwd()): Promise<b
  * 本函数只回答"能不能把这个命令安全包装起来"，不做任何 fallback 策略决策：
  * 包装失败后是拒绝还是降级直跑，由调用方（run_shell 的 ExecutionPlan 路由）判定。
  *
- * - ok:false + reason:"disabled"    → 环境层面显式无沙箱（CYRENE_SRT=0 / 非 Windows / full 档），
+ * - ok:false + reason:"disabled"    → 环境层面显式无沙箱（FIREFLY_SRT=0 / 非 Windows / full 档），
  *                                     属于用户主动选择，调用方可按 effect 分流
  * - ok:false + reason:"not_ready"   → 沙箱本应可用但初始化失败（ensure 失败 / SRT 模块缺失）
  * - ok:false + reason:"wrap_failed" → wrap 阶段抛错或返回非法 argv
@@ -428,3 +429,4 @@ export async function resetSandbox(): Promise<void> {
     // 退出时忽略
   }
 }
+import { fireflyEnvironment } from "../../../shared/legacy-firefly-contracts";

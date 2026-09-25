@@ -2,7 +2,7 @@ export {};
 
 declare global {
   interface Window {
-    cyrene: {
+    firefly: {
       minimize: () => void;
       hide: () => void;
       quit: () => void;

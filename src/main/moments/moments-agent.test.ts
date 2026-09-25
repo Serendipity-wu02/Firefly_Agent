@@ -156,13 +156,13 @@ describe("buildReplyMessages", () => {
   function makeFeed(): { post: MomentPost; comments: MomentComment[] } {
     return {
       post: makePost({
-        author: "cyrene",
-        text: "昔涟发的动态",
+        author: "firefly",
+        text: "流萤发的动态",
         source: { type: "conversation", triggerExcerpt: "之前聊到的约定" },
       }),
       comments: [
-        makeComment({ id: "c1", author: "cyrene", content: "昔涟先评论", createdAt: 100 }),
-        makeComment({ id: "c2", author: "user", content: "用户回复昔涟", replyTo: "c1", createdAt: 200 }),
+        makeComment({ id: "c1", author: "firefly", content: "流萤先评论", createdAt: 100 }),
+        makeComment({ id: "c2", author: "user", content: "用户回复流萤", replyTo: "c1", createdAt: 200 }),
         makeComment({ id: "c3", author: "user", content: "无关顶级评论", createdAt: 300 }),
       ],
     };
@@ -182,8 +182,8 @@ describe("buildReplyMessages", () => {
     expect(messages).toHaveLength(2);
     const user = String(messages[1].content);
     expect(user).toContain("[原始动态]");
-    expect(user).toContain("昔涟发的动态");
-    expect(user).toContain("用户（回复流萤）：用户回复昔涟");
+    expect(user).toContain("流萤发的动态");
+    expect(user).toContain("用户（回复流萤）：用户回复流萤");
     expect(user).toContain("之前聊到的约定");
     expect(user).toContain('"shouldReply"');
   });
@@ -192,7 +192,7 @@ describe("buildReplyMessages", () => {
     const feed = makeFeed();
     const noSource = buildReplyMessages({
       persona: PERSONA,
-      post: makePost({ author: "cyrene" }),
+      post: makePost({ author: "firefly" }),
       comments: feed.comments,
       replyTargetId: "c2",
       localNow: new Date("2026-09-04T11:00:00"),
@@ -345,7 +345,7 @@ describe("moments worldbook 注入与图片直发", () => {
         modelText: '{"shouldReply":true,"text":"好"}',
         worldbookText: WORLDBOOK,
         feed: {
-          post: makePost({ author: "cyrene", text: "昔涟动态" }),
+          post: makePost({ author: "firefly", text: "流萤动态" }),
           comments: [
             makeComment({ id: "c1", author: "user", content: "你知道风堇吗", createdAt: 100 }),
           ],
@@ -355,7 +355,7 @@ describe("moments worldbook 注入与图片直发", () => {
       await h.agent.decideCommentReply("moment_p1", "c1");
 
       const scanned = h.buildWorldbookContext!.mock.calls[0][0] as string;
-      expect(scanned).toContain("昔涟动态");
+      expect(scanned).toContain("流萤动态");
       expect(scanned).toContain("风堇");
     });
 
@@ -470,9 +470,9 @@ describe("moments worldbook 注入与图片直发", () => {
   describe("decideCommentReply", () => {
     function makeFeed(): MomentFeedItem {
       return {
-        post: makePost({ author: "cyrene", text: "昔涟动态" }),
+        post: makePost({ author: "firefly", text: "流萤动态" }),
         comments: [
-          makeComment({ id: "c1", author: "cyrene", content: "昔涟评论", createdAt: 100 }),
+          makeComment({ id: "c1", author: "firefly", content: "流萤评论", createdAt: 100 }),
           makeComment({ id: "c2", author: "user", content: "用户回复", replyTo: "c1", createdAt: 200 }),
         ],
         likes: [],
@@ -540,13 +540,13 @@ describe("buildPostGenerationMessages", () => {
   it("system 由人设与发帖指令拼接，user 携带摘录/最近动态/时间与 JSON 约定", () => {
     const recent = makePost({
       id: "moment_cy",
-      author: "cyrene",
+      author: "firefly",
       text: "之前发过的动态",
       createdAt: new Date("2026-09-03T22:10:00").getTime(),
     });
     const messages = buildPostGenerationMessages({
       persona: PERSONA,
-      summary: "[19:00] 用户：折腾好久了\n[19:01] 昔涟：快好了",
+      summary: "[19:00] 用户：折腾好久了\n[19:01] 流萤：快好了",
       recentFireflyPosts: [recent],
       localNow: new Date("2026-09-04T19:02:00"),
     });
@@ -616,7 +616,7 @@ describe("createMomentsAgent 主动发帖", () => {
   it("发帖决策成功时提交动态并把摘录固化为 triggerExcerpt", async () => {
     const h = makePostHarness({ modelText: '{"shouldPost":true,"text":"有人终于肯收工啦","wantImage":true}' });
     const posted = await h.agent.generatePost({
-      summary: "[23:30] 用户：修完了\n[23:30] 昔涟：太棒了",
+      summary: "[23:30] 用户：修完了\n[23:30] 流萤：太棒了",
       recentFireflyPosts: [],
     });
 
@@ -624,7 +624,7 @@ describe("createMomentsAgent 主动发帖", () => {
     expect(h.commitPost).toHaveBeenCalledWith({
       text: "有人终于肯收工啦",
       media: [],
-      source: { type: "conversation", triggerExcerpt: "[23:30] 用户：修完了\n[23:30] 昔涟：太棒了" },
+      source: { type: "conversation", triggerExcerpt: "[23:30] 用户：修完了\n[23:30] 流萤：太棒了" },
     });
   });
 
@@ -702,7 +702,7 @@ describe("createMomentsAgent 主动发帖", () => {
   });
 
   it("注入 buildPluginPromptContext 时以 moments-post 场景调用并拼进 user 消息", async () => {
-    const summary = "[19:00] 用户：折腾好久了\n[19:01] 昔涟：快好了";
+    const summary = "[19:00] 用户：折腾好久了\n[19:01] 流萤：快好了";
     const h = makePostHarness({
       modelText: '{"shouldPost":true,"text":"文案"}',
       pluginContextText: "【测试插件】插件产出的参考数据",

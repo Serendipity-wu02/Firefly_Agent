@@ -9,7 +9,7 @@ import { prepareMinGit } from "./prepare-mingit.mjs";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 
 test("rejects a downloaded archive with the wrong sha256", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "cyrene-mingit-test-"));
+  const root = await mkdtemp(path.join(tmpdir(), "firefly-mingit-test-"));
   try {
     await assert.rejects(
       prepareMinGit({
@@ -28,7 +28,7 @@ test("rejects a downloaded archive with the wrong sha256", async () => {
 });
 
 test("reuses a verified extracted git executable without downloading", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "cyrene-mingit-test-"));
+  const root = await mkdtemp(path.join(tmpdir(), "firefly-mingit-test-"));
   try {
     const outputDir = path.join(root, "resources", "mingit");
     await mkdir(path.join(outputDir, "cmd"), { recursive: true });

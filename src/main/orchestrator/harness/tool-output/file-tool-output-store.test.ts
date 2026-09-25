@@ -13,7 +13,7 @@ import {
 const roots: string[] = [];
 
 async function makeStore(): Promise<{ root: string; store: FileToolOutputStore }> {
-  const root = await mkdtemp(path.join(tmpdir(), "cyrene-tool-output-"));
+  const root = await mkdtemp(path.join(tmpdir(), "firefly-tool-output-"));
   roots.push(root);
   return { root, store: new FileToolOutputStore(root, { now: () => 1234 }) };
 }
@@ -46,20 +46,20 @@ describe("FileToolOutputStore", () => {
 
   it("persists the full output and returns the same record for a replay", async () => {
     const { store } = await makeStore();
-    const first = await store.put(input("HEAD😀MIDDLE昔涟TAIL"));
+    const first = await store.put(input("HEAD😀MIDDLE流萤TAIL"));
     const replay = await store.put(input("different retry output must not replace the first fact"));
 
     expect(replay).toEqual(first);
     expect(first.resultRef).toBe(`tool-result://v1/${first.recordId}`);
-    expect(first.bytes).toBe(Buffer.byteLength("HEAD😀MIDDLE昔涟TAIL", "utf8"));
-    expect(first.codePoints).toBe(Array.from("HEAD😀MIDDLE昔涟TAIL").length);
+    expect(first.bytes).toBe(Buffer.byteLength("HEAD😀MIDDLE流萤TAIL", "utf8"));
+    expect(first.codePoints).toBe(Array.from("HEAD😀MIDDLE流萤TAIL").length);
 
     await expect(store.read({
       conversationId: "conversation-a",
       resultRef: first.resultRef,
       offset: 0,
       length: 8_192,
-    })).resolves.toMatchObject({ content: "HEAD😀MIDDLE昔涟TAIL", totalCodePoints: 17 });
+    })).resolves.toMatchObject({ content: "HEAD😀MIDDLE流萤TAIL", totalCodePoints: 17 });
   });
 
   it("does not let another conversation resolve an opaque result ref", async () => {
@@ -76,11 +76,11 @@ describe("FileToolOutputStore", () => {
 
   it("finds and reads with the same Unicode code-point coordinate system", async () => {
     const { store } = await makeStore();
-    const ref = await store.put(input("AAA😀BBB昔涟CCC"));
+    const ref = await store.put(input("AAA😀BBB流萤CCC"));
     const found = await store.find({
       conversationId: "conversation-a",
       resultRef: ref.resultRef,
-      query: "昔涟",
+      query: "流萤",
     });
 
     expect(found?.matches).toHaveLength(1);
@@ -92,7 +92,7 @@ describe("FileToolOutputStore", () => {
       resultRef: ref.resultRef,
       offset,
       length: 2,
-    })).resolves.toMatchObject({ content: "昔涟" });
+    })).resolves.toMatchObject({ content: "流萤" });
   });
 
   it("rejects an invalid range and detects corrupted output", async () => {
@@ -107,7 +107,7 @@ describe("FileToolOutputStore", () => {
     })).rejects.toBeInstanceOf(ToolOutputInvalidInputError);
 
     const conversationHash = createHash("sha256").update("conversation-a").digest("hex");
-    const outputPath = path.join(root, "cyrene-runs", "tool-results", conversationHash, "records", ref.recordId, "output.txt");
+    const outputPath = path.join(root, "firefly-runs", "tool-results", conversationHash, "records", ref.recordId, "output.txt");
     await writeFile(outputPath, "tampered", "utf8");
 
     await expect(store.read({
@@ -122,7 +122,7 @@ describe("FileToolOutputStore", () => {
     const { root, store } = await makeStore();
     const ref = await store.put(input("durable enough for process recovery"));
     const conversationHash = createHash("sha256").update("conversation-a").digest("hex");
-    const recordDir = path.join(root, "cyrene-runs", "tool-results", conversationHash, "records", ref.recordId);
+    const recordDir = path.join(root, "firefly-runs", "tool-results", conversationHash, "records", ref.recordId);
     const meta = JSON.parse(await readFile(path.join(recordDir, "meta.json"), "utf8"));
 
     expect(meta).toMatchObject({

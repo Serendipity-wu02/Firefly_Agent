@@ -4,8 +4,8 @@ import { ensureGpuSandboxAcl } from "./gpu-sandbox-acl";
 const base = {
   platform: "win32" as NodeJS.Platform,
   isPackaged: true,
-  exeDir: "E:\\cyrene",
-  userDataDir: "C:\\Users\\u\\AppData\\Roaming\\live2d-cyrene",
+  exeDir: "E:\\firefly",
+  userDataDir: "C:\\Users\\u\\AppData\\Roaming\\live2d-firefly",
 };
 
 function mkOverrides(aclQueryResult?: string | Error) {
@@ -47,22 +47,22 @@ describe("ensureGpuSandboxAcl", () => {
   });
 
   it("目录已有权限（icacls 显示解析名 ALL RESTRICTED APPLICATION PACKAGES）→ already_ok 写哨兵、不授权", () => {
-    const o = mkOverrides("E:\\cyrene BUILTIN\\Users:(F)\nALL RESTRICTED APPLICATION PACKAGES:(RX)");
+    const o = mkOverrides("E:\\firefly BUILTIN\\Users:(F)\nALL RESTRICTED APPLICATION PACKAGES:(RX)");
     expect(ensureGpuSandboxAcl(o.opts)).toBe("already_ok");
     expect(o.run).not.toHaveBeenCalled();
     expect(o.written).toHaveLength(1); // 哨兵已写，下次启动直接跳过
   });
 
   it("目录已有权限（显示裸 SID）→ already_ok（非英文/解析失败场景）", () => {
-    const o = mkOverrides("E:\\cyrene *S-1-15-2-2:(OI)(CI)(RX)");
+    const o = mkOverrides("E:\\firefly *S-1-15-2-2:(OI)(CI)(RX)");
     expect(ensureGpuSandboxAcl(o.opts)).toBe("already_ok");
   });
 
   it("查询显示无权限 → 授权：裸 SID + (OI)(CI)(RX) + 路径引号 + /C，成功写哨兵", () => {
-    const o = mkOverrides("E:\\cyrene BUILTIN\\Users:(F)"); // 无 S-1-15-2-2
+    const o = mkOverrides("E:\\firefly BUILTIN\\Users:(F)"); // 无 S-1-15-2-2
     expect(ensureGpuSandboxAcl(o.opts)).toBe("granted");
     expect(o.run).toHaveBeenCalledTimes(1);
-    expect(o.run.mock.calls[0][0]).toBe('icacls "E:\\cyrene" /grant *S-1-15-2-2:(OI)(CI)(RX) /C');
+    expect(o.run.mock.calls[0][0]).toBe('icacls "E:\\firefly" /grant *S-1-15-2-2:(OI)(CI)(RX) /C');
     expect(o.written).toHaveLength(1);
   });
 

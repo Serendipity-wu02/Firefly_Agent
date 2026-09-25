@@ -25,7 +25,8 @@ export interface PreparedPluginZip {
  * plugin-install-metadata 目录中，插件包内不允许出现同名文件，
  * 防止插件包伪造来源信息。
  */
-const HOST_METADATA_RESERVED_NAME = "cyrene-market.json";
+import { LEGACY_MARKET_METADATA } from "../shared/legacy-firefly-contracts";
+const HOST_METADATA_RESERVED_NAME = "firefly-market.json";
 
 /** 市场安装来源记录（宿主侧持久化，与插件目录解耦） */
 export interface PluginHostMetadata {
@@ -138,7 +139,7 @@ export async function preparePluginZip(
         const entryName = validateEntryName(entry.fileName);
         if (entryNames.has(entryName)) throw new Error(`ZIP 包含重复或大小写冲突路径: ${entry.fileName}`);
         const baseName = entryName.split("/").pop() ?? "";
-        if (baseName === HOST_METADATA_RESERVED_NAME) {
+        if (baseName === HOST_METADATA_RESERVED_NAME || baseName === LEGACY_MARKET_METADATA) {
           throw new Error(`ZIP 不允许包含宿主保留文件: ${entry.fileName}`);
         }
         entryNames.add(entryName);

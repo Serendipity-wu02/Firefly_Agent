@@ -1,6 +1,6 @@
-// moments-service 调度测试：昔涟反应任务入队（闸门前置、在线/深夜延迟、
+// moments-service 调度测试：流萤反应任务入队（闸门前置、在线/深夜延迟、
 // 到期扫描后决策落库、退避重试与作废语义）；主动发帖调度：设置/去重闸门前置、
-// 执行时复核冷却、成功落库与记账；角色链路：抽签双骰分流、昔涟×角色
+// 执行时复核冷却、成功落库与记账；角色链路：抽签双骰分流、流萤×角色
 // 互动闭环、回复链深度收束、崩溃重放续接与深夜窗口。
 import fs from "fs";
 import os from "os";
@@ -145,7 +145,7 @@ function scriptedRandom(values: number[]): () => number {
 
 /** 反应队列临时持久化文件：每个 harness 独立一份，互不串扰 */
 function tempQueueFile(): string {
-  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-moments-service-")), "moments-reaction-queue.json");
+  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-moments-service-")), "moments-reaction-queue.json");
 }
 
 /** 读队列落盘文件里的任务快照（入队即落盘；文件尚不存在说明从未入队，视作空队列） */
@@ -167,29 +167,29 @@ function readQueueTasks(filePath: string): Array<{
 interface FakeStoreState {
   posts: MomentPost[];
   comments: MomentComment[];
-  cyreneLikes: string[];
-  cyreneComments: Array<{ postId: string; content: string; replyTo?: string }>;
-  cyrenePosts: Array<{ text: string; source?: MomentPostSource }>;
+  fireflyLikes: string[];
+  fireflyComments: Array<{ postId: string; content: string; replyTo?: string }>;
+  fireflyPosts: Array<{ text: string; source?: MomentPostSource }>;
   characterLikes: Array<{ nickname: string; postId: string }>;
   characterComments: Array<{ nickname: string; postId: string; content: string; replyTo?: string }>;
   rejectNextPost: boolean;
-  rejectNextCyrenePost: boolean;
+  rejectNextFireflyPost: boolean;
   /** 下一次角色评论落库抛异常：模拟"决策已落盘、副作用提交失败"的崩溃窗口 */
   failNextCharacterComment: boolean;
 }
 
-/** 内存版 store：记录昔涟提交，可预置动态与评论、可制造下一次发帖失败。 */
+/** 内存版 store：记录流萤提交，可预置动态与评论、可制造下一次发帖失败。 */
 function createFakeStore() {
   const state: FakeStoreState = {
     posts: [],
     comments: [],
-    cyreneLikes: [],
-    cyreneComments: [],
-    cyrenePosts: [],
+    fireflyLikes: [],
+    fireflyComments: [],
+    fireflyPosts: [],
     characterLikes: [],
     characterComments: [],
     rejectNextPost: false,
-    rejectNextCyrenePost: false,
+    rejectNextFireflyPost: false,
     failNextCharacterComment: false,
   };
 
@@ -240,8 +240,8 @@ function createFakeStore() {
         sourceTaskId: options.sourceTaskId,
       };
       state.comments.push(comment);
-      if (author === "cyrene") {
-        state.cyreneComments.push({ postId: input.postId, content: input.content, replyTo: input.replyTo });
+      if (author === "firefly") {
+        state.fireflyComments.push({ postId: input.postId, content: input.content, replyTo: input.replyTo });
       }
       return { applied: true, value: comment };
     },
@@ -250,7 +250,7 @@ function createFakeStore() {
       value: { liked: true },
     }),
     createFireflyLike: async (postId: string): Promise<MomentCommitResult<{ liked: true }>> => {
-      state.cyreneLikes.push(postId);
+      state.fireflyLikes.push(postId);
       return { applied: true, value: { liked: true } };
     },
     createFireflyPost: async (input: {
@@ -259,20 +259,20 @@ function createFakeStore() {
       media?: MomentMedia[];
       source?: MomentPostSource;
     }): Promise<MomentCommitResult<MomentPost>> => {
-      if (state.rejectNextCyrenePost) {
-        state.rejectNextCyrenePost = false;
+      if (state.rejectNextFireflyPost) {
+        state.rejectNextFireflyPost = false;
         return { applied: false, reason: "moments_disabled" };
       }
       const post: MomentPost = {
         id: `moment_cy${state.posts.length + 1}`,
-        author: "cyrene",
+        author: "firefly",
         text: input.text,
         media: input.media ?? [],
         createdAt: 3_000,
         source: input.source,
       };
       state.posts.push(post);
-      state.cyrenePosts.push({ text: input.text, source: input.source });
+      state.fireflyPosts.push({ text: input.text, source: input.source });
       return { applied: true, value: post };
     },
     createCharacterLike: async (
@@ -322,8 +322,8 @@ function createFakeStore() {
 }
 interface HarnessOptions {
   momentsEnabled?: boolean;
-  cyreneMomentsReactionsEnabled?: boolean;
-  cyreneMomentsPostingEnabled?: boolean;
+  fireflyMomentsReactionsEnabled?: boolean;
+  fireflyMomentsPostingEnabled?: boolean;
   momentsCharacterReactionsEnabled?: boolean;
   /** 朋友圈热闹程度档位（缺省冷清档：行为与历史分布一致） */
   momentsLiveliness?: "quiet" | "natural" | "lively";
@@ -341,7 +341,7 @@ interface HarnessOptions {
   now?: number;
   /** 延迟抽签随机源（缺省恒 0.5：分桶与桶内取值都可预计算） */
   random?: () => number;
-  /** 角色注册表（缺省空：角色链路整体静默，只测昔涟；角色用例显式注入） */
+  /** 角色注册表（缺省空：角色链路整体静默，只测流萤；角色用例显式注入） */
   loadPersonas?: () => Map<string, CharacterPersona>;
   /** 反应队列持久化路径（缺省临时文件；可指向非法路径模拟磁盘异常） */
   reactionQueueFilePath?: string;
@@ -383,8 +383,8 @@ function createHarness(options: HarnessOptions = {}) {
   // 设置做成可变对象：同一 harness 内可中途打开开关，模拟"先关后开"的调度行为
   const settings = {
     momentsEnabled: options.momentsEnabled ?? true,
-    cyreneMomentsReactionsEnabled: options.cyreneMomentsReactionsEnabled ?? true,
-    cyreneMomentsPostingEnabled: options.cyreneMomentsPostingEnabled ?? false,
+    fireflyMomentsReactionsEnabled: options.fireflyMomentsReactionsEnabled ?? true,
+    fireflyMomentsPostingEnabled: options.fireflyMomentsPostingEnabled ?? false,
     momentsCharacterReactionsEnabled: options.momentsCharacterReactionsEnabled ?? true,
     momentsLiveliness: options.momentsLiveliness ?? "quiet",
   };
@@ -424,7 +424,7 @@ async function flush() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-describe("moments service 昔涟反应入队与到期执行", () => {
+describe("moments service 流萤反应入队与到期执行", () => {
   it("用户发帖成功后表态任务入队，到期扫描后决策落库点赞", async () => {
     const h = createHarness();
     const result = await h.service.createUserPost({ text: "第一条动态" });
@@ -433,7 +433,7 @@ describe("moments service 昔涟反应入队与到期执行", () => {
     // 到期前不执行：任务躺在队列里，模型未被调用
     expect(h.runModel).not.toHaveBeenCalled();
     const [task] = readQueueTasks(h.queueFile);
-    expect(task).toMatchObject({ kind: "post_eval", actor: "cyrene", postId: "moment_post1" });
+    expect(task).toMatchObject({ kind: "post_eval", actor: "firefly", postId: "moment_post1" });
 
     // 离线表态延迟（random 恒 0.5 落在 10~25 分钟桶取值 17 分钟）：未到期先扫一轮不执行
     await h.service.drainReactionQueue();
@@ -443,13 +443,13 @@ describe("moments service 昔涟反应入队与到期执行", () => {
     await h.service.drainReactionQueue();
 
     expect(h.runModel).toHaveBeenCalledTimes(1);
-    expect(h.fake.state.cyreneLikes).toHaveLength(1);
-    expect(h.fake.state.cyreneComments).toHaveLength(0);
+    expect(h.fake.state.fireflyLikes).toHaveLength(1);
+    expect(h.fake.state.fireflyComments).toHaveLength(0);
     // 执行成功后任务出队并同步落盘清空
     expect(readQueueTasks(h.queueFile)).toEqual([]);
   });
 
-  it("昔涟在线（最近对话收尾不足 10 分钟）时表态走短延迟，深夜入队也不推迟到早晨", async () => {
+  it("流萤在线（最近对话收尾不足 10 分钟）时表态走短延迟，深夜入队也不推迟到早晨", async () => {
     const night = new Date(2026, 8, 4, 3, 0, 0).getTime();
     const h = createHarness({ now: night });
     // 主动发帖开关默认关：scheduleTurn 只记录 ring buffer，恰好是在线感知的原料
@@ -458,7 +458,7 @@ describe("moments service 昔涟反应入队与到期执行", () => {
     await h.service.createUserPost({ text: "凌晨的动态" });
     const [task] = readQueueTasks(h.queueFile);
 
-    // 在线短延迟 1~8 分钟直接生效，不套深夜窗口（用户正和昔涟聊天，她就是醒着的）
+    // 在线短延迟 1~8 分钟直接生效，不套深夜窗口（用户正和流萤聊天，她就是醒着的）
     expect(task.dueAt - night).toBeGreaterThanOrEqual(60_000);
     expect(task.dueAt - night).toBeLessThan(8 * 60_000);
   });
@@ -484,7 +484,7 @@ describe("moments service 昔涟反应入队与到期执行", () => {
   });
 
   it("反应子开关关闭时不入队任务", async () => {
-    const h = createHarness({ cyreneMomentsReactionsEnabled: false });
+    const h = createHarness({ fireflyMomentsReactionsEnabled: false });
     await h.service.createUserPost({ text: "x" });
     expect(readQueueTasks(h.queueFile)).toEqual([]);
   });
@@ -508,7 +508,7 @@ describe("moments service 昔涟反应入队与到期执行", () => {
     const h = createHarness();
     await h.service.createUserPost({ text: "x" });
     // 入队后用户关掉开关：执行时闸门复核不通过，任务按世界已变作废
-    h.settings.cyreneMomentsReactionsEnabled = false;
+    h.settings.fireflyMomentsReactionsEnabled = false;
 
     h.clock.now += 60 * 60_000;
     await h.service.drainReactionQueue();
@@ -545,7 +545,7 @@ describe("moments service 昔涟反应入队与到期执行", () => {
     await h.service.drainReactionQueue();
     // 退避期满重试成功：决策落库，任务删除
     expect(h.runModel).toHaveBeenCalledTimes(2);
-    expect(h.fake.state.cyreneLikes).toHaveLength(1);
+    expect(h.fake.state.fireflyLikes).toHaveLength(1);
     expect(readQueueTasks(h.queueFile)).toEqual([]);
   });
 
@@ -562,21 +562,21 @@ describe("moments service 昔涟反应入队与到期执行", () => {
     await second.service.drainReactionQueue();
 
     expect(second.runModel).toHaveBeenCalledTimes(1);
-    expect(second.fake.state.cyreneLikes).toEqual([result.value.id]);
+    expect(second.fake.state.fireflyLikes).toEqual([result.value.id]);
     expect(readQueueTasks(queueFile)).toEqual([]);
   });
 });
 
 describe("moments service 评论回复调度", () => {
-  it("回复昔涟评论的用户评论入队回复任务，到期落库回复", async () => {
+  it("回复流萤评论的用户评论入队回复任务，到期落库回复", async () => {
     const h = createHarness({ modelResponse: '{"shouldReply":true,"text":"收到啦"}' });
     h.fake.state.posts.push(makePost({ id: "moment_p1", author: "user" }));
-    h.fake.state.comments.push(makeComment({ id: "c_cyrene", postId: "moment_p1", author: "cyrene" }));
+    h.fake.state.comments.push(makeComment({ id: "c_firefly", postId: "moment_p1", author: "firefly" }));
 
     const result = await h.service.createUserComment({
       postId: "moment_p1",
-      content: "回复昔涟",
-      replyTo: "c_cyrene",
+      content: "回复流萤",
+      replyTo: "c_firefly",
     });
 
     expect(result.applied).toBe(true);
@@ -584,7 +584,7 @@ describe("moments service 评论回复调度", () => {
     const [task] = readQueueTasks(h.queueFile);
     expect(task).toMatchObject({
       kind: "reply_eval",
-      actor: "cyrene",
+      actor: "firefly",
       postId: "moment_p1",
       triggerCommentId: "comment_c2",
     });
@@ -594,12 +594,12 @@ describe("moments service 评论回复调度", () => {
     await h.service.drainReactionQueue();
 
     expect(h.runModel).toHaveBeenCalledTimes(1);
-    expect(h.fake.state.cyreneComments).toEqual([{ postId: "moment_p1", content: "收到啦", replyTo: "comment_c2" }]);
+    expect(h.fake.state.fireflyComments).toEqual([{ postId: "moment_p1", content: "收到啦", replyTo: "comment_c2" }]);
   });
 
-  it("在昔涟动态下的顶级评论同样入队回复任务，沉默决策不落库", async () => {
+  it("在流萤动态下的顶级评论同样入队回复任务，沉默决策不落库", async () => {
     const h = createHarness({ modelResponse: '{"shouldReply":false,"text":""}' });
-    h.fake.state.posts.push(makePost({ id: "moment_p1", author: "cyrene" }));
+    h.fake.state.posts.push(makePost({ id: "moment_p1", author: "firefly" }));
 
     await h.service.createUserComment({ postId: "moment_p1", content: "顶级评论" });
     const [task] = readQueueTasks(h.queueFile);
@@ -609,7 +609,7 @@ describe("moments service 评论回复调度", () => {
     await h.service.drainReactionQueue();
 
     // silent 无副作用，任务正常删除
-    expect(h.fake.state.cyreneComments).toHaveLength(0);
+    expect(h.fake.state.fireflyComments).toHaveLength(0);
     expect(readQueueTasks(h.queueFile)).toEqual([]);
   });
 
@@ -625,7 +625,7 @@ describe("moments service 评论回复调度", () => {
 
   it("动态不存在时不入队回复任务", async () => {
     const h = createHarness();
-    h.fake.state.posts.push(makePost({ id: "moment_p1", author: "cyrene" }));
+    h.fake.state.posts.push(makePost({ id: "moment_p1", author: "firefly" }));
 
     // 动态不存在：调度前 getFeedItem 找不到目标则不调度
     await h.service.createUserComment({ postId: "moment_post9", content: "评论" });
@@ -636,7 +636,7 @@ describe("moments service 评论回复调度", () => {
 describe("moments service 角色抽签与双骰分流", () => {
   it("特别关注角色：专骰命中直接成为候选，不占普通抽签名额", async () => {
     const h = createHarness({
-      cyreneMomentsReactionsEnabled: false,
+      fireflyMomentsReactionsEnabled: false,
       random: scriptedRandom([
         0.4,        // 风堇专骰（presence 0.5）：命中 → 直接刷到
         0.4,        // 抽签第一掷：2 位角色刷到（名额不受专骰影响）
@@ -663,12 +663,12 @@ describe("moments service 角色抽签与双骰分流", () => {
     expect(tasks[1]).toMatchObject({ kind: "auto_like", actor: "长夜月", postId: "moment_post1" });
   });
 
-  it("特别关注只对用户动态生效：昔涟发动态不掷专骰", async () => {
-    // 风堇 presence 拉满（必中）做反向验证：若昔涟动态错误地掷了专骰，
+  it("特别关注只对用户动态生效：流萤发动态不掷专骰", async () => {
+    // 风堇 presence 拉满（必中）做反向验证：若流萤动态错误地掷了专骰，
     // 她必然出现在任务里；正确行为下她只能靠普通抽签，冷场掷值下无人入队
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
-      cyreneMomentsReactionsEnabled: false,
+      fireflyMomentsPostingEnabled: true,
+      fireflyMomentsReactionsEnabled: false,
       modelResponse: '{"shouldPost":true,"text":"今日份的晚霞"}',
       random: scriptedRandom([
         0.05,       // 抽签第一掷：冷场（0 人刷到）
@@ -681,16 +681,16 @@ describe("moments service 角色抽签与双骰分流", () => {
 
     h.service.scheduleTurn(makeTurnInput({ finishedAt: h.clock.now - 11 * 60_000 }));
     await flush();
-    expect(h.fake.state.cyrenePosts).toHaveLength(1);
+    expect(h.fake.state.fireflyPosts).toHaveLength(1);
 
-    // 昔涟动态下专骰不掷：冷场即无人，风堇不因 presence 拥有特权
+    // 流萤动态下专骰不掷：冷场即无人，风堇不因 presence 拥有特权
     expect(readQueueTasks(h.queueFile)).toEqual([]);
   });
 
   it("用户发帖触发角色抽签：评论骰走模型表态、点赞骰零模型成本", async () => {
-    // 昔涟反应关闭用于隔断她的随机消耗：角色抽签是独立链路，不随昔涟反应关闭而静默
+    // 流萤反应关闭用于隔断她的随机消耗：角色抽签是独立链路，不随流萤反应关闭而静默
     const h = createHarness({
-      cyreneMomentsReactionsEnabled: false,
+      fireflyMomentsReactionsEnabled: false,
       modelResponse: '{"action":"like"}',
       random: scriptedRandom([
         0.4,        // 抽签第一掷：2 位角色刷到
@@ -732,7 +732,7 @@ describe("moments service 角色抽签与双骰分流", () => {
 
   it("角色表态输出非法时降级沉默：任务完成删除，不重试不落库", async () => {
     const h = createHarness({
-      cyreneMomentsReactionsEnabled: false,
+      fireflyMomentsReactionsEnabled: false,
       modelResponse: '{"action":"bogus"}',
       random: scriptedRandom([
         0.4,       // 2 位刷到（池中只有万敌，抽满即止）
@@ -797,7 +797,7 @@ describe("moments service 角色抽签与双骰分流", () => {
     // 人设 md 随时可改：注册表每次现读，角色被移除后旧任务自然失效
     const personas = new Map([["万敌", makePersona()]]);
     const h = createHarness({
-      cyreneMomentsReactionsEnabled: false,
+      fireflyMomentsReactionsEnabled: false,
       random: scriptedRandom([0.4, 0.5, 0.01, 0.5, 0.5]),
       loadPersonas: () => personas,
     });
@@ -819,7 +819,7 @@ describe("moments service 角色抽签与双骰分流", () => {
     const night = new Date(2026, 8, 4, 3, 0, 0).getTime();
     const h = createHarness({
       now: night,
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: '{"shouldPost":true,"text":"夜深了，随手记一笔"}',
       random: scriptedRandom([
         0.4, 0.5,       // 抽签：2 位刷到（池中只有万敌）
@@ -830,10 +830,10 @@ describe("moments service 角色抽签与双骰分流", () => {
       loadPersonas: () => new Map([["万敌", makePersona()]]),
     });
 
-    // 昔涟深夜发帖成功，角色同样刷到她的动态
+    // 流萤深夜发帖成功，角色同样刷到她的动态
     h.service.scheduleTurn(makeTurnInput({ finishedAt: night - 11 * 60_000 }));
     await flush();
-    expect(h.fake.state.cyrenePosts).toHaveLength(1);
+    expect(h.fake.state.fireflyPosts).toHaveLength(1);
 
     const [task] = readQueueTasks(h.queueFile);
     expect(task).toMatchObject({ kind: "auto_like", actor: "万敌" });
@@ -842,10 +842,10 @@ describe("moments service 角色抽签与双骰分流", () => {
   });
 });
 
-describe("moments service 昔涟×角色互动闭环与回复链", () => {
-  it("互动闭环：角色评论昔涟动态 → 昔涟回应 → 角色再回后深度收束", async () => {
+describe("moments service 流萤×角色互动闭环与回复链", () => {
+  it("互动闭环：角色评论流萤动态 → 流萤回应 → 角色再回后深度收束", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: [
         '{"shouldPost":true,"text":"今日份的晚霞"}',
         '{"action":"comment","comment":"好耶"}',
@@ -860,23 +860,23 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
       loadPersonas: () => new Map([["万敌", makePersona()]]),
     });
 
-    // 昔涟发帖（任务内联执行）；finishedAt 早于现在 11 分钟 → 昔涟按离线长尾节奏回应
+    // 流萤发帖（任务内联执行）；finishedAt 早于现在 11 分钟 → 流萤按离线长尾节奏回应
     h.service.scheduleTurn(makeTurnInput({ finishedAt: h.clock.now - 11 * 60_000 }));
     await flush();
-    expect(h.fake.state.cyrenePosts).toHaveLength(1);
+    expect(h.fake.state.fireflyPosts).toHaveLength(1);
     const [postEval] = readQueueTasks(h.queueFile);
     expect(postEval).toMatchObject({ kind: "post_eval", actor: "万敌", postId: "moment_cy1" });
 
-    // ① 万敌表态落库为顶级评论 → 昔涟的动态下有人说话，昔涟回应任务入队
+    // ① 万敌表态落库为顶级评论 → 流萤的动态下有人说话，流萤回应任务入队
     h.clock.now += 40 * 60_000;
     await h.service.drainReactionQueue();
     expect(h.fake.state.characterComments).toEqual([
       { nickname: "万敌", postId: "moment_cy1", content: "好耶", replyTo: undefined },
     ]);
-    const [cyreneReplyTask] = readQueueTasks(h.queueFile);
-    expect(cyreneReplyTask).toMatchObject({
+    const [fireflyReplyTask] = readQueueTasks(h.queueFile);
+    expect(fireflyReplyTask).toMatchObject({
       kind: "reply_eval",
-      actor: "cyrene",
+      actor: "firefly",
       postId: "moment_cy1",
       triggerCommentId: "comment_c1",
     });
@@ -884,7 +884,7 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
     // ② 昔演回复万敌 → 被回复的角色可能回话，万敌的回复任务入队
     h.clock.now += 45 * 60_000;
     await h.service.drainReactionQueue();
-    expect(h.fake.state.cyreneComments).toEqual([
+    expect(h.fake.state.fireflyComments).toEqual([
       { postId: "moment_cy1", content: "哈哈", replyTo: "comment_c1" },
     ]);
     const [characterReplyTask] = readQueueTasks(h.queueFile);
@@ -895,7 +895,7 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
       triggerCommentId: "comment_c2",
     });
 
-    // ③ 万敌再回：落点深度已达上限，不再给昔涟入队，链自然收束
+    // ③ 万敌再回：落点深度已达上限，不再给流萤入队，链自然收束
     h.clock.now += 20 * 60_000;
     await h.service.drainReactionQueue();
     expect(h.fake.state.characterComments).toHaveLength(2);
@@ -914,11 +914,11 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
     const h = createHarness({
       loadPersonas: () => new Map([["万敌", makePersona()]]),
     });
-    // 昔涟动态下预置一条 AI 自主接龙到深度上限的评论链
-    h.fake.state.posts.push(makePost({ id: "moment_cy1", author: "cyrene", text: "昔涟的动态" }));
+    // 流萤动态下预置一条 AI 自主接龙到深度上限的评论链
+    h.fake.state.posts.push(makePost({ id: "moment_cy1", author: "firefly", text: "流萤的动态" }));
     h.fake.state.comments.push(
       makeComment({ id: "comment_c1", postId: "moment_cy1", author: "万敌", content: "好耶" }),
-      makeComment({ id: "comment_c2", postId: "moment_cy1", author: "cyrene", replyTo: "comment_c1" }),
+      makeComment({ id: "comment_c2", postId: "moment_cy1", author: "firefly", replyTo: "comment_c1" }),
       makeComment({ id: "comment_c3", postId: "moment_cy1", author: "万敌", replyTo: "comment_c2" }),
     );
 
@@ -929,12 +929,12 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
     });
     expect(result.applied).toBe(true);
 
-    // 用户评论是链的锚点：昔涟与被回复的万敌都以深度 1 重新起算，双双入队
+    // 用户评论是链的锚点：流萤与被回复的万敌都以深度 1 重新起算，双双入队
     const tasks = readQueueTasks(h.queueFile);
     expect(tasks).toHaveLength(2);
     expect(tasks[0]).toMatchObject({
       kind: "reply_eval",
-      actor: "cyrene",
+      actor: "firefly",
       postId: "moment_cy1",
       triggerCommentId: "comment_c4",
     });
@@ -948,7 +948,7 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
 
   it("落库瞬间的崩溃窗口：凭落盘决策重放，不重问模型且续接互动链", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: [
         '{"shouldPost":true,"text":"今日份的晚霞"}',
         '{"action":"comment","comment":"好耶"}',
@@ -975,7 +975,7 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
       expect.objectContaining({ actor: "万敌" }),
     );
 
-    // 重放：决策缓存直接执行，不再调模型；评论落库后续接昔涟回应任务
+    // 重放：决策缓存直接执行，不再调模型；评论落库后续接流萤回应任务
     await h.service.drainReactionQueue();
     expect(h.runModel).toHaveBeenCalledTimes(2);
     expect(h.fake.state.characterComments).toEqual([
@@ -984,7 +984,7 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
     const [followUp] = readQueueTasks(h.queueFile);
     expect(followUp).toMatchObject({
       kind: "reply_eval",
-      actor: "cyrene",
+      actor: "firefly",
       postId: "moment_cy1",
       triggerCommentId: "comment_c1",
     });
@@ -992,7 +992,7 @@ describe("moments service 昔涟×角色互动闭环与回复链", () => {
 });
 
 describe("moments service 角色开关与模型调用预算", () => {
-  it("角色互动开关关闭：用户发帖不触发角色抽签，昔涟反应不受影响", async () => {
+  it("角色互动开关关闭：用户发帖不触发角色抽签，流萤反应不受影响", async () => {
     const h = createHarness({
       momentsCharacterReactionsEnabled: false,
       loadPersonas: () => new Map([["万敌", makePersona()]]),
@@ -1000,15 +1000,15 @@ describe("moments service 角色开关与模型调用预算", () => {
 
     await h.service.createUserPost({ text: "第一条动态" });
 
-    // 昔涟自己的表态照常入队，角色链路整体静默
+    // 流萤自己的表态照常入队，角色链路整体静默
     const tasks = readQueueTasks(h.queueFile);
     expect(tasks).toHaveLength(1);
-    expect(tasks[0]).toMatchObject({ kind: "post_eval", actor: "cyrene" });
+    expect(tasks[0]).toMatchObject({ kind: "post_eval", actor: "firefly" });
   });
 
   it("中途关闭开关：已入队的角色模型任务到期作废，不再调模型", async () => {
     const h = createHarness({
-      cyreneMomentsReactionsEnabled: false,
+      fireflyMomentsReactionsEnabled: false,
       modelResponse: '{"action":"comment","comment":"好耶"}',
       random: scriptedRandom([0.4, 0.5, 0.01, 0.5, 0.5]),
       loadPersonas: () => new Map([["万敌", makePersona()]]),
@@ -1032,7 +1032,7 @@ describe("moments service 角色开关与模型调用预算", () => {
 
   it("模型调用记账：角色表态消耗一次当日预算", async () => {
     const h = createHarness({
-      cyreneMomentsReactionsEnabled: false,
+      fireflyMomentsReactionsEnabled: false,
       modelResponse: '{"action":"comment","comment":"好耶"}',
       random: scriptedRandom([0.4, 0.5, 0.01, 0.5, 0.5]),
       loadPersonas: () => new Map([["万敌", makePersona()]]),
@@ -1050,7 +1050,7 @@ describe("moments service 角色开关与模型调用预算", () => {
 
   it("模型调用日上限：到达后模型任务作废，随机点赞照常落库", async () => {
     const h = createHarness({
-      cyreneMomentsReactionsEnabled: false,
+      fireflyMomentsReactionsEnabled: false,
       random: scriptedRandom([
         0.4,        // 抽签：2 位角色刷到
         0.4, 0.4,   // 加权抽取：先长夜月（权重 0.7）后万敌（权重 0.3）
@@ -1089,32 +1089,32 @@ describe("moments service 角色开关与模型调用预算", () => {
 describe("moments service 主动发帖调度", () => {
   it("主动发帖开关关闭时不调度，但 ring buffer 仍记录历史轮次", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: false,
+      fireflyMomentsPostingEnabled: false,
       modelResponse: '{"shouldPost":true,"text":"值得记录"}',
     });
     h.service.scheduleTurn(makeTurnInput({ runId: "run-1", userText: "第一轮内容" }));
     expect(h.enqueueTask).not.toHaveBeenCalled();
 
     // 中途打开开关：后续轮次的摘录应包含关闭期间记录的对话
-    h.settings.cyreneMomentsPostingEnabled = true;
+    h.settings.fireflyMomentsPostingEnabled = true;
     h.service.scheduleTurn(makeTurnInput({ runId: "run-2", userText: "第二轮内容", finishedAt: new Date("2026-09-04T19:30:00").getTime() }));
     await flush();
 
     expect(h.labels).toEqual(["MomentsPost"]);
-    const committed = h.fake.state.cyrenePosts[0];
+    const committed = h.fake.state.fireflyPosts[0];
     expect(committed.source?.triggerExcerpt).toContain("第一轮内容");
     expect(committed.source?.triggerExcerpt).toContain("第二轮内容");
   });
 
   it("模型未配置时不调度任务", async () => {
-    const h = createHarness({ cyreneMomentsPostingEnabled: true, vendorConfig: null });
+    const h = createHarness({ fireflyMomentsPostingEnabled: true, vendorConfig: null });
     h.service.scheduleTurn(makeTurnInput());
     expect(h.enqueueTask).not.toHaveBeenCalled();
   });
 
   it("完整链路：入队生成、落库动态并记录策略状态", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: '{"shouldPost":true,"text":"收工啦，值得纪念"}',
     });
     h.service.scheduleTurn(makeTurnInput());
@@ -1122,8 +1122,8 @@ describe("moments service 主动发帖调度", () => {
 
     expect(h.labels).toEqual(["MomentsPost"]);
     expect(h.runModel).toHaveBeenCalledTimes(1);
-    expect(h.fake.state.cyrenePosts).toHaveLength(1);
-    expect(h.fake.state.cyrenePosts[0]).toMatchObject({
+    expect(h.fake.state.fireflyPosts).toHaveLength(1);
+    expect(h.fake.state.fireflyPosts[0]).toMatchObject({
       text: "收工啦，值得纪念",
       source: { type: "conversation" },
     });
@@ -1133,7 +1133,7 @@ describe("moments service 主动发帖调度", () => {
   });
 
   it("run 粒度去重：同一 runId 重复到达直接丢弃", async () => {
-    const h = createHarness({ cyreneMomentsPostingEnabled: true });
+    const h = createHarness({ fireflyMomentsPostingEnabled: true });
     h.service.scheduleTurn(makeTurnInput({ runId: "run-dup" }));
     await flush();
     h.service.scheduleTurn(makeTurnInput({ runId: "run-dup" }));
@@ -1145,7 +1145,7 @@ describe("moments service 主动发帖调度", () => {
 
   it("不同 runId 各自有效，但执行时复核冷却只放行第一条", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: '{"shouldPost":true,"text":"第一条"}',
     });
     h.service.scheduleTurn(makeTurnInput({ runId: "run-1" }));
@@ -1155,53 +1155,53 @@ describe("moments service 主动发帖调度", () => {
 
     expect(h.labels).toEqual(["MomentsPost", "MomentsPost"]);
     // 第二条任务因冷却被复核拦截，只有一条动态落库
-    expect(h.fake.state.cyrenePosts).toHaveLength(1);
+    expect(h.fake.state.fireflyPosts).toHaveLength(1);
     expect(h.log).toHaveBeenCalledWith("post_gated", "cooldown");
   });
 
   it("任务执行时处于冷却期则不调用模型，仅记录日志", async () => {
-    const h = createHarness({ cyreneMomentsPostingEnabled: true });
+    const h = createHarness({ fireflyMomentsPostingEnabled: true });
     h.policy.current = { ...defaultMomentsPolicyState(), lastPostAt: h.clock.now - 60_000 };
     h.service.scheduleTurn(makeTurnInput());
     await flush();
 
     expect(h.labels).toEqual(["MomentsPost"]);
     expect(h.runModel).not.toHaveBeenCalled();
-    expect(h.fake.state.cyrenePosts).toHaveLength(0);
+    expect(h.fake.state.fireflyPosts).toHaveLength(0);
     expect(h.log).toHaveBeenCalledWith("post_gated", "cooldown");
   });
 
   it("skip 决策不提交动态也不记账", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: '{"shouldPost":false,"text":""}',
     });
     h.service.scheduleTurn(makeTurnInput());
     await flush();
 
-    expect(h.fake.state.cyrenePosts).toHaveLength(0);
+    expect(h.fake.state.fireflyPosts).toHaveLength(0);
     expect(h.policy.current.lastPostAt).toBeNull();
     expect(h.policy.current.postsToday.count).toBe(0);
   });
 
   it("提交被拒（开关在提交时刻关闭）时不记账", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: '{"shouldPost":true,"text":"文案"}',
     });
-    h.fake.state.rejectNextCyrenePost = true;
+    h.fake.state.rejectNextFireflyPost = true;
     h.service.scheduleTurn(makeTurnInput());
     await flush();
 
-    expect(h.fake.state.cyrenePosts).toHaveLength(0);
+    expect(h.fake.state.fireflyPosts).toHaveLength(0);
     expect(h.policy.current.lastPostAt).toBeNull();
   });
 });
 
 describe("moments service 聊天工具通道", () => {
-  it("昔涟发动态：即时落库不走反应延迟，角色照常抽签入队", async () => {
+  it("流萤发动态：即时落库不走反应延迟，角色照常抽签入队", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       random: scriptedRandom([
         0.4,        // 抽签第一掷：2 人刷到
         0.4, 0.4,   // 加权抽取：先长夜月（权重 0.7）后万敌
@@ -1215,10 +1215,10 @@ describe("moments service 聊天工具通道", () => {
       ]),
     });
 
-    const result = await h.service.cyreneCreatePostFromTool({ text: "今天和主人聊得超开心" });
+    const result = await h.service.fireflyCreatePostFromTool({ text: "今天和主人聊得超开心" });
     expect(result.applied).toBe(true);
-    // 即时落库：不排昔涟自己的反应任务，模型一次都没调
-    expect(h.fake.state.cyrenePosts).toEqual([{ text: "今天和主人聊得超开心", source: undefined }]);
+    // 即时落库：不排流萤自己的反应任务，模型一次都没调
+    expect(h.fake.state.fireflyPosts).toEqual([{ text: "今天和主人聊得超开心", source: undefined }]);
     expect(h.runModel).not.toHaveBeenCalled();
     // 但角色抽签照常：长夜月的表态任务已入队等延迟
     expect(readQueueTasks(h.queueFile)).toEqual([
@@ -1226,43 +1226,43 @@ describe("moments service 聊天工具通道", () => {
     ]);
   });
 
-  it("昔涟发动态被闸门拒绝时原样返回原因，角色不入队", async () => {
+  it("流萤发动态被闸门拒绝时原样返回原因，角色不入队", async () => {
     const h = createHarness({ loadPersonas: () => new Map([["万敌", makePersona()]]) });
-    h.fake.state.rejectNextCyrenePost = true;
+    h.fake.state.rejectNextFireflyPost = true;
 
-    const result = await h.service.cyreneCreatePostFromTool({ text: "发不出去的动态" });
+    const result = await h.service.fireflyCreatePostFromTool({ text: "发不出去的动态" });
     expect(result).toEqual({ applied: false, reason: "moments_disabled" });
     expect(readQueueTasks(h.queueFile)).toEqual([]);
   });
 
-  it("昔涟评论用户动态：落库即时可见并续接互动链", async () => {
+  it("流萤评论用户动态：落库即时可见并续接互动链", async () => {
     const h = createHarness();
     await h.service.createUserPost({ text: "第一条动态" });
 
-    const result = await h.service.cyreneCommentFromTool({ postId: "moment_post1", content: "路过留个爪印" });
+    const result = await h.service.fireflyCommentFromTool({ postId: "moment_post1", content: "路过留个爪印" });
     expect(result.applied).toBe(true);
     // 顶级评论落库即时可见：不排任何延迟任务（她正和用户聊天，当场说）
-    expect(h.fake.state.cyreneComments).toEqual([{ postId: "moment_post1", content: "路过留个爪印", replyTo: undefined }]);
-    expect(h.fake.state.comments.some((c) => c.author === "cyrene")).toBe(true);
+    expect(h.fake.state.fireflyComments).toEqual([{ postId: "moment_post1", content: "路过留个爪印", replyTo: undefined }]);
+    expect(h.fake.state.comments.some((c) => c.author === "firefly")).toBe(true);
   });
 
-  it("昔涟点赞走昔涟通道幂等提交", async () => {
+  it("流萤点赞走流萤通道幂等提交", async () => {
     const h = createHarness();
-    const result = await h.service.cyreneLikeFromTool("moment_post1");
+    const result = await h.service.fireflyLikeFromTool("moment_post1");
     expect(result).toEqual({ applied: true, value: { liked: true } });
-    expect(h.fake.state.cyreneLikes).toEqual(["moment_post1"]);
+    expect(h.fake.state.fireflyLikes).toEqual(["moment_post1"]);
   });
 });
 
 describe("moments service @ 点名直达", () => {
-  it("@ 昔涟与角色：秒回任务直达，不掷抽签双骰，被点名者退出抽签池，必回必赞", async () => {
+  it("@ 流萤与角色：秒回任务直达，不掷抽签双骰，被点名者退出抽签池，必回必赞", async () => {
     const h = createHarness({
       modelResponse: [
         '{"comment":"来啦来啦"}',
         '{"action":"like_comment","comment":"算我一个"}',
       ],
       random: scriptedRandom([
-        0.5, 0.5,   // 昔涟秒回延迟：第一桶（60%，5~15 秒）取中值 10 秒
+        0.5, 0.5,   // 流萤秒回延迟：第一桶（60%，5~15 秒）取中值 10 秒
         0.5, 0.5,   // 万敌秒回延迟：同为 10 秒
         0.05,       // 抽签第一掷：冷场（长夜月未被点名，走抽签未刷到）
       ]),
@@ -1274,17 +1274,17 @@ describe("moments service @ 点名直达", () => {
 
     // 路人甲不在白名单：service 提交前丢弃，落库 mentions 只剩合法名单
     const result = await h.service.createUserPost({
-      text: "@昔涟 @万敌 周末出来玩吗",
-      mentions: ["cyrene", "万敌", "路人甲"],
+      text: "@流萤 @万敌 周末出来玩吗",
+      mentions: ["firefly", "万敌", "路人甲"],
     });
     expect(result.applied).toBe(true);
-    expect(result.value.mentions).toEqual(["cyrene", "万敌"]);
-    expect(h.fake.state.posts[0].mentions).toEqual(["cyrene", "万敌"]);
+    expect(result.value.mentions).toEqual(["firefly", "万敌"]);
+    expect(h.fake.state.posts[0].mentions).toEqual(["firefly", "万敌"]);
 
     // 两个秒回任务：无普通延迟、无抽签任务；长夜月冷场没进来
     const tasks = readQueueTasks(h.queueFile);
     expect(tasks).toHaveLength(2);
-    expect(tasks[0]).toMatchObject({ kind: "post_eval", actor: "cyrene", postId: "moment_post1", mentioned: true });
+    expect(tasks[0]).toMatchObject({ kind: "post_eval", actor: "firefly", postId: "moment_post1", mentioned: true });
     expect(tasks[1]).toMatchObject({ kind: "post_eval", actor: "万敌", postId: "moment_post1", mentioned: true });
     expect(tasks[0].dueAt - h.clock.now).toBe(10_000);
     expect(tasks[1].dueAt - h.clock.now).toBe(10_000);
@@ -1296,20 +1296,20 @@ describe("moments service @ 点名直达", () => {
     // prompt 感知点名：两个模型调用的 user 消息都带 @ 提示
     expect(h.runModel.mock.calls[0][0][1].content).toContain("@ 了你");
     expect(h.runModel.mock.calls[1][0][1].content).toContain("@ 了你");
-    expect(h.fake.state.cyreneComments).toEqual([{ postId: "moment_post1", content: "来啦来啦", replyTo: undefined }]);
+    expect(h.fake.state.fireflyComments).toEqual([{ postId: "moment_post1", content: "来啦来啦", replyTo: undefined }]);
     expect(h.fake.state.characterComments).toEqual([
       { nickname: "万敌", postId: "moment_post1", content: "算我一个", replyTo: undefined },
     ]);
     // 必赞：点名任务的决策恒含点赞，两侧点赞通道都落库
-    expect(h.fake.state.cyreneLikes).toEqual(["moment_post1"]);
+    expect(h.fake.state.fireflyLikes).toEqual(["moment_post1"]);
     expect(h.fake.state.characterLikes).toEqual([{ nickname: "万敌", postId: "moment_post1" }]);
     expect(readQueueTasks(h.queueFile)).toEqual([]);
   });
 
-  it("非法点名全部过滤：无名点名的动态走昔涟普通反应链路", async () => {
+  it("非法点名全部过滤：无名点名的动态走流萤普通反应链路", async () => {
     const h = createHarness({
       random: scriptedRandom([
-        0.5, 0.5,   // 昔涟普通表态延迟（离线分桶）
+        0.5, 0.5,   // 流萤普通表态延迟（离线分桶）
         0.05,       // 角色抽签冷场
       ]),
       loadPersonas: () => new Map([["万敌", makePersona()]]),
@@ -1317,17 +1317,17 @@ describe("moments service @ 点名直达", () => {
 
     await h.service.createUserPost({ text: "@路人甲 你好", mentions: ["路人甲"] });
     expect(h.fake.state.posts[0].mentions).toBeUndefined();
-    // 走普通链路：昔涟任务无点名标记
+    // 走普通链路：流萤任务无点名标记
     const tasks = readQueueTasks(h.queueFile);
     expect(tasks).toHaveLength(1);
-    expect(tasks[0]).toMatchObject({ kind: "post_eval", actor: "cyrene" });
+    expect(tasks[0]).toMatchObject({ kind: "post_eval", actor: "firefly" });
     expect(tasks[0].mentioned).toBeUndefined();
   });
 
-  it("昔涟聊天工具手动互动：取消她在该动态下的 pending 自动任务", async () => {
+  it("流萤聊天工具手动互动：取消她在该动态下的 pending 自动任务", async () => {
     const h = createHarness({
       random: scriptedRandom([
-        0.5, 0.5,   // 昔涟自动表态延迟：10~25 分钟桶取值 17.5 分钟
+        0.5, 0.5,   // 流萤自动表态延迟：10~25 分钟桶取值 17.5 分钟
         0.05,       // 角色抽签冷场
       ]),
       loadPersonas: () => new Map([["万敌", makePersona()]]),
@@ -1335,11 +1335,11 @@ describe("moments service @ 点名直达", () => {
 
     await h.service.createUserPost({ text: "第一条动态" });
     expect(readQueueTasks(h.queueFile)).toHaveLength(1);
-    expect(readQueueTasks(h.queueFile)[0]).toMatchObject({ actor: "cyrene", postId: "moment_post1" });
+    expect(readQueueTasks(h.queueFile)[0]).toMatchObject({ actor: "firefly", postId: "moment_post1" });
 
     // 5 分钟时她在聊天里手动评论：pending 自动任务立即作废
     h.clock.now += 5 * 60_000;
-    const manual = await h.service.cyreneCommentFromTool({ postId: "moment_post1", content: "手动回复" });
+    const manual = await h.service.fireflyCommentFromTool({ postId: "moment_post1", content: "手动回复" });
     expect(manual.applied).toBe(true);
     expect(readQueueTasks(h.queueFile)).toEqual([]);
 
@@ -1347,28 +1347,28 @@ describe("moments service @ 点名直达", () => {
     h.clock.now += 20 * 60_000;
     await h.service.drainReactionQueue();
     expect(h.runModel).not.toHaveBeenCalled();
-    expect(h.fake.state.cyreneComments).toEqual([{ postId: "moment_post1", content: "手动回复", replyTo: undefined }]);
+    expect(h.fake.state.fireflyComments).toEqual([{ postId: "moment_post1", content: "手动回复", replyTo: undefined }]);
   });
 
   it("点名输出非法不沉默：退避重问耗尽后兜底文案落库，点赞照常", async () => {
     const h = createHarness({
-      // 昔涟每次都输出非 JSON 文本：点名任务不吃 silent 降级
+      // 流萤每次都输出非 JSON 文本：点名任务不吃 silent 降级
       modelResponse: "哎呀我看到啦！这就回复你～（忘了格式）",
       random: scriptedRandom([
-        0.5, 0.5,   // 昔涟秒回延迟 10 秒
+        0.5, 0.5,   // 流萤秒回延迟 10 秒
         0.05,       // 角色抽签冷场
       ]),
       loadPersonas: () => new Map([["万敌", makePersona()]]),
     });
 
-    await h.service.createUserPost({ text: "@昔涟 在吗", mentions: ["cyrene"] });
+    await h.service.createUserPost({ text: "@流萤 在吗", mentions: ["firefly"] });
     h.clock.now += 10_000;
     await h.service.drainReactionQueue();
 
     // 首次解析失败：按 retry 退避重问，任务保留不删
     expect(h.runModel).toHaveBeenCalledTimes(1);
     expect(readQueueTasks(h.queueFile)).toHaveLength(1);
-    expect(h.fake.state.cyreneComments).toHaveLength(0);
+    expect(h.fake.state.fireflyComments).toHaveLength(0);
 
     // 退避梯度 5/15/30 分钟逐次重问，模型输出始终非法
     h.clock.now += 5 * 60_000;
@@ -1382,12 +1382,12 @@ describe("moments service @ 点名直达", () => {
 
     // 重试耗尽：兜底文案保证评论落地，点赞由代码强制，不依赖模型输出
     expect(h.runModel).toHaveBeenCalledTimes(4);
-    expect(h.fake.state.cyreneComments).toHaveLength(1);
-    expect(h.fake.state.cyreneComments[0].postId).toBe("moment_post1");
+    expect(h.fake.state.fireflyComments).toHaveLength(1);
+    expect(h.fake.state.fireflyComments[0].postId).toBe("moment_post1");
     expect([
       "看到啦～", "我在呢。", "怎么啦？", "收到收到！", "嗯嗯，在听～",
-    ]).toContain(h.fake.state.cyreneComments[0].content);
-    expect(h.fake.state.cyreneLikes).toEqual(["moment_post1"]);
+    ]).toContain(h.fake.state.fireflyComments[0].content);
+    expect(h.fake.state.fireflyLikes).toEqual(["moment_post1"]);
     expect(readQueueTasks(h.queueFile)).toEqual([]);
   });
 
@@ -1405,13 +1405,13 @@ describe("moments service @ 点名直达", () => {
 
     await h.service.createUserPost({ text: "@万敌 还在吗", mentions: ["万敌"] });
     const tasks = readQueueTasks(h.queueFile);
-    // 两个任务：万敌点名直达 + 昔涟普通表态（未 @ 昔涟，她走自然链路）
+    // 两个任务：万敌点名直达 + 流萤普通表态（未 @ 流萤，她走自然链路）
     expect(tasks).toHaveLength(2);
     const mentionTask = tasks.find((task) => task.actor === "万敌");
-    const cyreneTask = tasks.find((task) => task.actor === "cyrene");
+    const fireflyTask = tasks.find((task) => task.actor === "firefly");
     expect(mentionTask).toMatchObject({ kind: "post_eval", mentioned: true, postId: "moment_post1" });
-    expect(cyreneTask).toMatchObject({ kind: "post_eval", postId: "moment_post1" });
-    expect(cyreneTask?.mentioned).toBeUndefined();
+    expect(fireflyTask).toMatchObject({ kind: "post_eval", postId: "moment_post1" });
+    expect(fireflyTask?.mentioned).toBeUndefined();
 
     h.clock.now += 60 * 60_000;
     await h.service.drainReactionQueue();
@@ -1431,7 +1431,7 @@ describe("moments service @ 点名直达", () => {
   it("多角色 @ 全部创建点名任务：不受热闹档抽签人数限制", async () => {
     const h = createHarness({
       random: scriptedRandom([
-        0.5, 0.5,   // 昔涟普通表态延迟（未被 @，走自然链路）
+        0.5, 0.5,   // 流萤普通表态延迟（未被 @，走自然链路）
         0.5, 0.5,   // 万敌点名秒回延迟 10 秒
         0.5, 0.5,   // 遐蝶点名秒回延迟 10 秒
         0.05,       // 角色抽签（池子已被点名者清空，无人可抽）
@@ -1445,7 +1445,7 @@ describe("moments service @ 点名直达", () => {
     await h.service.createUserPost({ text: "@万敌 @遐蝶 中午吃啥", mentions: ["万敌", "遐蝶"] });
     const tasks = readQueueTasks(h.queueFile);
 
-    // 三个任务：两位被点名者各自直达 + 昔涟普通表态；
+    // 三个任务：两位被点名者各自直达 + 流萤普通表态；
     // 用户主动点名的人数不受抽签档位限制，@ 了几个就回应几个
     expect(tasks).toHaveLength(3);
     for (const nickname of ["万敌", "遐蝶"]) {
@@ -1453,17 +1453,17 @@ describe("moments service @ 点名直达", () => {
       expect(task).toMatchObject({ kind: "post_eval", mentioned: true, postId: "moment_post1" });
       expect(task?.dueAt).toBe(h.clock.now + 10_000);
     }
-    const cyreneTask = tasks.find((candidate) => candidate.actor === "cyrene");
-    expect(cyreneTask).toMatchObject({ kind: "post_eval", postId: "moment_post1" });
-    expect(cyreneTask?.mentioned).toBeUndefined();
+    const fireflyTask = tasks.find((candidate) => candidate.actor === "firefly");
+    expect(fireflyTask).toMatchObject({ kind: "post_eval", postId: "moment_post1" });
+    expect(fireflyTask?.mentioned).toBeUndefined();
   });
 
   it("切换热闹档位：已入队任务不重抽，新发帖立即用新档位", async () => {
     const h = createHarness({
       random: scriptedRandom([
-        0.5, 0.5,   // 第一条：昔涟表态延迟
+        0.5, 0.5,   // 第一条：流萤表态延迟
         0.05,       // 第一条：冷清档抽签 → 0 人冷场
-        0.5, 0.5,   // 第二条：昔涟表态延迟
+        0.5, 0.5,   // 第二条：流萤表态延迟
         0.05,       // 第二条：热闹档抽签 → 1 人（同一个抽签值，冷清档下是 0）
         0.5,        // 加权抽人 → 遐蝶
         0.05,       // 评论骰命中 → 走模型表态
@@ -1475,12 +1475,12 @@ describe("moments service @ 点名直达", () => {
       ]),
     });
 
-    // 冷清档发第一条：抽签值 0.05 落在冷场区间，只有昔涟自己的任务
+    // 冷清档发第一条：抽签值 0.05 落在冷场区间，只有流萤自己的任务
     await h.service.createUserPost({ text: "第一条动态" });
     const before = readQueueTasks(h.queueFile);
     expect(before).toHaveLength(1);
-    expect(before[0]).toMatchObject({ actor: "cyrene", postId: "moment_post1" });
-    const cyreneDueAtBefore = before[0].dueAt;
+    expect(before[0]).toMatchObject({ actor: "firefly", postId: "moment_post1" });
+    const fireflyDueAtBefore = before[0].dueAt;
 
     // 切到热闹档：已入队任务的到期时间与内容原样保留
     h.settings.momentsLiveliness = "lively";
@@ -1490,7 +1490,7 @@ describe("moments service @ 点名直达", () => {
 
     // 第一条的任务分毫未动：档位切换不追溯已抽过的签
     const firstPostTask = after.find((task) => task.postId === "moment_post1");
-    expect(firstPostTask?.dueAt).toBe(cyreneDueAtBefore);
+    expect(firstPostTask?.dueAt).toBe(fireflyDueAtBefore);
 
     // 第二条立即用热闹档：同一抽签值下抽中 1 位角色入队
     const characterTask = after.find((task) => task.actor === "遐蝶");
@@ -1502,28 +1502,28 @@ describe("moments service @ 点名直达", () => {
       // 模型没忍住加了寒暄前后缀：宽松提取从中捞出 JSON
       modelResponse: '好嘞！{"comment":"马上到～"}就这句！',
       random: scriptedRandom([
-        0.5, 0.5,   // 昔涟秒回延迟 10 秒
+        0.5, 0.5,   // 流萤秒回延迟 10 秒
         0.05,       // 角色抽签冷场
       ]),
       loadPersonas: () => new Map([["万敌", makePersona()]]),
     });
 
-    await h.service.createUserPost({ text: "@昔涟 出发了吗", mentions: ["cyrene"] });
+    await h.service.createUserPost({ text: "@流萤 出发了吗", mentions: ["firefly"] });
     h.clock.now += 10_000;
     await h.service.drainReactionQueue();
 
     expect(h.runModel).toHaveBeenCalledTimes(1);
-    expect(h.fake.state.cyreneComments).toEqual([
+    expect(h.fake.state.fireflyComments).toEqual([
       { postId: "moment_post1", content: "马上到～", replyTo: undefined },
     ]);
-    expect(h.fake.state.cyreneLikes).toEqual(["moment_post1"]);
+    expect(h.fake.state.fireflyLikes).toEqual(["moment_post1"]);
   });
 });
 
 describe("moments service 错误隔离", () => {
   it("反应入队失败（磁盘异常）只记日志，不影响用户发帖返回", async () => {
     // 队列文件的父路径是一个普通文件：mkdir 必然失败，模拟磁盘异常
-    const blocker = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-moments-block-")), "blocker.txt");
+    const blocker = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-moments-block-")), "blocker.txt");
     fs.writeFileSync(blocker, "not a directory");
     const h = createHarness({ reactionQueueFilePath: path.join(blocker, "queue.json") });
 
@@ -1533,7 +1533,7 @@ describe("moments service 错误隔离", () => {
   });
 
   it("主动发帖任务失败被记录且不记账", async () => {
-    const h = createHarness({ cyreneMomentsPostingEnabled: true });
+    const h = createHarness({ fireflyMomentsPostingEnabled: true });
     h.enqueueTask.mockRejectedValue(new Error("发帖队列炸了"));
     h.service.scheduleTurn(makeTurnInput());
 
@@ -1554,7 +1554,7 @@ describe("moments service 配图接线", () => {
   it("注入的 matchMedia 命中时主动动态带图落库", async () => {
     const matchMedia = vi.fn(async () => MEDIA);
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: '{"shouldPost":true,"text":"今晚的夜空很好看","wantImage":true}',
       matchMedia,
     });
@@ -1564,21 +1564,21 @@ describe("moments service 配图接线", () => {
 
     expect(matchMedia).toHaveBeenCalledTimes(1);
     expect(typeof matchMedia.mock.calls[0][0]).toBe("string");
-    const cyrenePost = h.fake.state.posts.find((post) => post.author === "cyrene");
-    expect(cyrenePost?.media).toEqual([MEDIA]);
+    const fireflyPost = h.fake.state.posts.find((post) => post.author === "firefly");
+    expect(fireflyPost?.media).toEqual([MEDIA]);
   });
 
   it("未注入 matchMedia 时纯文字落库（默认闭包恒 null）", async () => {
     const h = createHarness({
-      cyreneMomentsPostingEnabled: true,
+      fireflyMomentsPostingEnabled: true,
       modelResponse: '{"shouldPost":true,"text":"随手记一笔","wantImage":true}',
     });
 
     h.service.scheduleTurn(makeTurnInput());
     await flush();
 
-    const cyrenePost = h.fake.state.posts.find((post) => post.author === "cyrene");
-    expect(cyrenePost?.media).toEqual([]);
+    const fireflyPost = h.fake.state.posts.find((post) => post.author === "firefly");
+    expect(fireflyPost?.media).toEqual([]);
   });
 });
 
@@ -1754,7 +1754,7 @@ describe("moments worldbook 注入与图片读取", () => {
       mime: "image/jpeg",
     });
     const h = createHarness({
-      cyreneMomentsReactionsEnabled: true,
+      fireflyMomentsReactionsEnabled: true,
       modelResponse: '{"like":false,"comment":{"shouldComment":false}}',
     });
     const result = await h.service.createUserPost({

@@ -23,7 +23,7 @@ describe("MouseFocusController", () => {
       clearInterval: clearIntervalSpy,
       screenX: 0,
       screenY: 0,
-      cyrene: { getCursorPosition },
+      firefly: { getCursorPosition },
     });
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
     vi.stubGlobal("cancelAnimationFrame", vi.fn());

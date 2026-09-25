@@ -1,7 +1,7 @@
-const DEBUG_LOG_ENV = "CYRENE_DEBUG_LOGS";
+const DEBUG_LOG_ENV = "FIREFLY_DEBUG_LOGS";
 
 export function debugLogsEnabled(): boolean {
-  return process.env[DEBUG_LOG_ENV] === "1";
+  return fireflyEnvironment(process.env, "FIREFLY_DEBUG_LOGS") === "1";
 }
 
 export function debugLog(...args: unknown[]): void {
@@ -25,3 +25,4 @@ export function summarizeObjective(value: string, maxLength = 80): string {
   const compact = value.replace(/\s+/g, " ").trim();
   return compact.length <= maxLength ? compact : `${compact.slice(0, maxLength - 1)}…`;
 }
+import { fireflyEnvironment } from "../shared/legacy-firefly-contracts";

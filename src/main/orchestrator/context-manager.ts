@@ -55,7 +55,7 @@ export const DEFAULT_IMAGE_TOKEN_ESTIMATE = 4096;
 /**
  * 图片块不计 base64 字符串（按 DEFAULT_IMAGE_TOKEN_ESTIMATE 估算），text 块照常估算。
  * estimateMessageTokens 与 buildContextUsageSnapshot 共用此函数，防止计量与
- * 压缩判定口径分裂（见 docs/design/2026-08-26-image-context-screenshot-known-issues.md 问题 2）。
+ * 压缩判定口径分裂（见 docs/architecture/firefly-reliability-boundaries.md）。
  */
 export function estimateMessageContentTokens(
   content: string | OpenAIContentBlock[],

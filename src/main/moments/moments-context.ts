@@ -65,7 +65,7 @@ export function shouldRetrievePostContext(query: string): boolean {
 // ── 格式化辅助 ──────────────────────────────────────────────────
 
 function authorLabel(author: MomentPost["author"]): string {
-  return author === "cyrene" ? "流萤" : "用户";
+  return author === "firefly" ? "流萤" : "用户";
 }
 
 function pad2(value: number): string {
@@ -121,10 +121,10 @@ export function buildRecentMomentsBlock(
     const excerpt = postExcerpt(post);
     let line = `- ${formatRecentTime(post.createdAt, now)} ${authorLabel(post.author)}发布了动态："${excerpt}"`;
     const annotations: string[] = [];
-    if (interactions.some((i) => isMomentReaction(i) && i.actor === "cyrene" && i.postId === post.id)) {
+    if (interactions.some((i) => isMomentReaction(i) && i.actor === "firefly" && i.postId === post.id)) {
       annotations.push("流萤已点赞");
     }
-    if (interactions.some((i) => !isMomentReaction(i) && i.author === "cyrene" && i.postId === post.id)) {
+    if (interactions.some((i) => !isMomentReaction(i) && i.author === "firefly" && i.postId === post.id)) {
       annotations.push("流萤已评论");
     }
     if (annotations.length > 0) line += `（${annotations.join("，")}）`;
@@ -158,7 +158,7 @@ function scorePost(post: MomentPost, query: string, now: number): number {
   const ageHours = (now - post.createdAt) / 3_600_000;
   score += ageHours <= 48 ? (48 - ageHours) / 48 : 0.01;
   // 指代方向：提到"你"优先流萤动态，提到"我"优先用户动态
-  if (query.includes("你") && post.author === "cyrene") score += 1;
+  if (query.includes("你") && post.author === "firefly") score += 1;
   if (query.includes("我") && post.author === "user") score += 1;
   // 关键词命中：查询与标题 + 正文的共享 2-gram 数（粗粒度，V1 不引入分词）
   score += sharedBigramCount(query, `${post.title ?? ""}${post.text}`) * 0.1;

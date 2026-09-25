@@ -13,7 +13,7 @@ describe("ChannelConversationBindingStore", () => {
   let filePath: string;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-channel-bindings-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-channel-bindings-"));
     filePath = path.join(root, "context-bindings.json");
   });
 

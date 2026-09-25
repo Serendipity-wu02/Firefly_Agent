@@ -101,7 +101,7 @@ export function initializeScreenshotService(
         isPackaged: app.isPackaged,
         appPath: app.getAppPath(),
         resourcesPath: process.resourcesPath,
-        envOverride: process.env.CYRENE_SCREENSHOT_HELPER_PATH,
+        envOverride: fireflyEnvironment(process.env, "FIREFLY_SCREENSHOT_HELPER_PATH"),
       }),
     screenshotDirectory,
     logger: console,
@@ -150,7 +150,7 @@ export function initializeScreenshotService(
     const image = await capturePetWindow();
     if (!image) return null;
     const png = image.toPNG();
-    const outPath = path.join(app.getPath("temp"), "cyrene-screenshot.png");
+    const outPath = path.join(app.getPath("temp"), "firefly-screenshot.png");
     fs.writeFileSync(outPath, png);
     return outPath;
   });
@@ -158,3 +158,4 @@ export function initializeScreenshotService(
   service.init(options.initialHotkey);
   return service;
 }
+import { fireflyEnvironment } from "../../shared/legacy-firefly-contracts";

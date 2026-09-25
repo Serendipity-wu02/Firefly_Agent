@@ -12,6 +12,8 @@ import { logger, LogTag } from "../logger";
 import { getExternalContentPaths, resolveSkillScanSources, resolveSkillsSnapshotArchivePath } from "../external-content-paths";
 import { installSkillsSnapshot } from "./snapshot-install";
 import { resolveSkillId, resolveSkillSettings } from "./skill-id-aliases";
+import { writeMigratedJson } from "../migration/firefly-data";
+import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
 
 const LOG_PREFIX = "[Skills]";
 
@@ -25,9 +27,13 @@ function loadEnabledState(): Record<string, boolean> {
   try {
     const p = enabledStatePath();
     if (!fs.existsSync(p)) return {};
-    return resolveSkillSettings(JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, boolean>);
+    const raw = JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, boolean>;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.values(raw).some((value) => typeof value !== "boolean")) throw new Error("SKILL_SETTINGS_READ_FAILED");
+    const normalized = resolveSkillSettings(raw);
+    writeMigratedJson(p, raw, normalized);
+    return normalized;
   } catch {
-    return {};
+    throw new Error("SKILL_SETTINGS_READ_FAILED");
   }
 }
 
@@ -43,6 +49,7 @@ export async function initSkills(): Promise<void> {
   const archivePath = resolveSkillsSnapshotArchivePath(paths);
   const userSkillsDir = paths.userSkillDirectories[0];
   await installSkillsSnapshot({ archivePath, userSkillsDir });
+  await migrateInstalledSkillSnapshot(userSkillsDir, archivePath);
 
   const sources = resolveSkillScanSources(paths);
 
@@ -67,12 +74,12 @@ export async function initSkills(): Promise<void> {
 /** 持久化某 skill 的 enabled 状态。 */
 export function setSkillEnabled(id: string, enabled: boolean): void {
   id = resolveSkillId(id);
-  skillRegistry.setEnabled(id, enabled);
   try {
     const saved = loadEnabledState();
     saved[id] = enabled;
     fs.mkdirSync(path.dirname(enabledStatePath()), { recursive: true });
     fs.writeFileSync(enabledStatePath(), JSON.stringify(saved, null, 2), "utf8");
+    skillRegistry.setEnabled(id, enabled);
   } catch (err) {
     console.warn(LOG_PREFIX, "持久化 enabled 失败:", err);
   }

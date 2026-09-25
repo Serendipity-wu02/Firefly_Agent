@@ -50,7 +50,9 @@ export function appendMimoTtsLog(entry: Record<string, unknown>): void {
 }
 
 export function getTtsCacheDir(): string {
-  return path.join(app.getPath("userData"), "cyrene-tts-cache");
+  const userData = app.getPath("userData");
+  const current = path.join(userData, "firefly-tts-cache");
+  return current;
 }
 
 export function assertTtsCacheKey(cacheKey: string): string {

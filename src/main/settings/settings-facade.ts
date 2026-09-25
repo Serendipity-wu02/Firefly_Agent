@@ -1,4 +1,6 @@
 import { resolveSkillSettings } from "../skills/skill-id-aliases";
+import { normalizeFireflyFields } from "../../shared/legacy-firefly-contracts";
+import { writeMigratedJson } from "../migration/firefly-data";
 import * as fs from "fs";
 import * as path from "path";
 import { logger, LogTag } from "../logger";
@@ -45,8 +47,8 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   chatSocialContextEnabled: false,
   momentsEnabled: false,
   chatMomentsContextEnabled: false,
-  cyreneMomentsPostingEnabled: false,
-  cyreneMomentsReactionsEnabled: true,
+  fireflyMomentsPostingEnabled: false,
+  fireflyMomentsReactionsEnabled: true,
   momentsCharacterReactionsEnabled: true,
   momentsLiveliness: "quiet",
   petAlwaysOnTop: true,
@@ -162,6 +164,7 @@ function notifyGeneralSettingsChanged(before: GeneralSettings, after: GeneralSet
 export function normalizeGeneralSettings(
   input: Partial<GeneralSettings> | null | undefined,
 ): GeneralSettings {
+  input = input ? normalizeFireflyFields(input) : input;
   const windowVisibility = normalizeWindowVisibilitySettings(input);
   const cita = normalizeCitaSettings({
     enabled: input?.citaEnabled,
@@ -201,12 +204,12 @@ export function normalizeGeneralSettings(
     chatMomentsContextEnabled: input?.chatMomentsContextEnabled === undefined
       ? DEFAULT_GENERAL_SETTINGS.chatMomentsContextEnabled
       : Boolean(input.chatMomentsContextEnabled),
-    cyreneMomentsPostingEnabled: input?.cyreneMomentsPostingEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.cyreneMomentsPostingEnabled
-      : Boolean(input.cyreneMomentsPostingEnabled),
-    cyreneMomentsReactionsEnabled: input?.cyreneMomentsReactionsEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.cyreneMomentsReactionsEnabled
-      : Boolean(input.cyreneMomentsReactionsEnabled),
+    fireflyMomentsPostingEnabled: input?.fireflyMomentsPostingEnabled === undefined
+      ? DEFAULT_GENERAL_SETTINGS.fireflyMomentsPostingEnabled
+      : Boolean(input.fireflyMomentsPostingEnabled),
+    fireflyMomentsReactionsEnabled: input?.fireflyMomentsReactionsEnabled === undefined
+      ? DEFAULT_GENERAL_SETTINGS.fireflyMomentsReactionsEnabled
+      : Boolean(input.fireflyMomentsReactionsEnabled),
     momentsCharacterReactionsEnabled: input?.momentsCharacterReactionsEnabled === undefined
       ? DEFAULT_GENERAL_SETTINGS.momentsCharacterReactionsEnabled
       : Boolean(input.momentsCharacterReactionsEnabled),
@@ -357,7 +360,7 @@ function normalizeToolModeOverrides(
 ): ToolModeOverrides {
   if (!input || typeof input !== "object") return {};
   const result: ToolModeOverrides = {};
-  const raw = resolveSkillSettings(input as Record<string, unknown>);
+  const raw = input as Record<string, unknown>;
   for (const [toolId, modeMap] of Object.entries(raw)) {
     if (!modeMap || typeof modeMap !== "object") continue;
     const filtered: Partial<Record<ConversationMode, boolean>> = {};
@@ -383,7 +386,7 @@ function normalizeSkillModeOverrides(
 ): SkillModeOverrides {
   if (!input || typeof input !== "object") return {};
   const result: SkillModeOverrides = {};
-  const raw = input as Record<string, unknown>;
+  const raw = resolveSkillSettings(input as Record<string, unknown>);
   for (const [skillId, modeMap] of Object.entries(raw)) {
     if (!modeMap || typeof modeMap !== "object") continue;
     const filtered: Partial<Record<"work" | "code" | "learn", boolean>> = {};
@@ -416,7 +419,12 @@ function loadGeneralSettings0(): GeneralSettings {
       path.join(path.dirname(filePath), "installer-options.json"),
       fs,
     );
-    const withInstallerSelection = applyInstallerLaunchAtLoginSelection(existing, installerSelection);
+    const canonical = normalizeFireflyFields(existing);
+    if (canonical.skillModeOverrides && typeof canonical.skillModeOverrides === "object") {
+      canonical.skillModeOverrides = resolveSkillSettings(canonical.skillModeOverrides);
+    }
+    if (present) writeMigratedJson(filePath, existing, canonical);
+    const withInstallerSelection = applyInstallerLaunchAtLoginSelection(canonical, installerSelection);
     if (installerSelection !== null) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(normalizeGeneralSettings(withInstallerSelection), null, 2));
@@ -437,6 +445,7 @@ export function loadGeneralSettings(): GeneralSettings {
 export function saveGeneralSettings(partial: Partial<GeneralSettings>): GeneralSettings {
   assertGeneralSettingsReadable();
   const before = loadGeneralSettings();
+  assertGeneralSettingsReadable();
   const normalized = normalizeGeneralSettings({ ...before, ...partial });
   const filePath = getGeneralSettingsPath();
   fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2));

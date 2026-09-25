@@ -104,6 +104,7 @@ export interface AgentRunFinishedContext {
   conversationId: string;
   channel?: string;
   runId?: string;
+  modelProfileId?: string;
 }
 
 export interface AgentRuntime {
@@ -120,8 +121,21 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     _recentMessages: ReadonlyArray<{ role: "system" | "user" | "assistant"; content: string }>,
     _latestUserText: string,
     chatContent: string,
+    profileSelection: "conversation" | "default",
   ): Promise<void> {
+    let serviceUrlValid = false;
+    try {
+      const url = new URL(settings.baseUrl);
+      serviceUrlValid = url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      serviceUrlValid = false;
+    }
+    if (!settings.model.trim() || !serviceUrlValid) {
+      console.warn("[Firefly] mood observation unavailable: selected model profile has no valid model or service URL");
+      return;
+    }
     const recentDialogue = [{ role: "assistant" as const, content: chatContent }];
+    console.info("[Firefly] mood observation request", { profileSelection, transport: settings.explicitTransport ?? "unspecified" });
 
     await rawDeps.enqueueLLMTask(
       "心情观察器",
@@ -149,6 +163,9 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
         const feeling = parseObserverFeeling(observerContent);
         if (feeling) {
           runtimeStateService.smoothFeeling(feeling);
+          console.info("[Firefly] mood observation applied");
+        } else {
+          console.warn("[Firefly] mood observation returned no recognized feeling");
         }
       },
       { log: false },
@@ -241,9 +258,9 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     };
   }
 
-  function buildOnRunFinishedDeps(): OnRunFinishedDeps {
+  function buildOnRunFinishedDeps(modelProfileId?: string): OnRunFinishedDeps {
     return {
-      loadModelSettings: () => rawDeps.loadModelSettings(),
+      loadModelSettings: () => resolveModelSettingsProfile(rawDeps.loadModelSettings(), modelProfileId),
       scheduleMemoryWrite,
       scheduleSocialAtomExtraction: (input) => rawDeps.socialContextScheduler.schedule(input),
       scheduleMomentsTurn: (input) => momentsService.scheduleTurn(input),
@@ -262,7 +279,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
       loadStickerSettings,
       broadcastRuntimeStateChanged: rawDeps.broadcastRuntimeStateChanged,
       observeRuntimeState: ((settings, history, userText, reply) =>
-        observeRuntimeState(settings as ModelSettingsLite, history as any, userText, reply)) as OnRunFinishedDeps["observeRuntimeState"],
+        observeRuntimeState(settings as ModelSettingsLite, history as any, userText, reply, modelProfileId ? "conversation" : "default")) as OnRunFinishedDeps["observeRuntimeState"],
       recordRelationshipTurn,
     };
   }
@@ -281,7 +298,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     },
 
     onRunFinished: async (result, latestUserText, context) => {
-      const onRunFinishedDeps = buildOnRunFinishedDeps();
+      const onRunFinishedDeps = buildOnRunFinishedDeps(context.modelProfileId);
       const effects = await onAgentRunFinished(
         result,
         latestUserText,

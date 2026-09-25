@@ -24,8 +24,8 @@ describe("mimo-engine synthesize", () => {
     await expect(synthesize({ apiKey: "k", text: "" })).rejects.toThrow(/合成文本/);
   });
 
-  it("sends Xiaomi MiMo voiceclone payload with the selected Cyrene voice sample", async () => {
-    const voiceAudioPath = writeTempVoiceFile("cyrene.mp3", "cyrene voice sample");
+  it("sends Xiaomi MiMo voiceclone payload with the selected Firefly voice sample", async () => {
+    const voiceAudioPath = writeTempVoiceFile("firefly.mp3", "firefly voice sample");
     const audio = Buffer.from("RIFFmimo");
     const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => Response.json({
       choices: [{
@@ -64,7 +64,7 @@ describe("mimo-engine synthesize", () => {
       ],
       audio: {
         format: "wav",
-        voice: "data:audio/mpeg;base64,Y3lyZW5lIHZvaWNlIHNhbXBsZQ==",
+        voice: `data:audio/mpeg;base64,${Buffer.from("firefly voice sample").toString("base64")}`,
       },
     });
   });
@@ -75,7 +75,7 @@ describe("mimo-engine synthesize", () => {
   });
 
   it("omits empty style prompts", async () => {
-    const voiceAudioPath = writeTempVoiceFile("cyrene.wav", "wav sample");
+    const voiceAudioPath = writeTempVoiceFile("firefly.wav", "wav sample");
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({
       choices: [{ message: { audio: { data: Buffer.from("RIFF").toString("base64") } } }],
     })));

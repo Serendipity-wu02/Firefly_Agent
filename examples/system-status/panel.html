@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cyrene · 系统状态面板</title>
+  <title>Firefly · 系统状态面板</title>
   <style>
     /* 宿主经 init/theme-changed 下发的 CSS 变量（--cy-* 等前缀）写在 :root 上 */
     :root { font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif; }
@@ -56,7 +56,7 @@
   <p class="hint">快照来自插件 IPC 通道 snapshot，每 5 秒刷新一次。</p>
 
   <!-- 宿主官方桥：invoke / onTheme / 高度自动上报 -->
-  <script src="/.cyrene/panel-bridge.js"></script>
+  <script src="/.firefly/panel-bridge.js"></script>
   <script>
     function setText(id, value) {
       document.getElementById(id).textContent = value == null || value === "" ? "—" : String(value);
@@ -74,7 +74,7 @@
 
     async function poll() {
       try {
-        render(await CyrenePanel.invoke("snapshot"));
+        render(await FireflyPanel.invoke("snapshot"));
       } catch (e) {
         /* 单次失败忽略，下一轮重试 */
       }

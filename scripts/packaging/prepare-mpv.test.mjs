@@ -9,7 +9,7 @@ import { prepareMpv } from "./prepare-mpv.mjs";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 
 test("rejects a downloaded archive with the wrong sha256", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "cyrene-mpv-test-"));
+  const root = await mkdtemp(path.join(tmpdir(), "firefly-mpv-test-"));
   try {
     await assert.rejects(
       prepareMpv({
@@ -33,7 +33,7 @@ test("rejects a downloaded archive with the wrong sha256", async () => {
 });
 
 test("reuses a verified extracted mpv executable without downloading", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "cyrene-mpv-test-"));
+  const root = await mkdtemp(path.join(tmpdir(), "firefly-mpv-test-"));
   try {
     const outputDir = path.join(root, "resources", "bin", "mpv");
     await mkdir(outputDir, { recursive: true });
@@ -63,7 +63,7 @@ test("reuses a verified extracted mpv executable without downloading", async () 
 });
 
 test("throws when extracted archive does not contain expected binary", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "cyrene-mpv-test-"));
+  const root = await mkdtemp(path.join(tmpdir(), "firefly-mpv-test-"));
   try {
     await assert.rejects(
       prepareMpv({

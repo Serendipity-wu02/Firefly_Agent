@@ -54,7 +54,7 @@ describe("Mossland TTS current API contract", () => {
   it("returns the documented voice-list cursor metadata", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({
       object: "list",
-      data: [{ id: "voice-1", name: "昔涟", created_at: 1_710_000_000 }],
+      data: [{ id: "voice-1", name: "流萤", created_at: 1_710_000_000 }],
       has_more: true,
       next_cursor: "voice-cursor-2",
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -70,7 +70,7 @@ describe("Mossland TTS current API contract", () => {
       "https://api.mosi.cn/v1/audio/voices?limit=150&after=voice-cursor-1&status=ready",
     );
     expect(result).toEqual({
-      voices: [{ id: "voice-1", name: "昔涟", createdAt: 1_710_000_000 }],
+      voices: [{ id: "voice-1", name: "流萤", createdAt: 1_710_000_000 }],
       hasMore: true,
       nextCursor: "voice-cursor-2",
     });
@@ -123,13 +123,13 @@ describe("Mossland TTS current API contract", () => {
   });
 
   it("keeps voice cloning on multipart audio_sample instead of the files endpoint", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-mossland-test-"));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-mossland-test-"));
     const samplePath = path.join(tempDir, "sample.wav");
     fs.writeFileSync(samplePath, Buffer.from("RIFFsample"));
     fetchMock.mockResolvedValue(new Response(JSON.stringify({
       id: "voice-new",
       object: "audio.voice",
-      name: "Cyrene",
+      name: "Firefly",
       created_at: 1_710_000_001,
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
 
@@ -137,14 +137,14 @@ describe("Mossland TTS current API contract", () => {
       const result = await cloneVoice({
         apiKey: "moss-key",
         filePath: samplePath,
-        name: "Cyrene",
+        name: "Firefly",
       });
 
       const [url, init] = fetchMock.mock.calls[0];
       expect(url).toBe("https://api.mosi.cn/v1/audio/voices");
       expect(new Headers(init?.headers).get("Content-Type")).toContain("multipart/form-data; boundary=");
       expect(Buffer.from(init?.body as ArrayBuffer).toString("utf8")).toContain('name="audio_sample"');
-      expect(result).toMatchObject({ voiceId: "voice-new", name: "Cyrene" });
+      expect(result).toMatchObject({ voiceId: "voice-new", name: "Firefly" });
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

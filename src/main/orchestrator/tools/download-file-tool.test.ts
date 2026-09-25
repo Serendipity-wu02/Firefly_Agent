@@ -54,7 +54,7 @@ describe("download_file 成功路径（mock fetch，落盘到临时目录）", (
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    workdir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-dl-test-"));
+    workdir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-dl-test-"));
   });
 
   afterEach(() => {

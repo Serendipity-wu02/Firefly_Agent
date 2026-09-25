@@ -64,7 +64,7 @@ async function convertFeishuAudioWithMpv(
   audio: Buffer,
   sourceFormat: TtsAudioFormat,
 ): Promise<Buffer> {
-  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "cyrene-feishu-tts-"));
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "firefly-feishu-tts-"));
   try {
     const inputPath = path.join(tempDir, `source.${sourceFormat}`);
     await fs.promises.writeFile(inputPath, audio);

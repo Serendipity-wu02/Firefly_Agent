@@ -9,7 +9,7 @@ import type { LspServerDefinition, LspServerOverride } from "./types";
 const roots: string[] = [];
 
 function workspace(): { root: string; file: string } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-lsp-manager-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-lsp-manager-"));
   roots.push(root);
   const file = path.join(root, "src", "entry.ts");
   fs.mkdirSync(path.dirname(file), { recursive: true });

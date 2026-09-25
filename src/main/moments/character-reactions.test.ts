@@ -126,10 +126,10 @@ describe("rollReactionDice 双骰分流", () => {
 // ── 回复落点深度 ────────────────────────────────────────────────
 
 describe("computeReplyLandingDepth 评论树穷举", () => {
-  it("昔涟动态：角色评(0) → 昔涟回(1) → 角色再回(2)，第三跳落点 3 收束", () => {
+  it("流萤动态：角色评(0) → 流萤回(1) → 角色再回(2)，第三跳落点 3 收束", () => {
     const comments = [
       makeComment({ id: "c1", author: "万敌" }),
-      makeComment({ id: "c2", author: "cyrene", replyTo: "c1" }),
+      makeComment({ id: "c2", author: "firefly", replyTo: "c1" }),
       makeComment({ id: "c3", author: "万敌", replyTo: "c2" }),
     ];
     expect(computeReplyLandingDepth(comments, "c1")).toBe(1);
@@ -177,7 +177,7 @@ describe("computeReplyLandingDepth 评论树穷举", () => {
   it("replyTo 成环时安全止步，不死循环", () => {
     const comments = [
       makeComment({ id: "c1", author: "万敌", replyTo: "c2" }),
-      makeComment({ id: "c2", author: "cyrene", replyTo: "c1" }),
+      makeComment({ id: "c2", author: "firefly", replyTo: "c1" }),
     ];
     expect(computeReplyLandingDepth(comments, "c1")).toBeGreaterThanOrEqual(1);
     expect(computeReplyLandingDepth(comments, "c1")).toBeLessThan(10);

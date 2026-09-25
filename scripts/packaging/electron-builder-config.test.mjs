@@ -51,7 +51,7 @@ test("the assisted installer stores launch preferences under the Firefly userDat
   assert.doesNotMatch(installerInclude, /\$APPDATA\\\$\{APP_PACKAGE_NAME\}\\installer-options\.json/);
 });
 
-test("upgrade staging is Firefly-owned rather than sharing Cyrene paths", () => {
+test("upgrade staging is Firefly-owned rather than sharing Firefly paths", () => {
   assert.match(installerInclude, /\.Firefly\.content-preserve/);
   assert.match(installerInclude, /\.Firefly\.models-preserve/);
   assert.doesNotMatch(installerInclude, /\.Cyrene\.(?:content|models)-preserve/);

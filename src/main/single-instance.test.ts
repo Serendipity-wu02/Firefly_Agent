@@ -11,7 +11,7 @@ describe("installSingleInstanceGuard", () => {
     expect(on).not.toHaveBeenCalled();
   });
 
-  it("opens the existing primary Cyrene window when launched again", () => {
+  it("opens the existing primary Firefly window when launched again", () => {
     let onSecondInstance: (() => void) | undefined;
     const focusExistingWindow = vi.fn();
     const on = vi.fn((_event: "second-instance", listener: () => void) => { onSecondInstance = listener; });

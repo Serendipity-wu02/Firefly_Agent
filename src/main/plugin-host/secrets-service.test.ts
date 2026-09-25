@@ -21,7 +21,7 @@ function fakeStorage(available = true): SafeStorageLike {
 let tmp: string;
 
 beforeEach(() => {
-  tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-secrets-"));
+  tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-secrets-"));
 });
 
 afterEach(() => {

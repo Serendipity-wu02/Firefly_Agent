@@ -37,7 +37,7 @@ vi.mock("electron", () => ({
 
 describe("chats IPC mode filtering", () => {
   it("propagates history read failures instead of reporting empty Chat and Work lists", async () => {
-    const directory = path.join(mocks.userDataDir, "cyrene-chats");
+    const directory = path.join(mocks.userDataDir, "firefly-chats");
     fs.mkdirSync(directory, { recursive: true });
     const file = path.join(directory, "index.json");
     fs.writeFileSync(file, "{broken");
@@ -56,7 +56,7 @@ describe("chats IPC mode filtering", () => {
     mocks.openPath.mockClear();
     mocks.saveDialog.mockReset();
     mocks.messageBox.mockReset();
-    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-chats-ipc-"));
+    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-chats-ipc-"));
   });
 
   it("returns only Code sessions for CHATS_LIST({ mode: \"code\" })", async () => {
@@ -322,8 +322,8 @@ describe("chats IPC mode filtering", () => {
       throw new Error("workspace IPC handlers were not registered");
     }
 
-    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-workspace-"));
-    const unrelatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-unrelated-"));
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-workspace-"));
+    const unrelatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-unrelated-"));
     const event = { sender: {} };
     const session = await create(event, { mode: "work" }) as { id: string };
     await setWorkspace(event, { sessionId: session.id, workspaceRoot });

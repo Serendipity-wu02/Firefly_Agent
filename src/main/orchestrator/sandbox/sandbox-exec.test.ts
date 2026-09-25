@@ -56,7 +56,7 @@ vi.mock("@anthropic-ai/sandbox-runtime", () => ({
   },
 }));
 
-srtState.vendoredExe = ["C:", "cyrene", "app.asar", "vendor", "srt-win.exe"].join(path.sep);
+srtState.vendoredExe = ["C:", "firefly", "app.asar", "vendor", "srt-win.exe"].join(path.sep);
 
 // ── 测试基础设施 ──
 
@@ -67,7 +67,7 @@ const origPlatform = Object.getOwnPropertyDescriptor(process, "platform");
 const tempDirs: string[] = [];
 
 function makeTempDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-sandbox-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-sandbox-test-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -92,7 +92,7 @@ beforeEach(async () => {
   mocks.reset.mockReset().mockResolvedValue(undefined);
   mocks.wrapArgv.mockReset().mockResolvedValue({
     argv: ["srt-win.exe", "--srt-win", "--", "cmd.exe", "/c", "echo hi"],
-    env: { CYRENE_SANDBOX: "1" },
+    env: { FIREFLY_SANDBOX: "1" },
   });
 
   sb = await import("./sandbox-exec");
@@ -218,7 +218,7 @@ describe("initSandbox", () => {
     await sb.initSandbox();
 
     expect(mocks.resolveSrtWin).toHaveBeenCalledWith({
-      path: ["C:", "cyrene", "app.asar.unpacked", "vendor", "srt-win.exe"].join(path.sep),
+      path: ["C:", "firefly", "app.asar.unpacked", "vendor", "srt-win.exe"].join(path.sep),
     });
   });
 });
@@ -235,7 +235,7 @@ describe("wrapWithSandbox 档位路由", () => {
     expect(r).toEqual({
       ok: true,
       argv: ["srt-win.exe", "--srt-win", "--", "cmd.exe", "/c", "echo hi"],
-      env: { CYRENE_SANDBOX: "1" },
+      env: { FIREFLY_SANDBOX: "1" },
     });
     // 会话初始化：read-only 不授予任何写权限
     expect(mocks.initialize).toHaveBeenCalledWith(

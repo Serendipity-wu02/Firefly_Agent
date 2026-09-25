@@ -46,7 +46,7 @@ function resolvedServer(): ResolvedLspServer {
 }
 
 function createWorkspace(): { root: string; file: string } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-lsp-client-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-lsp-client-"));
   roots.push(root);
   const file = path.join(root, "src", "entry.ts");
   fs.mkdirSync(path.dirname(file), { recursive: true });

@@ -32,9 +32,9 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   /** Chat 模式注入近期朋友圈动态背景；默认开启（只读本地数据，无额外 LLM 调用）。 */
   chatMomentsContextEnabled: boolean;
   /** 流萤主动发帖；默认关闭（审慎，与 proactiveChatMode 默认 off 一致）。 */
-  cyreneMomentsPostingEnabled: boolean;
+  fireflyMomentsPostingEnabled: boolean;
   /** 流萤对朋友圈动态的点赞/评论反应；默认开启（Feed 内被动行为，不打扰）。 */
-  cyreneMomentsReactionsEnabled: boolean;
+  fireflyMomentsReactionsEnabled: boolean;
   /** 角色对朋友圈动态的点赞/评论/互聊；默认开启（有独立日调用上限兜底成本）。 */
   momentsCharacterReactionsEnabled: boolean;
   /** 朋友圈热闹程度：控制每条动态的抽签人数分布与角色日调用上限。

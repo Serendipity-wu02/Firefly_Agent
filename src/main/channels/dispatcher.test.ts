@@ -20,7 +20,7 @@ vi.mock("electron", () => ({
   app: {
     getPath: () => os.tmpdir(),
     getAppPath: () => process.cwd(),
-    getName: () => "Cyrene",
+    getName: () => "Firefly",
   },
   safeStorage: {
     isEncryptionAvailable: () => false,

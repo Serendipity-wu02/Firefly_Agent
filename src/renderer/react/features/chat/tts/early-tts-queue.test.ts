@@ -8,11 +8,11 @@ import {
 describe("StreamingMarkdownSegmenter", () => {
   it("emits each complete sentence once across token-like chunks", () => {
     const segmenter = new StreamingMarkdownSegmenter();
-    expect(segmenter.append("昔涟在这里")).toEqual([]);
-    expect(segmenter.append("陪着你。下一句还")).toEqual(["昔涟在这里陪着你。"]);
+    expect(segmenter.append("流萤在这里")).toEqual([]);
+    expect(segmenter.append("陪着你。下一句还")).toEqual(["流萤在这里陪着你。"]);
     expect(segmenter.append("没有结束")).toEqual([]);
     expect(segmenter.append("呢！")).toEqual(["下一句还没有结束呢！"]);
-    expect(segmenter.finish("昔涟在这里陪着你。下一句还没有结束呢！")).toEqual([]);
+    expect(segmenter.finish("流萤在这里陪着你。下一句还没有结束呢！")).toEqual([]);
   });
 
   it("waits for fenced code blocks to close", () => {
@@ -36,15 +36,15 @@ describe("StreamingMarkdownSegmenter", () => {
 
   it("does not submit a GFM table until its block is closed", () => {
     const segmenter = new StreamingMarkdownSegmenter();
-    expect(segmenter.append("|姓名|分数|\n|-|-|\n|昔涟|100|\n")).toEqual([]);
+    expect(segmenter.append("|姓名|分数|\n|-|-|\n|流萤|100|\n")).toEqual([]);
     expect(segmenter.append("|伙伴|99|\n\n"))
-      .toEqual(["|姓名|分数|\n|-|-|\n|昔涟|100|\n|伙伴|99|"]);
+      .toEqual(["|姓名|分数|\n|-|-|\n|流萤|100|\n|伙伴|99|"]);
   });
 
   it("does not split on punctuation inside links or bare URLs", () => {
     const segmenter = new StreamingMarkdownSegmenter();
-    expect(segmenter.append("请打开 [有什么问题？](https://example.com/search?q=cyrene) 查看。"))
-      .toEqual(["请打开 [有什么问题？](https://example.com/search?q=cyrene) 查看。"]);
+    expect(segmenter.append("请打开 [有什么问题？](https://example.com/search?q=firefly) 查看。"))
+      .toEqual(["请打开 [有什么问题？](https://example.com/search?q=firefly) 查看。"]);
     expect(segmenter.append("再看 https://example.com/search?q=tts&lang=zh。"))
       .toEqual(["再看 https://example.com/search?q=tts&lang=zh。"]);
   });

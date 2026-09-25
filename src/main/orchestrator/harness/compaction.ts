@@ -10,6 +10,7 @@
  */
 
 import type { ChatMessage } from "../vendors/types";
+import { LEGACY_COMPACTION_CHECKPOINT_OPEN } from "../../../shared/legacy-firefly-contracts";
 import { estimateTokens, estimateMessageTokens } from "../context-manager";
 
 // ── Token 预算计算 ────────────────────────────────────────
@@ -164,8 +165,8 @@ export const AGENT_COMPACTION_PROMPT = `你正在为 FireflyHarness 生成可恢
 4. 使用简洁中文项目符号；不要调用工具，不要解释你正在生成摘要。
 5. 摘要必须明显短于被压缩的历史。`;
 
-const COMPACTION_CHECKPOINT_OPEN = "<cyrene_compaction_checkpoint>";
-const COMPACTION_CHECKPOINT_CLOSE = "</cyrene_compaction_checkpoint>";
+const COMPACTION_CHECKPOINT_OPEN = "<firefly_compaction_checkpoint>";
+const COMPACTION_CHECKPOINT_CLOSE = "</firefly_compaction_checkpoint>";
 
 /** 判定消息是否为压缩检查点（单一事实源；context-usage 分类等消费方复用，禁止重复实现标记匹配）。 */
 export function isCompactionCheckpointMessage(
@@ -173,7 +174,8 @@ export function isCompactionCheckpointMessage(
 ): boolean {
   return message.role === "system"
     && typeof message.content === "string"
-    && message.content.includes(COMPACTION_CHECKPOINT_OPEN);
+    && (message.content.includes(COMPACTION_CHECKPOINT_OPEN)
+      || message.content.includes(LEGACY_COMPACTION_CHECKPOINT_OPEN));
 }
 
 /** 将已验证的摘要包装为可持久化、可识别的 transcript 检查点。 */

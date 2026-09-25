@@ -7,7 +7,7 @@ import { TaskSessionStore } from "./task-session-store";
 const temporaryRoots: string[] = [];
 
 function createStore() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-task-session-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-task-session-"));
   temporaryRoots.push(root);
   let now = 1_000;
   let nextId = 1;
@@ -55,8 +55,8 @@ describe("TaskSessionStore", () => {
       messages: [{ role: "user", content: "检查取消传播并列出证据。" }],
       trace: [],
     });
-    expect(fs.existsSync(path.join(root, "cyrene-tasks", "sessions", "task-1.json"))).toBe(true);
-    expect(fs.existsSync(path.join(root, "cyrene-chats", "sessions", "task-1.json"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "firefly-tasks", "sessions", "task-1.json"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "firefly-chats", "sessions", "task-1.json"))).toBe(false);
     expect(store.get("task-1")).toMatchObject({ id: "task-1" });
     expect(store.listForParent("chat-2")).toEqual([]);
   });

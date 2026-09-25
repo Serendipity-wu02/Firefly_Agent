@@ -21,7 +21,7 @@ describe.runIf(process.platform === "win32")("run_shell shell selection", () => 
     if (!tool) throw new Error("run_shell was not registered");
 
     const raw = await tool.execute(
-      { shell: "bash", command: "printf 'cyrene-bash-ok'" },
+      { shell: "bash", command: "printf 'firefly-bash-ok'" },
       { permissionMode: "allow_all" } as never,
     );
     const result = JSON.parse(raw) as {
@@ -34,7 +34,7 @@ describe.runIf(process.platform === "win32")("run_shell shell selection", () => 
     expect(result).toMatchObject({
       shell: "bash",
       exitCode: 0,
-      stdout: "cyrene-bash-ok",
+      stdout: "firefly-bash-ok",
       stderr: "",
     });
   });

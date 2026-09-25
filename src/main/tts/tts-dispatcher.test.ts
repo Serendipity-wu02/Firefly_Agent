@@ -21,7 +21,7 @@ describe("tts-dispatcher custom-cloud", () => {
       text: "hello",
       endpointUrl: "https://tts.example.com",
       apiKey: "k",
-      voiceId: "cyrene-voice",
+      voiceId: "firefly-voice",
       format: "mp3",
     });
 
@@ -30,7 +30,7 @@ describe("tts-dispatcher custom-cloud", () => {
     expect(customSynthesize).toHaveBeenCalledWith(expect.objectContaining({
       endpointUrl: "https://tts.example.com",
       apiKey: "k",
-      voiceId: "cyrene-voice",
+      voiceId: "firefly-voice",
       text: "hello",
     }));
   });
@@ -41,7 +41,7 @@ describe("tts-dispatcher mimo", () => {
     const result = await synthesizeByEngine("mimo", {
       text: "hello",
       apiKey: "k",
-      voiceAudioPath: "C:\\voices\\cyrene.mp3",
+      voiceAudioPath: "C:\\voices\\firefly.mp3",
       promptText: "温柔一点",
     });
 
@@ -49,7 +49,7 @@ describe("tts-dispatcher mimo", () => {
     expect(result.audio.toString()).toBe("RIFFmimo");
     expect(mimoSynthesize).toHaveBeenCalledWith(expect.objectContaining({
       apiKey: "k",
-      voiceAudioPath: "C:\\voices\\cyrene.mp3",
+      voiceAudioPath: "C:\\voices\\firefly.mp3",
       text: "hello",
       stylePrompt: "温柔一点",
     }));

@@ -29,7 +29,7 @@ function listFiles(dir: string): string[] {
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       out.push(...listFiles(full).map((f) => path.join(entry.name, f)))
-    } else if (entry.name.endsWith(".md") || entry.name === ".cyrene-export-manifest.json") {
+    } else if (entry.name.endsWith(".md") || entry.name === ".firefly-export-manifest.json") {
       out.push(entry.name)
     }
   }
@@ -59,7 +59,7 @@ describe("exportMemoryToObsidianVault", () => {
     await memoryStore.updateL1({
       recentGoals: "学钢琴",
       recentPreferences: "偏好深色主题",
-      currentProject: "Cyrene",
+      currentProject: "Firefly",
     })
     const l2 = await memoryStore.addL2Memory({
       content: "用户喜欢跑步",
@@ -85,7 +85,7 @@ describe("exportMemoryToObsidianVault", () => {
     const l1md = readFile(outputDir, "近况.md")
     expect(l1md).toContain("type: 近况")
     expect(l1md).toContain("学钢琴")
-    expect(l1md).toContain("Cyrene")
+    expect(l1md).toContain("Firefly")
 
     // L2
     const l2File = path.join(outputDir, "记忆", `${l2.id}.md`)

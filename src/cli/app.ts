@@ -4,7 +4,7 @@
  * This is the unit the test suite imports. index.ts is a 3-line shim that
  * calls main() and process.exit().
  *
- * __CYRENE_VERSION__ is injected at build time by scripts/build/cli.mjs via
+ * __FIREFLY_VERSION__ is injected at build time by scripts/build/cli.mjs via
  * esbuild's `define`. In tests, main() accepts an optional version override
  * so the test suite does not depend on the build step.
  */
@@ -21,14 +21,14 @@ import {
 } from "./commands/handlers.js";
 import { cmdRun } from "./commands/run.js";
 
-declare const __CYRENE_VERSION__: string;
+declare const __FIREFLY_VERSION__: string;
 
 function resolveVersion(override?: string): string {
   if (override !== undefined) return override;
   try {
-    return typeof __CYRENE_VERSION__ === "string" ? __CYRENE_VERSION__ : "0.0.0";
+    return typeof __FIREFLY_VERSION__ === "string" ? __FIREFLY_VERSION__ : "0.0.0";
   } catch {
-    // __CYRENE_VERSION__ is undefined when run under vitest (no esbuild define).
+    // __FIREFLY_VERSION__ is undefined when run under vitest (no esbuild define).
     return "0.0.0";
   }
 }

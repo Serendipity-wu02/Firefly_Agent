@@ -2,11 +2,11 @@
 
 Current runtime and Skill organization: [architecture](./docs/architecture/firefly-runtime.md). Current branding, compatibility and acceptance evidence: [implementation record](./docs/migration/firefly-brand-skills-2026-09-25.md). Historical documents remain unchanged and are collected in the [archive index](./docs/archive/README.md).
 
-Firefly is a Windows Live2D AI application built on the Cyrene desktop runtime. This branch contains the migration source and retains the existing UI, Agent loop, tools, approvals, and task-state ownership. **This is not a completed public release.**
+Firefly is a Windows Live2D AI application using Electron, TypeScript and React. This branch retains the existing UI, Agent loop, tools, approvals, and task-state ownership. **This is not a completed public release.**
 
 - Project: [Serendipity-wu02/Firefly_Agent](https://github.com/Serendipity-wu02/Firefly_Agent)
 - Feedback: [GitHub Issues](https://github.com/Serendipity-wu02/Firefly_Agent/issues)
-- Downloads and updates: There is **no compatible release** for this new base yet. Automatic updates are disabled. Do not install an older Firefly or upstream Cyrene package over this build.
+- Downloads and updates: There is **no compatible release** yet. Automatic updates are disabled. Do not install another version's release package over this build.
 
 ## Migration status
 
@@ -35,7 +35,7 @@ Run these commands from the root of this migration branch. Public installers, au
 
 Configure your own model through the application's normal Settings UI. Check the model and avatar, main pages, and one complete Chat reply for identity, form of address, style, and clean termination. A successful build or visible main window does not prove that a model reply works. Local checks include `npm run check:renderer` and `npm test`.
 
-This build uses `%APPDATA%\Firefly` for user data, separate from the original Firefly package directory `%APPDATA%\firefly-agent`. To migrate from the previous `Firefly-Cyrene-Base` directory, fully quit the app first; copy persistent data only if the target does not exist, retain the source as a backup, and skip runtime locks and rebuildable caches. Never overwrite or automatically merge an existing target directory. Remaining `cyrene` CLI commands, storage keys, and source names are compatibility identifiers, not product ownership claims.
+This build uses `%APPDATA%\Firefly`, separate from the original `%APPDATA%\firefly-agent`. Quit before directory migration, preserve source backups, and never overwrite an existing destination. Current writes, events and CLI use Firefly contracts; centralized migration handles older formats without overwriting existing current data or treating read errors as empty data.
 
 ## External speech service
 
@@ -47,4 +47,4 @@ Read the [contribution guide](./.github/CONTRIBUTING.md). Do not add a second Ag
 
 Source code is under the [MIT License](./LICENSE). The upstream `Copyright (c) 2026 Playa` notice remains, and Firefly additions/adaptations are attributed to `Serendipity-wu02`. See [third-party notices](./THIRD_PARTY_NOTICES.md) and the [upstream contributors record](./docs/CONTRIBUTORS.md).
 
-The MIT source-code license does **not** grant rights to character art, Live2D models, avatars, fonts, icons, or other third-party assets. The existing [Cyrene model notice](./MODEL_LICENSE.md) does not authorize the Firefly model. The project owner confirms obtaining the Firefly model creator's permission, but its written redistribution scope and permissions for the avatar and other assets have not been archived; no installer or asset bundle is being released. _Honkai: Star Rail_ and Firefly IP belong to HoYoverse / miHoYo; this is an unofficial project.
+The MIT source-code license does **not** grant rights to character art, Live2D models, avatars, fonts, icons, or other third-party assets. See the separate [model notice](./MODEL_LICENSE.md). The project owner confirms obtaining the Firefly model creator's permission, but its written redistribution scope and permissions for the avatar and other assets have not been archived; no installer or asset bundle is being released. _Honkai: Star Rail_ and Firefly IP belong to HoYoverse / miHoYo; this is an unofficial project.

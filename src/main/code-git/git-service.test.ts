@@ -193,11 +193,11 @@ describe("GitService.log", () => {
   const ctx = { sessionId: "session-1", mode: "code" as const, workspaceRoot: "C:\\repo" };
 
   it("passes through validated options to the client", async () => {
-    const getLog = vi.fn(async () => [{ hash: "abc1234", date: "2026-08-16", author: "Cyrene", message: "feat: x" }]);
+    const getLog = vi.fn(async () => [{ hash: "abc1234", date: "2026-08-16", author: "Firefly", message: "feat: x" }]);
     const result = await service({ client: client({ getLog }) }).log(ctx, { maxCount: 5, ref: "main", path: "src/a.ts" });
 
     expect(getLog).toHaveBeenCalledWith({ maxCount: 5, ref: "main", path: "src/a.ts" });
-    expect(result).toEqual([{ hash: "abc1234", date: "2026-08-16", author: "Cyrene", message: "feat: x" }]);
+    expect(result).toEqual([{ hash: "abc1234", date: "2026-08-16", author: "Firefly", message: "feat: x" }]);
   });
 
   it("rejects invalid maxCount, ref and path", async () => {

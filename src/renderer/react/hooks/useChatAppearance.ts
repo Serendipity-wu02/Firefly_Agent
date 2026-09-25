@@ -14,7 +14,7 @@ export function applyChatAppearance(input: unknown): void {
 
 export function useChatAppearance(): void {
   useEffect(() => {
-    const api = window.cyreneAppearance;
+    const api = window.fireflyAppearance;
     if (!api) return;
 
     let disposed = false;

@@ -10,12 +10,12 @@
  * 4. registerPromptProvider 把最近摘要注入下一轮动态上下文（只写事实，短而精）
  */
 import type {
-  CyrenePlugin,
+  FireflyPlugin,
   PluginConversationMessage,
   PluginDeps,
   PluginTool,
   PluginTurnFinishedEvent,
-} from "@playa0v0/cyrene-plugin-sdk";
+} from "@firefly/plugin-sdk";
 
 /** 每个会话保留最近几条摘要。 */
 const MAX_MEMORIES_PER_CONVERSATION = 5;
@@ -78,7 +78,7 @@ const recallTool: PluginTool = {
   },
 };
 
-const plugin: CyrenePlugin = {
+const plugin: FireflyPlugin = {
   async register(ctx) {
     deps = ctx.deps;
 

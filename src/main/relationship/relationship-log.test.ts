@@ -18,7 +18,7 @@ describe("relationship log", () => {
     await store.recordTurn({
       userText: "记忆确认卡片不要，太影响观感了！",
       assistantText: "明白，这个不做。",
-      cyreneFeeling: "温柔",
+      fireflyFeeling: "温柔",
       channel: "desktop",
     })
 
@@ -41,7 +41,7 @@ describe("relationship log", () => {
     await store.recordTurn({
       userText: "我今天有点累，先别安排太多",
       assistantText: "那就慢一点来。",
-      cyreneFeeling: "担心",
+      fireflyFeeling: "担心",
       channel: "desktop",
     })
 
@@ -61,7 +61,7 @@ describe("relationship log", () => {
       await store.recordTurn({
         userText: text,
         assistantText: "好的。",
-        cyreneFeeling: "平稳",
+        fireflyFeeling: "平稳",
         channel: "desktop",
       })
     }

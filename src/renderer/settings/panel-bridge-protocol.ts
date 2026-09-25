@@ -1,5 +1,5 @@
 /**
- * 插件设置面板桥协议（cyrene-panel/1）：渲染端纯逻辑部分。
+ * 插件设置面板桥协议（firefly-panel/1）：渲染端纯逻辑部分。
  *
  * 与宿主资产 panel-bridge.js 保持同一协议常量（有测试断言一致性）；
  * 消息种类：
@@ -7,20 +7,22 @@
  * - 宿主→面板：invoke-result / init / theme-changed
  */
 
-export const PANEL_PROTOCOL = "cyrene-panel/1";
+import { LEGACY_PANEL_PROTOCOL } from "../../shared/legacy-firefly-contracts";
+export const PANEL_PROTOCOL = "firefly-panel/1";
+type PanelProtocol = typeof PANEL_PROTOCOL | typeof LEGACY_PANEL_PROTOCOL;
 export const PANEL_MIN_HEIGHT = 120;
 export const PANEL_MAX_HEIGHT = 800;
-export const PANEL_SCHEME = "cyrene-plugin";
+export const PANEL_SCHEME = "firefly-plugin";
 
 export interface PanelInvokeMessage {
-  protocol: typeof PANEL_PROTOCOL;
+  protocol: PanelProtocol;
   kind: "invoke";
   seq: number;
   channel: string;
   args: unknown[];
 }
 export interface PanelHeightMessage {
-  protocol: typeof PANEL_PROTOCOL;
+  protocol: PanelProtocol;
   kind: "height";
   height: number;
 }
@@ -46,7 +48,7 @@ export function clampPanelHeight(height: number): number {
 export function parsePanelMessage(data: unknown): PanelInboundMessage | null {
   if (typeof data !== "object" || data === null) return null;
   const message = data as Record<string, unknown>;
-  if (message.protocol !== PANEL_PROTOCOL) return null;
+  if (message.protocol !== PANEL_PROTOCOL && message.protocol !== LEGACY_PANEL_PROTOCOL) return null;
   if (message.kind === "invoke") {
     if (
       typeof message.seq !== "number"
@@ -55,11 +57,11 @@ export function parsePanelMessage(data: unknown): PanelInboundMessage | null {
     ) {
       return null;
     }
-    return { protocol: PANEL_PROTOCOL, kind: "invoke", seq: message.seq, channel: message.channel, args: message.args };
+    return { protocol: message.protocol, kind: "invoke", seq: message.seq, channel: message.channel, args: message.args };
   }
   if (message.kind === "height") {
     if (typeof message.height !== "number") return null;
-    return { protocol: PANEL_PROTOCOL, kind: "height", height: message.height };
+    return { protocol: message.protocol, kind: "height", height: message.height };
   }
   return null;
 }

@@ -290,7 +290,7 @@ const TIMELINE_POST_EXCERPT_CHARS = 60;
 /** 评论区显示作者名：用户/流萤用习惯称呼，角色用本名 */
 function authorLabel(author: MomentAuthor): string {
   if (author === "user") return "用户";
-  if (author === "cyrene") return "流萤";
+  if (author === "firefly") return "流萤";
   return author;
 }
 

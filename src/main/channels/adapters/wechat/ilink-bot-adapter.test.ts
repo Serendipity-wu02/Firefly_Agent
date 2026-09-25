@@ -4,7 +4,7 @@ import type { OutgoingMessage } from "../../types";
 
 vi.mock("electron", () => ({
   app: {
-    getPath: () => "C:/tmp/cyrene-test-user-data",
+    getPath: () => "C:/tmp/firefly-test-user-data",
   },
 }));
 
@@ -228,7 +228,7 @@ describe("ILinkBotAdapter inbound media", () => {
     (adapter as any).onMessage = onMessage;
     (adapter as any).client = { sendText: vi.fn() };
     (adapter as any).downloadMedia = vi.fn(async () => ({
-      filePath: "C:/tmp/cyrene-test-user-data/channels/cache/wechat-msg-1-image.png",
+      filePath: "C:/tmp/firefly-test-user-data/channels/cache/wechat-msg-1-image.png",
       mime: "image/png",
     }));
 
@@ -265,7 +265,7 @@ describe("ILinkBotAdapter inbound media", () => {
       attachments: [
         {
           kind: "image",
-          filePath: "C:/tmp/cyrene-test-user-data/channels/cache/wechat-msg-1-image.png",
+          filePath: "C:/tmp/firefly-test-user-data/channels/cache/wechat-msg-1-image.png",
           mime: "image/png",
           caption: "微信图片",
         },

@@ -36,13 +36,13 @@ export function registerMomentsIpc(ipcOption?: IpcScope): void {
   momentsStore.onMomentsChanged(() => broadcastChanged());
 
   // 流萤行为的提交时开关复核：AI 思考期间关闭开关时，迟到的结果被 moments_disabled 拒绝。
-  // 反应（点赞/评论）受 cyreneMomentsReactionsEnabled 约束；
-  // 主动发帖受 cyreneMomentsPostingEnabled 约束（提交时二道闸，与 service 前置闸互补）。
+  // 反应（点赞/评论）受 fireflyMomentsReactionsEnabled 约束；
+  // 主动发帖受 fireflyMomentsPostingEnabled 约束（提交时二道闸，与 service 前置闸互补）。
   momentsStore.setFireflyBehaviorGate((behavior) => {
     const settings = loadGeneralSettings();
     if (!settings.momentsEnabled) return false;
-    if (behavior === "reaction") return settings.cyreneMomentsReactionsEnabled;
-    if (behavior === "posting") return settings.cyreneMomentsPostingEnabled;
+    if (behavior === "reaction") return settings.fireflyMomentsReactionsEnabled;
+    if (behavior === "posting") return settings.fireflyMomentsPostingEnabled;
     return true;
   });
 
@@ -61,7 +61,7 @@ export function registerMomentsIpc(ipcOption?: IpcScope): void {
   // 点名名单：渲染端选择框的数据源（流萤 + 全部入驻角色，昵称按名排序）
   ipc.handle(IPC.MOMENTS_LIST_CHARACTERS, () => {
     const characters = [...characterRegistry()].sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
-    return ["cyrene", ...characters];
+    return ["firefly", ...characters];
   });
 
   ipc.handle(IPC.MOMENTS_LIST, (_event, options?: { limit?: number; before?: number }) =>

@@ -39,7 +39,7 @@ vi.mock("../tasks/task-character-pool", () => ({
 
 /** 造一个 prompts 根目录，内含 moments_personas/<files>；返回值可直接作 promptDirectories */
 function writePersonasDir(files: Record<string, string>): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-personas-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-personas-"));
   const dir = path.join(root, "moments_personas");
   fs.mkdirSync(dir, { recursive: true });
   for (const [name, content] of Object.entries(files)) {
@@ -313,7 +313,7 @@ describe("formatCharacterTimeline", () => {
       entries: [
         {
           kind: "like",
-          post: makePost({ author: "cyrene", text: "今天的风很舒服呢", createdAt: ts("2026-09-05T10:12:00") }),
+          post: makePost({ author: "firefly", text: "今天的风很舒服呢", createdAt: ts("2026-09-05T10:12:00") }),
           reaction: makeReaction({ createdAt: ts("2026-09-05T10:30:00") }),
         },
       ],

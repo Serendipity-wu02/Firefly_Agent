@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { ensureFireflyDataDirectory } from "../migration/firefly-data";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
@@ -11,7 +12,6 @@ import type {
   TaskTranscriptMessage,
 } from "../../shared/task-session";
 
-const ROOT_DIR_NAME = "cyrene-tasks";
 const SESSIONS_DIR_NAME = "sessions";
 const INDEX_FILE_NAME = "index.json";
 const TRACE_LIMIT = 2_000;
@@ -123,7 +123,7 @@ export class TaskSessionStore {
   private index = new Map<string, TaskSessionIndexRow>();
 
   constructor(root: string, options: TaskSessionStoreOptions = {}) {
-    this.taskRoot = path.join(root, ROOT_DIR_NAME);
+    this.taskRoot = ensureFireflyDataDirectory(root, "tasks");
     this.sessionsDir = path.join(this.taskRoot, SESSIONS_DIR_NAME);
     this.indexPath = path.join(this.taskRoot, INDEX_FILE_NAME);
     this.now = options.now ?? Date.now;
@@ -240,11 +240,10 @@ export class TaskSessionStore {
     if (!fs.existsSync(file)) return null;
     try {
       const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
-      return isTaskSession(parsed)
-        ? { ...parsed, todoItems: cloneTodoItems((parsed as Partial<TaskSession>).todoItems) }
-        : null;
+      if (!isTaskSession(parsed)) throw new Error("TASK_SESSION_READ_FAILED");
+      return { ...parsed, todoItems: cloneTodoItems((parsed as Partial<TaskSession>).todoItems) };
     } catch {
-      return null;
+      throw new Error("TASK_SESSION_READ_FAILED: 原文件已保留");
     }
   }
 
@@ -266,18 +265,18 @@ export class TaskSessionStore {
     if (!fs.existsSync(this.indexPath)) return;
     try {
       const parsed = JSON.parse(fs.readFileSync(this.indexPath, "utf8")) as unknown;
-      if (!Array.isArray(parsed)) return;
+      if (!Array.isArray(parsed)) throw new Error("TASK_INDEX_READ_FAILED");
       for (const row of parsed) {
-        if (!row || typeof row !== "object") continue;
+        if (!row || typeof row !== "object") throw new Error("TASK_INDEX_READ_FAILED");
         const candidate = row as Partial<TaskSessionIndexRow>;
         if (typeof candidate.id !== "string"
           || typeof candidate.parentConversationId !== "string"
           || !isTaskStatus(candidate.status)
-          || typeof candidate.updatedAt !== "number") continue;
+          || typeof candidate.updatedAt !== "number") throw new Error("TASK_INDEX_READ_FAILED");
         this.index.set(candidate.id, candidate as TaskSessionIndexRow);
       }
     } catch {
-      this.index.clear();
+      throw new Error("TASK_INDEX_READ_FAILED: 原文件已保留");
     }
   }
 

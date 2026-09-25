@@ -9,22 +9,22 @@ const repoRoot = path.resolve(scriptDirectory, "..", "..");
 const manifestPath = path.join(
   repoRoot,
   "native",
-  "cyrene-screenshot",
+  "firefly-screenshot",
   "Cargo.toml",
 );
 const builtHelperPath = path.join(
   repoRoot,
   "native",
-  "cyrene-screenshot",
+  "firefly-screenshot",
   "target",
   "release",
-  "cyrene-screenshot.exe",
+  "firefly-screenshot.exe",
 );
 const stagedHelperPath = path.join(
   repoRoot,
   "resources",
   "bin",
-  "cyrene-screenshot.exe",
+  "firefly-screenshot.exe",
 );
 
 const result = spawnSync("cargo", [

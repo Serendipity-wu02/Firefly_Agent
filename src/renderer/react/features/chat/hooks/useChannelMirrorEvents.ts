@@ -2,7 +2,7 @@
 // 形式展示在聊天窗口当前会话里（不落库，切会话即消失）。
 //
 // 主进程 dispatcher 在 mirrorToDesktop 开启时通过 AGUI_EVENT CUSTOM
-// "cyrene.botMessage" 推送到聊天窗口；若该外部聊天已绑定到当前正在查看
+// "firefly.botMessage" 推送到聊天窗口；若该外部聊天已绑定到当前正在查看
 // 的会话，消息会经绑定镜像落库并触发 CHATS_CHANGED 刷新展示，此处跳过
 // 避免同一条消息出现两次。
 
@@ -112,7 +112,7 @@ export function useChannelMirrorEvents(deps: UseChannelMirrorEventsDeps): void {
 
     const off = api.onEvent((rawEvent) => {
       const event = rawEvent as { type?: string; name?: string; value?: unknown };
-      if (event.type !== "CUSTOM" || event.name !== "cyrene.botMessage") return;
+      if (event.type !== "CUSTOM" || event.name !== "firefly.botMessage") return;
       const payload = parsePayload(event.value);
       if (!payload) return;
 

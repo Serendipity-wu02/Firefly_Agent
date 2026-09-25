@@ -60,7 +60,7 @@ describe("HarnessRunStore", () => {
       state: { todoItems: [{ id: "inspect", status: "in_progress" }] },
       toolOutputs: [{ toolCallId: "call-1" }],
     });
-    expect(fs.existsSync(path.join(root, "cyrene-runs", "sessions", "run-1.json"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "firefly-runs", "sessions", "run-1.json"))).toBe(true);
   });
 
   it("persists a committed compaction cache epoch in the run checkpoint", () => {
@@ -132,8 +132,8 @@ describe("HarnessRunStore", () => {
     const { root, store } = createStore();
     createRun(store);
 
-    const sessionRaw = fs.readFileSync(path.join(root, "cyrene-runs", "sessions", "run-1.json"), "utf8");
-    const indexRaw = fs.readFileSync(path.join(root, "cyrene-runs", "index.json"), "utf8");
+    const sessionRaw = fs.readFileSync(path.join(root, "firefly-runs", "sessions", "run-1.json"), "utf8");
+    const indexRaw = fs.readFileSync(path.join(root, "firefly-runs", "index.json"), "utf8");
     // 机器格式（events.jsonl 本就单行）：去掉 pretty-print 后文件不得含换行
     expect(sessionRaw).not.toContain("\n");
     expect(indexRaw).not.toContain("\n");
@@ -146,7 +146,7 @@ describe("HarnessRunStore", () => {
     try {
       const { root, store } = createStore();
       createRun(store);
-      const indexPath = path.join(root, "cyrene-runs", "index.json");
+      const indexPath = path.join(root, "firefly-runs", "index.json");
       const afterCreate = fs.readFileSync(indexPath, "utf8");
 
       store.recordTool("run-1", { toolCallId: "call-1", toolName: "read_file", sideEffect: "read_only", status: "started" });
@@ -175,7 +175,7 @@ describe("HarnessRunStore", () => {
       // 调度 lazy 写（pending 状态下进入终态）
       store.recordTool("run-1", { toolCallId: "call-1", toolName: "read_file", sideEffect: "read_only", status: "committed" });
       store.markTerminal("run-1", "completed");
-      const indexPath = path.join(root, "cyrene-runs", "index.json");
+      const indexPath = path.join(root, "firefly-runs", "index.json");
       // 未推进 fake timer，index 已是终态（markTerminal 立即刷盘）
       expect(JSON.parse(fs.readFileSync(indexPath, "utf8")))
         .toEqual([expect.objectContaining({ runId: "run-1", status: "completed" })]);
@@ -195,7 +195,7 @@ describe("HarnessRunStore", () => {
     store.markTerminal("run-1", "completed");
 
     // 模拟防抖/崩溃遗留的 stale index：行还是 running，但 session 文件已是 completed
-    const indexPath = path.join(root, "cyrene-runs", "index.json");
+    const indexPath = path.join(root, "firefly-runs", "index.json");
     const rows = JSON.parse(fs.readFileSync(indexPath, "utf8")) as Array<{ runId: string; status: string }>;
     rows[0]!.status = "running";
     fs.writeFileSync(indexPath, JSON.stringify(rows, null, 2), "utf8");
@@ -209,11 +209,11 @@ describe("HarnessRunStore", () => {
   it("drops orphan index rows whose session file is missing on initialize", () => {
     const { root, store } = createStore();
     createRun(store);
-    fs.rmSync(path.join(root, "cyrene-runs", "sessions", "run-1.json"));
+    fs.rmSync(path.join(root, "firefly-runs", "sessions", "run-1.json"));
 
     new HarnessRunStore(root);
 
-    const rows = JSON.parse(fs.readFileSync(path.join(root, "cyrene-runs", "index.json"), "utf8"));
+    const rows = JSON.parse(fs.readFileSync(path.join(root, "firefly-runs", "index.json"), "utf8"));
     expect(rows).toEqual([]);
   });
 

@@ -384,7 +384,7 @@ describe("write_file Review 基线捕获（写盘前）", () => {
 
   /** 列出某 run 的 before/ 基线文件（含 .absent 后缀）。 */
   function listBaselines(runId: string): string[] {
-    const dir = path.join(tmpDir, "cyrene-runs", "reviews", runId, "before");
+    const dir = path.join(tmpDir, "firefly-runs", "reviews", runId, "before");
     return fs.existsSync(dir) ? fs.readdirSync(dir) : [];
   }
 
@@ -400,7 +400,7 @@ describe("write_file Review 基线捕获（写盘前）", () => {
 
     const baselines = listBaselines("run-wf-1");
     expect(baselines).toHaveLength(1);
-    expect(fs.readFileSync(path.join(tmpDir, "cyrene-runs", "reviews", "run-wf-1", "before", baselines[0]), "utf8"))
+    expect(fs.readFileSync(path.join(tmpDir, "firefly-runs", "reviews", "run-wf-1", "before", baselines[0]), "utf8"))
       .toBe("旧内容\n第二行\n");
   });
 
@@ -419,6 +419,6 @@ describe("write_file Review 基线捕获（写盘前）", () => {
   it("无 runId 时不写基线", async () => {
     const target = path.join(tmpDir, "plain.md");
     await writeTool()!.execute({ path: target, content: "x" });
-    expect(fs.existsSync(path.join(tmpDir, "cyrene-runs"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, "firefly-runs"))).toBe(false);
   });
 });

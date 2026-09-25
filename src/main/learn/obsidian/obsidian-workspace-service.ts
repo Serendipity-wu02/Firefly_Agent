@@ -231,8 +231,8 @@ export class ObsidianWorkspaceService {
     }
 
     // 禁止读写应用内部数据目录：.obsidian/ 由 Obsidian 维护，
-    // .cyrene/ 由同进程外部的 Cyrene Notes 维护。
-    const protectedDirs = [".obsidian", ".cyrene"];
+    // .firefly/ 是旧版内部目录；.firefly/ 是当前内部目录。
+    const protectedDirs = [".obsidian", LEGACY_INTERNAL_DIRECTORY, ".firefly"];
     for (const dir of protectedDirs) {
       if (
         normalized === dir ||
@@ -290,7 +290,7 @@ export class ObsidianWorkspaceService {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       for (const entry of entries) {
         // 跳过应用内部数据目录（listFiles 对外只暴露笔记扩展名文件）
-        if (entry.isDirectory() && (entry.name === ".obsidian" || entry.name === ".cyrene")) continue;
+        if (entry.isDirectory() && (entry.name === ".obsidian" || entry.name === LEGACY_INTERNAL_DIRECTORY || entry.name === ".firefly")) continue;
 
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
@@ -594,7 +594,7 @@ export class ObsidianWorkspaceService {
    * 原子写入：先写临时文件，再 rename。
    */
   private async atomicWrite(filePath: string, content: string): Promise<void> {
-    const tmpPath = filePath + ".cyrene-tmp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    const tmpPath = filePath + ".firefly-tmp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
 
     try {
       // 确保目录存在
@@ -640,3 +640,4 @@ export class ObsidianWorkspaceService {
 // ── 全局单例 ─────────────────────────────────────────────────
 
 export const obsidianWorkspace = new ObsidianWorkspaceService();
+import { LEGACY_INTERNAL_DIRECTORY } from "../../../shared/legacy-firefly-contracts";

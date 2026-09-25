@@ -4,7 +4,7 @@
 
 | 路径 | 来源 | Git 状态 | 用途 |
 | --- | --- | --- | --- |
-| `bin/cyrene-screenshot.exe` | `npm run build:screenshot-helper` | 忽略 | 截图辅助程序；打包时复制到发布包的 `bin/`。 |
+| `bin/firefly-screenshot.exe` | `npm run build:screenshot-helper` | 忽略 | 截图辅助程序；打包时复制到发布包的 `bin/`。 |
 | `bin/mpv/` | 本地准备的外部播放器文件 | 忽略 | 通用 mpv 后端使用的播放器文件；仓库不包含二进制。 |
 | `mingit/` | `npm run prepare:mingit` | 忽略 | MinGit 回退方案；优先使用用户系统已安装的 Git。 |
 

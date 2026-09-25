@@ -143,7 +143,7 @@ async function downloadFile(url, destination) {
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          `$ProgressPreference='SilentlyContinue'; $c=New-Object System.Net.WebClient; $c.Headers.Add('User-Agent','cyrene-prepare-mpv'); $c.DownloadFile('${url.replace(/'/g, "''")}','${destination.replace(/'/g, "''")}')`,
+          `$ProgressPreference='SilentlyContinue'; $c=New-Object System.Net.WebClient; $c.Headers.Add('User-Agent','firefly-prepare-mpv'); $c.DownloadFile('${url.replace(/'/g, "''")}','${destination.replace(/'/g, "''")}')`,
         ],
         { windowsHide: true, timeout: 180_000 },
       );

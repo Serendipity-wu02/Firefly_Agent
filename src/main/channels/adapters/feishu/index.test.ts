@@ -35,13 +35,13 @@ describe("FeishuAdapter outgoing media", () => {
   });
 
   it("transcodes an audio file to Ogg Opus with mpv", async () => {
-    const inputPath = path.join(os.tmpdir(), `cyrene-feishu-input-${Date.now()}.wav`);
+    const inputPath = path.join(os.tmpdir(), `firefly-feishu-input-${Date.now()}.wav`);
     fs.writeFileSync(inputPath, Buffer.from("RIFF-test-audio"));
     temporaryFiles.push(inputPath);
 
     const calls: Array<{ executable: string; args: string[] }> = [];
     const outputPath = await transcodeAudioFileToFeishuOpus(inputPath, {
-      resolveMpvBinary: () => "C:/Cyrene/mpv.exe",
+      resolveMpvBinary: () => "C:/Firefly/mpv.exe",
       runMpv: async (executable: string, args: string[]) => {
         calls.push({ executable, args });
         const outputArg = args.find((arg) => arg.startsWith("--o="));
@@ -54,7 +54,7 @@ describe("FeishuAdapter outgoing media", () => {
     expect(fs.readFileSync(outputPath).subarray(0, 4).toString("ascii")).toBe("OggS");
     expect(path.extname(outputPath)).toBe(".opus");
     expect(calls).toEqual([{
-      executable: "C:/Cyrene/mpv.exe",
+      executable: "C:/Firefly/mpv.exe",
       args: expect.arrayContaining([
         "--no-config",
         "--no-video",
@@ -66,13 +66,13 @@ describe("FeishuAdapter outgoing media", () => {
   });
 
   it("rejects and removes output when mpv does not produce Ogg Opus", async () => {
-    const inputPath = path.join(os.tmpdir(), `cyrene-feishu-invalid-${Date.now()}.wav`);
+    const inputPath = path.join(os.tmpdir(), `firefly-feishu-invalid-${Date.now()}.wav`);
     fs.writeFileSync(inputPath, Buffer.from("RIFF-test-audio"));
     temporaryFiles.push(inputPath);
     let generatedPath = "";
 
     await expect(transcodeAudioFileToFeishuOpus(inputPath, {
-      resolveMpvBinary: () => "C:/Cyrene/mpv.exe",
+      resolveMpvBinary: () => "C:/Firefly/mpv.exe",
       runMpv: async (_executable: string, args: string[]) => {
         const outputArg = args.find((arg) => arg.startsWith("--o="));
         if (!outputArg) throw new Error("missing output argument");
@@ -85,7 +85,7 @@ describe("FeishuAdapter outgoing media", () => {
   });
 
   it("lets the SDK resolve duration from the converted Opus file", async () => {
-    const opusPath = path.join(os.tmpdir(), `cyrene-feishu-${Date.now()}.opus`);
+    const opusPath = path.join(os.tmpdir(), `firefly-feishu-${Date.now()}.opus`);
     fs.writeFileSync(opusPath, Buffer.from("OggS-opus-audio"));
     temporaryFiles.push(opusPath);
     const send = vi.fn(async () => ({ messageId: "om_audio" }));

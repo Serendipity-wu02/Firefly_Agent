@@ -495,7 +495,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         // ── TTS IPC ──
         registerTtsIpc({ ipc, ttsSessionService: services.ttsSession });
 
-        // 聊天会话存储 IPC（chats-store.initialize 建好 cyrene-chats 目录并加载 index）
+        // 聊天会话存储 IPC（chats-store.initialize 建好 firefly-chats 目录并加载 index）
         registerChatsIpc(ipc, {
           llmClient: services.llm,
           isPrimaryModelBusy: hasActiveConversationRun,

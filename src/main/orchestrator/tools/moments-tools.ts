@@ -18,7 +18,7 @@ const LOG_PREFIX = "[MomentsTools]";
 
 /** 作者在工具输出里的显示名：流萤是 AI 自己，user 是主人，角色原名直出 */
 function authorLabel(author: string): string {
-  if (author === "cyrene") return "我";
+  if (author === "firefly") return "我";
   if (author === "user") return "主人";
   return author;
 }
@@ -129,7 +129,7 @@ export function registerMomentsTools(): void {
         return "[错误] text 不能为空，收到参数键：" + JSON.stringify(Object.keys(args));
       }
       const title = typeof args.title === "string" && args.title.trim() ? args.title.trim() : undefined;
-      const result = await momentsService.cyreneCreatePostFromTool({ title, text });
+      const result = await momentsService.fireflyCreatePostFromTool({ title, text });
       if (!result.applied) {
         if (result.reason === "moments_disabled") {
           return "[moments_post] 没能发出去：朋友圈或我的发帖开关当前是关闭的";
@@ -185,7 +185,7 @@ export function registerMomentsTools(): void {
       }
 
       if (action === "like") {
-        const result = await momentsService.cyreneLikeFromTool(postId);
+        const result = await momentsService.fireflyLikeFromTool(postId);
         if (!result.applied) {
           if (result.reason === "reaction_exists") {
             return `[moments_interact] 这条我已经点过赞了（postId: ${postId}）`;
@@ -207,7 +207,7 @@ export function registerMomentsTools(): void {
         return "[错误] action=comment 时 content 不能为空，收到参数键：" + JSON.stringify(Object.keys(args));
       }
       const replyTo = typeof args.replyTo === "string" && args.replyTo ? args.replyTo : undefined;
-      const result = await momentsService.cyreneCommentFromTool({ postId, content, replyTo });
+      const result = await momentsService.fireflyCommentFromTool({ postId, content, replyTo });
       if (!result.applied) {
         if (result.reason === "post_not_found" || result.reason === "reply_to_not_found") {
           return `[moments_interact] 找不到目标动态或评论（postId: ${postId}${replyTo ? `, replyTo: ${replyTo}` : ""}），先用 moments_view 确认`;

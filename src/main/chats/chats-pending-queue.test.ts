@@ -46,7 +46,7 @@ function entry(overrides: Partial<PendingChatMessageInput> = {}): PendingChatMes
 describe("chats pending queue store", () => {
   beforeEach(() => {
     vi.resetModules();
-    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-pending-queue-"));
+    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-pending-queue-"));
   });
 
   it("入队后重启（重新 initialize）队列完整恢复，含顺序与附件引用", async () => {
@@ -186,7 +186,7 @@ describe("chats pending queue store", () => {
   });
 
   it("旧会话无 pendingMessages 字段视为空队列（向后兼容）", async () => {
-    const root = path.join(mocks.userDataDir, "cyrene-chats");
+    const root = path.join(mocks.userDataDir, "firefly-chats");
     const sessionsDir = path.join(root, "sessions");
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.writeFileSync(path.join(root, "index.json"), JSON.stringify([{
@@ -382,7 +382,7 @@ describe("chats pending queue store", () => {
 describe("chats pending claim & dispatch", () => {
   beforeEach(() => {
     vi.resetModules();
-    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-pending-claim-"));
+    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-pending-claim-"));
   });
 
   /** 建会话并入队三条消息（带序号），返回会话 id。 */
@@ -613,7 +613,7 @@ describe("chats pending claim & dispatch", () => {
 describe("chats pending edit & adjust", () => {
   beforeEach(() => {
     vi.resetModules();
-    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-pending-edit-"));
+    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-pending-edit-"));
   });
 
   /** 建会话并入队两条消息，返回会话 id 与首条入队时间。 */
@@ -1032,7 +1032,7 @@ describe("chats pending queue IPC", () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-pending-ipc-"));
+    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-pending-ipc-"));
   });
 
   it("入队/读取/删除三个 handler 透传结果且校验载荷", async () => {

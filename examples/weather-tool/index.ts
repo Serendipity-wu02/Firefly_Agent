@@ -6,7 +6,7 @@
  * 2. 网络请求降级：有 OpenWeather 密钥走官方接口，没有或失败时走免密钥的 Open-Meteo
  * 3. ctx.storage 记住上次查询的城市，作为下次省略参数时的默认值
  */
-import type { CyrenePlugin, PluginTool } from "@playa0v0/cyrene-plugin-sdk";
+import type { FireflyPlugin, PluginTool } from "@firefly/plugin-sdk";
 
 /** 插件状态在模块内闭包持有：密钥缓存与上次查询城市。 */
 let weatherApiKey: string | undefined;
@@ -78,7 +78,7 @@ const queryTool: PluginTool = {
   },
 };
 
-const plugin: CyrenePlugin = {
+const plugin: FireflyPlugin = {
   async register(ctx) {
     // secrets 只能从 PluginContext 拿（依赖注入），register 阶段缓存供工具闭包使用
     weatherApiKey = await ctx.deps.secrets?.get("openweathermap_key");

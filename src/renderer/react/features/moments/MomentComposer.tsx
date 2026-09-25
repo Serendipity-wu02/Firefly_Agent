@@ -73,7 +73,7 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
     if (!picker) return [];
     const query = picker.query;
     return mentionNames.filter((name) =>
-      name === "cyrene" ? query === "" || t("moments.mention.fireflyOptionLabel").startsWith(query) : name.startsWith(query),
+      name === "firefly" ? query === "" || t("moments.mention.fireflyOptionLabel").startsWith(query) : name.startsWith(query),
     );
   }, [picker, mentionNames, t]);
 
@@ -106,7 +106,7 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
   /** 把 @候选词 替换为完整 @昵称（带尾随空格），光标落在空格后 */
   function pickMention(nickname: string) {
     if (!picker) return;
-    const display = nickname === "cyrene" ? t("moments.mention.fireflyOptionLabel") : nickname;
+    const display = nickname === "firefly" ? t("moments.mention.fireflyOptionLabel") : nickname;
     const next =
       text.slice(0, picker.at) + `@${display} ` + text.slice(Math.min(picker.caret, text.length));
     setText(next);
@@ -177,9 +177,9 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
    *  不依赖选择框状态——手打的 @ 同样有效，删掉 @ 文本则点名自动消失。 */
   function deriveMentions(): string[] {
     const names: string[] = [];
-    if (text.includes(`@${t("moments.mention.fireflyOptionLabel")}`)) names.push("cyrene");
+    if (text.includes(`@${t("moments.mention.fireflyOptionLabel")}`)) names.push("firefly");
     for (const name of mentionNames) {
-      if (name !== "cyrene" && text.includes(`@${name}`)) names.push(name);
+      if (name !== "firefly" && text.includes(`@${name}`)) names.push(name);
     }
     return [...new Set(names)];
   }
@@ -238,7 +238,7 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
             <div className="moments-composer__mention-empty">{t("moments.mention.pickerEmpty")}</div>
           ) : (
             candidates.map((name, index) => {
-              const isFirefly = name === "cyrene";
+              const isFirefly = name === "firefly";
               const display = isFirefly ? t("moments.mention.fireflyOptionLabel") : name;
               // 主角使用独立头像；角色头像取当前任务角色资源池
               const avatar = isFirefly ? null : getCharacterAvatar(name);

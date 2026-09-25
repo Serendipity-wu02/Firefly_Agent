@@ -11,6 +11,11 @@ function form(id: string): string {
 }
 
 describe("appearance settings markup", () => {
+	  it("uses the Firefly settings navigation and panel identifiers", () => {
+	    expect(html).toContain('data-section="firefly"');
+	    expect(html).toContain('id="firefly-panel" data-panel="firefly"');
+	    expect(form("firefly-panel")).toContain('id="firefly-save-status"');
+	  });
 	  it("adds appearance navigation and renames general settings", () => {
 	    expect(html).toContain('data-section="appearance"');
 	    expect(html).toContain('data-section="general"><span><svg class="nav-item__icon"');

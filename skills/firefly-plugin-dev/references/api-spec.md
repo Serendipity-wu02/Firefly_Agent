@@ -286,16 +286,16 @@ await lease.release();                    // 幂等；归还输入权
 `E_CAPABILITY_UNAVAILABLE` / `E_INVALID_ARGUMENT` / `E_NOT_FOUND` / `E_NOT_OWNER` / `E_STORAGE_UNAVAILABLE` / `E_SPEECH_INPUT_BUSY` / `E_NO_ACTIVE_INPUT_TARGET` / `E_PLUGIN_STOPPING` / `E_INTERNAL`
 
 ```js
-import { isPluginHostError } from "@playa0v0/cyrene-plugin-sdk";
+import { isPluginHostError } from "@firefly/plugin-sdk";
 try { await lease.commit(text); }
 catch (error) { if (isPluginHostError(error)) { /* error.code 分支 */ } }
 ```
 
-# SDK（@playa0v0/cyrene-plugin-sdk）
+# SDK（@firefly/plugin-sdk）
 
-- `npm install @playa0v0/cyrene-plugin-sdk`；同时输出 ESM 和 CJS；插件编译期依赖，终端用户不需要安装
+- `npm install /path/to/firefly-plugin-sdk-0.2.0.tgz`；同时输出 ESM 和 CJS；插件编译期依赖，终端用户不需要安装
 - 导出全部公开类型、`CURRENT_PLUGIN_API_VERSION`、`PLUGIN_CAPABILITIES`、`validateManifestData()`
-- `@playa0v0/cyrene-plugin-sdk/testing` 导出 `createMockPluginContext()` / `assertPluginTool()` / `assertValidManifest()`：脱离宿主验证插件契约
+- `@firefly/plugin-sdk/testing` 导出 `createMockPluginContext()` / `assertPluginTool()` / `assertValidManifest()`：脱离宿主验证插件契约
 
 ---
 # 生命周期与状态
