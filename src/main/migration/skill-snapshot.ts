@@ -14,16 +14,21 @@ const ORIGINAL_FILES: Readonly<Record<string, string>> = {
   "xlsx/scripts/xlsx_workspace.py": "8bb2759728474590455887754ba0a1dad364fb9336f0a7fcde65c799e71929b3",
 };
 
-export function replaceUnmodifiedSkill(file: string, expectedHash: string, replacement: Buffer): boolean {
+function readUnmodifiedSkill(file: string, expectedHash: string): Buffer | null {
   let original: Buffer;
   try {
-    if (!fs.lstatSync(file).isFile()) return false;
+    if (!fs.lstatSync(file).isFile()) return null;
     original = fs.readFileSync(file);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
-  if (createHash("sha256").update(original).digest("hex") !== expectedHash) return false;
+  return createHash("sha256").update(original).digest("hex") === expectedHash ? original : null;
+}
+
+export function replaceUnmodifiedSkill(file: string, expectedHash: string, replacement: Buffer): boolean {
+  const original = readUnmodifiedSkill(file, expectedHash);
+  if (!original) return false;
   const backup = `${file}.pre-firefly.bak`;
   if (!fs.existsSync(backup)) fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL);
   const temporary = `${file}.migration-${randomUUID()}`;
@@ -39,12 +44,21 @@ export function replaceUnmodifiedSkill(file: string, expectedHash: string, repla
 
 export async function migrateInstalledSkillSnapshot(userRoot: string, archive: string | null): Promise<void> {
   if (!archive || !fs.existsSync(archive) || !fs.existsSync(userRoot)) return;
+  const root = fs.realpathSync(userRoot);
+  const pending: Array<[string, string]> = [];
+  for (const [relative, hash] of Object.entries(ORIGINAL_FILES)) {
+    const target = path.join(root, relative);
+    if (!fs.existsSync(target)) continue;
+    const location = path.relative(root, fs.realpathSync(target));
+    if (location === ".." || location.startsWith(`..${path.sep}`) || path.isAbsolute(location)) throw new Error("SKILL_MIGRATION_PATH_ESCAPE");
+    if (readUnmodifiedSkill(target, hash)) pending.push([relative, hash]);
+  }
+  if (pending.length === 0) return;
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-migration-"));
   try {
     const { default: extract } = await import("extract-zip");
     await extract(archive, { dir: temporary });
-    const root = fs.realpathSync(userRoot);
-    for (const [relative, hash] of Object.entries(ORIGINAL_FILES)) {
+    for (const [relative, hash] of pending) {
       const target = path.join(root, relative);
       if (!fs.existsSync(target)) continue;
       const location = path.relative(root, fs.realpathSync(target));

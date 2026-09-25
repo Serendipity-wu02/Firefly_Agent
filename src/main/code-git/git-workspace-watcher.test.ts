@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { createCodeGitIgnoredPredicate, createGitWorkspaceWatcher, type WorkspaceFsWatcher } from "./git-workspace-watcher";
@@ -94,34 +95,49 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
     const changed = vi.fn();
     const errors = vi.fn();
     const activeWatcher = createGitWorkspaceWatcher({ onWorkspaceChanged: changed, onError: errors, debounceMs: 20 });
+    let phase = "short-path-initialization";
+    const started = performance.now();
     try {
-      const shortBase = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:FIREFLY_WATCH_TEST_ROOT).ShortPath"], {
+      if (!process.env.ComSpec) throw new Error("ComSpec is required for the Windows short-path fixture");
+      const { stdout } = await promisify(execFile)(process.env.ComSpec, ["/d", "/s", "/c", 'for %I in ("%FIREFLY_WATCH_TEST_ROOT%") do @echo %~fsI'], {
         env: { ...process.env, FIREFLY_WATCH_TEST_ROOT: base },
         encoding: "utf8",
         windowsHide: true,
-      }).trim();
+        windowsVerbatimArguments: true,
+        signal: context.signal,
+        timeout: 5000,
+      });
+      const shortBase = stdout.trim();
+      expect(realpathSync.native(shortBase)).toBe(realpathSync.native(base));
       if (shortBase === base) context.skip("测试卷未提供 8.3 短路径");
+      phase = "subscribe";
       const root = path.join(shortBase, "workspace");
       const gitDir = path.join(shortBase, "metadata");
       mkdirSync(root);
       mkdirSync(gitDir);
       await activeWatcher.subscribe({ sessionId: "short-path", workspaceRoot: root, gitDir });
+      phase = "workspace-event";
       writeFileSync(path.join(root, "file.txt"), "public fixture");
       await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+      phase = "metadata-event";
       writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
       await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+      phase = "ignored-event";
       mkdirSync(path.join(root, "node_modules"));
       writeFileSync(path.join(root, "node_modules", "ignored.txt"), "ignored");
       await sleep(150);
       expect(changed).toHaveBeenCalledTimes(2);
+      phase = "close";
       await activeWatcher.dispose();
       writeFileSync(path.join(root, "after-close.txt"), "closed");
       await sleep(150);
       expect(changed).toHaveBeenCalledTimes(2);
       expect(errors).not.toHaveBeenCalled();
+      phase = "complete";
     } finally {
       await activeWatcher.dispose();
       rmSync(base, { recursive: true, force: true });
+      if (process.env.FIREFLY_VITEST_DIAGNOSTICS) console.info("[watch-fixture]", { phase, durationMs: performance.now() - started });
     }
   }, 15000);
 
