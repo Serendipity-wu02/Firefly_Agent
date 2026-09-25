@@ -15,7 +15,7 @@ export const FIREFLY_LOGO = [
 ] as const;
 
 export const BANNER_LINES = [
-  "♡ Firefly Agent ♡",
+  "♡ Firefly_Agent ♡",
   "Your Desktop AI Companion",
   "Chat · Work · Learn · Code",
 ] as const;

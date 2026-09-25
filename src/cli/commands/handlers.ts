@@ -16,7 +16,7 @@ export interface HandlerCtx {
 }
 
 function versionLine(ctx: HandlerCtx): string {
-  return `Firefly Agent v${ctx.version}`;
+  return `Firefly_Agent v${ctx.version}`;
 }
 
 export function cmdHello(): number {

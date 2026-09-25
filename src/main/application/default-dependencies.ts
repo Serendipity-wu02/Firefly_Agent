@@ -228,7 +228,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       writeStartupLog: () => {
         // banner 是纯文本（无色彩、无日志前缀），与 logger 输出区分开
         process.stdout.write("\n" + renderBanner() + "\n\n");
-        logger.info(LogTag.Runtime, "starting Firefly Agent");
+        logger.info(LogTag.Runtime, "starting Firefly_Agent");
       },
       createIpcScope: () => createIpcScope(),
       createSplashWindow: (options) => createSplashWindow({ isDev, onShown: options.onShown }),

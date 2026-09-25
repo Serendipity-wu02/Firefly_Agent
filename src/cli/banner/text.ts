@@ -3,7 +3,7 @@
  * The last line lists the supported modes; it is intentionally not the version.
  */
 export const BANNER_LINES = [
-  "♡ Firefly Agent ♡",
+  "♡ Firefly_Agent ♡",
   "Your Desktop AI Companion",
   "Chat · Work · Learn · Code",
 ] as const;

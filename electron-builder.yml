@@ -1,5 +1,5 @@
 appId: com.serendipitywu02.firefly
-productName: Firefly
+productName: Firefly_Agent
 publish: []
 directories:
   output: release
@@ -50,12 +50,12 @@ win:
   target:
     - nsis
 nsis:
-  artifactName: Firefly-Setup-${version}.${ext}
+  artifactName: Firefly_Agent-Setup-${version}.${ext}
   oneClick: false
   differentialPackage: false
   allowToChangeInstallationDirectory: true
   # Shortcut creation is controlled by the assisted install page below.
   createDesktopShortcut: false
   createStartMenuShortcut: true
-  menuCategory: Firefly
+  menuCategory: Firefly_Agent
   include: build/installer/installer.nsh

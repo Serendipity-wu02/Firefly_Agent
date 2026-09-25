@@ -112,7 +112,7 @@ describe("main: default (subsequent)", () => {
     // second run
     const code = await main([], VERSION);
     expect(code).toBe(0);
-    expect(stdoutBuf).toContain(`Firefly Agent v${VERSION}`);
+    expect(stdoutBuf).toContain(`Firefly_Agent v${VERSION}`);
     expect(stdoutBuf).toContain("Ready.");
     expect(stdoutBuf).not.toContain("Chat · Work · Learn · Code");
   });
