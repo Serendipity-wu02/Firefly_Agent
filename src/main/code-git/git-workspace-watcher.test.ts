@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { createCodeGitIgnoredPredicate, createGitWorkspaceWatcher, type WorkspaceFsWatcher } from "./git-workspace-watcher";
@@ -87,6 +88,42 @@ const itNative = process.platform === "win32" || process.platform === "darwin" ?
 
 describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () => {
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it.runIf(process.platform === "win32")("8.3 路径监视工作区与外部 gitDir，保留忽略规则并关闭句柄", async (context) => {
+    const base = mkdtempSync(path.join(tmpdir(), "firefly watcher long directory "));
+    const changed = vi.fn();
+    const errors = vi.fn();
+    const activeWatcher = createGitWorkspaceWatcher({ onWorkspaceChanged: changed, onError: errors, debounceMs: 20 });
+    try {
+      const shortBase = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:FIREFLY_WATCH_TEST_ROOT).ShortPath"], {
+        env: { ...process.env, FIREFLY_WATCH_TEST_ROOT: base },
+        encoding: "utf8",
+        windowsHide: true,
+      }).trim();
+      if (shortBase === base) context.skip("测试卷未提供 8.3 短路径");
+      const root = path.join(shortBase, "workspace");
+      const gitDir = path.join(shortBase, "metadata");
+      mkdirSync(root);
+      mkdirSync(gitDir);
+      await activeWatcher.subscribe({ sessionId: "short-path", workspaceRoot: root, gitDir });
+      writeFileSync(path.join(root, "file.txt"), "public fixture");
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+      writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+      mkdirSync(path.join(root, "node_modules"));
+      writeFileSync(path.join(root, "node_modules", "ignored.txt"), "ignored");
+      await sleep(150);
+      expect(changed).toHaveBeenCalledTimes(2);
+      await activeWatcher.dispose();
+      writeFileSync(path.join(root, "after-close.txt"), "closed");
+      await sleep(150);
+      expect(changed).toHaveBeenCalledTimes(2);
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      await activeWatcher.dispose();
+      rmSync(base, { recursive: true, force: true });
+    }
+  }, 15000);
 
   itNative("工作区文件变化触发一次防抖通知，忽略目录内的变化不触发", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "firefly-watch-"));

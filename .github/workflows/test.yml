@@ -52,3 +52,11 @@ jobs:
       # 全量测试：vitest.config.ts 的 include 即权威测试集，新增测试自动纳入门禁
       - name: Run full test suite
         run: ./scripts/ci/run-vitest.ps1
+
+      - name: Upload Vitest worker evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vitest-worker-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/firefly-vitest-diagnostics/
+          retention-days: 7

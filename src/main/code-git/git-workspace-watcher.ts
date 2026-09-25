@@ -152,7 +152,8 @@ function createNativeRecursiveWatcher(paths: string[], options: ChokidarOptions)
   };
 
   const attach = (watchRoot: string): void => {
-    const handle = fs.watch(watchRoot, { recursive: true, persistent: true }, (_eventType, filename) => {
+    const nativeRoot = process.platform === "win32" ? fs.realpathSync.native(watchRoot) : watchRoot;
+    const handle = fs.watch(nativeRoot, { recursive: true, persistent: true }, (_eventType, filename) => {
       if (typeof filename !== "string") {
         emit("change");
         return;
