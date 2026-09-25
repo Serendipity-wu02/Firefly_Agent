@@ -10,8 +10,9 @@ describe("Streamdown workspace file-link placeholder", () => {
     const href = "file:///E:/ws/src/a.ts#L12";
     const encoded = encodeStreamdownFileHref(href);
 
-    expect(encoded).toMatch(/^https:\/\/cyrene\.invalid\/__file-link__\//);
+    expect(encoded).toMatch(/^https:\/\/firefly\.invalid\/__file-link__\//);
     expect(decodeStreamdownFileHref(encoded)).toBe(href);
+    expect(decodeStreamdownFileHref(encoded.replace("firefly.invalid", "cyrene.invalid"))).toBe(href);
   });
 
   it("leaves non-file URLs unchanged", () => {
@@ -35,7 +36,7 @@ describe("Streamdown workspace file-link placeholder", () => {
 
     transform(tree);
 
-    expect(tree.children[0].properties.href).toMatch(/^https:\/\/cyrene\.invalid\/__file-link__\//);
+    expect(tree.children[0].properties.href).toMatch(/^https:\/\/firefly\.invalid\/__file-link__\//);
     expect(tree.children[1].properties.href).toBe("https://example.com");
   });
 });

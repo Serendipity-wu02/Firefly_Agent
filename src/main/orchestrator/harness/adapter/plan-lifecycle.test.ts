@@ -61,7 +61,7 @@ describe("harness plan lifecycle", () => {
     expect(trace).toEqual(["completeExecution"]);
     expect(sent).toEqual([expect.objectContaining({
       type: "CUSTOM",
-      name: "cyrene.plan.completed",
+      name: "firefly.plan.completed",
       runId: "run-1",
       value: { planPath: "C:\\plans\\plan.md", runStatus: "completed" },
     })]);

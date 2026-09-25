@@ -1,7 +1,7 @@
-// 第三方 skills 快照安装：首启把 vendor/cyrene-skills/skills-snapshot.zip
+// 第三方 skills 快照安装：首启把 vendor/firefly-skills/skills-snapshot.zip
 // 解压到 userData/skills（user 区），让应用拿到完整 skill 集合。
 //
-// 背景：仓库 skills/ 只保留自研 cyrene-*，第三方 skill 打成 zip 快照随仓库/
+// 背景：仓库 skills/ 只保留自研 firefly-*，第三方 skill 打成 zip 快照随仓库/
 // 安装包分发（见 scripts/packaging/build-skills-snapshot.mjs）。本模块在
 // initSkills 扫描前调用，用哨兵文件保证只安装一次：
 //   - 哨兵存在 → 跳过（已装过，不重复覆盖）

@@ -7,7 +7,7 @@ import { SEMVER_PATTERN } from "../shared/version";
 import { CURRENT_PLUGIN_API_VERSION } from "./api";
 import { validateManifestData } from "./manifest-validation";
 import type {
-  CyrenePlugin,
+  FireflyPlugin,
   PluginCapability,
   PluginManifest,
   PluginRecord,
@@ -15,7 +15,7 @@ import type {
 } from "./types";
 
 const MANIFEST_FILE = "manifest.json";
-/** 插件 id 语法：小写字母数字 + 连字符分段；必须保持 host-safe（充当 cyrene-plugin:// 的 origin host）。 */
+/** 插件 id 语法：小写字母数字 + 连字符分段；必须保持 host-safe（充当 firefly-plugin:// 的 origin host）。 */
 export const PLUGIN_ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const ID_RE = PLUGIN_ID_RE;
 // 版本规则统一来自 shared/version（与插件市场同一份），不再维护本地副本
@@ -236,7 +236,7 @@ export function clearPluginModuleCache(pluginDir: string): void {
 }
 
 /** 动态加载插件入口（.cjs/.js/.mjs 均可），归一化 default/named export */
-export async function loadPlugin(record: PluginRecord): Promise<CyrenePlugin> {
+export async function loadPlugin(record: PluginRecord): Promise<FireflyPlugin> {
   const entry = path.join(record.dir, record.manifest.entry);
   const ext = path.extname(entry).toLowerCase();
   let mod: Record<string, unknown>;
@@ -245,16 +245,16 @@ export async function loadPlugin(record: PluginRecord): Promise<CyrenePlugin> {
     const specifier = new URL(pathToFileURL(entry).href);
     esmImportGeneration += 1;
     specifier.searchParams.set(
-      "cyreneReload",
+      "fireflyReload",
       `${record.fingerprint}-${Date.now()}-${esmImportGeneration}`,
     );
     mod = await importEsmModule(specifier.href);
   } else {
     mod = require(entry) as Record<string, unknown>;
   }
-  const plugin = (mod.default ?? mod) as Partial<CyrenePlugin>;
+  const plugin = (mod.default ?? mod) as Partial<FireflyPlugin>;
   if (typeof plugin.register !== "function") {
     throw new Error(`插件 ${record.manifest.id} 入口未导出 register()`);
   }
-  return plugin as CyrenePlugin;
+  return plugin as FireflyPlugin;
 }

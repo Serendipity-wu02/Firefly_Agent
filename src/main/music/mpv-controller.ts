@@ -85,10 +85,10 @@ function defaultSocketPath(): string {
   // Windows: mpv --input-ipc-server 使用命名管道，路径必须是 \\.\pipe\name
   // Unix: 使用 Unix domain socket，放在 /tmp 下
   if (process.platform === "win32") {
-    return `\\\\.\\pipe\\mpv-cyrene-${process.pid}-${Date.now()}`;
+    return `\\\\.\\pipe\\mpv-firefly-${process.pid}-${Date.now()}`;
   }
   const tmp = os.tmpdir();
-  const name = `mpv-cyrene-${process.pid}-${Date.now()}.sock`;
+  const name = `mpv-firefly-${process.pid}-${Date.now()}.sock`;
   return path.join(tmp, name);
 }
 

@@ -15,7 +15,7 @@ vi.mock("../run-recovery", () => ({ prepareHarnessRecovery: vi.fn() }));
 vi.mock("../../tools/registry/tool-registry", () => ({
   toolRegistry: { getEnabledTools: vi.fn(() => []) },
 }));
-vi.mock("electron", () => ({ app: { getPath: vi.fn(() => "C:\\cyrene-preparation") } }));
+vi.mock("electron", () => ({ app: { getPath: vi.fn(() => "C:\\firefly-preparation") } }));
 
 import { prepareHarnessRun } from "./run-preparation";
 

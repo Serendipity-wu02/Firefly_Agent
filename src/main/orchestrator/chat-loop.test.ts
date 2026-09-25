@@ -322,7 +322,7 @@ describe("runChatLoop", () => {
     const adapter = new FakeAdapter();
     const onEvent = vi.fn();
     globalThis.fetch = vi.fn(async () => new Response([
-      'data: {"delta":"昔涟"}',
+      'data: {"delta":"流萤"}',
       "",
       'data: {"delta":"来啦♪","usage":{"input":4,"output":3}}',
       "",
@@ -348,8 +348,8 @@ describe("runChatLoop", () => {
       .filter((event) => event.type === "text_message_content")
       .map((event) => event.delta)
       .join("");
-    expect(deltas).toBe("昔涟来啦♪");
-    expect(result.reply).toBe("昔涟来啦♪");
+    expect(deltas).toBe("流萤来啦♪");
+    expect(result.reply).toBe("流萤来啦♪");
     expect(result.totalUsage).toEqual({ input: 4, output: 3 });
     expect(adapter.requests).toHaveLength(1);
     expect(adapter.requests[0].stream).toBe(true);
@@ -600,7 +600,7 @@ describe("ChatLoop transcript cross-loop continuity", () => {
   }
 
   it("feeds a chat turn's canonical assistant into the next tools-enabled round", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-crossloop-a-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-crossloop-a-"));
     const store = new ConversationTranscriptStore(root);
     const conversationId = "conv-cross-chat-work";
     try {
@@ -680,7 +680,7 @@ describe("ChatLoop transcript cross-loop continuity", () => {
   });
 
   it("feeds a tools round's tool messages into the next tools-disabled chat turn", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-crossloop-b-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-crossloop-b-"));
     const store = new ConversationTranscriptStore(root);
     const conversationId = "conv-cross-work-chat";
     try {

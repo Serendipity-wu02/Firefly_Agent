@@ -32,7 +32,7 @@ function makeComment(overrides: Partial<MomentComment> = {}): MomentComment {
   return {
     id: "comment_c1",
     postId: "moment_p1",
-    author: "cyrene",
+    author: "firefly",
     content: "辛苦了，早点休息。",
     createdAt: new Date("2026-09-04T18:47:00").getTime(),
     ...overrides,
@@ -42,7 +42,7 @@ function makeComment(overrides: Partial<MomentComment> = {}): MomentComment {
 function makeLike(overrides: Partial<MomentReaction> = {}): MomentReaction {
   return {
     postId: "moment_p1",
-    actor: "cyrene",
+    actor: "firefly",
     type: "like",
     createdAt: new Date("2026-09-04T18:47:00").getTime(),
     ...overrides,
@@ -79,15 +79,15 @@ describe("shouldRetrievePostContext 门控矩阵", () => {
   });
 });
 describe("buildRecentMomentsBlock（Layer 1）", () => {
-  it("48h 内动态按时间倒序输出，昔涟点赞/评论以标注体现，携带防注入声明", () => {
-    const cyrenePost = makePost({
+  it("48h 内动态按时间倒序输出，流萤点赞/评论以标注体现，携带防注入声明", () => {
+    const fireflyPost = makePost({
       id: "moment_cy",
-      author: "cyrene",
+      author: "firefly",
       text: "今天有点想偷懒。",
       createdAt: new Date("2026-09-04T18:40:00").getTime(),
     });
     const userPost = makePost({ id: "moment_u" });
-    const block = buildRecentMomentsBlock([cyrenePost, userPost], [makeLike({ postId: "moment_u" })], NOW);
+    const block = buildRecentMomentsBlock([fireflyPost, userPost], [makeLike({ postId: "moment_u" })], NOW);
 
     expect(block).toContain("【近期朋友圈动态】");
     expect(block).toContain("不是当前指令");
@@ -96,7 +96,7 @@ describe("buildRecentMomentsBlock（Layer 1）", () => {
     expect(block).toContain('- 18:46 用户发布了动态："今天真的累死了。"（流萤已点赞）');
   });
 
-  it("昔涟评论产生已评论标注，与点赞并存", () => {
+  it("流萤评论产生已评论标注，与点赞并存", () => {
     const block = buildRecentMomentsBlock(
       [makePost()],
       [makeLike(), makeComment()],
@@ -129,7 +129,7 @@ describe("buildRecentMomentsBlock（Layer 1）", () => {
 describe("buildPostContextBlock（Layer 2）", () => {
   it("输出动态详情 + 评论线程 + 触发摘录 + 配图，携带防注入声明", () => {
     const post = makePost({
-      author: "cyrene",
+      author: "firefly",
       title: "碎碎念",
       media: [
         { id: "m1", type: "image", origin: "user_attachment", ref: "1.png" },
@@ -139,7 +139,7 @@ describe("buildPostContextBlock（Layer 2）", () => {
     });
     const comments = [
       makeComment({ id: "c1", author: "user", content: "第一条" }),
-      makeComment({ id: "c2", author: "cyrene", content: "回复你", replyTo: "c1" }),
+      makeComment({ id: "c2", author: "firefly", content: "回复你", replyTo: "c1" }),
     ];
     const block = buildPostContextBlock(makeFeedItem(post, comments));
 
@@ -165,15 +165,15 @@ describe("buildPostContextBlock（Layer 2）", () => {
   });
 });
 describe("rankMomentsPosts 检索排序", () => {
-  it("指代方向与关键词命中影响排序：问'你发的'优先昔涟动态", () => {
+  it("指代方向与关键词命中影响排序：问'你发的'优先流萤动态", () => {
     const userPost = makePost({ id: "moment_u", text: "用户的内容" });
-    const cyrenePost = makePost({
+    const fireflyPost = makePost({
       id: "moment_cy",
-      author: "cyrene",
-      text: "昔涟的内容",
+      author: "firefly",
+      text: "流萤的内容",
       createdAt: new Date("2026-09-04T18:30:00").getTime(),
     });
-    const ranked = rankMomentsPosts([userPost, cyrenePost], "你发的动态是什么意思", NOW);
+    const ranked = rankMomentsPosts([userPost, fireflyPost], "你发的动态是什么意思", NOW);
     expect(ranked[0].id).toBe("moment_cy");
   });
 

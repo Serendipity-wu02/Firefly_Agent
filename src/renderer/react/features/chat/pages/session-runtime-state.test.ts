@@ -32,9 +32,9 @@ const ask = (id: string): ComposerInteraction => ({
 
 describe("session runtime presentation state", () => {
   it("keeps a newly bound workspace label available before the session is reselected", () => {
-    const next = bindWorkspaceName({ chat: "聊天目录" }, "code", "Cyrene-Agent");
+    const next = bindWorkspaceName({ chat: "聊天目录" }, "code", "Firefly-Agent");
 
-    expect(next).toEqual({ chat: "聊天目录", code: "Cyrene-Agent" });
+    expect(next).toEqual({ chat: "聊天目录", code: "Firefly-Agent" });
   });
 
   it("builds recovery context only for an interrupted run with incomplete Todos", () => {

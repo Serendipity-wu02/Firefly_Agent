@@ -1,5 +1,5 @@
 /**
- * 插件测试工具：脱离 Cyrene 宿主即可验证插件的基本契约。
+ * 插件测试工具：脱离 Firefly 宿主即可验证插件的基本契约。
  *
  * createMockPluginContext 提供可内省的 PluginContext 假实现；
  * assertPluginTool / assertValidManifest 提供发布前契约断言。

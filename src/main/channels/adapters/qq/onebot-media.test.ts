@@ -23,7 +23,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("writes out-of-order download chunks at their declared offsets", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const client = {
       callStream: vi.fn(async (_action, _params, onPacket) => {
@@ -39,7 +39,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("uses base64 for a small outbound image", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const image = path.join(dir, "a.png");
     fs.writeFileSync(image, Buffer.from("png-data"));
@@ -48,7 +48,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("rejects invalid stream metadata before writing", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const client = {
       callStream: vi.fn(async (_action, _params, onPacket) => {
@@ -61,7 +61,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("rejects a stream whose chunk indexes skip a position (silent hole passes byte counts)", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const client = {
       // file_size=9, chunk_size=3：发 index 0（超长 6 字节）和 index 2（3 字节，跳过 1）——
@@ -78,7 +78,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("rejects chunk offsets beyond the declared file size", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const client = {
       callStream: vi.fn(async (_action, _params, onPacket) => {
@@ -92,7 +92,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("rejects a stream with missing chunks", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const client = {
       callStream: vi.fn(async (_action, _params, onPacket) => {
@@ -106,7 +106,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("downloads small URL media to the cache via streaming", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const payload = Buffer.from("png-url-data");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array(payload))));
@@ -119,7 +119,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("rejects URL media whose streamed body exceeds 8 MiB without content-length", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     // 无 content-length 的 chunked 响应：旧实现 arrayBuffer() 会先整读进内存再检查
     vi.stubGlobal("fetch", vi.fn(async () => new Response(
@@ -141,7 +141,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("uploads files in chunks and validates the returned SHA-256", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const file = path.join(dir, "payload.bin");
     fs.writeFileSync(file, Buffer.from("stream-upload"));
@@ -162,7 +162,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("removes expired cache files", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const expired = path.join(dir, "expired.bin");
     fs.writeFileSync(expired, "old");
@@ -174,7 +174,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("reports an unavailable Stream action for runtime downgrade", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const unavailable = vi.fn();
     const client = {
@@ -186,7 +186,7 @@ describe("OneBotMediaManager", () => {
   });
 
   it("rejects outbound files above the 100 MiB limit before reading them", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-qq-media-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-qq-media-"));
     tempDirs.push(dir);
     const file = path.join(dir, "too-large.bin");
     fs.writeFileSync(file, "");

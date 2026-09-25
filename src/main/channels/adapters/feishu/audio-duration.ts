@@ -163,8 +163,8 @@ export async function getAudioDurationMs(filePath: string): Promise<number | und
   if (!filePath || !fs.existsSync(filePath)) return undefined;
 
   // 1) ffprobe (优先 - 精确)
-  // 测试环境用 CYRENE_SKIP_FFPROBE=1 跳过加速; 真实环境仍然走 ffprobe
-  if (!process.env.CYRENE_SKIP_FFPROBE) {
+  // 测试环境用 FIREFLY_SKIP_FFPROBE=1 跳过加速; 真实环境仍然走 ffprobe
+  if (!(fireflyEnvironment(process.env, "FIREFLY_SKIP_FFPROBE"))) {
     const candidates = [
       "ffprobe",
       "C:\\Users\\Public\\ffmpeg\\bin\\ffprobe.exe",
@@ -198,3 +198,4 @@ export async function getAudioDurationMs(filePath: string): Promise<number | und
   console.warn(LOG, `无法计算时长: ${filePath}`);
   return undefined;
 }
+import { fireflyEnvironment } from "../../../../shared/legacy-firefly-contracts";

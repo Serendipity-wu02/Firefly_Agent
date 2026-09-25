@@ -22,14 +22,14 @@ describe("CodeGitPanel", () => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
     const html = renderToStaticMarkup(React.createElement(CodeGitPanel, {
       sessionId: "s1",
-      projectName: "cyrene-project",
+      projectName: "firefly-project",
       planPhase: "review",
       onOpenPlan: vi.fn(),
       todoState: { updatedAt: 1, todos: [{ id: "t1", content: "完成审阅 UI", status: "pending" }] },
     }));
 
     expect(html).toContain("Coding");
-    expect(html).toContain("cyrene-project");
+    expect(html).toContain("firefly-project");
     expect(html).toContain("分支切换");
     expect(html).toContain("提交或推送");
     expect(html).toContain('data-testid="code-todo-list"');

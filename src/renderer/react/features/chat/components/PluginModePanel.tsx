@@ -17,8 +17,6 @@ interface PluginModePanelProps {
   api?: PluginManagementApi;
 }
 
-// 兼容的上游第三方插件收录仓库（GitHub 为主，Gitee 为国内镜像），面板内展示并可在系统浏览器打开
-const PLUGIN_REGISTRY_URL = "https://github.com/Playa-0v0/Cyrene-Plugins";
 
 /** 从索引源地址推导展示名：认识的源走 i18n 友好名，其余直接显示主机名 */
 function marketSourceLabel(url: string, t: (key: string) => string): string {
@@ -287,16 +285,7 @@ export function PluginModePanel({ api: providedApi }: PluginModePanelProps) {
           <h1 className="plugin-panel__title">{inMarket ? t("pluginPanel.market.title") : t("pluginPanel.title")}</h1>
           <p className="plugin-panel__subtitle">{inMarket ? t("pluginPanel.market.subtitle") : t("pluginPanel.subtitle")}</p>
           <p className="plugin-panel__subtitle plugin-panel__registry">
-            {t("pluginPanel.registryPrefix")}
-            <a
-              className="plugin-panel__registry-link"
-              href={PLUGIN_REGISTRY_URL}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t("pluginPanel.registryLink")}
-            </a>
-            {t("pluginPanel.registrySuffix")}
+            {t("pluginPanel.registryLink")}
           </p>
         </div>
         <div className="plugin-panel__header-actions">

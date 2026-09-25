@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -12,9 +13,30 @@ import {
 } from "./panel-bridge-protocol";
 
 describe("panelOriginFor", () => {
+  it("ignores forged bridge results from windows other than the parent", async () => {
+    const script = readFileSync(path.join(__dirname, "../../main/plugin-panel/panel-bridge.js"), "utf8");
+    const listeners = new Map<string, (event: unknown) => void>();
+    const messages: Array<{ seq: number; protocol: string }> = [];
+    const parent = { postMessage: (message: { seq: number; protocol: string }) => { messages.push(message); } };
+    const windowObject: { parent: typeof parent; addEventListener: (name: string, listener: (event: unknown) => void) => void; FireflyPanel?: { invoke(channel: string): Promise<unknown> } } = {
+      parent,
+      addEventListener: (name, listener) => { listeners.set(name, listener); },
+    };
+    runInNewContext(script, { window: windowObject });
+    const result = windowObject.FireflyPanel!.invoke("snapshot");
+    expect(messages[0].protocol).toBe("firefly-panel/1");
+    let settled = false;
+    void result.then(() => { settled = true; });
+    const data = { protocol: "firefly-panel/1", kind: "invoke-result", seq: messages[0].seq, ok: true, data: "public result" };
+    listeners.get("message")!({ source: {}, data });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    listeners.get("message")!({ source: parent, data });
+    await expect(result).resolves.toBe("public result");
+  });
   it("插件 id 直接充当 origin host", () => {
-    expect(panelOriginFor("demo")).toBe("cyrene-plugin://demo");
-    expect(panelOriginFor("system-status")).toBe("cyrene-plugin://system-status");
+    expect(panelOriginFor("demo")).toBe("firefly-plugin://demo");
+    expect(panelOriginFor("system-status")).toBe("firefly-plugin://system-status");
   });
 });
 

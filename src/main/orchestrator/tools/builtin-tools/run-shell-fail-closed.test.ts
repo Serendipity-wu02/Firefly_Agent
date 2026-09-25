@@ -58,12 +58,12 @@ describe.runIf(process.platform === "win32")("run_shell sandbox fail-closed gate
   beforeEach(() => {
     wrapMock.mockReset();
     spawnCalls.length = 0;
-    markerDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-fc-"));
+    markerDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-fc-"));
     markerPath = path.join(markerDir, "marker.txt");
   });
 
   // 写副作用命令（带重定向 → classifyShellEffect = write）
-  const writeCommand = () => `echo CYRENE_FAIL_CLOSED> "${markerPath.replace(/"/g, '\\"')}"`;
+  const writeCommand = () => `echo FIREFLY_FAIL_CLOSED> "${markerPath.replace(/"/g, '\\"')}"`;
   // git status → classifyShellEffect = read（无操作符、git 只读子命令）
   const readCommand = () => "git status";
 
@@ -114,11 +114,11 @@ describe.runIf(process.platform === "win32")("run_shell sandbox fail-closed gate
 
   it("wrap 返回 disabled：read 命令允许降级直跑（1 次 spawn，sandboxed=false）", async () => {
     wrapMock.mockResolvedValue({ ok: false, reason: "disabled" });
-    const result = await run("echo cyrene-fc-direct");
+    const result = await run("echo firefly-fc-direct");
     expect(spawnCalls).toHaveLength(1);
     expect(result.sandboxed).toBe(false);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("cyrene-fc-direct");
+    expect(result.stdout).toContain("firefly-fc-direct");
   });
 
   it("wrap 返回 not_ready：后台模式同样 fail-closed（0 次 spawn，无 jobId）", async () => {
@@ -136,13 +136,13 @@ describe.runIf(process.platform === "win32")("run_shell sandbox fail-closed gate
   it("wrap 成功：仅 spawn 包装后的 argv，sandboxed=true", async () => {
     wrapMock.mockResolvedValue({
       ok: true,
-      argv: ["cyrene-srt-stub.exe", "--run", writeCommand()],
+      argv: ["firefly-srt-stub.exe", "--run", writeCommand()],
       env: {},
     });
     const result = await run(writeCommand());
     // srt stub 不存在 → spawn error，但恰好证明只有这一条包装后的 spawn 被发起
     expect(spawnCalls).toHaveLength(1);
-    expect(spawnCalls[0].command).toBe("cyrene-srt-stub.exe");
+    expect(spawnCalls[0].command).toBe("firefly-srt-stub.exe");
     expect(result.sandboxed).toBe(true);
     // 原始命令未被直跑：marker 不存在（只有包装进程被启动且立即失败）
     expect(fs.existsSync(markerPath)).toBe(false);

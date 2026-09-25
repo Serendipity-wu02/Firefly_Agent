@@ -4,8 +4,8 @@
  * 四状态：NORMAL / PLAN_DISCUSSING / PLAN_REVIEW / EXECUTING
  * - 会话级内存 Map，v1 不持久化（重启回 NORMAL，计划文件仍在磁盘）
  * - 本模块保持纯净（无 electron / fs 依赖），userData 兜底根由 initPlanPaths 注入
- * - 计划文件优先落工作区 `<workspaceRoot>/.cyrene/docs/plan-<时间戳>.md`
- *   （项目产物归项目，且 .cyrene 由 write_plan 自动加 .gitignore）；
+ * - 计划文件优先落工作区 `<workspaceRoot>/.firefly/docs/plan-<时间戳>.md`
+ *   （项目产物归项目，且 .firefly 由 write_plan 自动加 .gitignore）；
  *   拿不到 workspaceRoot 时回落 userData/plans/<conversationId>/plan.md
  * - code 与 chat（开启工具走 harness）模式参与；work 预留接口（调用方按 conversationMode 决定是否进入）
  */
@@ -67,9 +67,9 @@ function planFileName(at = new Date()): string {
   return `plan-${stamp}.md`;
 }
 
-/** 工作区下的计划路径：<workspaceRoot>/.cyrene/docs/plan-<时间戳>.md */
+/** 工作区下的计划路径：<workspaceRoot>/.firefly/docs/plan-<时间戳>.md */
 export function buildWorkspacePlanPath(workspaceRoot: string): string {
-  return posixJoin(workspaceRoot.replace(/[\\/]$/, ""), ".cyrene/docs", planFileName());
+  return posixJoin(workspaceRoot.replace(/[\\/]$/, ""), ".firefly/docs", planFileName());
 }
 
 function fallbackPlanPath(conversationId: string): string {

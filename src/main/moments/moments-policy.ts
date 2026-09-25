@@ -33,7 +33,7 @@ export const MAX_CHARACTER_MODEL_CALLS_PER_DAY_BY_LIVELINESS: Record<MomentsLive
 /** 兼容旧引用的默认上限：冷清档即历史原值。 */
 export const MAX_CHARACTER_MODEL_CALLS_PER_DAY = MAX_CHARACTER_MODEL_CALLS_PER_DAY_BY_LIVELINESS.quiet;
 /** 流萤生成动态的文案长度上限（用户输入的 2000 上限是另一层，不混用） */
-export const MOMENTS_CYRENE_POST_TEXT_MAX = 300;
+export const MOMENTS_FIREFLY_POST_TEXT_MAX = 300;
 /** 去重键 FIFO 容量 */
 export const RECENT_EVENT_KEYS_CAPACITY = 64;
 

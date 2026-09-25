@@ -24,7 +24,7 @@ describe("Code Git panel presentation", () => {
     }))).toBe("6 个变更");
   });
 
-  it("asks Cyrene to commit before pushing when the workspace is dirty", () => {
+  it("asks Firefly to commit before pushing when the workspace is dirty", () => {
     expect(buildGitActionIntent(statusWith({
       files: [{ path: "src/a.ts", kind: "modified", staged: false, unstaged: true, insertions: 1, deletions: 0 }],
       summary: { added: 0, modified: 1, deleted: 0, renamed: 0, conflicted: 0 },
@@ -35,7 +35,7 @@ describe("Code Git panel presentation", () => {
     });
   });
 
-  it("asks Cyrene to push clean commits that are ahead", () => {
+  it("asks Firefly to push clean commits that are ahead", () => {
     expect(buildGitActionIntent(statusWith({ ahead: 2 }))).toEqual({
       label: "推送 2 个提交",
       prompt: "请把当前分支尚未推送的 2 个提交推送到远端。",

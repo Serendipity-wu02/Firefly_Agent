@@ -42,21 +42,20 @@ resources/bin/mpv/
 .cache/mpv/
 
 # Native gamebot（暂只有本地 Rust 构建产物 target/，暂不进 git）
-native/cyrene-gamebot/
+native/*-gamebot/
 
 # M0 POC scratch（含早期 token/qr.png 敏感产物，仅本地参考）
 tmp-m0-poc/
 
-# build/ 顶层是 NSIS 安装包的源资源（installer.nsh / installer-sidebar.bmp /
-# cyrene-installer-source.png），被 electron-builder.yml 引用，必须进 Git。
+# build/ 顶层是 NSIS 安装包的源资源（installer.nsh / installer-sidebar.bmp），
+# 被 electron-builder.yml 引用，必须进 Git。
 # build/installer/ui/ 是自研安装器 UI 的整个子项目，源码 + 产物都不进 git。
-# 兜底：未来若在 build/ 下新增其他子目录（除了上方白名单的 3 个文件），默认全部忽略。
+# 兜底：未来若在 build/ 下新增其他子目录（除了上方白名单的 2 个文件），默认全部忽略。
 build/*
 !build/installer/
 build/installer/*
 !build/installer/installer.nsh
 !build/installer/installer-sidebar.bmp
-!build/installer/cyrene-installer-source.png
 build/installer/ui/
 build/installer/ui/node_modules/
 build/installer/ui/dist/
@@ -111,7 +110,7 @@ scripts/test-cita-minimax.mjs
 .worktrees/
 
 # Debug previews / scratch files generated during UI work
-cyrene-*-preview.html
+*-preview.html
 tmp_*.txt
 tmp/
 tmpr-build.log
@@ -206,5 +205,6 @@ docs/internal-issue/perf/
 PRODUCT.md
 sticker-descriptions/
 
-# Cyrene agent
+# Firefly state and private migration sources
 .cyrene/
+.firefly/

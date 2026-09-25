@@ -136,7 +136,7 @@ describe("AgentRuntime 插件宿主事件", () => {
   );
 
   it("成功收尾后通过真实 PluginManager 和 EventBus 到达插件监听器", async () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-turn-event-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-turn-event-"));
     const pluginDir = path.join(tmp, "listener");
     const marker = path.join(tmp, "received.json");
     mkdirSync(pluginDir, { recursive: true });
@@ -477,12 +477,12 @@ describe("AgentRuntime 心情观察器", () => {
     const { deps, onRunFinishedDeps } = await captureOnRunFinishedDeps();
     (deps.llmClient.chat as Mock).mockResolvedValue('{"feeling": "开心"}');
 
-    await onRunFinishedDeps.observeRuntimeState({ provider: "p", baseUrl: "u", model: "m", apiKey: "k" }, [], "问题", "回复");
+    await onRunFinishedDeps.observeRuntimeState({ provider: "p", baseUrl: "https://observer.example/v1", model: "m", apiKey: "k" }, [], "问题", "回复");
 
     // 观察器走 enqueueLLMTask 低优先级通道且不记日志
     expect(deps.enqueueLLMTask).toHaveBeenCalledWith("心情观察器", expect.any(Function), { log: false });
     expect(deps.llmClient.chat).toHaveBeenCalledTimes(1);
-    // 判定的是昔涟的心情，system 提示词带人格设定，user 带最后一轮回复
+    // 判定的是流萤的心情，system 提示词带人格设定，user 带最后一轮回复
     const chatArgs = (deps.llmClient.chat as Mock).mock.calls[0];
     expect(chatArgs[1][0].role).toBe("system");
     expect(chatArgs[1][0].content).toContain("情绪分析器");
@@ -494,7 +494,7 @@ describe("AgentRuntime 心情观察器", () => {
     const { deps, onRunFinishedDeps } = await captureOnRunFinishedDeps();
     (deps.llmClient.chat as Mock).mockResolvedValue("我今天心情不错！");
 
-    await onRunFinishedDeps.observeRuntimeState({ provider: "p", baseUrl: "u", model: "m", apiKey: "k" }, [], "问题", "回复");
+    await onRunFinishedDeps.observeRuntimeState({ provider: "p", baseUrl: "https://observer.example/v1", model: "m", apiKey: "k" }, [], "问题", "回复");
 
     expect(deps.runtimeStateService.smoothFeeling).not.toHaveBeenCalled();
   });
@@ -514,18 +514,73 @@ describe("AgentRuntime 心情观察器", () => {
     const onRunFinishedDeps = call![2] as import("./build-options").OnRunFinishedDeps;
 
     await expect(onRunFinishedDeps.observeRuntimeState(
-      { provider: "p", baseUrl: "u", model: "m", apiKey: "k" }, [], "问题", "回复",
+      { provider: "p", baseUrl: "https://observer.example/v1", model: "m", apiKey: "k" }, [], "问题", "回复",
     )).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalledWith(
       "[Firefly] observe runtime failed; keeping current feeling:",
       expect.any(Error),
     );
   });
+
+  it("selected model profile reaches the observer through the finished-run context", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const settings = modelSettingsFixture();
+      settings.modelProfiles.push({
+        id: "profile-2",
+        provider: "测试厂商",
+        baseUrl: "https://selected.example/v1",
+        model: "selected-model",
+        apiKey: "selected-key",
+        explicitTransport: "responses",
+      });
+      const deps = createFullDeps({ loadModelSettings: () => settings as never });
+      const runtime = createAgentRuntime(deps);
+      await runtime.onRunFinished(
+        { reply: "公开回复", toolResults: [] },
+        "公开问题",
+        { source: "desktop", mode: "chat", conversationId: "conversation-selected", modelProfileId: "profile-2" },
+      );
+      const onRunFinishedDeps = mocks.onAgentRunFinished.mock.calls.at(-1)![2] as import("./build-options").OnRunFinishedDeps;
+      expect(onRunFinishedDeps.loadModelSettings()).toMatchObject({
+        baseUrl: "https://selected.example/v1",
+        model: "selected-model",
+        explicitTransport: "responses",
+      });
+      (deps.llmClient.chat as Mock).mockResolvedValue('{"feeling": "平静"}');
+      await onRunFinishedDeps.observeRuntimeState(onRunFinishedDeps.loadModelSettings(), [], "公开问题", "公开回复");
+      expect(deps.llmClient.chat).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: "https://selected.example/v1", model: "selected-model", explicitTransport: "responses" }),
+        expect.any(Array),
+        undefined,
+        30000,
+        "心情观察器",
+        false,
+      );
+      expect(info).toHaveBeenCalledWith("[Firefly] mood observation request", { profileSelection: "conversation", transport: "responses" });
+      expect(info).toHaveBeenCalledWith("[Firefly] mood observation applied");
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("does not enqueue an observer request when its model or service URL is absent", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { deps, onRunFinishedDeps } = await captureOnRunFinishedDeps();
+      await onRunFinishedDeps.observeRuntimeState({ provider: "p", baseUrl: "", model: "", apiKey: "" }, [], "问题", "回复");
+      expect(deps.enqueueLLMTask).not.toHaveBeenCalled();
+      expect(deps.llmClient.chat).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("mood observation unavailable"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 describe("AgentRuntime 轨迹上下文注入（CTA Phase 1）", () => {
   it("桌面轨迹上下文从真实 store 物化模型消息，忽略渲染端消息", async () => {
-    const root = mkdtempSync(path.join(os.tmpdir(), "cyrene-runtime-transcript-"));
+    const root = mkdtempSync(path.join(os.tmpdir(), "firefly-runtime-transcript-"));
     electronMocks.userDataRoot = root;
     mocks.buildAlwaysOnContext.mockReset();
     mocks.buildAlwaysOnContext.mockResolvedValue("[常驻上下文]");

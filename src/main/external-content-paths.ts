@@ -70,7 +70,9 @@ export function getExternalContentPaths(): ExternalContentPaths {
       isPackaged: false,
       appPath: repository,
       executablePath: process.execPath,
-      userDataPath: path.join(repository, ".cyrene-user-data"),
+      userDataPath: path.join(repository, fs.existsSync(path.join(repository, LEGACY_USER_DATA_DIRECTORY))
+        ? LEGACY_USER_DATA_DIRECTORY
+        : ".firefly-user-data"),
     });
   }
 }
@@ -84,9 +86,9 @@ function safeRelativePath(relativePath: string): string | null {
 
 /**
  * Resolve the third-party skills snapshot archive path.
- *  - Packaged: extraResources copies vendor/cyrene-skills into
- *    resources/cyrene-skills/skills-snapshot.zip (outside asar, real disk path).
- *  - Dev: repository vendor/cyrene-skills/skills-snapshot.zip.
+ *  - Packaged: extraResources copies vendor/firefly-skills into
+ *    resources/firefly-skills/skills-snapshot.zip (outside asar, real disk path).
+ *  - Dev: repository vendor/firefly-skills/skills-snapshot.zip.
  * Returns null when the archive is absent (e.g. build-skills-snapshot not run).
  */
 export function resolveSkillsSnapshotArchivePath(
@@ -96,8 +98,8 @@ export function resolveSkillsSnapshotArchivePath(
   const isPackaged = options.isPackaged ?? app.isPackaged;
   const exists = options.existsSync ?? ((p: string) => fs.existsSync(p));
   const candidate = isPackaged
-    ? path.join(options.resourcesPath ?? process.resourcesPath, "cyrene-skills", "skills-snapshot.zip")
-    : path.join(paths.installRoot, "vendor", "cyrene-skills", "skills-snapshot.zip");
+    ? path.join(options.resourcesPath ?? process.resourcesPath, "firefly-skills", "skills-snapshot.zip")
+    : path.join(paths.installRoot, "vendor", "firefly-skills", "skills-snapshot.zip");
   return exists(candidate) ? candidate : null;
 }
 
@@ -112,7 +114,7 @@ export function findPromptPath(
     const candidate = path.join(directory, safePath);
     if (fs.existsSync(candidate)) return candidate;
     if (safePath === "firefly_harness.md") {
-      const legacyPath = path.join(directory, "cyrene_harness.md");
+      const legacyPath = path.join(directory, LEGACY_HARNESS_PROMPT);
       if (fs.existsSync(legacyPath)) return legacyPath;
     }
   }
@@ -173,3 +175,4 @@ export function resolveSkillScanSources(
   }
   return sources;
 }
+import { LEGACY_USER_DATA_DIRECTORY, LEGACY_HARNESS_PROMPT } from "../shared/legacy-firefly-contracts";

@@ -1,22 +1,22 @@
 /**
- * 插件设置面板静态资源协议（cyrene-plugin://<插件id>/<相对路径>）。
+ * 插件设置面板静态资源协议（firefly-plugin://<插件id>/<相对路径>）。
  *
  * 安全模型：
  * - 协议只做纯静态文件服务，不改写 HTML、不注入内容；主题链路走 Panel Bridge。
  * - 仅服务「已扫描 + 已启用 + manifest.settingsPanel 校验通过」的插件目录，
  *   禁用插件的请求立即 404（查询函数由 PluginManager 注入）。
- * - 保留路径 /.cyrene/* 永远不读插件目录，只从宿主资产目录应答（如
+ * - 保留路径 /.firefly/* 永远不读插件目录，只从宿主资产目录应答（如
  *   panel-bridge.js）；插件目录内存在同名文件时仍以保留路径优先。
  * - 路径安全：URL 段解码后逐段校验（拒绝 `.`/`..`、斜杠、反斜杠、NUL、
  *   盘符形态），最终以 realpath + path.relative 判定不逃逸插件目录；
  *   绝不使用字符串 startsWith 前缀判断（`foo` 与 `foobar` 的经典前缀绕过）。
  * - 扩展名白名单决定内容类型，白名单外一律 404。
  *
- * 同源不变量：设置页（file:// 或 http://localhost）与 cyrene-plugin://
+ * 同源不变量：设置页（file:// 或 http://localhost）与 firefly-plugin://
  * 结构性不同源——这是 sandbox iframe 使用 allow-scripts allow-same-origin
  * 的安全前提；修改 scheme 命名或设置页加载方式前必须重新评估。
  * 注意 origin 序列化差异：渲染进程中 Chromium 对注册为 standard 的
- * 自定义 scheme 给出 cyrene-plugin://<host> 形态的 event.origin，
+ * 自定义 scheme 给出 firefly-plugin://<host> 形态的 event.origin，
  * 而 Node 的 URL.origin 对该 scheme 返回 "null"（opaque 序列化），
  * 相关断言不能在 Node 环境直接复用渲染进程行为。
  *
@@ -26,10 +26,11 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { protocol } from "electron";
+import { LEGACY_PANEL_RESOURCE_SEGMENT, LEGACY_PANEL_BRIDGE_ALIAS, LEGACY_PANEL_SCHEME } from "../shared/legacy-firefly-contracts";
 
-const PLUGIN_PANEL_SCHEME = "cyrene-plugin";
+const PLUGIN_PANEL_SCHEME = "firefly-plugin";
 /** URL 第一段命中该保留段时不读插件目录，改由宿主资产目录应答。 */
-const RESERVED_SEGMENT = ".cyrene";
+const RESERVED_SEGMENT = ".firefly";
 /** 与 loader.ts 的 ID_RE 一致：插件 id 充当 URL host，必须是 host-safe 标识符。 */
 const PLUGIN_ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -148,7 +149,7 @@ export async function resolvePluginPanelRequest(
   } catch {
     return NOT_FOUND;
   }
-  if (url.protocol !== `${PLUGIN_PANEL_SCHEME}:`) return NOT_FOUND;
+  if (url.protocol !== `${PLUGIN_PANEL_SCHEME}:` && url.protocol !== `${LEGACY_PANEL_SCHEME}:`) return NOT_FOUND;
 
   const rawSegments = url.pathname.split("/");
   // 合法请求的 pathname 必须以 / 开头（split 后首段为空）
@@ -162,8 +163,13 @@ export async function resolvePluginPanelRequest(
   if (segments.length === 0) return NOT_FOUND;
 
   // 保留路径：只从宿主资产目录应答，永不读取插件目录
-  if (segments[0] === RESERVED_SEGMENT) {
-    return serveFileFromRoot(assetsRoot, segments.slice(1));
+  if (segments[0] === RESERVED_SEGMENT || segments[0] === LEGACY_PANEL_RESOURCE_SEGMENT) {
+    if (!PLUGIN_ID_RE.test(url.hostname) || !query(url.hostname)) return NOT_FOUND;
+    const response = await serveFileFromRoot(assetsRoot, segments.slice(1));
+    if (response.status === 200 && segments[0] === LEGACY_PANEL_RESOURCE_SEGMENT && segments.length === 2 && segments[1] === "panel-bridge.js") {
+      return { ...response, body: Buffer.concat([response.body, Buffer.from(`\n${LEGACY_PANEL_BRIDGE_ALIAS}`)]) };
+    }
+    return response;
   }
 
   // 插件静态资源：URL host 即插件 id（hostname 形态校验，大写/特殊字符直接 404）
@@ -176,21 +182,21 @@ export async function resolvePluginPanelRequest(
 
 /** 应用入口模块顶层调用（app.ready 之前）：注册 scheme 特权。 */
 export function registerPluginPanelScheme(): void {
-  protocol.registerSchemesAsPrivileged([
+  protocol.registerSchemesAsPrivileged([PLUGIN_PANEL_SCHEME, LEGACY_PANEL_SCHEME].map((scheme) => (
     {
-      scheme: PLUGIN_PANEL_SCHEME,
+      scheme,
       // 最小权限：standard 支持面板内相对资源解析（./xxx.js）；secure 获得
       // 安全上下文。不开 supportFetchAPI：面板与主进程通信统一走 Panel Bridge。
       privileges: { standard: true, secure: true },
-    },
-  ]);
+    }
+  )));
 }
 
 /** app.whenReady() 之后调用：安装静态文件 handler。 */
 export function installPluginPanelProtocol(query: PluginPanelAccessQuery): void {
   // 宿主资产（panel-bridge.js 等）随构建复制到 dist/main/plugin-panel/
   const assetsRoot = path.join(__dirname, "plugin-panel");
-  protocol.handle(PLUGIN_PANEL_SCHEME, async (request) => {
+  for (const scheme of [PLUGIN_PANEL_SCHEME, LEGACY_PANEL_SCHEME]) protocol.handle(scheme, async (request) => {
     const result = await resolvePluginPanelRequest(request.url, query, assetsRoot);
     if (result.status === 404) {
       return new Response(null, { status: 404 });

@@ -7,8 +7,8 @@ import { FileToolOutputStore } from "./file-tool-output-store";
 
 const roots: string[] = [];
 
-async function setup(output = "AAA😀BBB昔涟CCC") {
-  const root = await mkdtemp(path.join(tmpdir(), "cyrene-read-output-"));
+async function setup(output = "AAA😀BBB流萤CCC") {
+  const root = await mkdtemp(path.join(tmpdir(), "firefly-read-output-"));
   roots.push(root);
   const store = new FileToolOutputStore(root);
   const ref = await store.put({
@@ -40,20 +40,20 @@ describe("read_tool_result", () => {
     }) }, store, { userQuery: "", conversationId: "conversation-a", runId: "run-a" });
 
     expect(JSON.parse(result.output ?? "{}")).toMatchObject({ content: "full result" });
-    expect(result.message).not.toContain("cyrene-runs");
+    expect(result.message).not.toContain("firefly-runs");
   });
 
   it("returns query offsets in the same code-point coordinate system as reading", async () => {
     const { store, ref } = await setup();
     const found = await executeReadToolResult({ id: "find-1", name: "read_tool_result", arguments: JSON.stringify({
-      result_ref: ref.resultRef, query: "昔涟",
+      result_ref: ref.resultRef, query: "流萤",
     }) }, store, { userQuery: "", conversationId: "conversation-a", runId: "run-a" });
     const offset = JSON.parse(found.output ?? "{}").matches[0].offset as number;
     const read = await executeReadToolResult({ id: "read-1", name: "read_tool_result", arguments: JSON.stringify({
       result_ref: ref.resultRef, offset, length: 2,
     }) }, store, { userQuery: "", conversationId: "conversation-a", runId: "run-a" });
 
-    expect(JSON.parse(read.output ?? "{}").content).toBe("昔涟");
+    expect(JSON.parse(read.output ?? "{}").content).toBe("流萤");
   });
 
   it("returns not_found for a ref from another conversation and rejects oversized reads", async () => {

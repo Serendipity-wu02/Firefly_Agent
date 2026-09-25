@@ -2,7 +2,7 @@
  * document-tools 测试：
  * - filename 校验报错：区分「未提供」与「值不合法」，回传实际收到的参数键（丢参模型自纠）
  * - Review 基线捕获：覆盖已有文件存 binary 基线（text 基线场景由 write_file 覆盖，见 fs-tools.test.ts）
- * 基线路径：<userData>/cyrene-runs/reviews/<runId>/before/
+ * 基线路径：<userData>/firefly-runs/reviews/<runId>/before/
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,7 +48,7 @@ function getTool(id: string) {
 
 /** 列出某 run 的 before/ 基线文件（含 .absent / .binary 后缀）。 */
 function listBaselines(runId: string): string[] {
-  const dir = path.join(tmpDir, "cyrene-runs", "reviews", runId, "before");
+  const dir = path.join(tmpDir, "firefly-runs", "reviews", runId, "before");
   return fs.existsSync(dir) ? fs.readdirSync(dir) : [];
 }
 

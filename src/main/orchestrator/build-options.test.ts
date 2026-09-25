@@ -621,7 +621,7 @@ describe("build-options", () => {
   })
 
   it("attaches direct image content blocks to the latest user message", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-image-direct-"))
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-image-direct-"))
     const imagePath = path.join(dir, "图 像.png")
     fs.writeFileSync(imagePath, Buffer.from([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
@@ -710,7 +710,7 @@ describe("build-options", () => {
   })
 
   it("MiniMax + anthropic 入口直发 image 块（anthropic-adapter 会转成 image source 块）", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-image-mm-m3-"))
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-image-mm-m3-"))
     const imagePath = path.join(dir, "shot.png")
     fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
 
@@ -735,7 +735,7 @@ describe("build-options", () => {
   })
 
   it("MiniMax M2.7 开关开着也直发（本地不做模型级防呆，能力由服务端仲裁）", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-image-mm-m2-"))
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-image-mm-m2-"))
     const imagePath = path.join(dir, "shot.png")
     fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
 
@@ -786,7 +786,7 @@ describe("build-options", () => {
     expect(recordRelationshipTurn).toHaveBeenCalledWith({
       userText: "今天有点累",
       assistantText: "好呀",
-      cyreneFeeling: "温柔",
+      fireflyFeeling: "温柔",
       channel: "wechat",
     })
   })

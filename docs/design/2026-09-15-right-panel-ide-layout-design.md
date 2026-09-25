@@ -1,6 +1,6 @@
 # 右侧面板 IDE 化改造：施工方案（定稿）
 
-> 本文是 [dsh 右侧面板对照](2026-09-15-dsh-right-panel-diff-comparison.md) 与 [工作区打开与文件浏览设计](2026-09-15-workspace-open-files-review-design.md) 之后落定的实施方案。经两轮外部评审（codex review）修正，结论：**不移植 dsh 的 dockkit，用成熟轮子组合完成 IDE 式右栏**。
+> 当前工作区与审查维护入口见 [Firefly 维护说明](../architecture/firefly-maintenance.md)。此前对照方案已退出工作树；本文的既定边界保持：**不移植 dsh 的 dockkit，用成熟轮子组合完成 IDE 式右栏**。
 
 ---
 

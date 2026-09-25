@@ -152,7 +152,7 @@ describe("角色模型调用预算", () => {
 
 describe("moments-state.json 持久化", () => {
   beforeEach(() => {
-    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-moments-policy-"));
+    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-moments-policy-"));
   });
 
   it("save 后 load 能还原；坏文件回退默认状态", () => {

@@ -8,10 +8,10 @@ vi.mock("electron", () => ({ app: { getPath: () => state.directory }, shell: { o
 beforeEach(() => {
   vi.resetModules();
   state.directory = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-history-test-"));
-  fs.mkdirSync(path.join(state.directory, "cyrene-chats", "sessions"), { recursive: true });
+  fs.mkdirSync(path.join(state.directory, "firefly-chats", "sessions"), { recursive: true });
 });
 afterEach(() => fs.rmSync(state.directory, { recursive: true, force: true }));
-const index = () => path.join(state.directory, "cyrene-chats", "index.json");
+const index = () => path.join(state.directory, "firefly-chats", "index.json");
 
 it.each([undefined, "[]"])("distinguishes absent and genuine empty history: %s", async (contents) => {
   if (contents !== undefined) fs.writeFileSync(index(), contents);

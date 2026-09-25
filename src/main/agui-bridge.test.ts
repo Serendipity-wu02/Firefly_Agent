@@ -157,6 +157,7 @@ describe("agui-bridge sticker event ordering", () => {
     }, {
       messages: [{ role: "user", content: "你好" }],
       sessionId: "chat-events",
+      modelProfileId: "model-profile",
     }) as { runId: string };
     await expect.poll(() => onFinished.mock.calls.length).toBe(1);
 
@@ -168,6 +169,7 @@ describe("agui-bridge sticker event ordering", () => {
         mode: "chat",
         conversationId: "chat-events",
         runId: ack.runId,
+        modelProfileId: "model-profile",
       },
     );
   });
@@ -177,7 +179,7 @@ describe("agui-bridge sticker event ordering", () => {
     mocks.handlers.clear();
     mocks.listeners.clear();
     // 桌面派发带 userTurnId：session 需含该 user 消息，轨迹写入用临时目录
-    const transcriptRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-bridge-pending-"));
+    const transcriptRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-pending-"));
     mocks.userDataRoot = transcriptRoot;
     mocks.getSession.mockReturnValue({
       id: "chat-pending",
@@ -301,18 +303,18 @@ describe("agui-bridge sticker event ordering", () => {
     expect(mocks.requestUserClarification).toHaveBeenCalledOnce();
     expect(sent).toContainEqual(expect.objectContaining({
       type: "CUSTOM",
-      name: "cyrene.choice",
+      name: "firefly.choice",
       value: expect.objectContaining({ interactionId: "choice-1", runId: expect.any(String), revision: 1 }),
     }));
     expect(sent).toContainEqual(expect.objectContaining({
       type: "CUSTOM",
-      name: "cyrene.choice.dismiss",
+      name: "firefly.choice.dismiss",
       value: expect.objectContaining({ id: "choice-1", runId: expect.any(String), revision: 1, reason: "timeout" }),
     }));
   });
 
   it("tags a post-run plan approval card with its owning session", async () => {
-    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-plan-review-"));
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-plan-review-"));
     try {
       vi.resetModules();
       mocks.handlers.clear();
@@ -366,10 +368,10 @@ describe("agui-bridge sticker event ordering", () => {
         { sender: { isDestroyed: () => false, send: (_channel: string, event: typeof sent[number]) => sent.push(event) } },
         { messages: [{ role: "user", content: "写好计划" }], sessionId: "code-plan-review" },
       );
-      await expect.poll(() => sent.find((event) => event.name === "cyrene.choice")).toBeTruthy();
+      await expect.poll(() => sent.find((event) => event.name === "firefly.choice")).toBeTruthy();
 
       const terminalIndex = sent.findIndex((event) => event.type === "RUN_FINISHED");
-      const choiceIndex = sent.findIndex((event) => event.name === "cyrene.choice");
+      const choiceIndex = sent.findIndex((event) => event.name === "firefly.choice");
       expect(choiceIndex).toBeGreaterThan(terminalIndex);
       expect(sent[choiceIndex]?.value).toMatchObject({
         sessionId: "code-plan-review",
@@ -380,8 +382,8 @@ describe("agui-bridge sticker event ordering", () => {
     }
   });
 
-  it("计划审批卡超时结算会广播 cyrene.choice.dismiss 清卡", async () => {
-    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-plan-dismiss-"));
+  it("计划审批卡超时结算会广播 firefly.choice.dismiss 清卡", async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-plan-dismiss-"));
     try {
       vi.resetModules();
       mocks.handlers.clear();
@@ -440,10 +442,10 @@ describe("agui-bridge sticker event ordering", () => {
         { sender: { isDestroyed: () => false, send: (_channel: string, event: typeof sent[number]) => sent.push(event) } },
         { messages: [{ role: "user", content: "写好计划" }], sessionId: "code-plan-dismiss" },
       );
-      await expect.poll(() => sent.find((event) => event.name === "cyrene.choice.dismiss")).toBeTruthy();
+      await expect.poll(() => sent.find((event) => event.name === "firefly.choice.dismiss")).toBeTruthy();
 
       // dismiss 必须携带与审批卡一致的 runId / revision 身份，渲染端 shouldDismissAsk 才能匹配清卡
-      const dismiss = sent.find((event) => event.name === "cyrene.choice.dismiss");
+      const dismiss = sent.find((event) => event.name === "firefly.choice.dismiss");
       const runId = sent.find((event) => event.type === "RUN_STARTED")?.runId;
       expect(dismiss?.value).toMatchObject({
         id: "plan-choice-dismiss",
@@ -575,7 +577,7 @@ describe("agui-bridge sticker event ordering", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const eventTypes = sent.map((event) => (event as { type?: string; name?: string }).name ?? (event as { type?: string }).type);
-    expect(eventTypes).toEqual(["RUN_STARTED", "cyrene.sticker", "RUN_FINISHED"]);
+    expect(eventTypes).toEqual(["RUN_STARTED", "firefly.sticker", "RUN_FINISHED"]);
   });
 
   it("uses the Chat session mode while preserving renderer styleId", async () => {
@@ -725,7 +727,7 @@ describe("agui-bridge sticker event ordering", () => {
         workDocuments: [expect.objectContaining({ path: scope.path, requiredEndLine: scope.endLine })],
       }));
       expect(mocks.runFireflyAgent).toHaveBeenCalledWith(expect.objectContaining({ workReadScopes: [scope] }));
-      const evidence = events.find((event) => event.name === "cyrene.workRead");
+      const evidence = events.find((event) => event.name === "firefly.workRead");
       expect(evidence?.value?.status).toBe("missing");
       expect(events.indexOf(evidence!)).toBeLessThan(events.findIndex((event) => event.type === "RUN_FINISHED"));
     } finally {
@@ -932,7 +934,7 @@ describe("agui-bridge sticker event ordering", () => {
     // cancelled 路径不应触发 onRunFinished 成功副作用
     expect(onFinished).not.toHaveBeenCalled();
     // 也不应发出 sticker CUSTOM 事件
-    expect(sent.some((event) => event.type === "CUSTOM" && event.name === "cyrene.sticker")).toBe(false);
+    expect(sent.some((event) => event.type === "CUSTOM" && event.name === "firefly.sticker")).toBe(false);
     // 但 RUN_FINISHED 本身必须发出
     expect(sent.some((event) => event.type === "RUN_FINISHED")).toBe(true);
   });
@@ -1076,7 +1078,7 @@ describe("agui-bridge sticker event ordering", () => {
     expect(sent.some((event) => event.type === "RUN_FINISHED")).toBe(false);
     // 不能触发成功收尾副作用
     expect(onFinished).not.toHaveBeenCalled();
-    expect(sent.some((event) => event.type === "CUSTOM" && event.name === "cyrene.sticker")).toBe(false);
+    expect(sent.some((event) => event.type === "CUSTOM" && event.name === "firefly.sticker")).toBe(false);
   });
 
   // ── cancellation propagation（取消传播）───────────────────────────────
@@ -1696,7 +1698,7 @@ describe("agui-bridge transcript dispatch", () => {
   }
 
   it("commits the turn to the transcript and flags transcript context before build options", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-bridge-dispatch-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-dispatch-"));
     roots.push(root);
     mocks.userDataRoot = root;
     mocks.getSession.mockReturnValue({
@@ -1750,7 +1752,7 @@ describe("agui-bridge transcript dispatch", () => {
   });
 
   it("does not start the model when the transcript write fails", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-bridge-fail-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-fail-"));
     roots.push(root);
     mocks.userDataRoot = root;
     // userTurnId 指向的消息不存在 → prepareTranscriptDispatch 拒绝（fail-closed）
@@ -1775,7 +1777,7 @@ describe("agui-bridge transcript dispatch", () => {
   });
 
   it("renderer 回退开关只切换读取源，桌面双写持续（一个版本周期）", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-bridge-rollback-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-rollback-"));
     roots.push(root);
     mocks.userDataRoot = root;
     mocks.getSession.mockReturnValue({
@@ -1815,7 +1817,7 @@ describe("agui-bridge transcript dispatch", () => {
   });
 
   it("合并轨迹不确定效果与派发侧 recoveryContext，不互相覆盖", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-bridge-recovery-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-recovery-"));
     roots.push(root);
     mocks.userDataRoot = root;
     mocks.getSession.mockReturnValue({
@@ -1856,7 +1858,7 @@ describe("agui-bridge transcript dispatch", () => {
   it.each(["chat", "work", "code", "learn"] as const)(
     "%s 模式下一轮模型请求使用权威轨迹上下文",
     async (mode) => {
-      const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-bridge-modes-"));
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-modes-"));
       roots.push(root);
       mocks.userDataRoot = root;
       const conversationId = `conv-${mode}`;
@@ -1958,7 +1960,7 @@ describe("agui-bridge transcript dispatch", () => {
   );
 
   it("chat 模式跨工具开关保持轨迹连续（ChatLoop 与 Harness 共用权威轨迹）", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-bridge-chat-tools-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-chat-tools-"));
     roots.push(root);
     mocks.userDataRoot = root;
     const conversationId = "conv-chat-tools";

@@ -53,13 +53,13 @@ describe("markdownToSpeechText", () => {
 
   it("keeps short inline code but replaces paths and hashes", () => {
     const result = markdownToSpeechText(
-      "调用 `useState`，打开 C:\\Users\\Cyrene\\project\\index.ts，提交 0123456789abcdef0123456789abcdef01234567。",
+      "调用 `useState`，打开 C:\\Users\\Firefly\\project\\index.ts，提交 0123456789abcdef0123456789abcdef01234567。",
       {},
     );
     expect(result.text).toContain("use State");
     expect(result.text).toContain("一个文件路径");
     expect(result.text).toContain("一个标识符");
-    expect(result.text).not.toContain("Cyrene\\project");
+    expect(result.text).not.toContain("Firefly\\project");
   });
 
   it("numbers list items and marks blockquotes", () => {
@@ -70,8 +70,8 @@ describe("markdownToSpeechText", () => {
   });
 
   it("reads small tables by row and summarizes large tables", () => {
-    const small = markdownToSpeechText("|姓名|分数|\n|-|-|\n|昔涟|100|\n|伙伴|99|", {});
-    expect(small.text).toContain("第一行，姓名是昔涟，分数是100");
+    const small = markdownToSpeechText("|姓名|分数|\n|-|-|\n|流萤|100|\n|伙伴|99|", {});
+    expect(small.text).toContain("第一行，姓名是流萤，分数是100");
     expect(small.text).toContain("第二行，姓名是伙伴，分数是99");
 
     const large = markdownToSpeechText("|列|\n|-|\n|1|\n|2|\n|3|\n|4|\n|5|", { maxTableRows: 4 });

@@ -81,13 +81,13 @@ describe("plan-tools", () => {
       expect(events).toEqual([{ type: "plan_mode_changed", state: "PLAN_DISCUSSING" }]);
     });
 
-    it("计划路径落在工作区 .cyrene/docs 下", async () => {
+    it("计划路径落在工作区 .firefly/docs 下", async () => {
       await executeEnterPlanMode(makeCall({}, ENTER_PLAN_MODE_TOOL_ID), makeCtx());
       const { getPlanPath } = await import("../plan-mode");
 
       const normalizedRoot = workspaceRoot.replace(/[\\/]+$/, "").replace(/\\/g, "/");
       expect(getPlanPath("conv-1")).toMatch(
-        new RegExp(`^${normalizedRoot}/\\.cyrene/docs/plan-\\d{8}-\\d{6}\\.md$`),
+        new RegExp(`^${normalizedRoot}/\\.firefly/docs/plan-\\d{8}-\\d{6}\\.md$`),
       );
     });
 
@@ -177,7 +177,7 @@ describe("plan-tools", () => {
 
       expect(observation.outcome).toBe("success");
       expect(observation.tool).toBe(WRITE_PLAN_TOOL_ID);
-      expect(observation.target).toMatch(/\.cyrene\/docs\/plan-\d{8}-\d{6}\.md$/);
+      expect(observation.target).toMatch(/\.firefly\/docs\/plan-\d{8}-\d{6}\.md$/);
       expect(observation.message).toContain(observation.target!);
       // 写入的是 trim 后的内容
       expect(await readActivePlan("conv-1")).toBe(PLAN_CONTENT);
@@ -187,7 +187,7 @@ describe("plan-tools", () => {
       expect(hasPlanWrittenThisRun("conv-1")).toBe(true);
     });
 
-    it("自动把 .cyrene/ 加入 .gitignore（保留原有内容且幂等）", async () => {
+    it("自动把 .firefly/ 加入 .gitignore（保留原有内容且幂等）", async () => {
       fs.writeFileSync(path.join(workspaceRoot, ".gitignore"), "node_modules\n", "utf8");
       enterPlanDiscussing("conv-1", workspaceRoot);
 
@@ -196,13 +196,13 @@ describe("plan-tools", () => {
 
       const gitignore = fs.readFileSync(path.join(workspaceRoot, ".gitignore"), "utf8");
       expect(gitignore).toContain("node_modules");
-      expect(gitignore).toContain("# Cyrene agent");
-      expect(gitignore.match(/\.cyrene\//g)).toHaveLength(1);
+      expect(gitignore).toContain("# Firefly agent");
+      expect(gitignore.match(/\.firefly\//g)).toHaveLength(1);
       // 覆盖写入后文件为最新内容
       expect(await readActivePlan("conv-1")).toContain("补充一节。");
     });
 
-    it(".gitignore 已包含 .cyrene/ 时不重复追加", async () => {
+    it(".gitignore 已包含旧 .cyrene/ 时仍添加 .firefly/", async () => {
       fs.writeFileSync(path.join(workspaceRoot, ".gitignore"), "node_modules\n.cyrene/\n", "utf8");
       enterPlanDiscussing("conv-1", workspaceRoot);
 
@@ -211,7 +211,8 @@ describe("plan-tools", () => {
       expect(observation.outcome).toBe("success");
       const gitignore = fs.readFileSync(path.join(workspaceRoot, ".gitignore"), "utf8");
       expect(gitignore.match(/\.cyrene\//g)).toHaveLength(1);
-      expect(gitignore).not.toContain("# Cyrene agent");
+      expect(gitignore.match(/\.firefly\//g)).toHaveLength(1);
+      expect(gitignore).toContain("# Firefly agent");
     });
 
     it("无 workspaceRoot 时回落 userData 计划路径并落盘", async () => {

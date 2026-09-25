@@ -7,13 +7,34 @@ import {
   findPromptPath,
   findSkillPath,
   resolveExternalContentPaths,
+  resolveSkillsSnapshotArchivePath,
   resolveSkillScanSources,
 } from "./external-content-paths";
 
 const temporaryDirectories: string[] = [];
 
+describe("skills snapshot location", () => {
+  it("resolves the Firefly archive in development and packaged resources", () => {
+    const root = temporaryDirectory();
+    const resources = path.join(root, "resources");
+    const archiveName = "skills-snapshot.zip";
+    const devArchive = path.join(root, "vendor", "firefly-skills", archiveName);
+    const packagedArchive = path.join(resources, "firefly-skills", archiveName);
+
+    expect(resolveSkillsSnapshotArchivePath({ installRoot: root }, {
+      isPackaged: false,
+      existsSync: (candidate) => candidate === devArchive,
+    })).toBe(devArchive);
+    expect(resolveSkillsSnapshotArchivePath({ installRoot: root }, {
+      isPackaged: true,
+      resourcesPath: resources,
+      existsSync: (candidate) => candidate === packagedArchive,
+    })).toBe(packagedArchive);
+  });
+});
+
 function temporaryDirectory(): string {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-content-paths-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-content-paths-"));
   temporaryDirectories.push(directory);
   return directory;
 }
@@ -57,13 +78,13 @@ describe("resolveExternalContentPaths", () => {
   });
 
   it("keeps user-editable content in userData and shipped content beside the executable", () => {
-    const installRoot = path.resolve("E:/Cyrene");
+    const installRoot = path.resolve("E:/Firefly");
     const userData = path.resolve("E:/user-data");
 
     const result = resolveExternalContentPaths({
       isPackaged: true,
       appPath: path.join(installRoot, "resources", "app.asar"),
-      executablePath: path.join(installRoot, "Cyrene.exe"),
+      executablePath: path.join(installRoot, "Firefly.exe"),
       userDataPath: userData,
     });
 

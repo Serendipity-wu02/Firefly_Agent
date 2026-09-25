@@ -8,7 +8,7 @@ import type { LspServerDefinition } from "./types";
 const roots: string[] = [];
 
 function temporaryRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-lsp-discovery-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-lsp-discovery-"));
   roots.push(root);
   return root;
 }

@@ -1,10 +1,10 @@
 # Firefly · 流萤桌面智能体
 
-Firefly 是基于 Cyrene 桌面运行架构的 Windows Live2D AI 应用。迁移源码已汇入本分支，沿用现有会话界面、Agent 循环、工具、审批与任务状态机制；**这不是已完成的正式发布版**。
+Firefly 是 Windows Live2D AI 应用，使用 Electron、TypeScript 和 React。沿用现有会话界面、Agent 循环、工具、审批与任务状态机制；**这不是已完成的正式发布版**。
 
 - 项目主页：[Serendipity-wu02/Firefly_Agent](https://github.com/Serendipity-wu02/Firefly_Agent)
 - 问题反馈：[GitHub Issues](https://github.com/Serendipity-wu02/Firefly_Agent/issues)
-- 下载与更新：目前**没有兼容新底座的 Release**。应用自动更新已关闭，不要安装旧 Firefly 或上游 Cyrene 的发布包来升级本工作树。
+- 下载与更新：目前**没有兼容本版本的 Release**。应用自动更新已关闭，不要使用其他版本的发布包升级本工作树。
 
 ## 当前状态
 
@@ -33,7 +33,7 @@ npm start
 
 在应用的正常设置入口配置你自己的模型服务，然后检查流萤模型和头像、各主要页面，以及一轮真实 Chat 的身份、称呼、表达和结束状态。构建或主窗口启动成功不等于模型已实际回复。`npm run check:renderer` 与 `npm test` 可用于本地静态与单元验证。
 
-应用使用 `%APPDATA%\Firefly` 用户数据目录，与原 Firefly 包名目录 `%APPDATA%\firefly-agent` 隔离。从此前的 `Firefly-Cyrene-Base` 目录迁移时，须先完全退出应用；仅在目标目录不存在时复制持久化数据，保留原目录备份，跳过运行锁和可重建缓存。目标目录已有数据时不要自动覆盖或混合。现存 `cyrene` CLI 命令、存储键和部分源码名是兼容标识，不表示产品仍归属上游。
+应用使用 `%APPDATA%\Firefly`，与原版 `%APPDATA%\firefly-agent` 隔离。历史目录迁移须在退出后进行，保留原目录备份且不覆盖已有目标。当前写入、事件和 CLI 使用 Firefly；旧格式仅由集中迁移入口处理。读取失败不会按空数据写回。
 
 ## 外部语音服务
 
@@ -45,9 +45,9 @@ GPT-SoVITS 是独立运行的外部语音服务。用户须自行准备和启动
 
 ## 许可与素材
 
-源码使用 [MIT License](./LICENSE)。上游 Cyrene 源码的 `Copyright (c) 2026 Playa` 保留；Firefly 新增与修改内容的署名为 `Serendipity-wu02`。上游贡献与第三方依赖记录见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) 和 [docs/CONTRIBUTORS.md](./docs/CONTRIBUTORS.md)。
+源码使用 [MIT License](./LICENSE)，完整版权与许可保留在该文件。贡献与第三方依赖记录见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) 和 [docs/CONTRIBUTORS.md](./docs/CONTRIBUTORS.md)。
 
-**MIT 源码许可不覆盖角色形象、Live2D 模型、头像、字体、图标或其他第三方素材。**旧 Cyrene 模型的既有来源说明保留在 [MODEL_LICENSE.md](./MODEL_LICENSE.md)。项目所有者确认已取得流萤模型原作者授权；仓库尚无可核对的授权范围与再分发条款，头像及其他素材也需要单独核对，因此目前不发布安装包或资源包。流萤与《崩坏：星穹铁道》相关知识产权归 HoYoverse / miHoYo；本项目不是官方产品。
+**MIT 源码许可不覆盖角色形象、Live2D 模型、头像、字体、图标或其他第三方素材。**历史模型的既有来源说明保留在 [MODEL_LICENSE.md](./MODEL_LICENSE.md)。项目所有者确认已取得流萤模型原作者授权；仓库尚无可核对的授权范围与再分发条款，头像及其他素材也需要单独核对，因此目前不发布安装包或资源包。流萤与《崩坏：星穹铁道》相关知识产权归 HoYoverse / miHoYo；本项目不是官方产品。
 # 当前源码说明
 
 Firefly 的当前运行分层、身份注入与 Skills 组织见 [架构说明](./docs/architecture/firefly-runtime.md)。本轮品牌与 Skills 的定向验证、兼容标识和集中实机记录见 [实施记录](./docs/migration/firefly-brand-skills-2026-09-25.md)。历史报告由 [归档索引](./docs/archive/README.md) 集中查阅，不作为当前已验证功能的承诺。

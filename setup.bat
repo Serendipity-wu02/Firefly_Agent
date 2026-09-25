@@ -28,7 +28,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [4/4] 链接 cyrene 命令...
+echo [4/4] 链接 firefly 命令...
 call npm link
 if errorlevel 1 (
     echo [错误] npm link 失败

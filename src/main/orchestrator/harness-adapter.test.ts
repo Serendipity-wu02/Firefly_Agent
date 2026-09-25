@@ -193,7 +193,7 @@ describe("sendHarnessEventAsAgui runId stamping", () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       type: "CUSTOM",
-      name: "cyrene.process_text",
+      name: "firefly.process_text",
       value: { content: "正在处理" },
       runId,
     });
@@ -202,13 +202,13 @@ describe("sendHarnessEventAsAgui runId stamping", () => {
   it("maps explicit model round boundaries to one ordered custom event stream", () => {
     expect(captureEvents({ type: "round_start", roundId: "round-3" })[0]).toMatchObject({
       type: "CUSTOM",
-      name: "cyrene.round",
+      name: "firefly.round",
       value: { action: "start", roundId: "round-3" },
       runId,
     });
     expect(captureEvents({ type: "round_end", roundId: "round-3" })[0]).toMatchObject({
       type: "CUSTOM",
-      name: "cyrene.round",
+      name: "firefly.round",
       value: { action: "end", roundId: "round-3" },
       runId,
     });
@@ -320,10 +320,10 @@ describe("sendHarnessEventAsAgui runId stamping", () => {
     expect(events).toHaveLength(1);
     const custom = events[0] as BaseEvent & { runId?: string; name?: string };
     expect(custom.runId).toBe(runId);
-    expect(custom.name).toBe("cyrene.todo");
+    expect(custom.name).toBe("firefly.todo");
   });
 
-  it("routes context_usage snapshots to the cyrene.context.usage CUSTOM event", () => {
+  it("routes context_usage snapshots to the firefly.context.usage CUSTOM event", () => {
     const snapshot = {
       phase: "preRequest" as const,
       contextWindowTokens: 128_000,
@@ -337,7 +337,7 @@ describe("sendHarnessEventAsAgui runId stamping", () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       type: "CUSTOM",
-      name: "cyrene.context.usage",
+      name: "firefly.context.usage",
       value: snapshot,
       runId,
       threadId,
@@ -413,7 +413,7 @@ describe("Task delegation lifecycle projection", () => {
     }, "thread-1", "run-1", (event) => sent.push(event));
 
     expect(sent).toEqual([expect.objectContaining({
-      type: "CUSTOM", name: "cyrene.task", threadId: "thread-1", runId: "run-1",
+      type: "CUSTOM", name: "firefly.task", threadId: "thread-1", runId: "run-1",
       value: { invocationId: "child-run-1", taskId: "task-1", description: "检查取消链路", nickname: "风堇", assetFileName: "风堇.png", status: "running" },
     })]);
     expect(JSON.stringify(sent)).not.toContain("prompt");

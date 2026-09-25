@@ -7,12 +7,12 @@ import { readState, statePath, writeState, type FirstLaunchRecord } from "./stat
 let tmpHome: string;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(path.join(tmpdir(), "cyrene-cli-test-"));
-  process.env.CYRENE_HOME = tmpHome;
+  tmpHome = mkdtempSync(path.join(tmpdir(), "firefly-cli-test-"));
+  process.env.FIREFLY_HOME = tmpHome;
 });
 
 afterEach(() => {
-  delete process.env.CYRENE_HOME;
+  delete process.env.FIREFLY_HOME;
   rmSync(tmpHome, { recursive: true, force: true });
 });
 
@@ -28,12 +28,33 @@ function writeRaw(contents: string): void {
 }
 
 describe("statePath", () => {
-  it("points at <CYRENE_HOME>/.cyrene/state.json", () => {
-    expect(statePath()).toBe(path.join(tmpHome, ".cyrene", "state.json"));
+  it("points at <FIREFLY_HOME>/.firefly/state.json", () => {
+    expect(statePath()).toBe(path.join(tmpHome, ".firefly", "state.json"));
+  });
+
+  it("accepts the legacy home override without writing to the legacy directory", () => {
+    delete process.env.FIREFLY_HOME;
+    process.env.CYRENE_HOME = tmpHome;
+    try {
+      expect(statePath()).toBe(path.join(tmpHome, ".firefly", "state.json"));
+      writeState({ firstLaunch: sample });
+      expect(readState()).toEqual({ kind: "present", record: sample });
+    } finally {
+      delete process.env.CYRENE_HOME;
+      process.env.FIREFLY_HOME = tmpHome;
+    }
   });
 });
 
 describe("readState", () => {
+  it("reads the legacy state without overwriting it", () => {
+    const legacyPath = path.join(tmpHome, ".cyrene", "state.json");
+    mkdirSync(path.dirname(legacyPath), { recursive: true });
+    writeFileSync(legacyPath, JSON.stringify({ firstLaunch: sample }), "utf8");
+    expect(readState()).toEqual({ kind: "present", record: sample });
+    expect(statePath()).toBe(path.join(tmpHome, ".firefly", "state.json"));
+  });
+
   it("returns missing when the file does not exist", () => {
     expect(readState()).toEqual({ kind: "missing" });
   });
@@ -75,7 +96,7 @@ describe("readState", () => {
 });
 
 describe("writeState", () => {
-  it("creates the .cyrene directory if it does not exist", () => {
+  it("creates the .firefly directory if it does not exist", () => {
     expect(() => writeState({ firstLaunch: sample })).not.toThrow();
     expect(readState()).toEqual({ kind: "present", record: sample });
   });

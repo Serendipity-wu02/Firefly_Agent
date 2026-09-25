@@ -5,17 +5,17 @@ import type { ChatAppearanceSettings } from "../../shared/chat-appearance";
 
 declare global {
   interface Window {
-    cyreneTheme?: {
+    fireflyTheme?: {
       get: () => Promise<UiTheme>;
       onChanged: (callback: (theme: UiTheme) => void) => () => void;
       getRadius: () => Promise<boolean>;
       onRadiusChanged: (callback: (theme: boolean) => void) => () => void;
     };
-    cyreneFont?: {
+    fireflyFont?: {
       get: () => Promise<UiFont>;
       onChanged: (callback: (font: UiFont) => void) => () => void;
     };
-    cyreneAppearance?: {
+    fireflyAppearance?: {
       get: () => Promise<ChatAppearanceSettings>;
       onChanged: (callback: (settings: ChatAppearanceSettings) => void) => () => void;
     };
@@ -30,7 +30,7 @@ function applyRadius(radius: boolean): void {
   document.documentElement.dataset.uiRadius = radius ? undefined : "false";
 }
 
-const CUSTOM_FONT_STYLE_ID = "cyrene-custom-font";
+const CUSTOM_FONT_STYLE_ID = "firefly-custom-font";
 const DEFAULT_FONT_STACK = '"Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
 
 function applyFont(value: unknown): void {
@@ -51,22 +51,22 @@ function applyFont(value: unknown): void {
 
 applyTheme("pearl-white");
 
-void window.cyreneTheme?.get()
+void window.fireflyTheme?.get()
   .then(applyTheme)
   .catch(() => applyTheme("pearl-white"));
 
-window.cyreneTheme?.onChanged((theme) => {
+window.fireflyTheme?.onChanged((theme) => {
   applyTheme(theme);
 });
 
-void window.cyreneTheme?.getRadius()
+void window.fireflyTheme?.getRadius()
   .then(applyRadius)
   .catch(() => applyRadius(true));
 
-window.cyreneTheme?.onRadiusChanged((theme) => {
+window.fireflyTheme?.onRadiusChanged((theme) => {
   applyRadius(theme);
 });
 
 applyFont(DEFAULT_UI_FONT);
-void window.cyreneFont?.get().then(applyFont).catch(() => applyFont(DEFAULT_UI_FONT));
-window.cyreneFont?.onChanged((font) => applyFont(font));
+void window.fireflyFont?.get().then(applyFont).catch(() => applyFont(DEFAULT_UI_FONT));
+window.fireflyFont?.onChanged((font) => applyFont(font));

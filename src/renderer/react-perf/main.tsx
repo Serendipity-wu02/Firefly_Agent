@@ -113,7 +113,7 @@ const perfWindow = window as typeof window & {
   __perfState?: string;
   __perfHydrated?: boolean;
   __perfDone?: unknown;
-  __cyreneChatPerfProbe?: ChatPerfProbeCounters;
+  __fireflyChatPerfProbe?: ChatPerfProbeCounters;
 };
 
 perfWindow.__perfState = phase;
@@ -168,7 +168,7 @@ async function main() {
     sidebarRenders: 0,
     listRenders: 0,
   };
-  perfWindow.__cyreneChatPerfProbe = probe;
+  perfWindow.__fireflyChatPerfProbe = probe;
   activeProbe = probe;
   runtime.onEmit((event) => {
     lastEventAt = performance.now();
@@ -199,8 +199,8 @@ async function main() {
   window.requestAnimationFrame(frameLoop);
 
   await initUiLocale().catch(() => {});
-  const container = document.getElementById("cyrene-react-root");
-  if (!container) throw new Error("Root element #cyrene-react-root not found");
+  const container = document.getElementById("firefly-react-root");
+  if (!container) throw new Error("Root element #firefly-react-root not found");
   const root = createRoot(container);
   root.render(
     <React.StrictMode>

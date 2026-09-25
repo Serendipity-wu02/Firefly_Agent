@@ -38,7 +38,7 @@ if (!tarballName?.endsWith(".tgz")) fail("npm pack 未返回 tarball 文件名")
 const tarball = path.join(sdkDir, tarballName);
 
 // 2. 临时空项目
-const projectDir = await mkdtemp(path.join(tmpdir(), "cyrene-plugin-examples-"));
+const projectDir = await mkdtemp(path.join(tmpdir(), "firefly-plugin-examples-"));
 try {
   await writeFile(path.join(projectDir, "package.json"), JSON.stringify({
     name: "plugin-example-e2e",

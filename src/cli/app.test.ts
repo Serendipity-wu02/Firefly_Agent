@@ -1,6 +1,6 @@
 /**
  * Integration-ish tests for app.main(). Drives the real dispatch logic with
- * a temporary CYRENE_HOME so first-launch state is isolated.
+ * a temporary FIREFLY_HOME so first-launch state is isolated.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -18,8 +18,8 @@ let outSpy: ReturnType<typeof vi.spyOn>;
 let errSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(path.join(tmpdir(), "cyrene-cli-app-"));
-  process.env.CYRENE_HOME = tmpHome;
+  tmpHome = mkdtempSync(path.join(tmpdir(), "firefly-cli-app-"));
+  process.env.FIREFLY_HOME = tmpHome;
   stdoutBuf = "";
   stderrBuf = "";
   outSpy = vi.spyOn(process.stdout, "write").mockImplementation((s) => {
@@ -35,7 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   outSpy.mockRestore();
   errSpy.mockRestore();
-  delete process.env.CYRENE_HOME;
+  delete process.env.FIREFLY_HOME;
   rmSync(tmpHome, { recursive: true, force: true });
 });
 

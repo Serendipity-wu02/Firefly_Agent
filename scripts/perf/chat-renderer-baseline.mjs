@@ -85,9 +85,9 @@ function buildChannel(outDirRelative, profile) {
   if (!existsSync(viteBin)) throw new Error(`未找到 vite：${viteBin}`);
   const env = {
     ...process.env,
-    CYRENE_PERF_HARNESS: "1",
-    CYRENE_PERF_OUT_DIR: outDirRelative,
-    ...(profile ? { CYRENE_PERF_PROFILE: "1" } : {}),
+    FIREFLY_PERF_HARNESS: "1",
+    FIREFLY_PERF_OUT_DIR: outDirRelative,
+    ...(profile ? { FIREFLY_PERF_PROFILE: "1" } : {}),
   };
   const result = spawnSync(process.execPath, [viteBin, "build"], { cwd: ROOT, stdio: "inherit", env });
   if (result.status !== 0) throw new Error(`vite build 失败（${outDirRelative}）`);

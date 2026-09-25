@@ -38,7 +38,7 @@ function emitMirror(
 ): void {
   emit({
     type: "CUSTOM",
-    name: "cyrene.botMessage",
+    name: "firefly.botMessage",
     value: {
       type,
       channel: "wechat",
@@ -171,9 +171,9 @@ describe("useChannelMirrorEvents", () => {
   });
 
   it("载荷形状非法时忽略", async () => {
-    emit({ type: "CUSTOM", name: "cyrene.botMessage", value: { type: "bot:weird" } });
-    emit({ type: "CUSTOM", name: "cyrene.botMessage", value: null });
-    emit({ type: "TEXT_MESSAGE_CONTENT", name: "cyrene.botMessage", value: {} });
+    emit({ type: "CUSTOM", name: "firefly.botMessage", value: { type: "bot:weird" } });
+    emit({ type: "CUSTOM", name: "firefly.botMessage", value: null });
+    emit({ type: "TEXT_MESSAGE_CONTENT", name: "firefly.botMessage", value: {} });
     emit({ type: "CUSTOM", name: "other.event", value: {} });
     await flush();
 

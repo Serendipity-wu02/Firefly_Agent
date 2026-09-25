@@ -7,7 +7,7 @@
 //
 // 复用现有 RAG 引擎（addMemory / searchHistoryEntries），不另建存储层。
 
-import { addMemory, searchHistoryEntries } from "../../rag";
+import { addMemory, isUserMemoryVectorStoreReady, searchHistoryEntries } from "../../rag";
 import { toolRegistry } from "./registry/tool-registry";
 import { currentUserTimezone } from "./built-in-tools";
 import { getDateLocale } from "../../locale-context";
@@ -23,17 +23,26 @@ export async function indexConversationTurn(
   sessionId: string,
   userText: string,
   assistantText: string,
-): Promise<void> {
+): Promise<{ status: "complete" | "partial" | "unavailable" | "failed"; indexed: number }> {
+  if (!isUserMemoryVectorStoreReady()) {
+    console.warn(LOG_PREFIX, "对话向量索引未就绪；原始对话已保留，请检查 BGE-M3 模型状态");
+    return { status: "unavailable", indexed: 0 };
+  }
   const ts = Date.now();
+  let indexed = 0;
   try {
     if (userText) {
       await addMemory(userText, "chat_history", { sessionId, role: "user", ts });
+      indexed++;
     }
     if (assistantText) {
       await addMemory(assistantText, "chat_history", { sessionId, role: "assistant", ts });
+      indexed++;
     }
-  } catch (e) {
-    console.warn(LOG_PREFIX, "索引对话失败:", e);
+    return { status: "complete", indexed };
+  } catch (error) {
+    console.warn(LOG_PREFIX, "对话向量索引失败；原始对话已保留", error instanceof Error ? error.name : "unknown");
+    return { status: indexed > 0 ? "partial" : "failed", indexed };
   }
 }
 
@@ -66,6 +75,9 @@ export function registerRecallHistoryTool(): void {
       required: ["query"],
     },
     execute: async (args) => {
+      if (!isUserMemoryVectorStoreReady()) {
+        return "[recall_history] 向量检索未就绪，请在设置中检查 BGE-M3 模型状态；未执行检索。";
+      }
       const query = String(args.query || "").trim();
       if (!query) return "[错误] query 不能为空";
 

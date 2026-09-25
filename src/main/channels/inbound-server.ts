@@ -2,7 +2,7 @@
 //
 // 安全策略：
 //   - 只绑 127.0.0.1，外部网络不可达
-//   - 共享密钥 header：X-Cyrene-Channel-Secret（启动时自动生成 32 字节 hex）
+//   - 共享密钥 header：X-Firefly-Channel-Secret（启动时自动生成 32 字节 hex）
 //   - 路由前缀：/channels/<id>/inbound   /channels/<id>/healthz
 //
 // 通用入站路由 + 健康检查。当前无内置渠道依赖它（飞书走长连接、微信走 ilink 协议），
@@ -36,7 +36,7 @@ export function registerInboundRoute(channel: ChannelId, normalize: NormalizeFn)
 /** 内部：检查共享密钥（仅当 secret 已设置时强制校验） */
 function checkSecret(req: http.IncomingMessage, secret: string): boolean {
   if (!secret) return true; // 未启用时不校验
-  const got = req.headers["x-cyrene-channel-secret"];
+  const got = req.headers["x-firefly-channel-secret"] ?? req.headers[LEGACY_CHANNEL_HEADER];
   if (typeof got !== "string") return false;
   const expected = Buffer.from(secret, "utf8");
   const actual = Buffer.from(got, "utf8");
@@ -243,7 +243,8 @@ export async function stopInboundServer(): Promise<void> {
   }
 }
 
-/** 给 runtime 计算一个 HMAC（用作 X-Cyrene-Channel-Secret 的 payload 签名场景，备用） */
+/** 给 runtime 计算一个 HMAC（用作 X-Firefly-Channel-Secret 的 payload 签名场景，备用） */
 export function signPayload(payload: string, secret: string): string {
   return createHmac("sha256", secret).update(payload).digest("hex");
 }
+import { LEGACY_CHANNEL_HEADER } from "../../shared/legacy-firefly-contracts";

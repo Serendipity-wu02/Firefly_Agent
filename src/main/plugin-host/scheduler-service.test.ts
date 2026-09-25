@@ -12,7 +12,7 @@ let dir: string;
 let store: ReturnType<typeof createSchedulerStore>;
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-plugin-scheduler-"));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-plugin-scheduler-"));
   store = createSchedulerStore({
     tasksFile: path.join(dir, "scheduled-tasks.json"),
     historyFile: path.join(dir, "scheduled-tasks-history.jsonl"),

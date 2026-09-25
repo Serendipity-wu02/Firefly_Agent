@@ -1,10 +1,10 @@
 import fs from "node:fs";
+import { ensureFireflyDataDirectory } from "../../migration/firefly-data";
 import path from "node:path";
 import type { ChatMessage } from "../vendors/types";
 import { INITIAL_HARNESS_CACHE_STATE, type AgentState, type HarnessCacheState, type SideEffectKind } from "./types";
 import type { ToolOutputRef } from "./tool-output/tool-output-store";
 
-const ROOT_DIR_NAME = "cyrene-runs";
 const SESSIONS_DIR_NAME = "sessions";
 const INDEX_FILE_NAME = "index.json";
 const SCHEMA_VERSION = 1;
@@ -138,7 +138,7 @@ export class HarnessRunStore {
   private checkpointCount = 0;
 
   constructor(userDataRoot: string, options: HarnessRunStoreOptions = {}) {
-    this.root = path.join(userDataRoot, ROOT_DIR_NAME);
+    this.root = ensureFireflyDataDirectory(userDataRoot, "runs");
     this.sessionsDir = path.join(this.root, SESSIONS_DIR_NAME);
     this.indexPath = path.join(this.root, INDEX_FILE_NAME);
     this.now = options.now ?? Date.now;
@@ -294,13 +294,13 @@ export class HarnessRunStore {
     if (!fs.existsSync(file)) return null;
     try {
       const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
-      if (!isSession(parsed)) return null;
+      if (!isSession(parsed)) throw new Error("HARNESS_RUN_READ_FAILED");
       return {
         ...parsed,
         cache: isCacheState(parsed.cache) ? parsed.cache : { ...INITIAL_HARNESS_CACHE_STATE },
       };
     } catch {
-      return null;
+      throw new Error("HARNESS_RUN_READ_FAILED: 原文件已保留");
     }
   }
 
@@ -321,16 +321,16 @@ export class HarnessRunStore {
     if (!fs.existsSync(this.indexPath)) return;
     try {
       const parsed = JSON.parse(fs.readFileSync(this.indexPath, "utf8")) as unknown;
-      if (!Array.isArray(parsed)) return;
+      if (!Array.isArray(parsed)) throw new Error("HARNESS_INDEX_READ_FAILED");
       for (const row of parsed) {
-        if (!row || typeof row !== "object") continue;
+        if (!row || typeof row !== "object") throw new Error("HARNESS_INDEX_READ_FAILED");
         const candidate = row as Partial<IndexRow>;
         if (typeof candidate.conversationId !== "string" || typeof candidate.runId !== "string"
-          || !validRunId(candidate.runId) || !isRunStatus(candidate.status) || typeof candidate.updatedAt !== "number") continue;
+          || !validRunId(candidate.runId) || !isRunStatus(candidate.status) || typeof candidate.updatedAt !== "number") throw new Error("HARNESS_INDEX_READ_FAILED");
         this.index.set(candidate.runId, candidate as IndexRow);
       }
     } catch {
-      this.index.clear();
+      throw new Error("HARNESS_INDEX_READ_FAILED: 原文件已保留");
     }
   }
 

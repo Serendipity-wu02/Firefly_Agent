@@ -268,7 +268,7 @@ export class OpenAICompatAdapter implements ChatVendorAdapter {
           tools: req.tools ?? [],
         })
       : "legacy";
-    const extraBody = { ...(req.extraBody ?? {}), prompt_cache_key: `cyrene:${this.id}:${fingerprint}` };
+    const extraBody = { ...(req.extraBody ?? {}), prompt_cache_key: `firefly:${this.id}:${fingerprint}` };
     return { ...req, extraBody };
   }
 

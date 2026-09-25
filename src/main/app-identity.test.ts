@@ -7,7 +7,7 @@ import {
 } from "./app-identity";
 
 describe("Firefly application identity", () => {
-  it("binds the Cyrene-based build to an independent userData directory before startup", () => {
+  it("binds the Firefly-based build to an independent userData directory before startup", () => {
     const setName = vi.fn();
     const setPath = vi.fn();
     const appData = path.join("C:\\Users", "tester", "AppData", "Roaming");

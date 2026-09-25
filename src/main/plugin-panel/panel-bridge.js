@@ -1,8 +1,8 @@
 /**
- * 插件设置面板官方桥（cyrene-panel/1）。
+ * 插件设置面板官方桥（firefly-panel/1）。
  *
- * 由宿主经保留路径 /.cyrene/panel-bridge.js 统一分发，插件面板 HTML 内一行引入：
- *   <script src="/.cyrene/panel-bridge.js"></script>
+ * 由宿主经保留路径 /.firefly/panel-bridge.js 统一分发，插件面板 HTML 内一行引入：
+ *   <script src="/.firefly/panel-bridge.js"></script>
  *
  * 职责：
  * - invoke(channel, ...args)：面板 → 宿主受控 IPC 转发（pluginId 由宿主按
@@ -15,7 +15,7 @@
 (function () {
   "use strict";
 
-  var PROTOCOL = "cyrene-panel/1";
+  var PROTOCOL = "firefly-panel/1";
   var seq = 0;
   var pending = new Map();
   var themeCallbacks = [];
@@ -42,6 +42,7 @@
   }
 
   window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
     var data = event.data;
     if (!data || data.protocol !== PROTOCOL) return;
     if (data.kind === "invoke-result") {
@@ -69,7 +70,7 @@
     }
   });
 
-  window.CyrenePanel = {
+  window.FireflyPanel = {
     invoke: function (channel) {
       var args = Array.prototype.slice.call(arguments, 1);
       return new Promise(function (resolve, reject) {

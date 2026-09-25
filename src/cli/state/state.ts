@@ -1,9 +1,9 @@
 /**
- * Persistent CLI state at ~/.cyrene/state.json.
+ * Persistent CLI state at ~/.firefly/state.json.
  *
  * v0.9 only reads/writes the `firstLaunch` field. The file is a JSON object
  * so v1.x can add sibling fields (lastSeenAt, lastVersion, sessionId, …)
- * without renaming the file.
+ * without renaming the file. Existing ~/.firefly/state.json remains readable.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -26,14 +26,14 @@ export type FirstLaunchState =
   | { kind: "corrupt"; raw: string };
 
 /**
- * Absolute path to ~/.cyrene/state.json.
+ * Absolute path to ~/.firefly/state.json.
  *
- * Honors CYRENE_HOME if set (used by tests to isolate state). In production
+ * Honors FIREFLY_HOME or the legacy FIREFLY_HOME (used by tests to isolate state). In production
  * this is never set and we use os.homedir().
  */
 export function statePath(): string {
-  const home = process.env.CYRENE_HOME ?? os.homedir();
-  return path.join(home, ".cyrene", "state.json");
+  const home = fireflyEnvironment(process.env, "FIREFLY_HOME") ?? os.homedir();
+  return path.join(home, ".firefly", "state.json");
 }
 
 function isRecord(v: unknown): v is FirstLaunchRecord {
@@ -49,7 +49,9 @@ function isRecord(v: unknown): v is FirstLaunchRecord {
 export function readState(): FirstLaunchState {
   let raw: string;
   try {
-    raw = fs.readFileSync(statePath(), "utf8");
+    const currentPath = statePath();
+    const legacyPath = path.join(path.dirname(path.dirname(currentPath)), LEGACY_INTERNAL_DIRECTORY, "state.json");
+    raw = fs.readFileSync(fs.existsSync(currentPath) ? currentPath : legacyPath, "utf8");
   } catch {
     return { kind: "missing" };
   }
@@ -69,9 +71,11 @@ export function readState(): FirstLaunchState {
   return { kind: "present", record: firstLaunch };
 }
 
-/** Write state.json, creating ~/.cyrene/ if needed. Throws on I/O error. */
+/** Write state.json, creating ~/.firefly/ if needed. Throws on I/O error. */
 export function writeState(s: StateFile): void {
   const file = statePath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(s, null, 2) + "\n", "utf8");
 }
+import { fireflyEnvironment } from "../../shared/legacy-firefly-contracts";
+import { LEGACY_INTERNAL_DIRECTORY } from "../../shared/legacy-firefly-contracts";

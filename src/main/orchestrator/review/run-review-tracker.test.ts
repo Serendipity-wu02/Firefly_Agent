@@ -10,7 +10,7 @@ let tmpRoot: string;
 let tracker: RunReviewTracker;
 
 beforeEach(() => {
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-review-test-"));
+  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-review-test-"));
   tracker = new RunReviewTracker(tmpRoot);
 });
 
@@ -146,7 +146,7 @@ describe("RunReviewTracker.hasReviewData", () => {
 
 describe("RunReviewTracker journal 健壮性", () => {
   it("跳过损坏的 JSON 行", () => {
-    const journalPath = path.join(tmpRoot, "cyrene-runs", "reviews", "run-1", "journal.jsonl");
+    const journalPath = path.join(tmpRoot, "firefly-runs", "reviews", "run-1", "journal.jsonl");
     fs.mkdirSync(path.dirname(journalPath), { recursive: true });
     // 写一行合法 + 一行损坏 + 一行合法
     fs.writeFileSync(
@@ -484,7 +484,7 @@ describe("RunReviewTracker.restoreRun", () => {
 describe("RunReviewTracker.cleanupOldReviews", () => {
   /** 在 reviews/<runId>/ 下造一个目录,可指定 mtime */
   function makeReviewDir(runId: string, mtime?: number): string {
-    const dirPath = path.join(tmpRoot, "cyrene-runs", "reviews", runId);
+    const dirPath = path.join(tmpRoot, "firefly-runs", "reviews", runId);
     fs.mkdirSync(path.join(dirPath, "before"), { recursive: true });
     fs.writeFileSync(path.join(dirPath, "journal.jsonl"), "", "utf8");
     fs.writeFileSync(path.join(dirPath, "before", "hash1"), "baseline", "utf8");
@@ -502,8 +502,8 @@ describe("RunReviewTracker.cleanupOldReviews", () => {
     makeReviewDir("run-a");
     makeReviewDir("run-b");
     expect(tracker.cleanupOldReviews()).toEqual([]);
-    expect(fs.existsSync(path.join(tmpRoot, "cyrene-runs", "reviews", "run-a"))).toBe(true);
-    expect(fs.existsSync(path.join(tmpRoot, "cyrene-runs", "reviews", "run-b"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpRoot, "firefly-runs", "reviews", "run-a"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpRoot, "firefly-runs", "reviews", "run-b"))).toBe(true);
   });
 
   it("超过保留天数:超龄目录被清理,新目录保留", () => {

@@ -4,7 +4,7 @@
 // Anthropic 协议降级场景由 image-router.test.ts 的 resolveCaptionVisionConfig 用例覆盖。
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("electron", () => ({ app: { getPath: () => "/tmp/cyrene-test" } }));
+vi.mock("electron", () => ({ app: { getPath: () => "/tmp/firefly-test" } }));
 
 import { normalizeModelSettings, type ModelSettings, type VisionModelConfig } from "./model-settings";
 

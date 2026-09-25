@@ -68,7 +68,7 @@ function fakeRunner(appPaths: string, uninstall: string): DetectorInternals["run
 }
 
 function tempDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-open-in-app-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "firefly-open-in-app-"));
 }
 
 beforeEach(() => {

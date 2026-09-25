@@ -8,18 +8,18 @@ import type { ToolDefinition } from "./registry/tool-registry";
 const mocks = vi.hoisted(() => ({
   loadGeneralSettings: vi.fn(),
   listFeed: vi.fn(),
-  cyreneCreatePostFromTool: vi.fn(),
-  cyreneLikeFromTool: vi.fn(),
-  cyreneCommentFromTool: vi.fn(),
+  fireflyCreatePostFromTool: vi.fn(),
+  fireflyLikeFromTool: vi.fn(),
+  fireflyCommentFromTool: vi.fn(),
 }));
 
 vi.mock("../../settings/settings-facade", () => ({ loadGeneralSettings: mocks.loadGeneralSettings }));
 vi.mock("../../moments/moments-service", () => ({
   momentsService: {
     listFeed: mocks.listFeed,
-    cyreneCreatePostFromTool: mocks.cyreneCreatePostFromTool,
-    cyreneLikeFromTool: mocks.cyreneLikeFromTool,
-    cyreneCommentFromTool: mocks.cyreneCommentFromTool,
+    fireflyCreatePostFromTool: mocks.fireflyCreatePostFromTool,
+    fireflyLikeFromTool: mocks.fireflyLikeFromTool,
+    fireflyCommentFromTool: mocks.fireflyCommentFromTool,
   },
 }));
 
@@ -88,7 +88,7 @@ describe("moments_view 看朋友圈", () => {
     mocks.listFeed.mockReturnValue([
       makeFeedItem(),
       makeFeedItem({
-        post: { id: "moment_cy1", author: "cyrene", text: "a".repeat(100), media: [{ id: "m1", type: "image", origin: "character_asset", ref: "x.png" }], createdAt: Date.now() - 2 * 60 * 60_000 },
+        post: { id: "moment_cy1", author: "firefly", text: "a".repeat(100), media: [{ id: "m1", type: "image", origin: "character_asset", ref: "x.png" }], createdAt: Date.now() - 2 * 60 * 60_000 },
         comments: [{ id: "comment_c1", postId: "moment_cy1", author: "万敌", content: "路过", createdAt: Date.now() }],
         likes: [{ postId: "moment_cy1", actor: "万敌", type: "like", createdAt: Date.now() }],
       }),
@@ -100,7 +100,7 @@ describe("moments_view 看朋友圈", () => {
     expect(output).toContain("主人");
     expect(output).toContain("5 分钟前");
     expect(output).toContain("moment_cy1");
-    expect(output).toContain("我"); // 昔涟视角的作者标签
+    expect(output).toContain("我"); // 流萤视角的作者标签
     expect(output).toContain("2 小时前");
     expect(output).toContain("…"); // 长文截断
     expect(output).toContain("1 张图");
@@ -117,14 +117,14 @@ describe("moments_post 发朋友圈", () => {
   });
 
   it("发帖成功返回 postId", async () => {
-    mocks.cyreneCreatePostFromTool.mockResolvedValue({ applied: true, value: { id: "moment_cy1" } });
+    mocks.fireflyCreatePostFromTool.mockResolvedValue({ applied: true, value: { id: "moment_cy1" } });
     const output = await getTool("moments_post").execute({ text: "今天天气真好" });
-    expect(mocks.cyreneCreatePostFromTool).toHaveBeenCalledWith({ title: undefined, text: "今天天气真好" });
+    expect(mocks.fireflyCreatePostFromTool).toHaveBeenCalledWith({ title: undefined, text: "今天天气真好" });
     expect(output).toContain("moment_cy1");
   });
 
-  it("开关关闭时返回可读原因（昔涟据此向用户解释）", async () => {
-    mocks.cyreneCreatePostFromTool.mockResolvedValue({ applied: false, reason: "moments_disabled" });
+  it("开关关闭时返回可读原因（流萤据此向用户解释）", async () => {
+    mocks.fireflyCreatePostFromTool.mockResolvedValue({ applied: false, reason: "moments_disabled" });
     const output = await getTool("moments_post").execute({ text: "发不出去" });
     expect(output).toContain("开关");
     expect(output).not.toContain("[错误]");
@@ -145,20 +145,20 @@ describe("moments_interact 朋友圈互动", () => {
   });
 
   it("点赞成功", async () => {
-    mocks.cyreneLikeFromTool.mockResolvedValue({ applied: true, value: { liked: true } });
+    mocks.fireflyLikeFromTool.mockResolvedValue({ applied: true, value: { liked: true } });
     const output = await getTool("moments_interact").execute({ postId: "p1", action: "like" });
-    expect(mocks.cyreneLikeFromTool).toHaveBeenCalledWith("p1");
+    expect(mocks.fireflyLikeFromTool).toHaveBeenCalledWith("p1");
     expect(output).toContain("已点赞");
   });
 
   it("已点过赞返回自然提示而非报错", async () => {
-    mocks.cyreneLikeFromTool.mockResolvedValue({ applied: false, reason: "reaction_exists" });
+    mocks.fireflyLikeFromTool.mockResolvedValue({ applied: false, reason: "reaction_exists" });
     const output = await getTool("moments_interact").execute({ postId: "p1", action: "like" });
     expect(output).toContain("已经点过赞");
   });
 
   it("目标动态不存在时引导先看动态", async () => {
-    mocks.cyreneLikeFromTool.mockResolvedValue({ applied: false, reason: "post_not_found" });
+    mocks.fireflyLikeFromTool.mockResolvedValue({ applied: false, reason: "post_not_found" });
     const output = await getTool("moments_interact").execute({ postId: "p404", action: "like" });
     expect(output).toContain("moments_view");
   });
@@ -167,9 +167,9 @@ describe("moments_interact 朋友圈互动", () => {
     const missing = await getTool("moments_interact").execute({ postId: "p1", action: "comment" });
     expect(missing).toContain("[错误]");
 
-    mocks.cyreneCommentFromTool.mockResolvedValue({
+    mocks.fireflyCommentFromTool.mockResolvedValue({
       applied: true,
-      value: { id: "comment_c9", postId: "p1", author: "cyrene", content: "好耶", createdAt: 1 },
+      value: { id: "comment_c9", postId: "p1", author: "firefly", content: "好耶", createdAt: 1 },
     });
     const output = await getTool("moments_interact").execute({
       postId: "p1",
@@ -177,7 +177,7 @@ describe("moments_interact 朋友圈互动", () => {
       content: "好耶",
       replyTo: "comment_c1",
     });
-    expect(mocks.cyreneCommentFromTool).toHaveBeenCalledWith({ postId: "p1", content: "好耶", replyTo: "comment_c1" });
+    expect(mocks.fireflyCommentFromTool).toHaveBeenCalledWith({ postId: "p1", content: "好耶", replyTo: "comment_c1" });
     expect(output).toContain("comment_c9");
   });
 });

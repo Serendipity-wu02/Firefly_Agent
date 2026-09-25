@@ -5,7 +5,7 @@ import * as path from "path";
 import * as os from "os";
 
 // Mock electron
-const HISTORY_TMP = path.join(os.tmpdir(), "cyrene-history-test");
+const HISTORY_TMP = path.join(os.tmpdir(), "firefly-history-test");
 fs.mkdirSync(HISTORY_TMP, { recursive: true });
 
 vi.mock("electron", () => ({

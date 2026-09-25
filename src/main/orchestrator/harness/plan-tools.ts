@@ -69,7 +69,7 @@ function conversationIdOf(ctx?: ToolContext): string {
   return ctx?.conversationId ?? "default";
 }
 
-/** 计划文件落在工作区 .cyrene/ 下时，确保项目 .gitignore 忽略它（幂等，失败静默降级）。 */
+/** 计划文件落在工作区 .firefly/ 下时，确保项目 .gitignore 忽略它（幂等，失败静默降级）。 */
 async function ensureWorkspaceMetadataIgnored(workspaceRoot: string): Promise<void> {
   try {
     const gitignorePath = path.join(workspaceRoot, ".gitignore");
@@ -79,11 +79,11 @@ async function ensureWorkspaceMetadataIgnored(workspaceRoot: string): Promise<vo
     } catch {
       // 无 .gitignore（可能尚未 git init）：新建一个仅含忽略规则的文件
     }
-    if (/(^|\n)\s*\.cyrene\/?\s*(\n|$)/.test(current)) return;
+    if (/(^|\n)\s*\.firefly\/?\s*(\n|$)/.test(current)) return;
     const addition = current.endsWith("\n") || current === "" ? "" : "\n";
     await fs.promises.writeFile(
       gitignorePath,
-      `${current}${addition}\n# Firefly agent\n.cyrene/\n`,
+      `${current}${addition}\n# Firefly agent\n.firefly/\n`,
       "utf8",
     );
   } catch {
@@ -145,8 +145,8 @@ export async function executeWritePlan(
   const planPath = getPlanPath(conversationId);
   try {
     await fs.promises.mkdir(path.dirname(planPath), { recursive: true });
-    // 计划在项目工作区下时，顺带确保 .cyrene/ 不进 git（幂等）
-    if (planPath.includes(".cyrene") && ctx?.resolvedWorkspaceRoot) {
+    // 计划在项目工作区下时，顺带确保 .firefly/ 不进 git（幂等）
+    if (planPath.includes(".firefly") && ctx?.resolvedWorkspaceRoot) {
       await ensureWorkspaceMetadataIgnored(ctx.resolvedWorkspaceRoot);
     }
     await fs.promises.writeFile(planPath, content, "utf8");
@@ -169,7 +169,7 @@ export async function executeWritePlan(
   };
 }
 
-/** 计划审批卡片（第一段，两选项、无自由输入；计划全文经 cyrene.plan.review 事件下发）。 */
+/** 计划审批卡片（第一段，两选项、无自由输入；计划全文经 firefly.plan.review 事件下发）。 */
 export function buildPlanReviewCard(planPath: string): AskClarificationCard & { planPath: string } {
   return {
     mode: "semantic_clarification",

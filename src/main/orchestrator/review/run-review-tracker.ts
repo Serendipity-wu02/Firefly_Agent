@@ -10,7 +10,7 @@
 //   二进制只存 metadata（size + hash）。
 //
 // 存储结构：
-//   <userData>/cyrene-runs/reviews/<runId>/
+//   <userData>/firefly-runs/reviews/<runId>/
 //     journal.jsonl              # 事件日志（每行一个 JSON）
 //     before/<sha256(absPath)>   # BeforeImage 文件内容（文本类）
 //     before/<hash>.absent       # 文件不存在的标记（新建文件的 baseline）
@@ -18,6 +18,7 @@
 //     snapshot.json              # 最终 ReviewSnapshot（finalizeReview 原子写）
 
 import * as fs from "fs";
+import { ensureFireflyDataDirectory } from "../../migration/firefly-data";
 import * as path from "path";
 import { createHash } from "node:crypto";
 import { logger, LogTag } from "../../logger";
@@ -143,7 +144,7 @@ export class RunReviewTracker {
   private readonly reviewsRoot: string;
 
   constructor(userDataRoot: string) {
-    this.reviewsRoot = path.join(userDataRoot, "cyrene-runs", "reviews");
+    this.reviewsRoot = path.join(ensureFireflyDataDirectory(userDataRoot, "runs"), "reviews");
     // 首次创建即清理过期/超量 Review 目录（30 天 / 200 目录 / 500MB，最旧优先）；
     // 清理失败不影响 tracker 可用性
     try {

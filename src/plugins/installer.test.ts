@@ -86,7 +86,7 @@ function manifest(id = "zip-demo", version = "1.0.0"): string {
 }
 
 function setup(): { root: string; zip: string } {
-  tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-plugin-zip-"));
+  tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-plugin-zip-"));
   return { root: path.join(tmp, "plugins"), zip: path.join(tmp, "plugin.zip") };
 }
 
@@ -251,11 +251,11 @@ describe("marketplace install contracts", () => {
     ]);
     const prepared = await preparePluginZip(zip, root);
 
-    await commitPreparedPlugin(prepared, root, false, { marketOrigin: { registryId: "cyrene-official" } });
+    await commitPreparedPlugin(prepared, root, false, { marketOrigin: { registryId: "firefly-official" } });
 
     const metadata = readHostMetadataSync(root, "zip-demo");
     expect(metadata?.origin).toBe("market");
-    expect(metadata?.registryId).toBe("cyrene-official");
+    expect(metadata?.registryId).toBe("firefly-official");
     expect(metadata?.installedVersion).toBe("1.0.0");
   });
 

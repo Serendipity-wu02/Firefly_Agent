@@ -140,7 +140,7 @@ describe("buildModelContext", () => {
   const roots: string[] = [];
 
   function createStore() {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-transcript-ctx-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-transcript-ctx-"));
     roots.push(root);
     return { root, store: new ConversationTranscriptStore(root, { now: () => 1_000 }) };
   }
@@ -214,7 +214,7 @@ describe("transcript failure matrix", () => {
   }
 
   it("每个轨迹写入断点失败时保持各自的 fail-closed 语义", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-transcript-matrix-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-transcript-matrix-"));
     roots.push(root);
     const store = new ConversationTranscriptStore(root, { now: () => 1_000 });
     const conversationId = "c-matrix";

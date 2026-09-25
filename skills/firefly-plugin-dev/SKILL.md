@@ -90,12 +90,13 @@ p.register({
 TypeScript 插件优先用兼容的上游 SDK 的测试工具（不需要启动 Firefly）：
 
 ```bash
-npm install @playa0v0/cyrene-plugin-sdk
+npm run build:plugin-sdk
+npm pack ./packages/plugin-sdk
 ```
 
 ```js
 // 测试脚本：Mock Context 验证 register 契约、工具 id、清理回调
-const { createMockPluginContext, assertPluginTool } = require("@playa0v0/cyrene-plugin-sdk/testing");
+const { createMockPluginContext, assertPluginTool } = require("@firefly/plugin-sdk/testing");
 const ctx = createMockPluginContext({ pluginId: "<plugin-id>" });
 await plugin.register(ctx);
 ctx.tools.forEach((t) => assertPluginTool(t, "<plugin-id>"));
@@ -121,7 +122,7 @@ await ctx.dispose();
 
 ## 分发与收录
 
-- 插件装好后只在用户本机可用。**用户想让插件被更多人看到/使用时，主动提醒**：可提交 PR 到上游第三方收录仓库 [Cyrene-Plugins](https://github.com/Playa-0v0/Cyrene-Plugins)，审核通过后其他用户可直接下载 ZIP 导入
+- 插件市场尚未配置。插件以本地 ZIP 安装，不自动上传或要求用户向第三方投稿。SDK 使用本仓库构建的 tarball，不从 npm 安装未发布的名称。
 - 收录要求（完整规范见仓库 CONTRIBUTING.md）：`plugins/<插件id>/` 下放可直接安装的产物（manifest + 编译后入口 + README）+ `registry.json` 登记 + README「已收录插件」表格加一行；**不要上传 zip**，ZIP 由维护者从审核过的源码统一打包
 - 反过来，用户想安装别人开发的插件：从仓库 README「已收录插件」表格下载 ZIP，走上方导入流程即可
 

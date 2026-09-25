@@ -50,7 +50,7 @@ export function bootstrapConfigGetters(ctx: BootstrapConfigContext): void {
       if (win) {
         win.webContents.send(IPC.AGUI_EVENT, {
           type: "CUSTOM",
-          name: "cyrene.weather",
+          name: "firefly.weather",
           value: card,
           // 天气工具在 Harness 内执行时必须归属到该 run；否则 renderer 的
           // RunEventGate 会把没有 runId 的卡片事件当作串会话事件丢弃。
@@ -70,20 +70,20 @@ export function bootstrapConfigGetters(ctx: BootstrapConfigContext): void {
     if (win) {
       win.webContents.send(IPC.AGUI_EVENT, {
         type: "CUSTOM",
-        name: "cyrene.choice",
+        name: "firefly.choice",
         value: cardData,
       });
     }
   });
 
   // 注入选择卡结算回调：老版 requestUserChoice 超时结算时通知渲染端清卡，
-  // 避免留下「点了没反应」的僵尸卡（与澄清卡的 cyrene.choice.dismiss 同机制）。
+  // 避免留下「点了没反应」的僵尸卡（与澄清卡的 firefly.choice.dismiss 同机制）。
   setChoiceDismissSender((settlement) => {
     const win = getReactChatWindow();
     if (win) {
       win.webContents.send(IPC.AGUI_EVENT, {
         type: "CUSTOM",
-        name: "cyrene.choice.dismiss",
+        name: "firefly.choice.dismiss",
         value: settlement,
       });
     }

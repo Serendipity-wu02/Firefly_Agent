@@ -670,7 +670,7 @@ describe("FireflyHarness completion", () => {
     };
     expect(summaryRequest.messages.some((entry) => entry.content === "旧任务".repeat(100))).toBe(true);
     expect(summaryRequest.messages.at(-1)?.content).toContain("## 原始任务与意图");
-    expect(checkpoints.at(-1)?.messages[0]?.content).toContain("<cyrene_compaction_checkpoint>");
+    expect(checkpoints.at(-1)?.messages[0]?.content).toContain("<firefly_compaction_checkpoint>");
     expect(checkpoints.at(-1)?.cache).toEqual({ cacheEpoch: 2, epochReason: "compaction" });
     expect(compactions).toEqual([
       expect.objectContaining({ status: "started", messageCountBefore: historicalMessages.length + 1 }),

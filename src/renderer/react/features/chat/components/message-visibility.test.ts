@@ -31,7 +31,7 @@ describe("assistantRenderStages", () => {
     })).toEqual(["activity"]);
   });
 
-  it("adds Cyrene's bubble only after visible reply content starts", () => {
+  it("adds Firefly's bubble only after visible reply content starts", () => {
     expect(assistantRenderStages({
       content: "正式回答",
       reasoning: "分析过程",

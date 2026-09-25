@@ -1,6 +1,6 @@
 // 聊天会话持久化存储
 //
-// 布局：<userData>/cyrene-chats/
+// 布局：<userData>/firefly-chats/
 //   index.json              — ChatSessionMeta[]，按 updatedAt desc 排序
 //   sessions/<id>.json      — 完整 ChatSession（含 messages）
 //
@@ -9,9 +9,10 @@
 // - 写时先写 .tmp 再 rename，避免 crash 中间态损坏文件；
 // - index.json 在内存里有缓存（initialize() 时一次性加载），
 //   后续 list 直接返回缓存的 deep clone；任何写操作后同步刷新缓存；
-// - 删除文件夹整体可移植：用户拷贝 cyrene-chats/ 到新机器即可恢复。
+// - 删除文件夹整体可移植：用户拷贝 firefly-chats/ 到新机器即可恢复。
 
 import { app, shell } from "electron";
+import { ensureFireflyDataDirectory } from "../migration/firefly-data";
 import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
@@ -28,7 +29,6 @@ import {
 } from "../../shared/chat-types";
 import type { ContextUsageSnapshot } from "../../shared/context-usage";
 
-const ROOT_DIR_NAME = "cyrene-chats";
 const SESSIONS_SUBDIR = "sessions";
 const INDEX_FILE = "index.json";
 const LEGACY_MIGRATION_PROJECT_NAME = "迁移文件夹";
@@ -273,7 +273,7 @@ function deriveTitle(messages: ChatMessage[]): string {
 
 export function initialize(): void {
   if (initialized) return;
-  rootDir = path.join(app.getPath("userData"), ROOT_DIR_NAME);
+  rootDir = ensureFireflyDataDirectory(app.getPath("userData"), "chats");
   sessionsDir = path.join(rootDir, SESSIONS_SUBDIR);
   indexPath = path.join(rootDir, INDEX_FILE);
   try {

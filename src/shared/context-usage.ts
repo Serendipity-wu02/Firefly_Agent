@@ -1,7 +1,7 @@
 // 上下文容量观看器的共享类型（main / preload / renderer 三端共用）。
 //
 // 快照由主进程在每轮 LLM 请求发出前（preRequest）与 run 终态（terminal）拍摄，
-// riding 现有 AG-UI CUSTOM 事件 "cyrene.context.usage" 推送到渲染层：
+// riding 现有 AG-UI CUSTOM 事件 "firefly.context.usage" 推送到渲染层：
 // - preRequest 只更新 renderer 内存态，圆环实时刷新，零 I/O；
 // - terminal 包含最终 assistant 回复，随消息持久化（一次落盘）。
 

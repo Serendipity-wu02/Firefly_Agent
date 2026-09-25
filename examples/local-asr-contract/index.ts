@@ -11,12 +11,12 @@
  * 4. release() 幂等；识别结束或 signal 触发都要释放，把输入权还给宿主
  */
 import type {
-  CyrenePlugin,
+  FireflyPlugin,
   PluginDeps,
   PluginHostError,
   PluginSpeechInputLease,
   PluginTool,
-} from "@playa0v0/cyrene-plugin-sdk";
+} from "@firefly/plugin-sdk";
 
 let deps: PluginDeps = {};
 
@@ -114,7 +114,7 @@ const statusTool: PluginTool = {
   },
 };
 
-const plugin: CyrenePlugin = {
+const plugin: FireflyPlugin = {
   async register(ctx) {
     deps = ctx.deps;
     for (const tool of [startTool, statusTool]) {

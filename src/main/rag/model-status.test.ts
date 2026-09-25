@@ -8,7 +8,7 @@ const { ISOLATED_ROOT, ISOLATED_HOME } = vi.hoisted(() => {
   const pathMod = require("path") as typeof import("path");
   const root = pathMod.join(
     process.env.TEMP || process.env.TMP || "/tmp",
-    `cyrene-model-status-test-${process.pid}`,
+    `firefly-model-status-test-${process.pid}`,
   );
   return { ISOLATED_ROOT: root, ISOLATED_HOME: pathMod.join(root, "home") };
 });

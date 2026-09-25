@@ -20,7 +20,7 @@ export function sendHarnessEventAsAgui(
     case "round_end": {
       send({
         type: EventType.CUSTOM,
-        name: "cyrene.round",
+        name: "firefly.round",
         value: {
           action: event.type === "round_start" ? "start" : "end",
           roundId: event.roundId,
@@ -34,7 +34,7 @@ export function sendHarnessEventAsAgui(
     case "candidate_text_discard": {
       send({
         type: EventType.CUSTOM,
-        name: "cyrene.candidate_text",
+        name: "firefly.candidate_text",
         value: event.type === "candidate_text_delta"
           ? { action: "delta", roundId: event.roundId, delta: event.delta }
           : { action: "discard", roundId: event.roundId },
@@ -46,7 +46,7 @@ export function sendHarnessEventAsAgui(
     case "progress_text": {
       send({
         type: EventType.CUSTOM,
-        name: "cyrene.process_text",
+        name: "firefly.process_text",
         value: { content: event.content },
         threadId,
         runId,
@@ -114,7 +114,7 @@ export function sendHarnessEventAsAgui(
     case "todo_update": {
       send({
         type: EventType.CUSTOM,
-        name: "cyrene.todo",
+        name: "firefly.todo",
         value: { items: event.items },
         threadId,
         runId,
@@ -124,7 +124,7 @@ export function sendHarnessEventAsAgui(
     case "context_usage": {
       send({
         type: EventType.CUSTOM,
-        name: "cyrene.context.usage",
+        name: "firefly.context.usage",
         value: event.snapshot,
         threadId,
         runId,
@@ -140,7 +140,7 @@ export function sendHarnessEventAsAgui(
     case "plan_mode_changed": {
       send({
         type: EventType.CUSTOM,
-        name: "cyrene.plan",
+        name: "firefly.plan",
         value: { action: "state_changed", state: event.state },
         threadId,
         runId,
@@ -150,7 +150,7 @@ export function sendHarnessEventAsAgui(
     case "plan_written": {
       send({
         type: EventType.CUSTOM,
-        name: "cyrene.plan",
+        name: "firefly.plan",
         value: { action: "written", planPath: event.planPath },
         threadId,
         runId,
@@ -169,5 +169,5 @@ export function sendTaskLifecycleAsAgui(
   runId: string,
   send: (event: BaseEvent) => void,
 ): void {
-  send({ type: EventType.CUSTOM, name: "cyrene.task", value, threadId, runId } as BaseEvent);
+  send({ type: EventType.CUSTOM, name: "firefly.task", value, threadId, runId } as BaseEvent);
 }

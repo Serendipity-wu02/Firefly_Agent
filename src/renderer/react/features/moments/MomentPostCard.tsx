@@ -20,7 +20,7 @@ const FIREFLY_AVATAR_URL = resolveAsset("avatars/firefly-avatar.png");
  */
 function renderPostText(text: string, mentions: readonly string[] | undefined, fireflyLabel: string) {
   if (!mentions || mentions.length === 0) return text;
-  const displayNames = mentions.map((name) => (name === "cyrene" ? fireflyLabel : name));
+  const displayNames = mentions.map((name) => (name === "firefly" ? fireflyLabel : name));
   // 找出每个 @昵称 在文本中的位置，按出现顺序切片
   const marks: Array<{ start: number; end: number }> = [];
   for (const display of displayNames) {
@@ -81,8 +81,8 @@ export function MomentPostCard({
 
   // 作者显示名：流萤/用户走既定名，其余一律按角色人设昵称原样显示
   const authorName = (author: MomentAuthor): string =>
-    author === "cyrene" ? t("moments.cyreneName") : author === "user" ? userDisplayName : author;
-  const isCharacterAuthor = (author: MomentAuthor): boolean => author !== "user" && author !== "cyrene";
+    author === "firefly" ? t("moments.fireflyName") : author === "user" ? userDisplayName : author;
+  const isCharacterAuthor = (author: MomentAuthor): boolean => author !== "user" && author !== "firefly";
 
   const likedByUser = likes.some((like) => like.actor === "user");
   // 点赞行只展示真实落库的点赞（角色/流萤的延迟点赞到达后经广播刷新出现）
@@ -122,8 +122,8 @@ export function MomentPostCard({
     // id 作为通知跳转的滚动锚点：点击通知列表里的条目可定位到对应动态
     <article className="moment-card" id={`moment-post-${post.id}`}>
       <div className="moment-card__avatar">
-        {post.author === "cyrene" ? (
-          <img src={FIREFLY_AVATAR_URL} alt={t("moments.cyreneName")} draggable={false} />
+        {post.author === "firefly" ? (
+          <img src={FIREFLY_AVATAR_URL} alt={t("moments.fireflyName")} draggable={false} />
         ) : userAvatarUrl ? (
           <img src={userAvatarUrl} alt={userDisplayName} draggable={false} />
         ) : (
@@ -135,7 +135,7 @@ export function MomentPostCard({
         <div className="moment-card__name">{authorName(post.author)}</div>
         {post.title && <div className="moment-card__title">{post.title}</div>}
         {post.text && (
-          <div className="moment-card__text">{renderPostText(post.text, post.mentions, t("moments.cyreneName"))}</div>
+          <div className="moment-card__text">{renderPostText(post.text, post.mentions, t("moments.fireflyName"))}</div>
         )}
 
         {post.media.length > 0 && (

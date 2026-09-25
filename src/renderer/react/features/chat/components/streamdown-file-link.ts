@@ -1,6 +1,7 @@
 import type { Plugin } from "unified";
 
-const PLACEHOLDER_PREFIX = "https://cyrene.invalid/__file-link__/";
+const PLACEHOLDER_PREFIX = "https://firefly.invalid/__file-link__/";
+import { LEGACY_PLACEHOLDER_PREFIX } from "../../../../../shared/legacy-firefly-contracts";
 const BASE64_URL = /^[A-Za-z0-9_-]+$/;
 
 type HastNode = {
@@ -34,8 +35,9 @@ export function encodeStreamdownFileHref(href: string): string {
 }
 
 export function decodeStreamdownFileHref(href: string): string | null {
-  if (!href.startsWith(PLACEHOLDER_PREFIX)) return null;
-  const decoded = fromBase64Url(href.slice(PLACEHOLDER_PREFIX.length));
+  const prefix = [PLACEHOLDER_PREFIX, LEGACY_PLACEHOLDER_PREFIX].find((value) => href.startsWith(value));
+  if (!prefix) return null;
+  const decoded = fromBase64Url(href.slice(prefix.length));
   return decoded?.startsWith("file:///") ? decoded : null;
 }
 

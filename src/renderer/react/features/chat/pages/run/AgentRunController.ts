@@ -1,3 +1,4 @@
+import { normalizeFireflyEvent } from "../../../../../../shared/legacy-firefly-contracts";
 import type {
   AgentRoundRecord,
   ChatMessage,
@@ -817,8 +818,9 @@ export class AgentRunController {
 
   /** AG-UI 事件归约：流式内容、推理、工具、交互卡与终态全部在此处理。 */
   private handleEvent(event: AguiEvent) {
+    event = normalizeFireflyEvent(event);
     if (this.terminalReceived) return;
-    if (event.type === "CUSTOM" && event.name === "cyrene.round") {
+    if (event.type === "CUSTOM" && event.name === "firefly.round") {
       const value = event.value as { action?: unknown; roundId?: unknown } | null | undefined;
       if ((value?.action === "start" || value?.action === "end") && typeof value.roundId === "string") {
         // 新轮开始：防御性闭合上一轮候选正文（不依赖 progress_text / discard 事件到达）
@@ -835,7 +837,7 @@ export class AgentRunController {
         this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, { agentRounds: this.agentRounds });
         void this.checkpointRun("running", true);
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.candidate_text") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.candidate_text") {
       const value = event.value as Partial<CandidateTextEventValue> | null | undefined;
       if (typeof value?.roundId !== "string" || value.roundId !== this.activeRoundId) return;
       if (value.action === "delta" && typeof value.delta === "string" && value.delta) {
@@ -1000,7 +1002,7 @@ export class AgentRunController {
           this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, { streaming: false });
         });
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.process_text") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.process_text") {
       const content = (event.value as { content?: unknown } | null | undefined)?.content;
       if (typeof content === "string" && content.trim()) {
         const replacesCandidate = Boolean(this.candidateText);
@@ -1027,7 +1029,7 @@ export class AgentRunController {
           });
         }
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.task") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.task") {
       const delegation = normalizeTaskDelegationEvent(event.value);
       if (delegation) {
         this.taskDelegations = applyTaskDelegationEvent(this.taskDelegations, delegation, this.activeRoundId);
@@ -1037,17 +1039,17 @@ export class AgentRunController {
         });
         void this.checkpointRun("running", true);
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.choice") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.choice") {
       const interaction = normalizeChoiceInteraction(event.value);
       if (interaction) {
         this.deps.host.setInteraction(this.input.sessionId, interaction);
         this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, { runStage: { kind: "waiting_user" } });
         void this.checkpointRun("waiting_user", true);
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.choice.dismiss") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.choice.dismiss") {
       this.deps.host.dismissAskIfMatched(this.input.sessionId, event.value);
       void this.checkpointRun("running", true);
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.taskPlan") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.taskPlan") {
       const taskPlan = normalizeTaskPlanPresentation(event.value);
       if (taskPlan) {
         this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, {
@@ -1055,7 +1057,7 @@ export class AgentRunController {
           runStage: { kind: "executing" },
         });
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.todo") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.todo") {
       // Harness 的 Todo 复用右侧现有 TodoPanel，不再复制成消息内 TaskPlanCard。
       const items = (event.value as { items?: Array<{ id: string; content: string; status: string }> } | null | undefined)?.items;
       if (Array.isArray(items)) {
@@ -1076,9 +1078,9 @@ export class AgentRunController {
         ));
         void this.checkpointRun("running", true);
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.compressingContext") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.compressingContext") {
       this.deps.host.setCompressingContext(this.input.sessionId, true);
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.context.usage") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.context.usage") {
       // 上下文容量快照：preRequest 纯内存实时刷新（零 I/O）；
       // terminal 用 debounce 版 checkpointRun，合并进紧随其后的 RUN_FINISHED terminal checkpoint，一次落盘。
       const snapshot = isContextUsageSnapshot(event.value) ? event.value : undefined;
@@ -1089,15 +1091,15 @@ export class AgentRunController {
         this.deps.host.updateContextUsage(this.input.sessionId, snapshot);
         if (snapshot.phase === "terminal") void this.checkpointRun("running");
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.sticker") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.sticker") {
       this.sticker = typeof event.value === "string" ? event.value : null;
       this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, { sticker: this.sticker });
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.weather") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.weather") {
       const weather = normalizeWeatherData(event.value);
       if (weather) {
         this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, { weather });
       }
-    } else if (event.type === "CUSTOM" && event.name === "cyrene.workRead") {
+    } else if (event.type === "CUSTOM" && event.name === "firefly.workRead") {
       const report = event.value as WorkReadReport | undefined;
       if (report && Array.isArray(report.files) && ["complete", "partial", "missing", "changed", "unverified"].includes(report.status)) {
         this.workReadReport = report;

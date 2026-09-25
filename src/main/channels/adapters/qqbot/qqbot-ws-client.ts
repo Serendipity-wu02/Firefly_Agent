@@ -204,7 +204,7 @@ export class QqBotWsClient {
         token: `QQBot ${token}`,
         intents: this.options.intents ?? QQBOT_INTENT_GROUP_AND_C2C,
         shard: [0, 1],
-        properties: { $os: process.platform, $browser: "cyrene", $device: "cyrene" },
+        properties: { $os: process.platform, $browser: "firefly", $device: "firefly" },
       },
     });
   }

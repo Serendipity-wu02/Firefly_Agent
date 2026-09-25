@@ -157,7 +157,7 @@ type ExecutablePlan = Exclude<ExecutionPlan, { kind: "rejected" }>;
  *
  * 分流规则（按失败原因区分）：
  * - wrap 成功 → sandboxed
- * - wrap 失败 + reason "disabled"（用户显式无沙箱：CYRENE_SRT=0 / 非 Windows）+ read 类命令
+ * - wrap 失败 + reason "disabled"（用户显式无沙箱：FIREFLY_SRT=0 / 非 Windows）+ read 类命令
  *   → direct（graceful degradation，保留开发环境可用性）
  * - wrap 失败（not_ready / wrap_failed），或 disabled + 写副作用命令，或 wrap 意外抛错
  *   → rejected（fail-closed，无论 read/write 都不执行）

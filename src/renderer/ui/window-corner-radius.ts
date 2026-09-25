@@ -5,7 +5,7 @@ import {
 
 declare global {
   interface Window {
-    cyreneWindowAppearance?: {
+    fireflyWindowAppearance?: {
       getCornerRadius: () => Promise<number>;
       onCornerRadiusChanged: (callback: (radius: number) => void) => () => void;
     };
@@ -20,8 +20,8 @@ export function applyWindowCornerRadius(value: unknown): number {
 
 applyWindowCornerRadius(DEFAULT_WINDOW_CORNER_RADIUS);
 
-void window.cyreneWindowAppearance?.getCornerRadius()
+void window.fireflyWindowAppearance?.getCornerRadius()
   .then(applyWindowCornerRadius)
   .catch(() => applyWindowCornerRadius(DEFAULT_WINDOW_CORNER_RADIUS));
 
-window.cyreneWindowAppearance?.onCornerRadiusChanged(applyWindowCornerRadius);
+window.fireflyWindowAppearance?.onCornerRadiusChanged(applyWindowCornerRadius);

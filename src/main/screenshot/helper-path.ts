@@ -10,7 +10,7 @@ export interface ScreenshotHelperPathEnvironment {
 export function resolveScreenshotHelperPath(environment: ScreenshotHelperPathEnvironment): string {
   if (environment.envOverride?.trim()) return environment.envOverride;
   if (environment.isPackaged) {
-    return path.join(environment.resourcesPath, "bin", "cyrene-screenshot.exe");
+    return path.join(environment.resourcesPath, "bin", "firefly-screenshot.exe");
   }
-  return path.join(environment.appPath, "native", "cyrene-screenshot", "target", "release", "cyrene-screenshot.exe");
+  return path.join(environment.appPath, "native", "firefly-screenshot", "target", "release", "firefly-screenshot.exe");
 }

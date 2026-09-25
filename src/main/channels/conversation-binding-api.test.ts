@@ -8,7 +8,7 @@ import {
 } from "./conversation-binding-api";
 
 function makeStore() {
-  const store = new ChannelConversationBindingStore(`${process.env.TEMP ?? "/tmp"}/cyrene-binding-api-${Date.now()}-${Math.random()}.json`);
+  const store = new ChannelConversationBindingStore(`${process.env.TEMP ?? "/tmp"}/firefly-binding-api-${Date.now()}-${Math.random()}.json`);
   const sessionId = makeSessionId("qq", "chat-1");
   store.observe({ sessionId, channel: "qq", chatId: "chat-1", chatType: "private", lastAt: 1 });
   return { store, sessionId };

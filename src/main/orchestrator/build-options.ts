@@ -1046,7 +1046,7 @@ export async function onAgentRunFinished(
     await deps.recordRelationshipTurn({
       userText: sideEffectUserText,
       assistantText: chatContent,
-      cyreneFeeling: deps.runtimeState.feeling ?? "平静",
+      fireflyFeeling: deps.runtimeState.feeling ?? "平静",
       channel: channel ?? "desktop",
     });
   });

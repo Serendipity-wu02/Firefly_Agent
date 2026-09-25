@@ -2,19 +2,19 @@
 //
 // - 与 src/main/social-context/（对话关系背景，SocialAtom）完全无关，勿混淆；
 // - 持久化为 userData/moments.json + userData/moments-media/<postId>/（JSON + schemaVersion）；
-// - author 为开放 string：除 user / cyrene 外，其余值表示入驻朋友圈的角色（如 "万敌"），
+// - author 为开放 string：除 user / firefly 外，其余值表示入驻朋友圈的角色（如 "万敌"），
 //   合法性由主进程角色注册表判定，类型层不做穷尽。
 
-export type MomentAuthor = "user" | "cyrene" | (string & {});
+export type MomentAuthor = "user" | "firefly" | (string & {});
 
 /** 判别 author 是否为注册表内的角色（流萤不算角色）。 */
 export function isCharacterAuthor(author: string, knownCharacters: ReadonlySet<string>): boolean {
-  return author !== "user" && author !== "cyrene" && knownCharacters.has(author);
+  return author !== "user" && author !== "firefly" && knownCharacters.has(author);
 }
 
 /** 判别 author 是否为任意 AI 主体（流萤或角色）。 */
 export function isAiAuthor(author: string, knownCharacters: ReadonlySet<string>): boolean {
-  return author === "cyrene" || isCharacterAuthor(author, knownCharacters);
+  return author === "firefly" || isCharacterAuthor(author, knownCharacters);
 }
 
 export interface MomentMedia {
@@ -45,7 +45,7 @@ export interface MomentPost {
   title?: string;
   text: string;
   media: MomentMedia[];
-  /** 正文点名列表：@ 的角色昵称（含 "cyrene"），渲染端据此高亮、调度层据此直达 */
+  /** 正文点名列表：@ 的角色昵称（含 "firefly"），渲染端据此高亮、调度层据此直达 */
   mentions?: string[];
   createdAt: number;
   updatedAt?: number;
@@ -147,7 +147,7 @@ export interface MomentImageUploadInput {
 export interface MomentCreatePostInput {
   title?: string;
   text: string;
-  /** 点名列表：正文里 @ 的角色昵称（含 "cyrene"），由前端选择框产出，主进程过滤未注册名 */
+  /** 点名列表：正文里 @ 的角色昵称（含 "firefly"），由前端选择框产出，主进程过滤未注册名 */
   mentions?: string[];
   images?: MomentImageUploadInput[];
 }

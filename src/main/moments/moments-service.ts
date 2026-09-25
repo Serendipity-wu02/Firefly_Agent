@@ -97,9 +97,9 @@ const MOMENTS_MODEL_TIMEOUT_MS = 45_000;
 /** ring buffer 保留的最近轮数（MomentEvent.summary 的原料） */
 const RING_BUFFER_MAX_TURNS = 6;
 /** 供新颖性判断的最近流萤动态条数 */
-const RECENT_CYRENE_POSTS_FOR_NOVELTY = 5;
+const RECENT_FIREFLY_POSTS_FOR_NOVELTY = 5;
 /** 流萤在线判定窗口：最近一次对话收尾距今不足 10 分钟视为在线 */
-const CYRENE_ONLINE_WINDOW_MS = 10 * 60_000;
+const FIREFLY_ONLINE_WINDOW_MS = 10 * 60_000;
 
 /** Moments 一次 run 收尾的输入（事件产生时冻结的不可变快照）。 */
 export interface MomentsTurnInput {
@@ -121,11 +121,11 @@ export interface MomentsService {
   createUserComment: (input: MomentCreateCommentInput) => Promise<MomentCommitResult<MomentComment>>;
   toggleUserLike: (postId: string) => Promise<MomentCommitResult<{ liked: boolean }>>;
   /** 流萤在聊天里发动态（工具通道）：即时落库不排队，成功后进角色抽签池。 */
-  cyreneCreatePostFromTool: (input: { title?: string; text: string }) => Promise<MomentCommitResult<MomentPost>>;
+  fireflyCreatePostFromTool: (input: { title?: string; text: string }) => Promise<MomentCommitResult<MomentPost>>;
   /** 流萤在聊天里点赞（工具通道）：幂等，已点过返回既有结果。 */
-  cyreneLikeFromTool: (postId: string) => Promise<MomentCommitResult<{ liked: true }>>;
+  fireflyLikeFromTool: (postId: string) => Promise<MomentCommitResult<{ liked: true }>>;
   /** 流萤在聊天里评论/回复（工具通道）：落库后按需续接互动链。 */
-  cyreneCommentFromTool: (input: MomentCreateCommentInput) => Promise<MomentCommitResult<MomentComment>>;
+  fireflyCommentFromTool: (input: MomentCreateCommentInput) => Promise<MomentCommitResult<MomentComment>>;
   /** run 成功收尾时调用：记录 ring buffer 并按策略调度流萤主动发帖。 */
   scheduleTurn: (input: MomentsTurnInput) => void;
   /** 启动反应队列周期扫描器（启动即补扫一轮，重启后逾期任务尽快续上）；由后台启动组挂载 */
@@ -154,8 +154,8 @@ export interface MomentsServiceDeps {
   store: MomentsStoreFacade;
   loadGeneralSettings: () => {
     momentsEnabled: boolean;
-    cyreneMomentsReactionsEnabled: boolean;
-    cyreneMomentsPostingEnabled: boolean;
+    fireflyMomentsReactionsEnabled: boolean;
+    fireflyMomentsPostingEnabled: boolean;
     momentsCharacterReactionsEnabled: boolean;
     /** 朋友圈热闹程度档位：缺省回落冷清档 */
     momentsLiveliness?: "quiet" | "natural" | "lively";
@@ -229,12 +229,12 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
 
   function postingEnabled(): boolean {
     const settings = deps.loadGeneralSettings();
-    return settings.momentsEnabled && settings.cyreneMomentsPostingEnabled;
+    return settings.momentsEnabled && settings.fireflyMomentsPostingEnabled;
   }
 
   function reactionsEnabled(): boolean {
     const settings = deps.loadGeneralSettings();
-    return settings.momentsEnabled && settings.cyreneMomentsReactionsEnabled;
+    return settings.momentsEnabled && settings.fireflyMomentsReactionsEnabled;
   }
 
   /** 角色链路闸门：朋友圈总开关 + 角色互动开关，两者都开角色才刷朋友圈。 */
@@ -253,7 +253,7 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
    * 评论一律携带任务 id（sourceTaskId）幂等落库，崩溃重跑不重复写入
    * （store 串行队列内含开关与目标存在性复核，AI 思考期间世界变化不豁免）。
    */
-  async function cyreneApply(task: ReactionTask, decision: ReactionDecision): Promise<void> {
+  async function fireflyApply(task: ReactionTask, decision: ReactionDecision): Promise<void> {
     if (decision.action === "like" || decision.action === "like_comment") {
       await deps.store.createFireflyLike(task.postId);
     }
@@ -264,7 +264,7 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
           content: decision.comment,
           replyTo: task.kind === "reply_eval" ? task.triggerCommentId : undefined,
         },
-        "cyrene",
+        "firefly",
         { sourceTaskId: task.id },
       );
       // 评论落库后续接互动链：她回复的可能是角色评论，角色还等着回她
@@ -282,7 +282,7 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
       const last = turns[turns.length - 1];
       if (last && last.at > latest) latest = last.at;
     }
-    return latest > 0 && now() - latest < CYRENE_ONLINE_WINDOW_MS;
+    return latest > 0 && now() - latest < FIREFLY_ONLINE_WINDOW_MS;
   }
 
   /**
@@ -331,11 +331,11 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
     postId: string;
     triggerCommentId?: string;
   }): void {
-    enqueueReactionTask({ actor: "cyrene", dueAt: computeFireflyDueAt(input.kind), ...input });
+    enqueueReactionTask({ actor: "firefly", dueAt: computeFireflyDueAt(input.kind), ...input });
   }
 
   /** 流萤表态决策：闸门复核后委托 agent（agent 内含目标重读与模型调用） */
-  async function cyreneDecide(task: ReactionTask): Promise<ReactionDecideOutcome> {
+  async function fireflyDecide(task: ReactionTask): Promise<ReactionDecideOutcome> {
     // 执行时复核闸门：入队时通过不代表到期时仍通过，世界已变则任务作废
     if (!reactionsEnabled()) return { type: "stale", reason: "reactions_disabled" };
     if (deps.loadVendorConfig() === null) return { type: "stale", reason: "model_not_configured" };
@@ -485,9 +485,9 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
 
   // 反应执行器：流萤与角色共用一条队列，按 actor 分发各自的决策与落库逻辑。
   const reactionExecutor: ReactionTaskExecutor = {
-    decide: (task) => (task.actor === "cyrene" ? cyreneDecide(task) : characterDecide(task)),
+    decide: (task) => (task.actor === "firefly" ? fireflyDecide(task) : characterDecide(task)),
     apply: async (task, decision) => {
-      if (task.actor === "cyrene") await cyreneApply(task, decision);
+      if (task.actor === "firefly") await fireflyApply(task, decision);
       else await characterApply(task, decision);
     },
   };
@@ -513,7 +513,7 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
     trigger: MomentComment,
     comments: readonly MomentComment[],
   ): void {
-    if (actor === "cyrene") {
+    if (actor === "firefly") {
       if (!reactionGateOpen()) return;
     } else {
       // 角色回复走模型：角色开关与模型配置缺一不可
@@ -526,7 +526,7 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
       actor,
       postId: trigger.postId,
       triggerCommentId: trigger.id,
-      dueAt: actor === "cyrene" ? computeFireflyDueAt("reply_eval") : computeCharacterDueAt("reply_eval"),
+      dueAt: actor === "firefly" ? computeFireflyDueAt("reply_eval") : computeCharacterDueAt("reply_eval"),
     });
   }
 
@@ -541,18 +541,18 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
     if (!feed) return;
     const personas = loadPersonas();
     const isCharacterAuthor = (author: string) =>
-      author !== "user" && author !== "cyrene" && personas.has(author);
+      author !== "user" && author !== "firefly" && personas.has(author);
 
     // 流萤的动态下有人说话：她可能回应（自己的评论除外，不自问自答）
-    if (feed.post.author === "cyrene" && comment.author !== "cyrene") {
-      enqueueReplyEval("cyrene", comment, feed.comments);
+    if (feed.post.author === "firefly" && comment.author !== "firefly") {
+      enqueueReplyEval("firefly", comment, feed.comments);
     }
     // 回复目标是他人的评论：被回复者可能回话
     if (comment.replyTo) {
       const target = feed.comments.find((candidate) => candidate.id === comment.replyTo);
       if (target && target.author !== comment.author) {
-        if (target.author === "cyrene" && comment.author !== "cyrene") {
-          enqueueReplyEval("cyrene", comment, feed.comments);
+        if (target.author === "firefly" && comment.author !== "firefly") {
+          enqueueReplyEval("firefly", comment, feed.comments);
         } else if (isCharacterAuthor(target.author)) {
           enqueueReplyEval(target.author, comment, feed.comments);
         }
@@ -609,14 +609,14 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
     // 点名直达：@ 的人不掷抽签与双骰，直接走模型表态 + 秒回延迟。
     // 名单在入队前过滤为合法主体（流萤或注册角色），手滑写的名字静默忽略。
     const personas = loadPersonas();
-    const mentionedFirefly = post.mentions?.includes("cyrene") ?? false;
+    const mentionedFirefly = post.mentions?.includes("firefly") ?? false;
     const mentionedCharacters = [...new Set(post.mentions ?? [])]
-      .filter((name): name is string => name !== "cyrene" && personas.has(name));
+      .filter((name): name is string => name !== "firefly" && personas.has(name));
 
     if (mentionedFirefly && reactionGateOpen() && deps.loadVendorConfig() !== null) {
       enqueueReactionTask({
         kind: "post_eval",
-        actor: "cyrene",
+        actor: "firefly",
         postId: post.id,
         mentioned: true,
         // 秒回档不套深夜窗口：用户半夜 @ 流萤，说明醒着在等她
@@ -676,8 +676,8 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
       }
       const recentFireflyPosts = deps.store.listFeed({ limit: 100 })
         .map((item) => item.post)
-        .filter((post) => post.author === "cyrene")
-        .slice(0, RECENT_CYRENE_POSTS_FOR_NOVELTY);
+        .filter((post) => post.author === "firefly")
+        .slice(0, RECENT_FIREFLY_POSTS_FOR_NOVELTY);
       const posted = await agent.generatePost({ summary, recentFireflyPosts, conversationId, channel });
       if (posted) savePolicyState(recordPost(loadPolicyState(), now()));
     }).catch((error) => {
@@ -692,7 +692,7 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
     createUserPost: (input) => {
       // 点名白名单过滤：只保留流萤与注册角色，渲染端传来的其他名字一律丢弃
       // （mentions 决定调度行为，不能信任渲染端输入；文本本身不受影响）
-      const legal = new Set<string>(["cyrene", ...loadPersonas().keys()]);
+      const legal = new Set<string>(["firefly", ...loadPersonas().keys()]);
       const mentions = [...new Set(input.mentions ?? [])].filter((name) => legal.has(name));
       return deps.store.createUserPost(mentions.length > 0 ? { ...input, mentions } : { ...input, mentions: undefined })
         .then((result) => {
@@ -717,7 +717,7 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
     // "当场发"才自然）；闸门沿用提交时复核，设置关闭时返回可读原因。
     // 发帖成功后照常进角色抽签池，评论落库后续接互动链。
 
-    cyreneCreatePostFromTool: async (input) => {
+    fireflyCreatePostFromTool: async (input) => {
       const result = await deps.store.createFireflyPost({
         title: input.title,
         text: input.text,
@@ -726,19 +726,19 @@ export function createMomentsService(deps: MomentsServiceDeps): MomentsService {
       return result;
     },
 
-    cyreneLikeFromTool: (postId) =>
+    fireflyLikeFromTool: (postId) =>
       deps.store.createFireflyLike(postId).then((result) => {
         // 手动点赞 = 她已经刷到并表态过：取消该动态下她所有待执行的自动任务，
         // 防止 20 分钟后自动表态再冒出一条重复评论
-        reactionQueue.cancelTasks({ actor: "cyrene", postId });
+        reactionQueue.cancelTasks({ actor: "firefly", postId });
         return result;
       }),
 
-    cyreneCommentFromTool: (input) =>
-      deps.store.createComment(input, "cyrene").then((result) => {
+    fireflyCommentFromTool: (input) =>
+      deps.store.createComment(input, "firefly").then((result) => {
         // 手动评论同理：她在聊天里当场说过话了，自动任务全部作废
         if (result.applied) {
-          reactionQueue.cancelTasks({ actor: "cyrene", postId: input.postId });
+          reactionQueue.cancelTasks({ actor: "firefly", postId: input.postId });
           // 她回复的可能是角色评论：被回复的角色还等着回她，链路照常续接
           ensureFollowUpScheduled(result.value);
         }

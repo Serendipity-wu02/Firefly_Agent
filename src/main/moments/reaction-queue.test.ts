@@ -21,7 +21,7 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
 function tempQueueFile(): string {
-  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-reaction-queue-")), "moments-reaction-queue.json");
+  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-reaction-queue-")), "moments-reaction-queue.json");
 }
 
 /** 可复现的线性同余随机源：分桶统计与边界断言都需要稳定序列 */
@@ -190,13 +190,14 @@ describe("反应队列持久化与执行", () => {
     expect(h.queue.list()).toEqual([]);
   });
 
-  it("队列文件损坏时从空队列开始，不阻断功能", () => {
+  it("队列文件损坏时拒绝读写并保留原文件", () => {
     const filePath = tempQueueFile();
     fs.writeFileSync(filePath, "不是 JSON", "utf8");
 
     const h = makeQueue({ filePath });
-    expect(h.queue.list()).toEqual([]);
-    expect(h.queue.enqueue({ kind: "post_eval", actor: "万敌", postId: "p1" })).not.toBeNull();
+    expect(() => h.queue.list()).toThrow("REACTION_QUEUE_READ_FAILED");
+    expect(() => h.queue.enqueue({ kind: "post_eval", actor: "万敌", postId: "p1" })).toThrow("REACTION_QUEUE_READ_FAILED");
+    expect(fs.readFileSync(filePath, "utf8")).toBe("不是 JSON");
   });
 
   it("start 启动即补扫一轮：重启后已逾期的任务立即续上", async () => {
@@ -250,7 +251,7 @@ describe("决策幂等与失败分类", () => {
       tasks: [{
         id: "task_recovered",
         kind: "reply_eval",
-        actor: "cyrene",
+        actor: "firefly",
         postId: "p1",
         triggerCommentId: "c9",
         dueAt: 0,
@@ -404,7 +405,7 @@ describe("长尾延迟分桶", () => {
     expect(ratios[2]).toBeLessThan(0.22);
   });
 
-  it("昔涟在线：表态 1~8 分钟、回复 1~5 分钟", () => {
+  it("流萤在线：表态 1~8 分钟、回复 1~5 分钟", () => {
     const random = createSeededRandom(99);
     for (let i = 0; i < 10_000; i++) {
       const post = computeFireflyPostDelayMs(true, random);
@@ -416,7 +417,7 @@ describe("长尾延迟分桶", () => {
     }
   });
 
-  it("昔涟离线：表态与回复都落在 1~40 分钟，回复整体比表态偏快", () => {
+  it("流萤离线：表态与回复都落在 1~40 分钟，回复整体比表态偏快", () => {
     const random = createSeededRandom(1234);
     const posts: number[] = [];
     const replies: number[] = [];

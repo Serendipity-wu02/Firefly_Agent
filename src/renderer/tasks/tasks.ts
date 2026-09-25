@@ -20,7 +20,6 @@ declare global {
   interface Window {
     tasks?: { minimize: () => void; close: () => void };
     tokenUsage?: { get: (days: number) => Promise<TokenDayData[]> };
-    cyreneScheduler?: { list: () => Promise<{ ok: boolean; value?: ScheduledTask[]; error?: string }> };
     schedulerEvents?: { onEvent: (cb: (event: unknown) => void) => () => void };
     tasks?: { onSchedulerChanged?: (callback: () => void) => () => void };
     sidebar?: { openSettings: (section?: string) => void };
@@ -243,7 +242,7 @@ async function fetchTokenData(): Promise<TokenDayData[]> {
 
 async function fetchTasks(): Promise<ScheduledTask[]> {
   try {
-    const res = await window.cyreneScheduler?.list();
+    const res = await window.fireflyScheduler?.list();
     if (res?.ok && Array.isArray(res.value)) return res.value;
     return [];
   } catch (err) {

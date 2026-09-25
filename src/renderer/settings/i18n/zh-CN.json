@@ -12,7 +12,7 @@
       "general": "通用设置",
       "api": "API 设置",
       "apiAdvanced": "高级设置",
-      "cyrene": "流萤设置",
+      "firefly": "流萤设置",
       "channels": "连接手机",
       "tts": "TTS 设置",
       "asr": "ASR 设置",
@@ -24,7 +24,7 @@
       "userHint": "编辑你的个人资料",
       "tasksHint": "管理定时提醒与日程",
       "pluginsHint": "管理流萤可调用的工具能力",
-      "cyreneHint": "管理 Agent 行为、记忆、RAG 与权限",
+      "fireflyHint": "管理 Agent 行为、记忆、RAG 与权限",
       "ttsHint": "语音合成与朗读偏好",
       "asrHint": "语音识别与通话配置",
       "preferencesHint": "设置聊天窗口和输出行为的默认偏好",
@@ -335,7 +335,7 @@
         },
         "saveStatus": "等待保存"
       },
-      "cyrene": {
+      "firefly": {
         "heading": "流萤设置",
         "subheading": "这里集中管理流萤的 Agent 行为、状态更新、表情包、记忆和本地检索能力。",
         "runtimeSync": {

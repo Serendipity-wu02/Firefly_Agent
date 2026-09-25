@@ -47,7 +47,7 @@ export function registerWindowSystemIpc(deps: WindowSystemIpcDependencies): void
   });
 
   // 桌宠窗口自身的最小化/隐藏入口。两者曾随 index.ts 拆分（711a40d9）被误删，
-  // preload 侧 window.cyrene.minimize()/hide() 一直保留，此处按原语义补回。
+  // preload 侧 window.firefly.minimize()/hide() 一直保留，此处按原语义补回。
   ipc.on(IPC.WINDOW_MINIMIZE, () => {
     deps.windowManager?.minimizePetWindow();
   });

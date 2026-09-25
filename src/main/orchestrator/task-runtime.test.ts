@@ -10,7 +10,7 @@ import type { TaskDelegationPresentation } from "../../shared/task-session";
 const roots: string[] = [];
 
 function createStore() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-task-runtime-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-task-runtime-"));
   roots.push(root);
   return new TaskSessionStore(root, {
     createId: () => "task-1",

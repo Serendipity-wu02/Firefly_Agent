@@ -111,7 +111,7 @@ describe("general Mossland TTS settings", () => {
 describe("tool switch persistence round trip (chatToolsEnabled + toolModeOverrides)", () => {
   beforeEach(() => {
     vi.resetModules();
-    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-settings-rt-"));
+    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-settings-rt-"));
   });
 
   /** 模拟"重启"：resetModules 后重新 import，generalSettingsCache 归零、从磁盘重读 */

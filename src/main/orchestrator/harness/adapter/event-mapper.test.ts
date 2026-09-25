@@ -39,7 +39,7 @@ describe("harness event mapper", () => {
     } as HarnessEvent)).toEqual([
       expect.objectContaining({
         type: "CUSTOM",
-        name: "cyrene.candidate_text",
+        name: "firefly.candidate_text",
         value: { action: "delta", roundId: "round-2", delta: "正在生成" },
         runId: "run-1",
       }),
@@ -53,7 +53,7 @@ describe("harness event mapper", () => {
     } as HarnessEvent)).toEqual([
       expect.objectContaining({
         type: "CUSTOM",
-        name: "cyrene.candidate_text",
+        name: "firefly.candidate_text",
         value: { action: "discard", roundId: "round-2" },
         runId: "run-1",
       }),
@@ -64,7 +64,7 @@ describe("harness event mapper", () => {
     const sent: BaseEvent[] = [];
     sendTaskLifecycleAsAgui({ taskId: "task-1", status: "running" } as never, "thread-1", "run-1", (event) => sent.push(event));
     expect(sent).toEqual([
-      expect.objectContaining({ type: "CUSTOM", name: "cyrene.task", runId: "run-1" }),
+      expect.objectContaining({ type: "CUSTOM", name: "firefly.task", runId: "run-1" }),
     ]);
   });
 });

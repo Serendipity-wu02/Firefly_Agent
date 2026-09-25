@@ -7,7 +7,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const PREREADY_TMP = path.join(os.tmpdir(), "cyrene-preready-test");
+const PREREADY_TMP = path.join(os.tmpdir(), "firefly-preready-test");
 fs.mkdirSync(PREREADY_TMP, { recursive: true });
 
 // 可变状态：先模拟 ready 前，再翻转成 ready 后
@@ -18,7 +18,7 @@ vi.mock("electron", () => {
   return {
     app: {
       getPath: (_k: string) => PREREADY_TMP,
-      getName: () => "live2d-cyrene",
+      getName: () => "live2d-firefly",
       isReady: () => appReady,
     },
     safeStorage: {
@@ -40,11 +40,11 @@ describe("settings-store: app ready 前不缓存 safeStorage=false", () => {
     storageAvailable = false;
   });
 
-  it("ready 前 encrypt 走混淆（obf:），ready 后同进程恢复 enc:（false 未被缓存）", () => {
+  it("ready 前 encrypt 走混淆（obf2:），ready 后同进程恢复 enc:（false 未被缓存）", () => {
     // ready 前（模块加载期）：safeStorage 探测 false → 混淆落盘
     saveChannelsSettings({ feishu: { enabled: true, appId: "app-1", appSecret: "secret-plain" } });
     let onDisk = JSON.parse(fs.readFileSync(path.join(PREREADY_TMP, "channels-settings.json"), "utf8"));
-    expect(onDisk.feishu.appSecret).toMatch(/^obf:/);
+    expect(onDisk.feishu.appSecret).toMatch(/^obf2:/);
 
     // ready 之后 safeStorage 变可用：加密必须恢复 enc:（证明 false 没被缓存）
     appReady = true;

@@ -10,8 +10,8 @@ let root: string;
 let outside: string;
 
 beforeAll(() => {
-  root = mkdtempSync(join(tmpdir(), "cyrene-wsfiles-"));
-  outside = mkdtempSync(join(tmpdir(), "cyrene-wsfiles-out-"));
+  root = mkdtempSync(join(tmpdir(), "firefly-wsfiles-"));
+  outside = mkdtempSync(join(tmpdir(), "firefly-wsfiles-out-"));
   // 工作区内结构：src/app.ts、README.md、.hidden（应被过滤）、子目录 src
   mkdirSync(join(root, "src"));
   writeFileSync(join(root, "src", "app.ts"), "const x = 1;\n");

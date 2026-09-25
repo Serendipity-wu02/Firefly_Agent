@@ -40,7 +40,7 @@ vi.mock("../prompts/prompt-loader", () => ({
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn(() => "C:\\cyrene-characterization") },
+  app: { getPath: vi.fn(() => "C:\\firefly-characterization") },
 }));
 
 import { runHarnessWithAdapter } from "./harness-adapter";

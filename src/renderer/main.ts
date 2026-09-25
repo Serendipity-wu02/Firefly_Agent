@@ -17,8 +17,8 @@ import { findAction, type Live2DActionReceipt, type Live2DActionRequest } from "
 const canvas = document.getElementById("live2d-canvas") as HTMLCanvasElement;
 if (!canvas) throw new Error("Canvas #live2d-canvas not found");
 
-if (!window.cyrene) {
-  (window as unknown as { cyrene: unknown }).cyrene = {
+if (!window.firefly) {
+  (window as unknown as { firefly: unknown }).firefly = {
     minimize: () => {},
     hide: () => {},
     quit: () => {},
@@ -137,14 +137,14 @@ const manager = new Live2DManager({
     focus.focusCenter(true);
 
     clickThrough = new ClickThroughController(canvas, manager, {
-      onInteractive: (interactive) => void window.cyrene.setInteractive(interactive),
+      onInteractive: (interactive) => void window.firefly.setInteractive(interactive),
     });
 
     // Apply the persisted zoom on load and track future changes. The main
     // process has already resized the window to base × zoom; this rescales
     // the model to match.
-    petZoomOff = trackSubscription("cyrene:onPetZoom", window.cyrene.onPetZoom((zoom) => manager.applyZoom(zoom)));
-    petVisibilityOff = trackSubscription("cyrene:onPetVisibilityChanged", window.cyrene.onPetVisibilityChanged((visible) => {
+    petZoomOff = trackSubscription("firefly:onPetZoom", window.firefly.onPetZoom((zoom) => manager.applyZoom(zoom)));
+    petVisibilityOff = trackSubscription("firefly:onPetVisibilityChanged", window.firefly.onPetVisibilityChanged((visible) => {
       petVisible = visible;
       if (!visible) {
         clickThrough?.pause();
@@ -167,7 +167,7 @@ const manager = new Live2DManager({
       }
     }).catch(() => { /* 设置读取失败不影响加载 */ });
 
-    (window as unknown as { __cyrene: unknown }).__cyrene = {
+    (window as unknown as { __firefly: unknown }).__firefly = {
       manager,
       interaction,
       focus,
@@ -330,7 +330,7 @@ function scheduleMoveTo(screenX: number, screenY: number): void {
 function flushMove(): void {
   rafId = null;
   if (pendingPosition) {
-    window.cyrene.moveTo(pendingPosition.x, pendingPosition.y);
+    window.firefly.moveTo(pendingPosition.x, pendingPosition.y);
     pendingPosition = null;
   }
 }
@@ -354,7 +354,7 @@ function finishDrag(): void {
     manager.resume();
     focus?.resume();
   }
-  window.cyrene.setDragging(false);
+  window.firefly.setDragging(false);
   if (petVisible) clickThrough?.resume();
 }
 
@@ -372,7 +372,7 @@ addTrackedEventListener(canvas, "canvas:pointercancel", "pointercancel", (e) => 
 
 addTrackedEventListener(canvas, "canvas:pointerleave", "pointerleave", () => {
   if (isDragging) return;
-  void window.cyrene.setInteractive(false);
+  void window.firefly.setInteractive(false);
 });
 
 addTrackedEventListener(canvas, "canvas:pointerdown", "pointerdown", (e) => {
@@ -392,7 +392,7 @@ addTrackedEventListener(canvas, "canvas:pointerdown", "pointerdown", (e) => {
   clickThrough?.pause();
   focus?.pause(true);
   manager.pause();
-  void window.cyrene.setInteractive(true);
+  void window.firefly.setInteractive(true);
   try {
     (event.target as Element).setPointerCapture(event.pointerId);
   } catch {}
@@ -403,7 +403,7 @@ addTrackedEventListener(canvas, "canvas:pointermove", "pointermove", (e) => {
   if (!isDragging || event.pointerId !== dragPointerId) return;
   if (!didDrag && Math.hypot(event.screenX - dragStartScreenX, event.screenY - dragStartScreenY) > 5) {
     didDrag = true;
-    window.cyrene.setDragging(true);
+    window.firefly.setDragging(true);
     void showDragOverlay(dragToken);
   }
   if (!didDrag) return;
@@ -434,5 +434,5 @@ addTrackedEventListener(canvas, "canvas:pointerup", "pointerup", (e) => {
     event.clientX > rect.right ||
     event.clientY < rect.top ||
     event.clientY > rect.bottom;
-  if (outside) void window.cyrene.setInteractive(false);
+  if (outside) void window.firefly.setInteractive(false);
 });

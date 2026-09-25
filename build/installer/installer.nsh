@@ -1,16 +1,16 @@
 !include "nsDialogs.nsh"
 
 !ifndef BUILD_UNINSTALLER
-Var CyreneDesktopShortcutCheckbox
-Var CyreneLaunchAtLoginCheckbox
-Var CyreneCreateDesktopShortcut
-Var CyreneLaunchAtLogin
+Var FireflyDesktopShortcutCheckbox
+Var FireflyLaunchAtLoginCheckbox
+Var FireflyCreateDesktopShortcut
+Var FireflyLaunchAtLogin
 
 !macro customPageAfterChangeDir
-  Page custom CyreneOptionsPageCreate CyreneOptionsPageLeave
+  Page custom FireflyOptionsPageCreate FireflyOptionsPageLeave
 !macroend
 
-Function CyreneOptionsPageCreate
+Function FireflyOptionsPageCreate
   nsDialogs::Create 1018
   Pop $0
   ${If} $0 == error
@@ -21,19 +21,19 @@ Function CyreneOptionsPageCreate
   Pop $0
 
   ${NSD_CreateCheckbox} 0 34u 100% 12u "创建桌面快捷方式"
-  Pop $CyreneDesktopShortcutCheckbox
-  ${NSD_Check} $CyreneDesktopShortcutCheckbox
+  Pop $FireflyDesktopShortcutCheckbox
+  ${NSD_Check} $FireflyDesktopShortcutCheckbox
 
   ${NSD_CreateCheckbox} 0 56u 100% 12u "开机时自动启动 Firefly"
-  Pop $CyreneLaunchAtLoginCheckbox
-  ${NSD_Uncheck} $CyreneLaunchAtLoginCheckbox
+  Pop $FireflyLaunchAtLoginCheckbox
+  ${NSD_Uncheck} $FireflyLaunchAtLoginCheckbox
 
   nsDialogs::Show
 FunctionEnd
 
-Function CyreneOptionsPageLeave
-  ${NSD_GetState} $CyreneDesktopShortcutCheckbox $CyreneCreateDesktopShortcut
-  ${NSD_GetState} $CyreneLaunchAtLoginCheckbox $CyreneLaunchAtLogin
+Function FireflyOptionsPageLeave
+  ${NSD_GetState} $FireflyDesktopShortcutCheckbox $FireflyCreateDesktopShortcut
+  ${NSD_GetState} $FireflyLaunchAtLoginCheckbox $FireflyLaunchAtLogin
 FunctionEnd
 
 ; 升级保护：升级会先跑旧版卸载器，其 RMDir /r 会清空整个安装目录（models/skills/prompts
@@ -66,7 +66,7 @@ FunctionEnd
     Rename "$INSTDIR\..\.Firefly.models-preserve" "$INSTDIR\models"
   ${EndIf}
 
-  ${If} $CyreneCreateDesktopShortcut == ${BST_CHECKED}
+  ${If} $FireflyCreateDesktopShortcut == ${BST_CHECKED}
     CreateShortCut "$DESKTOP\${SHORTCUT_NAME}.lnk" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
     ClearErrors
     WinShell::SetLnkAUMI "$DESKTOP\${SHORTCUT_NAME}.lnk" "${APP_ID}"
@@ -74,7 +74,7 @@ FunctionEnd
 
   CreateShortCut "$SMPROGRAMS\${MENU_FILENAME}\卸载 ${PRODUCT_FILENAME}.lnk" "$INSTDIR\${UNINSTALL_FILENAME}" "" "$INSTDIR\${UNINSTALL_FILENAME}" 0
 
-  ${If} $CyreneLaunchAtLogin == ${BST_CHECKED}
+  ${If} $FireflyLaunchAtLogin == ${BST_CHECKED}
     CreateDirectory "$APPDATA\Firefly"
     FileOpen $0 "$APPDATA\Firefly\installer-options.json" w
     FileWrite $0 "{$\"launchAtLogin$\":true}"

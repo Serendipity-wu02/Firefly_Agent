@@ -19,7 +19,7 @@ interface ChatComposerProps {
   /** 当前会话 ID：用于上下文用量与计划模式状态。 */
   conversationId?: string;
   workspaceName?: string;
-  /** 当前会话绑定的项目根路径：计划文件优先落到工作区 .cyrene/。 */
+  /** 当前会话绑定的项目根路径：计划文件优先落到工作区 .firefly/。 */
   workspaceRoot?: string;
   attachments: ComposerAttachment[];
   requireDocumentRead?: boolean;

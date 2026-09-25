@@ -64,7 +64,7 @@ let tmp: string;
 let schedulerStore: PluginSchedulerStore;
 
 beforeEach(() => {
-  tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-host-services-"));
+  tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-host-services-"));
   schedulerStore = fakeSchedulerStore();
 });
 

@@ -11,6 +11,8 @@
 // - 删除 post 级联删除 comments / reactions / 图片副本。
 
 import { app } from "electron";
+import { normalizeStoredMoment } from "../../shared/legacy-firefly-contracts";
+import { writeMigratedJson } from "../migration/firefly-data";
 import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
@@ -87,9 +89,9 @@ export function setCharacterAuthorRegistry(names: ReadonlySet<string>): void {
   knownCharacterAuthors = new Set(names);
 }
 
-/** 校验 author 合法：user / cyrene / 注册表内角色。 */
+/** 校验 author 合法：user / firefly / 注册表内角色。 */
 function isValidAuthor(author: string): boolean {
-  return author === "user" || author === "cyrene" || knownCharacterAuthors.has(author);
+  return author === "user" || author === "firefly" || knownCharacterAuthors.has(author);
 }
 
 export function initialize(): void {
@@ -132,14 +134,19 @@ function loadFromDisk(): MomentsStoreData {
   if (!fs.existsSync(storePath)) return emptyStore();
   try {
     const parsed = JSON.parse(fs.readFileSync(storePath, "utf8")) as Partial<MomentsStoreData>;
-    return {
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.posts) || !Array.isArray(parsed.comments)
+      || (parsed.reactions !== undefined && !Array.isArray(parsed.reactions))) throw new Error("MOMENTS_READ_FAILED");
+    const normalized: MomentsStoreData = {
+      ...parsed,
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      posts: Array.isArray(parsed.posts) ? parsed.posts : [],
-      comments: Array.isArray(parsed.comments) ? parsed.comments : [],
-      reactions: Array.isArray(parsed.reactions) ? parsed.reactions : [],
+      posts: parsed.posts.map(normalizeStoredMoment),
+      comments: parsed.comments.map(normalizeStoredMoment),
+      reactions: (parsed.reactions ?? []).map(normalizeStoredMoment),
     };
+    writeMigratedJson(storePath, parsed, normalized);
+    return normalized;
   } catch {
-    return emptyStore();
+    throw new Error("MOMENTS_READ_FAILED: 原文件已保留，停止写入");
   }
 }
 
@@ -197,7 +204,7 @@ export function createUserPost(input: MomentCreatePostInput): Promise<MomentComm
   return enqueue(() => commitCreatePost("user", input));
 }
 
-/** 流萤发帖：内部通道，不经 IPC（renderer 无法伪造 cyrene 身份）。 */
+/** 流萤发帖：内部通道，不经 IPC（renderer 无法伪造 firefly 身份）。 */
 export function createFireflyPost(input: {
   title?: string;
   text: string;
@@ -214,7 +221,7 @@ export function createFireflyPost(input: {
     const title = (input.title ?? "").trim().slice(0, MOMENT_MAX_POST_TITLE_LENGTH);
     const post: MomentPost = {
       id: newPostId(),
-      author: "cyrene",
+      author: "firefly",
       title: title || undefined,
       text,
       media: input.media ?? [],
@@ -311,7 +318,7 @@ export function createComment(
       return { applied: false, reason: "invalid_input" as const };
     }
     // 流萤的评论属于反应行为：提交时复核开关，AI 思考期间关闭则拒绝
-    if (author === "cyrene" && !fireflyBehaviorGate("reaction")) {
+    if (author === "firefly" && !fireflyBehaviorGate("reaction")) {
       return { applied: false, reason: "moments_disabled" as const };
     }
     const content = (input.content ?? "").trim();
@@ -394,11 +401,11 @@ export function createFireflyLike(postId: string): Promise<MomentCommitResult<{ 
       return { applied: false, reason: "post_not_found" as const };
     }
     const exists = store.reactions.some(
-      (reaction) => reaction.postId === postId && reaction.actor === "cyrene" && reaction.type === "like",
+      (reaction) => reaction.postId === postId && reaction.actor === "firefly" && reaction.type === "like",
     );
     if (exists) return { applied: false, reason: "reaction_exists" as const };
 
-    store.reactions.push({ postId, actor: "cyrene", type: "like", createdAt: Date.now() });
+    store.reactions.push({ postId, actor: "firefly", type: "like", createdAt: Date.now() });
     persist();
     notifyChanged();
     return { applied: true, value: { liked: true } };

@@ -19,7 +19,7 @@ export function openExternalUrl(url: string): boolean {
  * 应用入口模块顶层调用一次即可，替代逐窗口挂载，避免新窗口漏挂。
  * 安全边界：
  *  - loadURL/loadFile 等程序化加载不触发 will-navigate，正常加载不受影响；
- *  - will-navigate 只针对主 frame，插件面板的 sandbox iframe（cyrene-plugin://）不受影响。
+ *  - will-navigate 只针对主 frame，插件面板的 sandbox iframe（firefly-plugin://）不受影响。
  */
 export function installGlobalNavigationGuard(): void {
   app.on("web-contents-created", (_event, contents) => {

@@ -42,7 +42,7 @@ describe("custom-cloud-engine synthesize", () => {
     await synthesize({
       endpointUrl: "https://tts.example.com",
       text: "hi",
-      voiceId: "cyrene-voice",
+      voiceId: "firefly-voice",
       format: "mp3",
     });
 
@@ -50,7 +50,7 @@ describe("custom-cloud-engine synthesize", () => {
     if (!request) throw new Error("missing fetch request init");
     expect(JSON.parse(String(request.body))).toMatchObject({
       text: "hi",
-      voiceId: "cyrene-voice",
+      voiceId: "firefly-voice",
       format: "mp3",
     });
   });

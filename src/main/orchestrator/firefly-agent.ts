@@ -173,7 +173,7 @@ export interface FireflyRunOptions {
   availableSkills?: SkillRouteInfo[];
   /**
    * ExecutionLedger：同进程工具去重缓存（设计稿 v3 §5.5.1.1，
-   * 指 docs/design/2026-08-08-cyreneHarnessloopdesign.md）。
+   * 历史设计索引见 docs/archive/README.md）。
    * FireflyAgent 内部默认从 ExecutionLedgerStore 取，调用方一般不用传。
    */
   executionLedger?: ExecutionLedger;
@@ -318,17 +318,17 @@ export function toAguiEvent(event: AgentLoopEvent): BaseEvent {
     case "reasoning_message_end":
       return { type: EventType.REASONING_MESSAGE_END, messageId: event.messageId };
     case "compressing_context":
-      return { type: EventType.CUSTOM, name: "cyrene.compressingContext", value: { text: "流萤正在压缩上下文…" } };
+      return { type: EventType.CUSTOM, name: "firefly.compressingContext", value: { text: "流萤正在压缩上下文…" } };
     case "context_usage":
       // 上下文容量快照：与 harness-adapter 的同名 CUSTOM 事件对齐。
       return {
         type: EventType.CUSTOM,
-        name: "cyrene.context.usage",
+        name: "firefly.context.usage",
         value: event.contextUsage,
       } as BaseEvent;
     default:
       // v3: 未知事件类型转为 CUSTOM 占位，不再抛错
-      return { type: EventType.CUSTOM, name: "cyrene.unknown", value: event } as BaseEvent;
+      return { type: EventType.CUSTOM, name: "firefly.unknown", value: event } as BaseEvent;
   }
 }
 

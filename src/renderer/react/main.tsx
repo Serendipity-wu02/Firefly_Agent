@@ -5,9 +5,9 @@ import { App } from "./App";
 import { AppProviders } from "./app/providers/AppProviders";
 import { initUiLocale } from "./i18n";
 
-const container = document.getElementById("cyrene-react-root");
+const container = document.getElementById("firefly-react-root");
 if (!container) {
-  throw new Error("Root element #cyrene-react-root not found");
+  throw new Error("Root element #firefly-react-root not found");
 }
 
 const root = createRoot(container);

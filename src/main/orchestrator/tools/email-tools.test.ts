@@ -36,7 +36,7 @@ function injectConfig(overrides: Record<string, unknown> = {}): void {
     secure: true,
     user: "sender@qq.com",
     pass: "authcode123",
-    fromName: "昔涟",
+    fromName: "流萤",
     ...overrides,
   };
   setEmailConfig(
@@ -120,7 +120,7 @@ describe("send_email", () => {
     });
     expect(sendMailMock).toHaveBeenCalledTimes(1);
     const mailOpts = sendMailMock.mock.calls[0][0];
-    expect(mailOpts.from).toBe('"昔涟" <sender@qq.com>');
+    expect(mailOpts.from).toBe('"流萤" <sender@qq.com>');
     expect(mailOpts.to).toBe("a@b.com, c@d.com");
     expect(mailOpts.cc).toBeUndefined();
     expect(mailOpts.subject).toBe("周报");

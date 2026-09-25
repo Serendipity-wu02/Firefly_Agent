@@ -3,7 +3,7 @@
  *
  * - CJS (Node bin requirement)
  * - #!/usr/bin/env node shebang banner
- * - __CYRENE_VERSION__ injected from package.json (no runtime file read)
+ * - __FIREFLY_VERSION__ injected from package.json (no runtime file read)
  * - Zero runtime deps; no node_modules needed at runtime
  */
 import { build } from "esbuild";
@@ -25,7 +25,7 @@ await build({
   outfile: path.join(repoRoot, "dist", "cli", "index.js"),
   banner: { js: "#!/usr/bin/env node" },
   define: {
-    __CYRENE_VERSION__: JSON.stringify(pkg.version),
+    __FIREFLY_VERSION__: JSON.stringify(pkg.version),
   },
   logLevel: "info",
 });

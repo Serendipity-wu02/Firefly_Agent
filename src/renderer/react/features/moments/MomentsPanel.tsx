@@ -220,10 +220,10 @@ const NOTICE_ACTION_KEYS: Record<MomentNoticeItem["kind"], string> = {
 /** 通知行：头像 + 「谁 对你做了什么」 + 内容摘录 + 相对时间，点击跳转到对应动态 */
 function NoticeRow({ notice, onClick }: { notice: MomentNoticeItem; onClick: (notice: MomentNoticeItem) => void }) {
   const { t } = useTranslation();
-  const isFirefly = notice.actor === "cyrene";
+  const isFirefly = notice.actor === "firefly";
   // 主角走流萤头像，角色复用任务画像；历史池外角色不显示错误头像
   const avatarUrl = isFirefly ? FIREFLY_AVATAR_URL : getCharacterAvatar(notice.actor);
-  const displayName = isFirefly ? t("moments.cyreneName") : notice.actor;
+  const displayName = isFirefly ? t("moments.fireflyName") : notice.actor;
   return (
     <button
       type="button"
@@ -233,7 +233,7 @@ function NoticeRow({ notice, onClick }: { notice: MomentNoticeItem; onClick: (no
       {avatarUrl && <img className="moments-notice-item__avatar" src={avatarUrl} alt="" draggable={false} />}
       <span className="moments-notice-item__main">
         <span className="moments-notice-item__text">
-          <span className={`moments-notice-item__name${isFirefly ? " is-cyrene" : ""}`}>{displayName}</span>
+          <span className={`moments-notice-item__name${isFirefly ? " is-firefly" : ""}`}>{displayName}</span>
           {t(NOTICE_ACTION_KEYS[notice.kind])}
         </span>
         {notice.excerpt && <span className="moments-notice-item__excerpt">{notice.excerpt}</span>}

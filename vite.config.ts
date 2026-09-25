@@ -20,7 +20,7 @@ function appVersionPlugin(): Plugin {
   ) as { version: string };
   const versionText = `Firefly v${pkg.version}`;
   return {
-    name: "cyrene-app-version",
+    name: "firefly-app-version",
     transformIndexHtml: {
       order: "pre",
       handler(html) {
@@ -63,7 +63,7 @@ function reactRendererCsp(isDev: boolean): string {
 /** 只对 React 渲染页注入 CSP meta 标签的 Vite 插件 */
 function reactRendererCspPlugin(): Plugin {
   return {
-    name: "cyrene-react-renderer-csp",
+    name: "firefly-react-renderer-csp",
     transformIndexHtml: {
       order: "pre",
       handler(html, ctx) {
@@ -81,19 +81,19 @@ function reactRendererCspPlugin(): Plugin {
 
 /**
  * 性能基线 harness 的专用构建开关（普通构建完全不受影响）：
- * - CYRENE_PERF_HARNESS=1：入口只保留 react-perf 页（构建快、产物独立）；
- * - CYRENE_PERF_PROFILE=1：把 react-dom/client 替换为 react-dom/profiling，
+ * - FIREFLY_PERF_HARNESS=1：入口只保留 react-perf 页（构建快、产物独立）；
+ * - FIREFLY_PERF_PROFILE=1：把 react-dom/client 替换为 react-dom/profiling，
  *   生产构建下 <Profiler onRender> 才会产出数据（通道 A 专用）；
- * - CYRENE_PERF_OUT_DIR：runner 指定产物目录（相对项目根），默认 dist/renderer。
+ * - FIREFLY_PERF_OUT_DIR：runner 指定产物目录（相对项目根），默认 dist/renderer。
  *   注意：只 alias react-dom/client，不能动裸 "react-dom"——React 19.2 的
  *   react-dom-profiling.profiling.js 内部 require("react-dom") 获取共享
  *   internals 单例，把主入口也指向 profiling 会造成循环 require，
  *   internals 变 undefined 后页面直接崩溃（Cannot read properties of
  *   undefined (reading 'd')）。
  */
-const isPerfHarnessBuild = process.env.CYRENE_PERF_HARNESS === "1";
-const isPerfProfileBuild = process.env.CYRENE_PERF_PROFILE === "1";
-const perfOutDir = process.env.CYRENE_PERF_OUT_DIR;
+const isPerfHarnessBuild = fireflyEnvironment(process.env, "FIREFLY_PERF_HARNESS") === "1";
+const isPerfProfileBuild = fireflyEnvironment(process.env, "FIREFLY_PERF_PROFILE") === "1";
+const perfOutDir = fireflyEnvironment(process.env, "FIREFLY_PERF_OUT_DIR");
 
 export default defineConfig({
   plugins: [react(), appVersionPlugin(), reactRendererCspPlugin(), tailwindcss()],
@@ -131,3 +131,4 @@ export default defineConfig({
     strictPort: false,
   },
 });
+import { fireflyEnvironment } from "./src/shared/legacy-firefly-contracts";

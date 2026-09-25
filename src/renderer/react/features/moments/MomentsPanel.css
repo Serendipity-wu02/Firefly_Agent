@@ -710,7 +710,7 @@
 }
 
 /* 流萤的名字走粉色主色，与角色蓝区分开 */
-.moments-notice-item__name.is-cyrene {
+.moments-notice-item__name.is-firefly {
   color: var(--cy-accent, #2d7a5f);
 }
 

@@ -19,7 +19,7 @@ vi.mock("electron", () => ({
 describe("chats store", () => {
   beforeEach(() => {
     vi.resetModules();
-    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-chats-store-"));
+    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-chats-store-"));
   });
 
   it("includes messageCount in paged session metadata", async () => {
@@ -103,7 +103,7 @@ describe("chats store", () => {
   });
 
   it("migrates Daily sessions to Work without changing their project binding", async () => {
-    const root = path.join(electronMock.userDataDir, "cyrene-chats");
+    const root = path.join(electronMock.userDataDir, "firefly-chats");
     const sessionsDir = path.join(root, "sessions");
     fs.mkdirSync(sessionsDir, { recursive: true });
     const baseMeta = {
@@ -222,7 +222,7 @@ describe("chats store", () => {
   });
 
   it("keeps the legacy migration idempotent on restart", async () => {
-    const root = path.join(electronMock.userDataDir, "cyrene-chats");
+    const root = path.join(electronMock.userDataDir, "firefly-chats");
     const sessionsDir = path.join(root, "sessions");
     fs.mkdirSync(sessionsDir, { recursive: true });
     const session = {
@@ -294,7 +294,7 @@ describe("chats store", () => {
     store.initialize();
 
     const created = store.createSession({
-      title: "昔涟的主动消息",
+      title: "流萤的主动消息",
       purpose: "proactive-chat",
     });
 
@@ -316,14 +316,14 @@ describe("chats store", () => {
     store.initialize();
 
     const sessions = await Promise.all(Array.from({ length: 8 }, async () => (
-      store.getOrCreateSessionByPurpose("proactive-chat", { title: "昔涟的主动消息" })
+      store.getOrCreateSessionByPurpose("proactive-chat", { title: "流萤的主动消息" })
     )));
 
     expect(new Set(sessions.map((session) => session.id)).size).toBe(1);
     expect(store.listSessions().filter((session) => session.purpose === "proactive-chat")).toHaveLength(1);
 
     store.appendMessage(sessions[0].id, { id: "p1", role: "model", content: "主动问候", at: 1 });
-    expect(store.getSession(sessions[0].id)?.title).toBe("昔涟的主动消息");
+    expect(store.getSession(sessions[0].id)?.title).toBe("流萤的主动消息");
   });
 
   it("persists a valid TTS cache key only on model messages without changing updatedAt", async () => {
@@ -350,10 +350,10 @@ describe("chats store", () => {
     const store = await import("./chats-store");
     store.initialize();
 
-    const first = store.getOrCreateSessionByPurpose("proactive-chat", { title: "昔涟的主动消息" });
+    const first = store.getOrCreateSessionByPurpose("proactive-chat", { title: "流萤的主动消息" });
     expect(store.deleteSession(first.id)).toBe(true);
 
-    const second = store.getOrCreateSessionByPurpose("proactive-chat", { title: "昔涟的主动消息" });
+    const second = store.getOrCreateSessionByPurpose("proactive-chat", { title: "流萤的主动消息" });
     expect(second.id).not.toBe(first.id);
     expect(store.getSessionByPurpose("proactive-chat")?.id).toBe(second.id);
   });

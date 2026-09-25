@@ -33,7 +33,7 @@ describe("sticker embedding cache", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-sticker-cache-"));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-sticker-cache-"));
     identity.value = {
       provider: "local",
       model: "Xenova/bge-m3",

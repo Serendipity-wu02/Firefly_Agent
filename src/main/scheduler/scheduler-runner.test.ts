@@ -83,7 +83,7 @@ beforeEach(() => {
   runnerMocks.agentError = undefined;
 });
 
-describe("scheduled Cyrene execution policy", () => {
+describe("scheduled Firefly execution policy", () => {
   it("runs unattended Work Harness with no interactive tools or approval", () => {
     const options = applyScheduledExecutionPolicy({
       settings: {

@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { ensureFireflyExportManifest } from "../migration/firefly-data";
 import * as path from "path";
 import { memoryStore } from "./memory-store";
 import { entityGraph } from "./entity-graph";
@@ -7,7 +8,6 @@ import { logger, LogTag } from "../logger";
 import { loadObsidianVaultConfig, saveObsidianVaultConfig, isVaultBound } from "./obsidian-vault-config";
 import { isImportingMemory } from "./obsidian-sync-flag";
 
-const MANIFEST_FILE = ".cyrene-export-manifest.json";
 const L2_DIR = "记忆";
 const ENTITY_DIR = "实体";
 const REFLECTION_DIR = "回顾";
@@ -437,7 +437,7 @@ export async function exportMemoryToObsidianVault(outputDir: string): Promise<Ex
     const conflictDir = path.join(outputDir, CONFLICT_DIR);
 
     // 2. 读旧 manifest，删除上次导出的文件（用户自己加的 md 不动）
-    const manifestPath = path.join(outputDir, MANIFEST_FILE);
+    const manifestPath = ensureFireflyExportManifest(outputDir);
     const writtenFiles: string[] = [];
     if (fs.existsSync(manifestPath)) {
       try {
@@ -453,7 +453,7 @@ export async function exportMemoryToObsidianVault(outputDir: string): Promise<Ex
           }
         }
       } catch {
-        // manifest 损坏，跳过清理
+        throw new Error("EXPORT_MANIFEST_READ_FAILED");
       }
     }
 

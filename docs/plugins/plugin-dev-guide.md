@@ -121,13 +121,13 @@ my-first-plugin.zip
 ```bash
 mkdir my-plugin && cd my-plugin
 npm init -y
-npm install @playa0v0/cyrene-plugin-sdk
+npm install /path/to/firefly-plugin-sdk-0.2.0.tgz
 ```
 
 manifest 里 `entry` 写编译产物名（如 `index.cjs`），源码用 TypeScript：
 
 ```ts
-import type { CyrenePlugin, PluginTool } from "@playa0v0/cyrene-plugin-sdk";
+import type { FireflyPlugin, PluginTool } from "@firefly/plugin-sdk";
 
 const hello: PluginTool = {
   id: "my-plugin_hello",
@@ -142,7 +142,7 @@ const hello: PluginTool = {
   },
 };
 
-const plugin: CyrenePlugin = {
+const plugin: FireflyPlugin = {
   async register(ctx) {
     ctx.registerTool(hello);
   },
@@ -156,7 +156,7 @@ export = plugin;
 发布前用 SDK 自带的测试工具验证契约，不需要启动 Firefly：
 
 ```ts
-import { createMockPluginContext, assertPluginTool } from "@playa0v0/cyrene-plugin-sdk/testing";
+import { createMockPluginContext, assertPluginTool } from "@firefly/plugin-sdk/testing";
 
 const ctx = createMockPluginContext({ pluginId: "my-plugin" });
 await plugin.register(ctx);
@@ -418,7 +418,7 @@ async register(ctx) {
 - 图片等资源直接放插件目录里随包分发，HTML 里用相对路径引用
 - **更新插件**：直接导入同名新版本 zip，Firefly 会确认替换、自动备份旧版、保留你的私有数据和启用状态
 - 版本号记得改 manifest 的 `version`，方便用户区分
-- **第三方收录**：[Cyrene-Plugins](https://github.com/Playa-0v0/Cyrene-Plugins) 是上游第三方插件仓库，并非 Firefly 官方发布入口；其收录规则见仓库内 CONTRIBUTING.md。
+插件市场尚未配置；保留本地 ZIP 安装，不要求向第三方投稿。
 
 ## 常见坑
 
@@ -444,4 +444,4 @@ async register(ctx) {
 | `scheduled-automation` | 调度任务的创建、列出、更新、删除 | 绕过用户启用和全部工具模式 |
 | `local-asr-contract` | 语音输入租约的接管、提交与释放 | ASR 模型、推理运行时和下载器 |
 
-后四个示例是 TypeScript 写的，用 `@playa0v0/cyrene-plugin-sdk` 编译；`npm run test:plugin-examples` 会从打包后的 SDK 编译并冒烟测试它们。
+后四个示例是 TypeScript 写的，用 `@firefly/plugin-sdk` 编译；`npm run test:plugin-examples` 会从打包后的 SDK 编译并冒烟测试它们。

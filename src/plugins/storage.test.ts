@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe("createPluginStorage", () => {
   it("get/set 落盘并可读回；缺失返回 undefined", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-store-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-store-test-"));
     const s = createPluginStorage(tmp);
     s.set("cfg", { a: 1 });
     expect(s.get<{ a: number }>("cfg")).toEqual({ a: 1 });
@@ -24,7 +24,7 @@ describe("createPluginStorage", () => {
   });
 
   it("非法 key 抛错", () => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-store-test-"));
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-store-test-"));
     const s = createPluginStorage(tmp);
     expect(() => s.set("../evil", 1)).toThrow(/非法存储 key/);
     expect(() => s.get("a/b")).toThrow(/非法存储 key/);

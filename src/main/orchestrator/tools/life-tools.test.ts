@@ -105,8 +105,8 @@ describe("str_replace 接线：单发替换", () => {
     );
     expect(JSON.parse(raw).success).toBe(true);
 
-    // cyrene-runs/reviews/<runId>/before/ 下应存在基线副本
-    const reviewsDir = path.join(tmpDir, "cyrene-runs", "reviews", "run-test-123", "before");
+    // firefly-runs/reviews/<runId>/before/ 下应存在基线副本
+    const reviewsDir = path.join(tmpDir, "firefly-runs", "reviews", "run-test-123", "before");
     const copies = fs.readdirSync(reviewsDir);
     expect(copies.length).toBeGreaterThanOrEqual(1);
     expect(fs.readFileSync(path.join(reviewsDir, copies[0]), "utf8")).toBe("line1\nline2\n");
@@ -206,7 +206,7 @@ describe("str_replace 接线：edits 批量", () => {
       { runId: "run-fail-case" },
     );
 
-    const reviewsDir = path.join(tmpDir, "cyrene-runs", "reviews", "run-fail-case");
+    const reviewsDir = path.join(tmpDir, "firefly-runs", "reviews", "run-fail-case");
     expect(fs.existsSync(reviewsDir)).toBe(false);
   });
 

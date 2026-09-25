@@ -30,7 +30,7 @@ describe("OpenAICompatAdapter", () => {
     const first = adapter.applyCacheHints!(base, { provider: "Kimi", baseUrl: "https://e.test/v1", model: base.model, apiKey: "k" });
     const second = adapter.applyCacheHints!({ ...base, messages: [{ role: "user", content: "different user content" }] }, { provider: "Kimi", baseUrl: "https://e.test/v1", model: base.model, apiKey: "k" });
 
-    expect(first.extraBody?.prompt_cache_key).toMatch(/^cyrene:kimi:[a-f0-9]{16}$/);
+    expect(first.extraBody?.prompt_cache_key).toMatch(/^firefly:kimi:[a-f0-9]{16}$/);
     expect(second.extraBody?.prompt_cache_key).toBe(first.extraBody?.prompt_cache_key);
   });
 

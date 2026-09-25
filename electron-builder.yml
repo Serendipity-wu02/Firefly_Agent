@@ -15,13 +15,11 @@ asarUnpack:
 electronDist: node_modules/electron/dist
 files:
   - dist/**/*
-  - "!dist/renderer/models/cyrene/**/*"
   - "!dist/components/**/*"
   - package.json
   - assets/**/*
-  - "!assets/models/cyrene/**/*"
   - vendor/**/*
-  - "!vendor/cyrene-skills/**/*"
+  - "!vendor/firefly-skills/**/*"
   - "!models/**/*"
   # prompts / skills 作为安装目录根下的独立文件夹，方便用户修改
 extraFiles:
@@ -38,15 +36,15 @@ extraFiles:
   - from: skills
     to: skills
 extraResources:
-  - from: resources/bin/cyrene-screenshot.exe
-    to: bin/cyrene-screenshot.exe
+  - from: resources/bin/firefly-screenshot.exe
+    to: bin/firefly-screenshot.exe
   - from: src/main/music/scripts/qqmusic_gsmtc.ps1
     to: music/qqmusic_gsmtc.ps1
   - from: resources/mingit
     to: mingit
   # 第三方 skills 快照归档：首启解压到 userData/skills（见 src/main/skills/snapshot-install.ts）
-  - from: vendor/cyrene-skills
-    to: cyrene-skills
+  - from: vendor/firefly-skills
+    to: firefly-skills
 win:
   icon: assets/icon-presets/firefly.png
   target:

@@ -68,8 +68,8 @@ import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
 import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
-import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, momentsEnabledInput, cyreneMomentsPostingEnabledInput, cyreneMomentsReactionsEnabledInput, momentsCharacterReactionsEnabledInput, momentsLivelinessSelect, momentsPostingRow, momentsReactionsRow, momentsCharacterRow, momentsLivelinessRow, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
-import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, cyrenePanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, fireflySaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
+import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, momentsEnabledInput, fireflyMomentsPostingEnabledInput, fireflyMomentsReactionsEnabledInput, momentsCharacterReactionsEnabledInput, momentsLivelinessSelect, momentsPostingRow, momentsReactionsRow, momentsCharacterRow, momentsLivelinessRow, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
+import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, fireflyPanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, fireflySaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
 import { pluginAddBtn, permissionBlocksWrap, permissionNote } from "./plugins/dom";
 import { preferencesState } from "./preferences/state";
 import { stickerEnabledInput, stickerSizeSelect, stickerThresholdInput, stickerThresholdVal, stickerAddOverlay, stickerAddPickBtn, stickerAddFileName, stickerAddId, stickerAddDesc, stickerAddPhrases, stickerAddError, stickerAddConfirm, stickerAddCancel } from "./preferences/dom";
@@ -145,7 +145,7 @@ import { t } from "./i18n";
 declare global {
   interface Window {
     settings?: SettingsApi;
-    cyreneScheduler?: SchedulerApi;
+    fireflyScheduler?: SchedulerApi;
     user?: UserApi;
     memoryPanel?: MemoryPanelApi;
   }
@@ -206,8 +206,8 @@ if (!window.settings) {
       chatSocialContextEnabled: false,
       momentsEnabled: true,
       chatMomentsContextEnabled: true,
-      cyreneMomentsPostingEnabled: false,
-      cyreneMomentsReactionsEnabled: true,
+      fireflyMomentsPostingEnabled: false,
+      fireflyMomentsReactionsEnabled: true,
       momentsCharacterReactionsEnabled: true,
       momentsLiveliness: "quiet",
       screenshotHotkey: "Alt+Shift+S",
@@ -268,8 +268,8 @@ if (!window.settings) {
   };
 }
 
-if (!window.cyreneScheduler) {
-  (window as unknown as { cyreneScheduler: SchedulerApi }).cyreneScheduler = {
+if (!window.fireflyScheduler) {
+  (window as unknown as { fireflyScheduler: SchedulerApi }).fireflyScheduler = {
     list: async () => ({ ok: true, value: [] }),
     add: async () => ({ ok: false, error: "scheduler api unavailable" }),
     update: async () => ({ ok: false, error: "scheduler api unavailable" }),
@@ -314,7 +314,7 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
   general: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>通用设置</title><path d="M18.2838 43.1713C14.9327 42.1736 11.9498 40.3213 9.58787 37.867C10.469 36.8227 11 35.4734 11 34.0001C11 30.6864 8.31371 28.0001 5 28.0001C4.79955 28.0001 4.60139 28.01 4.40599 28.0292C4.13979 26.7277 4 25.3803 4 24.0001C4 21.9095 4.32077 19.8938 4.91579 17.9995C4.94381 17.9999 4.97188 18.0001 5 18.0001C8.31371 18.0001 11 15.3138 11 12.0001C11 11.0488 10.7786 10.1493 10.3846 9.35011C12.6975 7.1995 15.5205 5.59002 18.6521 4.72314C19.6444 6.66819 21.6667 8.00013 24 8.00013C26.3333 8.00013 28.3556 6.66819 29.3479 4.72314C32.4795 5.59002 35.3025 7.1995 37.6154 9.35011C37.2214 10.1493 37 11.0488 37 12.0001C37 15.3138 39.6863 18.0001 43 18.0001C43.0281 18.0001 43.0562 17.9999 43.0842 17.9995C43.6792 19.8938 44 21.9095 44 24.0001C44 25.3803 43.8602 26.7277 43.594 28.0292C43.3986 28.01 43.2005 28.0001 43 28.0001C39.6863 28.0001 37 30.6864 37 34.0001C37 35.4734 37.531 36.8227 38.4121 37.867C36.0502 40.3213 33.0673 42.1736 29.7162 43.1713C28.9428 40.752 26.676 39.0001 24 39.0001C21.324 39.0001 19.0572 40.752 18.2838 43.1713Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 31C27.866 31 31 27.866 31 24C31 20.134 27.866 17 24 17C20.134 17 17 20.134 17 24C17 27.866 20.134 31 24 31Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "通用设置", hint: "管理窗口、音频和系统行为" },
   api: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>API 设置</title><g clip-path="url(#api-key-nav-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-nav-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg>`, title: "API 设置", hint: "选择预设后只需要填写 API Key。" },
   "api-advanced": { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>高级设置</title><path d="M34.0003 41L44 24L34.0003 7H14.0002L4 24L14.0002 41H34.0003Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 29C26.7614 29 29 26.7614 29 24C29 21.2386 26.7614 19 24 19C21.2386 19 19 21.2386 19 24C19 26.7614 21.2386 29 24 29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "高级设置", hint: "配置 API 超时时间、调用模式．" },
-  cyrene: { emoji: "🌸", title: t("settings.nav.cyrene"), hint: t("settings.nav.cyreneHint") },
+  firefly: { emoji: "🌸", title: t("settings.nav.firefly"), hint: t("settings.nav.fireflyHint") },
   tts: { emoji: "🎙️", title: t("settings.nav.tts"), hint: t("settings.nav.ttsHint") },
   asr: { emoji: "🎧", title: t("settings.nav.asr"), hint: t("settings.nav.asrHint") },
 	  tokens: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "Token 用量", hint: "查看 API 调用统计与消耗" },
@@ -820,7 +820,8 @@ function fillVisionModelOptions(preset: ModelPreset): void {
   }
 }
 
-const LOCAL_ENDPOINT_AUTH_FALLBACK = "__CYRENE_LOCAL_NO_AUTH__";
+const LOCAL_ENDPOINT_AUTH_FALLBACK = "__FIREFLY_LOCAL_NO_AUTH__";
+import { LEGACY_LOCAL_ENDPOINT_AUTH_FALLBACK } from "../../shared/legacy-firefly-contracts";
 
 function getApiKeyForRequest(): string {
   const value = apiKeyInput.value.trim();
@@ -942,7 +943,7 @@ export function applyPreset(
   // apiKey：优先用缓存；否则**显式清空**——避免上一家厂商的 key 残留在输入框里被用户误点保存。
   // 这是 v1 切厂商行为里的关键不变量：apiKey 永远只跟当前厂商绑定。
   const customMode = getCustomEndpointMode(preset.providerName);
-  apiKeyInput.value = customMode === "local" && preferredApiKey === LOCAL_ENDPOINT_AUTH_FALLBACK
+  apiKeyInput.value = customMode === "local" && (preferredApiKey === LOCAL_ENDPOINT_AUTH_FALLBACK || preferredApiKey === LEGACY_LOCAL_ENDPOINT_AUTH_FALLBACK)
     ? ""
     : (preferredApiKey ?? "");
 
@@ -1046,8 +1047,8 @@ async function loadGeneralSettings(): Promise<void> {
     citaEnabledInput.checked = cita.enabled;
     chatSocialContextEnabledInput.checked = normalizeChatSocialContextEnabled(cfg.chatSocialContextEnabled);
     momentsEnabledInput.checked = cfg.momentsEnabled ?? true;
-    cyreneMomentsPostingEnabledInput.checked = cfg.cyreneMomentsPostingEnabled ?? false;
-    cyreneMomentsReactionsEnabledInput.checked = cfg.cyreneMomentsReactionsEnabled ?? true;
+    fireflyMomentsPostingEnabledInput.checked = cfg.fireflyMomentsPostingEnabled ?? false;
+    fireflyMomentsReactionsEnabledInput.checked = cfg.fireflyMomentsReactionsEnabled ?? true;
     momentsCharacterReactionsEnabledInput.checked = cfg.momentsCharacterReactionsEnabled ?? true;
     applyMomentsLivelinessSelection(cfg.momentsLiveliness ?? "quiet");
     renderMomentsSubRowsVisibility();
@@ -1508,7 +1509,7 @@ generalForm.addEventListener("submit", async (e) => {
   }
 });
 
-cyrenePanel.addEventListener("submit", async (e) => {
+fireflyPanel.addEventListener("submit", async (e) => {
   e.preventDefault();
   setFireflySaveStatus(t("settings.status.saving"));
   try {
@@ -1610,7 +1611,7 @@ function switchSection(section: string): void {
   const isAppearance = section === "appearance";
   const isGeneral = section === "general";
   const isPreferences = section === "preferences";
-  const isFirefly = section === "cyrene";
+  const isFirefly = section === "firefly";
   const isDisclaimer = section === "disclaimer";
   const isMemory = section === "memory";
   const isUser = section === "user";
@@ -1626,7 +1627,7 @@ function switchSection(section: string): void {
   appearanceForm.classList.toggle("is-hidden", !isAppearance);
   generalForm.classList.toggle("is-hidden", !isGeneral);
   preferencesForm.classList.toggle("is-hidden", !isPreferences);
-  cyrenePanel.classList.toggle("is-hidden", !isFirefly);
+  fireflyPanel.classList.toggle("is-hidden", !isFirefly);
   disclaimerPanel.classList.toggle("is-hidden", !isDisclaimer);
   const memoryPanel = document.getElementById("memory-panel");
   if (memoryPanel) memoryPanel.classList.toggle("is-hidden", !isMemory);
@@ -1906,10 +1907,10 @@ momentsEnabledInput.addEventListener("change", () => {
   renderMomentsSubRowsVisibility();
   setPreferencesSaveStatus(t("settings.status.dirty"));
 });
-cyreneMomentsPostingEnabledInput.addEventListener("change", () => {
+fireflyMomentsPostingEnabledInput.addEventListener("change", () => {
   setPreferencesSaveStatus(t("settings.status.dirty"));
 });
-cyreneMomentsReactionsEnabledInput.addEventListener("change", () => {
+fireflyMomentsReactionsEnabledInput.addEventListener("change", () => {
   setPreferencesSaveStatus(t("settings.status.dirty"));
 });
 momentsCharacterReactionsEnabledInput.addEventListener("change", () => {
@@ -1942,8 +1943,8 @@ preferencesForm.addEventListener("submit", async (e) => {
       citaSemanticEngine: "remote",
       chatSocialContextEnabled: chatSocialContextEnabledInput.checked,
       momentsEnabled: momentsEnabledInput.checked,
-      cyreneMomentsPostingEnabled: cyreneMomentsPostingEnabledInput.checked,
-      cyreneMomentsReactionsEnabled: cyreneMomentsReactionsEnabledInput.checked,
+      fireflyMomentsPostingEnabled: fireflyMomentsPostingEnabledInput.checked,
+      fireflyMomentsReactionsEnabled: fireflyMomentsReactionsEnabledInput.checked,
       momentsCharacterReactionsEnabled: momentsCharacterReactionsEnabledInput.checked,
       momentsLiveliness: getMomentsLivelinessValue(),
       defaultChatMode: "chat",

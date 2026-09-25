@@ -8,7 +8,7 @@ import { createSchedulerStore } from "./scheduler-store";
 import type { ScheduledTask, ScheduledTaskHistoryEntry, ScheduledRunResult } from "./types";
 
 function tmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-engine-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "firefly-engine-"));
 }
 
 function dailyTask(patch: Partial<ScheduledTask> = {}): ScheduledTask {

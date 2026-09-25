@@ -9,7 +9,7 @@ import type { TranscriptAppendInput } from "./conversation-transcript-types";
 const roots: string[] = [];
 
 function createStore() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-transcript-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-transcript-"));
   roots.push(root);
   return {
     root,

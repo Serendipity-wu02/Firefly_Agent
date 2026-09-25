@@ -71,7 +71,7 @@ export function completePlanRun(input: {
 
   input.send({
     type: EventType.CUSTOM,
-    name: "cyrene.plan.completed",
+    name: "firefly.plan.completed",
     value: { planPath: finishedPlanPath, runStatus: input.runStatus },
     threadId: input.threadId,
     runId: input.runId,

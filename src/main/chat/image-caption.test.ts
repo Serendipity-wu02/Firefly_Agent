@@ -20,12 +20,12 @@ describe("validateCaptionImagePath", () => {
   });
 
   it("拒绝不存在的图片文件", () => {
-    const missing = path.join(os.tmpdir(), "cyrene-missing-image.png");
+    const missing = path.join(os.tmpdir(), "firefly-missing-image.png");
     expect(validateCaptionImagePath(missing)).toEqual({ ok: false, error: "文件不存在" });
   });
 
   it("拒绝非图片扩展名", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-image-caption-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-image-caption-"));
     try {
       const fp = path.join(tmpDir, "note.txt");
       fs.writeFileSync(fp, "hello");
@@ -36,7 +36,7 @@ describe("validateCaptionImagePath", () => {
   });
 
   it("拒绝超过大小限制的图片", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-image-caption-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-image-caption-"));
     try {
       const fp = path.join(tmpDir, "large.png");
       fs.writeFileSync(fp, Buffer.alloc(IMAGE_CAPTION_MAX_BYTES + 1));
@@ -47,7 +47,7 @@ describe("validateCaptionImagePath", () => {
   });
 
   it("返回合法图片的 mime 和 buffer", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-image-caption-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-image-caption-"));
     try {
       const fp = path.join(tmpDir, "ok.png");
       fs.writeFileSync(fp, Buffer.from([1, 2, 3]));

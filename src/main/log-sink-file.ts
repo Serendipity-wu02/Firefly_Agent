@@ -3,7 +3,7 @@
  *
  * 背景：打包后的 Electron 主进程 stdout/stderr 在用户机器上默认不可见
  * （还可能断管，见 21388fe），出 bug 时用户无从排查、issue 也无法附日志。
- * 这里把 logger 输出同步落盘到 userData/logs/cyrene.log，单文件超过上限后
+ * 这里把 logger 输出同步落盘到 userData/logs/firefly.log，单文件超过上限后
  * 滚动（保留 MAX_FILES 份），用户/issue 上报可直接附上日志文件。
  *
  * 设计：
@@ -17,7 +17,7 @@ import path from "node:path";
 import { addLogSink, type LogEntry } from "../shared/logger";
 
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5MB / 份
-const MAX_FILES = 3; // cyrene.log / cyrene.log.1 / cyrene.log.2
+const MAX_FILES = 3; // firefly.log / firefly.log.1 / firefly.log.2
 
 /** 时间戳格式化：2026-09-01 09:32:24.123 */
 export function formatTs(ts: number): string {
@@ -84,5 +84,5 @@ export function installFileLogSink(
 ): () => void {
   const dir = path.join(userDataDir, "logs");
   fs.mkdirSync(dir, { recursive: true });
-  return addLogSink(createFileLogSink(path.join(dir, "cyrene.log"), maxBytes));
+  return addLogSink(createFileLogSink(path.join(dir, "firefly.log"), maxBytes));
 }

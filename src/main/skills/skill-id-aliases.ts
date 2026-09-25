@@ -21,6 +21,7 @@ export function resolveSkillSettings<Value>(settings: Record<string, Value>): Re
     } else if (settings[legacy] && settings[current] && typeof settings[legacy] === "object" && typeof settings[current] === "object") {
       resolved[current] = { ...settings[legacy], ...settings[current] };
     }
+    delete resolved[legacy];
   }
   return resolved;
 }

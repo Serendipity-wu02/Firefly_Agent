@@ -23,7 +23,7 @@ import {
   removeHostMetadata,
 } from "./installer";
 import type {
-  CyrenePlugin,
+  FireflyPlugin,
   PluginContext,
   PluginRecord,
   PluginSource,
@@ -97,7 +97,7 @@ function errorMessage(error: unknown): string {
 export class PluginManager {
   private readonly eventBus = createPluginEventBus();
   private records = new Map<string, PluginRecord>();
-  private instances = new Map<string, CyrenePlugin>();
+  private instances = new Map<string, FireflyPlugin>();
   private contexts = new Map<string, DisposableContext>();
   private statuses = new Map<string, PluginRuntimeStatus>();
   private errors = new Map<string, string>();
@@ -382,7 +382,7 @@ export class PluginManager {
       try {
         await commitPreparedPlugin(prepared, userRoot, replacing, {
           marketOrigin: opts.origin === "market"
-            ? { registryId: opts.registryId ?? "cyrene-official" }
+            ? { registryId: opts.registryId ?? "" }
             : undefined,
         });
       } catch (error) {

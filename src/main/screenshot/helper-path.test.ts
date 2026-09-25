@@ -8,7 +8,7 @@ describe("resolveScreenshotHelperPath", () => {
       appPath: "C:\\repo",
       resourcesPath: "C:\\app\\resources",
       envOverride: undefined,
-    })).toBe("C:\\repo\\native\\cyrene-screenshot\\target\\release\\cyrene-screenshot.exe");
+    })).toBe("C:\\repo\\native\\firefly-screenshot\\target\\release\\firefly-screenshot.exe");
   });
 
   it("uses the packaged resources binary", () => {
@@ -17,7 +17,7 @@ describe("resolveScreenshotHelperPath", () => {
       appPath: "C:\\app\\resources\\app.asar",
       resourcesPath: "C:\\app\\resources",
       envOverride: undefined,
-    })).toBe("C:\\app\\resources\\bin\\cyrene-screenshot.exe");
+    })).toBe("C:\\app\\resources\\bin\\firefly-screenshot.exe");
   });
 
   it("allows an explicit helper path override", () => {
@@ -25,7 +25,7 @@ describe("resolveScreenshotHelperPath", () => {
       isPackaged: true,
       appPath: "C:\\app\\resources\\app.asar",
       resourcesPath: "C:\\app\\resources",
-      envOverride: "D:\\debug\\cyrene-screenshot.exe",
-    })).toBe("D:\\debug\\cyrene-screenshot.exe");
+      envOverride: "D:\\debug\\firefly-screenshot.exe",
+    })).toBe("D:\\debug\\firefly-screenshot.exe");
   });
 });

@@ -23,7 +23,7 @@ system-status/
   "name": "系统状态",
   "version": "0.1.0",
   "description": "查询系统状态：CPU/内存/GPU/磁盘/网络/电池",
-  "author": "Cyrene",
+  "author": "Firefly",
   "entry": "index.cjs",
   "icon": "avatar.png",
   "defaultEnabled": false
@@ -137,4 +137,4 @@ async unregister() {
 
 ## TypeScript + SDK 示例索引
 
-需要数据服务（Secrets、对话分页、调度任务）或语音输入租约时，参考 `examples/` 下四个 TypeScript 示例（`weather-tool`、`long-term-memory`、`scheduled-automation`、`local-asr-contract`）：它们用 `@playa0v0/cyrene-plugin-sdk` 的类型与测试工具编写，`npm run test:plugin-examples` 可从打包后的 SDK 编译并冒烟验证。
+需要数据服务（Secrets、对话分页、调度任务）或语音输入租约时，参考 `examples/` 下四个 TypeScript 示例（`weather-tool`、`long-term-memory`、`scheduled-automation`、`local-asr-contract`）：它们用 `@firefly/plugin-sdk` 的类型与测试工具编写，`npm run test:plugin-examples` 可从打包后的 SDK 编译并冒烟验证。

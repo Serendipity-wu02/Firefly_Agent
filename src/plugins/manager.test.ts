@@ -10,7 +10,7 @@ import * as installer from "./installer";
 let tmp: string;
 
 function fixturePlugin(id: string, manifestId: string = id): string {
-  if (!tmp) tmp = mkdtempSync(path.join(os.tmpdir(), "cyrene-mgr-test-"));
+  if (!tmp) tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-mgr-test-"));
   const dir = path.join(tmp, id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(

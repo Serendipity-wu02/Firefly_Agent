@@ -161,7 +161,7 @@ export const IPC = {
   SETTINGS_OPEN_STICKER_MANAGER: "settings:open-sticker-manager",
   SETTINGS_OPEN_CUSTOM_STYLE_PROMPT: "settings:open-custom-style-prompt",
 
-  // chat sessions (multi-conversation history, persisted to userData/cyrene-chats/)
+  // chat sessions (multi-conversation history, persisted to userData/firefly-chats/)
   CHATS_LIST: "chats:list",
   CHATS_GET: "chats:get",
   CHATS_EXPORT_WORK_MARKDOWN: "chats:export-work-markdown",

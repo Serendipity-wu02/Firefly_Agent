@@ -81,7 +81,7 @@ export class MouseFocusController {
     if (this.disposed || this.paused || this.polling) return;
     this.polling = true;
     try {
-      const cursor = await window.cyrene.getCursorPosition();
+      const cursor = await window.firefly.getCursorPosition();
       if (!cursor || this.disposed || this.paused) return;
       this.scheduleFocus(cursor.x - window.screenX, cursor.y - window.screenY);
     } finally {
