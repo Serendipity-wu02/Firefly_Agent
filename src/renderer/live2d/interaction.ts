@@ -1,6 +1,8 @@
 import type { Live2DModel } from "pixi-live2d-display/cubism4";
 import type { Live2DTarget } from "../../shared/live2d-actions";
 
+export const FIREFLY_DOUBLE_CLICK_TARGET = { kind: "expression", name: "expression2" } as const satisfies Live2DTarget;
+
 /**
  * Resolved description of a single hit area and the motion/expression it triggers.
  *
@@ -23,6 +25,7 @@ export interface InteractionOptions {
   onTrigger?: (area: HitAreaDef) => void;
   onMiss?: (area: HitAreaDef) => void;
   playAction?: (target: Live2DTarget) => Promise<boolean>;
+  doubleClickTarget?: Live2DTarget;
 }
 
 /**
@@ -36,12 +39,14 @@ export class InteractionController {
   private readonly onTrigger?: (area: HitAreaDef) => void;
   private readonly onMiss?: (area: HitAreaDef) => void;
   private readonly playAction?: (target: Live2DTarget) => Promise<boolean>;
+  private readonly doubleClickTarget?: Live2DTarget;
 
   private downHits: HitAreaDef[] = [];
   private downPointerId: number | null = null;
   private downScreenX = 0;
   private downScreenY = 0;
   private playing = false;
+  private pendingClick: { hits: HitAreaDef[]; screenX: number; screenY: number; timer: ReturnType<typeof setTimeout> } | null = null;
   private disposed = false;
 
   constructor(
@@ -56,6 +61,7 @@ export class InteractionController {
     this.onTrigger = options.onTrigger;
     this.onMiss = options.onMiss;
     this.playAction = options.playAction;
+    this.doubleClickTarget = options.doubleClickTarget;
     this.hitAreaByName = new Map(hitAreaDefs.map((a) => [a.name, a]));
 
     canvas.addEventListener("pointerdown", this.handleDown);
@@ -80,7 +86,28 @@ export class InteractionController {
     const hits = this.downHits;
     this.downHits = [];
     if (dist > this.clickThreshold || this.resolveHits(e.clientX, e.clientY).every((area) => !hits.includes(area))) return;
-    void this.fire(hits);
+    if (!this.doubleClickTarget || hits.length === 0) {
+      void this.fire(hits);
+      return;
+    }
+    const pending = this.pendingClick;
+    if (pending && pending.hits.some((previous) => hits.some((current) => current.name === previous.name))
+      && Math.hypot(e.screenX - pending.screenX, e.screenY - pending.screenY) <= this.clickThreshold) {
+      clearTimeout(pending.timer);
+      this.pendingClick = null;
+      void this.fire([{ ...hits[0], target: this.doubleClickTarget }]);
+      return;
+    }
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingClick = null;
+      void this.fire(pending.hits);
+    }
+    const timer = setTimeout(() => {
+      this.pendingClick = null;
+      void this.fire(hits);
+    }, 300);
+    this.pendingClick = { hits, screenX: e.screenX, screenY: e.screenY, timer };
   };
 
   private handleCancel = (): void => {
@@ -120,6 +147,8 @@ export class InteractionController {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    if (this.pendingClick) clearTimeout(this.pendingClick.timer);
+    this.pendingClick = null;
     this.canvas.removeEventListener("pointerdown", this.handleDown);
     this.canvas.removeEventListener("pointerup", this.handleUp);
     this.canvas.removeEventListener("pointercancel", this.handleCancel);

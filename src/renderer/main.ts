@@ -1,6 +1,6 @@
 import { Live2DManager } from "./live2d/manager";
 import "./ui/theme";
-import { InteractionController } from "./live2d/interaction";
+import { FIREFLY_DOUBLE_CLICK_TARGET, InteractionController } from "./live2d/interaction";
 import { MouseFocusController } from "./live2d/focus";
 import { FireflyExpressionState } from "./live2d/expression-state";
 import { FireflyActionController } from "./live2d/action-controller";
@@ -125,7 +125,10 @@ const manager = new Live2DManager({
     );
     live2dSpeechOffs = speechOffs;
     interaction = new InteractionController(canvas, model, manager.getHitAreaDefs(), {
-      playAction: (target) => actions?.play(target, 5000) ?? Promise.resolve(false),
+      doubleClickTarget: manager.hasAction(FIREFLY_DOUBLE_CLICK_TARGET) ? FIREFLY_DOUBLE_CLICK_TARGET : undefined,
+      playAction: (target) => actions?.play(target, 5000, (receipt) => {
+        console.info("[Firefly] interaction", target, receipt.stage, receipt.reason ?? "");
+      }) ?? Promise.resolve(false),
       onTrigger: (area) => {
         console.info("[Firefly] hit", area.name, "started", area.target);
       },
