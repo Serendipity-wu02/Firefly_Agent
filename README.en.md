@@ -1,4 +1,6 @@
-# Firefly · Desktop AI Companion
+# Firefly_Agent · Desktop AI Companion
+
+Current project version: 1.1.0. The [Chinese README](./README.md) is the primary project entry.
 
 Current runtime and Skill organization: [architecture](./docs/architecture/firefly-runtime.md). Current branding, compatibility and acceptance evidence: [implementation record](./docs/migration/firefly-brand-skills-2026-09-25.md). Historical documents remain unchanged and are collected in the [archive index](./docs/archive/README.md).
 

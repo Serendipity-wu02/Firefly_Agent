@@ -11,8 +11,11 @@ test("the Firefly package identity is consistent and does not publish updates", 
   assert.equal(packageJson.name, "firefly-agent");
   assert.equal(packageLock.name, packageJson.name);
   assert.equal(packageLock.packages[""].name, packageJson.name);
+  assert.equal(packageJson.version, "1.1.0");
+  assert.equal(packageLock.version, packageJson.version);
+  assert.equal(packageLock.packages[""].version, packageJson.version);
   assert.match(source, /^appId: com\.serendipitywu02\.firefly$/m);
-  assert.match(source, /^productName: Firefly$/m);
+  assert.match(source, /^productName: Firefly_Agent$/m);
   assert.match(source, /^publish: \[\]$/m);
 });
 
@@ -24,13 +27,13 @@ test("the core package excludes retired music components and includes the QQ bri
   assert.doesNotMatch(source, /-\s+from: resources\/components/);
   assert.doesNotMatch(source, /-\s+from: resources\/bin\/mpv/);
   assert.match(source, /-\s+from: src\/main\/music\/scripts\/qqmusic_gsmtc\.ps1/);
-  assert.match(source, /artifactName:\s+Firefly-Setup-\$\{version\}\.\$\{ext\}/);
+  assert.match(source, /artifactName:\s+Firefly_Agent-Setup-\$\{version\}\.\$\{ext\}/);
 });
 
 test("the assisted installer exposes Firefly setup choices and an uninstall entry", () => {
   assert.match(source, /createDesktopShortcut:\s+false/);
   assert.match(source, /include:\s+build\/installer\/installer\.nsh/);
-  assert.match(source, /menuCategory:\s+Firefly/);
+  assert.match(source, /menuCategory:\s+Firefly_Agent/);
 });
 
 test("the installer carries upstream and font license notices", () => {

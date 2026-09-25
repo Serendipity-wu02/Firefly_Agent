@@ -1,7 +1,7 @@
 // 安装包产物验证：NSIS 安装器、更新元数据与随包二进制是否齐全。
 // 在 electron-builder --win nsis 构建完成后运行，检查输出目录（electron-builder.yml
 // 的 directories.output，默认 release/）：
-//   1. Firefly-Setup-<version>.exe 存在且体积合理
+//   1. Firefly_Agent-Setup-<version>.exe 存在且体积合理
 //   2. latest.yml 的 version 与 package.json 一致，path 指向同一安装器，sha512 存在
 //   3. win-unpacked/resources 内截图辅助程序、QQ Music 桥接脚本、MinGit、skills 快照齐全
 // 用法：node scripts/verify/installer-artifacts.mjs [--expect-version x.y.z]
@@ -31,7 +31,7 @@ export async function verifyInstallerArtifacts(options = {}) {
     await readFile(path.join(projectRoot, "electron-builder.yml"), "utf8"),
   );
   const outputDir = path.join(projectRoot, builderConfig.directories?.output ?? "release");
-  const artifactName = (builderConfig.nsis?.artifactName ?? "Firefly-Setup-${version}.${ext}")
+  const artifactName = (builderConfig.nsis?.artifactName ?? "Firefly_Agent-Setup-${version}.${ext}")
     .replace("${version}", pkg.version)
     .replace("${ext}", "exe");
 

@@ -10,7 +10,7 @@ import tailwindcss from "@tailwindcss/vite";
  * Inject the app version (read from package.json) into any HTML that
  * contains the placeholder `<span data-app-version></span>`.
  *
- * Replaces the placeholder with `Firefly v<version>`, matching the existing
+ * Replaces the placeholder with `Firefly_Agent v<version>`, matching the existing
  * display format. Keeping the prefix in the plugin (rather than the HTML)
  * means the version is the only thing that ever changes.
  */
@@ -18,7 +18,7 @@ function appVersionPlugin(): Plugin {
   const pkg = JSON.parse(
     readFileSync(resolve(__dirname, "package.json"), "utf8"),
   ) as { version: string };
-  const versionText = `Firefly v${pkg.version}`;
+  const versionText = `Firefly_Agent v${pkg.version}`;
   return {
     name: "firefly-app-version",
     transformIndexHtml: {

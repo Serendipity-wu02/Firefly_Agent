@@ -84,7 +84,7 @@ describe("resolveExternalContentPaths", () => {
     const result = resolveExternalContentPaths({
       isPackaged: true,
       appPath: path.join(installRoot, "resources", "app.asar"),
-      executablePath: path.join(installRoot, "Firefly.exe"),
+      executablePath: path.join(installRoot, "Firefly_Agent.exe"),
       userDataPath: userData,
     });
 

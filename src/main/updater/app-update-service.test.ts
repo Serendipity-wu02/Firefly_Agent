@@ -82,7 +82,7 @@ describe("createAppUpdateService", () => {
     const updater = new FakeUpdater();
     const service = createAppUpdateService({
       updater,
-      currentVersion: "1.2.2",
+      currentVersion: "1.1.0",
       isPackaged: true,
       updatesEnabled: false,
     });
