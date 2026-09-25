@@ -210,7 +210,7 @@ export function useComposerAttachments(input: {
       // 传 sessionId：会话绑定的档案若声明 multimodal 则按档案裁决，否则回退全局
       strategy = await chat.getImageSendStrategy(sessionId);
     } catch (error) {
-      console.warn("[Cyrene React] 获取图片发送策略失败，回退视觉描述:", error);
+      console.warn("[Firefly React] 获取图片发送策略失败，回退视觉描述:", error);
     }
 
     if (strategy.mode === "direct") {

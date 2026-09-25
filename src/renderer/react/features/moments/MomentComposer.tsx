@@ -58,7 +58,7 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // 点名名单（昔涟 + 全部角色）与 @ 选择框状态
+  // 点名名单（流萤 + 全部角色）与 @ 选择框状态
   const [mentionNames, setMentionNames] = useState<string[]>([]);
   const [picker, setPicker] = useState<MentionPickerState | null>(null);
 
@@ -73,7 +73,7 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
     if (!picker) return [];
     const query = picker.query;
     return mentionNames.filter((name) =>
-      name === "cyrene" ? query === "" || t("moments.mention.cyreneOptionLabel").startsWith(query) : name.startsWith(query),
+      name === "cyrene" ? query === "" || t("moments.mention.fireflyOptionLabel").startsWith(query) : name.startsWith(query),
     );
   }, [picker, mentionNames, t]);
 
@@ -106,7 +106,7 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
   /** 把 @候选词 替换为完整 @昵称（带尾随空格），光标落在空格后 */
   function pickMention(nickname: string) {
     if (!picker) return;
-    const display = nickname === "cyrene" ? t("moments.mention.cyreneOptionLabel") : nickname;
+    const display = nickname === "cyrene" ? t("moments.mention.fireflyOptionLabel") : nickname;
     const next =
       text.slice(0, picker.at) + `@${display} ` + text.slice(Math.min(picker.caret, text.length));
     setText(next);
@@ -177,7 +177,7 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
    *  不依赖选择框状态——手打的 @ 同样有效，删掉 @ 文本则点名自动消失。 */
   function deriveMentions(): string[] {
     const names: string[] = [];
-    if (text.includes(`@${t("moments.mention.cyreneOptionLabel")}`)) names.push("cyrene");
+    if (text.includes(`@${t("moments.mention.fireflyOptionLabel")}`)) names.push("cyrene");
     for (const name of mentionNames) {
       if (name !== "cyrene" && text.includes(`@${name}`)) names.push(name);
     }
@@ -238,10 +238,10 @@ export function MomentComposer({ submitting, onPublish }: MomentComposerProps) {
             <div className="moments-composer__mention-empty">{t("moments.mention.pickerEmpty")}</div>
           ) : (
             candidates.map((name, index) => {
-              const isCyrene = name === "cyrene";
-              const display = isCyrene ? t("moments.mention.cyreneOptionLabel") : name;
+              const isFirefly = name === "cyrene";
+              const display = isFirefly ? t("moments.mention.fireflyOptionLabel") : name;
               // 主角使用独立头像；角色头像取当前任务角色资源池
-              const avatar = isCyrene ? null : getCharacterAvatar(name);
+              const avatar = isFirefly ? null : getCharacterAvatar(name);
               return (
                 <button
                   type="button"

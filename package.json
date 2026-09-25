@@ -14,6 +14,7 @@
   },
   "main": "dist/main/main/index.js",
   "bin": {
+    "firefly": "./dist/cli/index.js",
     "cyrene": "./dist/cli/index.js"
   },
   "scripts": {

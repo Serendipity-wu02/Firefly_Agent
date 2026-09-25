@@ -1,8 +1,8 @@
 // AG-UI IPC 桥：按会话模式选择执行链并把事件透传给渲染进程。
 //
 // 架构：
-//   Chat  ──> CyreneAgent ──> 无工具 ChatLoop
-//   Work / Learn / Code ──> CyreneAgent ──> CyreneHarness
+//   Chat  ──> FireflyAgent ──> 无工具 ChatLoop
+//   Work / Learn / Code ──> FireflyAgent ──> FireflyHarness
 //   各链路事件都由本桥通过 AGUI_EVENT 转发给渲染进程。
 //
 // Agent 的 Observable 是内存流、跨不过进程边界。
@@ -15,14 +15,14 @@ import { createIpcScope, type IpcScope } from "./application/ipc-scope";
 import { Subscription } from "rxjs";
 import { AgentRuntimeError } from "./orchestrator/agent-runtime-error";
 import {
-  CyreneAgent,
+  FireflyAgent,
   type AgentExecutionMode,
-  type CyreneRunOptions,
-  type CyreneRunResult,
-} from "./orchestrator/cyrene-agent";
+  type FireflyRunOptions,
+  type FireflyRunResult,
+} from "./orchestrator/firefly-agent";
 import { RunSettlementGate } from "./orchestrator/run-settlement";
 import { toastEvents } from "./toast/toast-events";
-import type { AguiRunAck, CyreneRunTerminalResult } from "../shared/run-terminal";
+import type { AguiRunAck, FireflyRunTerminalResult } from "../shared/run-terminal";
 import { indexConversationTurn } from "./orchestrator/tools/history-tools";
 import type { RelationshipChannel } from "./relationship/relationship-log";
 import { createThinkFilter, type ThinkStreamFilter, type ThinkFilterMode } from "./chat/think-filter";
@@ -58,14 +58,14 @@ import type { PluginPromptMode, PluginTurnCompletedEvent } from "../plugins/type
 /**
  * 从 RUN_FINISHED 事件中提取规范的终态结果（terminal）。
  *
- * CyreneAgent.runWithEvents 在 success / cancelled / timeout / runtime_error 路径都会发出
- * RUN_FINISHED 并附带 `result: CyreneRunTerminalResult`。下游（bridge / settlement gate）据此决定：
+ * FireflyAgent.runWithEvents 在 success / cancelled / timeout / runtime_error 路径都会发出
+ * RUN_FINISHED 并附带 `result: FireflyRunTerminalResult`。下游（bridge / settlement gate）据此决定：
  *  - 是否跑成功收尾副作用（仅 status="success"）
  *  - runtime_error 是否转走 RUN_ERROR
  *
  * 缺失 result 字段时按 success 兜底，兼容尚未升级的 upstream。
  */
-function extractTerminalFromRunFinished(baseEvent: unknown): CyreneRunTerminalResult {
+function extractTerminalFromRunFinished(baseEvent: unknown): FireflyRunTerminalResult {
   const result = (baseEvent as { result?: unknown })?.result;
   if (
     result
@@ -84,7 +84,7 @@ function extractTerminalFromRunFinished(baseEvent: unknown): CyreneRunTerminalRe
       const externalEffectsMayContinue = typeof rawFlag === "boolean"
         ? rawFlag
         : status !== "success";
-      const terminal: CyreneRunTerminalResult = { status, externalEffectsMayContinue };
+      const terminal: FireflyRunTerminalResult = { status, externalEffectsMayContinue };
       if (typeof reason === "string") terminal.reason = reason;
       return terminal;
     }
@@ -138,7 +138,7 @@ export interface AguiRunInput {
 
 /** 调用方（index.ts）注入：把输入转成 agent 需要的 options（含 system prompt 拼接）。 */
 export type BuildOptionsFn = (input: AguiRunInput) => Promise<{
-  options: CyreneRunOptions;
+  options: FireflyRunOptions;
   /** 跑完后副作用需要的信息。 */
   latestUserText: string;
 }>;
@@ -156,7 +156,7 @@ export interface RunFinishedEffects {
   sticker?: string | null;
 }
 export type OnRunFinishedFn = (
-  result: CyreneRunResult,
+  result: FireflyRunResult,
   latestUserText: string,
   context: {
     source: PluginTurnCompletedEvent["source"];
@@ -408,7 +408,7 @@ export function registerAgUiIpc(
     const turnStartedAt = Date.now();
 
     const send = (baseEvent: unknown): void => {
-      // CyreneAgent 的 RUN_STARTED / RUN_FINISHED 自带 runId，但 ChatLoop 等内部
+      // FireflyAgent 的 RUN_STARTED / RUN_FINISHED 自带 runId，但 ChatLoop 等内部
       // AgentLoopEvent 经 toAguiEvent 转换后没有。渲染端用 runId 隔离并发会话，
       // 因此所有桥层发出的事件都必须带 canonical runId，不能只给终态事件补上。
       const eventWithRunId = baseEvent && typeof baseEvent === "object"
@@ -530,7 +530,7 @@ export function registerAgUiIpc(
     // 兼容调用（缺 userTurnId）同样强制 false（按渲染端消息走）。
     input.useTranscriptContext = Boolean(input.userTurnId) && transcriptSource === "transcript";
 
-    // ── Chat / Work / Learn / Code：共用 CyreneAgent 外壳 ──
+    // ── Chat / Work / Learn / Code：共用 FireflyAgent 外壳 ──
     const agentExecutionMode: AgentExecutionMode = mode === "chat" ? "chat" : "work";
     let built;
     try {
@@ -567,7 +567,7 @@ export function registerAgUiIpc(
     if (mergedRecoveryContext) options.recoveryContext = mergedRecoveryContext;
     options.resumeFromRunId = input.resumeFromRunId;
     options.conversationMode = mode;
-    // 把 bridge 创建的 canonical runId 注入 CyreneRunOptions，
+    // 把 bridge 创建的 canonical runId 注入 FireflyRunOptions，
     // 一路传到 Agent / Harness adapter / ToolContext / 所有 AG-UI 事件。
     // ack.runId 与 RUN_STARTED.runId 必须一致。
     options.runId = runId;
@@ -588,7 +588,7 @@ export function registerAgUiIpc(
     }) : undefined;
     // AbortController 已在会话守卫注册前创建（守卫的 abort 需要引用它）。
     // signal 一路传到 Agent / harness；AGUI_CANCEL / takeover 调用 abort()，
-    // 触发 harness 返回 cancelled，CyreneAgent 发出 RUN_FINISHED(result.status="cancelled")，
+    // 触发 harness 返回 cancelled，FireflyAgent 发出 RUN_FINISHED(result.status="cancelled")，
     // complete 回调自然清理。
     options.signal = runAbortController.signal;
     // 插话轮询：把"插入当前运行下一步"的待发条目在模型请求边界提交并注入。
@@ -647,7 +647,7 @@ export function registerAgUiIpc(
     }
 
     const threadId = `thread-${Date.now()}`;
-    const agent = new CyreneAgent({ threadId, description: "流萤主聊天" });
+    const agent = new FireflyAgent({ threadId, description: "流萤主聊天" });
 
     // 桌面轮次事件：run 真正开跑时登记协调器（立即发布 turn:started）。
     // turn:finished 由协调器在"终态 + 渲染端落盘确认"双条件满足后发布一次。
@@ -858,7 +858,7 @@ export function registerAgUiIpc(
         // 这里直接丢弃 RUN_ERROR，避免渲染端收到第二终态。
         // pendingRunFinishedEvent 仍会在 complete 回调里发出（如果 complete 被调用）；
         // 若 complete 不会被调用（error 后 RxJS 不再调 complete），则下面兜底直接发 RUN_FINISHED。
-        const errorTerminal: CyreneRunTerminalResult = {
+        const errorTerminal: FireflyRunTerminalResult = {
           status: "runtime_error",
           reason: code ?? "E_RUN_FAILURE",
           externalEffectsMayContinue: true,
@@ -900,7 +900,7 @@ export function registerAgUiIpc(
         // 否则 renderer 收到零个终态事件，exactly-once 退化为 at-most-once。
         // 若已被 error 路径或 runtime_error RUN_FINISHED 结算，则保持该终态，不再补发。
         if (!settlementGate.isSettled()) {
-          const synthesizedTerminal: CyreneRunTerminalResult = {
+          const synthesizedTerminal: FireflyRunTerminalResult = {
             status: "success",
             externalEffectsMayContinue: false,
           };
@@ -1023,7 +1023,7 @@ export function registerAgUiIpc(
   ipc.handle(IPC.AGUI_CANCEL, (_event, runId?: string) => {
     // 通过 abort signal 触发 harness 的 cancelled 流程，
     // 而非粗暴 unsubscribe()。后者会阻止 RUN_FINISHED(result.status="cancelled")
-    // 送达渲染端。abort() 让 harness 自然返回 cancelled → CyreneAgent 发出
+    // 送达渲染端。abort() 让 harness 自然返回 cancelled → FireflyAgent 发出
     // RUN_FINISHED → complete 回调清理 activeRuns + endLifecycle。
     // 每个 run 持有独立 AbortController，cancel 一个 runId 绝不影响其他 run。
     const abortRun = (id: string): void => {

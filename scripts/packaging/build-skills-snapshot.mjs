@@ -27,14 +27,14 @@ const vendorDir = path.join(projectRoot, "vendor", "cyrene-skills");
 
 /** 自研 skill（产品本体，留在仓库 skills/，不进归档）。 */
 const SELF_SKILLS = new Set([
-  "cyrene-learn-tutor",
-  "cyrene-plan-mode",
-  "cyrene-work-hygiene",
-  "cyrene-original-voice",
-  "cyrene-obsidian-workspace",
-  "cyrene-diagram",
-  "cyrene-exam-paper",
-  "cyrene-plugin-dev",
+  "firefly-learn-tutor",
+  "firefly-plan-mode",
+  "firefly-work-hygiene",
+  "firefly-original-voice",
+  "firefly-obsidian-workspace",
+  "firefly-diagram",
+  "firefly-exam-paper",
+  "firefly-plugin-dev",
 ]);
 
 async function collectVendorSkills() {

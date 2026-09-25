@@ -5,7 +5,7 @@ import type {
   PluginTool,
 } from "../plugins/api";
 import type { AgentRuntime } from "./orchestrator/agent-runtime";
-import { runCyreneHarness } from "./orchestrator/harness/cyrene-harness";
+import { runFireflyHarness } from "./orchestrator/harness/firefly-harness";
 import { mapTerminateReasonToTerminal } from "./orchestrator/harness/adapter/terminal-mapper";
 import { buildHarnessPromptLayers } from "./orchestrator/harness/adapter/prompt-builder";
 import { FileToolOutputStore } from "./orchestrator/harness/tool-output/file-tool-output-store";
@@ -25,7 +25,7 @@ export interface PluginAgentRunnerDeps {
   pluginSignal: AbortSignal;
   userDataPath: string;
   agentRuntime: Pick<AgentRuntime, "buildOptions">;
-  runHarness?: typeof runCyreneHarness;
+  runHarness?: typeof runFireflyHarness;
   executionLedgers?: Pick<ExecutionLedgerStore, "forScope">;
   /** 测试替身入口；生产缺省使用 AbortSignal.timeout。 */
   createDeadline?: (maxWallMs: number) => AbortSignal;
@@ -156,7 +156,7 @@ function combineSignals(input: {
  * 因而插件不可伪造 pluginId，也不需要新增 manifest capability。
  */
 export function createPluginAgentRunner(deps: PluginAgentRunnerDeps): NonNullable<import("../plugins/api").PluginLlmService["runGoal"]> {
-  const runHarness = deps.runHarness ?? runCyreneHarness;
+  const runHarness = deps.runHarness ?? runFireflyHarness;
   const ledgers = deps.executionLedgers ?? executionLedgers;
 
   return async (options) => {

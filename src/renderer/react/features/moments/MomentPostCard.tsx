@@ -18,9 +18,9 @@ const FIREFLY_AVATAR_URL = resolveAsset("avatars/firefly-avatar.png");
  * 正文按 @昵称 切片：点名片段高亮显示（QQ 群的蓝色 @ 手感）。
  * 昵称来自 post.mentions（主进程白名单），文本里的其他 @ 不着色。
  */
-function renderPostText(text: string, mentions: readonly string[] | undefined, cyreneLabel: string) {
+function renderPostText(text: string, mentions: readonly string[] | undefined, fireflyLabel: string) {
   if (!mentions || mentions.length === 0) return text;
-  const displayNames = mentions.map((name) => (name === "cyrene" ? cyreneLabel : name));
+  const displayNames = mentions.map((name) => (name === "cyrene" ? fireflyLabel : name));
   // 找出每个 @昵称 在文本中的位置，按出现顺序切片
   const marks: Array<{ start: number; end: number }> = [];
   for (const display of displayNames) {
@@ -79,13 +79,13 @@ export function MomentPostCard({
   const [commentError, setCommentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
-  // 作者显示名：昔涟/用户走既定名，其余一律按角色人设昵称原样显示
+  // 作者显示名：流萤/用户走既定名，其余一律按角色人设昵称原样显示
   const authorName = (author: MomentAuthor): string =>
     author === "cyrene" ? t("moments.cyreneName") : author === "user" ? userDisplayName : author;
   const isCharacterAuthor = (author: MomentAuthor): boolean => author !== "user" && author !== "cyrene";
 
   const likedByUser = likes.some((like) => like.actor === "user");
-  // 点赞行只展示真实落库的点赞（角色/昔涟的延迟点赞到达后经广播刷新出现）
+  // 点赞行只展示真实落库的点赞（角色/流萤的延迟点赞到达后经广播刷新出现）
   const likeNames = likes.map((like) => authorName(like.actor));
   const commentsById = useMemo(() => new Map(comments.map((comment) => [comment.id, comment])), [comments]);
   const replyTarget = replyTo ? commentsById.get(replyTo) : undefined;

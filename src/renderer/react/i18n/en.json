@@ -101,7 +101,7 @@
     "thinkingDoneTitle": "Done thinking",
     "assistantStickerAlt": "Firefly sticker",
     "userStickerAlt": "Your sticker",
-    "cyreneAvatarAlt": "Firefly",
+    "fireflyAvatarAlt": "Firefly",
     "userAvatarAlt": "You",
     "toolExecutionsAria": "Tool execution",
     "roundChangedFiles": "{{count}} files changed",
@@ -702,7 +702,7 @@
     "replyPrefix": "Reply",
     "mention": {
       "pickerEmpty": "No matching names",
-      "cyreneOptionLabel": "Firefly"
+      "fireflyOptionLabel": "Firefly"
     },
     "notice": {
       "title": "Notifications",

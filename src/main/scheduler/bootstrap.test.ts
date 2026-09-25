@@ -17,12 +17,12 @@ vi.mock("./scheduler-ipc", () => ({
   registerSchedulerIpc: vi.fn(),
 }));
 
-// 避免拉起真实 tool registry / CyreneAgent（级联重依赖）
+// 避免拉起真实 tool registry / FireflyAgent（级联重依赖）
 vi.mock("../orchestrator/tools/registry/tool-registry", () => ({
   toolRegistry: { getEnabledTools: () => [], getAllTools: () => [] },
 }));
-vi.mock("../orchestrator/cyrene-agent", () => ({
-  CyreneAgent: class {},
+vi.mock("../orchestrator/firefly-agent", () => ({
+  FireflyAgent: class {},
 }));
 
 // eslint-disable-next-line import/first

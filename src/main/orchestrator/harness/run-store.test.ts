@@ -9,7 +9,7 @@ import type { ChatMessage } from "../vendors/types";
 const roots: string[] = [];
 
 function createStore() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-harness-run-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-harness-run-"));
   roots.push(root);
   let now = 1_000;
   return {

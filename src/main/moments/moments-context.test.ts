@@ -233,7 +233,7 @@ describe("buildMomentsContextBlock 组装", () => {
 describe("buildPostGenerationPacket 插件补充上下文", () => {
   const baseInput = {
     summary: "[19:00] 用户：折腾好久了",
-    recentCyrenePosts: [] as MomentPost[],
+    recentFireflyPosts: [] as MomentPost[],
     localNow: new Date("2026-09-04T19:02:00"),
   };
 

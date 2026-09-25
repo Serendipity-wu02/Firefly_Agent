@@ -64,7 +64,7 @@
 }
 
 .cy-conversation-list .ant-conversations-item:hover {
-  background: #f9f3f5;
+  background: var(--cy-bg-hover);
 }
 
 .cy-conversation-list .ant-conversations-item-active {
@@ -244,7 +244,7 @@
 }
 
 .cy-project-card__open:hover {
-  background: #fff6f8;
+  background: var(--cy-bg-hover);
   color: var(--cy-accent, #2d7a5f);
 }
 
@@ -293,7 +293,7 @@
 }
 
 .cy-session-context-menu .ant-menu-item:hover {
-  background: #fff6f8;
+  background: var(--cy-bg-hover);
   color: var(--cy-accent, #2d7a5f);
 }
 

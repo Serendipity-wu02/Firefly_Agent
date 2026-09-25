@@ -56,7 +56,7 @@ export async function isEmptyDirectory(dir: string): Promise<boolean> {
 }
 
 /**
- * Create the Cyrene Learn workspace structure.
+ * Create the Firefly Learn workspace structure.
  * Only missing files are created; existing files are never overwritten.
  */
 export async function ensureVaultStructure(root: string): Promise<VaultInitResult> {

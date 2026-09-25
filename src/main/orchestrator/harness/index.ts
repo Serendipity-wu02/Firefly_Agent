@@ -1,12 +1,12 @@
 /**
- * CyreneHarness 对外入口
+ * FireflyHarness 对外入口
  *
  * 用法：
- *   import { runCyreneHarness } from "./harness";
- *   const result = await runCyreneHarness(input);
+ *   import { runFireflyHarness } from "./harness";
+ *   const result = await runFireflyHarness(input);
  */
 
-export { runCyreneHarness } from "./cyrene-harness";
+export { runFireflyHarness } from "./firefly-harness";
 export type {
   AgentState,
   HarnessConfig,

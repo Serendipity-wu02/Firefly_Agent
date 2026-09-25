@@ -507,7 +507,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         // 工作区右上角"打开"菜单：本机应用探测 + 打开执行
         registerOpenInAppIpc(ipc);
 
-        // AG-UI 事件流桥：渲染进程 invoke(AGUI_RUN) → CyreneAgent 跑 Agent 循环 → 事件透传
+        // AG-UI 事件流桥：渲染进程 invoke(AGUI_RUN) → FireflyAgent 跑 Agent 循环 → 事件透传
         registerAgUiIpc(
           (input) => runtime.buildOptions(input),
           (result, latestUserText, context) => runtime.onRunFinished(result, latestUserText, context),
@@ -621,7 +621,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         // 一次性清理已下架的内置 MCP（Firecrawl hosted 等）
         const removed = await pruneMcpServersByIds([...REMOVED_BUILTIN_MCP_IDS]);
         if (removed.length > 0) {
-          console.log("[Cyrene] 已清理遗留的已下架内置 MCP:", removed.join(", "));
+          console.log("[Firefly] 已清理遗留的已下架内置 MCP:", removed.join(", "));
         }
       },
       syncBuiltInMcp: async () => {
@@ -671,7 +671,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
     }),
 
     logFatal: (error) => {
-      console.error("[Cyrene] fatal startup error:", error);
+      console.error("[Firefly] fatal startup error:", error);
       logger.error(LogTag.Runtime, "fatal startup error:", error);
     },
   };

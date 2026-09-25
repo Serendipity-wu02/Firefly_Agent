@@ -25,6 +25,21 @@ afterEach(() => {
 });
 
 describe("resolveExternalContentPaths", () => {
+  it("keeps legacy user prompt and Skill overrides ahead of renamed bundled content", () => {
+    const root = temporaryDirectory();
+    const user = path.join(root, "user");
+    const bundled = path.join(root, "bundled");
+    fs.mkdirSync(path.join(user, "cyrene-plan-mode"), { recursive: true });
+    fs.mkdirSync(path.join(bundled, "firefly-plan-mode"), { recursive: true });
+    fs.writeFileSync(path.join(user, "cyrene_harness.md"), "user");
+    fs.writeFileSync(path.join(bundled, "firefly_harness.md"), "bundled");
+    fs.writeFileSync(path.join(user, "cyrene-plan-mode", "SKILL.md"), "user");
+    fs.writeFileSync(path.join(bundled, "firefly-plan-mode", "SKILL.md"), "bundled");
+    expect(findPromptPath("firefly_harness.md", [user, bundled])).toBe(path.join(user, "cyrene_harness.md"));
+    expect(findSkillPath("firefly-plan-mode", "SKILL.md", { builtinSkillDirectory: bundled, userSkillDirectories: [user] })).toBe(path.join(user, "cyrene-plan-mode", "SKILL.md"));
+    fs.writeFileSync(path.join(user, "firefly_harness.md"), "current user");
+    expect(findPromptPath("firefly_harness.md", [user, bundled])).toBe(path.join(user, "firefly_harness.md"));
+  });
   it("uses repository content in development", () => {
     const repository = path.resolve("E:/repo");
     const userData = path.resolve("E:/user-data");

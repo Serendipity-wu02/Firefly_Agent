@@ -517,7 +517,7 @@ describe("AgentRuntime 心情观察器", () => {
       { provider: "p", baseUrl: "u", model: "m", apiKey: "k" }, [], "问题", "回复",
     )).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalledWith(
-      "[Cyrene] observe runtime failed; keeping current feeling:",
+      "[Firefly] observe runtime failed; keeping current feeling:",
       expect.any(Error),
     );
   });

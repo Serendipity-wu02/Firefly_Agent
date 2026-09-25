@@ -1,5 +1,5 @@
 /* ============================================================
-   Cyrene schedule window (read-only display)
+   Firefly schedule window (read-only display)
    Uses the project pink/violet glass style; the reference HTML only
    informs layout density, not colors or visual language.
    柱状图/用量进度条样式抽到 ../ui/chart.css，与 settings 共享。

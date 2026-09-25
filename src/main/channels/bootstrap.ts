@@ -6,7 +6,7 @@ import type { PluginPromptMode, PluginTurnStatus } from "../../plugins/api";
 import { loadGeneralSettings } from "../settings/settings-facade";
 import { loadModelSettings, resolveModelSettingsProfile } from "../settings/model-settings";
 import type { LifecyclePublisher } from "../plugin-host/lifecycle-publisher";
-import { CyreneAgent } from "../orchestrator/cyrene-agent";
+import { FireflyAgent } from "../orchestrator/firefly-agent";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 import { captionImageSafe, IMAGE_CAPTION_PROMPT } from "../chat/image-caption";
 import { resolveCaptionVisionConfig, resolveImageRoute } from "../orchestrator/image-router";
@@ -199,7 +199,7 @@ export function createChannelsSubsystem(
     enforceChannelAgentPolicy(options, policy);
 
     const threadId = `thread-${sessionId}-${Date.now()}`;
-    const agent = new CyreneAgent({ threadId, description: `bot:${msg.channel}:${msg.senderId}` });
+    const agent = new FireflyAgent({ threadId, description: `bot:${msg.channel}:${msg.senderId}` });
     // 轮次事件只带渠道会话标识，不提供桌面消息边界；绑定消息由 dispatcher 镜像写入。
     const mode: PluginPromptMode = options.conversationMode
       ?? (options.executionMode === "chat" ? "chat" : "work");

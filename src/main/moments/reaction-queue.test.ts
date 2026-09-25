@@ -9,8 +9,8 @@ import {
   applyNightWindow,
   computeCharacterPostDelayMs,
   computeCharacterReplyDelayMs,
-  computeCyrenePostDelayMs,
-  computeCyreneReplyDelayMs,
+  computeFireflyPostDelayMs,
+  computeFireflyReplyDelayMs,
   createReactionQueue,
   type ReactionDecideOutcome,
   type ReactionQueue,
@@ -407,8 +407,8 @@ describe("长尾延迟分桶", () => {
   it("昔涟在线：表态 1~8 分钟、回复 1~5 分钟", () => {
     const random = createSeededRandom(99);
     for (let i = 0; i < 10_000; i++) {
-      const post = computeCyrenePostDelayMs(true, random);
-      const reply = computeCyreneReplyDelayMs(true, random);
+      const post = computeFireflyPostDelayMs(true, random);
+      const reply = computeFireflyReplyDelayMs(true, random);
       expect(post).toBeGreaterThanOrEqual(MINUTE);
       expect(post).toBeLessThan(8 * MINUTE);
       expect(reply).toBeGreaterThanOrEqual(MINUTE);
@@ -421,8 +421,8 @@ describe("长尾延迟分桶", () => {
     const posts: number[] = [];
     const replies: number[] = [];
     for (let i = 0; i < 10_000; i++) {
-      posts.push(computeCyrenePostDelayMs(false, random));
-      replies.push(computeCyreneReplyDelayMs(false, random));
+      posts.push(computeFireflyPostDelayMs(false, random));
+      replies.push(computeFireflyReplyDelayMs(false, random));
     }
     expect(Math.min(...posts)).toBeGreaterThanOrEqual(MINUTE);
     expect(Math.max(...posts)).toBeLessThan(40 * MINUTE);

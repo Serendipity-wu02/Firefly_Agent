@@ -271,7 +271,7 @@ export interface BuildPostGenerationMessagesInput {
   /** 触发摘录：ring buffer 组装的会话原文 */
   summary: string;
   /** 最近流萤动态（供新颖性判断） */
-  recentCyrenePosts: readonly MomentPost[];
+  recentFireflyPosts: readonly MomentPost[];
   localNow: Date;
 }
 
@@ -279,7 +279,7 @@ export function buildPostGenerationMessages(input: BuildPostGenerationMessagesIn
   const system = [input.persona.trim(), input.worldbook?.trim(), MOMENTS_POST_SYSTEM].filter(Boolean).join("\n\n---\n\n");
   const packet = buildPostGenerationPacket({
     summary: input.summary,
-    recentCyrenePosts: input.recentCyrenePosts,
+    recentFireflyPosts: input.recentFireflyPosts,
     pluginContext: input.pluginContext,
     localNow: input.localNow,
   });
@@ -511,7 +511,7 @@ export interface MomentsAgent {
    *  conversationId / channel 是触发发帖的会话归属（事件到达时冻结的快照），原样透传给插件提示词上下文。 */
   generatePost: (input: {
     summary: string;
-    recentCyrenePosts: readonly MomentPost[];
+    recentFireflyPosts: readonly MomentPost[];
     conversationId?: string;
     channel?: string;
   }) => Promise<boolean>;
@@ -607,7 +607,7 @@ export function createMomentsAgent(deps: MomentsAgentDeps): MomentsAgent {
 
   async function generatePost(input: {
     summary: string;
-    recentCyrenePosts: readonly MomentPost[];
+    recentFireflyPosts: readonly MomentPost[];
     conversationId?: string;
     channel?: string;
   }): Promise<boolean> {
@@ -630,7 +630,7 @@ export function createMomentsAgent(deps: MomentsAgentDeps): MomentsAgent {
       worldbook: deps.buildWorldbookContext?.(input.summary) ?? "",
       pluginContext,
       summary: input.summary,
-      recentCyrenePosts: input.recentCyrenePosts,
+      recentFireflyPosts: input.recentFireflyPosts,
       localNow: new Date(),
     }));
     if (output.kind !== "text") return false;

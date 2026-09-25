@@ -3,7 +3,7 @@
  * No color, no ANSI escapes. The frame uses only ╭ ─ │ ╰ ╯.
  */
 import process from "node:process";
-import { CYRENE_LOGO, CYRENE_LOGO_TEXT } from "./ascii.js";
+import { FIREFLY_LOGO, FIREFLY_LOGO_TEXT } from "./ascii.js";
 import {
   ABOUT_LINES,
   BANNER_LINES,
@@ -52,7 +52,7 @@ function frameBox(lines: readonly string[], width: number): string {
 /** The full banner: logo + blank line + framed box. */
 export function renderBanner(opts?: RenderOptions): string {
   const width = resolveWidth(opts);
-  return CYRENE_LOGO_TEXT + "\n\n" + frameBox(BANNER_LINES, width);
+  return FIREFLY_LOGO_TEXT + "\n\n" + frameBox(BANNER_LINES, width);
 }
 
 /** The banner plus an extra framed block with project metadata. */
@@ -62,4 +62,4 @@ export function renderAbout(opts?: RenderOptions): string {
 }
 
 /** Re-export for tests that want to assert on the raw logo lines. */
-export { CYRENE_LOGO };
+export { FIREFLY_LOGO };

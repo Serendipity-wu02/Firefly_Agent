@@ -1,5 +1,7 @@
 # Firefly · Desktop AI Companion
 
+Current runtime and Skill organization: [architecture](./docs/architecture/firefly-runtime.md). Current branding, compatibility and acceptance evidence: [implementation record](./docs/migration/firefly-brand-skills-2026-09-25.md). Historical documents remain unchanged and are collected in the [archive index](./docs/archive/README.md).
+
 Firefly is a Windows Live2D AI application built on the Cyrene desktop runtime. This branch contains the migration source and retains the existing UI, Agent loop, tools, approvals, and task-state ownership. **This is not a completed public release.**
 
 - Project: [Serendipity-wu02/Firefly_Agent](https://github.com/Serendipity-wu02/Firefly_Agent)

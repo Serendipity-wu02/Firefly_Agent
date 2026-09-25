@@ -1,4 +1,4 @@
-import type { CyreneRunTerminalResult } from "../../../../shared/run-terminal";
+import type { FireflyRunTerminalResult } from "../../../../shared/run-terminal";
 
 /**
  * Harness 结束原因到旧 AgentLoop 结果和标准终态（canonical terminal）的纯映射。
@@ -26,7 +26,7 @@ export function mapTerminateReason(
 export function mapTerminateReasonToTerminal(
   reason: HarnessTerminateReason,
   hasUncertainEffects: boolean = false,
-): CyreneRunTerminalResult {
+): FireflyRunTerminalResult {
   switch (reason) {
     case "max_rounds":
       return { status: "timeout", reason: "max_rounds", externalEffectsMayContinue: true };

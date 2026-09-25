@@ -35,7 +35,7 @@ export function cmdVersion(ctx: HandlerCtx): number {
 }
 
 export function cmdHelp(): number {
-  outLine(`Usage: cyrene [command] [options]
+  outLine(`Usage: firefly [command] [options]
 
 Commands:
   hello     Print the welcome banner
@@ -51,19 +51,19 @@ Flags:
   -v, --version   Print version and exit
   -h, --help      Show this help
 
-Run \`cyrene\` with no arguments for the first-time greeting.`);
+Run \`firefly\` with no arguments for the first-time greeting.`);
   return 0;
 }
 
 export function cmdPlaceholder(name: "doctor" | "init" | "update"): number {
   outLine(
-    `cyrene ${name}: planned for a future release. See https://github.com/Serendipity-wu02/Firefly_Agent`,
+    `firefly ${name}: planned for a future release. See https://github.com/Serendipity-wu02/Firefly_Agent`,
   );
   return 0;
 }
 
 export function cmdUnknown(name: string): number {
-  errLine(`cyrene: unknown command '${name}'. Try 'cyrene --help'.`);
+  errLine(`firefly: unknown command '${name}'. Try 'firefly --help'.`);
   return 2;
 }
 
@@ -80,7 +80,7 @@ export function cmdDefault(ctx: HandlerCtx): number {
   }
 
   if (state.kind === "corrupt") {
-    errLine("cyrene: ~/.cyrene/state.json was unreadable; treating as first meeting.");
+    errLine("firefly: ~/.cyrene/state.json was unreadable; treating as first meeting.");
   }
 
   outLine(renderBanner());
@@ -95,7 +95,7 @@ export function cmdDefault(ctx: HandlerCtx): number {
     writeState({ firstLaunch: record });
   } catch {
     errLine(
-      "cyrene: could not write ~/.cyrene/state.json; you may see this banner again next time.",
+      "firefly: could not write ~/.cyrene/state.json; you may see this banner again next time.",
     );
   }
   return 0;

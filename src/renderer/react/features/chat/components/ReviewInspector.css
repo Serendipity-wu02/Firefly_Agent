@@ -16,7 +16,7 @@
   gap: 8px;
   padding: 8px 14px;
   border-bottom: 1px solid var(--cy-border, #f0ebee);
-  background: #faf8f9;
+  background: var(--cy-bg-page);
   flex-shrink: 0;
   min-width: 0;
 }

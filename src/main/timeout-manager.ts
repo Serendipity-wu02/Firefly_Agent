@@ -27,7 +27,7 @@ function loadTimeoutSettings(): TimeoutSettings {
     const raw = fs.readFileSync(filePath, "utf8");
     return normalizeTimeoutSettings(JSON.parse(raw) as Partial<TimeoutSettings>);
   } catch (err) {
-    console.error("[Cyrene] load settings failed:", err);
+    console.error("[Firefly] load settings failed:", err);
     return { ...DEFAULT_TIMEOUT_SETTINGS };
   }
 }

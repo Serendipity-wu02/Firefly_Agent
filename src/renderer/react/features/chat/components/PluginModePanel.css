@@ -144,7 +144,7 @@
 
 .plugin-panel__icon-button.is-accent:hover:not(:disabled) {
   color: #fff;
-  background: var(--cy-accent-hover, #f04b7c);
+  background: var(--cy-accent-hover, #23654e);
 }
 
 .plugin-panel__icon-button:disabled {

@@ -32,7 +32,7 @@ body:
     id: context
     attributes:
       label: 涉及的文件 / 模块路径
-      description: 比如 src/main/plugin/loader.ts、CyreneHarness、tool-shared
+      description: 比如 src/plugins/loader.ts、FireflyHarness、tool-shared
     validations:
       required: false
 

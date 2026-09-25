@@ -1,5 +1,5 @@
 import type { ChatVendorAdapter, ChatMessage, ChatRequest, OpenAIContentBlock } from "./vendors/types";
-import type { AgentLoopSettings, AgentLoopEvent } from "./cyrene-agent";
+import type { AgentLoopSettings, AgentLoopEvent } from "./firefly-agent";
 import { recordRequest, recordUsage } from "../token-usage-store";
 
 const COMPRESSION_PROMPT = `你正在帮"流萤"整理对话记忆。请把下面这段较早的对话历史总结成一段简洁的摘要，供后续回复参考。

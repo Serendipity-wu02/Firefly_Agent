@@ -47,30 +47,30 @@ describe("logger levels", () => {
 
   it("setLogLevel changes the gate", () => {
     setLogLevel("warn");
-    logger.info(LogTag.Cyrene, "should NOT appear");
-    logger.warn(LogTag.Cyrene, "should appear");
+    logger.info(LogTag.Firefly, "should NOT appear");
+    logger.warn(LogTag.Firefly, "should appear");
     expect(stdoutBuf).toBe("");
     expect(stderrBuf).toContain("should appear");
   });
 
   it("debug is filtered out at info level", () => {
     setLogLevel("info");
-    logger.debug(LogTag.Cyrene, "debug-msg");
+    logger.debug(LogTag.Firefly, "debug-msg");
     expect(stdoutBuf).toBe("");
     expect(stderrBuf).toBe("");
   });
 
   it("info shows up at info level", () => {
     setLogLevel("info");
-    logger.info(LogTag.Cyrene, "info-msg");
+    logger.info(LogTag.Firefly, "info-msg");
     expect(stdoutBuf).toContain("info-msg");
   });
 
   it("warn goes to stderr; info goes to stdout", () => {
     setLogLevel("debug");
-    logger.info(LogTag.Cyrene, "i-am-info");
-    logger.warn(LogTag.Cyrene, "i-am-warn");
-    logger.error(LogTag.Cyrene, "i-am-error");
+    logger.info(LogTag.Firefly, "i-am-info");
+    logger.warn(LogTag.Firefly, "i-am-warn");
+    logger.error(LogTag.Firefly, "i-am-error");
     expect(stdoutBuf).toContain("i-am-info");
     expect(stdoutBuf).not.toContain("i-am-warn");
     expect(stdoutBuf).not.toContain("i-am-error");
@@ -96,13 +96,13 @@ describe("log format", () => {
 
   it("multiple args are joined with spaces", () => {
     setLogLevel("info");
-    logger.info(LogTag.Cyrene, "a", 1, true);
+    logger.info(LogTag.Firefly, "a", 1, true);
     expect(stdoutBuf).toContain("a 1 true");
   });
 
   it("non-string args are JSON-stringified", () => {
     setLogLevel("info");
-    logger.info(LogTag.Cyrene, "payload:", { foo: 1 });
+    logger.info(LogTag.Firefly, "payload:", { foo: 1 });
     expect(stdoutBuf).toContain('{"foo":1}');
   });
 });
@@ -133,10 +133,10 @@ describe("log sinks", () => {
     setLogLevel("info");
     const unsub = addLogSink(collect);
     try {
-      logger.info(LogTag.Cyrene, "sink-msg", { k: 1 });
+      logger.info(LogTag.Firefly, "sink-msg", { k: 1 });
       expect(received).toHaveLength(1);
       expect(received[0].level).toBe("info");
-      expect(received[0].tag).toBe(LogTag.Cyrene);
+      expect(received[0].tag).toBe(LogTag.Firefly);
       expect(received[0].message).toBe('sink-msg {"k":1}');
       // line 无 ANSI 色码、无时间戳前缀，与 stdout 纯文本格式一致
       expect(received[0].line).toContain("INFO ");
@@ -152,7 +152,7 @@ describe("log sinks", () => {
     setLogLevel("warn");
     const unsub = addLogSink(collect);
     try {
-      logger.info(LogTag.Cyrene, "should-not-reach-sink");
+      logger.info(LogTag.Firefly, "should-not-reach-sink");
       expect(received).toHaveLength(0);
     } finally {
       unsub();
@@ -163,7 +163,7 @@ describe("log sinks", () => {
     setLogLevel("info");
     const unsub = addLogSink(collect);
     unsub();
-    logger.info(LogTag.Cyrene, "after-unsub");
+    logger.info(LogTag.Firefly, "after-unsub");
     expect(received).toHaveLength(0);
   });
 
@@ -171,7 +171,7 @@ describe("log sinks", () => {
     setLogLevel("info");
     addLogSink(collect);
     removeLogSink(collect);
-    logger.info(LogTag.Cyrene, "after-remove");
+    logger.info(LogTag.Firefly, "after-remove");
     expect(received).toHaveLength(0);
   });
 
@@ -183,7 +183,7 @@ describe("log sinks", () => {
     const unsubBoom = addLogSink(boom);
     const unsubCollect = addLogSink(collect);
     try {
-      expect(() => logger.info(LogTag.Cyrene, "still-works")).not.toThrow();
+      expect(() => logger.info(LogTag.Firefly, "still-works")).not.toThrow();
       expect(received).toHaveLength(1);
       expect(stdoutBuf).toContain("still-works");
     } finally {

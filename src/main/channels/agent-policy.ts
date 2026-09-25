@@ -1,4 +1,4 @@
-import type { AgentExecutionMode, CyreneRunOptions } from "../orchestrator/cyrene-agent";
+import type { AgentExecutionMode, FireflyRunOptions } from "../orchestrator/firefly-agent";
 import type { ChannelToolSandbox } from "./settings-store";
 import type { ChannelChatType, ChannelId } from "./types";
 
@@ -6,7 +6,7 @@ export interface ChannelAgentPolicy {
   executionMode: AgentExecutionMode;
   exposeTools: boolean;
   includeInteractiveTools: boolean;
-  permissionMode: NonNullable<CyreneRunOptions["permissionMode"]>;
+  permissionMode: NonNullable<FireflyRunOptions["permissionMode"]>;
 }
 
 export function resolveChannelAgentPolicy(
@@ -43,7 +43,7 @@ export function resolveChannelAgentPolicy(
  * capabilities/toolSystemContent 时，QQ 群聊仍看到或意外启用这些工具。
  */
 export function enforceChannelAgentPolicy(
-  options: CyreneRunOptions,
+  options: FireflyRunOptions,
   policy: ChannelAgentPolicy,
 ): void {
   options.harnessInteractiveTools = policy.includeInteractiveTools;

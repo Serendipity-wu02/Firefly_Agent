@@ -35,14 +35,14 @@ export function formatMomentTime(createdAt: number, now: number): string {
 // - 点赞：别人赞了用户的动态（自己赞自己不算）
 // - 顶层评论：别人在用户动态下发表顶级评论（replyTo 为空）
 // - 回复：别人回复了用户的评论（回复目标的 author 是 user，动态作者是谁都算）
-// 角色之间、角色与昔涟之间的后台互动不通知——那不是在对用户说话，
+// 角色之间、角色与流萤之间的后台互动不通知——那不是在对用户说话，
 // NPC 一互动就冒红点反而像"系统在表演"。
 
 export type MomentNoticeKind = "like" | "comment" | "reply";
 
 export interface MomentNoticeItem {
   kind: MomentNoticeKind;
-  /** 互动发起者（原始 author，显示名由组件层映射昔涟名） */
+  /** 互动发起者（原始 author，显示名由组件层映射流萤名） */
   actor: string;
   postId: string;
   /** 评论类通知的定位锚点（点击滚动到评论所在动态） */

@@ -130,7 +130,7 @@ async function executeDownloadFile(args: Record<string, unknown>, ctx?: ToolCont
     const resp = await fetch(url, {
       signal: combinedSignal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (Cyrene Agent) Chrome/120 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Firefly Agent) Chrome/120 Safari/537.36",
         Accept: "*/*",
       },
       redirect: "follow",

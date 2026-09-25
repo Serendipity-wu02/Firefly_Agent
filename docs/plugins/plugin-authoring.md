@@ -1,15 +1,15 @@
-# Cyrene Runtime Plugin API v1
+# Firefly 插件宿主与兼容 API v1
 
-本文描述 Cyrene-Agent 的可信本地运行时插件系统。插件以“目录 + `manifest.json` +
-JavaScript 入口”交付，可注册工具、插件私有 IPC、渠道 adapter，并按声明使用 Cyrene
+本文描述 Firefly 沿用的可信本地运行时插件系统。插件以“目录 + `manifest.json` +
+JavaScript 入口”交付，可注册工具、插件私有 IPC、渠道 adapter，并按声明使用 Firefly
 提供的 LLM 服务。
 
 ## 安全与信任边界
 
-> 插件入口在 Electron Main Process 中执行，拥有与 Cyrene 相同的本机权限。它不是
+> 插件入口在 Electron Main Process 中执行，拥有与 Firefly 相同的本机权限。它不是
 > 沙箱、Web 扩展或权限隔离进程。只安装你能审查且信任其来源的插件。
 
-`manifest.deps` 表示“希望 Cyrene 注入哪些主程序服务”，不是操作系统权限清单。
+`manifest.deps` 表示“希望 Firefly 注入哪些主程序服务”，不是操作系统权限清单。
 插件代码仍可直接使用 Node.js 能力，因此：
 
 - 用户插件首次发现后一律保持停用，即使 manifest 声明 `defaultEnabled: true`。
@@ -30,7 +30,7 @@ userData/plugins/<plugin-id>/
 打包版 Windows 默认对应：
 
 ```text
-%APPDATA%\live2d-cyrene\plugins\<plugin-id>\
+%APPDATA%\Firefly\plugins\<plugin-id>\
 ```
 
 运行时始终以 Electron `app.getPath("userData")` 的实际返回值为准；如果开发者或测试显式
@@ -76,7 +76,7 @@ userData/plugin-data/<plugin-id>/
 ```
 
 扫描只读取每个根目录的一级子目录。单个无效插件、不可读目录或错误 manifest 会记录为
-扫描问题并展示在聊天窗口的插件面板，不会阻止 Cyrene 启动。重复 ID 保留先扫描到的插件；内置目录
+扫描问题并展示在聊天窗口的插件面板，不会阻止 Firefly 启动。重复 ID 保留先扫描到的插件；内置目录
 优先于用户目录，因此用户插件不能覆盖内置插件。
 
 ## manifest.json
@@ -89,7 +89,7 @@ userData/plugin-data/<plugin-id>/
   "id": "my-plugin",
   "name": "My Plugin",
   "version": "1.0.0",
-  "description": "An example Cyrene plugin",
+  "description": "An example Firefly plugin",
   "author": "Your Name",
   "entry": "index.cjs",
   "defaultEnabled": false,
@@ -165,7 +165,7 @@ IPC、渠道等框架资源释放。`unregister()` 使用相同的 5 秒上限�
 ## 稳定 Plugin API
 
 插件面向的类型统一定义在 `src/plugins/api.ts`。该文件不导入 `src/main/**` 或
-`src/shared/**`；Cyrene 内部类型只在 context adapter 边界转换。第三方插件不应直接
+`src/shared/**`；Firefly 内部类型只在 context adapter 边界转换。第三方插件不应直接
 导入应用内部模块。
 
 ### 工具
@@ -287,7 +287,7 @@ ctx.registerPromptProvider({
 
 - 未声明 `sources` 时默认只参与 `conversation` 与 `scheduler`——与旧版行为一致，既有插件
   无需改动（向后兼容）；声明后仅在列出的场景生效。
-- 参与动态发帖（Cyrene 结合最近对话主动发朋友圈的决策）必须显式声明 `"moments-post"`，
+- 参与动态发帖（流萤结合最近对话主动发朋友圈的决策）必须显式声明 `"moments-post"`，
   防止升级后插件不知情地被扩大调用；该场景没有会话 `mode`，Provider 是否生效仅由
   `sources` 决定，`modes` 不参与匹配。
 - `moments-post` 调用会附带触发发帖的会话归属 `conversationId` / `channel`，按会话隔离
@@ -351,7 +351,7 @@ const text = await ctx.deps.llm.generateText(
 );
 ```
 
-LLM 请求使用当前默认模型档案，并统一经过 Cyrene 的 `LlmClient`、后台 FIFO 队列、
+LLM 请求使用当前默认模型档案，并统一经过 Firefly 的 `LlmClient`、后台 FIFO 队列、
 限流重试、timeout、取消、token usage 与请求日志。限制：
 
 - `maxTokens`：1-8192，缺省 1024；
@@ -424,7 +424,7 @@ const task = await ctx.deps.scheduler.createTask({
 
 ### Speech-input（独占语音输入租约）
 
-manifest 声明 `"deps": ["speech-input"]` 后可用。适用于自带 ASR 模型的本地语音插件：Cyrene 只提供受控的最终文本提交入口，模型、运行时、麦克风采集和窗口都由插件自行维护。
+manifest 声明 `"deps": ["speech-input"]` 后可用。适用于自带 ASR 模型的本地语音插件：Firefly 只提供受控的最终文本提交入口，模型、运行时、麦克风采集和窗口都由插件自行维护。
 
 ```js
 // target 二选一："active-chat"（普通聊天窗口）或 "active-call"（活动通话）
@@ -479,7 +479,7 @@ try {
 
 ### SDK（@playa0v0/cyrene-plugin-sdk）
 
-外部开发者不需要阅读 Cyrene 宿主源码即可完成插件开发：
+外部开发者不需要阅读 Firefly 宿主源码即可完成插件开发：
 
 ```bash
 npm install @playa0v0/cyrene-plugin-sdk
@@ -496,7 +496,7 @@ import { createMockPluginContext, assertPluginTool } from "@playa0v0/cyrene-plug
 
 SDK 同时输出 ESM 和 CJS，不含 Electron、React 或宿主运行时依赖；插件编译期依赖 SDK，打包后的插件目录不要求终端用户安装 SDK。SDK 中带 Mock Context 的完整示例见仓库 `examples/` 下的四个示例插件。
 
-开发完成的插件想公开发布：提交 PR 到官方收录仓库 [Cyrene-Plugins](https://github.com/Playa-0v0/Cyrene-Plugins)，审核收录后用户可直接下载 ZIP 导入。
+上游第三方收录仓库为 [Cyrene-Plugins](https://github.com/Playa-0v0/Cyrene-Plugins)，并非 Firefly 官方发布入口。
 ## 生命周期和状态
 
 ```text
@@ -554,7 +554,7 @@ state，避免每次启动重复尝试。
 
 ## 应用退出
 
-插件清理加入新版应用退出协调器的固定阶段。Cyrene 会依次等待：
+插件清理加入应用退出协调器的固定阶段。Firefly 会依次等待：
 
 1. 插件 `unregister()`；
 2. Context 工具、IPC、渠道资源回收；

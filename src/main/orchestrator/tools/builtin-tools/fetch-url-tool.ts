@@ -139,7 +139,7 @@ async function fetchGithubRepoSummary(
   const combinedSignal = ctx?.signal ? AbortSignal.any([ctx.signal, ac.signal]) : ac.signal;
   const apiBase = `https://api.github.com/repos/${repo.owner}/${repo.repo}`;
   const headers = {
-    "User-Agent": "Mozilla/5.0 (Cyrene Agent) Chrome/120 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Firefly Agent) Chrome/120 Safari/537.36",
     Accept: "application/vnd.github+json",
   };
   try {
@@ -239,7 +239,7 @@ async function executeFetchUrl(args: Record<string, unknown>, ctx?: ToolContext)
     const resp = await fetch(url, {
       signal: combinedSignal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (Cyrene Agent) Chrome/120 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Firefly Agent) Chrome/120 Safari/537.36",
         Accept: "text/html,text/markdown,text/plain,*/*;q=0.8",
       },
       redirect: "follow",

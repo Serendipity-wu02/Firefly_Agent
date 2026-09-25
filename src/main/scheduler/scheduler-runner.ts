@@ -2,7 +2,7 @@ import type { WebContents } from "electron";
 import { IPC } from "../../shared/ipc-channels";
 import type { PluginPromptMode, PluginTurnStatus } from "../../plugins/api";
 import { AgentRuntimeError } from "../orchestrator/agent-runtime-error";
-import { CyreneAgent, type CyreneRunOptions } from "../orchestrator/cyrene-agent";
+import { FireflyAgent, type FireflyRunOptions } from "../orchestrator/firefly-agent";
 import type { LifecyclePublisher } from "../plugin-host/lifecycle-publisher";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 import { toastEvents } from "../toast/toast-events";
@@ -11,13 +11,13 @@ import type { ScheduledRunResult, ScheduledTask, ScheduledTaskHistoryEntry } fro
 
 /**
  * 第一期：scheduler 的 buildOptions 返回"传统"形式（包含 system 消息）。
- * CyreneAgent 暂时通过 fallback 兼容：检测 options.messages[0].role === "system" 时，
+ * FireflyAgent 暂时通过 fallback 兼容：检测 options.messages[0].role === "system" 时，
  * 用它作为 soulSystemBaseContent（重复一次），toolSystemContent 用同一个串（暂时不拆分）。
  *
  * 第二期：scheduler 同步迁移到 tool_system / soul_system 分阶段，buildOptions 改为返回
- * 带 toolSystemContent / soulSystemBaseContent 的 CyreneRunOptions。
+ * 带 toolSystemContent / soulSystemBaseContent 的 FireflyRunOptions。
  */
-type LegacyRunOptions = Omit<CyreneRunOptions, "toolSystemContent" | "soulSystemBaseContent">;
+type LegacyRunOptions = Omit<FireflyRunOptions, "toolSystemContent" | "soulSystemBaseContent">;
 
 interface RunnerDeps {
   buildOptions: (task: ScheduledTask) => Promise<LegacyRunOptions>;
@@ -34,7 +34,7 @@ interface RunnerDeps {
  * 会话模式来自任务冻结的 mode 字段（旧任务默认 work）；执行循环沿用现有
  * 映射：chat 走 chat loop，其余模式走 work harness。
  */
-export function applyScheduledExecutionPolicy(options: CyreneRunOptions, mode: PluginPromptMode = "work"): CyreneRunOptions {
+export function applyScheduledExecutionPolicy(options: FireflyRunOptions, mode: PluginPromptMode = "work"): FireflyRunOptions {
   return {
     ...options,
     executionMode: mode === "chat" ? "chat" : "work",
@@ -110,7 +110,7 @@ export function createSchedulerRunner(deps: RunnerDeps) {
         soulSystemBaseContent,
       }, task.mode ?? "work");
 
-      const agent = new CyreneAgent({ threadId: `scheduler-${task.id}`, description: `Scheduled task: ${task.title}` });
+      const agent = new FireflyAgent({ threadId: `scheduler-${task.id}`, description: `Scheduled task: ${task.title}` });
 
       await new Promise<void>((resolve, reject) => {
         const sub = agent.runWithEvents(options).subscribe({

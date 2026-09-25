@@ -25,9 +25,9 @@ import { existsSync } from "fs";
 import { basename } from "path";
 import {
   resolveExecutionMode,
-  type CyreneRunOptions,
-  type CyreneRunResult,
-} from "./cyrene-agent";
+  type FireflyRunOptions,
+  type FireflyRunResult,
+} from "./firefly-agent";
 import type { ToolDefinition, ToolModeOverrides } from "./tools/registry/tool-registry";
 import type { SkillModeOverrides } from "../skills/types";
 import type { ChatMessage, OpenAIContentBlock } from "./vendors/types";
@@ -56,7 +56,7 @@ import type {
   SocialExtractionInput,
 } from "../social-context/types";
 import type { ConversationMode } from "../../shared/chat-types";
-import type { SkillRouteInfo } from "./cyrene-agent";
+import type { SkillRouteInfo } from "./firefly-agent";
 import { filterToolsBySearchBackend, type SearchBackend } from "./search-backend-filter";
 import type { RunCapabilities } from "./run-capabilities";
 import { buildStickerEmbeddingQuery } from "../sticker-query";
@@ -82,7 +82,7 @@ export interface BuildOptionsDeps {
     getEnabled(): ReadonlyArray<unknown>;
     /** 按会话模式 + 用户覆盖层过滤的启用 skill 列表（三模适配层入口）。 */
     getEnabledForMode(mode: import("../skills/types").SkillMode, overrides?: SkillModeOverrides): ReadonlyArray<unknown>;
-    /** 懒加载某 skill 的 SKILL.md 正文（去 frontmatter）。用于 plan mode 条件注入 cyrene-plan-mode body。 */
+    /** 懒加载某 skill 的 SKILL.md 正文（去 frontmatter）。用于 plan mode 条件注入 firefly-plan-mode body。 */
     getBody(id: string): string | null;
   };
   resolveSlashActivation: (
@@ -502,13 +502,13 @@ function requireBuildModelContext(
 }
 
 /**
- * 构造 CyreneAgent.runWithEvents 所需的 options + 提取 latestUserText。
+ * 构造 FireflyAgent.runWithEvents 所需的 options + 提取 latestUserText。
  * 与 index.ts 原 AG-UI bridge 的 buildOptions 行为完全一致。
  */
 export async function buildAgentRunOptions(
   input: AguiRunInput,
   deps: BuildOptionsDeps,
-): Promise<{ options: CyreneRunOptions; latestUserText: string }> {
+): Promise<{ options: FireflyRunOptions; latestUserText: string }> {
   const settings = deps.loadModelSettings(input.modelProfileId);
   const styleSettings = deps.loadGeneralSettings();
   if (!settings.baseUrl) {
@@ -570,14 +570,14 @@ export async function buildAgentRunOptions(
   try {
     alwaysOnContext = await perf.track("build_always_on_context", () => deps.buildAlwaysOnContext(latestUserText, slimMessages));
   } catch (err) {
-    console.warn("[Cyrene] always-on context build failed:", err);
+    console.warn("[Firefly] always-on context build failed:", err);
   }
 
   let relationshipContext = "";
   try {
     relationshipContext = await perf.track("build_relationship_context", () => deps.buildRelationshipContext());
   } catch (err) {
-    console.warn("[Cyrene] relationship context build failed:", err);
+    console.warn("[Firefly] relationship context build failed:", err);
   }
 
   let environmentContext = "";
@@ -595,7 +595,7 @@ export async function buildAgentRunOptions(
       },
     );
   } catch (err) {
-    console.warn("[Cyrene] environment context build failed:", err);
+    console.warn("[Firefly] environment context build failed:", err);
   }
   envTimer.end();
 
@@ -606,7 +606,7 @@ export async function buildAgentRunOptions(
     try {
       momentsContextBlock = deps.buildMomentsContext!(latestUserText);
     } catch (err) {
-      console.warn("[Cyrene] moments context build failed:", err);
+      console.warn("[Firefly] moments context build failed:", err);
     }
   }
 
@@ -623,7 +623,7 @@ export async function buildAgentRunOptions(
       chatSocialContextBlock = built.contextBlock;
       retrievedSocialAtoms = built.retrievedAtoms.slice(0, 5);
     } catch (err) {
-      console.warn("[Cyrene] chat social context build failed:", err);
+      console.warn("[Firefly] chat social context build failed:", err);
     }
   }
 
@@ -671,7 +671,7 @@ export async function buildAgentRunOptions(
   try {
     toneInjection = deps.buildToneInjection();
   } catch (err) {
-    console.warn("[Cyrene] tone injection failed:", err);
+    console.warn("[Firefly] tone injection failed:", err);
   }
 
   let attachmentContext = "";
@@ -746,7 +746,7 @@ export async function buildAgentRunOptions(
   let autoInjectedSkillContext = deps.buildAutoInjectedSkillContext(enabledSkills);
   let autoInjectedSoulContext = deps.buildAutoInjectedSoulContext?.(enabledSkills) ?? "";
 
-  // Plan Mode 条件注入：cyrene-plan-mode skill 的 SKILL.md 正文只在
+  // Plan Mode 条件注入：firefly-plan-mode skill 的 SKILL.md 正文只在
   // PLAN_DISCUSSING / PLAN_REVIEW 时注入。不拼进 stablePrefix（autoInjectedSkillContext
   // 会进 toolSystemContent → stablePrefix，进/出 plan mode 会打断缓存），改为单独字段
   // planSkillContext 传给 harness，在 runtimeParts（可变部分）拼，保证缓存前缀稳定。
@@ -755,7 +755,7 @@ export async function buildAgentRunOptions(
     : "NORMAL";
   let planSkillContext: string | undefined;
   if (planStateForInject === "PLAN_DISCUSSING" || planStateForInject === "PLAN_REVIEW") {
-    const planSkillBody = deps.skillRegistry.getBody("cyrene-plan-mode");
+    const planSkillBody = deps.skillRegistry.getBody("firefly-plan-mode");
     if (planSkillBody) {
       planSkillContext = `## Plan Mode 指令（自动激活，无需 invoke_skill）\n\n${planSkillBody}`;
     }
@@ -827,7 +827,7 @@ export async function buildAgentRunOptions(
   const searchToolIds = filteredBySearch
     .filter((t) => t.id === "web_search" || t.id.startsWith("minimax-web-search-"))
     .map((t) => t.id);
-  console.log(`[Cyrene] 搜索后端=${activeSearchBackend} 暴露搜索工具=[${searchToolIds.join(", ") || "无"}]`);
+  console.log(`[Firefly] 搜索后端=${activeSearchBackend} 暴露搜索工具=[${searchToolIds.join(", ") || "无"}]`);
   const baseSoulSystemPrompt = deps.buildModePrompt?.(resolvedMode)
     ?? deps.buildSoulSystemBasePrompt(basePromptMode);
   // Chat 工具增强开启且有勾选工具时，chat 也注入工具目录 prompt
@@ -989,7 +989,7 @@ export async function buildAgentRunOptions(
  * 渠道则由 dispatcher 收下后纳入 OutgoingMessage.parts。
  */
 export async function onAgentRunFinished(
-  result: CyreneRunResult,
+  result: FireflyRunResult,
   latestUserText: string,
   deps: OnRunFinishedDeps,
   channel?: ChannelId,

@@ -49,7 +49,7 @@ export async function initRAG(
   await worldbook.loadFromDirectory();
 
   // 把实体图谱中的已有实体名灌入 jieba 自定义词典
-  // 防止 "昔涟"、"小鹿" 等 AI 伴侣核心名词被错误切分
+  // 防止 "流萤"、"小鹿" 等 AI 伴侣核心名词被错误切分
   await feedEntityNamesToJieba();
 
   logger.info(
@@ -87,7 +87,7 @@ export async function switchEmbeddingModel(modelKey: string): Promise<{ ok: bool
         const detail = getModelInstallStatusDetail("embedding", modelKey);
         if (detail.existingProjectDir) {
           console.error(
-            `[Cyrene] embedding model "${modelKey}" project directory exists but is incomplete.\n` +
+            `[Firefly] embedding model "${modelKey}" project directory exists but is incomplete.\n` +
             `  existingProjectDir: ${detail.existingProjectDir}\n` +
             `  requiredFiles:      ${JSON.stringify(detail.requiredFiles)}\n` +
             `  missingFiles:       ${JSON.stringify(detail.missingFiles)}\n` +
@@ -95,7 +95,7 @@ export async function switchEmbeddingModel(modelKey: string): Promise<{ ok: bool
           );
         } else {
           console.error(
-            `[Cyrene] embedding model "${modelKey}" not detected anywhere.\n` +
+            `[Firefly] embedding model "${modelKey}" not detected anywhere.\n` +
             `  modelDirCandidates: ${JSON.stringify(detail.modelDirCandidates)}\n` +
             `  subPathCandidates:  ${JSON.stringify(detail.subPathCandidates)}\n` +
             `  requiredFiles:      ${JSON.stringify(detail.requiredFiles)}\n` +
@@ -103,7 +103,7 @@ export async function switchEmbeddingModel(modelKey: string): Promise<{ ok: bool
           );
         }
       } catch (diagErr) {
-        console.error("[Cyrene] model diagnostic log failed:", diagErr);
+        console.error("[Firefly] model diagnostic log failed:", diagErr);
       }
       return { ok: false, clearedEntries: 0, error: "Local embedding model not found. Cannot switch." };
     }

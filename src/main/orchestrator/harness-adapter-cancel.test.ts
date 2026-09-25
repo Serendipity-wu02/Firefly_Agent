@@ -8,7 +8,7 @@ const { runHarness, permissionCheck, getById } = vi.hoisted(() => ({
 
 vi.mock("./harness", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./harness")>();
-  return { ...actual, runCyreneHarness: runHarness };
+  return { ...actual, runFireflyHarness: runHarness };
 });
 
 vi.mock("./tools/registry/tool-registry", () => ({

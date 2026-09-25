@@ -1,17 +1,17 @@
 /**
- * CyreneHarness ↔ CyreneAgent 适配层
+ * FireflyHarness ↔ FireflyAgent 适配层
  *
- * 把 CyreneRunOptions 转换为 HarnessInput，运行 Harness，
+ * 把 FireflyRunOptions 转换为 HarnessInput，运行 Harness，
  * 再把 HarnessEvent 转为 AG-UI BaseEvent，HarnessResult 转为 AgentLoopResult。
  *
 
  */
 
 import type { BaseEvent } from "@ag-ui/core";
-import { runCyreneHarness } from "./harness";
+import { runFireflyHarness } from "./harness";
 import type { HarnessEvent, HarnessInput } from "./harness";
-import type { AgentLoopResult } from "./cyrene-agent";
-import type { CyreneRunOptions, AgentLoopSettings } from "./cyrene-agent";
+import type { AgentLoopResult } from "./firefly-agent";
+import type { FireflyRunOptions, AgentLoopSettings } from "./firefly-agent";
 import type { ToolCallResult } from "./types";
 import { mapTerminateReason, mapTerminateReasonToTerminal } from "./harness/adapter/terminal-mapper";
 export { mapTerminateReasonToTerminal } from "./harness/adapter/terminal-mapper";
@@ -36,14 +36,14 @@ export { filterToolsForConversationMode } from "./harness/adapter/run-preparatio
 // 门面只保留公共导出和编排顺序，不重新维护 Map、缓存或控制器等运行状态。
 
 /**
- * 运行 CyreneHarness 并返回统一的 AgentLoopResult。
+ * 运行 FireflyHarness 并返回统一的 AgentLoopResult。
  *
- * @param options CyreneRunOptions（与旧循环相同的输入）
+ * @param options FireflyRunOptions（与旧循环相同的输入）
  * @param signal 取消信号
  * @param sendBaseEvent 直接发送 AG-UI BaseEvent 的回调
  */
 export async function runHarnessWithAdapter(
-  options: CyreneRunOptions,
+  options: FireflyRunOptions,
   signal: AbortSignal,
   sendBaseEvent: (event: BaseEvent) => void,
 ): Promise<AgentLoopResult> {
@@ -124,12 +124,12 @@ export async function runHarnessWithAdapter(
 
   // ── 运行 Harness ──
   // 这是唯一的真实执行边界。事件回调只负责同步转发，业务状态仍由各自的所有者维护。
-  const result = await runCyreneHarness(harnessInput);
+  const result = await runFireflyHarness(harnessInput);
 
   // ── 转换结果 ──
   const completionReason = mapTerminateReason(result.terminateReason);
   // 把 HarnessResult.terminateReason 映射为 canonical terminal，
-  // 供 CyreneAgent.runWithEvents 写入 RUN_FINISHED.result。
+  // 供 FireflyAgent.runWithEvents 写入 RUN_FINISHED.result。
   // 优先使用 harness 自身填的 result.terminal（如果未来 harness 内部直接写）。
   // 修订：success 路径必须消费 Harness 的确定性状态——
   // 若 finalState.uncertainEffects 非空，externalEffectsMayContinue 必须为 true，

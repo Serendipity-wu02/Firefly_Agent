@@ -10,9 +10,9 @@ export async function testVendorConnection(
 ): Promise<TestConnectionResult> {
   const adapter = resolveAdapter(config);
   console.log(
-    `[Cyrene] test connection: provider=${config.provider} transport=${adapter.transport} model=${config.model}`,
+    `[Firefly] test connection: provider=${config.provider} transport=${adapter.transport} model=${config.model}`,
   );
   const result = await adapter.testConnection(config);
-  console.log("[Cyrene] test connection result:", JSON.stringify(result));
+  console.log("[Firefly] test connection result:", JSON.stringify(result));
   return result;
 }

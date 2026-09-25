@@ -41,7 +41,7 @@ export async function uploadFile(
   const fileBuffer = fs.readFileSync(filePath);
 
   // 构造 multipart/form-data
-  const boundary = "----CyreneTTS" + Math.random().toString(36).slice(2);
+  const boundary = "----FireflyTTS" + Math.random().toString(36).slice(2);
   const parts: Buffer[] = [];
 
   // purpose 字段

@@ -12,7 +12,7 @@ import { createTaskExecutor } from "../../task-runtime";
 import { FileToolOutputStore } from "../tool-output/file-tool-output-store";
 import { sendTaskLifecycleAsAgui } from "./event-mapper";
 import type { PreparedHarnessRun } from "./run-preparation";
-import type { CyreneRunOptions } from "../../cyrene-agent";
+import type { FireflyRunOptions } from "../../firefly-agent";
 
 /**
  * 为一次 Harness run 构造工具运行时（tool runtime）。
@@ -26,7 +26,7 @@ export interface PreparedToolRuntime {
 }
 
 export function prepareToolRuntime(input: {
-  options: CyreneRunOptions;
+  options: FireflyRunOptions;
   signal: AbortSignal;
   prepared: PreparedHarnessRun;
   sendBaseEvent: (event: BaseEvent) => void;

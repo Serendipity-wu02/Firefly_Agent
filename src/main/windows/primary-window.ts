@@ -6,7 +6,7 @@ export interface PrimaryWindowActions {
 }
 
 /**
- * The chat window is Cyrene's primary user-facing window.
+ * The chat window is Firefly's primary user-facing window.
  * 发出 chat 激活请求；桌宠不接收通用主窗口激活请求，
  * 其可见性由 settings / togglePetWindow 路径管理。
  */

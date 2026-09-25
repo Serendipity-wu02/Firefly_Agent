@@ -69,7 +69,7 @@ import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, pr
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
 import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
 import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, momentsEnabledInput, cyreneMomentsPostingEnabledInput, cyreneMomentsReactionsEnabledInput, momentsCharacterReactionsEnabledInput, momentsLivelinessSelect, momentsPostingRow, momentsReactionsRow, momentsCharacterRow, momentsLivelinessRow, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
-import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, cyrenePanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, cyreneSaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
+import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, cyrenePanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, fireflySaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
 import { pluginAddBtn, permissionBlocksWrap, permissionNote } from "./plugins/dom";
 import { preferencesState } from "./preferences/state";
 import { stickerEnabledInput, stickerSizeSelect, stickerThresholdInput, stickerThresholdVal, stickerAddOverlay, stickerAddPickBtn, stickerAddFileName, stickerAddId, stickerAddDesc, stickerAddPhrases, stickerAddError, stickerAddConfirm, stickerAddCancel } from "./preferences/dom";
@@ -88,7 +88,7 @@ import type {
 import { MODEL_PRESETS } from "./api/presets";
 import { showConfirm, showHtmlModal, showInputModal } from "./shared/modal";
 import {
-  setSaveStatus, setCyreneSaveStatus, setPreferencesSaveStatus, setAppearanceSaveStatus,
+  setSaveStatus, setFireflySaveStatus, setPreferencesSaveStatus, setAppearanceSaveStatus,
   setGeneralSaveStatus, setRuntimeSaveStatus,
 } from "./shared/save-status";
 import { renderEmptyState, renderInfoList } from "./shared/render";
@@ -1029,13 +1029,13 @@ async function loadConfig(): Promise<void> {
     }
 
     setSaveStatus(t("settings.status.waiting"));
-    setCyreneSaveStatus(t("settings.status.waiting"));
+    setFireflySaveStatus(t("settings.status.waiting"));
   } catch {
     fillPresetOptions();
     apiState.profilesLoadState = "error";
     renderProfileList();
     setSaveStatus(t("settings.status.readFailed"), "is-error");
-    setCyreneSaveStatus(t("settings.status.readFailed"), "is-error");
+    setFireflySaveStatus(t("settings.status.readFailed"), "is-error");
   }
 }
 
@@ -1117,25 +1117,25 @@ runtimeSyncSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((
     const value = button.dataset.value as "off" | "local" | "llm";
     applyRuntimeSyncSelection(value);
     window.settings?.previewRuntimeSync(value);
-    setCyreneSaveStatus(t("settings.status.dirty"));
+    setFireflySaveStatus(t("settings.status.dirty"));
   });
 });
 
 stickerEnabledInput.addEventListener("change", () => {
-  setCyreneSaveStatus(t("settings.status.dirty"));
+  setFireflySaveStatus(t("settings.status.dirty"));
 });
 
 stickerSizeSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
   button.addEventListener("click", () => {
     const value = button.dataset.value;
     applyStickerSizeSelection(value === "small" || value === "large" ? value : "standard");
-    setCyreneSaveStatus(t("settings.status.dirty"));
+    setFireflySaveStatus(t("settings.status.dirty"));
   });
 });
 
 stickerThresholdInput.addEventListener("input", () => {
   stickerThresholdVal.textContent = parseFloat(stickerThresholdInput.value).toFixed(2);
-  setCyreneSaveStatus(t("settings.status.dirty"));
+  setFireflySaveStatus(t("settings.status.dirty"));
 });
 
 openChromeGpu.addEventListener("click", () => {
@@ -1510,7 +1510,7 @@ generalForm.addEventListener("submit", async (e) => {
 
 cyrenePanel.addEventListener("submit", async (e) => {
   e.preventDefault();
-  setCyreneSaveStatus(t("settings.status.saving"));
+  setFireflySaveStatus(t("settings.status.saving"));
   try {
     const rawDim = embeddingDimensionsInput?.value?.trim();
     const parsedNum = rawDim ? Number(rawDim) : NaN;
@@ -1524,9 +1524,9 @@ cyrenePanel.addEventListener("submit", async (e) => {
       stickerSimilarityThreshold: parseFloat(stickerThresholdInput.value),
       embeddingDimensions: parsedDim && parsedDim > 0 ? parsedDim : undefined,
     });
-    setCyreneSaveStatus(t("settings.status.saved"), "is-ok");
+    setFireflySaveStatus(t("settings.status.saved"), "is-ok");
   } catch {
-    setCyreneSaveStatus(t("settings.status.saveFailed"), "is-error");
+    setFireflySaveStatus(t("settings.status.saveFailed"), "is-error");
   }
 });
 
@@ -1610,7 +1610,7 @@ function switchSection(section: string): void {
   const isAppearance = section === "appearance";
   const isGeneral = section === "general";
   const isPreferences = section === "preferences";
-  const isCyrene = section === "cyrene";
+  const isFirefly = section === "cyrene";
   const isDisclaimer = section === "disclaimer";
   const isMemory = section === "memory";
   const isUser = section === "user";
@@ -1626,7 +1626,7 @@ function switchSection(section: string): void {
   appearanceForm.classList.toggle("is-hidden", !isAppearance);
   generalForm.classList.toggle("is-hidden", !isGeneral);
   preferencesForm.classList.toggle("is-hidden", !isPreferences);
-  cyrenePanel.classList.toggle("is-hidden", !isCyrene);
+  cyrenePanel.classList.toggle("is-hidden", !isFirefly);
   disclaimerPanel.classList.toggle("is-hidden", !isDisclaimer);
   const memoryPanel = document.getElementById("memory-panel");
   if (memoryPanel) memoryPanel.classList.toggle("is-hidden", !isMemory);
@@ -1651,7 +1651,7 @@ function switchSection(section: string): void {
   else disposeMusicPanel();
   placeholderPanel.classList.toggle(
     "is-hidden",
-    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic,
+    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isFirefly || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic,
   );
 
   if (
@@ -1660,7 +1660,7 @@ function switchSection(section: string): void {
     !isAppearance &&
     !isGeneral &&
     !isPreferences &&
-    !isCyrene &&
+    !isFirefly &&
     !isDisclaimer &&
     !isMemory &&
     !isUser &&

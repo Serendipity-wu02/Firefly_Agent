@@ -11,18 +11,18 @@
  * 因此可以同时被 main、preload、renderer 安全 import。
  */
 
-/** Canonical 终态分类。CyreneAgent / Harness / Bridge 三方共用。 */
-export type CyreneTerminalStatus = "success" | "cancelled" | "timeout" | "runtime_error";
+/** Canonical 终态分类。FireflyAgent / Harness / Bridge 三方共用。 */
+export type FireflyTerminalStatus = "success" | "cancelled" | "timeout" | "runtime_error";
 
 /**
- * RUN_FINISHED.result 与 CyreneAgent 内部终态共用的描述。
+ * RUN_FINISHED.result 与 FireflyAgent 内部终态共用的描述。
  * - success：正常完成（含 max_rounds 之外的正常退出）。
  * - cancelled：用户/上游主动取消（abortSource = user_cancelled）。
  * - timeout：总超时或 max_rounds 触发；reason 进一步细分。
  * - runtime_error：仅用于 runtime error 路径；事件本身仍是 RUN_ERROR，但 gate 内部统一记账。
  */
-export interface CyreneRunTerminalResult {
-  status: CyreneTerminalStatus;
+export interface FireflyRunTerminalResult {
+  status: FireflyTerminalStatus;
   /** 机器可读原因码（max_rounds / call_timeout / user_cancelled / run_timeout 等）。 */
   reason?: string;
   /**

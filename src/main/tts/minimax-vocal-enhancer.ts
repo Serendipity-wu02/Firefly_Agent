@@ -1,6 +1,6 @@
 // MiniMax TTS 语音增强器
 //
-// Cyrene 的回复是纯文本，不会自带 MiniMax 支持的语气词标签（如 (laughs)、(breath) 等）。
+// Firefly 的回复是纯文本，不会自带 MiniMax 支持的语气词标签（如 (laughs)、(breath) 等）。
 // 本模块在文本送入 MiniMax 合成前，根据关键词/场景自动插入这些标签，让语音更拟人。
 //
 // 官方文档：仅 speech-2.8-hd / speech-2.8-turbo 支持语气词标签。

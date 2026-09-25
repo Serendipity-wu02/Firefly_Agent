@@ -287,7 +287,7 @@ function loadInjectionHeader(promptDirectories?: string[]): string {
 /** 时间线里的动态正文摘要长度：只求"记得大概在聊什么"，不整段复述 */
 const TIMELINE_POST_EXCERPT_CHARS = 60;
 
-/** 评论区显示作者名：用户/昔涟用习惯称呼，角色用本名 */
+/** 评论区显示作者名：用户/流萤用习惯称呼，角色用本名 */
 function authorLabel(author: MomentAuthor): string {
   if (author === "user") return "用户";
   if (author === "cyrene") return "流萤";

@@ -6,8 +6,8 @@ import { parseFileLinkHref, relativePathInsideWorkspace } from "./file-link";
 
 describe("parseFileLinkHref", () => {
   it("解析基本路径与行号区间", () => {
-    const target = parseFileLinkHref("file:///E:/Cyrene-Agent/src/main/app.ts#L12-L30");
-    expect(target).toEqual({ absPath: "E:/Cyrene-Agent/src/main/app.ts", lineStart: 12, lineEnd: 30 });
+    const target = parseFileLinkHref("file:///E:/Firefly-Agent/src/main/app.ts#L12-L30");
+    expect(target).toEqual({ absPath: "E:/Firefly-Agent/src/main/app.ts", lineStart: 12, lineEnd: 30 });
   });
 
   it("单行片段 #L45 → lineStart 与 lineEnd 相同", () => {
@@ -43,19 +43,19 @@ describe("parseFileLinkHref", () => {
 });
 
 describe("relativePathInsideWorkspace", () => {
-  const root = "E:\\Cyrene-Agent";
+  const root = "E:\\Firefly-Agent";
 
   it("工作区内文件 → 返回正斜杠相对路径", () => {
-    expect(relativePathInsideWorkspace("E:/Cyrene-Agent/src/main/app.ts", root))
+    expect(relativePathInsideWorkspace("E:/Firefly-Agent/src/main/app.ts", root))
       .toBe("src/main/app.ts");
   });
 
   it("大小写不敏感（Windows 盘符与目录）", () => {
-    expect(relativePathInsideWorkspace("e:/cyrene-agent/src/a.ts", root)).toBe("src/a.ts");
+    expect(relativePathInsideWorkspace("e:/firefly-agent/src/a.ts", root)).toBe("src/a.ts");
   });
 
   it("反斜杠绝对路径也能匹配", () => {
-    expect(relativePathInsideWorkspace("E:\\Cyrene-Agent\\src\\a.ts", root)).toBe("src/a.ts");
+    expect(relativePathInsideWorkspace("E:\\Firefly-Agent\\src\\a.ts", root)).toBe("src/a.ts");
   });
 
   it("越界路径返回 null（桌面等）", () => {
@@ -63,11 +63,11 @@ describe("relativePathInsideWorkspace", () => {
   });
 
   it("前缀相似但非同一目录返回 null（E:/proj-x 不是 E:/proj）", () => {
-    expect(relativePathInsideWorkspace("E:/Cyrene-Agent-x/a.ts", root)).toBeNull();
+    expect(relativePathInsideWorkspace("E:/Firefly-Agent-x/a.ts", root)).toBeNull();
   });
 
   it("路径等于工作区根 → '.'；空根 → null", () => {
-    expect(relativePathInsideWorkspace("E:/Cyrene-Agent", root)).toBe(".");
-    expect(relativePathInsideWorkspace("E:/Cyrene-Agent/a.ts", "")).toBeNull();
+    expect(relativePathInsideWorkspace("E:/Firefly-Agent", root)).toBe(".");
+    expect(relativePathInsideWorkspace("E:/Firefly-Agent/a.ts", "")).toBeNull();
   });
 });

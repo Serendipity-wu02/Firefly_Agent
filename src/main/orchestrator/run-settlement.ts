@@ -2,7 +2,7 @@
  * Exactly-once settlement gate：保证一次 run 只记账一个终态。
  *
  * 职责：
- * - 在一次 run 的生命周期内，只允许第一个 CyreneRunTerminalResult 被记账。
+ * - 在一次 run 的生命周期内，只允许第一个 FireflyRunTerminalResult 被记账。
  * - 任何后续 trySettle（包括 success 后再 error、cancelled 后再 timeout 等）
  *   都被静默丢弃，由调用方决定是否记录诊断日志。
  *
@@ -18,24 +18,24 @@
  * - 测试：直接构造 RunSettlementGate 实例，验证状态机。
  */
 
-import type { CyreneRunTerminalResult } from "../../shared/run-terminal";
+import type { FireflyRunTerminalResult } from "../../shared/run-terminal";
 
 export class RunSettlementGate {
-  private settlement: CyreneRunTerminalResult | null = null;
+  private settlement: FireflyRunTerminalResult | null = null;
 
   /**
    * 尝试登记一个终态结算。
    * @returns true 表示这是第一次结算（调用方应据此发出终态事件）；
    *          false 表示已经有终态被记账，本次调用被丢弃。
    */
-  trySettle(result: CyreneRunTerminalResult): boolean {
+  trySettle(result: FireflyRunTerminalResult): boolean {
     if (this.settlement) return false;
     this.settlement = result;
     return true;
   }
 
   /** 取回第一次记账的终态；尚未结算时返回 null。 */
-  get(): CyreneRunTerminalResult | null {
+  get(): FireflyRunTerminalResult | null {
     return this.settlement;
   }
 

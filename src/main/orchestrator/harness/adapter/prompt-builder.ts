@@ -6,7 +6,7 @@ import {
 import { appendInternalTranscriptMessage, createInternalTranscriptMessage } from "../internal-transcript";
 import type { AgentState } from "../types";
 import type { PromptLayers } from "../../prompt-layers";
-import type { CyreneRunOptions } from "../../cyrene-agent";
+import type { FireflyRunOptions } from "../../firefly-agent";
 import { loadPromptFile } from "../../../prompts/prompt-loader";
 
 /**
@@ -43,7 +43,7 @@ export function materializeHarnessStartTranscript(input: {
 }
 
 export function buildHarnessPromptLayers(
-  options: CyreneRunOptions,
+  options: FireflyRunOptions,
 ): PromptLayers & { usageParts?: { personaContent: string; toolLayerContent: string; skillLayerContent?: string } } {
   const personaParts: string[] = [];
   if (options.soulSystemBaseContent) {
@@ -52,7 +52,7 @@ export function buildHarnessPromptLayers(
 
   const harnessPersona = options.conversationMode === "chat"
     ? ""
-    : loadPromptFile("cyrene_harness.md");
+    : loadPromptFile("firefly_harness.md");
   if (harnessPersona) {
     personaParts.push(harnessPersona);
   }
@@ -95,7 +95,7 @@ export function buildHarnessPromptLayers(
 }
 
 /** @deprecated 兼容外部调用；Harness 主路径改用 buildHarnessPromptLayers。 */
-export function buildHarnessSystemPrompt(options: CyreneRunOptions): string {
+export function buildHarnessSystemPrompt(options: FireflyRunOptions): string {
   // 旧 API 仍返回单字符串；新路径消费分层结果，不要在这里反向改变层的职责。
   const layers = buildHarnessPromptLayers(options);
   return [layers.stablePrefix, layers.runtimeContext].filter(Boolean).join("\n\n---\n\n");

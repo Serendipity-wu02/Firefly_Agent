@@ -13,7 +13,7 @@ describe("RightInspector surface", () => {
 
     expect(inspector).toBeDefined();
     expect(inspector?.style.backgroundColor).toBe("rgb(242, 248, 245)");
-    expect(inspector?.style.backgroundImage).toContain("cyrene-surface-pattern.svg");
+    expect(inspector?.style.backgroundImage).toContain("firefly-surface-pattern.svg");
     expect(inspector?.style.backgroundPosition).toBe("center center");
     expect(inspector?.style.backgroundSize).toBe("cover");
   });

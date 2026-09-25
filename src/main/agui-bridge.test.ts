@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   getPendingMessages: vi.fn(),
   markPendingAdjust: vi.fn(),
   resetPendingAdjustByRun: vi.fn(),
-  runCyreneAgent: vi.fn(),
+  runFireflyAgent: vi.fn(),
   requestUserClarification: vi.fn(),
   agentEvents: [] as unknown[],
   // 可定制的终态行为
@@ -46,8 +46,8 @@ vi.mock("electron", () => ({
   app: { getPath: () => mocks.userDataRoot },
 }));
 
-vi.mock("./orchestrator/cyrene-agent", () => ({
-  CyreneAgent: class {
+vi.mock("./orchestrator/firefly-agent", () => ({
+  FireflyAgent: class {
     threadId: string;
     lastResult?: { reply: string; toolResults: unknown[] };
 
@@ -56,8 +56,8 @@ vi.mock("./orchestrator/cyrene-agent", () => ({
     }
 
     runWithEvents(options: unknown) {
-      mocks.runCyreneAgent(options);
-      // 忠实模拟真实 CyreneAgent：读 options.runId 并 stamp 到 RUN_STARTED / RUN_FINISHED，
+      mocks.runFireflyAgent(options);
+      // 忠实模拟真实 FireflyAgent：读 options.runId 并 stamp 到 RUN_STARTED / RUN_FINISHED，
       // 保证 bridge 的 canonical runId 全链路一致（ack.runId === RUN_STARTED.runId === RUN_FINISHED.runId）。
       const runId = (options as { runId?: string } | null | undefined)?.runId;
       const signal = (options as { signal?: AbortSignal } | null | undefined)?.signal;
@@ -252,7 +252,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("routes structured Ask cards to the AG-UI run sender", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.requestUserClarification.mockReset();
     mocks.getSession.mockReturnValue({
       id: "work-ask",
@@ -293,7 +293,7 @@ describe("agui-bridge sticker event ordering", () => {
     if (!handler) throw new Error("AGUI_RUN handler was not registered");
     await handler({ sender }, { messages: [{ role: "user", content: "帮我生成一份文档" }], sessionId: "work-ask" });
 
-    const options = mocks.runCyreneAgent.mock.calls[0]?.[0] as {
+    const options = mocks.runFireflyAgent.mock.calls[0]?.[0] as {
       requestUserClarification: (card: unknown) => Promise<unknown>;
     };
     await options.requestUserClarification({ intro: "需要确认", questions: [], deferredFields: [] });
@@ -317,7 +317,7 @@ describe("agui-bridge sticker event ordering", () => {
       vi.resetModules();
       mocks.handlers.clear();
       mocks.agentEvents = [];
-      mocks.runCyreneAgent.mockClear();
+      mocks.runFireflyAgent.mockClear();
       mocks.requestUserClarification.mockReset();
       mocks.getSession.mockReturnValue({
         id: "code-plan-review",
@@ -386,7 +386,7 @@ describe("agui-bridge sticker event ordering", () => {
       vi.resetModules();
       mocks.handlers.clear();
       mocks.agentEvents = [];
-      mocks.runCyreneAgent.mockClear();
+      mocks.runFireflyAgent.mockClear();
       mocks.requestUserClarification.mockReset();
       mocks.getSession.mockReturnValue({
         id: "code-plan-dismiss",
@@ -618,10 +618,10 @@ describe("agui-bridge sticker event ordering", () => {
     }));
   });
 
-  it("keeps Work requests on CyreneAgent and never dispatches the Code runtime", async () => {
+  it("keeps Work requests on FireflyAgent and never dispatches the Code runtime", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({
       id: "work-chat",
       mode: "work",
@@ -654,8 +654,8 @@ describe("agui-bridge sticker event ordering", () => {
       sessionId: "work-chat",
       executionMode: "work",
     }));
-    expect(mocks.runCyreneAgent).toHaveBeenCalledOnce();
-    expect(mocks.runCyreneAgent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.runFireflyAgent).toHaveBeenCalledOnce();
+    expect(mocks.runFireflyAgent).toHaveBeenCalledWith(expect.objectContaining({
       executionMode: "work",
     }));
   });
@@ -663,7 +663,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("rejects a changed required file before model dispatch", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "work-read-bridge-"));
     try {
       const selected = path.join(root, "public.txt");
@@ -684,7 +684,7 @@ describe("agui-bridge sticker event ordering", () => {
         sessionId: "work-read-changed", userTurnId: "user-read", messages: [{ role: "user", content: "read" }],
       })).rejects.toThrow("WORK_READ_SCOPE_CHANGED");
       expect(buildOptions).not.toHaveBeenCalled();
-      expect(mocks.runCyreneAgent).not.toHaveBeenCalled();
+      expect(mocks.runFireflyAgent).not.toHaveBeenCalled();
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -693,7 +693,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("passes Main-owned Work read scope into the existing run and emits separate missing-evidence status", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "work-read-bridge-"));
     mocks.userDataRoot = root;
     try {
@@ -724,7 +724,7 @@ describe("agui-bridge sticker event ordering", () => {
       expect(buildOptions).toHaveBeenCalledWith(expect.objectContaining({
         workDocuments: [expect.objectContaining({ path: scope.path, requiredEndLine: scope.endLine })],
       }));
-      expect(mocks.runCyreneAgent).toHaveBeenCalledWith(expect.objectContaining({ workReadScopes: [scope] }));
+      expect(mocks.runFireflyAgent).toHaveBeenCalledWith(expect.objectContaining({ workReadScopes: [scope] }));
       const evidence = events.find((event) => event.name === "cyrene.workRead");
       expect(evidence?.value?.status).toBe("missing");
       expect(events.indexOf(evidence!)).toBeLessThan(events.findIndex((event) => event.type === "RUN_FINISHED"));
@@ -737,7 +737,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("rejects project modes without a trusted workspace binding", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "work-no-workspace", mode: "work" });
     const { registerAgUiIpc } = await import("./agui-bridge");
     registerAgUiIpc(vi.fn(), async () => {}, () => null);
@@ -750,7 +750,7 @@ describe("agui-bridge sticker event ordering", () => {
       messages: [{ role: "user", content: "开始" }],
       sessionId: "work-no-workspace",
     })).rejects.toThrow("需要先绑定项目工作区");
-    expect(mocks.runCyreneAgent).not.toHaveBeenCalled();
+    expect(mocks.runFireflyAgent).not.toHaveBeenCalled();
   });
 
   // ── canonical runId 与 exactly-once settlement ────────────
@@ -758,7 +758,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("propagates the canonical runId through ack, RUN_STARTED, options, and RUN_FINISHED", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-identity", mode: "chat" });
     const { registerAgUiIpc } = await import("./agui-bridge");
     const sent: Array<{ type?: string; runId?: string }> = [];
@@ -794,8 +794,8 @@ describe("agui-bridge sticker event ordering", () => {
     // ack.runId 必须存在
     expect(ack.runId).toBeTruthy();
 
-    // CyreneAgent.runWithEvents 必须收到 options.runId === ack.runId
-    expect(mocks.runCyreneAgent).toHaveBeenCalledWith(expect.objectContaining({
+    // FireflyAgent.runWithEvents 必须收到 options.runId === ack.runId
+    expect(mocks.runFireflyAgent).toHaveBeenCalledWith(expect.objectContaining({
       runId: ack.runId,
     }));
 
@@ -809,7 +809,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("drops duplicate RUN_FINISHED events so the renderer only sees one terminal", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-dup", mode: "chat" });
     mocks.emitDuplicateRunFinished = true;
     const { registerAgUiIpc } = await import("./agui-bridge");
@@ -851,7 +851,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("suppresses RUN_ERROR after RUN_FINISHED has already settled (success-then-error)", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-err-after", mode: "chat" });
     mocks.errorAfterRunFinished = "boom";
     const { registerAgUiIpc } = await import("./agui-bridge");
@@ -894,7 +894,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("skips onRunFinished side effects when RUN_FINISHED.result.status is cancelled", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-cancelled", mode: "chat" });
     mocks.runFinishedResult = { status: "cancelled", reason: "user_cancelled", externalEffectsMayContinue: true };
     const { registerAgUiIpc } = await import("./agui-bridge");
@@ -942,7 +942,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("synthesizes exactly one RUN_FINISHED when upstream completes without emitting one", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-bare-complete", mode: "chat" });
     // upstream 直接 complete，不发 RUN_FINISHED
     mocks.skipDefaultRunFinished = true;
@@ -993,7 +993,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("does not register a ghost active run when the Observable completes synchronously", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-sync-complete", mode: "chat" });
     const { registerAgUiIpc, __hasActiveRunForTest } = await import("./agui-bridge");
     const sender = {
@@ -1035,7 +1035,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("routes harness runtime_error terminal to RUN_ERROR and skips success side effects", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-runtime-error", mode: "chat" });
     // upstream 发 RUN_FINISHED 但 result.status = "runtime_error"
     mocks.runFinishedResult = { status: "runtime_error", reason: "E_HARNESS_FAILURE", externalEffectsMayContinue: true };
@@ -1084,7 +1084,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("AGUI_CANCEL aborts the run's AbortController (not just unsubscribe)", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-cancel-1", mode: "chat" });
     // upstream 永不自动 complete（模拟正在运行）：不发 RUN_FINISHED + 不 complete
     mocks.skipDefaultRunFinished = true;
@@ -1119,11 +1119,11 @@ describe("agui-bridge sticker event ordering", () => {
       { messages: [{ role: "user", content: "hi" }], sessionId: "chat-cancel-1" },
     ) as { runId: string };
 
-    // 等 CyreneAgent.runWithEvents 被调用
-    await vi.waitFor(() => expect(mocks.runCyreneAgent).toHaveBeenCalledOnce());
+    // 等 FireflyAgent.runWithEvents 被调用
+    await vi.waitFor(() => expect(mocks.runFireflyAgent).toHaveBeenCalledOnce());
 
     // bridge 必须通过 options.signal 传入 AbortController.signal
-    const passedOptions = mocks.runCyreneAgent.mock.calls[0]?.[0] as { signal?: AbortSignal };
+    const passedOptions = mocks.runFireflyAgent.mock.calls[0]?.[0] as { signal?: AbortSignal };
     expect(passedOptions.signal).toBeDefined();
     expect(passedOptions.signal!.aborted).toBe(false);
 
@@ -1137,7 +1137,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("cancel one runId does not abort another run's signal", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-isolation", mode: "chat" });
     mocks.skipDefaultRunFinished = true;
     mocks.neverComplete = true;
@@ -1176,10 +1176,10 @@ describe("agui-bridge sticker event ordering", () => {
       { messages: [{ role: "user", content: "run2" }], sessionId: "chat-isolation-b" },
     ) as { runId: string };
 
-    await vi.waitFor(() => expect(mocks.runCyreneAgent).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(mocks.runFireflyAgent).toHaveBeenCalledTimes(2));
 
-    const signal1 = (mocks.runCyreneAgent.mock.calls[0]?.[0] as { signal?: AbortSignal }).signal;
-    const signal2 = (mocks.runCyreneAgent.mock.calls[1]?.[0] as { signal?: AbortSignal }).signal;
+    const signal1 = (mocks.runFireflyAgent.mock.calls[0]?.[0] as { signal?: AbortSignal }).signal;
+    const signal2 = (mocks.runFireflyAgent.mock.calls[1]?.[0] as { signal?: AbortSignal }).signal;
     expect(signal1).toBeDefined();
     expect(signal2).toBeDefined();
     expect(signal1).not.toBe(signal2);
@@ -1194,7 +1194,7 @@ describe("agui-bridge sticker event ordering", () => {
   it("AGUI_CANCEL with no runId aborts all active runs", async () => {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     mocks.getSession.mockReturnValue({ id: "chat-cancel-all", mode: "chat" });
     mocks.skipDefaultRunFinished = true;
     mocks.neverComplete = true;
@@ -1232,10 +1232,10 @@ describe("agui-bridge sticker event ordering", () => {
       { messages: [{ role: "user", content: "run2" }], sessionId: "chat-cancel-all-b" },
     );
 
-    await vi.waitFor(() => expect(mocks.runCyreneAgent).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(mocks.runFireflyAgent).toHaveBeenCalledTimes(2));
 
-    const signal1 = (mocks.runCyreneAgent.mock.calls[0]?.[0] as { signal?: AbortSignal }).signal;
-    const signal2 = (mocks.runCyreneAgent.mock.calls[1]?.[0] as { signal?: AbortSignal }).signal;
+    const signal1 = (mocks.runFireflyAgent.mock.calls[0]?.[0] as { signal?: AbortSignal }).signal;
+    const signal2 = (mocks.runFireflyAgent.mock.calls[1]?.[0] as { signal?: AbortSignal }).signal;
 
     // 无 runId → abort 全部
     await cancelHandler({}, undefined);
@@ -1276,7 +1276,7 @@ describe("agui-bridge session run guard", () => {
   async function setupBridge(buildOptions = defaultBuildOptions) {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     const bridge = await import("./agui-bridge");
     bridge.registerAgUiIpc(buildOptions, async () => {}, () => null);
     const runHandler = mocks.handlers.get(IPC.AGUI_RUN);
@@ -1350,10 +1350,10 @@ describe("agui-bridge session run guard", () => {
       },
     ) as { runId: string };
 
-    expect(mocks.runCyreneAgent).toHaveBeenCalledTimes(2);
+    expect(mocks.runFireflyAgent).toHaveBeenCalledTimes(2);
     // 旧 run 被 takeover abort（cancelled 结算），新 run 的 signal 干净
-    const signal1 = (mocks.runCyreneAgent.mock.calls[0]?.[0] as { signal?: AbortSignal }).signal;
-    const signal2 = (mocks.runCyreneAgent.mock.calls[1]?.[0] as { signal?: AbortSignal }).signal;
+    const signal1 = (mocks.runFireflyAgent.mock.calls[0]?.[0] as { signal?: AbortSignal }).signal;
+    const signal2 = (mocks.runFireflyAgent.mock.calls[1]?.[0] as { signal?: AbortSignal }).signal;
     expect(signal1!.aborted).toBe(true);
     expect(signal2!.aborted).toBe(false);
     // 守卫已易主到新 run
@@ -1535,7 +1535,7 @@ describe("agui-bridge pending adjust IPC", () => {
   async function setupBridge(buildOptions = defaultBuildOptions) {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     const bridge = await import("./agui-bridge");
     bridge.registerAgUiIpc(buildOptions, async () => {}, () => null);
     const adjustHandler = mocks.handlers.get(IPC.CHATS_PENDING_ADJUST);
@@ -1670,7 +1670,7 @@ describe("agui-bridge transcript dispatch", () => {
   async function setupBridge(buildOptions?: (input: unknown) => Promise<unknown>) {
     vi.resetModules();
     mocks.handlers.clear();
-    mocks.runCyreneAgent.mockClear();
+    mocks.runFireflyAgent.mockClear();
     const seenInputs: unknown[] = [];
     const bridge = await import("./agui-bridge");
     bridge.registerAgUiIpc(
@@ -1742,10 +1742,10 @@ describe("agui-bridge transcript dispatch", () => {
     // 无 userTurnId 的调用方（渠道/内部路径语义）：不写轨迹、不用轨迹上下文
     // （即使 rawInput 携带 true 也被主进程强制覆盖为 false）
     expect(seenInputs[0].useTranscriptContext).toBe(false);
-    const onFinishedNotStarted = mocks.runCyreneAgent;
+    const onFinishedNotStarted = mocks.runFireflyAgent;
     expect(onFinishedNotStarted).toHaveBeenCalled();
     // 轨迹提交端同样不得注入：否则模型回写没有对应 user 的孤立 assistant 条目
-    const sink = (mocks.runCyreneAgent.mock.calls.at(-1)?.[0] as { transcriptSink?: unknown }).transcriptSink;
+    const sink = (mocks.runFireflyAgent.mock.calls.at(-1)?.[0] as { transcriptSink?: unknown }).transcriptSink;
     expect(sink).toBeUndefined();
   });
 
@@ -1770,7 +1770,7 @@ describe("agui-bridge transcript dispatch", () => {
 
     // 模型不得启动：buildOptions 未被调用
     expect(seenInputs).toHaveLength(0);
-    expect(mocks.runCyreneAgent).not.toHaveBeenCalled();
+    expect(mocks.runFireflyAgent).not.toHaveBeenCalled();
     mocks.userDataRoot = "";
   });
 
@@ -1846,7 +1846,7 @@ describe("agui-bridge transcript dispatch", () => {
       recoveryContext: "派发侧：渠道恢复上下文",
     });
 
-    const agentOptions = mocks.runCyreneAgent.mock.calls[0]?.[0] as { recoveryContext?: string };
+    const agentOptions = mocks.runFireflyAgent.mock.calls[0]?.[0] as { recoveryContext?: string };
     expect(agentOptions?.recoveryContext).toContain("轨迹侧：上次运行有未确认副作用");
     expect(agentOptions?.recoveryContext).toContain("派发侧：渠道恢复上下文");
     mocks.userDataRoot = "";
@@ -1895,10 +1895,10 @@ describe("agui-bridge transcript dispatch", () => {
       })).messages;
       const sender = makeSender();
       const lastModelRequestMessages = () =>
-        (mocks.runCyreneAgent.mock.calls.at(-1)?.[0] as { messages: Array<Record<string, unknown>> }).messages;
+        (mocks.runFireflyAgent.mock.calls.at(-1)?.[0] as { messages: Array<Record<string, unknown>> }).messages;
       // bridge 实际注入的轨迹提交端（生产接线断言，不手工绕路）
       const sinkOfLastCall = () =>
-        (mocks.runCyreneAgent.mock.calls.at(-1)?.[0] as { transcriptSink?: import("./orchestrator/transcript-sink").TranscriptSink }).transcriptSink;
+        (mocks.runFireflyAgent.mock.calls.at(-1)?.[0] as { transcriptSink?: import("./orchestrator/transcript-sink").TranscriptSink }).transcriptSink;
 
       // 第一轮：当前 user 落盘，run 级提交端写入 canonical assistant
       await runHandler({ sender }, {
@@ -1951,7 +1951,7 @@ describe("agui-bridge transcript dispatch", () => {
         ]));
       }
       // 四模式各走各的执行通道：chat 单请求链路，其余走 harness 执行模式
-      const lastOptions = mocks.runCyreneAgent.mock.calls.at(-1)?.[0] as { executionMode?: string };
+      const lastOptions = mocks.runFireflyAgent.mock.calls.at(-1)?.[0] as { executionMode?: string };
       expect(lastOptions.executionMode).toBe(mode === "chat" ? "chat" : "work");
       mocks.userDataRoot = "";
     },
@@ -1989,10 +1989,10 @@ describe("agui-bridge transcript dispatch", () => {
     })).messages;
     const sender = makeSender();
     const lastModelRequestMessages = () =>
-      (mocks.runCyreneAgent.mock.calls.at(-1)?.[0] as { messages: Array<Record<string, unknown>> }).messages;
+      (mocks.runFireflyAgent.mock.calls.at(-1)?.[0] as { messages: Array<Record<string, unknown>> }).messages;
     // bridge 实际注入的轨迹提交端（生产接线断言，不手工绕路）
     const sinkOfLastCall = () =>
-      (mocks.runCyreneAgent.mock.calls.at(-1)?.[0] as { transcriptSink?: import("./orchestrator/transcript-sink").TranscriptSink }).transcriptSink;
+      (mocks.runFireflyAgent.mock.calls.at(-1)?.[0] as { transcriptSink?: import("./orchestrator/transcript-sink").TranscriptSink }).transcriptSink;
 
     // 轮次 1：无工具（ChatLoop 单请求路径，assistant 无 roundId）
     await runHandler({ sender }, {

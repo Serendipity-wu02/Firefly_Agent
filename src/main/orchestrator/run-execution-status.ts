@@ -1,5 +1,5 @@
 /**
- * 运行时执行状态 —— 独立模块，避免 cyrene-agent ↔ langgraph-agent-loop 循环依赖。
+ * 运行时执行状态 —— 独立模块，避免 firefly-agent ↔ langgraph-agent-loop 循环依赖。
  *
  * 职责：
  * - 定义 RunPhase、SuccessfulToolExecution、CreatedArtifact、RunExecutionStatus

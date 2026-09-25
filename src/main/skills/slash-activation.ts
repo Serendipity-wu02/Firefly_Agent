@@ -1,4 +1,5 @@
 import { parseSlashCommand, skillRegistry } from "./index";
+import { resolveSkillSettings } from "./skill-id-aliases";
 import type { SkillMode, SkillModeOverrides } from "./types";
 
 /**
@@ -30,7 +31,7 @@ export function resolveSlashActivation<T extends { role: string; content: string
   const isEnabledForMode = (s: typeof skill): boolean => {
     if (!s) return false;
     if (mode === undefined) return true;
-    const override = overrides?.[s.id]?.[mode];
+    const override = overrides ? resolveSkillSettings(overrides)[s.id]?.[mode] : undefined;
     if (override !== undefined) return override;
     return !s.modes || s.modes.includes(mode);
   };
@@ -38,7 +39,7 @@ export function resolveSlashActivation<T extends { role: string; content: string
   if (skill && skill.enabled && skillRegistry.isAvailable(parsed.skillId) && isEnabledForMode(skill)) {
     const body = skillRegistry.getBody(parsed.skillId);
     if (body !== null) {
-      console.log("[Cyrene] /命令激活 skill:", parsed.skillId);
+      console.log("[Firefly] /命令激活 skill:", parsed.skillId);
       return `\n\n---\n\n[已激活 skill: ${parsed.skillId}]\n${body}`;
     }
     return "";

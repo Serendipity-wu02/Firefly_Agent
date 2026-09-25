@@ -52,7 +52,7 @@
 
 /* antd v6 的滑块是 .ant-segmented-thumb 元素（v4 时代的 item::after 写法已失效，
    默认白色块会盖住选中文字）。改为半透明强调色高亮 + 选中文字用强调色，
-   跟随昔涟主题变量（--cy-accent），变量缺失时回退默认粉。 */
+   跟随流萤主题变量（--cy-accent），变量缺失时回退默认粉。 */
 .cy-reasoning-popover .ant-segmented-thumb {
   border-radius: 8px;
   background: rgba(45, 122, 95, 0.22);

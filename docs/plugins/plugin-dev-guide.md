@@ -1,6 +1,6 @@
-# Cyrene 插件开发指南
+# Firefly 插件开发指南
 
-> 面向想给 Cyrene（昔涟）写插件的社群朋友。不需要读过源码，只要会一点 JavaScript 就能跟着做完。
+> 面向想给 Firefly（流萤）写插件的开发者。不需要读过源码，只要会一点 JavaScript 就能跟着做完。
 >
 > 完整的接口规范见同目录的 [plugin-authoring.md](./plugin-authoring.md)，本文是它的教程版。
 
@@ -8,23 +8,23 @@
 
 ## 插件是什么，能做什么
 
-一个插件就是一个文件夹，里面放一个清单文件和一个 JS 入口文件。装进 Cyrene 后，它能：
+一个插件就是一个文件夹，里面放一个清单文件和一个 JS 入口文件。装进 Firefly 后，它能：
 
 | 能力 | 举例 |
 |---|---|
-| **注册 AI 工具** | 昔涟在对话里能查系统状态、查天气、操作你的番茄钟 |
+| **注册 AI 工具** | 流萤在对话里能查系统状态、查天气、操作你的番茄钟 |
 | **弹自己的窗口** | 一个独立界面，想画什么都行（HTML/CSS 随便写） |
-| **调用宿主的 AI** | 插件自己也能调 LLM，不用配 API key（复用 Cyrene 的模型配置） |
-| **接入新聊天渠道** | 把昔涟接到 Telegram、Discord 等平台（进阶） |
+| **调用宿主的 AI** | 插件自己也能调 LLM，复用 Firefly 已配置的模型档案 |
+| **接入新聊天渠道** | 把流萤接到 Telegram、Discord 等平台（进阶） |
 | **事件通信** | 监听宿主生命周期事件、和其他插件互通消息（收到"要关机了"提前收尾、天气更新通知别的插件） |
-| **注入动态上下文** | 让昔涟主动"知道"实时状态——天气、日程、番茄钟，不用用户开口问 |
+| **注入动态上下文** | 让流萤取得实时状态——天气、日程、番茄钟，不用用户开口问 |
 | **私有存储** | 自己的配置和数据，卸载插件也不丢 |
 | **安全密钥** | 把 API key 交给宿主安全存储保管，代码和日志里不出现明文 |
 | **读对话** | 只读地列出会话、按冻结边界翻页消息（长期记忆类插件的基础） |
 | **定时任务** | 创建自己的定时自动化任务，由宿主调度（用户确认后才启用） |
 | **语音输入** | 自带 ASR 模型的插件可接管语音输入：拿到独占租约后把识别文本提交进正常对话 |
 
-**重要认知**：插件和 Cyrene 本体运行在同一个进程里，拥有完整的 Node.js 权限（能读写文件、开进程、联网）。所以 Cyrene 只运行你信任的插件——这也意味着**你写的插件什么都能干**，不用被权限卡住。
+**重要认知**：插件和 Firefly 本体运行在同一个进程里，拥有完整的 Node.js 权限（能读写文件、开进程、联网）。只安装你信任的插件；插件声明的依赖不是操作系统权限边界。
 
 ---
 
@@ -68,7 +68,7 @@ my-first-plugin/
 
 module.exports = {
   async register(ctx) {
-    // 注册一个 AI 工具：昔涟被问到时自动调用
+    // 注册一个 AI 工具：流萤被问到时自动调用
     ctx.registerTool({
       id: "my-first-plugin_hello",   // 必须以 "<plugin-id>_" 开头！
       name: "打招呼",
@@ -104,11 +104,11 @@ my-first-plugin.zip
 
 或者直接把 manifest 和入口放 zip 根目录也可以。
 
-然后：**Cyrene 聊天窗口 → 插件 → 右上角添加按钮 → 选 zip**。插件出现在列表且默认停用——这是刻意的安全设计，装进来不等于运行，点击“启用”才真正加载。
+然后：**Firefly 聊天窗口 → 插件 → 右上角添加按钮 → 选 zip**。插件出现在列表且默认停用，点击“启用”才会加载。
 
 ### 5. 验证
 
-对昔涟说“打个招呼”，她会调用你注册的工具并转述返回内容。去聊天窗口的插件面板看状态是 `running` 就说明成功。
+对流萤说“打个招呼”，她会调用你注册的工具并转述返回内容。去聊天窗口的插件面板看状态是 `running` 就说明成功。
 
 ---
 
@@ -116,7 +116,7 @@ my-first-plugin.zip
 
 ## 用 SDK 写 TypeScript 插件（推荐）
 
-上面的最小插件用纯 JavaScript 就能写。如果你的插件复杂一些，推荐用官方 SDK 开发——类型提示完整，不用翻宿主源码：
+上面的最小插件用纯 JavaScript 就能写。如果你的插件复杂一些，可以使用沿用的上游 SDK 开发——类型提示完整，不用翻宿主源码：
 
 ```bash
 mkdir my-plugin && cd my-plugin
@@ -153,7 +153,7 @@ export = plugin;
 
 用 tsc 编译（`module: commonjs`、`outDir` 指向插件目录）后，把 `manifest.json` 和编译产物一起打包。SDK 只是编译期依赖，**终端用户不需要安装 SDK**。
 
-发布前用 SDK 自带的测试工具验证契约，不需要启动 Cyrene：
+发布前用 SDK 自带的测试工具验证契约，不需要启动 Firefly：
 
 ```ts
 import { createMockPluginContext, assertPluginTool } from "@playa0v0/cyrene-plugin-sdk/testing";
@@ -169,7 +169,7 @@ await ctx.dispose(); // 模拟停止：验证清理回调
 SDK 还导出 `validateManifestData()`（与宿主同一份 Schema 校验 manifest）和稳定错误码清单，详见 [plugin-authoring.md](./plugin-authoring.md)。
 ## 工具（Tool）写法详解
 
-工具是插件最常用的形态——给昔涟的能力清单加一行。
+工具是插件最常用的形态——给流萤的能力清单加一行。
 
 ### 带参数的工具
 
@@ -276,7 +276,7 @@ btnClose.addEventListener("click", () => ipcRenderer.send("plugin:my-plugin:win-
 
 ## 调用宿主的 LLM
 
-manifest 声明 `"deps": ["llm"]` 后，插件可以复用 Cyrene 里配好的模型（排队、限流、重试、用量统计都走宿主，不用自己管）：
+manifest 声明 `"deps": ["llm"]` 后，插件可以复用 Firefly 里配好的模型（排队、限流、重试、用量统计都走宿主）：
 
 ```json
 { "deps": ["llm"] }
@@ -293,7 +293,7 @@ const text = await ctx.deps.llm.generateText(
 
 ## 给每轮对话补充动态上下文
 
-需要让昔涟知道插件的实时状态时，不必修改主程序的 `soul.md`。注册一个提示词 Provider 即可：
+需要让流萤知道插件的实时状态时，不必修改主程序的 `soul.md`。注册一个提示词 Provider 即可：
 
 ```js
 ctx.registerPromptProvider({
@@ -318,7 +318,7 @@ ctx.registerPromptProvider({
 `sources` 声明 Provider 参与的场景，可选值为 `"conversation"`（用户会话）/ `"scheduler"`（定时任务）/ `"moments-post"`（动态发帖决策）：
 
 - 未声明时默认只参与会话与定时任务两类场景（与旧版行为一致，既有插件无需改动）
-- 参与动态发帖（昔涟结合最近对话主动发朋友圈的决策）必须显式声明 `"moments-post"`；
+- 参与动态发帖（流萤结合最近对话主动发朋友圈的决策）必须显式声明 `"moments-post"`；
   该场景没有会话 `mode`，Provider 是否生效仅由 `sources` 决定
 - `moments-post` 调用会附带触发发帖的 `conversationId` / `channel`，按会话隔离记忆的插件可以用它过滤
 - `moments-post` 的 `userText` 是最近对话摘录快照（不是用户当前这条消息），插件应按「这段对话讲了什么」的语义使用
@@ -354,7 +354,7 @@ ctx.events.on("plugin:weather:updated", (payload) => {
 });
 ```
 
-发布自己的事件时只写短名称，Cyrene 会自动添加当前插件 id，防止伪造宿主或其他插件事件：
+发布自己的事件时只写短名称，Firefly 会自动添加当前插件 id，防止伪造宿主或其他插件事件：
 
 ```js
 await ctx.events.emit("updated", { value: 1 });
@@ -416,9 +416,9 @@ async register(ctx) {
 
 - zip 限制：≤50 MiB、≤2000 个条目、解压总量 ≤200 MiB；加密 zip、符号链接、`..` 路径都会被拒
 - 图片等资源直接放插件目录里随包分发，HTML 里用相对路径引用
-- **更新插件**：直接导入同名新版本 zip，Cyrene 会确认替换、自动备份旧版、保留你的私有数据和启用状态
+- **更新插件**：直接导入同名新版本 zip，Firefly 会确认替换、自动备份旧版、保留你的私有数据和启用状态
 - 版本号记得改 manifest 的 `version`，方便用户区分
-- **公开分发**：想让插件被更多用户看到，提交 PR 到官方收录仓库 [Cyrene-Plugins](https://github.com/Playa-0v0/Cyrene-Plugins)：提交可直接安装的产物（不传 zip），审核通过后由维护者统一打包，用户即可从仓库下载 ZIP 导入，收录规则见仓库内 CONTRIBUTING.md
+- **第三方收录**：[Cyrene-Plugins](https://github.com/Playa-0v0/Cyrene-Plugins) 是上游第三方插件仓库，并非 Firefly 官方发布入口；其收录规则见仓库内 CONTRIBUTING.md。
 
 ## 常见坑
 
@@ -434,7 +434,7 @@ async register(ctx) {
 
 ## 参考实现
 
-仓库 `examples/` 下有五个官方示例插件：
+仓库 `examples/` 下有五个示例插件：
 
 | 示例 | 覆盖能力 | 不包含 |
 |---|---|---|

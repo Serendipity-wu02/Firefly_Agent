@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { firstValueFrom } from "rxjs";
-import { resolveExecutionMode, CyreneAgent } from "./cyrene-agent";
-import type { CyreneRunOptions } from "./cyrene-agent";
+import { resolveExecutionMode, FireflyAgent } from "./firefly-agent";
+import type { FireflyRunOptions } from "./firefly-agent";
 import type { BaseEvent } from "@ag-ui/core";
 
 describe("resolveExecutionMode", () => {
@@ -17,11 +17,11 @@ describe("resolveExecutionMode", () => {
 // ── fallback runId 不污染调用方 options 对象 ──────────────────────
 
 /**
- * 构造最小可用的 CyreneRunOptions。
+ * 构造最小可用的 FireflyRunOptions。
  * provider="invalid" 会让 getAdapterForConfig 抛错，但 RUN_STARTED 在 adapter 调用之前发出，
- * 所以测试仍能捕获 runId。错误会被 CyreneAgent 的 catch 块吞掉走 subscriber.error()。
+ * 所以测试仍能捕获 runId。错误会被 FireflyAgent 的 catch 块吞掉走 subscriber.error()。
  */
-function makeMinimalOptions(): CyreneRunOptions {
+function makeMinimalOptions(): FireflyRunOptions {
   return {
     settings: {
       provider: "invalid-provider",
@@ -39,8 +39,8 @@ function makeMinimalOptions(): CyreneRunOptions {
 }
 
 /** 订阅 runWithEvents，取第一个事件（RUN_STARTED）的 runId。 */
-async function captureRunStarted(options: CyreneRunOptions): Promise<{ runId: string }> {
-  const agent = new CyreneAgent({ threadId: "test-thread" });
+async function captureRunStarted(options: FireflyRunOptions): Promise<{ runId: string }> {
+  const agent = new FireflyAgent({ threadId: "test-thread" });
   // firstValueFrom 内部 subscribe + take(1)，避免手动引用 sub 的 TDZ 问题。
   // RUN_STARTED 是 runWithEvents 发出的第一个事件（在 adapter 调用之前），所以能安全拿到。
   const event = await firstValueFrom(agent.runWithEvents(options));
@@ -49,7 +49,7 @@ async function captureRunStarted(options: CyreneRunOptions): Promise<{ runId: st
   return { runId };
 }
 
-describe("CyreneAgent.runWithEvents runId handling", () => {
+describe("FireflyAgent.runWithEvents runId handling", () => {
   it("does not write back fallback runId to the caller's options object", async () => {
     const options = makeMinimalOptions();
     expect(options.runId).toBeUndefined();
@@ -79,7 +79,7 @@ describe("CyreneAgent.runWithEvents runId handling", () => {
 
   it("preserves an explicitly-provided runId across the full event chain", async () => {
     const explicitRunId = "run-explicit-12345";
-    const options: CyreneRunOptions = { ...makeMinimalOptions(), runId: explicitRunId };
+    const options: FireflyRunOptions = { ...makeMinimalOptions(), runId: explicitRunId };
 
     const { runId } = await captureRunStarted(options);
 

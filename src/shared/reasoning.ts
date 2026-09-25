@@ -105,7 +105,7 @@ export const MODEL_REASONING_RULES: readonly ModelReasoningRule[] = [
   // 按具体型号拆分；GPT-6 Astra（2026-09-03 发布）：effort 五档与 5.6 相同，
   // 官方迁移说明明确不支持 none 档 → supportsDisable=false，off 折叠为 on 落
   // defaultEffort；pro mode 与 5.6 一致继续支持（官方迁移指南）。
-  // defaultEffort 是 Cyrene 的产品默认档（质量/延迟/成本的平衡点），非官方 API 默认。
+  // defaultEffort 是 Firefly 的产品默认档（质量/延迟/成本的平衡点），非官方 API 默认。
   { providerId: "chatgpt", modelPattern: /^gpt-6/i, capability: {
     control: "effort",
     supportedEfforts: ["low", "medium", "high", "xhigh", "max"],

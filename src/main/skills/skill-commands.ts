@@ -2,6 +2,8 @@
 // 调用方传已知 skill id 列表，只匹配列表内的命令；未知 /命令放行给其他处理。
 
 /** parseSlashCommand 结果。hit=true 表示命中一个已知 skill /命令。 */
+import { resolveSkillId } from "./skill-id-aliases";
+
 export interface SlashParseResult {
   hit: boolean;
   skillId?: string;
@@ -16,7 +18,7 @@ export interface SlashParseResult {
 export function parseSlashCommand(text: string, knownSkillIds: string[]): SlashParseResult {
   const m = text.match(/^\/([a-z0-9][a-z0-9-]*)(?:\s|$)/);
   if (!m) return { hit: false };
-  const id = m[1];
+  const id = resolveSkillId(m[1]);
   if (!knownSkillIds.includes(id)) return { hit: false };
   return { hit: true, skillId: id };
 }

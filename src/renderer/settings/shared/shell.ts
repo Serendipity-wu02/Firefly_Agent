@@ -17,6 +17,6 @@ export const placeholderCopy = document.getElementById("placeholder-copy") as HT
 export const saveStatus = document.getElementById("save-status") as HTMLElement;
 export const runtimeSaveStatus = document.getElementById("runtime-save-status") as HTMLElement;
 export const preferencesSaveStatus = document.getElementById("preferences-save-status") as HTMLElement;
-export const cyreneSaveStatus = document.getElementById("cyrene-save-status") as HTMLElement;
+export const fireflySaveStatus = document.getElementById("cyrene-save-status") as HTMLElement;
 export const openStickerManagerBtn = document.getElementById("open-sticker-manager-btn") as HTMLButtonElement;
 export const addStickerBtn = document.getElementById("add-sticker-btn") as HTMLButtonElement;

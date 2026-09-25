@@ -50,7 +50,7 @@ body { overflow: hidden; }
 .call__status--error { color: #ff6b6b; }
 .call__status--thinking { color: var(--rb-violet-400); }
 
-/* 名字区：昔涟 + 在线指示点（紧贴标题栏下方） */
+/* 名字区：流萤 + 在线指示点（紧贴标题栏下方） */
 .call__identity {
   display: inline-flex;
   align-items: center;

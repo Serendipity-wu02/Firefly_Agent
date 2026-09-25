@@ -51,23 +51,23 @@ let cache: MomentsStoreData | null = null;
 let tail: Promise<unknown> = Promise.resolve();
 const changeListeners = new Set<() => void>();
 
-/** 昔涟在 Feed 内的行为种类，提交时按种类复核对应开关。 */
-export type CyreneMomentBehavior = "reaction" | "posting";
+/** 流萤在 Feed 内的行为种类，提交时按种类复核对应开关。 */
+export type FireflyMomentBehavior = "reaction" | "posting";
 
 /**
- * 昔涟行为开关（默认全放行）。IPC 注册时注入真实读取逻辑；
+ * 流萤行为开关（默认全放行）。IPC 注册时注入真实读取逻辑；
  * 检查发生在串行队列内的提交时刻，AI 思考期间关闭开关时迟到的结果不豁免。
  */
-let cyreneBehaviorGate: (behavior: CyreneMomentBehavior) => boolean = () => true;
+let fireflyBehaviorGate: (behavior: FireflyMomentBehavior) => boolean = () => true;
 
-/** 注册昔涟行为开关检查（moments-ipc 注入，读取 general settings）。 */
-export function setCyreneBehaviorGate(gate: (behavior: CyreneMomentBehavior) => boolean): void {
-  cyreneBehaviorGate = gate;
+/** 注册流萤行为开关检查（moments-ipc 注入，读取 general settings）。 */
+export function setFireflyBehaviorGate(gate: (behavior: FireflyMomentBehavior) => boolean): void {
+  fireflyBehaviorGate = gate;
 }
 
 /**
  * 角色行为开关（默认全放行，settings 就绪后由 IPC 层注入真实读取）。
- * 与昔涟开关分离：用户可以单独关掉角色互动而保留昔涟反应。
+ * 与流萤开关分离：用户可以单独关掉角色互动而保留流萤反应。
  */
 let characterBehaviorGate: () => boolean = () => true;
 
@@ -197,15 +197,15 @@ export function createUserPost(input: MomentCreatePostInput): Promise<MomentComm
   return enqueue(() => commitCreatePost("user", input));
 }
 
-/** 昔涟发帖：内部通道，不经 IPC（renderer 无法伪造 cyrene 身份）。 */
-export function createCyrenePost(input: {
+/** 流萤发帖：内部通道，不经 IPC（renderer 无法伪造 cyrene 身份）。 */
+export function createFireflyPost(input: {
   title?: string;
   text: string;
   media?: MomentMedia[];
   source?: MomentPostSource;
 }): Promise<MomentCommitResult<MomentPost>> {
   return enqueue(() => {
-    if (!cyreneBehaviorGate("posting")) {
+    if (!fireflyBehaviorGate("posting")) {
       return { applied: false, reason: "moments_disabled" as const };
     }
     const store = requireCache();
@@ -310,8 +310,8 @@ export function createComment(
     if (!isValidAuthor(author)) {
       return { applied: false, reason: "invalid_input" as const };
     }
-    // 昔涟的评论属于反应行为：提交时复核开关，AI 思考期间关闭则拒绝
-    if (author === "cyrene" && !cyreneBehaviorGate("reaction")) {
+    // 流萤的评论属于反应行为：提交时复核开关，AI 思考期间关闭则拒绝
+    if (author === "cyrene" && !fireflyBehaviorGate("reaction")) {
       return { applied: false, reason: "moments_disabled" as const };
     }
     const content = (input.content ?? "").trim();
@@ -381,13 +381,13 @@ export function toggleLike(
 }
 
 /**
- * 昔涟点赞提交（AI 反应通道）：只插入不撤销。
+ * 流萤点赞提交（AI 反应通道）：只插入不撤销。
  * 与用户的 toggleLike 语义不同——AI 决策"点赞"就是点赞，重复提交按唯一性拒绝。
  */
-export function createCyreneLike(postId: string): Promise<MomentCommitResult<{ liked: true }>> {
+export function createFireflyLike(postId: string): Promise<MomentCommitResult<{ liked: true }>> {
   return enqueue(() => {
     const store = requireCache();
-    if (!cyreneBehaviorGate("reaction")) {
+    if (!fireflyBehaviorGate("reaction")) {
       return { applied: false, reason: "moments_disabled" as const };
     }
     if (!store.posts.some((post) => post.id === postId)) {

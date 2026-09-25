@@ -60,8 +60,8 @@ vi.mock("./moments-store", () => ({
   deletePost: vi.fn(),
   createComment: vi.fn(),
   toggleLike: vi.fn(),
-  createCyreneLike: vi.fn(),
-  createCyrenePost: vi.fn(),
+  createFireflyLike: vi.fn(),
+  createFireflyPost: vi.fn(),
   getMomentsMediaRootDir: () => "/moments-media",
 }));
 // worldbook 关键词直查 + 图片校验都 mock 掉，只测 moments 侧接线
@@ -249,11 +249,11 @@ function createFakeStore() {
       applied: true,
       value: { liked: true },
     }),
-    createCyreneLike: async (postId: string): Promise<MomentCommitResult<{ liked: true }>> => {
+    createFireflyLike: async (postId: string): Promise<MomentCommitResult<{ liked: true }>> => {
       state.cyreneLikes.push(postId);
       return { applied: true, value: { liked: true } };
     },
-    createCyrenePost: async (input: {
+    createFireflyPost: async (input: {
       title?: string;
       text: string;
       media?: MomentMedia[];

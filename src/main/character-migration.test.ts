@@ -50,7 +50,7 @@ describe("Firefly character migration", () => {
       "prompts/work_system.md",
       "prompts/learn_system.md",
       "prompts/code_system.md",
-      "prompts/cyrene_harness.md",
+      "prompts/firefly_harness.md",
       "prompts/chat_identity.md",
       "prompts/work_identity.md",
       "prompts/code_identity.md",

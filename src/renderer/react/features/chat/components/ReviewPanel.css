@@ -32,7 +32,7 @@
 }
 .cy-review-panel.is-expanded .cy-review-panel__header {
   border-bottom: 1px solid var(--cy-border, #ece7ea);
-  background: #faf8f9;
+  background: var(--cy-bg-page);
 }
 
 /* 左侧提醒图标（透明底 mascot PNG） */

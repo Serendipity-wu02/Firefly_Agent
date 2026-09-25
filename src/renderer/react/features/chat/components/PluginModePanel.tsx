@@ -17,7 +17,7 @@ interface PluginModePanelProps {
   api?: PluginManagementApi;
 }
 
-// Cyrene 官方插件收录仓库（GitHub 为主，Gitee 为国内镜像），面板内展示并可在系统浏览器打开
+// 兼容的上游第三方插件收录仓库（GitHub 为主，Gitee 为国内镜像），面板内展示并可在系统浏览器打开
 const PLUGIN_REGISTRY_URL = "https://github.com/Playa-0v0/Cyrene-Plugins";
 
 /** 从索引源地址推导展示名：认识的源走 i18n 友好名，其余直接显示主机名 */

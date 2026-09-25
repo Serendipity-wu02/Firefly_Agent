@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { CYRENE_LOGO, CYRENE_LOGO_TEXT } from "./ascii";
+import { FIREFLY_LOGO, FIREFLY_LOGO_TEXT } from "./ascii";
 import { BANNER_LINES, ABOUT_LINES, MIN_BANNER_WIDTH } from "./text";
 import { renderBanner, renderAbout, resolveWidth } from "./render";
 
 describe("ascii", () => {
-  it("CYRENE_LOGO is exactly six non-empty lines", () => {
-    expect(CYRENE_LOGO).toHaveLength(6);
-    for (const line of CYRENE_LOGO) {
+  it("FIREFLY_LOGO is exactly six non-empty lines", () => {
+    expect(FIREFLY_LOGO).toHaveLength(6);
+    for (const line of FIREFLY_LOGO) {
       expect(line.length).toBeGreaterThan(0);
     }
   });
 
-  it("CYRENE_LOGO_TEXT joins with single newlines", () => {
-    expect(CYRENE_LOGO_TEXT.split("\n")).toHaveLength(6);
+  it("FIREFLY_LOGO_TEXT joins with single newlines", () => {
+    expect(FIREFLY_LOGO_TEXT.split("\n")).toHaveLength(6);
   });
 });
 
@@ -21,7 +21,7 @@ describe("render", () => {
     const out = renderBanner({ width: 64 });
     const lines = out.split("\n");
     // 6 logo + 1 blank + 3 box rows (top, 1 line, bottom would be 5 for 3 text lines)
-    expect(lines.slice(0, 6).join("\n")).toBe(CYRENE_LOGO_TEXT);
+    expect(lines.slice(0, 6).join("\n")).toBe(FIREFLY_LOGO_TEXT);
     expect(lines[6]).toBe("");
     // box top
     expect(lines[7].startsWith("╭")).toBe(true);
