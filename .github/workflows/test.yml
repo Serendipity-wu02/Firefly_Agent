@@ -51,4 +51,4 @@ jobs:
 
       # 全量测试：vitest.config.ts 的 include 即权威测试集，新增测试自动纳入门禁
       - name: Run full test suite
-        run: npm test -- --reporter=dot
+        run: ./scripts/ci/run-vitest.ps1
