@@ -68,7 +68,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.7.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.5",
     "cross-env": "^7.0.3",
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
