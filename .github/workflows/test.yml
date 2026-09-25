@@ -50,6 +50,13 @@ jobs:
         run: npm run check:plugin-schema
 
       # 全量测试：vitest.config.ts 的 include 即权威测试集，新增测试自动纳入门禁
+      - name: Select Bash integration test fixture
+        shell: bash
+        run: |
+          bash_path="$(cygpath -w "$BASH")"
+          printf 'FIREFLY_TEST_BASH=%s\n' "$bash_path" >> "$GITHUB_ENV"
+          printf 'Bash integration executable: %s\n' "$bash_path"
+
       - name: Run full test suite
         run: ./scripts/ci/run-vitest.ps1
 

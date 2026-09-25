@@ -19,8 +19,15 @@ for (const method of ["exit", "abort", "kill"]) {
 const originalSpawn = ChildProcess.prototype.spawn;
 ChildProcess.prototype.spawn = function (...args) {
   const result = originalSpawn.apply(this, args);
-  write("child-spawn", { childPid: this.pid, executable: path.basename(args[0].file) });
+  const executable = args[0].file;
+  const isBash = path.basename(executable) === "bash.exe";
+  write("child-spawn", {
+    childPid: this.pid,
+    executable: isBash ? executable : path.basename(executable),
+    ...(isBash ? { phase: args[0].args.at(-1) === "printf firefly-bash-probe" ? "probe" : "command" } : {}),
+  });
   this.on("exit", (code, signal) => write("child-exit", { childPid: this.pid, code, signal }));
+  this.on("close", (code, signal) => write("child-close", { childPid: this.pid, code, signal }));
   return result;
 };
 const originalKill = ChildProcess.prototype.kill;

@@ -41,6 +41,8 @@ npm test
 npm run build
 ```
 
+Windows 上运行真实 Bash 集成测试前，设置 `FIREFLY_TEST_BASH` 为本机实际存在的 Git Bash `bash.exe` 绝对路径。它仅用于测试夹具，不是应用配置；CI 从当前 Git Bash 进程取得此路径。测试仍实际探测并执行 Bash，不会因未配置而跳过。
+
 原生截图助手源码位于 `native/firefly-screenshot/`，通过 `npm run build:screenshot-helper` 构建；这一步另需可用的 Rust/Cargo Windows MSVC 工具链和 Windows C++ 构建依赖。正式本地解包脚本为 `npm run package:win:dir`，但安装器、自动更新和公开发布仍需单独验收，本项目当前不提供下载承诺。
 
 ## 配置外部服务
