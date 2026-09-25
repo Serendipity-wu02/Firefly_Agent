@@ -10,7 +10,7 @@ updates:
       interval: weekly
       day: monday
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0
     groups:
       # 开发依赖的补丁与小版本合并提 PR，减少噪音；生产依赖逐个单独出 PR 便于审查
       dev-dependencies:
@@ -25,4 +25,4 @@ updates:
       interval: weekly
       day: monday
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0

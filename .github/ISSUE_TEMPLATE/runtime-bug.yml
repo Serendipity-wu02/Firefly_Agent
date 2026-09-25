@@ -14,7 +14,7 @@ body:
     id: app-version
     attributes:
       label: 应用版本
-      description: 设置页 / 关于页显示的版本号（如 v1.1.9）
+      description: 设置页 / 关于页显示的版本号（如 v1.1.0）
       placeholder: "v1.x.x"
     validations:
       required: true
@@ -34,8 +34,8 @@ body:
     attributes:
       label: 安装来源
       options:
-        - 仓库源码（git clone + npm install / npm run dev）
-        - 预编译安装包（GitHub Releases 下载的 exe）
+        - 仓库源码（git clone + npm ci / npm run dev）
+        - 本地解包产物（release/win-unpacked）
         - 不确定 / 其他
     validations:
       required: true

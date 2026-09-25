@@ -187,9 +187,10 @@ export function listFeed(options: { limit?: number; before?: number } = {}): Mom
   const before = options.before;
   return store.posts
     .filter((post) => (typeof before === "number" ? post.createdAt < before : true))
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((post, index) => ({ post, index }))
+    .sort((left, right) => right.post.createdAt - left.post.createdAt || right.index - left.index)
     .slice(0, limit)
-    .map((post) => assembleFeedItem(store, post));
+    .map(({ post }) => assembleFeedItem(store, post));
 }
 
 export function getFeedItem(postId: string): MomentFeedItem | null {

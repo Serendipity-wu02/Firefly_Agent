@@ -1,12 +1,9 @@
 name: package-windows
 
-# Windows 安装包构建工作流（治理方案阶段 B）：
+# Firefly_Agent 手动 Windows 安装包构建工作流：
 # - 复用与本地 package:win:dir 相同的构建链（build / build:screenshot-helper /
 #   prepare:mingit），产出 NSIS 安装器并留存为工作流产物
 # - --publish never：只构建不上传到 Releases；当前应用自动更新已禁用
-# - 发布（草稿 Release）待 GitHub 托管恢复后另建独立工作流：仅版本标签触发、
-#   contents:write 最小权限、测试与安装验证通过后建草稿、人工核对再公开。
-#   详见 docs/refactor/2026-09-14-engineering-governance-plan.md 阶段 B
 on:
   workflow_dispatch:
 
@@ -72,7 +69,7 @@ jobs:
         with:
           name: firefly-windows-installer
           path: |
-            release/Firefly-Setup-*.exe
+            release/Firefly_Agent-Setup-*.exe
             release/latest.yml
           if-no-files-found: error
           # 安装器数百 MB，缩短留存时间避免占满产物配额

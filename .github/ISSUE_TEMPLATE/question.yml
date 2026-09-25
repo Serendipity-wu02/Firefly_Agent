@@ -46,7 +46,7 @@ body:
     id: feature
     attributes:
       label: 想用的功能
-      description: 一句话（比如「定时任务」「插件市场」「Live2D 模型切换」）
+      description: 一句话（比如「定时任务」「本地插件安装」「Live2D 模型切换」）
     validations:
       required: true
 

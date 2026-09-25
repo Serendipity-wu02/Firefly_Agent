@@ -11,7 +11,7 @@ afterEach(() => vi.resetAllMocks());
 describe("Firefly tone injection", () => {
   it("uses the same Firefly rules when the external prompt is missing", () => {
     vi.mocked(findPromptPath).mockReturnValue(null);
-    const rules = fs.readFileSync(path.resolve(__dirname, "../../../prompts/tone-rules.md"), "utf8").trim();
+    const rules = fs.readFileSync(path.resolve(__dirname, "../../../prompts/tone-rules.md"), "utf8").replace(/\r\n/g, "\n").trim();
     expect(buildToneInjection()).toBe("## 语气规则\n\n" + rules);
     expect(rules).toContain("共同经历只能依据当前对话或有效用户记忆");
     expect(rules).toContain("可以分点、解释和总结");

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const settingsMarkup = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const settingsStyles = readFileSync(new URL("../settings.css", import.meta.url), "utf8");
-const themeStyles = readFileSync(new URL("../../ui/theme.css", import.meta.url), "utf8");
+const themeStyles = readFileSync(new URL("../../ui/theme.css", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const translations = JSON.parse(readFileSync(new URL("../i18n/zh-CN.json", import.meta.url), "utf8")) as {
   settings: { panel: { user: { callPrefPlaceholder: string } } };
 };

@@ -43,6 +43,23 @@ describe("moments store", () => {
     expect(feed[0].post.createdAt).toBeGreaterThanOrEqual(feed[1].post.createdAt);
   });
 
+  it("同一毫秒创建的动态按写入顺序倒序展示", async () => {
+    const store = await freshStore();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1790346014461);
+    try {
+      const first = await store.createUserPost({ text: "第一条" });
+      const second = await store.createUserPost({ text: "第二条" });
+      expect(first.applied).toBe(true);
+      expect(second.applied).toBe(true);
+      expect(store.listFeed().map(({ post }) => post.id)).toEqual([
+        second.applied ? second.value.id : "",
+        first.applied ? first.value.id : "",
+      ]);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("拒绝空动态、超长文本、超量图片、非法 MIME 与超大图片", async () => {
     const store = await freshStore();
 
