@@ -1752,7 +1752,7 @@ void loadChannelsPanel();
 
 
 
-// ── 网易云折叠卡片状态已移除：外部不显示具体连接状态，只在音乐面板内可见 ──
+// ── QQ Music 状态在音乐面板内展示 ──
 
 // 启动时读 URL hash 决定初始标签（main 通过 loadURL 带 #api 实现"切换模型按钮跳 API"）。
 // 无 hash 默认 general。

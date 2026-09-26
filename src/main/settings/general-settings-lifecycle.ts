@@ -8,6 +8,7 @@ import { updateLocaleContext } from "../locale-context";
 import { validateSearchApiKey } from "../orchestrator/search-backend-filter";
 import { addMcpServer, listMcpServers, removeMcpServer } from "../orchestrator/mcp-manager";
 import { getAppIconPath } from "../app-icon";
+import { loadTrayIcon } from "../tray-icon";
 import { syncBuiltInToolToggles } from "../orchestrator/tools/registry/tool-registration";
 import { loadModelSettings, getPublicModelConfig } from "./model-settings";
 import type { GeneralSettings } from "./general-settings";
@@ -52,7 +53,7 @@ export function applyUiIcon(iconSetting: UiIcon, deps: GeneralSettingsLifecycleD
     console.warn("[Firefly] failed to load selected app icon:", iconSetting);
     return;
   }
-  deps.tray?.setImage(icon);
+  deps.tray?.setImage(loadTrayIcon());
   deps.windowManager?.setIconForAllWindows(icon);
 }
 

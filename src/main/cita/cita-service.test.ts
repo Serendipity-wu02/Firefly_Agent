@@ -149,7 +149,7 @@ describe("CitaService", () => {
   });
 
   it("reports the number of supporting contexts in the CITA trace", async () => {
-    vi.stubEnv("CYRENE_DEBUG_LOGS", "1");
+    vi.stubEnv("FIREFLY_DEBUG_LOGS", "1");
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
       const service = createService({ understandTurn: vi.fn(async () => validUnderstanding) });
@@ -180,7 +180,7 @@ describe("CitaService", () => {
   });
 
   it("emits a readable prepare and result trace", async () => {
-    vi.stubEnv("CYRENE_DEBUG_LOGS", "1");
+    vi.stubEnv("FIREFLY_DEBUG_LOGS", "1");
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
       const service = createService({ understandTurn: vi.fn(async () => validUnderstanding) });

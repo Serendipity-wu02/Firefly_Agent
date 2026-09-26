@@ -14,14 +14,14 @@ describe("Firefly Moments personas", () => {
     const registry = loadCharacterPersonas({ promptDirectories });
 
     expect([...registry.keys()].sort()).toEqual([...supportedNames].sort());
-    expect(registry.get("卡芙卡")?.assetFileName).toBe("卡夫卡.png");
+    expect(registry.get("卡芙卡")?.assetFileName).toBe("卡芙卡.png");
     expect(registry.get("卡芙卡")?.personaText).toContain("格拉默覆灭后");
     expect(registry.get("银狼")?.personaText).toContain("入梦池");
     expect(registry.get("帕姆")?.personaText).toContain("列车长");
     expect(registry.get("知更鸟")?.headerText).toContain("当前用户的互动只能依据眼前动态");
     for (const persona of registry.values()) {
       expect(persona.personaText).toContain(persona.nickname);
-      expect(fs.existsSync(path.join(process.cwd(), "src", "renderer", "tast", persona.assetFileName))).toBe(true);
+      expect(fs.existsSync(path.join(process.cwd(), "src", "renderer", "assets", "task-portraits", persona.assetFileName))).toBe(true);
     }
   });
 

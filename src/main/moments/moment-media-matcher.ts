@@ -51,8 +51,9 @@ export function buildMomentImageQuery(
  * id 两边都查不到（已删除的贴图）返回 null——调用方降级纯文字。
  */
 export function resolveMomentStickerMedia(stickerId: string): MomentMedia | null {
+  const meta = loadUserStickerManifest()[stickerId];
   const builtInFile = BUILT_IN_STICKER_FILES[stickerId];
-  if (builtInFile) {
+  if (builtInFile && !meta) {
     return {
       id: `media_sticker_${stickerId}`,
       type: "image",
@@ -61,7 +62,6 @@ export function resolveMomentStickerMedia(stickerId: string): MomentMedia | null
     };
   }
 
-  const meta = loadUserStickerManifest()[stickerId];
   if (meta?.file) {
     return {
       id: `media_sticker_${stickerId}`,

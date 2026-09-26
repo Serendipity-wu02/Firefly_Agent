@@ -19,7 +19,7 @@
 //   - 如果将来发现 safeStorage 不可用且用户在意安全，加一个设置项让他们输口令加密
 import * as fs from "fs";
 import { writeMigratedJson } from "../migration/firefly-data";
-import { LEGACY_CHANNEL_SECRET_SUFFIX } from "../../shared/legacy-firefly-contracts";
+import { decryptLegacyChannelSecret } from "../migration/channel-credentials";
 import * as path from "path";
 import { app, safeStorage } from "electron";
 import type { ChannelId } from "./types";
@@ -50,8 +50,8 @@ function isSafeStorageAvailable(): boolean {
 
 /** 机器指纹 XOR 混淆 key —— 不抗逆向但保证 round-trip。
  *  用 userData 绝对路径 + 包名做 SHA256 → 16 字节。 */
-function getMachineKey(legacy = false): Buffer {
-  const seed = `${app.getPath("userData")}::${app.getName()}::${legacy ? LEGACY_CHANNEL_SECRET_SUFFIX : "firefly-bot-secret"}`;
+function getMachineKey(): Buffer {
+  const seed = `${app.getPath("userData")}::${app.getName()}::firefly-bot-secret`;
   // 用 node 内置 crypto（避免依赖冲突）
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { createHash } = require("crypto") as typeof import("crypto");
@@ -72,9 +72,9 @@ function obfuscate(plain: string): string {
 
 /** XOR 解混淆（必须和 obfuscate 用同一台机器 —— key 派生自 userData 路径）。 */
 function deobfuscate(stored: string): string {
-  const legacy = stored.startsWith("obf:");
-  const key = getMachineKey(legacy);
-  const b64 = stored.slice(legacy ? 4 : OBF_PREFIX.length);
+  if (stored.startsWith("obf:")) return decryptLegacyChannelSecret(stored, app.getPath("userData"), app.getName());
+  const key = getMachineKey();
+  const b64 = stored.slice(OBF_PREFIX.length);
   const buf = Buffer.from(b64, "base64");
   const out = Buffer.alloc(buf.length);
   for (let i = 0; i < buf.length; i++) {

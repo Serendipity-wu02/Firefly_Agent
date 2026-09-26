@@ -1,60 +1,8 @@
+import { FIREFLY_STICKERS } from "./firefly-stickers";
 // 表情包系统的共享类型（main / renderer 共用）
 
 /** 内置表情包 ID 列表（用于渲染端判断来源） */
-export const BUILT_IN_STICKER_IDS = [
-  "playful",
-  "love-happy",
-  "confident",
-  "serious",
-  "calm",
-  "peek",
-  "clingy-confused",
-  "love-calm",
-  "HI",
-  "hello",
-  "goodmoring1",
-  "goodnight",
-  "teatime",
-  "eating",
-  "Allset",
-  "OK",
-  "copythat",
-  "Thumbsup",
-  "awesome",
-  "sogood",
-  "sonice",
-  "fighting",
-  "hellyeah",
-  "Thanks",
-  "foryou",
-  "blushhard",
-  "shyshort",
-  "hmph",
-  "hugtight",
-  "Airkiss",
-  "Gigglelots",
-  "thinking",
-  "putmd",
-  "Whatswrong",
-  "midmeh",
-  "awkward",
-  "Madnow",
-  "Hurtcry",
-  "Sobbinghard",
-  "weeploud",
-  "PanincCrying",
-  "missme",
-  "Free",
-  "Dreak",
-  "outfast",
-  "Vcayover",
-  "sleepynow",
-  "deadtired",
-  "sotired",
-  "giveup",
-  "poorwallet",
-  "please",
-] as const;
+export const BUILT_IN_STICKER_IDS = FIREFLY_STICKERS.map(sticker => sticker.id);
 
 /** 内置 sticker ID 的 union 类型 */
 export type BuiltInStickerId = (typeof BUILT_IN_STICKER_IDS)[number];
@@ -82,3 +30,10 @@ export interface StickerConfigItem {
 
 /** 表情包大小 */
 export type StickerSize = "small" | "standard" | "large";
+
+export interface StickerManagerApi {
+  minimize: () => void;
+  close: () => void;
+  getConfig: () => Promise<StickerConfigItem[]>;
+  setEnabled: (id: string, enabled: boolean) => Promise<StickerConfigItem[]>;
+}

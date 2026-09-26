@@ -18,7 +18,7 @@ describe("perf trace visibility", () => {
   });
 
   it("restores performance timing when debug logging is enabled", () => {
-    vi.stubEnv("CYRENE_DEBUG_LOGS", "1");
+    vi.stubEnv("FIREFLY_DEBUG_LOGS", "1");
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     perf.beginTurn("test");

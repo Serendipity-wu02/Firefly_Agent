@@ -50,7 +50,7 @@ within this project, including but not limited to:
 under the creator's terms, please respect miHoYo / HoYoverse's fan policy
 that the underlying character IP ("Cyrene / 昔涟" from
 *Honkai: Star Rail*) may **not** be used for commercial purposes.
-See the [README § Disclaimer](./README.md#-disclaimer--免责声明) for
+See the [README § Disclaimer](./README.md) for
 details.
 
 模型作者已**完全授权**本项目对本模型进行使用、修改、再分发和衍生
@@ -66,7 +66,7 @@ details.
 **非商用条款**：尽管模型本身可在作者条款下自由使用，请同时遵守
 米哈游 / HoYoverse 的同人创作规范 —— 底层角色 IP（《崩坏：星穹铁道》
 "昔涟"）**不得用于任何商业用途**。详见
-[README § 免责声明](./README.md#-disclaimer--免责声明)。
+[README § 免责声明](./README.md)。
 
 ---
 

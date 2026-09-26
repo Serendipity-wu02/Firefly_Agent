@@ -3,7 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ensureFireflyDataDirectory, ensureFireflyExportManifest, migrateFireflyDataOnStartup, writeMigratedJson } from "./firefly-data";
-import { fireflyEnvironment, normalizeFireflyEvent, normalizeFireflyFields, normalizeStoredMoment, readFireflyStorage } from "../../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../../shared/firefly-environment";
+import { normalizeFireflyEvent, normalizeFireflyFields, normalizeStoredMoment, readFireflyStorage } from "../../shared/legacy-firefly-contracts";
 import { parsePanelMessage } from "../../renderer/settings/panel-bridge-protocol";
 import { FileToolOutputStore } from "../orchestrator/harness/tool-output/file-tool-output-store";
 
@@ -41,7 +42,7 @@ describe("legacy Firefly data migration", () => {
   });
   it("prioritizes current environment and preserves legacy browser preferences", () => {
     expect(fireflyEnvironment({ FIREFLY_PERF_HARNESS: "0", CYRENE_PERF_HARNESS: "1" }, "FIREFLY_PERF_HARNESS")).toBe("0");
-    expect(fireflyEnvironment({ CYRENE_HOME: "legacy-home" }, "FIREFLY_HOME")).toBe("legacy-home");
+    expect(fireflyEnvironment({ CYRENE_HOME: "legacy-home" }, "FIREFLY_HOME")).toBeUndefined();
     const values = new Map([["cyrene.rag.model", "bgem3"]]);
     const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
     expect(readFireflyStorage(storage, "firefly.rag.model")).toBe("bgem3");
@@ -73,8 +74,8 @@ describe("legacy Firefly data migration", () => {
     writeMigratedJson(file, { cyreneFeeling: "quiet" }, { fireflyFeeling: "quiet" });
     expect(JSON.parse(fs.readFileSync(file, "utf8"))).toEqual({ fireflyFeeling: "quiet" });
   });
-  it("accepts only the supported legacy panel version", () => {
-    expect(parsePanelMessage({ protocol: "cyrene-panel/1", kind: "invoke", seq: 1, channel: "snapshot", args: [] })).toMatchObject({ protocol: "cyrene-panel/1", seq: 1 });
+  it("rejects retired panel protocol versions", () => {
+    expect(parsePanelMessage({ protocol: "cyrene-panel/1", kind: "invoke", seq: 1, channel: "snapshot", args: [] })).toBeNull();
     expect(parsePanelMessage({ protocol: "cyrene-panel/2", kind: "invoke", seq: 1, channel: "snapshot", args: [] })).toBeNull();
   });
   it.each(["chats", "runs", "tasks"] as const)("copies %s once and preserves original IDs and backup", (kind) => {

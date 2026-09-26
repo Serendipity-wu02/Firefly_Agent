@@ -26,7 +26,6 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { protocol } from "electron";
-import { LEGACY_PANEL_RESOURCE_SEGMENT, LEGACY_PANEL_BRIDGE_ALIAS, LEGACY_PANEL_SCHEME } from "../shared/legacy-firefly-contracts";
 
 const PLUGIN_PANEL_SCHEME = "firefly-plugin";
 /** URL 第一段命中该保留段时不读插件目录，改由宿主资产目录应答。 */
@@ -149,7 +148,7 @@ export async function resolvePluginPanelRequest(
   } catch {
     return NOT_FOUND;
   }
-  if (url.protocol !== `${PLUGIN_PANEL_SCHEME}:` && url.protocol !== `${LEGACY_PANEL_SCHEME}:`) return NOT_FOUND;
+  if (url.protocol !== `${PLUGIN_PANEL_SCHEME}:`) return NOT_FOUND;
 
   const rawSegments = url.pathname.split("/");
   // 合法请求的 pathname 必须以 / 开头（split 后首段为空）
@@ -163,12 +162,9 @@ export async function resolvePluginPanelRequest(
   if (segments.length === 0) return NOT_FOUND;
 
   // 保留路径：只从宿主资产目录应答，永不读取插件目录
-  if (segments[0] === RESERVED_SEGMENT || segments[0] === LEGACY_PANEL_RESOURCE_SEGMENT) {
+  if (segments[0] === RESERVED_SEGMENT) {
     if (!PLUGIN_ID_RE.test(url.hostname) || !query(url.hostname)) return NOT_FOUND;
     const response = await serveFileFromRoot(assetsRoot, segments.slice(1));
-    if (response.status === 200 && segments[0] === LEGACY_PANEL_RESOURCE_SEGMENT && segments.length === 2 && segments[1] === "panel-bridge.js") {
-      return { ...response, body: Buffer.concat([response.body, Buffer.from(`\n${LEGACY_PANEL_BRIDGE_ALIAS}`)]) };
-    }
     return response;
   }
 
@@ -182,7 +178,7 @@ export async function resolvePluginPanelRequest(
 
 /** 应用入口模块顶层调用（app.ready 之前）：注册 scheme 特权。 */
 export function registerPluginPanelScheme(): void {
-  protocol.registerSchemesAsPrivileged([PLUGIN_PANEL_SCHEME, LEGACY_PANEL_SCHEME].map((scheme) => (
+  protocol.registerSchemesAsPrivileged([PLUGIN_PANEL_SCHEME].map((scheme) => (
     {
       scheme,
       // 最小权限：standard 支持面板内相对资源解析（./xxx.js）；secure 获得
@@ -196,7 +192,7 @@ export function registerPluginPanelScheme(): void {
 export function installPluginPanelProtocol(query: PluginPanelAccessQuery): void {
   // 宿主资产（panel-bridge.js 等）随构建复制到 dist/main/plugin-panel/
   const assetsRoot = path.join(__dirname, "plugin-panel");
-  for (const scheme of [PLUGIN_PANEL_SCHEME, LEGACY_PANEL_SCHEME]) protocol.handle(scheme, async (request) => {
+  for (const scheme of [PLUGIN_PANEL_SCHEME]) protocol.handle(scheme, async (request) => {
     const result = await resolvePluginPanelRequest(request.url, query, assetsRoot);
     if (result.status === 404) {
       return new Response(null, { status: 404 });

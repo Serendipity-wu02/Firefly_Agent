@@ -133,6 +133,9 @@ export function downgradeToCapability(
 /** 将表情包编号解析为可由渠道适配器读取的本地绝对路径。 */
 export function resolveStickerImagePath(stickerId: string): string | null {
   if (!stickerId) return null;
+  const manifest = loadUserStickerManifest();
+  const metadata = manifest[stickerId];
+  if (metadata) return resolveLocalStickerPath(getStickersDir(), metadata.file);
 
   if ((BUILT_IN_STICKER_IDS as readonly string[]).includes(stickerId)) {
     const file = BUILT_IN_STICKER_FILES[stickerId];
@@ -148,10 +151,7 @@ export function resolveStickerImagePath(stickerId: string): string | null {
     return null;
   }
 
-  const manifest = loadUserStickerManifest();
-  const metadata = manifest[stickerId];
-  if (!metadata) return null;
-  return resolveLocalStickerPath(getStickersDir(), metadata.file);
+  return null;
 }
 
 export function createOutgoingComposer(

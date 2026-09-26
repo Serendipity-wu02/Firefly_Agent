@@ -1073,4 +1073,4 @@ export function registerAgUiIpc(
     return result;
   });
 }
-import { fireflyEnvironment } from "../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../shared/firefly-environment";

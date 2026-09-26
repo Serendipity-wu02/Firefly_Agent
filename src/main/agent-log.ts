@@ -25,4 +25,4 @@ export function summarizeObjective(value: string, maxLength = 80): string {
   const compact = value.replace(/\s+/g, " ").trim();
   return compact.length <= maxLength ? compact : `${compact.slice(0, maxLength - 1)}…`;
 }
-import { fireflyEnvironment } from "../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../shared/firefly-environment";

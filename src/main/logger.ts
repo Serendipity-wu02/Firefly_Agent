@@ -10,7 +10,7 @@
 import { setLogLevel, type LogLevel } from "../shared/logger";
 import { logger } from "../shared/logger";
 import { installFileLogSink } from "./log-sink-file";
-import { fireflyEnvironment } from "../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../shared/firefly-environment";
 
 function resolveDefaultLevel(): LogLevel {
   // env wins

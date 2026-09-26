@@ -1600,16 +1600,16 @@ describe("createMomentsMediaMatcher 具体闭包", () => {
 
   it("provider 与贴图索引就绪且达阈值时产出内置贴图媒体", async () => {
     mocks.getEmbeddingProvider.mockReturnValue(provider);
-    registerMomentsMediaMatcher({ getStickerIndex: () => [{ id: "sleepynow", embedding: [1, 0] }] });
+    registerMomentsMediaMatcher({ getStickerIndex: () => [{ id: "firefly-sleepy", embedding: [1, 0] }] });
     mocks.loadModelSettings.mockReturnValue({ stickerSimilarityThreshold: 0.55 });
 
     const media = await createMomentsMediaMatcher()("深夜好困");
 
     expect(media).toEqual({
-      id: "media_sticker_sleepynow",
+      id: "media_sticker_firefly-sleepy",
       type: "image",
       origin: "character_asset",
-      ref: "stickers/sleepynow.jpg",
+      ref: "stickers/sleepy.png",
     });
   });
 
@@ -1629,7 +1629,7 @@ describe("createMomentsMediaMatcher 具体闭包", () => {
   });
 
   it("embedding provider 未就绪时降级 null", async () => {
-    registerMomentsMediaMatcher({ getStickerIndex: () => [{ id: "sleepynow", embedding: [1, 0] }] });
+    registerMomentsMediaMatcher({ getStickerIndex: () => [{ id: "firefly-sleepy", embedding: [1, 0] }] });
 
     expect(await createMomentsMediaMatcher()("深夜")).toBeNull();
   });
@@ -1642,7 +1642,7 @@ describe("createMomentsMediaMatcher 具体闭包", () => {
 
   it("最高分低于设置阈值时降级 null", async () => {
     mocks.getEmbeddingProvider.mockReturnValue(provider);
-    registerMomentsMediaMatcher({ getStickerIndex: () => [{ id: "sleepynow", embedding: [0, 1] }] });
+    registerMomentsMediaMatcher({ getStickerIndex: () => [{ id: "firefly-sleepy", embedding: [0, 1] }] });
     mocks.loadModelSettings.mockReturnValue({ stickerSimilarityThreshold: 0.55 });
 
     expect(await createMomentsMediaMatcher()("深夜")).toBeNull();

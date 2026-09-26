@@ -4,6 +4,7 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EmbeddingProvider } from "./rag/embedding";
 import { buildCachedStickerEmbeddingIndex } from "./sticker-embedding-cache";
+import { BUILT_IN_STICKER_DESCRIPTIONS } from "./sticker-descriptions";
 
 const { identity } = vi.hoisted(() => ({
   identity: {
@@ -58,6 +59,22 @@ describe("sticker embedding cache", () => {
 
     expect(second).toEqual(first);
     expect(secondProvider.embedBatch).not.toHaveBeenCalled();
+  });
+
+  it("replaces retired built-in vectors while preserving custom entries and unrelated files", async () => {
+    const custom = { "user-public": { phrases: ["公开自定义贴图"] } };
+    await buildCachedStickerEmbeddingIndex(provider(), { playful: { phrases: ["旧描述"] } }, custom, dir);
+    fs.writeFileSync(path.join(dir, "unrelated-vector.json"), "public-sentinel");
+    const updated = provider();
+    const result = await buildCachedStickerEmbeddingIndex(updated, BUILT_IN_STICKER_DESCRIPTIONS, custom, dir);
+    expect(result).toHaveLength(22);
+    expect(result.some(entry => entry.id === "playful")).toBe(false);
+    expect(result.some(entry => entry.id === "user-public")).toBe(true);
+    expect(updated.embedBatch).toHaveBeenCalledOnce();
+    const reused = provider();
+    expect(await buildCachedStickerEmbeddingIndex(reused, BUILT_IN_STICKER_DESCRIPTIONS, custom, dir)).toEqual(result);
+    expect(reused.embedBatch).not.toHaveBeenCalled();
+    expect(fs.readFileSync(path.join(dir, "unrelated-vector.json"), "utf8")).toBe("public-sentinel");
   });
 
   it("invalidates the sticker embedding cache when phrases change", async () => {

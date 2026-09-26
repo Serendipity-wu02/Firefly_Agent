@@ -55,11 +55,11 @@ describe("resolveMomentStickerMedia", () => {
   });
 
   it("内置贴图解析为 public 相对路径（渲染端 resolveAsset 消费）", () => {
-    expect(resolveMomentStickerMedia("sleepynow")).toEqual({
-      id: "media_sticker_sleepynow",
+    expect(resolveMomentStickerMedia("firefly-sleepy")).toEqual({
+      id: "media_sticker_firefly-sleepy",
       type: "image",
       origin: "character_asset",
-      ref: "stickers/sleepynow.jpg",
+      ref: "stickers/sleepy.png",
     });
   });
 

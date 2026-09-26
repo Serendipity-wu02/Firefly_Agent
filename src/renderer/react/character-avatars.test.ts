@@ -4,6 +4,10 @@ import { getCharacterPortraitByAssetFileName } from "./character-portraits";
 import { getCharacterAvatar } from "./character-avatars";
 
 describe("Moments character avatars", () => {
+  it("reads the old stored Kafka filename without changing historical records", () => {
+    expect(getCharacterPortraitByAssetFileName("卡夫卡.png")).toBe(getCharacterPortraitByAssetFileName("卡芙卡.png"));
+    expect(TASK_CHARACTERS.find(character => character.nickname === "卡芙卡")?.assetFileName).toBe("卡芙卡.png");
+  });
   it("uses the confirmed task portrait for every current character", () => {
     for (const character of TASK_CHARACTERS) {
       expect(getCharacterAvatar(character.nickname)).not.toBeNull();

@@ -69,7 +69,7 @@ Windows 上运行真实 Bash 集成测试前，设置 `FIREFLY_TEST_BASH` 为本
 | `native/firefly-screenshot/`、`scripts/` | 原生截图助手源码及构建、验证脚本 |
 | `docs/architecture/`、`docs/migration/` | 当前运行结构与迁移验证记录 |
 
-当前分层与兼容边界见 [架构说明](./docs/architecture/firefly-runtime.md)。不接入尚未开发的 Jev/DecisionProvider，也不加入第二套 Agent Loop。
+当前资料与历史记录从 [文档导航](./docs/README.md) 分开访问；分层与兼容边界见 [架构说明](./docs/architecture/firefly-runtime.md)。不接入尚未开发的 Jev/DecisionProvider，也不加入第二套 Agent Loop。
 
 ## 贡献与分支
 

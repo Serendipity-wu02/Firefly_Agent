@@ -128,4 +128,4 @@ export function dumpResponse(traceId: string, meta: DumpResponseMeta): void {
   };
   writeFile(folder, `${traceId}_res.json`, payload);
 }
-import { fireflyEnvironment } from "../../../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../../../shared/firefly-environment";

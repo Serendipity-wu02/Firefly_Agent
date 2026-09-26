@@ -77,5 +77,5 @@ export function writeState(s: StateFile): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(s, null, 2) + "\n", "utf8");
 }
-import { fireflyEnvironment } from "../../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../../shared/firefly-environment";
 import { LEGACY_INTERNAL_DIRECTORY } from "../../shared/legacy-firefly-contracts";

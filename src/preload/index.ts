@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { normalizeFireflyEvent, LEGACY_WINDOW_API_NAMES } from "../shared/legacy-firefly-contracts";
+import { normalizeFireflyEvent } from "../shared/legacy-firefly-contracts";
 import { IPC } from "../shared/ipc-channels";
 import type { QqListenAuthRequirement } from "../shared/qq-listen";
 import type { ApprovalRequest, ApprovalSettledPayload } from "../shared/permission-approval";
@@ -122,7 +122,6 @@ const chatApi = {
 };
 
 contextBridge.exposeInMainWorld("firefly", fireflyApi);
-contextBridge.exposeInMainWorld(LEGACY_WINDOW_API_NAMES.firefly, fireflyApi);
 contextBridge.exposeInMainWorld("appUpdate", appUpdateApi);
 contextBridge.exposeInMainWorld("chat", chatApi);
 
@@ -311,7 +310,6 @@ const fireflyThemeApi = {
 };
 
 contextBridge.exposeInMainWorld("fireflyTheme", fireflyThemeApi);
-contextBridge.exposeInMainWorld(LEGACY_WINDOW_API_NAMES.fireflyTheme, fireflyThemeApi);
 
 const fireflyWindowAppearanceApi = {
   getCornerRadius: () =>
@@ -324,7 +322,6 @@ const fireflyWindowAppearanceApi = {
 };
 
 contextBridge.exposeInMainWorld("fireflyWindowAppearance", fireflyWindowAppearanceApi);
-contextBridge.exposeInMainWorld(LEGACY_WINDOW_API_NAMES.fireflyWindowAppearance, fireflyWindowAppearanceApi);
 
 const fireflyFontApi = {
   get: () => ipcRenderer.invoke(IPC.UI_FONT_GET) as Promise<UiFont>,
@@ -336,7 +333,6 @@ const fireflyFontApi = {
 };
 
 contextBridge.exposeInMainWorld("fireflyFont", fireflyFontApi);
-contextBridge.exposeInMainWorld(LEGACY_WINDOW_API_NAMES.fireflyFont, fireflyFontApi);
 
 const fireflyAppearanceApi = {
   get: async () => {
@@ -355,7 +351,6 @@ const fireflyAppearanceApi = {
 };
 
 contextBridge.exposeInMainWorld("fireflyAppearance", fireflyAppearanceApi);
-contextBridge.exposeInMainWorld(LEGACY_WINDOW_API_NAMES.fireflyAppearance, fireflyAppearanceApi);
 
 const settingsApi = {
   minimize: () => ipcRenderer.send(IPC.SETTINGS_MINIMIZE),
@@ -573,7 +568,6 @@ const schedulerApi = {
 };
 
 contextBridge.exposeInMainWorld("fireflyScheduler", schedulerApi);
-contextBridge.exposeInMainWorld(LEGACY_WINDOW_API_NAMES.fireflyScheduler, schedulerApi);
 
 const stickerManagerApi = {
 	  minimize: () => ipcRenderer.send(IPC.STICKERS_MINIMIZE),

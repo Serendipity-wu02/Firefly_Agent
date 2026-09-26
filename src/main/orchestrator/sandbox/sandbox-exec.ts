@@ -429,4 +429,4 @@ export async function resetSandbox(): Promise<void> {
     // 退出时忽略
   }
 }
-import { fireflyEnvironment } from "../../../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../../../shared/firefly-environment";

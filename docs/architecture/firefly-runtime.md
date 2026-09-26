@@ -37,7 +37,7 @@
 
 当前插件开发入口为 [插件开发指南](../plugins/plugin-dev-guide.md) 和 [接口规范](../plugins/plugin-authoring.md)，不再使用旧市场施工方案。SDK 为本地构建产物，不宣称存在已发布的新 npm 包或官方市场。插件注册、停用和资源清理由现有 `src/plugins/`、`src/main/plugin-host/` 与 `src/main/plugin-runtime.ts` 负责；更名不开放权限决策或替换运行循环。
 
-面板使用 `firefly-plugin`、`firefly-panel/1` 与 `FireflyPanel`。来源窗口、origin、版本、启用状态和资源真实路径校验继续有效；旧协议只在集中适配器接收，不双发事件。
+面板使用 `firefly-plugin`、`firefly-panel/1` 与 `FireflyPanel`。来源窗口、origin、版本、启用状态和资源真实路径校验继续有效；已移除旧面板协议、scheme 与桥别名；历史数据规范化仍由独立迁移入口完成，不双发事件。
 
 朋友圈通过 `moments-policy.ts`、`moments-service.ts`、`moments-store.ts`、`character-personas.ts` 及现有 Renderer 面板运行。角色资料与任务执行职责分开。当前默认开关以 `settings-facade.ts` 为准；迁移不得因字段更名改变用户已经保存的开关。用户发帖身份由 Main 决定，不能由 Renderer 提交角色身份来冒充角色。旧角色社交示例和旧名单不再作为当前实现依据。
 

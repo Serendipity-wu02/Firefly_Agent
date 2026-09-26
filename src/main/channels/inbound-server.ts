@@ -36,7 +36,7 @@ export function registerInboundRoute(channel: ChannelId, normalize: NormalizeFn)
 /** 内部：检查共享密钥（仅当 secret 已设置时强制校验） */
 function checkSecret(req: http.IncomingMessage, secret: string): boolean {
   if (!secret) return true; // 未启用时不校验
-  const got = req.headers["x-firefly-channel-secret"] ?? req.headers[LEGACY_CHANNEL_HEADER];
+  const got = req.headers["x-firefly-channel-secret"];
   if (typeof got !== "string") return false;
   const expected = Buffer.from(secret, "utf8");
   const actual = Buffer.from(got, "utf8");
@@ -247,4 +247,3 @@ export async function stopInboundServer(): Promise<void> {
 export function signPayload(payload: string, secret: string): string {
   return createHmac("sha256", secret).update(payload).digest("hex");
 }
-import { LEGACY_CHANNEL_HEADER } from "../../shared/legacy-firefly-contracts";

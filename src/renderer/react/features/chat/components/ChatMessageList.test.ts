@@ -23,6 +23,13 @@ import { assembleMessageItems, createMessageItems, formatChannelSourceLabel, Mar
 import { extractMessageStickerId, stripMessageStickerMarkers } from "./message-sticker";
 
 describe("React chat sticker messages", () => {
+  it("marks a retired sticker unavailable without rewriting stored text", () => {
+    const message: ChatMessageItem = { id: "public-history", role: "user", content: "公开正文 [sticker:hugtight]" };
+    const [item] = createMessageItems([message], []);
+    expect(item.content).toBe("公开正文");
+    expect(item.extraInfo).toMatchObject({ stickerUnavailable: "表情包已下架" });
+    expect(message.content).toBe("公开正文 [sticker:hugtight]");
+  });
   it("extracts a persisted user sticker marker and hides the raw marker", () => {
     expect(extractMessageStickerId("[sticker:hugtight]")).toBe("hugtight");
     expect(stripMessageStickerMarkers("[sticker:hugtight]")).toBe("");

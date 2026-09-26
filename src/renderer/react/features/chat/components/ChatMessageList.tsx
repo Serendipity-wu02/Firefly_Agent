@@ -1,3 +1,6 @@
+import { FIREFLY_STICKERS } from "../../../../../shared/firefly-stickers";
+import { isRetiredStickerId } from "../../../../../shared/retired-stickers";
+import { StickerImage } from "./StickerImage";
 import { Bubble, Think, ThoughtChain, type BubbleItemType } from "@ant-design/x";
 import { Component, createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ErrorInfo, type KeyboardEvent, type ReactNode } from "react";
 import { t, useTranslation } from "../../../i18n";
@@ -228,7 +231,9 @@ interface EnabledSticker {
 export type { EnabledSticker };
 
 function resolveStickerUrl(id: string, stickers: readonly EnabledSticker[]): string | undefined {
-  const raw = stickers.find((sticker) => sticker.id === id)?.src;
+  const builtIn = FIREFLY_STICKERS.find(sticker => sticker.id === id);
+  const raw = stickers.find((sticker) => sticker.id === id)?.src
+    ?? (builtIn ? `/stickers/${builtIn.file}` : undefined);
   if (!raw) return undefined;
   return raw.startsWith("/stickers/") ? resolveAsset(raw) : raw;
 }
@@ -237,18 +242,19 @@ function AssistantContent({
   content,
   streaming,
   stickerUrl,
+  stickerUnavailable,
   channelSource,
 }: {
   content: string;
   streaming: boolean;
-  stickerUrl?: string;
+  stickerUrl?: string; stickerUnavailable?: string;
   channelSource?: ChatMessageChannelSource;
 }) {
   return (
     <div className="cy-message__assistant-body">
       {channelSource && <ChannelSourceLabel source={channelSource} direction="outgoing" />}
       {content && <MarkdownContent content={content} streaming={streaming} />}
-      {stickerUrl && <img className="cy-message__sticker" src={stickerUrl} alt={t("messageList.assistantStickerAlt")} draggable={false} />}
+      <StickerImage src={stickerUrl} unavailable={stickerUnavailable} alt={t("messageList.assistantStickerAlt")} className="cy-message__sticker" />
     </div>
   );
 }
@@ -770,11 +776,12 @@ function AttachmentImage({ attachment }: { attachment: ChatMessageAttachment }) 
 function UserContent({
   content,
   stickerUrl,
+  stickerUnavailable,
   attachments = [],
   channelSource,
 }: {
   content: string;
-  stickerUrl?: string;
+  stickerUrl?: string; stickerUnavailable?: string;
   attachments?: ChatMessageAttachment[];
   channelSource?: ChatMessageChannelSource;
 }) {
@@ -784,7 +791,7 @@ function UserContent({
       {channelSource && <ChannelSourceLabel source={channelSource} direction="incoming" />}
       <UserAttachments attachments={attachments} />
       {content && <MarkdownContent content={content} />}
-      {stickerUrl && <img className="cy-message__sticker" src={stickerUrl} alt={t("messageList.userStickerAlt")} draggable={false} />}
+      <StickerImage src={stickerUrl} unavailable={stickerUnavailable} alt={t("messageList.userStickerAlt")} className="cy-message__sticker" />
     </div>
   );
 }
@@ -867,7 +874,7 @@ function createRoles(
     variant: "filled" as const,
     rootClassName: "cy-message cy-message--user",
     avatar: <UserMessageAvatar src={userAvatarUrl} />,
-    contentRender: (content: string, info: { extraInfo?: { messageId?: string; stickerUrl?: string; attachments?: ChatMessageAttachment[]; channelSource?: ChatMessageChannelSource } }) => (
+    contentRender: (content: string, info: { extraInfo?: { messageId?: string; stickerUrl?: string; stickerUnavailable?: string; attachments?: ChatMessageAttachment[]; channelSource?: ChatMessageChannelSource } }) => (
       info.extraInfo?.messageId === editingMessageId
         ? <LastUserMessageEditor
             value={editDraft}
@@ -879,6 +886,7 @@ function createRoles(
         : <UserContent
             content={content}
             stickerUrl={info.extraInfo?.stickerUrl}
+        stickerUnavailable={info.extraInfo?.stickerUnavailable}
             attachments={info.extraInfo?.attachments}
             channelSource={info.extraInfo?.channelSource}
           />
@@ -900,11 +908,12 @@ function createRoles(
     variant: "filled" as const,
     rootClassName: "cy-message cy-message--assistant",
     avatar: <FireflyMessageAvatar />,
-    contentRender: (content: string, info: { extraInfo?: { streaming?: boolean; stickerUrl?: string; channelSource?: ChatMessageChannelSource } }) => (
+    contentRender: (content: string, info: { extraInfo?: { streaming?: boolean; stickerUrl?: string; stickerUnavailable?: string; channelSource?: ChatMessageChannelSource } }) => (
       <AssistantContent
         content={content}
         streaming={Boolean(info.extraInfo?.streaming)}
         stickerUrl={info.extraInfo?.stickerUrl}
+        stickerUnavailable={info.extraInfo?.stickerUnavailable}
         channelSource={info.extraInfo?.channelSource}
       />
     ),
@@ -1035,6 +1044,7 @@ function convertMessage(message: ChatMessageItem, enabledStickers: readonly Enab
       content: stripMessageStickerMarkers(message.content),
       extraInfo: {
         stickerUrl: stickerId ? resolveStickerUrl(stickerId, enabledStickers) : undefined,
+        stickerUnavailable: stickerId && isRetiredStickerId(stickerId) ? "表情包已下架" : stickerId && !resolveStickerUrl(stickerId, enabledStickers) ? "表情包不可用" : undefined,
         attachments: message.attachments,
         messageId: message.id,
         channelSource: message.channelSource,
@@ -1133,6 +1143,7 @@ function convertMessage(message: ChatMessageItem, enabledStickers: readonly Enab
         streaming: message.streaming,
         ttsCacheKey: message.ttsCacheKey,
         stickerUrl: message.sticker ? resolveStickerUrl(message.sticker, enabledStickers) : undefined,
+        stickerUnavailable: message.sticker && isRetiredStickerId(message.sticker) ? "表情包已下架" : message.sticker && !resolveStickerUrl(message.sticker, enabledStickers) ? "表情包不可用" : undefined,
         channelSource: message.channelSource,
       },
     });
@@ -1318,7 +1329,7 @@ export function ChatMessageList({
 
   useEffect(() => {
     let active = true;
-    void window.chat?.getEnabledStickers?.().then((stickers) => {
+    void (window.stickerManager?.getConfig?.() ?? window.chat?.getEnabledStickers?.())?.then((stickers) => {
       if (active) setEnabledStickers(stickers);
     }).catch(() => {
       if (active) setEnabledStickers([]);

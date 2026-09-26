@@ -8,7 +8,7 @@ import { getAudioDurationMs } from "./audio-duration";
 
 // 测试环境跳过 ffprobe (3s timeout 拖慢整个测试, 真实运行时仍然走 ffprobe)
 beforeAll(() => {
-  process.env.CYRENE_SKIP_FFPROBE = "1";
+  process.env.FIREFLY_SKIP_FFPROBE = "1";
 });
 
 /** 写一个合法 MPEG-1 Layer III CBR 128kbps 44100Hz 的 mp3

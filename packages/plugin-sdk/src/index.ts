@@ -3,5 +3,4 @@
  * 原样同步，verify-package 会检查两份文件无漂移）和 Manifest 校验入口。
  */
 export * from "./api";
-export * from "./legacy";
 export * from "./validate-manifest";

@@ -34,13 +34,13 @@ describe("statePath", () => {
 
   it("accepts the legacy home override without writing to the legacy directory", () => {
     delete process.env.FIREFLY_HOME;
-    process.env.CYRENE_HOME = tmpHome;
+    process.env.FIREFLY_HOME = tmpHome;
     try {
       expect(statePath()).toBe(path.join(tmpHome, ".firefly", "state.json"));
       writeState({ firstLaunch: sample });
       expect(readState()).toEqual({ kind: "present", record: sample });
     } finally {
-      delete process.env.CYRENE_HOME;
+      delete process.env.FIREFLY_HOME;
       process.env.FIREFLY_HOME = tmpHome;
     }
   });

@@ -5,7 +5,6 @@
 - [迁移与批次记录](../migration/)
 - [原有重构记录](../refactor/)
 - [内部问题记录](../internal-issue/)
-- [v1 记录](../v1/)
-- [v2 记录](../v2/)
+- [历史设计施工稿](./design/)
 
 当前架构以 [Firefly 运行结构](../architecture/firefly-runtime.md) 为入口，当前产品功能以根目录 README 为准。版权、第三方和模型声明仍在根目录原文件中完整保留。

@@ -46,6 +46,7 @@ export async function buildStickerEmbeddingIndex(
   const allTexts: string[] = [];
 
   for (const [id, desc] of Object.entries(builtIn)) {
+    if (Object.prototype.hasOwnProperty.call(userStickers, id)) continue;
     allIds.push(id);
     allTexts.push(desc.phrases.join("，"));
   }

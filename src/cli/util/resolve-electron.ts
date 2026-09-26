@@ -16,4 +16,4 @@ export function resolveElectron(projectRoot: string): string {
 
   return fireflyEnvironment(process.env, "FIREFLY_ELECTRON_BIN") ?? "electron";
 }
-import { fireflyEnvironment } from "../../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../../shared/firefly-environment";

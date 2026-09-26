@@ -16,9 +16,9 @@ describe("TaskCharacterLeasePool", () => {
   });
 
   it("has a PNG asset for every displayed task character", () => {
-    expect(TASK_CHARACTERS.find((character) => character.nickname === "卡芙卡")?.assetFileName).toBe("卡夫卡.png");
+    expect(TASK_CHARACTERS.find((character) => character.nickname === "卡芙卡")?.assetFileName).toBe("卡芙卡.png");
     for (const character of TASK_CHARACTERS) {
-      const path = fileURLToPath(new URL(`../../renderer/tast/${character.assetFileName}`, import.meta.url));
+      const path = fileURLToPath(new URL(`../../renderer/assets/task-portraits/${character.assetFileName}`, import.meta.url));
       expect(existsSync(path), character.assetFileName).toBe(true);
       expect(readFileSync(path).subarray(0, 8).toString("hex"), character.assetFileName).toBe("89504e470d0a1a0a");
     }
