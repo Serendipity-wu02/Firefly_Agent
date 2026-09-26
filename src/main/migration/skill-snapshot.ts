@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { rejectZipSymlink } from "../../shared/zip-entry-policy";
 
 const ORIGINAL_FILES: Readonly<Record<string, string>> = {
   "office-design/scripts/validate_theme.py": "d5e061a300f0fce1480ba5e6399600bf3d30936f08683b00fb0e717233e62e95",
@@ -57,7 +58,7 @@ export async function migrateInstalledSkillSnapshot(userRoot: string, archive: s
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-migration-"));
   try {
     const { default: extract } = await import("extract-zip");
-    await extract(archive, { dir: temporary });
+    await extract(archive, { dir: temporary, onEntry: rejectZipSymlink });
     for (const [relative, hash] of pending) {
       const target = path.join(root, relative);
       if (!fs.existsSync(target)) continue;

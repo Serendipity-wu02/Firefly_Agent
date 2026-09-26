@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import path from "node:path";
 import extract from "extract-zip";
+import { rejectZipSymlink } from "../../src/shared/zip-entry-policy.ts";
 
 const execFileAsync = promisify(execFile);
 const pipeline = promisify(pipelineCallback);
@@ -18,7 +19,7 @@ export async function prepareMinGit(options) {
   const { manifest, cacheDir, outputDir } = options;
   const probe = options.probe ?? probeGit;
   const download = options.download ?? downloadFile;
-  const unzip = options.extract ?? ((archive, destination) => extract(archive, { dir: destination }));
+  const unzip = options.extract ?? ((archive, destination) => extract(archive, { dir: destination, onEntry: rejectZipSymlink }));
   const gitPath = path.join(outputDir, "cmd", "git.exe");
 
   if (await fileExists(gitPath) && await probe(gitPath)) return "cached";

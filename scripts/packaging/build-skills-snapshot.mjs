@@ -18,6 +18,7 @@ import { createReadStream } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import path from "node:path";
+import { rejectZipSymlink } from "../../src/shared/zip-entry-policy.ts";
 
 const execFileAsync = promisify(execFile);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -63,7 +64,7 @@ async function verifyArchive(archivePath, entries) {
   await rm(probeDir, { recursive: true, force: true });
   await mkdir(probeDir, { recursive: true });
   const { default: extract } = await import("extract-zip");
-  await extract(archivePath, { dir: probeDir });
+  await extract(archivePath, { dir: probeDir, onEntry: rejectZipSymlink });
 
   const missing = [];
   for (const name of entries) {

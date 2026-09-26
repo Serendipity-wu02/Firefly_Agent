@@ -1,12 +1,36 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile, readFile, access } from "node:fs/promises";
+import JSZip from "jszip";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { prepareMinGit } from "./prepare-mingit.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
+
+test("rejects symlinks in a hash-verified archive before replacing the installed files", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "firefly-mingit-test-"));
+  try {
+    const archive = new JSZip();
+    archive.file("link", "../outside.txt", { unixPermissions: 0o120777 });
+    const bytes = await archive.generateAsync({ type: "nodebuffer", platform: "UNIX" });
+    const outputDir = path.join(root, "mingit");
+    await mkdir(outputDir);
+    await writeFile(path.join(outputDir, "existing.txt"), "public sentinel");
+    await assert.rejects(prepareMinGit({
+      manifest: { assetName: "mingit.zip", url: "https://example.test/mingit.zip", sha256: hash(bytes) },
+      cacheDir: path.join(root, "cache"),
+      outputDir,
+      download: async (_url, destination) => writeFile(destination, bytes),
+      probe: async () => false,
+    }), /ZIP_SYMLINK_FORBIDDEN/);
+    assert.equal(await readFile(path.join(outputDir, "existing.txt"), "utf8"), "public sentinel");
+    await assert.rejects(access(`${outputDir}.tmp-${process.pid}`), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("rejects a downloaded archive with the wrong sha256", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "firefly-mingit-test-"));

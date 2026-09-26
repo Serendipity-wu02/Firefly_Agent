@@ -123,3 +123,20 @@ it("propagates extraction failure, removes temporary data and preserves the inst
   expect(fs.existsSync(`${file}.pre-firefly.bak`)).toBe(false);
   expect(fs.existsSync(temporary.mock.results[0].value)).toBe(false);
 });
+
+it("rejects archive symlinks before migrating existing skill data", async () => {
+  const directory = root();
+  const file = path.join(directory, "pdf", "README.md");
+  fs.mkdirSync(path.dirname(file));
+  fs.writeFileSync(file, "public legacy fixture");
+  await acceptLegacyFixture(1);
+  const temporary = vi.spyOn(fs, "mkdtempSync");
+  vi.mocked(extract).mockImplementationOnce(async (_archive, options) => {
+    expect(options.onEntry).toBeTypeOf("function");
+    options.onEntry!({ externalFileAttributes: (0o120777 << 16) >>> 0 } as never, {} as never);
+  });
+  await expect(migrateInstalledSkillSnapshot(directory, path.resolve("vendor/firefly-skills/skills-snapshot.zip"))).rejects.toThrow("ZIP_SYMLINK_FORBIDDEN");
+  expect(fs.readFileSync(file, "utf8")).toBe("public legacy fixture");
+  expect(fs.existsSync(`${file}.pre-firefly.bak`)).toBe(false);
+  expect(fs.existsSync(temporary.mock.results[0].value)).toBe(false);
+});
