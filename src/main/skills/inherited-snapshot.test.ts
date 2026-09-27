@@ -53,7 +53,15 @@ it("runs the three maintained helpers on public fixture data without committing"
   const scripts = path.join(extracted, "sp-subagent-driven-development", "scripts");
   const run = (name: string, ...args: string[]) => execFileSync(process.execPath, [path.join(scripts, name), ...args], { cwd: repo }).toString().trim();
   const workspace = run("sdd-workspace", plan);
-  expect(workspace.startsWith(repo + path.sep)).toBe(true);
+  const repoCanonical = fs.realpathSync.native(path.resolve(repo));
+  const workspaceCanonical = fs.realpathSync.native(path.resolve(workspace));
+  const relative = path.relative(repoCanonical, workspaceCanonical);
+  expect(relative).not.toBe("");
+  expect(relative).not.toBe("..");
+  expect(relative.startsWith(`..${path.sep}`)).toBe(false);
+  expect(path.isAbsolute(relative)).toBe(false);
+  expect(relative.split(path.sep)).toEqual([".firefly", "sdd", expect.stringMatching(/^[a-f0-9]{24}$/)]);
+  expect(fs.statSync(workspaceCanonical).isDirectory()).toBe(true);
   const brief = run("task-brief", plan, "1");
   expect(fs.readFileSync(brief, "utf8")).toContain("read public data");
   expect(fs.readFileSync(brief, "utf8")).not.toContain("review only");
