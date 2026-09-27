@@ -1,5 +1,7 @@
 # 长任务截断 / 欢迎页切模型 / GLM-5.3 正则失配 已知问题（2026-08-26 调研）
 
+> 历史记录：当日问题与修复记录；模型表、源码行号和测试数字不作为当前服务能力或复测结果。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 > 范围：Harness LLM 调用层（`harness-llm.ts` / `types.ts`）、渲染层会话管理（`ChatPage.tsx`）、
 > 厂商能力正则表（`shared/reasoning.ts` / `vendors/style-sampling.ts` / `structured-output/profiles.ts`）。
 > 三者均为静态代码走读确认，未写复现测试；与 2026-08-25 的并行调度问题相互独立。

@@ -1,15 +1,14 @@
 // 生成第三方 skills 快照归档（vendor/firefly-skills/skills-snapshot.zip）。
 //
-// 背景：仓库 skills/ 只保留自研 firefly-* skill，其余第三方 skill（docx/pdf/
-// xlsx/pptx、superpowers、ECC、office 等，多为本项目定制裁剪过的本地资产，
-// 无法从上游 GitHub 干净拉取）整体打成一份 zip 快照进 git。
+// 仓库 skills/ 保留八项产品内置 Skill；39 项来源已登记的继承 Skill
+// 由本仓库正式 ZIP、受控适配源码与哈希清单维护，不读取原项目工作树。
 // 应用首次启动时把这份归档解压到 userData/skills（见 skills/snapshot-install.ts），
 // 让开发版和打包版都拿到完整 skill 集合，同时保持仓库语言统计干净。
 //
 // 生成：node scripts/packaging/build-skills-snapshot.mjs
 // 产物：vendor/firefly-skills/skills-snapshot.zip + skills-snapshot-manifest.json
 //
-// 注意：必须先于「从 git 移除第三方 skills」运行，归档是唯一保留这些文件的地方。
+// 普通重建使用既有正式 ZIP 与 skill-adaptations，不下载或升级上游。
 
 import { execFile } from "node:child_process";
 import { readFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
@@ -18,6 +17,8 @@ import { createReadStream } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import path from "node:path";
+import { rejectZipSymlink } from "../../src/shared/zip-entry-policy.ts";
+import { adaptSnapshot } from "./adapt-skills-snapshot.mjs";
 
 const execFileAsync = promisify(execFile);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +46,7 @@ async function collectVendorSkills() {
     .sort();
 }
 
-/** 用 Windows 原生 Compress-Archive 打包（生成标准 zip，extract-zip 可解）。 */
+/** 用 Windows 原生 Compress-Archive 打包标准 ZIP。 */
 async function zipWithPowerShell(entries, archivePath) {
   const paths = entries.map((name) => `'${path.join(skillsDir, name).replace(/'/g, "''")}'`);
   const cmd =
@@ -62,8 +63,8 @@ async function verifyArchive(archivePath, entries) {
   const probeDir = path.join(projectRoot, ".tmp-skills-snapshot-probe");
   await rm(probeDir, { recursive: true, force: true });
   await mkdir(probeDir, { recursive: true });
-  const { default: extract } = await import("extract-zip");
-  await extract(archivePath, { dir: probeDir });
+  const { extractZip: extract } = await import("../../src/shared/zip-extraction.ts");
+  await extract(archivePath, { dir: probeDir, onEntry: rejectZipSymlink });
 
   const missing = [];
   for (const name of entries) {
@@ -101,7 +102,8 @@ async function main() {
 
   // 没有第三方 skill 可归档：保留既有快照，避免 Compress-Archive 空参数报错
   if (entries.length === 0) {
-    console.log("[build-skills-snapshot] 无第三方 skill 可归档，跳过（保留既有快照）");
+    await adaptSnapshot(projectRoot);
+    console.log("[build-skills-snapshot] 既有快照已应用受维护适配并验证");
     return;
   }
 
@@ -129,6 +131,7 @@ async function main() {
     JSON.stringify(manifest, null, 2) + "\n",
     "utf8",
   );
+  await adaptSnapshot(projectRoot);
   console.log(`[build-skills-snapshot] 完成: ${archivePath} (${(stat.size / 1024).toFixed(1)} KB, sha256=${hash.slice(0, 12)}…)`);
 }
 

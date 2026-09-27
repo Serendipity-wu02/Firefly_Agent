@@ -6,6 +6,8 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { app } from "electron";
+import { FIREFLY_STICKERS } from "../shared/firefly-stickers";
+import { isRetiredStickerId } from "../shared/retired-stickers";
 import { BUILT_IN_STICKER_IDS } from "../shared/sticker-types";
 import type { UserStickerMeta, StickerConfigItem } from "../shared/sticker-types";
 import { buildLocalStickerUrl } from "./sticker-protocol";
@@ -50,7 +52,7 @@ function saveUserStickerManifest(stickers: Record<string, UserStickerMeta>): voi
 
 /** 检查 id 是否已被占用 */
 export function isStickerIdTaken(id: string): boolean {
-  if (BUILT_IN_STICKER_IDS.includes(id as any)) return true;
+  if (BUILT_IN_STICKER_IDS.includes(id as any) || isRetiredStickerId(id)) return true;
   const manifest = loadUserStickerManifest();
   return id in manifest;
 }
@@ -94,12 +96,12 @@ export async function addUserSticker(
 
 /** 删除用户表情包：删除文件 + 从 manifest 移除 */
 export async function deleteUserSticker(id: string): Promise<void> {
+  const manifest = loadUserStickerManifest();
   // 内置 sticker 不允许删除
-  if (BUILT_IN_STICKER_IDS.includes(id as any)) {
+  if (BUILT_IN_STICKER_IDS.includes(id as any) && !Object.prototype.hasOwnProperty.call(manifest, id)) {
     throw new Error(`内置表情包 "${id}" 不能删除，只能禁用`);
   }
 
-  const manifest = loadUserStickerManifest();
   const meta = manifest[id];
   if (!meta) throw new Error(`表情包 "${id}" 不存在`);
 
@@ -116,14 +118,18 @@ export async function deleteUserSticker(id: string): Promise<void> {
   saveUserStickerManifest(manifest);
 }
 
-/** 获取所有 sticker 的配置（内置 + 用户），供表情包管理窗口/设置面板使用 */
+/** 获取当前流萤内置与用户贴图，保留已保存的开关。 */
 export function getAllStickerConfig(
   stickerSettings: Record<string, boolean>,
 ): StickerConfigItem[] {
-  const items: StickerConfigItem[] = [];
-
-  // 用户添加的
   const manifest = loadUserStickerManifest();
+  const items: StickerConfigItem[] = FIREFLY_STICKERS.filter(sticker => !Object.prototype.hasOwnProperty.call(manifest, sticker.id)).map(sticker => ({
+    id: sticker.id,
+    src: `/stickers/${sticker.file}`,
+    enabled: stickerSettings[sticker.id] !== false,
+    builtIn: true,
+    description: sticker.phrases.join("，"),
+  }));
   for (const [id, meta] of Object.entries(manifest)) {
     items.push({
       id,

@@ -1,5 +1,7 @@
 # Firefly 品牌、角色、Skills 统一与集中验收（2026-09-25）
 
+> 历史记录：品牌与 Skills 阶段记录；旧 Window、插件协议、环境变量和 CLI 兼容说明已有后续变更，不作为当前接口指南。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 ## 基线和范围
 
 - 工作目录：`E:\Codex\Firefly-Agent-migration`；分支 `codex/firefly-migration`；HEAD `8775af95008c9f5b8922ec94cef6491d145df0a6`；origin 为 `https://github.com/Serendipity-wu02/Firefly_Agent.git`。

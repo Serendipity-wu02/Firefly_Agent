@@ -1,5 +1,7 @@
 # Firefly Batch 2 桌宠交互实施与验收记录（2026-09-24）
 
+> 历史记录：Batch 2 阶段记录；当时动作回执和局部实机结果不外推为当前全部动作、心情或帧率通过。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 ## 范围与源码
 
 - 沿用 Cyrene 唯一运行核心、现有 `play_live2d_action` 工具注册和权限链；不新增 Agent Loop，不进入音乐、Work 文件能力、知识语料、Jev/DecisionProvider 或 Batch 3。

@@ -1,5 +1,7 @@
 # 文件监视与 Skills 归档测试超时
 
+> 历史记录：所列文件监视与 Skills 超时修正记录；本轮不重跑。主 agent 已将 ZIP 接入 yauzl 与项目落盘适配，最终调用集成与构建待验证。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 ## 已保存现场
 
 运行 [36168348211](https://github.com/Serendipity-wu02/Firefly_Agent/actions/runs/36168348211)，提交 `3b87252cf0b9a0be38c845599d660b2d61f1ed21`。完整日志、stdout/stderr 和 worker 事件位于仓库外 `E:\Codex\Firefly-vitest-investigation-20260926\dev-36168348211`。

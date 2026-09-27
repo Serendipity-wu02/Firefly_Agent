@@ -1,3 +1,5 @@
+import { isRetiredStickerRef } from "../../../../shared/retired-stickers";
+import { StickerImage } from "../chat/components/StickerImage";
 import { CommentOutlined, DeleteOutlined, HeartFilled, HeartOutlined } from "@ant-design/icons";
 import { useMemo, useState, type ReactNode } from "react";
 import {
@@ -141,14 +143,15 @@ export function MomentPostCard({
         {post.media.length > 0 && (
           <div className={imageClass}>
             {post.media.map((media) => (
-              <img
+              <StickerImage
                 key={media.id}
+                alt="动态配图"
+                unavailable={media.origin === "character_asset" && isRetiredStickerRef(media.ref) ? "表情包已下架" : undefined}
                 src={media.origin !== "character_asset"
                   ? buildMomentMediaUrl(post.id, media.ref)
                   : media.ref.startsWith("local-sticker:")
                     ? media.ref
                     : resolveAsset(media.ref)}
-                draggable={false}
               />
             ))}
           </div>

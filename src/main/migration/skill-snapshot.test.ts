@@ -3,10 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
-import extract from "extract-zip";
+import { extractZip as extract } from "../../shared/zip-extraction";
 import { replaceUnmodifiedSkill, migrateInstalledSkillSnapshot } from "./skill-snapshot";
 
-vi.mock("extract-zip", () => ({ default: vi.fn() }));
+vi.mock("../../shared/zip-extraction", () => ({ extractZip: vi.fn() }));
 vi.mock("node:crypto", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:crypto")>();
   return { ...actual, createHash: vi.fn(actual.createHash) };
@@ -119,6 +119,57 @@ it("propagates extraction failure, removes temporary data and preserves the inst
   const temporary = vi.spyOn(fs, "mkdtempSync");
   vi.mocked(extract).mockRejectedValueOnce(new Error("fixture extraction failure"));
   await expect(migrateInstalledSkillSnapshot(directory, path.resolve("vendor/firefly-skills/skills-snapshot.zip"))).rejects.toThrow("fixture extraction failure");
+  expect(fs.readFileSync(file, "utf8")).toBe("public legacy fixture");
+  expect(fs.existsSync(`${file}.pre-firefly.bak`)).toBe(false);
+  expect(fs.existsSync(temporary.mock.results[0].value)).toBe(false);
+});
+
+it("updates the recognized delegation bundle before scanning, once, with its backup", async () => {
+  const directory = root();
+  const id = "sp-subagent-driven-development";
+  const file = path.join(directory, id, "SKILL.md");
+  fs.mkdirSync(path.dirname(file));
+  fs.writeFileSync(file, "public bundled fixture");
+  const actual = await vi.importActual<typeof import("node:crypto")>("node:crypto");
+  vi.mocked(createHash).mockImplementation((...args) => {
+    const hash = actual.createHash(...args);
+    const update = hash.update.bind(hash);
+    const digest = hash.digest.bind(hash);
+    let recognized = false;
+    hash.update = ((data: string | Buffer) => {
+      recognized = String(data) === "public bundled fixture";
+      update(data);
+      return hash;
+    }) as typeof hash.update;
+    hash.digest = ((encoding?: "hex") => recognized
+      ? "b0370f154a403766568ad13c303b969132b176130a5ce676c01caa7cb20c794b"
+      : encoding ? digest(encoding) : digest()) as typeof hash.digest;
+    return hash;
+  });
+  vi.mocked(extract).mockImplementation(async (_archive, options) => {
+    fs.cpSync(path.resolve("scripts/packaging/skill-adaptations", id), path.join(options.dir, id), { recursive: true });
+  });
+  const archive = path.resolve("vendor/firefly-skills/skills-snapshot.zip");
+  await migrateInstalledSkillSnapshot(directory, archive);
+  expect(fs.readFileSync(file, "utf8")).toContain("Firefly-maintained adaptation");
+  expect(fs.readFileSync(`${file}.pre-firefly.bak`, "utf8")).toBe("public bundled fixture");
+  expect(fs.existsSync(path.join(directory, id, "references", "implementer-prompt.md"))).toBe(true);
+  await migrateInstalledSkillSnapshot(directory, archive);
+  expect(extract).toHaveBeenCalledTimes(1);
+});
+
+it("rejects archive symlinks before migrating existing skill data", async () => {
+  const directory = root();
+  const file = path.join(directory, "pdf", "README.md");
+  fs.mkdirSync(path.dirname(file));
+  fs.writeFileSync(file, "public legacy fixture");
+  await acceptLegacyFixture(1);
+  const temporary = vi.spyOn(fs, "mkdtempSync");
+  vi.mocked(extract).mockImplementationOnce(async (_archive, options) => {
+    expect(options.onEntry).toBeTypeOf("function");
+    options.onEntry!({ externalFileAttributes: (0o120777 << 16) >>> 0 } as never, {} as never);
+  });
+  await expect(migrateInstalledSkillSnapshot(directory, path.resolve("vendor/firefly-skills/skills-snapshot.zip"))).rejects.toThrow("ZIP_SYMLINK_FORBIDDEN");
   expect(fs.readFileSync(file, "utf8")).toBe("public legacy fixture");
   expect(fs.existsSync(`${file}.pre-firefly.bak`)).toBe(false);
   expect(fs.existsSync(temporary.mock.results[0].value)).toBe(false);

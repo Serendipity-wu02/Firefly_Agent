@@ -1,5 +1,7 @@
 # Firefly → Cyrene Batch 1 实施记录（2026-09-23）
 
+> 历史记录：Batch 1 阶段记录；旧 Agent/Harness 名称、空角色名单和当时构建状态不代表当前实现。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 ## 范围与增量复核
 
 - 本轮目标仅为「流萤可见、人设单一、Chat 可用」。继续使用 Cyrene 的入口、Agent 循环、工具、审批、状态所有权与导航结构；未建立第二套 Loop，也未加入 Jev/DecisionProvider。

@@ -1,5 +1,7 @@
 # 贡献者
 
+> 本文保留上游 Cyrene 的贡献及署名记录；PR 编号、日志路径和功能描述属于当时贡献，不是当前 Firefly 路径或本轮安全验收结论。“是依七哒”的模型鸣谢对应上游昔涟模型，不能移作流萤模型作者署名。当前来源与授权边界见 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) 和 [MODEL_LICENSE.md](../MODEL_LICENSE.md)。
+
 感谢所有通过 GitHub 为项目做出贡献的开发者！以下是贡献者列表（按首次贡献时间排序）。
 
 ---

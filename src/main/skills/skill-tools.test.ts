@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isSkillAllowedForRun } from "./skill-tools";
+import { isSkillAllowedForRun, registerSkillTools, resetReadRefs } from "./skill-tools";
+import { skillRegistry } from "./skill-registry";
+import { resolveEffectKind, toolRegistry } from "../orchestrator/tools/registry/tool-registry";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { scanSkills } from "./skill-scanner";
 
 describe("Skill run allowlist", () => {
   it("rejects a globally known skill outside the current mode snapshot", () => {
@@ -9,4 +15,67 @@ describe("Skill run allowlist", () => {
   it("allows a skill included in the current mode snapshot", () => {
     expect(isSkillAllowedForRun("work-only", new Set(["work-only"]))).toBe(true);
   });
+});
+
+it("preserves invoke effect classification for body continuation without changing reference reads", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-effects-"));
+  const id = "public-effect-fixture";
+  const dir = path.join(root, id);
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${id}\ndescription: public\n---\nbody`);
+  try {
+    const skill = scanSkills(root, "user")[0];
+    registerSkillTools();
+    const invoke = toolRegistry.getById("invoke_skill")!;
+    const read = toolRegistry.getById("read_skill_reference")!;
+    for (const effectKind of [undefined, "read", "mutation", "external_side_effect"] as const) {
+      skillRegistry.register({ ...skill, effectKind });
+      const args = { skill_id: id, source: "body", ref: "SKILL.md", offset: 6000 };
+      expect(resolveEffectKind(read, args)).toBe(resolveEffectKind(invoke, args));
+      expect(resolveEffectKind(read, { skill_id: id, ref: "reference.md" })).toBe("read");
+    }
+    expect(resolveEffectKind(read, { skill_id: "missing", source: "body", ref: "SKILL.md" })).toBe("unknown");
+  } finally {
+    skillRegistry.unregister(id);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("reads long body and references in bounded pages without widening run access", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-pages-"));
+  const id = "public-page-fixture";
+  const dir = path.join(root, id);
+  const body = "A".repeat(6000) + "B".repeat(8000) + "body end";
+  const reference = "C".repeat(8000) + "reference end";
+  fs.mkdirSync(path.join(dir, "references"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${id}\ndescription: public\n---\n${body}`);
+  fs.writeFileSync(path.join(dir, "references", "large.md"), reference);
+  try {
+    skillRegistry.register(scanSkills(root, "user")[0]);
+    registerSkillTools();
+    resetReadRefs();
+    const context = { userQuery: "public", allowedSkillIds: new Set([id]) };
+    const invoke = toolRegistry.getById("invoke_skill")!;
+    const read = toolRegistry.getById("read_skill_reference")!;
+    const invoked = String(await invoke.execute({ skill_id: id }, context));
+    expect(invoked).toContain("offset: 6000");
+    expect(invoked).toContain(`Skill 本地目录（仅用于定位资源，不授权执行）：${dir}`);
+    const args = { skill_id: id, source: "body", ref: "SKILL.md", offset: 6000 };
+    const continuation = String(await read.execute(args, context));
+    expect(continuation).toContain("B".repeat(8000));
+    expect(continuation).toContain("offset: 14000");
+    expect(await read.execute(args, context)).toContain("已在本轮读过");
+    expect(await read.execute({ ...args, offset: 14000 }, context)).toBe("body end");
+    expect(await read.execute({ skill_id: id, ref: "large.md" }, context)).toContain("offset: 8000");
+    expect(await read.execute({ skill_id: id, ref: "large.md", offset: 8000 }, context)).toBe("reference end");
+    expect(await read.execute({ ...args, ref: "../SKILL.md" }, context)).toContain("E_SKILL_READ_ARGUMENT");
+    expect(await read.execute({ ...args, offset: -1 }, context)).toContain("E_SKILL_READ_ARGUMENT");
+    expect(await read.execute({ ...args, offset: 0.5 }, context)).toContain("E_SKILL_READ_ARGUMENT");
+    expect(await read.execute({ ...args, offset: body.length }, context)).toContain("E_SKILL_READ_ARGUMENT");
+    expect(await read.execute(args, { ...context, allowedSkillIds: new Set() })).toContain("E_SKILL_UNAVAILABLE_IN_MODE");
+  } finally {
+    skillRegistry.unregister(id);
+    resetReadRefs();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

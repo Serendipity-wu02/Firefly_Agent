@@ -1,0 +1,21 @@
+{
+  "sourceCommit": "890bc6165d7b3a476d6069c436145c181bd8a16b",
+  "sourceArchive": "vendor/firefly-skills/skills-snapshot.zip",
+  "sourceArchiveSha256": "98005bbb2126c231679d60373f1b50f9219b562c5f33fa98de0a130477c32b27",
+  "files": {
+    "docx/references/scenario_c_apply_template.md": "84828ed5e2105e8044251593ae6b84e7413f83841b5a3930bae0e7190bec6699",
+    "docx/references/troubleshooting.md": "181192270af85f6a98a88f5e8ba3c60db512f05eef1a7ba65499c1afb012b81f",
+    "docx/styles/catalog.md": "11fc942f4c35db5c911693b392073bd24e3558db04fc7d95751f309fa94414c1",
+    "pdf/README.md": "20e0270ee9eef991c351eabc3bdb5b767b63272618b42c6193297cf4fbecb0ed",
+    "pptx-generator/references/editing.md": "894726b1f90af4b6d52415d9668e34ae049503fa81c06e7b787e7a748812998d",
+    "sp-using-superpowers/references/gemini-tools.md": "62b9157bcb0ee3c6784e3d0da0798ddfa5872f9e0c34bea48f3079dabea71965",
+    "xlsx/references/create.md": "269b0e68017fed026078a5cb9e33fd56d416748edfe48b07180e1e105bed97a2",
+    "xlsx/references/edit.md": "4bc236032dc7fe2bc6666338b0e89650a88f2afb61cbfd1ce16dcc1889652a81",
+    "xlsx/references/fix.md": "04a1ee27df71f7e4f06d385504f28a9f2a61ea07b742a3f332617057d3c1e440",
+    "xlsx/references/format.md": "b6acb06ed532a2098281392e9fa8a20141008af6a546d8253abe12b73fb0978e",
+    "xlsx/references/read-analyze.md": "5ca01ee8cf337c4c343f087d7ba3985428b6d64a2e9d1d3139685b4273c02ca7",
+    "xlsx/references/validate.md": "6c2f08d06417da03017d25372a08be401b52ad3747b98b49b513c3ecfc5642be",
+    "xlsx/scripts/xlsx_workspace.py": "676a2521264b2c87425233df12591f9fe5e0b207289806bad9d8ea828e680545",
+    "xlsx/styles/catalog.md": "0d41e20276d00c81281bfb2473694f8109a6ebcc6256fe68c9072c79a2d15ac1"
+  }
+}

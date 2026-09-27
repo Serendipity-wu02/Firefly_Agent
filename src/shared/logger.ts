@@ -13,7 +13,7 @@
  * default-level heuristic; that wrapper just calls setLogLevel() once.
  */
 import process from "node:process";
-import { fireflyEnvironment } from "./legacy-firefly-contracts";
+import { fireflyEnvironment } from "./firefly-environment";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 

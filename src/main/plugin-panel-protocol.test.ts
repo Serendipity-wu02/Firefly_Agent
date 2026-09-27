@@ -67,13 +67,13 @@ function panelUrl(rawUrl: string): Promise<ReturnType<typeof resolvePluginPanelR
 }
 
 describe("resolvePluginPanelRequest：静态资源路由", () => {
-  it("serves legacy external addresses only within the same enabled-plugin boundary", async () => {
-    expect((await panelUrl("cyrene-plugin://demo/ui.html")).status).toBe(200);
+  it("rejects the retired scheme and treats the old directory as ordinary plugin content", async () => {
+    expect((await panelUrl("cyrene-plugin://demo/ui.html")).status).toBe(404);
     expect((await panelUrl("cyrene-plugin://ghost/ui.html")).status).toBe(404);
     expect((await panelUrl("cyrene-plugin://demo/..%5csecret")).status).toBe(404);
     const response = await panelUrl("firefly-plugin://demo/.cyrene/panel-bridge.js");
     expect(response.status).toBe(200);
-    if (response.status === 200) expect(response.body.toString()).toContain("window.CyrenePanel = window.FireflyPanel;");
+    if (response.status === 200) expect(response.body.toString()).toBe("PLUGIN-OWNED");
     expect((await panelUrl("firefly-plugin://ghost/.cyrene/panel-bridge.js")).status).toBe(404);
   });
   it("合法面板 HTML 与白名单资源正常返回并带正确内容类型", async () => {
@@ -194,6 +194,11 @@ describe("installPluginPanelProtocol", () => {
 });
 
 describe("同源不变量", () => {
+  it("serves the host bridge only at the current reserved resource path", async () => {
+    const response = await resolvePluginPanelRequest("firefly-plugin://demo/.firefly/panel-bridge.js", query, assetsDir);
+    expect(response.status).toBe(200);
+    if (response.status === 200) expect(response.body.toString()).toBe("HOST-ASSET");
+  });
   it("面板 scheme 与设置页 scheme 结构性不相交", () => {
     // Node 的 URL 对未注册的 non-special scheme 序列化 origin 为 "null"
     //（opaque 序列化），渲染进程中 Chromium 对注册为 standard 的自定义

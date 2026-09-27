@@ -14,6 +14,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { logger, LogTag } from "../logger";
+import { rejectZipSymlink } from "../../shared/zip-entry-policy";
 
 /** 安装完成的哨兵文件名（写进 userSkillsDir）。 */
 export const SNAPSHOT_SENTINEL = ".snapshot-installed";
@@ -55,8 +56,8 @@ export async function installSkillsSnapshot(options: SnapshotInstallOptions): Pr
     writeFileSync = (p, c) => fs.writeFileSync(p, c, "utf8"),
     readdirSync = (p) => fs.readdirSync(p),
     extract = async (a, o) => {
-      const { default: extractZip } = await import("extract-zip");
-      await extractZip(a, o);
+      const { extractZip } = await import("../../shared/zip-extraction");
+      await extractZip(a, { ...o, onEntry: rejectZipSymlink });
     },
   } = options;
 

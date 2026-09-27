@@ -109,7 +109,7 @@ function toHexColor(color: string): string {
 export function registerDocumentTools(): void {
   // ── 样式系统 ──
   // 从 skills/xlsx/styles/ 目录加载预设风格 json，取代硬编码。
-  // 模型弹卡片前读 catalog.md 选风格，用户选完传 style 名给 write_excel。
+  // 按需读取 catalog.md；确认用户选择的风格后传 style 名给 write_excel。
   type ExcelFill = import("exceljs").Fill;
   type ExcelBorders = import("exceljs").Borders;
 
@@ -203,7 +203,7 @@ export function registerDocumentTools(): void {
       "何时用：\n" +
       "- 用户要把数据整理成表格\n" +
       "- 用户要「做一张表」「导出 Excel」「整理成 Excel」\n" +
-      "- 用户通过 ask_user_choice 选择了风格 → 用对应 style 参数直接生成\n" +
+      "- 用户明确选择了风格 → 用对应 style 参数直接生成；尚未明确时先向用户确认\n" +
       "- 用户给了自定义颜色要求 → 用 colors 参数传 ARGB hex 值\n\n" +
       "不要用于：\n" +
       "- 需要 Excel 公式、编辑已有 xlsx → 才考虑 invoke_skill(xlsx)\n\n" +
@@ -389,7 +389,7 @@ export function registerDocumentTools(): void {
       "何时用：\n" +
       "- 用户要写报告/总结/方案/请假条\n" +
       "- 需要「导出成 Word」「做成 docx」\n" +
-      "- 用户通过 ask_user_choice 选择了风格 → 用对应 style 参数直接生成\n\n" +
+      "- 用户明确选择了风格 → 用对应 style 参数直接生成；尚未明确时先向用户确认\n\n" +
       "不要用于：\n" +
       "- 表格数据（用 write_excel）\n" +
       "- 轻量笔记（用 write_file）\n" +

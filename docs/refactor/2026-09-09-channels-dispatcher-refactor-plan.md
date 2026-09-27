@@ -1,5 +1,7 @@
 # Channels Dispatcher（渠道消息调度器）Refactor（重构）Implementation Plan（实施计划）
 
+> 历史记录：2026-09-09 设计与实施计划；复选框、示例和提交命令不是当前待执行任务，现行实现见 src/main/channels/。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
 
 **Goal:** 修复渠道回复在发送失败后仍污染历史的正确性缺陷，统一外部会话和绑定桌面对话的执行顺序，并把 ChannelDispatcher 收敛为职责清晰、依赖不可变的消息编排器。

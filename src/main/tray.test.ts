@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 // tray.ts 顶层 import electron（Tray/Menu/nativeImage），统一 mock 掉
 vi.mock("electron", () => ({
   Menu: { buildFromTemplate: vi.fn((template: unknown) => template) },
-  nativeImage: { createFromPath: vi.fn(() => ({})) },
+  nativeImage: { createFromPath: vi.fn(() => ({ isEmpty: () => false })) },
   Tray: class {
     setContextMenu = vi.fn();
     setToolTip = vi.fn();
   },
-  app: { quit: vi.fn() },
+  app: { quit: vi.fn(), getAppPath: () => "E:/public-test-app" },
 }));
 
 import { buildTrayMenuTemplate, createTray, type CreateTrayDependencies } from "./tray";

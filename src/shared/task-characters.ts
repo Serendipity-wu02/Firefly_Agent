@@ -8,7 +8,7 @@ export const TASK_CHARACTERS: readonly TaskCharacterDefinition[] = [
   { nickname: "大黑塔", assetFileName: "大黑塔.png" },
   { nickname: "丹恒", assetFileName: "丹恒.png" },
   { nickname: "姬子", assetFileName: "姬子.png" },
-  { nickname: "卡芙卡", assetFileName: "卡夫卡.png" },
+  { nickname: "卡芙卡", assetFileName: "卡芙卡.png" },
   { nickname: "帕姆", assetFileName: "帕姆.png" },
   { nickname: "刃", assetFileName: "刃.png" },
   { nickname: "三月七", assetFileName: "三月七.png" },

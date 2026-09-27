@@ -1,5 +1,7 @@
 # Bash 集成测试超时（2026-09-26）
 
+> 历史记录：所列 CI 运行及定向修正记录；保留原结果，不代表后续提交或本轮完整套件通过。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 ## 失败证据与边界
 
 - 开发分支提交 `485a09ce954e7941b4307f13f79aae076d46bc35` 的 [Test 36165783236](https://github.com/Serendipity-wu02/Firefly_Agent/actions/runs/36165783236) 唯一失败为 `run_shell shell selection > executes bash syntax with Bash instead of silently passing it to cmd.exe`，Vitest 在 5002 ms 报告默认 5000 ms 用例超时。

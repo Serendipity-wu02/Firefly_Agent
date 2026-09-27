@@ -49,7 +49,12 @@ export async function initSkills(): Promise<void> {
   const archivePath = resolveSkillsSnapshotArchivePath(paths);
   const userSkillsDir = paths.userSkillDirectories[0];
   await installSkillsSnapshot({ archivePath, userSkillsDir });
-  await migrateInstalledSkillSnapshot(userSkillsDir, archivePath);
+  try {
+    await migrateInstalledSkillSnapshot(userSkillsDir, archivePath);
+  } catch (error) {
+    const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_MIGRATION_FAILED";
+    logger.warn(LogTag.Skills, "managed migration failed; scanning existing files without replacing them", { reason });
+  }
 
   const sources = resolveSkillScanSources(paths);
 

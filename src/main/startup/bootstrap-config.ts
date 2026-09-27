@@ -64,7 +64,7 @@ export function bootstrapConfigGetters(ctx: BootstrapConfigContext): void {
   // 注入用户时区 getter：工具侧通过 currentUserTimezone() 统一拿用户时区（缺/非法回退 Asia/Shanghai）
   setUserTimezoneConfig(() => loadUserProfile().timezone);
 
-  // 注入用户选择卡片回调：工具调 ask_user_choice 时发 Custom 事件给 react 聊天窗口
+  // 注入用户选择卡片回调：内部 requestUserChoice 发 Custom 事件给 react 聊天窗口
   setChoiceCardSender((cardData) => {
     const win = getReactChatWindow();
     if (win) {

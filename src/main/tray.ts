@@ -1,6 +1,6 @@
-import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
+import { Menu, Tray, type MenuItemConstructorOptions } from "electron";
 import { type WindowActivationRequest } from "./application/window-activation";
-import { getCurrentAppIconPath } from "./windows/window-state";
+import { loadTrayIcon } from "./tray-icon";
 
 export interface CreateTrayDependencies {
   /** 托盘窗口类菜单统一走激活请求；是否立即打开由 activation broker 决定。 */
@@ -41,7 +41,7 @@ export function buildTrayMenuTemplate(deps: CreateTrayDependencies): MenuItemCon
 }
 
 export function createTray(deps: CreateTrayDependencies): Tray {
-  const icon = nativeImage.createFromPath(getCurrentAppIconPath());
+  const icon = loadTrayIcon();
   const tray = new Tray(icon);
 
   const contextMenu = Menu.buildFromTemplate(buildTrayMenuTemplate(deps));

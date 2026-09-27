@@ -1,5 +1,7 @@
 # Firefly → Cyrene 新底座迁移审计
 
+> 历史记录：迁移前只读审计；当时缺失项、静态预测及无 Git 状态不代表当前迁移目录状态。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 - 审计日期：2026-09-22
 - 新底座：`E:\Codex\Cyrene-Agent-master`
 - 原 Firefly：`E:\Codex\working\Firefly-Pet`

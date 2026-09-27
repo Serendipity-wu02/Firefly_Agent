@@ -7,9 +7,8 @@
  * - 宿主→面板：invoke-result / init / theme-changed
  */
 
-import { LEGACY_PANEL_PROTOCOL } from "../../shared/legacy-firefly-contracts";
 export const PANEL_PROTOCOL = "firefly-panel/1";
-type PanelProtocol = typeof PANEL_PROTOCOL | typeof LEGACY_PANEL_PROTOCOL;
+type PanelProtocol = typeof PANEL_PROTOCOL;
 export const PANEL_MIN_HEIGHT = 120;
 export const PANEL_MAX_HEIGHT = 800;
 export const PANEL_SCHEME = "firefly-plugin";
@@ -48,7 +47,7 @@ export function clampPanelHeight(height: number): number {
 export function parsePanelMessage(data: unknown): PanelInboundMessage | null {
   if (typeof data !== "object" || data === null) return null;
   const message = data as Record<string, unknown>;
-  if (message.protocol !== PANEL_PROTOCOL && message.protocol !== LEGACY_PANEL_PROTOCOL) return null;
+  if (message.protocol !== PANEL_PROTOCOL) return null;
   if (message.kind === "invoke") {
     if (
       typeof message.seq !== "number"

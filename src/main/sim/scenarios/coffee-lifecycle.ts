@@ -12,12 +12,12 @@ const COFFEE_FIXTURE = `## 咖啡
 用户日常喜好，间接触发。
 ---
 
-## 白厄
-- 触发词: 白厄, Phainon
+## 园艺
+- 触发词: 园艺, gardening
 - 内在价值: 90
 - 优先级: 150
 
-核心配角，用于对比。
+高权重中性主题，用于对比。
 `;
 
 const COFFEE_ROUNDS: Round[] = [
@@ -25,14 +25,14 @@ const COFFEE_ROUNDS: Round[] = [
   { index: 0, userText: "今天想喝咖啡", modelText: "好呀，要 latte 还是美式？" },
   { index: 1, userText: "还是咖啡吧", modelText: "咖啡咖啡咖啡～" },
   { index: 2, userText: "咖啡咖啡", modelText: "" },
-  // R4~R8: 沉默 5 轮，model 提白厄（让 coffee 沉默）
-  { index: 3, userText: "白厄最近怎么样", modelText: "白厄最近很忙。" },
+  // R4~R8: 沉默 5 轮，model 提园艺（让 coffee 沉默）
+  { index: 3, userText: "园艺最近怎么样", modelText: "园艺最近很热门。" },
   { index: 4, userText: "嗯", modelText: "" },
   { index: 5, userText: "今天天气不错", modelText: "是呢。" },
   { index: 6, userText: "嗯", modelText: "" },
   { index: 7, userText: "那好吧", modelText: "" },
   // R9~R12: 提其他话题，coffee 继续沉默
-  { index: 8, userText: "白厄", modelText: "白厄在呢。" },
+  { index: 8, userText: "园艺", modelText: "园艺话题在呢。" },
   { index: 9, userText: "Blender 学了吗", modelText: "没呢。" },
   { index: 10, userText: "那猫呢", modelText: "猫很好。" },
   { index: 11, userText: "好吧", modelText: "" },
@@ -47,7 +47,7 @@ const COFFEE_ROUNDS: Round[] = [
   { index: 17, userText: "咖啡", modelText: "" },
   { index: 18, userText: "天气真好", modelText: "是呢。" },
   { index: 19, userText: "嗯", modelText: "" },
-  { index: 20, userText: "白厄白厄", modelText: "" },
+  { index: 20, userText: "园艺园艺", modelText: "" },
   { index: 21, userText: "今天下午", modelText: "" },
   { index: 22, userText: "咖啡", modelText: "" },
   { index: 23, userText: "猫猫猫", modelText: "" },

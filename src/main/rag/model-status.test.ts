@@ -87,7 +87,7 @@ beforeEach(() => {
   // Point cwd at ISOLATED_ROOT so cwd/models points inside the isolated dir,
   // not the real project tree (which has real model dirs).
   process.chdir(ISOLATED_ROOT);
-  delete process.env.CYRENE_MODELS_DIR;
+  delete process.env.FIREFLY_MODELS_DIR;
 });
 
 afterEach(() => {
@@ -95,7 +95,7 @@ afterEach(() => {
   if (fs.existsSync(ISOLATED_ROOT)) {
     fs.rmSync(ISOLATED_ROOT, { recursive: true, force: true });
   }
-  delete process.env.CYRENE_MODELS_DIR;
+  delete process.env.FIREFLY_MODELS_DIR;
 });
 
 describe("model-status: getProjectModelsDirCandidates priority", () => {
@@ -106,8 +106,8 @@ describe("model-status: getProjectModelsDirCandidates priority", () => {
     expect(dirs.indexOf(merged)).toBe(0);
   });
 
-  it("CYRENE_MODELS_DIR takes priority over cwd/models", () => {
-    process.env.CYRENE_MODELS_DIR = path.join(ISOLATED_ROOT, "override-models");
+  it("FIREFLY_MODELS_DIR takes priority over cwd/models", () => {
+    process.env.FIREFLY_MODELS_DIR = path.join(ISOLATED_ROOT, "override-models");
     const dirs = getProjectModelsDirCandidates();
     expect(dirs[0]).toBe(path.join(ISOLATED_ROOT, "override-models"));
   });
@@ -117,7 +117,7 @@ describe("model-status: getProjectModelsDirCandidates priority", () => {
   });
 
   it("de-duplicates candidates when multiple paths resolve to the same value", () => {
-    process.env.CYRENE_MODELS_DIR = path.join(process.cwd(), "models");
+    process.env.FIREFLY_MODELS_DIR = path.join(process.cwd(), "models");
     const dirs = getProjectModelsDirCandidates();
     const seen = new Set(dirs);
     expect(seen.size).toBe(dirs.length);
@@ -128,7 +128,7 @@ describe("model-status: getProjectModelsDirCandidates priority", () => {
   });
 
   it("uses the directory containing the complete model instead of an earlier empty candidate", () => {
-    process.env.CYRENE_MODELS_DIR = path.join(ISOLATED_ROOT, "empty-override");
+    process.env.FIREFLY_MODELS_DIR = path.join(ISOLATED_ROOT, "empty-override");
     ensureFakeDir("models", "Xenova", "bge-m3");
 
     expect(getProjectModelBaseDir("embedding", "bgem3")).toBe(path.join(ISOLATED_ROOT, "models"));

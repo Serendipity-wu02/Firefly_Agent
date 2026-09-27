@@ -2,6 +2,7 @@
 
 import type { ReviewSnapshot, ReviewRestoreOutcome } from "../shared/review-types";
 import type { AppUpdateApi } from "../shared/app-update";
+import type { StickerManagerApi } from "../shared/sticker-types";
 import type { PluginManagementApi, PluginPanelApi } from "../shared/plugin-management";
 import type { MomentsApi } from "../shared/moments-types";
 import type { WorkspaceListResult, WorkspaceReadResult } from "../shared/workspace-files-types";
@@ -77,6 +78,7 @@ declare global {
     moments?: MomentsApi;
     toast?: ToastRendererApi;
     chat?: ChatWindowApi;
+    stickerManager?: StickerManagerApi;
     settings?: SettingsWindowApi;
   }
 }

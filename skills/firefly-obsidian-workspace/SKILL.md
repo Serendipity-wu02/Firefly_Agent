@@ -43,7 +43,7 @@ modes:
 ### 按标题读取章节
 
 - 使用 `obsidian_read_section` 按 `# / ## / ###` 标题定位。
-- **直属正文**：指定标题下、遇到下一个同级或更高级标题之前的内容。
+- **直属章节**：包含指定标题，遇到下一个任意级别标题即停止，不包含子章节。
 - **完整章节**：指定标题及其所有子标题的完整内容。
 
 例如文件结构：
@@ -61,8 +61,8 @@ modes:
 概念 B 正文。
 ```
 
-- `obsidian_read_section` 指定 `## 概念 A`、`includeChildren=false` → 只返回 "概念 A 正文。"。
-- `obsidian_read_section` 指定 `## 概念 A`、`includeChildren=true` → 返回 "概念 A 正文。" + "### 细节 1" + "细节 1 正文。"。
+- `obsidian_read_section` 传入 `headingPath: ["主题", "概念 A"]`、`includeChildren: false` → 返回 "## 概念 A" 和 "概念 A 正文。"。
+- 同一 `headingPath` 配合 `includeChildren: true` → 还包含 "### 细节 1" 和 "细节 1 正文。"，到 "## 概念 B" 前停止。
 
 ## 写入文件
 
@@ -75,7 +75,7 @@ modes:
 ### 修改已有文件
 
 - 必须先 `obsidian_read_file` 读取文件，获取 `contentHash`。
-- 使用 `obsidian_edit` 的 `replace_section` 或 `replace_all` 操作时，必须传入 `expectedContentHash`。
+- 使用 `obsidian_edit` 的 `replace_section`、`replace_file`、`append` 或 `append_to_section` 操作时，必须传入 `expectedContentHash`。
 - 如果 `contentHash` 不匹配，说明文件已被修改，必须重新读取后再操作。
 
 ### 追加内容

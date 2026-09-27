@@ -1,5 +1,7 @@
 # Firefly Batch 5 实施记录（2026-09-25）
 
+> 历史记录：Batch 5 阶段记录；卡夫卡.png 是当时素材名，当前映射见 src/shared/task-characters.ts；60 FPS 未实测结论保留。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 ## 知识来源与取舍
 
 - 旧 Firefly 生效知识来源为 `src/main/character/resources/knowledge/facts.yaml`、`knowledge/curated_cards/*.md` 和 `character/experience/firefly_lore.md`，经旧项目知识摄入与关系加载链使用。旧文件中的第一人称叙述有将原作「开拓者」直接等同当前用户的句子，本批未原样复制。

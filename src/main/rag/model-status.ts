@@ -280,4 +280,4 @@ export function checkRerankerModelInstalled(): boolean {
   const detail = getModelInstallStatusDetail("reranker", "standard");
   return detail.installed;
 }
-import { fireflyEnvironment } from "../../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../../shared/firefly-environment";

@@ -14,5 +14,5 @@
     "sourceMap": true
   },
   "include": ["src/plugins/**/*.ts", "src/main/**/*.ts", "src/shared/**/*.ts"],
-  "exclude": ["src/shared/renderer-base.ts", "src/main/**/*.test.ts", "src/plugins/**/*.test.ts"]
+  "exclude": ["src/shared/renderer-base.ts", "src/**/*.test.ts"]
 }

@@ -100,7 +100,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   if (origPlatform) Object.defineProperty(process, "platform", origPlatform);
-  delete process.env.CYRENE_SRT;
+  delete process.env.FIREFLY_SRT;
 });
 
 afterAll(() => {
@@ -172,8 +172,8 @@ describe("initSandbox", () => {
     await expect(sb.wrapWithSandbox("ls")).resolves.toMatchObject({ ok: false, reason: "disabled" });
   });
 
-  it.each(["0", "false"])("CYRENE_SRT=%s → 沙箱被禁用，不加载 SRT", async (value) => {
-    process.env.CYRENE_SRT = value;
+  it.each(["0", "false"])("FIREFLY_SRT=%s → 沙箱被禁用，不加载 SRT", async (value) => {
+    process.env.FIREFLY_SRT = value;
 
     await sb.initSandbox();
 

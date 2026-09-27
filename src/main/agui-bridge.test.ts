@@ -1790,8 +1790,8 @@ describe("agui-bridge transcript dispatch", () => {
     });
     const { runHandler, seenInputs } = await setupBridge();
     const sender = makeSender();
-    const previous = process.env.CYRENE_TRANSCRIPT_CONTEXT_SOURCE;
-    process.env.CYRENE_TRANSCRIPT_CONTEXT_SOURCE = "renderer";
+    const previous = process.env.FIREFLY_TRANSCRIPT_CONTEXT_SOURCE;
+    process.env.FIREFLY_TRANSCRIPT_CONTEXT_SOURCE = "renderer";
     try {
       await runHandler({ sender }, {
         messages: [{ role: "user", content: "当前输入" }],
@@ -1810,8 +1810,8 @@ describe("agui-bridge transcript dispatch", () => {
       expect(entries.some((entry) => entry.kind === "backfill_boundary")).toBe(true);
       expect(entries.some((entry) => entry.kind === "user" && entry.turnId === "u1")).toBe(true);
     } finally {
-      if (previous === undefined) delete process.env.CYRENE_TRANSCRIPT_CONTEXT_SOURCE;
-      else process.env.CYRENE_TRANSCRIPT_CONTEXT_SOURCE = previous;
+      if (previous === undefined) delete process.env.FIREFLY_TRANSCRIPT_CONTEXT_SOURCE;
+      else process.env.FIREFLY_TRANSCRIPT_CONTEXT_SOURCE = previous;
       mocks.userDataRoot = "";
     }
   });

@@ -103,12 +103,16 @@ userData/plugin-data/<plugin-id>/
 | `id` | string | 是 | 匹配 `^[a-z0-9]+(-[a-z0-9]+)*$` |
 | `name` | string | 是 | 非空显示名 |
 | `version` | string | 是 | 严格 SemVer，例如 `1.2.0`、`2.0.0-beta.1` |
-| `description` | string | 是 | 非空简介 |
-| `author` | string | 是 | 非空开发者或团队名称；展示在插件卡片中 |
+| `description` | string | 是 | 插件简介；应填写有意义的内容，当前加载器裁剪空白但不拒绝空字符串 |
+| `author` | string | 是 | 开发者或团队名称，展示在插件卡片中；应保留实际署名，当前加载器裁剪空白但不拒绝空字符串 |
 | `entry` | string | 是 | 插件目录内裸文件名；支持 `.cjs`、`.js`、`.mjs` |
 | `icon` | string | 否 | 插件目录内裸文件名；支持 `.png`、`.jpg`、`.jpeg`、`.webp`、`.svg`；≤2MiB。在聊天窗口插件卡片左侧展示；不合法时静默忽略，不影响加载 |
 | `defaultEnabled` | boolean | 否 | 缺省 true，但只对内置插件生效 |
 | `deps` | string[] | 否 | 可选 `channels`、`llm`、`secrets`、`workspace`、`conversations`、`scheduler`、`speech-input` |
+| `settingsPanel` | string | 否 | 插件目录内 `.html` 裸文件名，普通文件且不超过 1 MiB；文件无效时忽略面板 |
+| `settingsSection` | string | 否 | `channels` 或 `plugins`，缺省挂到 `plugins`；面板无效时一并丢弃 |
+
+Schema 先检查字段类型、枚举和必填项，并拒绝未知字段。图标或面板的“无效时忽略”只适用于通过 Schema 后的文件校验；错误字段类型仍会拒绝整个 manifest。
 
 以下情况会拒绝加载：
 
@@ -116,7 +120,7 @@ userData/plugin-data/<plugin-id>/
 - version 不是 SemVer；
 - `deps` 含未知值或不是数组；
 - `defaultEnabled` 不是布尔值；
-- entry 包含子目录、`..`、扩展名不受支持；
+- entry 不是裸文件名或扩展名不受支持；
 - entry 不存在、不是普通文件，或通过符号链接指向插件目录外。
 
 未知依赖会使 manifest 整体失败，不会静默过滤。这样可以尽早暴露 `lllm` 一类拼写错误。
@@ -220,8 +224,7 @@ ctx.events.on("plugin:weather:updated", (weather) => {
 ```
 
 `ctx.events.on()` 返回幂等的退订函数；插件停用、刷新、卸载或启动失败回滚时，Context
-也会自动退订仍然有效的监听器，进入停止阶段后不能再新增订阅。监听器按订阅顺序执行并
-等待异步结果；单个监听器失败或执行超过 5 秒会被记录，但不会阻止同一事件的其余监听器。
+也会自动退订仍然有效的监听器，进入停止阶段后不能再新增订阅。普通事件在后续宏任务中按快照顺序调用监听器；`emit()` 返回的 Promise 只等待这些调用发生，不等待其异步工作完成。只有宿主的 ready/stopping 生命周期屏障逐个等待监听器。异步失败或超过 5 秒会记录，但超时不能终止监听器自身的工作，插件仍须响应取消信号。
 
 插件只能用短事件名发布自己的事件，框架会自动添加所有者命名空间：
 
@@ -272,7 +275,7 @@ Provider id 在当前插件内唯一，框架会补全为 `plugin:<插件id>:<pr
 #### sources 场景声明
 
 `sources` 声明 Provider 参与的场景，可选值为 `"conversation"`（用户会话）、`"scheduler"`（定时任务）、
-`"moments-post"`（动态发帖决策）：
+`"moments-post"`（动态发帖决策）、`"plugin-agent"`（插件无头目标循环）：
 
 ```js
 ctx.registerPromptProvider({
@@ -287,6 +290,7 @@ ctx.registerPromptProvider({
 
 - 未声明 `sources` 时默认只参与 `conversation` 与 `scheduler`——与旧版行为一致，既有插件
   无需改动（向后兼容）；声明后仅在列出的场景生效。
+- `plugin-agent` 必须显式声明，携带 `mode` 并参与 `modes` 过滤；定时任务的 `mode` 来自任务执行规格，缺省为 `work`。
 - 参与动态发帖（流萤结合最近对话主动发朋友圈的决策）必须显式声明 `"moments-post"`，
   防止升级后插件不知情地被扩大调用；该场景没有会话 `mode`，Provider 是否生效仅由
   `sources` 决定，`modes` 不参与匹配。
@@ -357,6 +361,8 @@ LLM 请求使用当前默认模型档案，并统一经过 Firefly 的 `LlmClien
 - `maxTokens`：1-8192，缺省 1024；
 - `timeoutMs`：1000-300000；缺省使用聊天超时并封顶 120 秒；
 - `purpose`：只用于诊断标签，不影响模型选择。
+
+较新宿主还提供可选的 `ctx.deps.llm.runGoal(options)`：必填 `runId`、`goal`、`tools`，可选 `purpose`、`signal`、`onEvent`、`maxRounds`、`maxWallMs`。调用前检查方法存在；默认上限为 50 轮、15 分钟。结果包含 `text`、`rounds` 和 `terminal`，必须读取终态，不能把返回文本直接当作成功。完整类型见 `src/plugins/api.ts` 的 `PluginAgentRunOptions`、`PluginAgentRunResult`。
 
 ### Secrets（插件私有密钥）
 
@@ -494,7 +500,9 @@ import { CURRENT_PLUGIN_API_VERSION, validateManifestData } from "@firefly/plugi
 import { createMockPluginContext, assertPluginTool } from "@firefly/plugin-sdk/testing";
 ```
 
-SDK 同时输出 ESM 和 CJS，不含 Electron、React 或宿主运行时依赖；插件编译期依赖 SDK，打包后的插件目录不要求终端用户安装 SDK。SDK 中带 Mock Context 的完整示例见仓库 `examples/` 下的四个示例插件。
+SDK 同时输出 ESM 和 CJS，不含 Electron、React 或宿主运行时依赖。仅导入 SDK 类型时，编译产物不依赖 SDK；实际导入函数或常量（包括上面的 `isPluginHostError`）时须随插件打包运行时代码及依赖。四个 TypeScript 插件入口位于 `examples/`，Mock Context 冒烟脚本位于 `scripts/plugin-sdk/smoke-examples.mjs`。
+
+`validateManifestData()` 和 `assertValidManifest()` 只做 Schema 结构校验；API 版本兼容、ID/SemVer 格式、文件存在性及路径边界由宿主加载器补充。Mock 的 `dispose()` 不调用插件 `unregister()`，不能据此宣称真实宿主停止流程已验证。示例限制见 [examples/README.md](../../examples/README.md)。
 
 插件市场尚未配置；保留本地 ZIP 安装，不要求向第三方投稿。
 ## 生命周期和状态

@@ -158,4 +158,4 @@ export function initializeScreenshotService(
   service.init(options.initialHotkey);
   return service;
 }
-import { fireflyEnvironment } from "../../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../../shared/firefly-environment";

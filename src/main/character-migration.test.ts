@@ -70,6 +70,12 @@ describe("Firefly character migration", () => {
     expect(read("prompts/soul.md")).not.toMatch(/^character:|^daily_mode:|^work_mode:/m);
     expect(read("prompts/soul.md")).toContain("## 对话示例");
     expect(read("prompts/soul.md")).toContain("共同经历过的见面、相处和约定，只能依据当前对话或明确提供的有效记忆");
+    for (const file of ["prompts/canon_quotes.md", "prompts/canon_quotes_lite.md"]) {
+      const quotes = read(file);
+      expect(quotes).toContain("火萤IV型战略强袭装甲");
+      expect(quotes).not.toContain("火萤V型战略强袭装甲");
+      expect(quotes).not.toContain("分享·心愿：");
+    }
     expect(read("prompts/phone_style.md")).not.toMatch(/昔涟|Cyrene/);
     for (const style of ["01_default.md", "02_lively.md", "03_healing.md", "04_focused.md", "05_sweet.md"]) {
       expect(read(`prompts/styles/${style}`), style).not.toMatch(/昔涟|Cyrene|人家|♪/);

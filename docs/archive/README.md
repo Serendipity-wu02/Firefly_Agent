@@ -5,7 +5,10 @@
 - [迁移与批次记录](../migration/)
 - [原有重构记录](../refactor/)
 - [内部问题记录](../internal-issue/)
-- [v1 记录](../v1/)
-- [v2 记录](../v2/)
+- [历史设计施工稿](./design/)
+- [CI 事故与定向修正记录](../ci/)
+- [结构整理阶段记录](../architecture/structure-cleanup-2026-09-26.md)、[资源更新阶段记录](../architecture/resource-refresh-2026-09-26.md)
+
+上述目录中的日期文档按记录阶段阅读；原有测试数字、旧文件名、旧命令、未提交状态及计划复选框不代表当前工作树，也不是再次执行迁移、删除、提交或推送的授权。迁移目录的 `.txt` 导入清单同样是历史快照，保留原格式。当前文档核对结果另见[审查登记](../refactor/2026-09-26-document-review-register.md)。
 
 当前架构以 [Firefly 运行结构](../architecture/firefly-runtime.md) 为入口，当前产品功能以根目录 README 为准。版权、第三方和模型声明仍在根目录原文件中完整保留。

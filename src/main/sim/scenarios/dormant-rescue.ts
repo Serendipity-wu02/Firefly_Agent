@@ -13,8 +13,8 @@ const RESCUE_FIXTURE = `## 咖啡
 测试用。
 ---
 
-## 白厄
-- 触发词: 白厄
+## 园艺
+- 触发词: 园艺
 - 内在价值: 90
 - 优先级: 150
 
@@ -29,7 +29,7 @@ const RESCUE_ROUNDS: Round[] = [
   { index: 0,  userText: "今天想喝咖啡",   modelText: "",               note: "首命中→floor 60" },
   { index: 1,  userText: "嗯",             modelText: "",               note: "沉默" },
   { index: 2,  userText: "好的",           modelText: "",               note: "沉默" },
-  { index: 3,  userText: "白厄怎么样",      modelText: "白厄很好。",     note: "沉默 coffee" },
+  { index: 3,  userText: "园艺怎么样",      modelText: "园艺很好。",     note: "沉默 coffee" },
   { index: 4,  userText: "嗯",             modelText: "",               note: "沉默" },
   { index: 5,  userText: "天气不错",       modelText: "是呢。",         note: "沉默" },
   { index: 6,  userText: "嗯",             modelText: "",               note: "沉默" },

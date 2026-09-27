@@ -131,4 +131,4 @@ export default defineConfig({
     strictPort: false,
   },
 });
-import { fireflyEnvironment } from "./src/shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "./src/shared/firefly-environment";

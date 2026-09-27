@@ -60,6 +60,7 @@ my-first-plugin/
 - `author`：插件开发者或团队名称，会作为“开发者”信息展示在插件卡片中
 - `entry`：入口文件名，支持 `.cjs` / `.js` / `.mjs`
 - `icon`（可选）：插件图标文件名，支持 `.png` / `.jpg` / `.webp` / `.svg`（≤2MiB），会在聊天窗口插件卡片左侧展示；不写不影响任何功能，写了但文件有问题会被静默忽略（插件照常加载）
+- `settingsPanel`（可选）：插件目录内 `.html` 裸文件名（≤1MiB），供宿主设置页挂载；`settingsSection` 可选 `channels` / `plugins`，默认 `plugins`。字段类型先经过 Schema 校验；文件无效时忽略面板
 
 ### 3. 写 index.cjs
 
@@ -151,7 +152,7 @@ const plugin: FireflyPlugin = {
 export = plugin;
 ```
 
-用 tsc 编译（`module: commonjs`、`outDir` 指向插件目录）后，把 `manifest.json` 和编译产物一起打包。SDK 只是编译期依赖，**终端用户不需要安装 SDK**。
+用 tsc 编译（`module: commonjs`、`outDir` 指向插件目录）后，把 `manifest.json` 和编译产物一起打包。`index.ts` 编译得到 `index.js`；若 manifest 的 `entry` 为 `index.cjs`，组装插件目录时须将产物复制为 `index.cjs`，仓库示例脚本也是这样处理。上面的 `import type` 会在编译时消除；入口若实际导入 SDK 函数或常量，必须打包相应运行时代码及依赖，不能只交付入口文件。
 
 发布前用 SDK 自带的测试工具验证契约，不需要启动 Firefly：
 
@@ -180,7 +181,7 @@ ctx.registerTool({
   description: "设置一个提醒，minutes 分钟后提示用户",
   enabled: true,
   risk: "safe",
-  effectKind: "write",   // 有副作用时用 write
+  effectKind: "mutation",
   inputSchema: {
     type: "object",
     properties: {
@@ -200,10 +201,12 @@ ctx.registerTool({
 
 ### 关键规则
 
+上面的提醒代码仅演示参数与注册形状，回调没有实现通知；它不是可用的提醒功能。实际提醒可参考 `scheduled-automation` 的宿主调度接口与用户启用流程。
+
 - **id 必须以 `<插件id>_` 开头**（如插件 id 是 `my-plugin`，工具就得叫 `my-plugin_xxx`），否则启用直接报错——这是防抢名机制
 - **description 写给 AI 看**，写清楚“什么场景该用这个工具”，直接决定 AI 用不用它
-- `execute` 返回**字符串**（或可序列化对象），这段文字会进入对话上下文
-- 常用风险标注：只读查询 `risk: "safe"` + `effectKind: "read"`；有副作用（写文件、发消息）用 `effectKind: "write"`
+- `execute` 返回 `Promise<string>`；对象结果须显式序列化为字符串再返回
+- `effectKind` 接受 `read`、`mutation`、`verification`、`external_side_effect`、`unknown`；本地修改用 `mutation`，外部副作用用 `external_side_effect`，`risk` 另按实际行为声明
 
 ---
 
@@ -245,7 +248,7 @@ module.exports = {
 <script>
   const { ipcRenderer } = require("electron");
   // 通道名规则：plugin:<插件id>:<你注册的channel名>
-  const data = await ipcRenderer.invoke("plugin:my-plugin:ping");
+  ipcRenderer.invoke("plugin:my-plugin:ping").then((data) => console.log(data));
 </script>
 ```
 
@@ -315,9 +318,10 @@ ctx.registerPromptProvider({
 
 这些内容只进入每轮动态上下文，不会改写核心提示词文件，也不会进入稳定提示词缓存前缀。
 
-`sources` 声明 Provider 参与的场景，可选值为 `"conversation"`（用户会话）/ `"scheduler"`（定时任务）/ `"moments-post"`（动态发帖决策）：
+`sources` 声明 Provider 参与的场景，可选值为 `"conversation"`（用户会话）/ `"scheduler"`（定时任务）/ `"moments-post"`（动态发帖决策）/ `"plugin-agent"`（插件无头目标循环）：
 
 - 未声明时默认只参与会话与定时任务两类场景（与旧版行为一致，既有插件无需改动）
+- `plugin-agent` 必须显式声明；该来源仍携带 `mode` 并参与 `modes` 过滤
 - 参与动态发帖（流萤结合最近对话主动发朋友圈的决策）必须显式声明 `"moments-post"`；
   该场景没有会话 `mode`，Provider 是否生效仅由 `sources` 决定
 - `moments-post` 调用会附带触发发帖的 `conversationId` / `channel`，按会话隔离记忆的插件可以用它过滤
@@ -362,12 +366,13 @@ await ctx.events.emit("updated", { value: 1 });
 ```
 
 `ctx.events.on()` 返回退订函数；即使不手动调用，停用或刷新插件时也会自动清理，进入停止
-阶段后不能再新增订阅。异步监听器会被等待，某个监听器报错或执行超过 5 秒不会影响其他
-监听器。当前宿主内置事件为：
+阶段后不能再新增订阅。普通事件在后续宏任务中按快照顺序调用监听器，`await ctx.events.emit()` 不等待监听器的异步工作完成；只有宿主 ready/stopping 生命周期屏障逐个等待。异步失败或超过 5 秒会记录，超时不终止监听器自身的工作。当前宿主内置事件为：
 
 - `host:plugins:ready`：插件系统启动完成；
 - `host:plugins:stopping`：插件系统开始停止；
-- `host:turn:completed`：桌面或外部渠道的一轮对话成功完成。首版 payload 仅含
+- `host:turn:started` / `host:turn:finished`：轮次开始与终态通知，新代码使用这两个事件；字段与来源分支见 [接口规范](./plugin-authoring.md#事件)；
+- `host:tool:finished` / `host:scheduler:finished`：工具与调度任务完成通知；
+- `host:turn:completed`：兼容事件，仅成功终态发布。首版 payload 仅含
   `source`、`mode`、`conversationId` 和可选 `channel` / `runId`，不广播对话原文，
   也不含完整历史、模型配置或工具内部状态。
 
@@ -445,3 +450,5 @@ async register(ctx) {
 | `local-asr-contract` | 语音输入租约的接管、提交与释放 | ASR 模型、推理运行时和下载器 |
 
 后四个示例是 TypeScript 写的，用 `@firefly/plugin-sdk` 编译；`npm run test:plugin-examples` 会从打包后的 SDK 编译并冒烟测试它们。
+
+示例的实际构建步骤、Mock 覆盖范围与已知实现限制见 [examples/README.md](../../examples/README.md)。编译和注册冒烟不能代替真实宿主生命周期验证。

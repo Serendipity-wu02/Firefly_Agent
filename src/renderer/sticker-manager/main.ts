@@ -3,26 +3,7 @@ import "./style.css";
 import "../ui/theme";
 import { resolveAsset } from "../../shared/renderer-base";
 
-type StickerItem = {
-  id: string;
-  src: string;
-  enabled: boolean;
-  builtIn?: boolean;
-  description?: string;
-};
-
-interface StickerManagerApi {
-  minimize: () => void;
-  close: () => void;
-  getConfig: () => Promise<StickerItem[]>;
-  setEnabled: (id: string, enabled: boolean) => Promise<StickerItem[]>;
-}
-
-declare global {
-  interface Window {
-    stickerManager?: StickerManagerApi;
-  }
-}
+import type { StickerConfigItem as StickerItem } from "../../shared/sticker-types";
 
 const grid = document.getElementById("sticker-grid") as HTMLElement;
 const minBtn = document.getElementById("min-btn") as HTMLButtonElement;

@@ -198,4 +198,4 @@ export async function getAudioDurationMs(filePath: string): Promise<number | und
   console.warn(LOG, `无法计算时长: ${filePath}`);
   return undefined;
 }
-import { fireflyEnvironment } from "../../../../shared/legacy-firefly-contracts";
+import { fireflyEnvironment } from "../../../../shared/firefly-environment";

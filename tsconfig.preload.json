@@ -14,5 +14,5 @@
     "sourceMap": true
   },
   "include": ["src/preload/**/*.ts", "src/shared/**/*.ts"],
-  "exclude": ["src/shared/renderer-base.ts"]
+  "exclude": ["src/shared/renderer-base.ts", "src/**/*.test.ts"]
 }
