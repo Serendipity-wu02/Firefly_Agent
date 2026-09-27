@@ -3,7 +3,7 @@
 This directory is designated for the Live2D Cubism 3/4 runtime model files.
 
 ## Third-Party Asset Notice (第三方资产说明)
-The Live2D model assets are third-party character assets. This checkout tracks the model manifest, model binary, texture, physics, expressions and motions; their presence does not establish redistribution rights. Preserve the source and authorization records in [THIRD_PARTY_NOTICES.md](../../../../../THIRD_PARTY_NOTICES.md) and [MODEL_LICENSE.md](../../../../../MODEL_LICENSE.md). The upstream Cyrene model notice does not grant rights to the separate Firefly assets.
+The Live2D model assets are third-party character assets. This checkout tracks the model manifest, model binary, texture, physics, expressions and motions; their presence does not establish redistribution rights. Preserve the source and authorization records in [THIRD_PARTY_NOTICES.md](../../../../../THIRD_PARTY_NOTICES.md) and [MODEL_LICENSE.md](../../../../../MODEL_LICENSE.md). Only the permissions applicable to these assets establish their distribution scope.
 
 ## Resource Installation (模型安装指引)
 To enable full Live2D rendering in local development:

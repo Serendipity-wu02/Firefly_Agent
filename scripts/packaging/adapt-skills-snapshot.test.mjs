@@ -101,7 +101,7 @@ test("distributed host instructions use registered Skill IDs and installed resou
 test("the 39-item host review and attachment hashes describe the distributed archive", async () => {
   const bytes = await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip"));
   const zip = await JSZip.loadAsync(bytes);
-  const review = JSON.parse(await fs.readFile(path.join(root, "docs/refactor/2026-09-26-dependency-governance.distribution.json"), "utf8")).hostSemanticReview;
+  const review = JSON.parse(await fs.readFile(path.join(root, "docs/archive/refactor/2026-09-26-dependency-governance.distribution.json"), "utf8")).hostSemanticReview;
   assert.equal(review.archiveSha256, createHash("sha256").update(bytes).digest("hex"));
   const names = Object.keys(zip.files).filter(name => !zip.files[name].dir);
   const skillIds = names.filter(name => /^[^/]+\/SKILL.md$/.test(name)).map(name => name.split("/")[0]).sort();

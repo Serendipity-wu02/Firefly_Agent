@@ -11,7 +11,7 @@ import * as os from "os";
 import { createHash } from "node:crypto";
 
 // 用独立子目录隔离 settings-store.test.ts（它用 os.tmpdir()）
-const FALLBACK_TMP = path.join(os.tmpdir(), "cyrene-fallback-test");
+const FALLBACK_TMP = path.join(os.tmpdir(), "firefly-fallback-test");
 fs.mkdirSync(FALLBACK_TMP, { recursive: true });
 
 // Mock electron：safeStorage.isEncryptionAvailable → false
