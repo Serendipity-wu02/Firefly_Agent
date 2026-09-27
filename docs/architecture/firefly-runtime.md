@@ -30,7 +30,7 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `scripts/packaging` | 构/包准备/测 | Skills 重建/受控适配、MinGit和可选 mpv准备；读取当前 vendor清单、shared ZIP层 | 适配源码、来源哈希和正式ZIP分开；不运行下载的上游安装脚本 |
 | `scripts/plugin-sdk` | 构/测 | SDK/schema生成、包验证、示例编译/Mock | 不执行 npm publish |
 | `scripts/ci`、`verify`、`diagnostics`、`perf` | 测 | CI退出证据、产物检查、显式诊断及性能测试 | 不是普通启动链；有副作用的验收不能由文档自动执行 |
-| `tools/firefly-upstream-fetch` | 显式维护/测 | 固定来源获取工具、配置及其测试 | 不参与启动、普通build或打包；获取暂存不进入正式扫描 |
+| `scripts/packaging/upstream-skills` | 显式维护/测 | 固定来源获取工具、配置及其测试 | 不参与启动、普通build或打包；获取暂存不进入正式扫描 |
 | `vendor/firefly-skills` | 运/包/测 | 正式 ZIP、manifest、LICENSE-NOTICES、licenses/provenance → 安装器 extraResources → Skills初始化 | 39项固定版本及Firefly适配；既有来源/版本结论保持 |
 | `vendor/mingit-manifest.json`、`mpv-manifest.json` | 包准备/测 | 对应准备脚本读取版本、地址、校验和 | 真实第三方二进制来源，不是当前应用更新源 |
 | `resources` | 包准备/包/测 | `bin/firefly-screenshot.exe`、`mingit` 是本机构建/下载暂存；`bin/mpv` 只供显式转码准备 | `electron-builder.yml` 只复制明确列出的输入；components不属于当前音乐包 |
@@ -38,9 +38,9 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `assets` | 运/包/测 | app/tray图标、编辑器文件类型图标、UI纹理；由app-icon/tray、Renderer和builder引用 | 资源许可独立于代码许可；不同尺寸图标不是重复模块 |
 | `examples` | 显式构/测 | system-status、weather-tool、scheduled-automation、long-term-memory、local-asr-contract → SDK及manifest协议 | 开发示例，不会自动安装到真实用户plugins |
 | `build/installer` | 包准备/包验证 | `installer.nsh` 与侧栏位图由 NSIS include 引用 | 是安装器源码；不同于可再生 dist，不删除整个 build |
-| `poc/srt` | 显式研究 | 独立脚本核对 sandbox runtime；普通package脚本不调用 | 保留研究用途，不宣称生产沙箱的替代实现 |
+| `scripts/verify/sandbox-runtime` | 显式研究 | 独立脚本核对 sandbox runtime；普通package脚本不调用 | 保留研究用途，不宣称生产沙箱的替代实现 |
 | `models` | 外部可选运行时 | 仓库只跟踪占位/忽略规则；RAG从明确配置定位用户模型 | 不含权重的源码分发；不自动安装BGE-M3 |
-| `docs` | 文档/核对 | architecture为当前入口，plugins/user-guide为使用契约；archive/migration/refactor记录证据与历史 | 不从历史施工计划重新生成产品功能；许可和追溯不抹除 |
+| `docs` | 文档/核对 | architecture为当前入口，plugins/user-guide为使用契约；archive记录证据与历史 | 不从历史施工计划重新生成产品功能；许可和追溯不抹除 |
 | `.github` | CI/维护 | Test/plugin-sdk等工作流调用当前package/scripts | 不改变检查阈值、发布或分支策略 |
 | `dist`、`node_modules`、`release` | 可再生输出/依赖 | build、npm ci、electron-builder输出 | 不复制用户环境作为产品源码；不用于归属判断 |
 
@@ -90,12 +90,12 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 
 ### 结构决策与不变契约
 
-- 本轮不做文件/目录重命名：`migration`有明确长期兼容用途；`startup`/`application`、`chat`/`chats`、`services/cita`/`cita`已确认职责不同。为了整齐移动会增加调用和历史测试维护成本，没有消除实际重复所有者的收益。
+- 运行模块不为整齐而重命名：`migration`有明确长期兼容用途；`startup`/`application`、`chat`/`chats`、`services/cita`/`cita`已确认职责不同。为了整齐移动会增加调用和历史测试维护成本，没有消除实际重复所有者的收益。
 - `scripts/build`、`packaging`、`verify`、`ci`等已按职责分开；当前源码、适配输入、正式vendor归档、resources二进制暂存、dist输出边界如上，不把它们归为重复资源后删除。
 - 测试沿现有同目录布局保留：Vitest扫描src、skills/tests、packages/src；Node测试扫描scripts须显式执行；Rust测试由Cargo执行。Main/preload正式编译不应将`*.test.ts`列为根输入；测试代码不应通过`dist/**/*`进入正式包。对应修正与验证见集中报告。
 - 身份不能混用：仓库展示`Firefly_Agent`，npm包`firefly-agent`，Electron appName及userData子目录`Firefly`，appId `com.serendipitywu02.firefly`，CLI `firefly`，SDK `@firefly/plugin-sdk`。这些是不同协议职责，本轮不更改其值。
 - `docs/architecture`是长期入口；迁移、CI事故、refactor集中报告是证据索引，历史源码路径不作为正常操作命令。旧产品署名、第三方包名、来源URL、旧用户键继续按各自必要用途保留。
-- 没有把未知模型/办公服务、真实用户环境、深度GUI、TTS、QQ Music审批、持续帧率、安装器或跨平台状态写成通过。完整证据及独立性验证边界见[集中记录](../refactor/2026-09-26-documentation-dependency-closeout.md)。
+- 没有把未知模型/办公服务、真实用户环境、深度GUI、TTS、QQ Music审批、持续帧率、安装器或跨平台状态写成通过。完整证据及独立性验证边界见[集中记录](firefly-reliability-boundaries.md)。
 
 ## 执行与身份
 
@@ -154,4 +154,4 @@ P2 后续事项：`skills/skill-tools.ts` 的 `readRefs` 是进程级 Set，当�
 
 ## 验证边界
 
-源码核对说明接线；测试结果只适用于其实际运行版本与范围，不能证明真实模型、音频、播放器或全部视觉状态通过。2026-09-25 阶段实机记录见 `docs/migration/firefly-brand-skills-2026-09-25.md`；历史记录统一从 `docs/archive/README.md` 查阅。项目 ZIP 入口使用 `yauzl@3.4.0` 与 `src/shared/zip-extraction.ts`；验证记录见 [文档与依赖汇总](../refactor/2026-09-26-documentation-dependency-closeout.md)。
+源码核对说明接线；测试结果只适用于其实际运行版本与范围，不能证明真实模型、音频、播放器或全部视觉状态通过。阶段实机记录从归档索引查阅；历史记录统一从 `docs/archive/README.md` 查阅。项目 ZIP 入口使用 `yauzl@3.4.0` 与 `src/shared/zip-extraction.ts`；验证记录见 [文档与依赖汇总](firefly-reliability-boundaries.md)。

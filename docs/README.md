@@ -13,15 +13,15 @@
 - [插件开发](plugins/plugin-dev-guide.md)
 - [插件接口](plugins/plugin-authoring.md)
 
-## 审查登记
+## 当前安全与验证
 
-- [2026-09-26 文档与依赖主汇总](refactor/2026-09-26-documentation-dependency-closeout.md)：集中记录验证进度与最终状态；历史审计不作为最新状态。
-- [2026-09-26 文档逐文件审查](refactor/2026-09-26-document-review-register.md)：静态核对、修改原因、证据路径和未覆盖项。
-- ZIP 入口使用 `yauzl@3.4.0` 与项目落盘适配；源码来源及用途见 [第三方说明](../THIRD_PARTY_NOTICES.md)，验证记录见主汇总，审计数字不作为安全认证。
+- [依赖与归档安全维护](security/dependency-management.md)
+- [已知问题](known-issues/README.md)
+- 历史验证记录从归档索引查阅，不作为当前命令或安全认证。
 
 ## 来源与历史
 
 - [历史施工、问题与验收索引](archive/README.md)
-- [2026-09-26 结构整理记录](architecture/structure-cleanup-2026-09-26.md)、[资源更新记录](architecture/resource-refresh-2026-09-26.md)：按阶段保留，不代替当前操作指南。
+- [2026-09-26 结构整理记录](archive/reviews/structure-cleanup-2026-09-26.md)、[资源更新记录](archive/reviews/resource-refresh-2026-09-26.md)：按阶段保留，不代替当前操作指南。
 - [源人设参考](reference/persona/README.md)：不加载、不分发，不作为当前提示词。
 - [MIT 许可](../LICENSE)、[第三方来源](../THIRD_PARTY_NOTICES.md)、[模型许可](../MODEL_LICENSE.md)

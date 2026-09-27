@@ -34,7 +34,7 @@ The current source tree is Firefly's independently maintained product baseline. 
 
 Recorded maintenance issues include process-wide attachment-page deduplication; reading across sessions needs further validation. The original cause of the first empty-history-list incident remains unknown. Read failures being presented as empty lists and subsequent file overwrites have been fixed; successful restarts do not establish the original cause.
 
-Commands, input hashes, results and historical boundaries are recorded in the [consolidated verification record](./docs/refactor/2026-09-26-documentation-dependency-closeout.md). Targeted results do not establish a full test-suite pass or completion of every feature. No public installer or automatic update is promised; automatic updates remain disabled.
+Current boundaries are described in the [reliability guide](docs/architecture/firefly-reliability-boundaries.md); historical commands, input hashes and results are available through the [archive index](docs/archive/README.md). Targeted results do not establish a full test-suite pass or completion of every feature. No public installer or automatic update is promised; automatic updates remain disabled.
 
 ## Development environment and startup
 

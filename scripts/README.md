@@ -19,8 +19,16 @@
 
 `npm test` 不扫描 `scripts/**/*.test.mjs`。这些文件使用 Node 测试入口，例如 `node --test scripts/packaging/electron-builder-config.test.mjs`；SDK 示例由上表的专用命令执行。`scripts/install-bge-reranker.ps1` 是显式模型安装入口，不属于普通构建步骤。执行前阅读脚本，核对下载、写入和运行前提。
 
-MinGit 与 Skills 快照脚本调用 `src/shared/zip-extraction.ts`，底层 ZIP 解析使用 `yauzl@3.4.0`。验证记录见 [文档与依赖汇总](../docs/refactor/2026-09-26-documentation-dependency-closeout.md)，脚本说明不代表整体安全或发布验收通过。
+MinGit 与 Skills 快照脚本调用 `src/shared/zip-extraction.ts`，底层 ZIP 解析使用 `yauzl@3.4.0`。安全维护入口见 [依赖与归档说明](../docs/security/dependency-management.md)，脚本说明不代表整体安全或发布验收通过。
 
 `npm run prepare:skills` 现在也会对既有 ZIP 应用 `packaging/skill-adaptations/` 中经过核查的 Firefly 适配。`packaging/adapt-skills-snapshot.mjs` 用已声明的开发依赖 JSZip 生成固定顺序、时间戳和压缩设置的归档；输入和输出均经现有安全解压校验。manifest 区分原来源、此前产品归档和本次产物 SHA，记录每个适配文件的哈希。不会下载或执行第三方安装脚本；本地备份与取证目录不进入产物。
 
 `node --test scripts/packaging/adapt-skills-snapshot.test.mjs` 验证可重复构建、未适配条目的字节保持和最终 ZIP 内的文件链接及标题锚点；这里只验证本地引用，不替代远程 URL 或全部脚本功能验证。
+
+## 显式人工维护入口
+
+- `packaging/upstream-skills/fetch_skills.py`：固定来源获取，先阅读同目录 README 并运行 `--plan`；不参与普通构建或应用 Skills 扫描，不自动执行第三方脚本。
+- `verify/sandbox-runtime/check-status.mjs`：独立沙箱状态检查；同目录 `install.mjs` 会触发 UAC 和系统配置，`run-cmd.mjs`、`boundary-test.mjs` 会执行隔离命令，均非普通验证入口，本轮不执行。
+- `packaging/prepare-mpv.mjs`、`verify/mpv-helper.mjs`：可选音频辅助准备与人工检查，不恢复网易云播放器，也不进入默认打包。
+- `perf/recording.mjs`：性能录像处理 helper，由性能 runner 和对应 Node 回归使用；默认指标写入已忽略的 `output/perf/`。
+- `install-bge-reranker.ps1`：需显式决定的模型下载，不自动安装或修改用户配置。

@@ -38,3 +38,20 @@ it("has valid file targets in current navigation", () => {
     }
   }
 });
+
+it("keeps maintenance tools at their current paths and excludes unused installer artwork", () => {
+  expect(fs.existsSync(path.join(root, "build/installer/installer.nsh"))).toBe(true);
+  expect(fs.existsSync(path.join(root, "build/installer/installer-sidebar.bmp"))).toBe(false);
+  expect(read("electron-builder.yml")).toContain("include: build/installer/installer.nsh");
+  expect(read("electron-builder.yml")).not.toContain("installerSidebar");
+  for (const file of ["loading.png", "icons/mimi.png", "icons/sticker-picker.png", "context-usage/alert.png", "feeling/开心.png"]) {
+    expect(fs.existsSync(path.join(root, "src/renderer/public", file)), file).toBe(false);
+  }
+  for (const file of ["scripts/packaging/upstream-skills/fetch_skills.py", "scripts/packaging/upstream-skills/sources.json", "scripts/verify/sandbox-runtime/check-status.mjs"]) {
+    expect(fs.existsSync(path.join(root, file)), file).toBe(true);
+  }
+  for (const file of ["README.md", "README.en.md", "DEVELOPMENT.md", "scripts/README.md", "resources/README.md", "examples/README.md", "docs/architecture/firefly-runtime.md"]) {
+    expect(read(file), file).not.toMatch(/docs\/refactor\/|docs\/migration\/|docs\/internal-issue\/|poc\/srt|tools\/firefly-upstream-fetch/);
+  }
+  expect(read("scripts/perf/chat-renderer-baseline.mjs")).toContain("output/perf/baseline-report.json");
+});

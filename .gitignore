@@ -47,15 +47,14 @@ native/*-gamebot/
 # M0 POC scratch（含早期 token/qr.png 敏感产物，仅本地参考）
 tmp-m0-poc/
 
-# build/ 顶层是 NSIS 安装包的源资源（installer.nsh / installer-sidebar.bmp），
+# build/ 顶层是 NSIS 安装包的源资源（installer.nsh），
 # 被 electron-builder.yml 引用，必须进 Git。
 # build/installer/ui/ 是自研安装器 UI 的整个子项目，源码 + 产物都不进 git。
-# 兜底：未来若在 build/ 下新增其他子目录（除了上方白名单的 2 个文件），默认全部忽略。
+# 兜底：未来若在 build/ 下新增其他子目录（除了上方白名单文件），默认全部忽略。
 build/*
 !build/installer/
 build/installer/*
 !build/installer/installer.nsh
-!build/installer/installer-sidebar.bmp
 build/installer/ui/
 build/installer/ui/node_modules/
 build/installer/ui/dist/
@@ -198,7 +197,7 @@ docs/
 # superpowers/ 是 superpowers agent 生成的设计/计划草稿，不发布
 docs/superpowers/
 # 聊天渲染性能基线的本地运行报告（跑指标生成的 JSON，随代码变化易失真，不进 git）
-docs/internal-issue/perf/
+output/perf/
 !docs/local-models.md
 !docs/opener-pack.md
 !docs/electron-33-to-43-upgrade-assessment.md

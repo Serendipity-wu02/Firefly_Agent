@@ -10,4 +10,4 @@
 
 MinGit 的版本、下载地址与 SHA-256 校验值由 `vendor/mingit-manifest.json` 管理；请更新清单与准备脚本，而不要手动提交 `resources/mingit/` 的文件。mpv 准备脚本保留用于显式本地准备，不在 `package:win:dir` 中运行；探测实现见 `src/main/audio/mpv-binary.ts`，音频转码见 `src/main/channels/adapters/feishu/audio-transcode.ts`。
 
-项目 ZIP 入口使用 `yauzl@3.4.0` 与 `src/shared/zip-extraction.ts`；验证记录见 [文档与依赖汇总](../docs/refactor/2026-09-26-documentation-dependency-closeout.md)。本说明不等于资源已准备、打包已通过或可以公开分发。
+项目 ZIP 入口使用 `yauzl@3.4.0` 与 `src/shared/zip-extraction.ts`；安全维护入口见 [依赖与归档说明](../docs/security/dependency-management.md)。本说明不等于资源已准备、打包已通过或可以公开分发。
