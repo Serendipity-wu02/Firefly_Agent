@@ -18,3 +18,9 @@ Initial materialization preserves every distributed byte, including LF, CRLF and
 `scripts/packaging/skill-adaptations/`, `skill-replacements.json`, `skill-repairs.json`, and `adapt-skills-snapshot.mjs` retain upstream/source reconstruction, historical adaptation verification and migration-recognition evidence. They are not a hidden override of current canonical source. Recognized source/result/prior hashes remain necessary for compatibility tests and protected migration.
 
 Current distribution changes must preserve mode declarations, tools, effectKind, hidden flags, user overrides and managed-update protections. Content/layout maintenance is not proof of real-model, external Office, GUI, installer, cross-platform or public redistribution clearance.
+
+## Generation
+
+Run `npm run prepare:skills` explicitly. The generator validates the canonical 39 IDs against the tracked manifest and the eight root built-ins, rejects unsafe filesystem entries, packs sorted paths with the existing fixed-date JSZip format, and safely extracts and compares every output byte before publishing. It does not apply historical overlays. With unchanged content, ZIP and manifest (including generatedAt) are unchanged. Historical adaptation/provenance fields retain their original meaning.
+
+`build`, `dev`, `start`, and `package:win:dir` intentionally do not run preparation automatically while the generated ZIP remains tracked. The packaging fileset excludes `skills/**` here and ships the ZIP, manifest and legal/provenance materials at the existing resources path.

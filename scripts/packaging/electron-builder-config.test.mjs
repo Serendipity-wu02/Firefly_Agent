@@ -1,14 +1,37 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdtemp, rm, access } from "node:fs/promises";
+import os from "node:os";
+import { createRequire } from "node:module";
 import test from "node:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import YAML from "yaml";
+const require = createRequire(import.meta.url);
+const { FileMatcher } = require("app-builder-lib/out/fileMatcher.js");
+const { copyDir } = require("builder-util");
 
 const source = await readFile(new URL("../../electron-builder.yml", import.meta.url), "utf8");
 const installerInclude = await readFile(new URL("../../build/installer/installer.nsh", import.meta.url), "utf8");
 const packageJson = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(await readFile(new URL("../../package-lock.json", import.meta.url), "utf8"));
+
+test("vendor resources ship the snapshot and legal notices without duplicate canonical sources", async context => {
+  const config = YAML.parse(source);
+  const vendor = config.extraResources.find(entry => entry.from === "vendor/firefly-skills");
+  assert.equal(vendor.to, "firefly-skills");
+  assert.ok(Array.isArray(vendor.filter));
+  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const destination = await mkdtemp(path.join(os.tmpdir(), "firefly-resources-test-"));
+  context.after(() => rm(destination, { recursive: true, force: true }));
+  const matcher = new FileMatcher(path.join(root, vendor.from), destination, value => value, vendor.filter);
+  await copyDir(matcher.from, matcher.to, { filter: matcher.createFilter() });
+  for (const name of ["skills-snapshot.zip", "skills-snapshot-manifest.json", "LICENSE-NOTICES.md", "license-provenance.json"])
+    await access(path.join(destination, name));
+  await assert.rejects(access(path.join(destination, "skills")), { code: "ENOENT" });
+  for (const key of ["build", "dev", "start", "package:win:dir"])
+    assert.ok(!packageJson.scripts[key].includes("prepare:skills"), key);
+});
 
 test("production TypeScript entry sets exclude tests but retain application and bridge entries", () => {
   const root = fileURLToPath(new URL("../../", import.meta.url));

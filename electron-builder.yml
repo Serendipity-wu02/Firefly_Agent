@@ -45,6 +45,9 @@ extraResources:
   # 第三方 skills 快照归档：首启解压到 userData/skills（见 src/main/skills/snapshot-install.ts）
   - from: vendor/firefly-skills
     to: firefly-skills
+    filter:
+      - "**/*"
+      - "!skills{,/**/*}"
 win:
   icon: assets/icon-presets/firefly.png
   target:
