@@ -1,11 +1,27 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const source = await readFile(new URL("../../electron-builder.yml", import.meta.url), "utf8");
 const installerInclude = await readFile(new URL("../../build/installer/installer.nsh", import.meta.url), "utf8");
 const packageJson = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(await readFile(new URL("../../package-lock.json", import.meta.url), "utf8"));
+
+test("production TypeScript entry sets exclude tests but retain application and bridge entries", () => {
+  const root = fileURLToPath(new URL("../../", import.meta.url));
+  for (const [config, entry] of [["tsconfig.main.json", "src/main/index.ts"], ["tsconfig.preload.json", "src/preload/index.ts"]]) {
+    const location = path.join(root, config);
+    const loaded = ts.readConfigFile(location, ts.sys.readFile);
+    assert.equal(loaded.error, undefined);
+    const parsed = ts.parseJsonConfigFileContent(loaded.config, ts.sys, root);
+    assert.deepEqual(parsed.errors, []);
+    assert.ok(parsed.fileNames.some(file => path.resolve(file) === path.resolve(root, entry)));
+    assert.deepEqual(parsed.fileNames.filter(file => /\.test\.[cm]?tsx?$/.test(file)), [], config);
+  }
+});
 
 test("the Firefly package identity is consistent and does not publish updates", () => {
   assert.equal(packageJson.name, "firefly-agent");

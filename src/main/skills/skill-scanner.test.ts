@@ -3,6 +3,20 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { parseSkillFrontmatter, scanSkills } from "./skill-scanner";
+import { buildAutoInjectedSkillContext, buildSkillCatalog } from "./skill-catalog";
+
+describe("built-in diagram Skill contract", () => {
+  it("discovers the shipped diagram Skill without claiming automatic body injection", () => {
+    const skillsRoot = path.resolve(__dirname, "../../../skills");
+    const diagram = scanSkills(skillsRoot, "builtin").find((skill) => skill.id === "firefly-diagram");
+    expect(diagram).toBeDefined();
+    expect(diagram?.manifest).toBeUndefined();
+    expect(fs.readFileSync(path.join(skillsRoot, "firefly-diagram/SKILL.md"), "utf8"))
+      .not.toMatch(/^autoInject:/m);
+    expect(buildSkillCatalog([diagram!])).toContain("firefly-diagram");
+    expect(buildAutoInjectedSkillContext([diagram!])).toBe("");
+  });
+});
 
 describe("parseSkillFrontmatter", () => {
   it("解析合规 SKILL.md", () => {

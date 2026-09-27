@@ -16,6 +16,20 @@ This Firefly migration retains substantial source code and architecture from [Pl
 
 Runtime and build dependencies are declared in `package.json` and locked in `package-lock.json`; their individual package licenses remain applicable. The retired `vendor/cloud-music-mcp/` source is no longer shipped. Its provenance and license remain in repository history and historical migration records. The project-maintained SDK is now locally built as `@firefly/plugin-sdk`, with the original MIT notice included. It is not published to npm. The upstream plugin registry is no longer a default service; local ZIP installation remains available.
 
+## ZIP parsing and extraction
+
+The project currently uses `yauzl@3.4.0` for ZIP parsing. It is MIT-licensed, `Copyright (c) 2014 Josh Wolfe`; the complete original license remains at `node_modules/yauzl/LICENSE` and must remain with redistributed copies of that dependency. This notice does not replace or rewrite that license.
+
+`src/shared/zip-extraction.ts` is the project's adapter for validating entries and writing extracted files. It is not an `extract-zip` fork, contains no copied `extract-zip` code, and does not claim an independently implemented ZIP parser. The unscoped `extract-zip` package is absent from both the lockfile and the installed dependency tree. The separate scoped package `@electron-internal/extract-zip` remains an Electron third-party dependency; it is not the project's replacement ZIP implementation.
+
+## Inherited application Skills
+
+The distributed `vendor/firefly-skills/` directory now includes [complete additional licenses and scoped notices](./vendor/firefly-skills/LICENSE-NOTICES.md) and [file-level provenance](./vendor/firefly-skills/license-provenance.json). Keep those materials alongside the unchanged snapshot ZIP. They identify Addy Osmani, Affaan Mustafa, MiniMax/MiniMaxAI, Anthropic, Playa and the verified subset of Peter Skøtt Pedersen's work; no single repository license is applied to all Skills. The OpenClaw remake still has ten files without sufficient license evidence, individually listed in that record. Do not describe the whole distributed set as cleared for redistribution.
+
+The nine bundled `sp-` Skill bodies match [Superpowers commit ebdd4ec61f2f560bada4f6ded7b0806e62bf33f7](https://github.com/obra/superpowers/tree/ebdd4ec61f2f560bada4f6ded7b0806e62bf33f7) after stripping frontmatter and outer whitespace. Each carries the complete MIT LICENSE, `Copyright (c) 2025 Jesse Vincent`, and a provenance NOTICE. Supporting platform references retain their identified source history; this is not an official single-version upstream distribution.
+
+Firefly maintains the review/delegation adaptation, four reference briefs and three new Node helpers. The PPTX adaptation repairs six local anchors without changing generation behavior. These changes are not claimed as unmodified upstream originals. Other inherited Skill families retain their own source and license evidence; the Superpowers MIT text does not grant rights to unrelated assets. Remaining license gaps are recorded in the dependency governance report and block a claim of complete redistribution clearance.
+
 ## Current sticker source
 
 The 21 current Firefly stickers were supplied by the repository owner for this resource update. Original filenames, current asset paths and descriptions are recorded in [the resource update report](./docs/architecture/resource-refresh-2026-09-26.md). This source record does not claim original authorship or transfer the underlying artwork/IP rights; the applicable asset permissions remain separate from the source-code MIT license.
@@ -26,6 +40,6 @@ Retired design notes identified BiliNote (`https://github.com/JefferyHcool/BiliN
 
 ## Git for Windows MinGit 2.55.0.3
 
-Windows release builds include [Git for Windows MinGit 2.55.0.3](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.3) only as a fallback when the user's system Git is unavailable. The archive is downloaded from the official Git for Windows release and SHA-256 verified before packaging.
+The Windows packaging configuration includes [Git for Windows MinGit 2.55.0.3](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.3) as a fallback when the user's system Git is unavailable. `vendor/mingit-manifest.json` records the source archive and SHA-256; `scripts/packaging/prepare-mingit.mjs` performs preparation and verification. This describes the configured input, not a newly verified installer or release.
 
 Git for Windows and Git are distributed under GPL-2.0. The bundled MinGit archive retains its own license files. Source and license information are available from the [Git for Windows project](https://github.com/git-for-windows/git).

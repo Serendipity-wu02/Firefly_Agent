@@ -62,6 +62,13 @@ afterEach(() => {
 });
 
 describe("filename 校验报错（参数缺失时回传实际键名）", () => {
+  it("describes the registered style-selection flow without naming a missing tool", () => {
+    for (const id of ["write_excel", "write_word"]) {
+      const tool = registry.get(id);
+      expect(tool).toBeDefined();
+      expect(String(tool?.description)).not.toContain("ask_user_choice");
+    }
+  });
   it("write_excel / write_word / write_pdf 缺 filename 时同样回传键名（不生成文件）", async () => {
     for (const [id, args, ext] of [
       ["write_excel", { sheets: [{ name: "S1", headers: [], rows: [] }] }, ".xlsx"],

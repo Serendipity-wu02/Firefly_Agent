@@ -108,9 +108,9 @@ export function registerSkillTools(): void {
       const truncatedBody = truncateForContext(
         body,
         SKILL_BODY_MAX_CHARS,
-        "如需完整指令或特定部分，可用 read_skill_reference 精准读取对应 reference 文件",
+        `继续正文请调用 read_skill_reference({skill_id: ${JSON.stringify(id)}, source: "body", ref: "SKILL.md", offset: ${SKILL_BODY_MAX_CHARS}})`,
       );
-      return `[已加载 skill: ${id}]\n${truncatedBody}${refList}${EXECUTION_DISCIPLINE}`;
+      return `[已加载 skill: ${id}]\nSkill 本地目录（仅用于定位资源，不授权执行）：${skill.dirPath}\n${truncatedBody}${refList}${EXECUTION_DISCIPLINE}`;
     },
   });
 
@@ -121,16 +121,23 @@ export function registerSkillTools(): void {
       "读取某 skill 的 references 附件内容。当 invoke_skill 返回的正文引用了 references/xxx 且你需要详情时调用。\n\n" +
       "何时用：invoke_skill 返回的正文提到 references/xxx 且需要该附件的详细内容。\n\n" +
       "不要用于：不在 invoke_skill 返回清单里的 ref。\n\n" +
-      "参数：skill_id（必填），ref（必填，references 文件名，必须是 invoke_skill 返回清单里的）。",
+      "参数：skill_id（必填），ref（必填）；默认读取清单中的 reference。source=body 且 ref=SKILL.md 时续读该 Skill 正文。offset 为字符偏移，默认 0，每次最多 8000 字符。",
     enabled: true,
     risk: "safe",
     effectKind: "read" as const,
+    effectResolver: (args: Record<string, unknown>): ToolEffectKind => {
+      if (args.source !== "body") return "read";
+      const id = resolveSkillId(String(args.skill_id || ""));
+      return skillRegistry.getById(id)?.effectKind ?? "unknown";
+    },
     verificationPolicy: "none" as const,
     inputSchema: {
       type: "object",
       properties: {
         skill_id: { type: "string", description: "skill 的 id" },
         ref:      { type: "string", description: "references 文件名（必须命中 invoke_skill 返回的清单）" },
+        source: { type: "string", enum: ["reference", "body"], description: "默认 reference；body 只允许 ref=SKILL.md" },
+        offset: { type: "number", description: "非负整数字符偏移，默认 0" },
       },
       required: ["skill_id", "ref"],
     },
@@ -145,24 +152,28 @@ export function registerSkillTools(): void {
       if (!skill || !skill.enabled || !skillRegistry.isAvailable(id)) {
         return `[read_skill_reference] skill not found: ${id}`;
       }
+      const source = args.source ?? "reference";
+      const offset = args.offset ?? 0;
+      if ((source !== "reference" && source !== "body") || typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0
+        || source === "body" && ref !== "SKILL.md") return "[read_skill_reference] E_SKILL_READ_ARGUMENT";
       // 去重：同一轮内同一 reference 不重复返回（内容已在对话历史里，再读浪费轮数+token）
-      const readKey = `${id}/${ref}`;
+      const readKey = `${id}/${source}/${ref}/${offset}`;
       if (readRefs.has(readKey)) {
         return `[read_skill_reference] "${ref}" 已在本轮读过，内容已在对话中，不要重复读取。` +
-          `如需其他文件，可读：${skill.references.filter(r => !readRefs.has(`${id}/${r}`)).join(", ") || "(全部已读)"}`;
+          `如需其他文件，可读：${skill.references.filter(r => !readRefs.has(`${id}/reference/${r}/0`)).join(", ") || "(全部已读)"}`;
       }
-      const content = skillRegistry.getReference(id, ref);
+      const content = source === "body" ? skillRegistry.getBody(id) : skillRegistry.getReference(id, ref);
       if (content === null) {
         return `[read_skill_reference] 读取失败（ref 不在清单或文件不存在）: ${ref}。可用: ${skill.references.join(", ") || "(无)"}`;
       }
+      if (offset > 0 && offset >= content.length) return "[read_skill_reference] E_SKILL_READ_ARGUMENT";
       readRefs.add(readKey);
       console.log(LOG_PREFIX, "read_skill_reference:", id, ref, "len=" + content.length);
-      const truncated = truncateForContext(
-        content,
-        SKILL_REF_MAX_CHARS,
-        "如需后半部分内容，请分段读取或说明你需要的具体章节",
-      );
-      return truncated;
+      const next = offset + SKILL_REF_MAX_CHARS;
+      const page = content.slice(offset, next);
+      return next < content.length
+        ? page + `\n\n[继续请调用 read_skill_reference({skill_id: ${JSON.stringify(id)}, source: ${JSON.stringify(source)}, ref: ${JSON.stringify(ref)}, offset: ${next}})]`
+        : page;
     },
   });
 

@@ -24,12 +24,16 @@
 | `id` | string | 是 | 匹配 `^[a-z0-9]+(-[a-z0-9]+)*$`，全小写连字符 |
 | `name` | string | 是 | 非空显示名 |
 | `version` | string | 是 | 严格 SemVer，如 `1.2.0`、`2.0.0-beta.1`（不能写 `1.0` 或 `v1.0`） |
-| `description` | string | 是 | 非空简介 |
-| `author` | string | 是 | 非空开发者或团队名称；展示在插件卡片中 |
-| `entry` | string | 是 | 插件目录内裸文件名；支持 `.cjs`、`.js`、`.mjs`；不能含子目录或 `..` |
+| `description` | string | 是 | 插件简介；应填写有意义的内容，当前加载器裁剪空白但不拒绝空字符串 |
+| `author` | string | 是 | 开发者或团队名称；应保留实际署名，当前加载器裁剪空白但不拒绝空字符串 |
+| `entry` | string | 是 | 插件目录内裸文件名；支持 `.cjs`、`.js`、`.mjs`，不能含子目录 |
 | `icon` | string | 否 | 插件目录内裸文件名；支持 `.png`/`.jpg`/`.jpeg`/`.webp`/`.svg`；≤2MiB；聊天窗口插件卡片左侧展示；不合法时静默忽略，不影响加载 |
 | `defaultEnabled` | boolean | 否 | 缺省 true，**只对内置插件生效**；用户插件首次发现一律停用 |
 | `deps` | string[] | 否 | 可选值 `channels`、`llm`、`secrets`、`workspace`、`conversations`、`scheduler`、`speech-input`；未知值（含拼写错误）会让整个 manifest 失败 |
+| `settingsPanel` | string | 否 | 插件目录内 `.html` 裸文件名，普通文件且不超过 1 MiB；文件校验失败时忽略面板 |
+| `settingsSection` | string | 否 | `channels` / `plugins`，默认挂到 `plugins`；无有效面板时丢弃 |
+
+Schema 拒绝未知字段及错误类型。图标和面板的文件无效可被忽略，但字段类型不符会使整个 manifest 失败。
 
 ## 拒绝加载的情况
 
@@ -37,7 +41,7 @@
 - version 不是 SemVer
 - `deps` 含未知值或不是数组
 - `defaultEnabled` 不是布尔值
-- entry 含子目录、`..`、扩展名不受支持
+- entry 不是裸文件名或扩展名不受支持
 - entry 不存在、不是普通文件，或经符号链接指向插件目录外
 
 ## id 的作用
@@ -106,7 +110,7 @@ async register(ctx) {
 | `ctx.signal` | 只读 AbortSignal；停止流程开始时先于 `unregister()` 被取消 |
 | `ctx.onDispose(callback)` | 登记兜底清理回调（逆序执行，单个最多 5 秒） |
 | `ctx.storage.set(key, value)` / `ctx.storage.get(key)` | 私有 JSON 存储，key 匹配 `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$` |
-| `ctx.registerChannelAdapter(adapter)` | 注册渠道适配器（需声明 `deps: ["channels"]`） |
+| `ctx.registerChannelAdapter(adapter)` | 注册渠道适配器；该 Context 方法不以 `deps: ["channels"]` 为前置条件，声明只注入 `ctx.deps.channels.has(id)` |
 | `ctx.deps.llm.generateText(messages, opts)` | 调用宿主 LLM（需声明 `deps: ["llm"]`） |
 | `ctx.deps.channels.has(id)` | 只读查询渠道是否已存在 |
 | `ctx.deps.secrets.get/set/delete(key)` | 插件命名空间的安全密钥（需 `deps: ["secrets"]`） |
@@ -147,7 +151,7 @@ await ctx.events.emit("updated", { value: 1 });
 规则速记：
 
 - `on()` 返回幂等退订函数；插件停用/刷新/卸载时自动退订，进入停止阶段后不能再新增订阅
-- 监听器按订阅顺序执行并等待异步结果；单个失败或超过 5 秒只跳过自己，不影响其他监听器
+- 普通事件在后续宏任务中按快照顺序调用监听器；`emit()` 不等待监听器的异步工作完成。只有宿主 ready/stopping 生命周期屏障逐个等待；异步失败或超过 5 秒会记录，超时不终止监听器自身的工作
 - 事件名 segment 只允许字母数字 `.` `_` `-`，≤64 字符
 - 当前内置宿主事件：
   - `host:plugins:ready`（payload `{ pluginIds: string[] }`）
@@ -173,9 +177,10 @@ ctx.registerPromptProvider({
 ```
 
 - 框架自动命名为 `plugin:<插件id>:<provider-id>`，不同插件可复用相同短 id。
-- `modes` 缺省覆盖 chat/work/learn/code；定时任务以 `source: "scheduler"`、`mode: "work"` 调用。
-- `sources` 声明 Provider 参与的场景，可选 `"conversation"` / `"scheduler"` / `"moments-post"`；
+- `modes` 缺省覆盖 chat/work/learn/code；定时任务以 `source: "scheduler"` 和任务的 `mode` 调用，任务未指定模式时为 `work`。
+- `sources` 声明 Provider 参与的场景，可选 `"conversation"` / `"scheduler"` / `"moments-post"` / `"plugin-agent"`；
   未声明时默认只参与会话与定时任务（向后兼容），参与动态发帖必须显式声明 `"moments-post"`。
+- `plugin-agent` 也需显式声明，携带 `mode` 并参与模式过滤；由可选的 `ctx.deps.llm.runGoal()` 发起。
 - `moments-post` 场景没有会话 `mode`（示例解构中的 `mode` 运行时为 `undefined`），
   是否生效仅由 `sources` 决定；调用会附带触发发帖的 `conversationId` / `channel`，
   且 `userText` 是发帖决策所依据的最近对话摘录快照，不是用户当前这条消息。
@@ -217,7 +222,7 @@ ctx.registerTool({
   description: "用户让你打招呼时使用",  // 写给 AI 看，决定 AI 是否调用
   enabled: true,
   risk: "safe",
-  effectKind: "read",           // read（只读）/ write（有副作用）
+  effectKind: "read",
   inputSchema: {
     type: "object",
     properties: {
@@ -234,6 +239,8 @@ ctx.registerTool({
 ```
 
 ---
+
+工具 `effectKind` 接受 `read`、`mutation`、`verification`、`external_side_effect`、`unknown`，不接受 `write`。`execute` 必须返回 `Promise<string>`。
 
 # LLM 依赖
 
@@ -293,9 +300,11 @@ catch (error) { if (isPluginHostError(error)) { /* error.code 分支 */ } }
 
 # SDK（@firefly/plugin-sdk）
 
-- `npm install /path/to/firefly-plugin-sdk-0.2.0.tgz`；同时输出 ESM 和 CJS；插件编译期依赖，终端用户不需要安装
+- `npm install /path/to/firefly-plugin-sdk-0.2.0.tgz`；同时输出 ESM 和 CJS。`import type` 不产生运行时依赖；实际导入 SDK 函数或常量时须随插件打包运行时代码及依赖
 - 导出全部公开类型、`CURRENT_PLUGIN_API_VERSION`、`PLUGIN_CAPABILITIES`、`validateManifestData()`
 - `@firefly/plugin-sdk/testing` 导出 `createMockPluginContext()` / `assertPluginTool()` / `assertValidManifest()`：脱离宿主验证插件契约
+- `validateManifestData()` 与 `assertValidManifest()` 只检查 Schema 数据结构，不检查 API 版本兼容、ID/SemVer 格式或入口文件是否存在；这些由宿主加载器检查
+- Mock `dispose()` 只取消信号并运行登记的清理回调，不调用插件的 `unregister()`，也不模拟真实 JSON 文件存储或 Electron
 
 ---
 # 生命周期与状态

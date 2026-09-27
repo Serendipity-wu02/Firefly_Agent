@@ -7,7 +7,7 @@ import { pipeline as pipelineCallback } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import path from "node:path";
-import extract from "extract-zip";
+import { extractZip as extract } from "../../src/shared/zip-extraction.ts";
 import { rejectZipSymlink } from "../../src/shared/zip-entry-policy.ts";
 
 const execFileAsync = promisify(execFile);

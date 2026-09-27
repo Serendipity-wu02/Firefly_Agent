@@ -28,9 +28,8 @@ jobs:
       - name: Verify Electron installation
         run: npx electron --version
 
-      # 生产依赖审计：高危基线清零或限期登记前仅留存报告，不阻断合入。
-      # 处置清单见 docs/refactor/2026-09-14-dependency-audit-baseline.md；
-      # 基线清零后把本步骤改为 npm audit --omit=dev --audit-level=high 并移除 continue-on-error。
+      # 生产依赖审计保留原有非阻断策略；调整门禁需单独确认。
+      # 当前依赖与本地审计证据见 docs/refactor/2026-09-26-documentation-dependency-closeout.md。
       - name: Audit production dependencies
         run: npm audit --omit=dev --json > npm-audit-prod.json
         continue-on-error: true

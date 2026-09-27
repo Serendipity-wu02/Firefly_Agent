@@ -28,7 +28,7 @@ modes:
 2. `references/api-spec.md` —— 完整接口规范（manifest 字段表、ctx API、生命周期、zip 导入限制）
 3. `references/example-walkthrough.md` —— 官方示例插件 system-status 走读，覆盖工具 + 弹窗 + IPC 全部知识点；写新插件前通读一遍
 
-开发版仓库中另有 `docs/plugins/` 文档和 `examples/` 官方示例（`system-status` 为 JS 全功能走读；`weather-tool`、`long-term-memory`、`scheduled-automation`、`local-asr-contract` 为 TypeScript + SDK 示例，分别覆盖 Secrets/轮次事件冻结分页/调度任务/语音租约契约），以 references/ 为准。
+开发版仓库中另有 `docs/plugins/` 文档和 `examples/` 示例（`system-status` 为保留上游署名的 JS 示例；`weather-tool`、`long-term-memory`、`scheduled-automation`、`local-asr-contract` 为 TypeScript + SDK 示例，分别展示 Secrets/轮次事件/调度任务/语音租约契约）。接口以当前 `src/plugins/api.ts`、加载器与 SDK 源码为准；示例限制见 `examples/README.md`。
 
 ## 开发流程
 
@@ -65,11 +65,11 @@ manifest 必填字段：`apiVersion: 1`、`id`、`name`、`version`（严格三�
 
 - **工具 id 必须以 `<插件id>_` 开头**，如插件 `my-plugin` 的工具叫 `my-plugin_hello`
 - **工具的 `description` 是写给 AI 看的**：写清"什么场景该用"，含参数说明
-- 只读工具 `risk: "safe"` + `effectKind: "read"`；有副作用的用 `effectKind: "write"`
+- 只读工具使用 `effectKind: "read"`；本地修改使用 `mutation`，外部副作用使用 `external_side_effect`。`risk` 按实际行为声明，SDK 不接受 `effectKind: "write"`
 - 弹窗用 `BrowserWindow` 加载插件目录内的 HTML，`nodeIntegration: true` + `contextIsolation: false`
 - 窗口实例、定时器、子进程必须在 `unregister()` 里清理，且该函数要能重复调用不崩；后台资源优先用 `ctx.onDispose(() => ...)` 登记兜底清理、`ctx.signal` 传给后台任务，交给框架托管停止时机
 - 渲染进程与插件通信：IPC 通道名是 `plugin:<插件id>:<channel>`
-- 事件发布只能用短名（框架自动补 `plugin:<插件id>:` 前缀），不能伪造 `host:*` 或其他插件的事件；监听器单个最多 5 秒
+- 事件发布只能用短名（框架自动补 `plugin:<插件id>:` 前缀），不能伪造 `host:*` 或其他插件的事件；异步监听器超过 5 秒会记录超时，框架不会强制终止其工作
 - 提示词 Provider 只写本轮有用的实时事实、短而精；单项配额 2 秒 / 16000 字符，超时或失败只跳过自身
 - 数据采集优先 Node 原生（`os`、`fs`），不够再用 PowerShell / nvidia-smi 等子进程；子进程要设超时并处理失败降级
 
@@ -97,19 +97,22 @@ npm pack ./packages/plugin-sdk
 ```js
 // 测试脚本：Mock Context 验证 register 契约、工具 id、清理回调
 const { createMockPluginContext, assertPluginTool } = require("@firefly/plugin-sdk/testing");
-const ctx = createMockPluginContext({ pluginId: "<plugin-id>" });
-await plugin.register(ctx);
-ctx.tools.forEach((t) => assertPluginTool(t, "<plugin-id>"));
-await ctx.dispose();
+const plugin = require("./<plugin-id>/index.cjs");
+(async () => {
+  const ctx = createMockPluginContext({ pluginId: "<plugin-id>" });
+  await plugin.register(ctx);
+  ctx.tools.forEach((tool) => assertPluginTool(tool, "<plugin-id>"));
+  await ctx.dispose();
+})().catch((error) => { console.error(error); process.exitCode = 1; });
 ```
 
-涉及弹窗的逻辑无法脱离 Electron 验证，跳过此步，靠安装后实测。
+将 `<plugin-id>` 替换为实际 manifest 的 `id`。Mock `dispose()` 只检查 context 清理，不调用插件 `unregister()`；两者的真实先后顺序仍需在宿主验证。窗口和渠道无法由此 Mock 验证，须安装后实测。
 
 ### 5. 打包安装
 
 - 把插件目录压成 zip：`Compress-Archive -Path <plugin-id>/* -DestinationPath <plugin-id>-<version>.zip`
 - zip 限制：≤50 MiB、≤2000 条目、解压总量 ≤200 MiB；不能有符号链接和 `..` 路径
-- 开发期也可以直接把文件复制到 `%APPDATA%\Firefly\plugins\<plugin-id>\`（与 zip 导入等价）
+- 开发期也可以把文件复制到 `%APPDATA%\Firefly\plugins\<plugin-id>\` 后刷新插件；实际目录以 `app.getPath("userData")` 为准。直接复制只走目录扫描，不执行 ZIP 暂存、替换确认和回滚事务
 - 安装后**默认停用**，需用户在聊天窗口的“插件”面板中手动启用
 
 ### 6. 安装后实测
@@ -123,8 +126,8 @@ await ctx.dispose();
 ## 分发与收录
 
 - 插件市场尚未配置。插件以本地 ZIP 安装，不自动上传或要求用户向第三方投稿。SDK 使用本仓库构建的 tarball，不从 npm 安装未发布的名称。
-- 收录要求（完整规范见仓库 CONTRIBUTING.md）：`plugins/<插件id>/` 下放可直接安装的产物（manifest + 编译后入口 + README）+ `registry.json` 登记 + README「已收录插件」表格加一行；**不要上传 zip**，ZIP 由维护者从审核过的源码统一打包
-- 反过来，用户想安装别人开发的插件：从仓库 README「已收录插件」表格下载 ZIP，走上方导入流程即可
+- 本仓库没有插件收录用的 `CONTRIBUTING.md`、`registry.json` 或 README「已收录插件」表格；不要要求用户向这些不存在的入口提交。
+- 安装他人插件时，由用户提供可信来源的 ZIP，再走上方本地导入流程；保留原作者署名与来源说明。
 
 ## 排查既有插件问题
 

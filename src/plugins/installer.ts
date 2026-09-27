@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { lstat, mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import extract from "extract-zip";
+import { extractZip as extract } from "../shared/zip-extraction";
 import { inspectPluginDir } from "./loader";
 import type { PluginManifest } from "./types";
 

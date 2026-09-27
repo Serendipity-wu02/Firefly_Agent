@@ -1,8 +1,8 @@
 /**
  * firefly run: launch Electron from the current directory.
  *
- * v0.9 scope: dev-only. Assumes the user is at a project root with a
- * runnable package.json. v1.x will add `firefly desktop` for installed apps.
+ * Development compatibility command. Requires a project root with a
+ * runnable package.json; installed applications use their executable.
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";

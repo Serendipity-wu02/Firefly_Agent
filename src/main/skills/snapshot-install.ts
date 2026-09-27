@@ -56,7 +56,7 @@ export async function installSkillsSnapshot(options: SnapshotInstallOptions): Pr
     writeFileSync = (p, c) => fs.writeFileSync(p, c, "utf8"),
     readdirSync = (p) => fs.readdirSync(p),
     extract = async (a, o) => {
-      const { default: extractZip } = await import("extract-zip");
+      const { extractZip } = await import("../../shared/zip-extraction");
       await extractZip(a, { ...o, onEntry: rejectZipSymlink });
     },
   } = options;

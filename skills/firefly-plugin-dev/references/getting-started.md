@@ -73,7 +73,7 @@ ctx.registerTool({
   description: "设置一个提醒，minutes 分钟后提示用户",
   enabled: true,
   risk: "safe",
-  effectKind: "write",
+  effectKind: "mutation",
   inputSchema: {
     type: "object",
     properties: {
@@ -92,8 +92,9 @@ ctx.registerTool({
 
 要点：
 
+- 此代码仅演示参数与注册形状，定时回调尚未实现通知；不能作为已完成的提醒功能交付。
 - **description 写给 AI 看**，写清"什么场景该用"，直接决定 AI 用不用它
-- `execute` 返回字符串（或可序列化对象），进入对话上下文
+- `execute` 返回 `Promise<string>`；对象须显式序列化后返回
 
 ---
 
@@ -131,7 +132,7 @@ module.exports = {
 ```html
 <script>
   const { ipcRenderer } = require("electron");
-  const data = await ipcRenderer.invoke("plugin:my-plugin:ping");
+  ipcRenderer.invoke("plugin:my-plugin:ping").then((data) => console.log(data));
 </script>
 ```
 
@@ -193,5 +194,5 @@ ctx.registerPromptProvider({
 
 - 优先 Node 原生（`os.cpus()`、`os.totalmem()`、`fs`）——零依赖、跨机稳
 - 不够再用子进程：Windows 下 PowerShell（`Get-CimInstance`）、nvidia-smi（N 卡状态）
-- 子进程必须：设超时、失败降级（返回 null 让 UI 显示"—"）、`windowsVerbatimArguments: true`、输出 UTF-8 优先解码 GBK 兜底
+- 子进程使用独立参数数组、设置超时并处理失败。`system-status` 的 `runCommand` 使用 `execFile`、`windowsHide: true` 和默认字符串解码；并未启用 `windowsVerbatimArguments` 或 GBK 兜底，不能把这些选项当作示例已有保证
 - CPU/网络速率这类“差分值”：两次采样做差再除以间隔时间

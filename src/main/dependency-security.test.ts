@@ -6,6 +6,12 @@ import ExcelJS from "exceljs";
 const requireDependency = createRequire(import.meta.url);
 
 describe("security dependency compatibility", () => {
+  it("shares the RxJS runtime and nominal types with the AG-UI client", () => {
+    const requireAgui = createRequire(requireDependency.resolve("@ag-ui/client"));
+    expect(requireAgui.resolve("rxjs")).toBe(requireDependency.resolve("rxjs"));
+    expect(requireAgui("rxjs").Observable).toBe(requireDependency("rxjs").Observable);
+  });
+
   it("preserves HTTPS proxy and NO_PROXY matching without using npm configuration as runtime routing", () => {
     const { getProxyForUrl } = requireDependency("proxy-from-env");
     try {
