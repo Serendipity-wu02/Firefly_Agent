@@ -1,5 +1,7 @@
 # Firefly 累计差异与提交准备（2026-09-25）
 
+> 历史记录：该阶段提交准备快照；保留准确旧路径和状态，执行任何提交操作前必须重新核对当时工作树。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 工作目录 `E:\Codex\Firefly-Agent-migration`；分支 `codex/firefly-migration`；基线提交 `cee1097bcf7cdb426e2f0f4961183c4cdf21bcb2`。路径取自 `git -c core.quotePath=false status --porcelain=v1 -uall`，新增本清单本身后共439项；暂存区为空。状态均相对此基线，不表示本轮单独改动。
 
 | 状态 | 数量 | 说明 |

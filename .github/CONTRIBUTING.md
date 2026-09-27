@@ -16,4 +16,6 @@
 
 使用 Node.js 24、npm 10 以上版本。修改后先运行受影响的测试，再按需运行 `npm run check:renderer` 和 `npm run build`。提交 PR 时写明改动原因、验证范围、未验证项和所涉素材来源。现阶段不要发布安装包：兼容 Release、安装器验收和流萤素材再分发范围尚未确认；Windows appId 已在 `electron-builder.yml` 配置。
 
+Windows 真实 Bash 集成用例需要 `FIREFLY_TEST_BASH` 指向已核对的 Git Bash 可执行文件。`npm test` 仅覆盖 `vitest.config.ts` 的扫描范围，不包含脚本 `.test.mjs`、原生 Rust 测试或实机验收。未执行的检查注明原因，不勾选为通过，也不沿用历史报告数字作为本次结果。
+
 源码使用 [MIT License](../LICENSE)；上游版权声明和 [第三方来源](../THIRD_PARTY_NOTICES.md)必须保留。既有上游贡献者记录见 [docs/CONTRIBUTORS.md](../docs/CONTRIBUTORS.md)。

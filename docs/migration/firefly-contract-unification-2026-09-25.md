@@ -1,5 +1,7 @@
 # Firefly 当前契约与数据格式统一（2026-09-25）
 
+> 历史记录：契约统一阶段记录；旧公开桥、协议及环境变量兼容已有后续收敛，不作为当前兼容承诺。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../README.md)。
+
 ## 边界与状态
 - 工作目录：`E:\Codex\Firefly-Agent-migration`。
 - 分支：`codex/firefly-migration`；HEAD：`cee1097bcf7cdb426e2f0f4961183c4cdf21bcb2`，本轮未改变。
