@@ -1,2 +1,3 @@
 src/main/skills/fixtures/upstream-pre-upgrade/*.md text eol=lf
 scripts/packaging/skill-adaptations/** text eol=lf
+vendor/firefly-skills/skills/** -text
