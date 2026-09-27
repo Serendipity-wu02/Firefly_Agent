@@ -116,7 +116,7 @@ npm run package:win:dir
 
 ## 上游与许可
 
-Firefly_Agent 保留并改编了 Cyrene-Agent 的部分源码和架构。Cyrene-Agent 原作者及其 MIT 版权声明继续保留；Firefly 后续新增和适配内容由当前项目维护。工程独立不表示全部从零原创。
+Firefly_Agent 独立维护；部分源码源自 Cyrene-Agent，并遵循保留的原 MIT 版权声明。这不表示全部代码从零原创。
 
 源码见完整 [MIT License](./LICENSE)。第三方 Skills、依赖、Live2D 模型、头像、角色 IP 和其他资产分别遵循自己的许可或授权；MIT 源码许可不自动授予素材再分发权。来源与边界见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)、[MODEL_LICENSE.md](./MODEL_LICENSE.md)及[贡献者记录](./docs/CONTRIBUTORS.md)。公开资产再分发检查继续保留。
 

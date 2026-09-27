@@ -116,7 +116,7 @@ Commit and validate development on `firefly-mini-v1.1.x`, then use a PR to merge
 
 ## Upstream and licensing
 
-Firefly_Agent retains and adapts parts of Cyrene-Agent's source and architecture. The original author's MIT copyright notices remain intact; subsequent Firefly additions and adaptations are maintained by this project. Engineering independence does not mean everything was written from scratch.
+Firefly_Agent is independently maintained. Portions of its source originated from Cyrene-Agent and remain subject to the preserved MIT notice. This does not mean all code was written from scratch.
 
 Source licensing is documented in the complete [MIT License](./LICENSE). Third-party Skills, dependencies, Live2D models, portraits, character IP and other assets have their own licenses or permissions; the source MIT license does not automatically grant asset redistribution rights. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md), [MODEL_LICENSE.md](./MODEL_LICENSE.md) and the [contributors record](./docs/CONTRIBUTORS.md) for provenance and boundaries. Public asset redistribution review remains pending.
 

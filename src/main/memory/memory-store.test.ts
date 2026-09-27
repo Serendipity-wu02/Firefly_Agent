@@ -469,15 +469,15 @@ describe("memoryStore", () => {
   it("marks direct conflicts as clarification needed without creating resolved memory", async () => {
     const { memoryStore } = await import("./memory-store")
     const oldMemory = await memoryStore.addL2Memory({
-      content: "用户喜欢被叫 Playa",
-      triggerText: "叫我 Playa",
+      content: "用户喜欢被叫 测试昵称",
+      triggerText: "叫我 测试昵称",
       sourceConversationId: "test",
       ragId: "rag_old",
       isPinned: false,
     })
     const newMemory = await memoryStore.addL2Memory({
-      content: "用户不喜欢被叫 Playa",
-      triggerText: "别叫我 Playa",
+      content: "用户不喜欢被叫 测试昵称",
+      triggerText: "别叫我 测试昵称",
       sourceConversationId: "test",
       ragId: "rag_new",
       isPinned: false,

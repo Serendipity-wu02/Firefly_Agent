@@ -29,6 +29,19 @@ it("exposes only current Window and SDK contracts", () => {
   expect(JSON.parse(read("examples/system-status/manifest.json")).author).toBe("Playa");
 });
 
+it("separates current contributors and model terms from upstream provenance", () => {
+  const contributors = read("docs/CONTRIBUTORS.md");
+  expect(contributors).toContain("# Firefly_Agent Contributors");
+  expect(contributors).toContain("Serendipity-wu02");
+  expect(contributors).not.toMatch(/lll69|Unknownuserfrommars|Asuna404|Tobi1chi|boring9720|liyi3068238601|LZhWi|lucifergzsz414|Modusensus|是依七哒|Cyrene|昔涟/);
+  expect(read("MODEL_LICENSE.md")).toContain("src/renderer/public/models/firefly/");
+  expect(read("MODEL_LICENSE.md")).not.toMatch(/Cyrene|昔涟|unrestricted permission/);
+  expect(read("THIRD_PARTY_NOTICES.md")).toContain("https://github.com/Playa-0v0/Cyrene-Agent");
+  expect(read("THIRD_PARTY_NOTICES.md")).not.toContain("Existing upstream contributions are recorded");
+  expect(read("LICENSE")).toContain("Copyright (c) 2026 Playa");
+  expect(read("LICENSE")).toContain("Copyright (c) 2026 Serendipity-wu02 (Firefly)");
+});
+
 it("has valid file targets in current navigation", () => {
   for (const file of ["README.md", "docs/README.md", "docs/archive/README.md", "docs/reference/persona/README.md", "docs/architecture/firefly-runtime.md"]) {
     for (const match of read(file).matchAll(/\]\(([^)]+)\)/g)) {
