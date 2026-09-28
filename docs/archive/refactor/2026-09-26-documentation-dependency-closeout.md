@@ -1,6 +1,68 @@
 # 文档与依赖集中收口（2026-09-26）
 
-## 当前最终状态（2026-09-27，Firefly 独立维护基线）
+## 当前状态（2026-09-28，Skills 源层与宿主收口）
+
+本轮从 `refactor/skills-source-layout` 的 `501da821c8c5abab15ed8fce7ca6d5390c6913c1` 及干净工作树开始；起始状态和哈希保存在仓库外 `E:\Codex\Firefly-skills-layout-validation-20260928\host-start-status.txt`、`host-start-head.txt`、`host-start-hashes.json`。这一基线不是下方各历史章节的基线。两个原项目、真实 userData 和已安装用户 Skills 没有参与修改。正式快照现为 39 项、257 个文件，SHA-256 `6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7`；与本轮 HEAD 的正式 ZIP 逐字节比较，仅五个 Skill 目录变化，其他 34 个目录原字节保持。`vendor/firefly-skills/license-provenance.json.currentDistribution` 列出 15 个变化文件和当前哈希，原始来源/旧快照/中间适配/托管识别哈希各自保留。
+
+### 宿主真值与必要修复
+
+`docs/architecture/skills-host-contract.md` 逐项回答 effectKind、scanner、默认/unknown、Skill 文本与工具权限分离、模式、子任务、审批及实际工具风险等十三项问题。确定性回归经过 parse→scan→registry→`invoke_skill`→dispatcher→permission：Skill 正文声称免审批并不能授权 `write_file`；read-only 拒绝、per-action 仍询问。另发现并修正三个实际运行问题：MCP 工具此前未设 risk，默认 safe；服务器自称只读可降低风险，但当前配置没有可信服务器标记；未知效果原被记为 read_only。当前本地有效覆盖以外的 MCP 声明按 unknown/input-control，未知副作用按 non-idempotent 处理并保留不确定结果防重放。外部注解不可信的依据为 [MCP 2025-03-26 Tools 规范](https://modelcontextprotocol.io/specification/2025-03-26/server/tools)。Skill 附件已读记录也从进程全局 Set 改为单次 ToolContext WeakMap，避免不同运行互相误判“已读”。这些修复不增加 Skill 工具权限；外部 MCP 服务未实测。
+
+### 35 项正常来源 Skill 逐项决定
+
+下表是对 canonical 正文、固定来源/许可记录、modes、工具与附件、跨 ID 和外部宿主假设的检查结果；`KNOWN_BOUNDARY` 表示明确保留外部宿主或未实机能力，不表示当前 Firefly 自动执行它们。三项 `FIXED` 仅修正文中已证实的无效宿主指令，未扩大权限。其余 32 项正文未改，37 项此前已确认的版本决策没有因本轮整体升级。
+
+| Skill ID | 结果 | Skill ID | 结果 |
+|---|---|---|---|
+| as-api-and-interface-design | PASS | as-code-review-and-quality | KNOWN_BOUNDARY |
+| as-code-simplification | PASS | as-context-engineering | PASS |
+| as-debugging-and-error-recovery | PASS | as-doubt-driven-development | KNOWN_BOUNDARY |
+| as-frontend-ui-engineering | KNOWN_BOUNDARY | as-git-workflow-and-versioning | PASS |
+| as-incremental-implementation | PASS | as-planning-and-task-breakdown | FIXED |
+| as-security-and-hardening | PASS | as-source-driven-development | PASS |
+| as-spec-driven-development | PASS | as-using-agent-skills | PASS |
+| docx | FIXED | ecc-agent-introspection-debugging | FIXED |
+| ecc-ai-regression-testing | PASS | ecc-code-tour | PASS |
+| ecc-codebase-onboarding | KNOWN_BOUNDARY | ecc-coding-standards | PASS |
+| ecc-plan-canvas | KNOWN_BOUNDARY | ecc-security-review | PASS |
+| ecc-tdd-workflow | PASS | pptx-generator | KNOWN_BOUNDARY |
+| self-improving-agent | KNOWN_BOUNDARY | skill-creator | KNOWN_BOUNDARY |
+| sp-brainstorming | KNOWN_BOUNDARY | sp-dispatching-parallel-agents | KNOWN_BOUNDARY |
+| sp-requesting-code-review | PASS | sp-subagent-driven-development | PASS |
+| sp-systematic-debugging | PASS | sp-using-git-worktrees | KNOWN_BOUNDARY |
+| sp-using-superpowers | PASS | sp-verification-before-completion | PASS |
+| sp-writing-plans | PASS |  |  |
+
+`as-planning-and-task-breakdown` 的 `/build` 改为上游约定而非 Firefly 命令；`ecc-agent-introspection-debugging` 不再要求未分发的 `workspace-surface-audit`，改用现有授权的文件/Git 检查；`docx` 删除虚构 `run-script` 可执行示例，并对照其实际 `.csproj` 声明 `DocumentFormat.OpenXml 3.5.1`，保留独立 .NET 项目是外部环境条件。`ecc-plan-canvas` 在起始正文已有 Firefly 可选外部 CLI 警示，因此没有无意义重写；原 hook 行只属外部宿主示例。Claude/Codex/Cursor 等名字仍可出现在来源、比较或明确的外部流程里，不据此声称 Firefly 注册了相应工具。
+
+### 两项工作流及办公版本判断
+
+`office-design` 当前正文、token 契约、四套配色及只读 Python 校验器按现有 PDF/PPTX/XLSX/DOCX 消费者重写；保留 ID、原主题路径和 schema。PDF 只读共享颜色，PPTX loader 把 `foreground` 映射到 `secondary`，Excel/Word 需显式本地样式映射；没有虚构 PowerPoint writer。`write-expense-report` 对真实 `query_expense` 文本和 `write_excel` 二维行契约重写，要求范围、日期、币种、文件不存在与写入确认；标准库 helper 只校验已确认数据并准备参数，不读取用户账本或生成工作簿。两项都沿用现有审批，不自动执行脚本；历史 Playa/Cyrene 能力来源与当前 Firefly 维护实现分开写入各自 NOTICE，完整 MIT 保留。旧已分发正文及其受控附件通过 `managed-skill-versions.json` 的真实哈希识别，用户修改不覆盖；另外三项宿主指引变化也纳入相同保护。
+
+| 项目 | 当前 Firefly 路径 | 固定上游比较输入 | 决定与未证明处 |
+|---|---|---|---|
+| pdf | Windows Python `make.py`、表单、`render_preview.py` 和视觉检查；`write_pdf` 仅 Work 简易写入，脚本需实际依赖与授权 | MiniMax-AI/skills `60aaae52bb2af8162732751a4332f62a5fef518b` 的 `skills/minimax-pdf`；其 cover 走 `render_cover.js`/浏览器，附件与本地 Python 管线不同 | RETAIN_CURRENT；输入/输出、脚本、Windows 依赖、质量与安全等价性未证明，不替换现有 PDF 渲染流程 |
+| xlsx | Windows workspace/XML helper、公式保护、`find-label` 工作表关系修复、可选 LibreOffice 重算；`write_excel` 仅 Work 简易新表 | 同一固定提交的 `skills/minimax-xlsx`；现有更多 Windows wrapper、样式、引用和测试，且本地关系修复有独立回归 | RETAIN_CURRENT；公式、已有文件保护、重算及 Windows 路由的完整等价性未证明，不覆盖现有 `xlsx_workspace.py` |
+
+### 残留与验证边界
+
+对 39 个 canonical 目录扫描 `Cyrene`/`cyrene`/`昔涟`/`.cyrene`/`Playa-`，仅 `office-design/NOTICE.md` 和 `write-expense-report/NOTICE.md` 含历史来源及版权，当前产品指令残留为零。`CLAUDE_PLUGIN_ROOT`、OpenClaw、Claude、Codex 和 hooks 的命中按来源文本、外部示例与已警示的可选能力分类，不能把字面存在当作 Firefly 自动钩子。正式 ZIP 的全部 Markdown 链接/标题锚点、39 ID、附件哈希由现有打包回归核对。真实模型、外部 Office、GUI、用户安装环境和公开分发许可仍各自是独立验收边界；旧“部分完成”“28 项缺许可”等段落是发生时的历史状态，不覆盖本节。
+
+### 本轮完整验证与隔离启动
+
+验证记录保存在仓库外 `E:\Codex\Firefly-skills-layout-validation-20260928`。首次完整 `npm test -- --reporter=dot` 退出 1：两项测试缺少已安装 Bash 的 `FIREFLY_TEST_BASH` 配置；取消退避测试把未注册的 `write_file` 调用和已注册的只读 `read_file` 工具混用，新保守效果分类使其不再进入读工具重试路径。只修正该测试夹具的调用名，未改变生产重试策略、超时或断言；受影响四文件定向重测 50/50。以实际 `E:\Git\usr\bin\bash.exe` 设置环境后再运行完整套件：527 文件、4677 通过、1 跳过、0 失败，退出 0，证据为 `host-full-test-final-with-bash.log`。第一次失败与最终通过分别保留，不将一次失败解释为偶发 runner 波动。
+
+| 检查 | 本轮结果 |
+|---|---|
+| 正式快照 | `npm run prepare:skills` 连续两次都报告 unchanged；39 vendor / 8 builtin，ZIP 835450 字节，SHA-256 `6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7`；第二次与第一次、运行前哈希相同。 |
+| 打包回归 | `node --test scripts/packaging/build-skills-snapshot.test.mjs scripts/packaging/adapt-skills-snapshot.test.mjs`：16/16，通过正式 ZIP 全部 Markdown 本地目标/标题锚点、ID、附件哈希、未知源拒绝、原归档适配与确定性。 |
+| 类型与构建 | `npm run check:renderer`、`npm run build` 均退出 0；构建保留原有大型 chunk 警告，不把警告改成已优化。 |
+| 真实旧 ZIP 升级 | 仓库外 `host-prior-snapshot.zip` 为本轮 HEAD 的实际旧归档，SHA-256 `667740966cf7f06139ab4cf65bb41489b207e3ab54627c1e2d0cfc297b9a5e72`；隔离安装后经编译后的生产迁移函数升级，五个变化 Skill 的正文/附件与 canonical 新版逐字节一致、正文备份存在、再次执行全树哈希不变。用户修改与失败恢复另由确定性测试覆盖；没有触碰真实 userData。 |
+| Electron 隔离 Smoke | 最新构建 Main/Renderer 从本项目加载，appData/userData/sessionData 均在仓库外临时根；registry 47、UI 可见 46、隐藏 1，Chat/Work/Learn/Code 四入口均实际切换，正常退出码 0。测试专用路径包装器运行后从工作树移除，不属于正式启动路径。无模型请求、真实用户设置或外部服务调用。 |
+
+这些结果证明本轮自动化及基础隔离启动范围，不证明真实模型、用户环境、外部 Office/GUI 深度流程、安装器或公开再分发许可已验收。
+
+## 历史状态（2026-09-27，Firefly 独立维护基线）
 
 **当前仓库是 Firefly 的唯一产品源码基线，已完成本轮结构整理、差异审查与已验证范围内的独立构建/基础启动验证。** 未处理 P0/P1 为 0；一项已证实的分页去重作用域 P2 和其他维护事项明确保留。39 项 Skills 来源、版本决策、静态宿主适配及正式 ZIP 不重开；没有开始后续模块新功能。工程独立不代表抹除上游来源，也不代表整个应用、全部资产许可或公开发布已验收。
 
