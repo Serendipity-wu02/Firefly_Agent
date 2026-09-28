@@ -34,11 +34,13 @@ function truncateForContext(text: string, maxChars: number, hint: string): strin
  * 每轮对话的 reference 已读记录（skill_id + ref → true）。
  * FC 循环开始时调 resetReadRefs() 清空。防止模型在同一轮任务里重复读同一文件。
  */
-const readRefs = new Set<string>();
+const fallbackReadRefs = new Set<string>();
+let contextReadRefs = new WeakMap<ToolContext, Set<string>>();
 
 /** 每轮 FC 循环开始前调，清空已读记录。由 firefly-agent.ts 在循环入口调。 */
 export function resetReadRefs(): void {
-  readRefs.clear();
+  fallbackReadRefs.clear();
+  contextReadRefs = new WeakMap();
 }
 
 /**
@@ -76,7 +78,7 @@ export function registerSkillTools(): void {
       const id = resolveSkillId(String(args.skill_id || ""));
       const skill = skillRegistry.getById(id);
       if (!skill) return "unknown";
-      // skill 未声明 effectKind → unknown（会被 ExecutionPolicyGuard 拒绝）
+      // 未声明只产生 unknown 元数据；实际工具仍独立经过权限检查。
       return skill.effectKind ?? "unknown";
     },
     inputSchema: {
@@ -157,6 +159,8 @@ export function registerSkillTools(): void {
       if ((source !== "reference" && source !== "body") || typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0
         || source === "body" && ref !== "SKILL.md") return "[read_skill_reference] E_SKILL_READ_ARGUMENT";
       // 去重：同一轮内同一 reference 不重复返回（内容已在对话历史里，再读浪费轮数+token）
+      const readRefs = ctx ? contextReadRefs.get(ctx) ?? new Set<string>() : fallbackReadRefs;
+      if (ctx) contextReadRefs.set(ctx, readRefs);
       const readKey = `${id}/${source}/${ref}/${offset}`;
       if (readRefs.has(readKey)) {
         return `[read_skill_reference] "${ref}" 已在本轮读过，内容已在对话中，不要重复读取。` +

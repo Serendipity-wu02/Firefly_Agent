@@ -79,3 +79,34 @@ it("reads long body and references in bounded pages without widening run access"
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+it("isolates reference and continuation deduplication between actual run contexts", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-run-pages-"));
+  const id = "public-run-page-fixture";
+  const directory = path.join(root, id);
+  fs.mkdirSync(path.join(directory, "references"), { recursive: true });
+  fs.writeFileSync(path.join(directory, "SKILL.md"), `---\nname: ${id}\ndescription: public\n---\n${"a".repeat(6000)}public continuation`);
+  fs.writeFileSync(path.join(directory, "references", "public.md"), "public attachment");
+  try {
+    skillRegistry.register(scanSkills(root, "user")[0]);
+    registerSkillTools();
+    const read = toolRegistry.getById("read_skill_reference")!;
+    const parent = { userQuery: "public", runId: "parent", allowedSkillIds: new Set([id]) };
+    const child = { ...parent, runId: "child" };
+    const next = { ...parent, runId: "next" };
+    for (const args of [
+      { skill_id: id, ref: "public.md" },
+      { skill_id: id, source: "body", ref: "SKILL.md", offset: 6000 },
+    ]) {
+      const first = await read.execute(args, parent);
+      expect(first).toContain("public");
+      expect(await read.execute(args, parent)).toContain("已在本轮读过");
+      expect(await read.execute(args, child)).toBe(first);
+      expect(await read.execute(args, next)).toBe(first);
+    }
+  } finally {
+    skillRegistry.unregister(id);
+    resetReadRefs();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -157,6 +157,14 @@ function mutationToolCall(id = "call-1"): ToolCall {
   };
 }
 
+function readToolCall(id = "call-1"): ToolCall {
+  return {
+    id,
+    name: "read_file",
+    arguments: JSON.stringify({ path: "/tmp/x" }),
+  };
+}
+
 function successDispatchResult(callId = "call-1"): ToolDispatchResult {
   return {
     outcome: "success",
@@ -383,7 +391,7 @@ describe("FireflyHarness cancellation propagation", () => {
     });
 
     // 第一轮：模型调用工具
-    fetchMock.nextResolve(assistantResponse({ toolCalls: [mutationToolCall("call-1")] }));
+    fetchMock.nextResolve(assistantResponse({ toolCalls: [readToolCall("call-1")] }));
     await vi.waitFor(() => expect(mockedDispatch).toHaveBeenCalled());
 
     // 工具失败（transient → 决定 retry，进入 backoff sleep）

@@ -4,8 +4,18 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ToolDefinition, toolRegistry, type ToolEffectKind } from "./tools/registry/tool-registry";
+import type { ToolRiskLevel } from "../permission-policy";
+import { ToolExecutionError } from "./tools/registry/tool-execution-error";
 
 const LOG_PREFIX = "[MCP Adapter]";
+
+const MCP_EFFECT_RISK: Record<ToolEffectKind, ToolRiskLevel> = {
+  read: "network",
+  verification: "network",
+  mutation: "fs-write",
+  external_side_effect: "input-control",
+  unknown: "input-control",
+};
 
 export interface McpServerConfig {
   id: string;              // 唯一标识
@@ -36,32 +46,33 @@ interface McpServerState {
 }
 
 /**
- * 从 MCP Tool annotations 推导 effectKind。
+ * 从本地 override 或 MCP Tool annotations 推导 effectKind。
+ * 当前配置没有可信 server 标记，server 的 readOnlyHint 不可降低工具风险。
  *
  * 优先级（保守策略）：
- * 1. 本地显式 override（最高优先级）
+ * 1. 本地有效 override（最高优先级）
  * 2. destructiveHint=true → external_side_effect（第三方 annotations 矛盾时采用保守策略）
- * 3. readOnlyHint=true → read
- * 4. 无匹配 → unknown（会被 ExecutionPolicyGuard 拒绝）
+ * 3. 其余 server annotations → unknown（按 input-control 风险检查权限）
  *
  * 注意：destructiveHint=false 不等于 readOnlyHint=true。
- * 第三方 annotations 同时设置 readOnlyHint + destructiveHint 时，destructive 优先（不放行）。
+ * 第三方 annotations 同时设置 readOnlyHint + destructiveHint 时，destructive 优先（按外部副作用风险检查权限）。
  */
 function resolveMcpEffectKind(
   annotations: McpToolAnnotations | undefined,
   overrides: Record<string, ToolEffectKind> | undefined,
   toolName: string,
 ): ToolEffectKind {
-  // 优先级 1：本地显式 override
-  if (overrides && overrides[toolName]) {
-    return overrides[toolName];
+  // 优先级 1：本地有效 override
+  const override = overrides && Object.prototype.hasOwnProperty.call(overrides, toolName)
+    ? overrides[toolName]
+    : undefined;
+  if (typeof override === "string" && Object.prototype.hasOwnProperty.call(MCP_EFFECT_RISK, override)) {
+    return override as ToolEffectKind;
   }
   if (!annotations) return "unknown";
-  // 优先级 2：destructiveHint=true（保守策略，不放行）
+  // 优先级 2：destructiveHint=true（保守策略，按外部副作用风险检查权限）
   if (annotations.destructiveHint === true) return "external_side_effect";
-  // 优先级 3：readOnlyHint=true
-  if (annotations.readOnlyHint === true) return "read";
-  // 优先级 4：无匹配 → unknown
+  // 优先级 3：无可信 server 标记时，其余 annotations 不能降级风险
   return "unknown";
 }
 
@@ -159,7 +170,7 @@ export async function connectMcpServer(config: McpServerConfig): Promise<string[
     // 从 annotations 或 override 解析 effectKind
     const resolvedEffectKind = resolveMcpEffectKind(mt.annotations, config.effectKindOverrides, mt.name);
     if (resolvedEffectKind === "unknown") {
-      console.warn(LOG_PREFIX, `工具 ${toolId} 的 effectKind 为 unknown（无 annotations 且无 override），将被 ExecutionPolicyGuard 拒绝`);
+      console.warn(LOG_PREFIX, `工具 ${toolId} 的 effectKind 为 unknown，将按 input-control 风险检查权限`);
     }
 
     const toolDef: ToolDefinition = {
@@ -168,6 +179,7 @@ export async function connectMcpServer(config: McpServerConfig): Promise<string[
       description: mt.description || mt.name,
       enabled: true,
       effectKind: resolvedEffectKind,
+      risk: MCP_EFFECT_RISK[resolvedEffectKind],
       inputSchema: {
         type: "object",
         properties: mt.inputSchema?.properties as Record<string, { type: string; description: string }> || {},
@@ -200,8 +212,13 @@ export async function connectMcpServer(config: McpServerConfig): Promise<string[
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(LOG_PREFIX, "工具调用失败 [" + toolId + "]:", msg);
-          if (msg.startsWith("E_MCP_TOOL_FAILED")) throw err;
-          throw new Error(`E_MCP_TOOL_FAILED: ${msg}`);
+          throw new ToolExecutionError(
+            "E_MCP_TOOL_FAILED",
+            msg.startsWith("E_MCP_TOOL_FAILED") ? msg : `E_MCP_TOOL_FAILED: ${msg}`,
+            "semantic_failure",
+            false,
+            "unknown",
+          );
         }
       },
     };
