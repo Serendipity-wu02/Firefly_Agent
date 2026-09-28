@@ -5,6 +5,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GeneralSettings } from "./general-settings";
 import { normalizeGeneralSettings } from "./settings-facade";
 
+it("transfers legacy Learn overrides while preserving explicit Work false", () => {
+  const settings = normalizeGeneralSettings({
+    toolModeOverrides: { obsidian_edit: { learn: true, work: false }, obsidian_read_file: { learn: true } },
+    skillModeOverrides: { study: { learn: true }, exam: { learn: true, work: false } },
+  } as never);
+  expect(settings.toolModeOverrides).toEqual({ obsidian_edit: { work: false }, obsidian_read_file: { work: true } });
+  expect(settings.skillModeOverrides).toEqual({ study: { work: true }, exam: { work: false } });
+});
+
 const electronMock = vi.hoisted(() => ({
   userDataDir: "",
 }));
@@ -49,6 +58,17 @@ describe("general Harness tool concurrency settings", () => {
 });
 
 describe("general ASR settings", () => {
+  it.each(["off", "aliyun", "mossland", "local"])("retires Call controls while preserving %s provider settings", (asrEngine) => {
+    const shared = { asrEngine, asrAliyunAppKey: "fixture-app", asrAliyunAccessKeyId: "fixture-id",
+      asrAliyunAccessKeySecret: "fixture-secret", asrLanguage: "en", ttsMosslandKey: "fixture-shared-key" };
+    const settings = normalizeGeneralSettings({ ...shared, asrVadSilenceMs: 1500, asrVadThreshold: 0.2, asrShowTranscript: true } as never);
+    expect(settings).toMatchObject(shared);
+    for (const field of ["asrVadSilenceMs", "asrVadThreshold", "asrShowTranscript"]) {
+      expect(settings).not.toHaveProperty(field);
+      expect(normalizeGeneralSettings({})).not.toHaveProperty(field);
+    }
+  });
+
   it("keeps Mossland as a supported ASR provider", () => {
     const settings = normalizeGeneralSettings({ asrEngine: "mossland" } as never);
 

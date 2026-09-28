@@ -119,7 +119,7 @@ export interface FireflyRunOptions {
   trustedRefs?: string[];
   /** Chat 跳过 CITA/Native FC；默认 Work。 */
   executionMode?: AgentExecutionMode;
-  /** 原始 UI 模式（work / learn / chat / code），供工具做模式隔离。 */
+  /** 原始 UI 模式（work / chat / code），供工具做模式隔离。 */
   conversationMode?: ConversationMode;
   workReadScopes?: import("../../shared/chat-types").WorkReadScope[];
   timeoutMs: number;
@@ -142,7 +142,7 @@ export interface FireflyRunOptions {
   soulSystemBaseContent: string;
   /** 每次请求才附加给 Soul 的可变运行时上下文；不参与稳定缓存前缀。 */
   soulRuntimeContext?: string;
-  /** Plan Mode 时注入的 firefly-plan-mode skill 正文；可变，不参与稳定缓存前缀，
+  /** Plan Mode 时注入的计划协议正文；可变，不参与稳定缓存前缀，
    *  在 harness runtimeParts 里拼，避免进/出 plan mode 打断 stablePrefix 缓存。 */
   planSkillContext?: string;
   /** 只应用到 Soul 最终自然语言回复，禁止影响 CITA 与 Native FC。 */

@@ -9,7 +9,7 @@ import type { WeatherData } from "../components/weather/weather-types";
 import type { PermissionApprovalRequest } from "./chat-page-bridge";
 import { recoverInterruptedMessage } from "./session-runtime-state";
 
-const CONVERSATION_MODES: readonly ConversationMode[] = ["chat", "work", "code", "learn"];
+const CONVERSATION_MODES: readonly ConversationMode[] = ["chat", "work", "code"];
 const CHAT_MESSAGE_CHANNELS = new Set<ChatMessageChannelSource["channel"]>(["wechat", "feishu", "qq", "qqbot"]);
 /** 最后停留模式的 localStorage 键：写入方（ChatPage）与读取方（getInitialMode）共用同一常量。 */
 export const LAST_MODE_STORAGE_KEY = "firefly-react-last-mode";
@@ -158,6 +158,7 @@ export function toUiMessages(session: ChatSession): ChatMessageItem[] {
 export function getInitialMode(): ConversationMode {
   try {
     const saved = localStorage.getItem(LAST_MODE_STORAGE_KEY) ?? localStorage.getItem(LEGACY_LAST_MODE_STORAGE_KEY);
+    if (saved === "learn") return "work";
     if (saved && isConversationMode(saved)) return saved;
   } catch {
     // localStorage 不可用或数据异常时回退到默认值

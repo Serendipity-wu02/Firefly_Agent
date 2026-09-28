@@ -10,7 +10,6 @@ description: >-
 modes:
   - work
   - code
-  - learn
 ---
 
 # Skill Creator

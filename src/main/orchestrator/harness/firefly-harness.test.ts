@@ -231,6 +231,22 @@ describe("FireflyHarness completion", () => {
     }));
   });
 
+  it("keeps child builtin capabilities effective in schemas and dispatch context", async () => {
+    fakeStreamChatWithSdk.mockResolvedValueOnce(assistantResponse({ toolCalls: [
+      { id: "injected-plan", name: "enter_plan_mode", arguments: "{}" },
+    ] })).mockResolvedValueOnce(assistantResponse({ text: "finished fixture" }));
+    mockedDispatch.mockResolvedValue({ outcome: "not_executed", category: "runtime_safety", tool: "enter_plan_mode", message: "blocked" });
+    const allowedBuiltinToolIds = new Set(["update_todo", "read_tool_result"]);
+    await runFireflyHarness({
+      systemPrompt: "fixture", messages: [{ role: "user", content: "inspect fixture" }],
+      tools: [], vendorConfig, allowedBuiltinToolIds, planState: "NORMAL", includeInteractiveTools: false,
+    });
+    const request = fakeStreamChatWithSdk.mock.calls[0][0].request as { tools: Array<{ name: string }> };
+    expect(request.tools.map(tool => tool.name)).toEqual(["read_tool_result", "update_todo"]);
+    expect(mockedDispatch).toHaveBeenCalledWith(expect.objectContaining({ name: "enter_plan_mode" }),
+      expect.objectContaining({ allowedBuiltinToolIds }));
+  });
+
   it("OpenAI 协议请求不再携带固定 maxTokens（避免思维链被 8192 预算截断）", async () => {
     fakeStreamChatWithSdk.mockResolvedValueOnce(assistantResponse({ text: "完成。" }));
 

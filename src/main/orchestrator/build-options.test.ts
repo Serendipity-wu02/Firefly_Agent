@@ -11,6 +11,8 @@ import {
 } from "./build-options"
 import type { SocialAtom } from "../social-context/types"
 import type { ConversationMode } from "../../shared/chat-types"
+import { enterPlanDiscussing, resetPlanSessionsForTest } from "./plan-mode"
+import * as promptLoader from "../prompts/prompt-loader"
 
 function createBuildDeps(): BuildOptionsDeps {
   return {
@@ -55,6 +57,56 @@ function createBuildDeps(): BuildOptionsDeps {
 }
 
 describe("build-options", () => {
+  it.each([false, true])("injects teaching only for an opted-in progress workspace: %s", async enabled => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "work-teaching-scope-"));
+    const loader = vi.spyOn(promptLoader, "loadPromptFile").mockReturnValue("FIXTURE_TEACHING_PROTOCOL");
+    try {
+      fs.mkdirSync(path.join(root, ".obsidian"));
+      if (enabled) {
+        fs.mkdirSync(path.join(root, "learn"));
+        fs.writeFileSync(path.join(root, "learn/progress.md"), "# Public progress fixture");
+      }
+      const deps = createBuildDeps();
+      deps.getWorkspaceBinding = () => ({ workspaceRoot: root, displayName: "fixture", boundAt: 1 });
+      deps.toolRegistry.getEnabledToolsForMode = () => [{ id: "obsidian_read_file", enabled: true }];
+      const result = await buildAgentRunOptions({ sessionId: "fixture", mode: "work",
+        messages: [{ role: "user", content: "Inspect public notes" }] }, deps);
+      expect(result.options.capabilities?.toolIds.has("obsidian_read_file")).toBe(true);
+      expect(result.options.soulSystemBaseContent?.includes("FIXTURE_TEACHING_PROTOCOL")).toBe(enabled);
+      expect(fs.existsSync(path.join(root, "learn"))).toBe(enabled);
+    } finally { loader.mockRestore(); fs.rmSync(root, { recursive: true, force: true }); }
+  });
+  it("loads the retained planning protocol without the retired Skill ID", async () => {
+    const deps = createBuildDeps();
+    const getBody = vi.fn(() => null);
+    deps.skillRegistry.getBody = getBody;
+    const loader = vi.spyOn(promptLoader, "loadPromptFile").mockReturnValue("FIXTURE_PLAN_PROTOCOL");
+    enterPlanDiscussing("fixture-planning-protocol");
+    try {
+      const result = await buildAgentRunOptions({ sessionId: "fixture-planning-protocol", mode: "code",
+        messages: [{ role: "user", content: "Plan a public fixture" }] }, deps);
+      expect(loader).toHaveBeenCalledWith("workflow-support/plan-mode.md");
+      for (const file of ["coverage-check.md", "execution-handoff.md", "plan-templates.md"]) {
+        expect(loader).toHaveBeenCalledWith(`workflow-support/references/${file}`);
+      }
+      expect(result.options.planSkillContext).toContain("FIXTURE_PLAN_PROTOCOL");
+      expect(result.options.toolSystemContent).not.toContain("FIXTURE_PLAN_PROTOCOL");
+      expect(getBody).not.toHaveBeenCalledWith("firefly-plan-mode");
+    } finally { loader.mockRestore(); resetPlanSessionsForTest(); }
+  });
+  it("keeps Obsidian tools out of ordinary Work runs without initializing a Vault", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "work-no-vault-"));
+    try {
+      const deps = createBuildDeps();
+      deps.getWorkspaceBinding = () => ({ workspaceRoot: root, displayName: "work", boundAt: 1 });
+      deps.toolRegistry.getEnabledToolsForMode = () => [{ id: "obsidian_read_file", enabled: true }];
+      const result = await buildAgentRunOptions({ sessionId: "work", mode: "work", messages: [{ role: "user", content: "hello" }] }, deps);
+      expect(result.options.tools?.map((tool) => tool.id)).not.toContain("obsidian_read_file");
+      expect(result.options.capabilities?.toolIds.has("obsidian_read_file")).toBe(false);
+      expect(result.options.capabilities?.tools.map((tool) => tool.id)).not.toContain("obsidian_read_file");
+      expect(fs.readdirSync(root)).toEqual([]);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
   it("injects selected Work paths as untrusted references without pretending to include file contents", async () => {
     const result = await buildAgentRunOptions({
       sessionId: "work-read-prompt", mode: "work", executionMode: "work",
@@ -66,7 +118,7 @@ describe("build-options", () => {
     expect(result.options.soulRuntimeContext).not.toContain("【本轮附件内容】");
     expect(result.options.soulSystemBaseContent).not.toContain("public.txt");
   });
-  it.each(["chat", "work", "learn", "code"] as const)("uses the explicit %s mode prompt", async (mode) => {
+  it.each(["chat", "work", "code"] as const)("uses the explicit %s mode prompt", async (mode) => {
     const deps = createBuildDeps();
     deps.buildModePrompt = (target) => `[MODE:${target}]`;
     const result = await buildAgentRunOptions({
@@ -218,7 +270,7 @@ describe("build-options", () => {
     expect(result.options.settings.reasoning).toEqual({ mode: "off" })
   })
 
-  it.each(["chat", "work", "code", "learn"] as const)(
+  it.each(["chat", "work", "code"] as const)(
     "preserves the saved reasoning preference in %s mode",
     async (executionMode) => {
       const deps = createBuildDeps()

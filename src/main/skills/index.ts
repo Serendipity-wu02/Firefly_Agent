@@ -11,9 +11,9 @@ import type { SkillEntry } from "./types";
 import { logger, LogTag } from "../logger";
 import { getExternalContentPaths, resolveSkillScanSources, resolveSkillsSnapshotArchivePath } from "../external-content-paths";
 import { installSkillsSnapshot } from "./snapshot-install";
-import { resolveSkillId, resolveSkillSettings } from "./skill-id-aliases";
-import { writeMigratedJson } from "../migration/firefly-data";
+import { getProtectedSkillIds, migrateLegacySkillDirectories, migrateLegacySkillSettingsFile } from "../migration/legacy-skill-migration";
 import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
+import { assertVnextSkillSnapshotSource, migrateVnextSkillSnapshot } from "../migration/vnext-skill-snapshot";
 
 const LOG_PREFIX = "[Skills]";
 
@@ -29,9 +29,8 @@ function loadEnabledState(): Record<string, boolean> {
     if (!fs.existsSync(p)) return {};
     const raw = JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, boolean>;
     if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.values(raw).some((value) => typeof value !== "boolean")) throw new Error("SKILL_SETTINGS_READ_FAILED");
-    const normalized = resolveSkillSettings(raw);
-    writeMigratedJson(p, raw, normalized);
-    return normalized;
+    const protectedIds = getExternalContentPaths().userSkillDirectories.flatMap(directory => getProtectedSkillIds(directory));
+    return migrateLegacySkillSettingsFile(p, { protectedIds }) as Record<string, boolean>;
   } catch {
     throw new Error("SKILL_SETTINGS_READ_FAILED");
   }
@@ -48,15 +47,19 @@ export async function initSkills(): Promise<void> {
   // 快照安装必须在扫描之前完成，否则首启扫不到归档里的第三方 skill。
   const archivePath = resolveSkillsSnapshotArchivePath(paths);
   const userSkillsDir = paths.userSkillDirectories[0];
-  await installSkillsSnapshot({ archivePath, userSkillsDir });
   try {
+    assertVnextSkillSnapshotSource(archivePath);
+    await installSkillsSnapshot({ archivePath, userSkillsDir });
     await migrateInstalledSkillSnapshot(userSkillsDir, archivePath);
+    await migrateVnextSkillSnapshot(userSkillsDir, archivePath);
   } catch (error) {
     const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_MIGRATION_FAILED";
     logger.warn(LogTag.Skills, "managed migration failed; scanning existing files without replacing them", { reason });
   }
 
   const sources = resolveSkillScanSources(paths);
+
+  for (const directory of paths.userSkillDirectories) migrateLegacySkillDirectories(directory);
 
   // 合并：扫描源按低到高优先级排列，user 覆盖 builtin。
   const map = new Map<string, SkillEntry>();
@@ -78,7 +81,6 @@ export async function initSkills(): Promise<void> {
 
 /** 持久化某 skill 的 enabled 状态。 */
 export function setSkillEnabled(id: string, enabled: boolean): void {
-  id = resolveSkillId(id);
   try {
     const saved = loadEnabledState();
     saved[id] = enabled;
@@ -113,7 +115,9 @@ export function listSkillsForUi() {
  * 返回扫描后 registry 中 skill 总数。
  */
 export function rescanSkills(): number {
-  const sources = resolveSkillScanSources(getExternalContentPaths());
+  const paths = getExternalContentPaths();
+  for (const directory of paths.userSkillDirectories) migrateLegacySkillDirectories(directory);
+  const sources = resolveSkillScanSources(paths);
 
   const map = new Map<string, SkillEntry>();
   for (const source of sources) {

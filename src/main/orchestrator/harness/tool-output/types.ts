@@ -14,6 +14,7 @@ export interface ToolOutputRef {
 
 export interface PutToolOutputInput {
   conversationId: string;
+  ownerSessionId?: string;
   runId: string;
   toolCallId: string;
   toolName: string;
@@ -24,6 +25,7 @@ export interface PutToolOutputInput {
 
 export interface ReadToolOutputInput {
   conversationId: string;
+  ownerSessionId?: string;
   resultRef: string;
   offset: number;
   length: number;
@@ -38,6 +40,7 @@ export interface ReadToolOutputResult {
 
 export interface FindToolOutputInput {
   conversationId: string;
+  ownerSessionId?: string;
   resultRef: string;
   query: string;
 }

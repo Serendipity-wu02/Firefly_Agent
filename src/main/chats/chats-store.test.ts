@@ -17,6 +17,68 @@ vi.mock("electron", () => ({
 }));
 
 describe("chats store", () => {
+  it.each(["learn", undefined])("backs up legacy Learn sources before migrating only the mode (index %s)", async (indexedMode) => {
+    const root = path.join(electronMock.userDataDir, "firefly-chats");
+    fs.mkdirSync(path.join(root, "sessions"), { recursive: true });
+    const session = {
+      id: "legacy-learn", title: "Study", identityId: null, schemaVersion: 1,
+      createdAt: 1, updatedAt: 2, mode: "learn",
+      workspaceBinding: { workspaceRoot: "C:\\study", displayName: "study", boundAt: 1 },
+      messages: [{ id: "answer", role: "model", content: "done", at: 2,
+        toolExecutions: [{ id: "tool", name: "obsidian_read_file", status: "success", result: "notes" }] }],
+      pendingMessages: [{ id: "pending", rawContent: "continue", visibleContent: "continue", enqueuedAt: 3 }],
+    };
+    const meta = { id: session.id, title: session.title, identityId: null,
+      createdAt: 1, updatedAt: 2, messageCount: 1, mode: indexedMode };
+    const sessionPath = path.join(root, "sessions", "legacy-learn.json");
+    const indexPath = path.join(root, "index.json");
+    const originalSession = JSON.stringify(session);
+    const originalIndex = JSON.stringify([meta]);
+    fs.writeFileSync(sessionPath, originalSession);
+    fs.writeFileSync(indexPath, originalIndex);
+    const store = await import("./chats-store");
+    store.initialize();
+    expect(store.getSession(session.id)).toEqual({ ...session, mode: "work" });
+    expect(JSON.parse(fs.readFileSync(sessionPath, "utf8"))).toEqual({ ...session, mode: "work" });
+    expect(fs.readFileSync(sessionPath + ".pre-learn-retirement.bak", "utf8")).toBe(originalSession);
+    expect(fs.readFileSync(indexPath + ".pre-learn-retirement.bak", "utf8")).toBe(originalIndex);
+    expect(store.listSessions()[0].mode).toBe("work");
+    vi.resetModules();
+    const restarted = await import("./chats-store");
+    restarted.initialize();
+    expect(restarted.getSession(session.id)).toEqual({ ...session, mode: "work" });
+    expect(fs.readFileSync(sessionPath + ".pre-learn-retirement.bak", "utf8")).toBe(originalSession);
+  });
+
+  it("rejects retired and unknown modes before creating or listing sessions", async () => {
+    const store = await import("./chats-store");
+    store.initialize();
+    for (const mode of ["learn", "other"]) {
+      expect(() => store.createSession({ mode } as never)).toThrow("INVALID_CONVERSATION_MODE");
+      expect(() => store.listSessions({ mode } as never)).toThrow("INVALID_CONVERSATION_MODE");
+    }
+    expect(store.listSessions()).toEqual([]);
+  });
+
+  it("preserves sources and blocks writes if the migration backup cannot be created", async () => {
+    const root = path.join(electronMock.userDataDir, "firefly-chats");
+    fs.mkdirSync(path.join(root, "sessions"), { recursive: true });
+    const indexPath = path.join(root, "index.json");
+    const sessionPath = path.join(root, "sessions", "legacy.json");
+    const meta = { id: "legacy", title: "Study", identityId: null, mode: "learn", createdAt: 1, updatedAt: 2, messageCount: 0 };
+    const index = JSON.stringify([meta]);
+    const session = JSON.stringify({ ...meta, messages: [], schemaVersion: 1 });
+    fs.writeFileSync(indexPath, index);
+    fs.writeFileSync(sessionPath, session);
+    fs.mkdirSync(indexPath + ".pre-learn-retirement.bak");
+    const store = await import("./chats-store");
+    store.initialize();
+    expect(() => store.listSessions()).toThrow("CHAT_HISTORY_READ_FAILED");
+    expect(() => store.createSession({ mode: "work" })).toThrow("CHAT_HISTORY_READ_FAILED");
+    expect(fs.readFileSync(indexPath, "utf8")).toBe(index);
+    expect(fs.readFileSync(sessionPath, "utf8")).toBe(session);
+  });
+
   beforeEach(() => {
     vi.resetModules();
     electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-chats-store-"));
@@ -79,10 +141,9 @@ describe("chats store", () => {
     createSession({ mode: "chat" });
     createSession({ mode: "work" });
     createSession({ mode: "code" });
-    createSession({ mode: "learn" });
 
     expect(listSessions().map((session) => session.mode).sort()).toEqual([
-      "chat", "code", "learn", "work",
+      "chat", "code", "work",
     ]);
   });
 

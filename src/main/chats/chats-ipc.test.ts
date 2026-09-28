@@ -36,6 +36,19 @@ vi.mock("electron", () => ({
 }));
 
 describe("chats IPC mode filtering", () => {
+  it("initializes a bound Work knowledge workspace only through its explicit entry", async () => {
+    const { registerChatsIpc } = await import("./chats-ipc");
+    registerChatsIpc();
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "knowledge-ipc-"));
+    const event = { sender: {} };
+    const session = await mocks.handlers.get(IPC.CHATS_CREATE)!(event, { mode: "work" }) as { id: string };
+    await mocks.handlers.get(IPC.CHATS_SET_WORKSPACE)!(event, { sessionId: session.id, workspaceRoot: root });
+    expect(fs.existsSync(path.join(root, "learn/progress.md"))).toBe(false);
+    expect(mocks.handlers.has("chats:init-learn-workspace")).toBe(false);
+    await expect(Promise.resolve(mocks.handlers.get(IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE)!(event, session.id))).resolves.toMatchObject({ ok: true });
+    expect(fs.existsSync(path.join(root, "learn/progress.md"))).toBe(true);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
   it("propagates history read failures instead of reporting empty Chat and Work lists", async () => {
     const directory = path.join(mocks.userDataDir, "firefly-chats");
     fs.mkdirSync(directory, { recursive: true });
@@ -188,7 +201,7 @@ describe("chats IPC mode filtering", () => {
     if (!create || !enqueue || !claim) throw new Error("title generation IPC handlers were not registered");
     const event = { sender: {} };
 
-    for (const mode of ["chat", "work", "code", "learn"] as const) {
+    for (const mode of ["chat", "work", "code"] as const) {
       const created = await create(event, { mode }) as { id: string };
       await enqueue(event, {
         sessionId: created.id,
@@ -207,7 +220,6 @@ describe("chats IPC mode filtering", () => {
       expect.objectContaining({ userMessageId: "first-chat", text: "处理chat问题" }),
       expect.objectContaining({ userMessageId: "first-work", text: "处理work问题" }),
       expect.objectContaining({ userMessageId: "first-code", text: "处理code问题" }),
-      expect.objectContaining({ userMessageId: "first-learn", text: "处理learn问题" }),
     ]);
   });
 

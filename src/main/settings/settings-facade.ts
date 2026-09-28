@@ -1,6 +1,6 @@
-import { resolveSkillSettings } from "../skills/skill-id-aliases";
 import { normalizeFireflyFields } from "../../shared/legacy-firefly-contracts";
 import { writeMigratedJson } from "../migration/firefly-data";
+import { getProtectedSkillIds, migrateLegacySkillSettingsFile } from "../migration/legacy-skill-migration";
 import * as fs from "fs";
 import * as path from "path";
 import { logger, LogTag } from "../logger";
@@ -122,9 +122,6 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   asrAliyunAccessKeyId: "",
   asrAliyunAccessKeySecret: "",
   asrLanguage: "zh",
-  asrVadSilenceMs: 1000,
-  asrVadThreshold: 0.01,
-  asrShowTranscript: false,
   screenshotHotkey: "Alt+Shift+S",
   chatLineHeight: 1.75,
   toolModeOverrides: {},
@@ -309,13 +306,6 @@ export function normalizeGeneralSettings(
     asrLanguage: ["zh", "en", "auto"].includes(String(input?.asrLanguage))
       ? (input!.asrLanguage as "zh" | "en" | "auto")
       : "zh",
-    asrVadSilenceMs: typeof input?.asrVadSilenceMs === "number"
-      ? Math.max(300, Math.min(30000, Math.round(input.asrVadSilenceMs)))
-      : DEFAULT_GENERAL_SETTINGS.asrVadSilenceMs,
-    asrVadThreshold: typeof input?.asrVadThreshold === "number"
-      ? Math.max(0.001, Math.min(0.5, Number(input.asrVadThreshold)))
-      : DEFAULT_GENERAL_SETTINGS.asrVadThreshold,
-    asrShowTranscript: Boolean(input?.asrShowTranscript),
     screenshotHotkey: typeof input?.screenshotHotkey === "string" && input.screenshotHotkey.trim()
       ? input.screenshotHotkey.trim()
       : DEFAULT_GENERAL_SETTINGS.screenshotHotkey,
@@ -364,8 +354,10 @@ function normalizeToolModeOverrides(
   for (const [toolId, modeMap] of Object.entries(raw)) {
     if (!modeMap || typeof modeMap !== "object") continue;
     const filtered: Partial<Record<ConversationMode, boolean>> = {};
+    const legacy = (modeMap as Record<string, unknown>).learn;
+    if (typeof legacy === "boolean") filtered.work = legacy;
     for (const [mode, value] of Object.entries(modeMap as Record<string, unknown>)) {
-      if (mode !== "chat" && mode !== "work" && mode !== "code" && mode !== "learn") continue;
+      if (mode !== "chat" && mode !== "work" && mode !== "code") continue;
       if (typeof value === "boolean") {
         filtered[mode as ConversationMode] = value;
       }
@@ -377,7 +369,7 @@ function normalizeToolModeOverrides(
   return result;
 }
 
-const SKILL_MODES = new Set(["work", "code", "learn"] as const);
+const SKILL_MODES = new Set(["work", "code"] as const);
 
 /** 规范化 Skill-模式覆盖层：仅保留合法的 { skillId: { work|code|learn: boolean } } 结构。
  *  非法值被丢弃，空对象兜底。 */
@@ -386,14 +378,16 @@ function normalizeSkillModeOverrides(
 ): SkillModeOverrides {
   if (!input || typeof input !== "object") return {};
   const result: SkillModeOverrides = {};
-  const raw = resolveSkillSettings(input as Record<string, unknown>);
+  const raw = input as Record<string, unknown>;
   for (const [skillId, modeMap] of Object.entries(raw)) {
     if (!modeMap || typeof modeMap !== "object") continue;
-    const filtered: Partial<Record<"work" | "code" | "learn", boolean>> = {};
+    const filtered: Partial<Record<"work" | "code", boolean>> = {};
+    const legacy = (modeMap as Record<string, unknown>).learn;
+    if (typeof legacy === "boolean") filtered.work = legacy;
     for (const [mode, value] of Object.entries(modeMap as Record<string, unknown>)) {
-      if (!SKILL_MODES.has(mode as "work" | "code" | "learn")) continue;
+      if (!SKILL_MODES.has(mode as "work" | "code")) continue;
       if (typeof value === "boolean") {
-        filtered[mode as "work" | "code" | "learn"] = value;
+        filtered[mode as "work" | "code"] = value;
       }
     }
     if (Object.keys(filtered).length > 0) {
@@ -413,16 +407,16 @@ function loadGeneralSettings0(): GeneralSettings {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       present = false;
     }
-    const existing = present ? JSON.parse(fs.readFileSync(filePath, "utf8")) as Partial<GeneralSettings> : {};
+    const existing = present ? migrateLegacySkillSettingsFile(filePath, {
+      field: "skillModeOverrides",
+      protectedIds: getProtectedSkillIds(path.join(path.dirname(filePath), "skills")),
+    }) as Partial<GeneralSettings> : {};
     if (!existing || typeof existing !== "object" || Array.isArray(existing)) throw new Error("Invalid general settings");
     const installerSelection = consumeInstallerLaunchAtLoginSelection(
       path.join(path.dirname(filePath), "installer-options.json"),
       fs,
     );
     const canonical = normalizeFireflyFields(existing);
-    if (canonical.skillModeOverrides && typeof canonical.skillModeOverrides === "object") {
-      canonical.skillModeOverrides = resolveSkillSettings(canonical.skillModeOverrides);
-    }
     if (present) writeMigratedJson(filePath, existing, canonical);
     const withInstallerSelection = applyInstallerLaunchAtLoginSelection(canonical, installerSelection);
     if (installerSelection !== null) {

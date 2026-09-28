@@ -501,7 +501,7 @@ export const popQuizTool: ToolDefinition = {
     "题型：" + quizQuestionSchemaDescription() + "。\n" +
     "结果：选择/判断题由系统本地判分；简答题返回用户原文（grading=pending_model），由你自行批改讲评。用户也可以跳过整次抽查（status=skipped，不算答错）。",
   enabled: true,
-  modes: ["learn"],
+  modes: ["work"],
   needsContext: true,
   effectKind: "read",
   verificationPolicy: "none",

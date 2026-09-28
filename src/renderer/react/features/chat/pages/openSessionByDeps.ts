@@ -8,15 +8,15 @@
  * 返回 null 表示调用方应执行 fallback。
  */
 
-export type ReactSessionMode = "chat" | "work" | "code" | "learn";
+export type ReactSessionMode = "chat" | "work" | "code";
 
 export function normalizeSessionMode(mode: string | undefined): ReactSessionMode | null {
   switch (mode) {
     case "chat":
     case "work":
     case "code":
-    case "learn":
       return mode;
+    case "learn":
     case "daily":
       return "work";
     default:

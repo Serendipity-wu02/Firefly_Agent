@@ -12,15 +12,15 @@
 
 | Area | Current implementation |
 | --- | --- |
-| Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters have separate portraits and identities; Moments is disabled by default. |
+| Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters retain separate portraits and display identities; specialist role mapping still awaits user confirmation. Moments is disabled by default. |
 | Chat | Character conversations, model profiles, streamed replies and history. An explicit preferred form of address takes priority over an existing nickname; the default is “开拓者” (Trailblazer). Canonical story events do not automatically become shared experiences with the current user. |
 | Work | Tools, file and document processing, Skills, Task/Subagent, approvals and cancellation. Explicitly required file reads need evidence from the current run; budget limits require partial-range confirmation. Task completion and complete reading are reported separately. Finished tasks can be exported to Markdown through a native save dialog. |
-| Learn | Learning conversations, materials and notes in an Obsidian workspace, progress tracking and Skills collaboration. Background progress updates depend on the workspace, reply content and service results; not every reply produces an update. |
+| Work knowledge workspace | Learning, quizzes, notes and progress remain available in Work. Bind a workspace, then explicitly confirm “添加学习结构” (add learning structure), or bind an initialized Vault. Ordinary Work does not automatically create a Vault or maintain progress. See the [knowledge workspace guide](docs/user-guide/knowledge-workspace.md). |
 | Code | Git, LSP, AST, file and command tools, and Code Skills, using the current Agent, tool permissions and approvals. External language servers require their own environment. |
-| Skills | Thirty-nine inherited Skills and eight project-maintained built-in Skills: discovery, registration, mode filtering, on-demand body and attachment reading, user overrides, and managed updates with hash recognition, backups and user-edit protection. |
+| Skills | 39 third-party Skills plus five project Skills (`diagram`, `assessment`, `tutoring`, `knowledge-workspace`, and `plugin-development`), for 44 total. Persona and planning/file protocols move to `prompts/persona-support/` and `prompts/workflow-support/`, outside Skill discovery. Existing mechanisms include discovery, registration, mode filtering, on-demand body and attachment reading, user overrides, and managed updates with hash recognition, backups and user-edit protection. |
 | Plugins | Local installation, lifecycle and isolated panels; a locally buildable SDK, manifest/schema contracts and four examples. No project-hosted online marketplace or published SDK package is promised. |
 | Memory / RAG | Original conversations and vector indexes are stored separately, with existing memory and history retrieval paths. Unavailable vector models produce explicit feedback; raw Chat is still saved and failed indexing is not reported as success. |
-| Voice / Channels | Existing integrations for GPT-SoVITS, ASR, QQ Music, Feishu, WeChat and QQ. Users configure services, clients, channel credentials and resources. Integration code does not establish complete testing of external services. |
+| Voice / Channels | Existing integrations for GPT-SoVITS, ASR, QQ Music, Feishu, WeChat and QQ. Users configure services, clients, channel credentials and resources. The separate Call window, loop and interfaces are retired; shared ASR/TTS, Chat playback and channel speech remain. Integration code does not establish complete testing of external services. |
 
 Models, tools, Skills and plugins share the current runtime and permission mechanism. Skill text and portraits do not grant additional tool permissions; existing configuration controls enabled state and allowed modes.
 
@@ -28,7 +28,11 @@ Models, tools, Skills and plugins share the current runtime and permission mecha
 
 The current source tree is Firefly's independently maintained product baseline. Original projects serve as provenance and historical compatibility references; runtime and builds do not need their working directories.
 
-**Verified scope:** independent source builds; Main/Preload/Renderer TypeScript and build checks; isolated Main and Renderer startup; Chat / Work / Learn / Code entry points; registration of 39+8 Skills; malicious and normal ZIP regressions; managed upgrades from a real old Skills archive and user-file protection; targeted automated tests; basic XLSX `find-label` Smoke; and local plugin SDK/example compilation and Mock checks.
+**Historical verified scope (before the vNext changes, not acceptance of the current version):** independent source builds; Main/Preload/Renderer TypeScript and build checks; isolated Main and Renderer startup; Chat / Work / Learn / Code entry points; registration of 39+8 Skills; malicious and normal ZIP regressions; managed upgrades from a real old Skills archive and user-file protection; targeted automated tests; basic XLSX `find-label` Smoke; and local plugin SDK/example compilation and Mock checks.
+
+**Current vNext verification:** after freezing source changes, the full suite passed 538 files and 4766 tests, with one test skipped because Windows symbolic-link permission was unavailable. Main/Preload/Renderer typechecks, the full build, plugin SDK and four examples passed. An isolated user directory verified Main/Renderer startup, Chat / Work / Code switching, 44 registered Skills and normal exit. Persisted Learn sessions migrate to Work after backup; new Learn requests are rejected. Migration of real user data was not performed.
+
+**Unfinished vNext work:** persistent Agent storage, registry, model routing and delegation boundaries are foundation code, not wired into the production Main chain. The twelve character-to-specialist assignments await user confirmation; model-routing UI and production integration are incomplete, and the existing task compatibility path remains. These automated results do not mean all of vNext is complete.
 
 **Not fully accepted:** real-model end-to-end execution, deep GUI interaction, complete external Office/LibreOffice/.NET workflows, real-user environments, installer upgrades, cross-platform behavior, the complete TTS / QQ Music approval chain, sustained frame rate, and redistribution permission for every asset required for a public release.
 
@@ -88,7 +92,7 @@ This script builds the application and screenshot helper, prepares verified MinG
 
 ## Architecture and directories
 
-The application starts at `src/main/index.ts`, compiled to `dist/main/main/index.js`. Preload provides controlled IPC; React and Live2D render the windows and desktop character. All four modes use the existing Firefly Agent execution chain, with distinct owners for tools, Tasks, approvals and cancellation.
+The application starts at `src/main/index.ts`, compiled to `dist/main/main/index.js`. Preload provides controlled IPC; React and Live2D render the windows and desktop character. The three modes, Chat / Work / Code, use the existing Firefly Agent execution chain, with distinct owners for tools, Tasks, approvals and cancellation.
 
 | Path | Responsibility |
 | --- | --- |

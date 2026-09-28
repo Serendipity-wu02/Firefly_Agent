@@ -98,7 +98,6 @@ import { loadUserProfile } from "../settings-store";
 import { getAppIconPath } from "../app-icon";
 import { hasActiveConversationRun, registerAgUiIpc } from "../agui-bridge";
 import { updateLocaleContext } from "../locale-context";
-import { registerCallIpc } from "../call/call-manager";
 import { initSkills, skillRegistry } from "../skills";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
 import { createChannelsSubsystem } from "../channels/bootstrap";
@@ -561,7 +560,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         // pop_quiz 抽查工具：IPC（提交/跳过）与工具注册（learn 模式可见）
         registerPopQuizIpc(ipc);
         registerPopQuizTool();
-        registerCallIpc(ipc);
       },
 
       loadGeneralSettings,

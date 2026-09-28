@@ -5,7 +5,6 @@ metadata: null
 modes:
   - work
   - code
-  - learn
 ---
 
 # Self-Improvement - Firefly-maintained adaptation

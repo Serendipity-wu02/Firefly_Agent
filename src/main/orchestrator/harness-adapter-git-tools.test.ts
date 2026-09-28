@@ -14,8 +14,13 @@ function tool(id: string): ToolDefinition {
 }
 
 describe("filterToolsForConversationMode", () => {
-  it.each(["work", "chat", "learn"] as const)("hides Git tools from %s", (mode) => {
+  it.each(["work", "chat"] as const)("hides Git tools from %s", (mode) => {
     expect(filterToolsForConversationMode(mode, [tool("read_file"), tool("git_commit")]).map((item) => item.id))
+      .toEqual(["read_file"]);
+  });
+
+  it("does not grant Git tools to a retired Learn input", () => {
+    expect(filterToolsForConversationMode("learn", [tool("read_file"), tool("git_commit")]).map((item) => item.id))
       .toEqual(["read_file"]);
   });
 

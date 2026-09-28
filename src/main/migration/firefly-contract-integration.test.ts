@@ -16,7 +16,10 @@ it("migrates saved switches and skill overrides without changing current prefere
   const loaded = settings.loadGeneralSettings();
   expect(loaded.fireflyMomentsPostingEnabled).toBe(false);
   expect(loaded.fireflyMomentsReactionsEnabled).toBe(false);
-  expect(loaded.skillModeOverrides).toEqual({ "firefly-plan-mode": { work: false, code: true } });
+  expect(loaded.skillModeOverrides).toEqual({});
+  expect(JSON.parse(fs.readFileSync(`${file}.skill-id-history.json`, "utf8"))).toEqual({
+    "cyrene-plan-mode": [{ work: false }], "firefly-plan-mode": [{ code: true }],
+  });
   settings.saveGeneralSettings({ fireflyMomentsPostingEnabled: false });
   expect(fs.readFileSync(file, "utf8")).not.toContain("cyrene");
   expect(fs.readFileSync(`${file}.pre-firefly.bak`, "utf8")).toBe(original);

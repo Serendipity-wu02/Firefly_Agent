@@ -27,9 +27,8 @@ import { indexConversationTurn } from "./orchestrator/tools/history-tools";
 import type { RelationshipChannel } from "./relationship/relationship-log";
 import { createThinkFilter, type ThinkStreamFilter, type ThinkFilterMode } from "./chat/think-filter";
 import { ChatTimeStreamPrefixFilter } from "./chat-time-stream-filter";
-import { runLearnPostTurnHook } from "./learn/progress/learn-post-turn";
-import { obsidianWorkspace } from "./learn/obsidian/obsidian-workspace-service";
-import { registerObsidianTools, unregisterObsidianTools } from "./learn/obsidian/obsidian-tools";
+import { runLearnPostTurnHook } from "./knowledge/progress/learn-post-turn";
+import { openKnowledgeWorkspace } from "./knowledge/knowledge-workspace";
 import { getAdapterForConfig } from "./orchestrator/vendors";
 import { perf } from "./perf-trace";
 import type { StyleId } from "../shared/style-sampling";
@@ -49,7 +48,7 @@ import {
   type ChoiceCardData,
   type ChoiceSettlement,
 } from "./user-choice";
-import { cancelPendingApprovalsForRun } from "./permission";
+import { cancelPendingApprovalsForRun, getCurrentLevel } from "./permission";
 import { cancelPendingQuizzesForRun, takeQuizEvidenceForRun } from "./orchestrator/pop-quiz";
 import { approvePlan, getPlanPath, moveToReview, supplementPlan } from "./orchestrator/plan-mode";
 import { buildPlanReviewCard, buildPlanSupplementCard } from "./orchestrator/harness/plan-tools";
@@ -398,6 +397,8 @@ export function registerAgUiIpc(
     if (!buildOptionsFn || !onFinished) {
       throw new Error("AG-UI 桥未初始化");
     }
+    const requestedMode = (rawInput as AguiRunInput)?.mode;
+    if (requestedMode !== undefined && requestedMode !== "chat" && requestedMode !== "work" && requestedMode !== "code") throw new Error("INVALID_CONVERSATION_MODE");
     lifecycle?.onUserMessage();
     lifecycle?.onConversationStarted();
     perf.beginTurn("desktop");
@@ -449,7 +450,7 @@ export function registerAgUiIpc(
       ? (currentUserMessage?.attachments ?? []).filter((attachment) => attachment.kind === "document")
       : [];
     const requiredWorkReads = workDocuments.flatMap((attachment) => attachment.kind === "document" && attachment.readScope ? [attachment.readScope] : []);
-    if ((mode === "work" || mode === "code" || mode === "learn") && !session.workspaceBinding?.workspaceRoot) {
+    if ((mode === "work" || mode === "code") && !session.workspaceBinding?.workspaceRoot) {
       lifecycle?.onConversationEnded();
       throw new Error(`${mode} 模式需要先绑定项目工作区`);
     }
@@ -624,28 +625,7 @@ export function registerAgUiIpc(
       send({ type: "CUSTOM", name: "firefly.choice.dismiss", value: settlement, threadId, runId });
     }, { runId, revision: 1 });
 
-    // Learn 模式：配置 Obsidian Vault 并注册工具
-    if (mode === "learn" && session.workspaceBinding?.workspaceRoot) {
-      try {
-        obsidianWorkspace.configure({
-          enabled: true,
-          vaultPath: session.workspaceBinding.workspaceRoot,
-        });
-      } catch (error) {
-        // 守卫已注册：configure 失败时必须释放，否则该会话永久拒绝新 run。
-        // 语义保持"配置失败 → 中断本次 run"（learn 工具不可用时不静默降级）。
-        try { chatsStore.resetPendingAdjustByRun(sessionId, runId); } catch { /* 复位尽力而为 */ }
-        releaseSessionGuard?.();
-        releaseSessionGuard = null;
-        lifecycle?.onConversationEnded();
-        throw error;
-      }
-      try {
-        registerObsidianTools();
-      } catch (err) {
-        console.warn("[Learn] Obsidian 工具注册失败：", err);
-      }
-    }
+    const knowledgeWorkspace = openKnowledgeWorkspace(mode, session.workspaceBinding?.workspaceRoot);
 
     const threadId = `thread-${Date.now()}`;
     const agent = new FireflyAgent({ threadId, description: "流萤主聊天" });
@@ -704,10 +684,6 @@ export function registerAgUiIpc(
       // 等待中的 takeover 此刻才被放行，保证其开局时旧 run 的 checkpoint 已落盘。
       releaseSessionGuard?.();
       releaseSessionGuard = null;
-      // Learn 模式：注销 Obsidian 工具
-      if (mode === "learn") {
-        try { unregisterObsidianTools(); } catch { /* ignore */ }
-      }
       lifecycle?.onConversationEnded();
     };
 
@@ -953,7 +929,7 @@ export function registerAgUiIpc(
             );
 
             // Learn 模式：静默更新学习进度（异步，不阻塞，失败不影响主流程）
-            if (mode === "learn" && obsidianWorkspace.isReady()) {
+            if (knowledgeWorkspace) {
               const adapter = getAdapterForConfig({
                 provider: options.settings.provider,
                 baseUrl: options.settings.baseUrl,
@@ -963,6 +939,8 @@ export function registerAgUiIpc(
               // 取走本轮抽查的实测作答（take 语义：取后即清，避免重复计入）
               const quizEvidence = takeQuizEvidenceForRun(runId);
               void runLearnPostTurnHook({
+                workspace: knowledgeWorkspace,
+                accessLevel: options.permissionMode === "allow_all" ? "full" : getCurrentLevel(),
                 adapter,
                 cfg: {
                   provider: options.settings.provider,

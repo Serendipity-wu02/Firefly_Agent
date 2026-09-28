@@ -10,11 +10,24 @@ import type {
   TodoStatus,
   TaskTraceRecord,
   TaskTranscriptMessage,
+  TaskUncertainEffect,
+  AgentSessionIdentity,
 } from "../../shared/task-session";
 
 const SESSIONS_DIR_NAME = "sessions";
 const INDEX_FILE_NAME = "index.json";
 const TRACE_LIMIT = 2_000;
+const sharedStores = new Map<string, TaskSessionStore>();
+
+export function getTaskSessionStore(userDataRoot: string): TaskSessionStore {
+  const key = path.resolve(userDataRoot);
+  let store = sharedStores.get(key);
+  if (!store) {
+    store = new TaskSessionStore(key);
+    sharedStores.set(key, store);
+  }
+  return store;
+}
 
 export interface CreateTaskSessionInput {
   parentConversationId: string;
@@ -31,6 +44,19 @@ export interface ResumeTaskSessionInput {
   parentRunId: string;
   subagentType: TaskSubagentType;
   prompt: string;
+  mode: "work" | "code";
+  resolvedWorkspaceRoot?: string;
+}
+
+export interface CreateAgentSessionInput extends Omit<CreateTaskSessionInput, "subagentType"> {
+  agent: AgentSessionIdentity;
+  sessionId: string;
+}
+
+export interface ResumeAgentSessionInput extends Omit<ResumeTaskSessionInput, "subagentType"> {
+  agent: AgentSessionIdentity;
+  mode: "work" | "code";
+  resolvedWorkspaceRoot: string;
 }
 
 export interface TaskSessionCheckpoint {
@@ -40,6 +66,7 @@ export interface TaskSessionCheckpoint {
   messages?: TaskTranscriptMessage[];
   trace?: TaskTraceRecord[];
   todoItems?: TodoItem[];
+  uncertainEffects?: TaskUncertainEffect[];
   resultText?: string;
   error?: { code: string; message: string };
   completedAt?: number;
@@ -88,22 +115,54 @@ function cloneTodoItems(value: unknown): TodoItem[] {
   });
 }
 
+function cloneUncertainEffects(value: unknown): TaskUncertainEffect[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("TASK_SESSION_READ_FAILED");
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("TASK_SESSION_READ_FAILED");
+    const effect = entry as Partial<TaskUncertainEffect>;
+    if (typeof effect.id !== "string" || typeof effect.toolCallId !== "string"
+      || typeof effect.fingerprint !== "string" || typeof effect.toolName !== "string"
+      || typeof effect.message !== "string") throw new Error("TASK_SESSION_READ_FAILED");
+    if (effect.repeatAuthorization !== undefined
+      && (effect.repeatAuthorization?.source !== "user"
+        || !Number.isFinite(effect.repeatAuthorization.grantedAt))) {
+      throw new Error("TASK_SESSION_READ_FAILED");
+    }
+    return {
+      id: effect.id, toolCallId: effect.toolCallId, fingerprint: effect.fingerprint,
+      toolName: effect.toolName, message: effect.message,
+      ...(effect.repeatAuthorization ? { repeatAuthorization: { ...effect.repeatAuthorization } } : {}),
+    };
+  });
+}
+
 function isTaskSession(value: unknown): value is TaskSession {
   if (!value || typeof value !== "object") return false;
   const session = value as Partial<TaskSession>;
-  return session.schemaVersion === 1
+  const validIdentity = session.schemaVersion === 1
+    ? isTaskType(session.subagentType) && session.agent === undefined
+    : session.schemaVersion === 2 && isAgentIdentity(session.agent) && session.subagentType === undefined;
+  return validIdentity
     && typeof session.id === "string"
     && typeof session.parentConversationId === "string"
     && typeof session.parentRunId === "string"
     && typeof session.childRunId === "string"
     && typeof session.description === "string"
-    && isTaskType(session.subagentType)
     && (session.mode === "work" || session.mode === "code")
     && isTaskStatus(session.status)
     && Array.isArray(session.messages)
     && Array.isArray(session.trace)
     && typeof session.createdAt === "number"
     && typeof session.updatedAt === "number";
+}
+
+function isAgentIdentity(value: unknown): value is AgentSessionIdentity {
+  if (!value || typeof value !== "object") return false;
+  const identity = value as Partial<AgentSessionIdentity>;
+  return typeof identity.id === "string" && identity.id.trim().length > 0
+    && typeof identity.modelProfile === "string" && identity.modelProfile.trim().length > 0
+    && typeof identity.savedModelProfileId === "string" && identity.savedModelProfileId.trim().length > 0;
 }
 
 function cloneSession(session: TaskSession): TaskSession {
@@ -133,25 +192,38 @@ export class TaskSessionStore {
   }
 
   create(input: CreateTaskSessionInput): TaskSession {
+    return this.createPrivateSession(input);
+  }
+
+  createAgent(input: CreateAgentSessionInput): TaskSession {
+    if (!isAgentIdentity(input.agent)) throw new Error("AGENT_IDENTITY_INVALID");
+    if (!/^agent-[a-f0-9]{64}$/.test(input.sessionId)) throw new Error("AGENT_SESSION_ID_INVALID");
+    if (this.get(input.sessionId)) throw new Error("AGENT_SESSION_EXISTS");
+    return this.createPrivateSession(input);
+  }
+
+  private createPrivateSession(input: CreateTaskSessionInput | CreateAgentSessionInput): TaskSession {
     const now = this.now();
+    const identity = "agent" in input ? input.agent : undefined;
     const session: TaskSession = {
-      schemaVersion: 1,
-      id: this.createId(),
+      schemaVersion: identity ? 2 : 1,
+      id: "sessionId" in input ? input.sessionId : this.createId(),
       parentConversationId: input.parentConversationId,
       parentRunId: input.parentRunId,
       childRunId: this.createChildRunId(),
       description: input.description,
-      subagentType: input.subagentType,
+      ...(identity ? { agent: { ...identity } } : { subagentType: (input as CreateTaskSessionInput).subagentType }),
       mode: input.mode,
       ...(input.resolvedWorkspaceRoot ? { resolvedWorkspaceRoot: input.resolvedWorkspaceRoot } : {}),
       status: "running",
       messages: [{ role: "user", content: input.prompt }],
       trace: [],
       todoItems: [],
+      uncertainEffects: [],
       createdAt: now,
       updatedAt: now,
     };
-    this.write(session);
+    this.write(session, Boolean(identity));
     return cloneSession(session);
   }
 
@@ -178,6 +250,23 @@ export class TaskSessionStore {
     if (session.subagentType !== input.subagentType) {
       throw new Error("TASK_PROFILE_MISMATCH");
     }
+    if (session.mode !== input.mode) throw new Error("TASK_MODE_MISMATCH");
+    if (session.resolvedWorkspaceRoot !== input.resolvedWorkspaceRoot) throw new Error("TASK_WORKSPACE_MISMATCH");
+    return this.resumePrivateSession(session, input);
+  }
+
+  resumeAgent(taskId: string, input: ResumeAgentSessionInput): TaskSession {
+    const session = this.require(taskId);
+    if (session.parentConversationId !== input.parentConversationId) throw new Error("TASK_PARENT_MISMATCH");
+    if (session.agent?.id !== input.agent.id) throw new Error("AGENT_IDENTITY_MISMATCH");
+    if (session.agent.modelProfile !== input.agent.modelProfile
+      || session.agent.savedModelProfileId !== input.agent.savedModelProfileId) throw new Error("AGENT_MODEL_PROFILE_CHANGED");
+    if (session.mode !== input.mode) throw new Error("AGENT_MODE_MISMATCH");
+    if (session.resolvedWorkspaceRoot !== input.resolvedWorkspaceRoot) throw new Error("AGENT_WORKSPACE_MISMATCH");
+    return this.resumePrivateSession(session, input);
+  }
+
+  private resumePrivateSession(session: TaskSession, input: Pick<ResumeTaskSessionInput, "parentRunId" | "prompt">): TaskSession {
     if (session.status === "running") {
       throw new Error("TASK_ALREADY_RUNNING");
     }
@@ -190,7 +279,7 @@ export class TaskSessionStore {
     session.completedAt = undefined;
     session.messages.push({ role: "user", content: input.prompt });
     session.updatedAt = this.now();
-    this.write(session);
+    this.write(session, Boolean(session.agent));
     return cloneSession(session);
   }
 
@@ -202,6 +291,7 @@ export class TaskSessionStore {
     if (patch.messages !== undefined) session.messages = cloneSession({ ...session, messages: patch.messages }).messages;
     if (patch.trace !== undefined) session.trace = patch.trace.slice(-TRACE_LIMIT);
     if (patch.todoItems !== undefined) session.todoItems = cloneTodoItems(patch.todoItems);
+    if (patch.uncertainEffects !== undefined) session.uncertainEffects = cloneUncertainEffects(patch.uncertainEffects);
     if (patch.resultText !== undefined) session.resultText = patch.resultText;
     if (patch.error !== undefined) session.error = { ...patch.error };
     if (patch.completedAt !== undefined) session.completedAt = patch.completedAt;
@@ -215,6 +305,15 @@ export class TaskSessionStore {
     this.readIndex();
 
     let changed = false;
+    for (const filename of fs.readdirSync(this.sessionsDir)) {
+      if (!/^agent-[a-f0-9]{64}\.json$/.test(filename)) continue;
+      const id = filename.slice(0, -5);
+      if (this.index.has(id)) continue;
+      const session = this.read(id);
+      if (!session || session.id !== id || session.schemaVersion !== 2) throw new Error("AGENT_SESSION_IDENTITY_INVALID");
+      this.index.set(id, this.indexRow(session));
+      changed = true;
+    }
     for (const row of this.index.values()) {
       const session = this.read(row.id);
       if (!session) continue;
@@ -241,13 +340,30 @@ export class TaskSessionStore {
     try {
       const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
       if (!isTaskSession(parsed)) throw new Error("TASK_SESSION_READ_FAILED");
-      return { ...parsed, todoItems: cloneTodoItems((parsed as Partial<TaskSession>).todoItems) };
+      return {
+        ...parsed,
+        todoItems: cloneTodoItems(parsed.todoItems),
+        uncertainEffects: cloneUncertainEffects(parsed.uncertainEffects),
+      };
     } catch {
       throw new Error("TASK_SESSION_READ_FAILED: 原文件已保留");
     }
   }
 
-  private write(session: TaskSession): void {
+  private write(session: TaskSession, acquire = false): void {
+    if (acquire) {
+      const previous = this.index.get(session.id);
+      this.index.set(session.id, this.indexRow(session));
+      try {
+        this.writeIndex();
+        this.writeSession(session);
+      } catch (error) {
+        if (previous) this.index.set(session.id, previous);
+        else this.index.delete(session.id);
+        throw error;
+      }
+      return;
+    }
     this.writeSession(session);
     this.index.set(session.id, this.indexRow(session));
     this.writeIndex();

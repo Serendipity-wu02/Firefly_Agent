@@ -211,7 +211,6 @@ const sidebarApi = {
   toggleAlwaysOnTop: () => ipcRenderer.invoke(IPC.SIDEBAR_TOGGLE_ALWAYS_ON_TOP),
   openTasks: () => ipcRenderer.send(IPC.SIDEBAR_OPEN_TASKS),
   openSettings: (section?: string) => ipcRenderer.send(IPC.SIDEBAR_OPEN_SETTINGS, section),
-  openCall: () => ipcRenderer.send(IPC.SIDEBAR_OPEN_CALL),
 };
 
 const tasksApi = {
@@ -264,35 +263,6 @@ const momentsApi: import("../shared/moments-types").MomentsApi = {
 };
 contextBridge.exposeInMainWorld("moments", momentsApi);
 
-// 通话窗口 API
-const callApi = {
-  start: () => ipcRenderer.send(IPC.CALL_START),
-  sendAudioFrame: (frame: ArrayBuffer) => ipcRenderer.send(IPC.CALL_AUDIO_FRAME, frame),
-  turnEnd: () => ipcRenderer.send(IPC.CALL_TURN_END),
-  ttsDone: () => ipcRenderer.send(IPC.CALL_TTS_DONE),
-  stop: () => ipcRenderer.send(IPC.CALL_STOP),
-  onState: (callback: (state: string) => void) => {
-    const handler = (_event: unknown, data: { state: string }) => callback(data.state);
-    ipcRenderer.on(IPC.CALL_STATE, handler);
-    return () => ipcRenderer.removeListener(IPC.CALL_STATE, handler);
-  },
-  onAsrResult: (callback: (data: { partial?: string; final?: string }) => void) => {
-    const handler = (_event: unknown, data: { partial?: string; final?: string }) => callback(data);
-    ipcRenderer.on(IPC.CALL_ASR_RESULT, handler);
-    return () => ipcRenderer.removeListener(IPC.CALL_ASR_RESULT, handler);
-  },
-  onTtsAudio: (callback: (data: { base64: string }) => void) => {
-    const handler = (_event: unknown, data: { base64: string }) => callback(data);
-    ipcRenderer.on(IPC.CALL_TTS_AUDIO, handler);
-    return () => ipcRenderer.removeListener(IPC.CALL_TTS_AUDIO, handler);
-  },
-  onError: (callback: (data: { message: string }) => void) => {
-    const handler = (_event: unknown, data: { message: string }) => callback(data);
-    ipcRenderer.on(IPC.CALL_ERROR, handler);
-    return () => ipcRenderer.removeListener(IPC.CALL_ERROR, handler);
-  },
-};
-contextBridge.exposeInMainWorld("call", callApi);
 
 const fireflyThemeApi = {
   get: () => ipcRenderer.invoke(IPC.UI_THEME_GET) as Promise<UiTheme>,
@@ -676,12 +646,12 @@ contextBridge.exposeInMainWorld("live2dDiagnostics", live2dDiagnosticsApi);
 
 // 聊天会话存储（多对话历史）
 const chatStoreApi = {
-  list: (options?: { mode?: "chat" | "work" | "code" | "learn" }) => ipcRenderer.invoke(IPC.CHATS_LIST, options),
+  list: (options?: { mode?: "chat" | "work" | "code" }) => ipcRenderer.invoke(IPC.CHATS_LIST, options),
   get: (id: string) => ipcRenderer.invoke(IPC.CHATS_GET, id),
   exportWorkMarkdown: (id: string) => ipcRenderer.invoke(IPC.CHATS_EXPORT_WORK_MARKDOWN, id),
   getPage: (id: string, before: number | null, limit: number) =>
     ipcRenderer.invoke(IPC.CHATS_GET_PAGE, { id, before, limit }),
-  create: (payload?: { title?: string; identityId?: string | null; mode?: "chat" | "work" | "code" | "learn" }) =>
+  create: (payload?: { title?: string; identityId?: string | null; mode?: "chat" | "work" | "code" }) =>
     ipcRenderer.invoke(IPC.CHATS_CREATE, payload ?? {}),
   append: (id: string, message: unknown) =>
     ipcRenderer.invoke(IPC.CHATS_APPEND, { id, message }),
@@ -767,8 +737,8 @@ const chatStoreApi = {
     ipcRenderer.invoke(IPC.CHATS_CLEAR_WORKSPACE, sessionId),
   pickWorkspaceFolder: () =>
     ipcRenderer.invoke(IPC.CHATS_PICK_WORKSPACE_FOLDER),
-  initLearnWorkspace: (sessionId: string) =>
-    ipcRenderer.invoke(IPC.CHATS_INIT_LEARN_WORKSPACE, sessionId),
+  initKnowledgeWorkspace: (sessionId: string) =>
+    ipcRenderer.invoke(IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE, sessionId),
   onWorkspaceChanged: (callback: (payload: { sessionId: string; binding: unknown }) => void) => {
     const listener = (_e: Electron.IpcRendererEvent, payload: { sessionId: string; binding: unknown }) =>
       callback(payload);

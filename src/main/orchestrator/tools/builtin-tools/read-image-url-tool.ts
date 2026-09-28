@@ -87,7 +87,7 @@ export const readImageUrlTool: ToolDefinition = {
     "参数：url (必填，完整 http(s) 图片地址)。",
   enabled: true,
   risk: "network",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   effectKind: "read" as const,
   verificationPolicy: "none" as const,
   needsContext: true,

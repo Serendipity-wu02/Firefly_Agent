@@ -8,17 +8,23 @@ import { buildAutoInjectedSkillContext, buildSkillCatalog } from "./skill-catalo
 describe("built-in diagram Skill contract", () => {
   it("discovers the shipped diagram Skill without claiming automatic body injection", () => {
     const skillsRoot = path.resolve(__dirname, "../../../skills");
-    const diagram = scanSkills(skillsRoot, "builtin").find((skill) => skill.id === "firefly-diagram");
+    const diagram = scanSkills(skillsRoot, "builtin").find((skill) => skill.id === "diagram");
     expect(diagram).toBeDefined();
     expect(diagram?.manifest).toBeUndefined();
-    expect(fs.readFileSync(path.join(skillsRoot, "firefly-diagram/SKILL.md"), "utf8"))
+    expect(fs.readFileSync(path.join(skillsRoot, "diagram/SKILL.md"), "utf8"))
       .not.toMatch(/^autoInject:/m);
-    expect(buildSkillCatalog([diagram!])).toContain("firefly-diagram");
+    expect(buildSkillCatalog([diagram!])).toContain("diagram");
     expect(buildAutoInjectedSkillContext([diagram!])).toBe("");
   });
 });
 
 describe("parseSkillFrontmatter", () => {
+  it("migrates explicit Learn metadata to Work without broadening unknown lists", () => {
+    const parse = (modes: string) => parseSkillFrontmatter(`---\nname: study\ndescription: study\nmodes: ${modes}\n---\nStudy`);
+    expect(parse("[learn]")?.modes).toEqual(["work"]);
+    expect(parse("[work, learn, code]")?.modes).toEqual(["work", "code"]);
+    expect(parse("[unknown]")?.modes).toEqual([]);
+  });
   it("解析合规 SKILL.md", () => {
     const md = `---
 name: write-expense-report
@@ -107,7 +113,7 @@ modes: [invalid, CODE, learn]
 正文`;
     const r = parseSkillFrontmatter(md);
     expect(r).not.toBeNull();
-    expect(r!.modes).toEqual(["code", "learn"]);
+    expect(r!.modes).toEqual(["code", "work"]);
   });
 });
 

@@ -3,6 +3,11 @@ import type { ChatSession } from "../../../../../shared/chat-types";
 import { getInitialMode, LAST_MODE_STORAGE_KEY, normalizeWeatherData, stageForStep, toUiMessages } from "./chat-page-normalizers";
 
 describe("chat page normalizers", () => {
+  it("restores legacy Learn last-mode as Work", () => {
+    vi.stubGlobal("localStorage", { getItem: () => "learn" });
+    expect(getInitialMode()).toBe("work");
+    vi.unstubAllGlobals();
+  });
   it.each(["completed", "failed", "cancelled"] as const)("preserves %s task portraits when reopening history", (status) => {
     const session: ChatSession = {
       id: "task-conversation",
@@ -141,7 +146,7 @@ describe("getInitialMode", () => {
     try {
       // ChatPage 的写入方与 getInitialMode 的读取方必须共用同一个键
       localStorage.setItem(LAST_MODE_STORAGE_KEY, "learn");
-      expect(getInitialMode()).toBe("learn");
+      expect(getInitialMode()).toBe("work");
       storage.clear();
       localStorage.setItem("firefly-react-last-mode", "work");
       expect(getInitialMode()).toBe("work");

@@ -5,6 +5,9 @@ license: MIT
 metadata:
   version: "2.0"
   category: productivity
+modes:
+  - work
+  - code
 ---
 
 # Windows-native XLSX workflow

@@ -1,7 +1,6 @@
 import { app } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { resolveSkillId, SKILL_ID_ALIASES } from "./skills/skill-id-aliases";
 
 export interface ExternalContentPathInput {
   isPackaged: boolean;
@@ -134,12 +133,8 @@ export function findSkillPath(
   const directories = [...paths.userSkillDirectories].reverse();
   directories.push(paths.builtinSkillDirectory);
   for (const directory of directories) {
-    const currentId = resolveSkillId(safeSkillId);
-    const legacyId = Object.keys(SKILL_ID_ALIASES).find(id => SKILL_ID_ALIASES[id] === currentId);
-    for (const id of legacyId ? [currentId, legacyId] : [currentId]) {
-      const resolvedPath = path.join(directory, id, safePath);
-      if (fs.existsSync(resolvedPath)) return resolvedPath;
-    }
+    const resolvedPath = path.join(directory, safeSkillId, safePath);
+    if (fs.existsSync(resolvedPath)) return resolvedPath;
   }
   return null;
 }

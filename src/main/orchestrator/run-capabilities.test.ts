@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { resolveRunCapabilities } from "./run-capabilities";
 
-const tool = (id: string, modes?: Array<"chat" | "work" | "learn" | "code">, chatBuiltin?: boolean) =>
+const tool = (id: string, modes?: Array<"chat" | "work" | "code">, chatBuiltin?: boolean) =>
   ({ id, modes, enabled: true, ...(chatBuiltin ? { chatBuiltin } : {}) });
-const skill = (id: string, modes?: Array<"work" | "learn" | "code">) => ({ id, modes, enabled: true });
+const skill = (id: string, modes?: Array<"work" | "code">) => ({ id, modes, enabled: true });
 
 describe("resolveRunCapabilities", () => {
   const tools = [
@@ -15,7 +15,7 @@ describe("resolveRunCapabilities", () => {
     tool("moments_view", ["chat"], true),
     tool("moments_post", ["chat"], true),
   ];
-  const skills = [skill("office", ["work"]), skill("code-review", ["code"]), skill("study", ["learn"])];
+  const skills = [skill("office", ["work"]), skill("code-review", ["code"]), skill("study", ["work"])];
   // fake registry 镜像真实现：override 优先于 modes 声明
   const filterTools = (mode: string, overrides?: Record<string, any>) =>
     tools.filter((item) => {
@@ -23,12 +23,12 @@ describe("resolveRunCapabilities", () => {
       if (override !== undefined) return override;
       return !item.modes || item.modes.includes(mode);
     });
-  const input = (mode: "chat" | "work" | "learn" | "code", toolModeOverrides?: Record<string, any>) => ({
+  const input = (mode: "chat" | "work" | "code", toolModeOverrides?: Record<string, any>) => ({
     mode,
     activeSearchBackend: "off" as const,
     toolModeOverrides,
     toolRegistry: { getEnabledToolsForMode: (target: typeof mode) => filterTools(target, toolModeOverrides) as any },
-    skillRegistry: { getEnabledForMode: (target: "work" | "learn" | "code") => skills.filter((item) => !item.modes || item.modes.includes(target)) as any },
+    skillRegistry: { getEnabledForMode: (target: "work" | "code") => skills.filter((item) => !item.modes || item.modes.includes(target)) as any },
   });
 
   it("makes chat capability-free when enhancement off (builtins excepted)", () => {
@@ -90,7 +90,8 @@ describe("resolveRunCapabilities", () => {
   it("honors mode filtering for tools and skills", () => {
     expect(resolveRunCapabilities(input("work")).toolIds).not.toContain("git_commit");
     expect(resolveRunCapabilities(input("code")).toolIds).toContain("git_commit");
-    expect(resolveRunCapabilities(input("learn")).skillIds).toEqual(new Set(["study"]));
+    expect(resolveRunCapabilities(input("work")).skillIds).toEqual(new Set(["office", "study"]));
+    expect(() => resolveRunCapabilities(input("learn" as never))).toThrow("INVALID_CONVERSATION_MODE");
     // chat 内置工具只声明 chat 模式，不漏进其他模式
     expect(resolveRunCapabilities(input("work")).toolIds).not.toContain("moments_view");
   });

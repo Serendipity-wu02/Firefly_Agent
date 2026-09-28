@@ -8,7 +8,7 @@
 
 Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列出的 Firefly 入口开始，不以原项目的实现作为默认答案。原项目只用于来源、版权或旧数据兼容追溯；不作为构建输入，也不作为缺失文件的运行回退。工程独立不改变第三方归属。
 
-2026-09-27 核对起点：`firefly-mini-v1.1.x`，HEAD `890bc6165d7b3a476d6069c436145c181bd8a16b`，171 项展开工作树差异，暂存区为空。起点是本次工作树，不是历史迁移基线。结构清单覆盖 1849 个已跟踪及未忽略的现有文件；本机生成目录单独区分，不把它们当产品源码。
+历史结构核对记录（不是当前 vNext 验收）：2026-09-27 核对起点：`firefly-mini-v1.1.x`，HEAD `890bc6165d7b3a476d6069c436145c181bd8a16b`，171 项展开工作树差异，暂存区为空。起点是本次工作树，不是历史迁移基线。结构清单覆盖 1849 个已跟踪及未忽略的现有文件；本机生成目录单独区分，不把它们当产品源码。
 
 下表的“运/构/包/测”分别表示运行使用、构建输入、正式包输入、验证用途；“编译”表示通过 dist 间接分发。功能启停仍由现有配置决定，“运”不表示默认启用或已实机通过。
 
@@ -16,22 +16,22 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 |---|---|---|---|
 | `src/main` | 运/构/编译/测 | `index.ts` → `application/` → 业务服务；Electron、IPC、模型和持久化的宿主 | Firefly 维护的既有运行架构，不另设启动链 |
 | `src/preload` | 运/构/编译/测 | `index.ts` 使用 `contextBridge` 暴露受限 API → `shared/ipc-channels.ts` → Main handlers；`music.ts` 是其中的音乐桥 | 不是 Renderer 的 Node 文件访问入口 |
-| `src/renderer/react` | 运/构/编译/测 | `main.tsx` → `App.tsx`、`app/providers`、`features/chat`、`features/settings`、`features/moments`；通过 preload 调用 Main | 四模式共用工作台，不是四套 Agent |
+| `src/renderer/react` | 运/构/编译/测 | `main.tsx` → `App.tsx`、`app/providers`、`features/chat`、`features/settings`、`features/moments`；通过 preload 调用 Main | Chat / Work / Code 三模式共用工作台 |
 | `src/renderer/live2d`、`assets`、`public` | 运/构/包/测 | 桌宠控制与动作解析；`assets/task-portraits` 由角色映射 import；public 由 Vite 复制模型、贴图及浏览器运行资源 | 图像/模型和 Cubism 等保留各自许可；不是应用用户数据 |
-| `src/renderer/call`、`settings`、`sidebar`、`sticker-manager`、`tasks`、`toast` | 运/构/编译/测 | `vite.config.ts` 的各 HTML entry → 对应窗口；共用 `ui`、`shared`、`lib`、`types`、`i18n-runtime` | 多窗口视图，不以名称相近判定为可删除的重复实现 |
+| `src/renderer/settings`、`sidebar`、`sticker-manager`、`tasks`、`toast` | 运/构/编译/测 | `vite.config.ts` 的各 HTML entry → 对应窗口；共用 `ui`、`shared`、`lib`、`types`、`i18n-runtime` | 多窗口视图，不以名称相近判定为可删除的重复实现 |
 | `src/renderer/react-perf` | 专用构/测 | `scripts/perf/chat-renderer-baseline.mjs` 和 `FIREFLY_PERF_HARNESS` 选择专用入口 | 性能夹具，不是普通 build 的页面入口 |
 | `src/shared` | 运/构/编译/测 | IPC、事件、数据类型、路径/ZIP安全契约被 Main/preload/Renderer 按需引用 | `legacy-firefly-contracts.ts` 集中兼容旧数据；不双发事件 |
 | `src/plugins` | 运/构/编译/测 | `loader.ts`/`manager.ts` 由 Main plugin runtime 调用；manifest/schema、资源/存储/IPC约束 → 宿主端口 | 通用插件机制，不能以 SDK 重名认为存在第二套插件执行器 |
 | `src/cli` | 构/编译/测 | `index.ts` → `app.ts` → `commands`；`scripts/build/cli.mjs` 生成 `dist/cli/index.js` | `firefly run` 从调用者当前项目启动 Electron，不读取原项目 |
 | `packages/plugin-sdk` | 构/测；插件使用 | `scripts/plugin-sdk/build-sdk.mjs` 构建本地 `@firefly/plugin-sdk`；示例用本地产物编译 | 未发布 npm；许可保留；不伪造线上下载服务 |
-| `skills` | 运/包/测 | 八项 `firefly-*` 正文/附件，经 `external-content-paths.ts` → scanner/registry | 产品内置；不是 Codex 开发插件 |
+| `skills` | 运/包/测 | `diagram`、`assessment`、`tutoring`、`knowledge-workspace`、`plugin-development` 五项能力正文/附件，经 `external-content-paths.ts` → scanner/registry | 产品内置；不是 Codex 开发插件 |
 | `prompts` | 运/包/测 | `prompts/prompt-loader.ts` 解析根提示词；`styles`、`worldbook`、`moments_personas` 分别供风格、触发知识、朋友圈角色 | 静态角色资料不改变子任务权限或制造用户共同经历 |
 | `scripts/build` | 构/测 | CLI esbuild、Rust 截图助手 Cargo 构建 | 产物去 dist/resources，不从原项目复制 |
 | `scripts/packaging` | 构/包准备/测 | Skills 重建/受控适配、MinGit和可选 mpv准备；读取当前 vendor清单、shared ZIP层 | 适配源码、来源哈希和正式ZIP分开；不运行下载的上游安装脚本 |
 | `scripts/plugin-sdk` | 构/测 | SDK/schema生成、包验证、示例编译/Mock | 不执行 npm publish |
 | `scripts/ci`、`verify`、`diagnostics`、`perf` | 测 | CI退出证据、产物检查、显式诊断及性能测试 | 不是普通启动链；有副作用的验收不能由文档自动执行 |
 | `scripts/packaging/upstream-skills` | 显式维护/测 | 固定来源获取工具、配置及其测试 | 不参与启动、普通build或打包；获取暂存不进入正式扫描 |
-| `vendor/firefly-skills` | 运/包/测 | 正式 ZIP、manifest、LICENSE-NOTICES、licenses/provenance → 安装器 extraResources → Skills初始化 | 39项固定版本及Firefly适配；既有来源/版本结论保持 |
+| `vendor/firefly-skills` | 运/包/测 | 正式 ZIP、manifest、LICENSE-NOTICES、licenses/provenance → 安装器 extraResources → Skills初始化 | 39 项固定来源 Skills，与五项项目 Skills 合计 44 项；隔离启动已确认注册 |
 | `vendor/mingit-manifest.json`、`mpv-manifest.json` | 包准备/测 | 对应准备脚本读取版本、地址、校验和 | 真实第三方二进制来源，不是当前应用更新源 |
 | `resources` | 包准备/包/测 | `bin/firefly-screenshot.exe`、`mingit` 是本机构建/下载暂存；`bin/mpv` 只供显式转码准备 | `electron-builder.yml` 只复制明确列出的输入；components不属于当前音乐包 |
 | `native/firefly-screenshot` | 构/包/测 | `Cargo.toml`、`src/main.rs`、`src/win` → 截图exe；Main screenshot客户端按协议调用 | Windows原生助手，依赖Rust/MSVC/SDK，不依赖原项目二进制 |
@@ -59,18 +59,18 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `chat`、`chats` | chat/image-caption与think-filter处理内容；chats/chats-ipc、store管理会话，workspace-files-ipc及work-read-scope/evidence/export管理Work文件契约 | 单复数分别是内容处理与持久化/UI IPC，不是两套历史库 |
 | `tasks` | task-session-store和task-character-pool被orchestrator/task-runtime调用 | 展示角色池不拥有审批或模型权限 |
 | `permission` | bootstrap → 根级`permission.ts`/`permission-policy.ts`与`user-choice.ts` → Harness permissionCheck | 文件与目录同名是实现/装配拆分，需保留明确import解析 |
-| `skills` | index → install/migrate → scanner/registry → catalog/tools | 八项目录与39项ZIP进入同一注册表；用户覆盖优先 |
+| `skills` | index → install/migrate → scanner/registry → catalog/tools | 项目能力与继承快照进入同一注册表；用户覆盖优先，角色/流程协议不占 Skill ID |
 | `migration` | firefly-data、channel-credentials、skill-snapshot、managed-skill-update由启动、凭据读取、Skills调用 | 长期兼容/升级模块，不是临时脚本；保留原数据与备份，不移动用户路径 |
 | `settings` | settings-facade、model-settings、settings-ipc；根级settings-store管理用户资料 | 模型档案与用户称呼职责不同，不合并存储格式 |
 | `memory`、`rag` | memory-store/工作记忆；rag/index与embedding、document-index队列 | 原始记忆与可重建索引分离；未配置向量服务不等于原始历史不存在 |
-| `learn` | obsidian/工作区工具，progress/后续学习进度；由Learn工具与run完成路径调用 | 仍使用统一Agent，不建立教学专用循环 |
+| `knowledge` | 绑定 Work Vault 的 Obsidian 工具与进度；`knowledge-workspace.ts` 判定资格，build-options/AGUI 消费 | 显式初始化，保存原 `learn/progress.md` 数据路径；每个运行捕获自己的工作区 |
 | `code-git`、`lsp` | GitService、工作区watcher、Git IPC；LspManager供工具调用 | 外部Git/LSP运行时明确，watcher生命周期按工作区关闭 |
 | `services` | llm、tts、embedding、cita、social-context的宿主服务适配 | services/cita包装cita领域实现，不是重复语义引擎 |
 | `cita`、`runtime-policy` | cita上下文结构/语义引擎；统一token/timeout政策供运行层消费 | 领域逻辑与服务配置分开 |
 | `channels`、`scheduler` | 各自bootstrap构造适配器/定时任务 → 同一AgentRuntime；由background显式start | 不自动启用渠道、发消息或补跑任务 |
 | `plugin-host`、`plugin-panel` | 宿主服务/生命周期；面板桥脚本；根级plugin-runtime衔接src/plugins | 同一插件运行时的宿主侧与嵌入页，不建立第二套加载器 |
 | `proactive`、`moments`、`social-context`、`relationship` | proactive-lifecycle、moments-service/store、上下文提取/检索、relationship-log | 各类上下文来源；默认开关和用户偏好不在结构整理中变更 |
-| `tts`、`asr`、`call`、`mossland` | TTS session、ASR dispatcher、call-manager、Mossland api-client | 外部服务适配保留真实协议/供应者名，不伪造服务配置 |
+| `tts`、`asr`、`mossland` | TTS session、ASR dispatcher、Mossland api-client；Call 专用窗口与循环已退役 | 外部服务适配保留真实协议/供应者名，不伪造服务配置 |
 | `music`、`audio` | music/bootstrap与QQ GSMTC；audio/mpv-binary供飞书audio-transcode探测 | mpv是通用转码依赖，不是被删除的网易云播放器 |
 | `screenshot`、`protocols`、`toast` | 截图lifecycle/原生helper，协议bootstrap，toast-service/window | 各自资源按application受控退出，不新增全局循环 |
 | `prompts` | prompt-loader读取有效外部内容路径 | 不恢复旧YAML人设解析链 |
@@ -80,9 +80,9 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 ### 唯一主线与具体入口
 
 1. **启动**：package `main=dist/main/main/index.js`，源码 `src/main/index.ts`；先应用身份和日志、scheme/导航保护，再创建application、单实例预配置；ready后数据兼容，再shell → core → background。退出由`application/shutdown.ts`协调。preload由窗口工厂选择`dist/preload/preload/index.js`；主工作台为Vite的`react/index.html` → `react/main.tsx`，桌宠及辅助窗口使用上表入口。
-2. **四模式**：Renderer Chat工作台的mode → preload AGUI_RUN → `agui-bridge.ts`会话/运行登记 → `AgentRuntime.buildOptions` → `build-options.ts`/`mode-prompt-profile.ts` → `FireflyAgent.runWithEvents`。Chat可走无工具路径，Work/Learn/Code使用同一Harness和各自模式过滤；不是四个Loop。AGUI_CANCEL把AbortSignal传到同次run，终态经原订阅回送Renderer。
+2. **三模式**：Renderer Chat工作台的mode → preload AGUI_RUN → `agui-bridge.ts`会话/运行登记 → `AgentRuntime.buildOptions` → `build-options.ts`/`mode-prompt-profile.ts` → `FireflyAgent.runWithEvents`。Chat可走无工具路径，Work/Code使用同一Harness和各自模式过滤；Learn 新请求拒绝，旧会话备份后迁移为 Work。AGUI_CANCEL把AbortSignal传到同次run，终态经原订阅回送Renderer。
 3. **任务/工具/审批**：`harness/adapter/tool-runtime.ts`建立同次运行上下文，`task-runtime.ts`/`task-profiles.ts`限制子任务工具，`tasks/task-session-store.ts`保存状态。`tool-registration.ts`注册工具；`skill-tools.ts`、插件和专项工具在各自初始化点注册到同一registry。`permission.ts`/`permission-policy.ts`和Harness dispatcher共同决定许可、effectKind、审批与取消，不由角色名称决定。
-4. **Skills**：`skills/index.ts::initSkills` → `external-content-paths.ts`确定内置/用户位置 → `snapshot-install.ts`首次安装 → `migration/skill-snapshot.ts`识别可托管旧版本 → `managed-skill-update.ts`带备份更新 → `skill-scanner.ts` → `skill-registry.ts`。`skill-tools.ts`提供`invoke_skill`和`read_skill_reference`；`skill-catalog.ts`是提示词目录/按规则注入入口。39+8是运行注册数，UI隐藏一项内置语气Skill，不等于丢失注册。
+4. **Skills**：`skills/index.ts::initSkills` → `external-content-paths.ts`确定内置/用户位置 → `snapshot-install.ts`首次安装 → `migration/skill-snapshot.ts`识别可托管旧版本 → `managed-skill-update.ts`带备份更新 → `skill-scanner.ts` → `skill-registry.ts`。`skill-tools.ts`提供`invoke_skill`和`read_skill_reference`；`skill-catalog.ts`是提示词目录/按规则注入入口。旧 39+8 注册数是历史基线，不作为当前快照数量。项目能力按五项发现；persona/workflow 支持内容改由提示词层拥有，最终池及分发验收另行确认。
 5. **数据**：`app-identity.ts`固定appName/userData名为Firefly，根目录来自Electron appData；settings-facade/model-settings、chats-store、task-session-store、memory-store、Harness run-store各自拥有对应数据。`plugin-runtime.ts`使用userData/plugins及plugin-data；Skills用userData/skills。`migration/firefly-data.ts`规范化旧数据，`channel-credentials.ts`保留旧凭据解密，不能以更名删除恢复路径。读失败与空列表区分沿现有存储契约。
 6. **插件**：application core → `plugin-runtime.ts::startPluginRuntime` → `src/plugins/manager.ts`/`loader.ts`；`installer.ts`使用共享安全ZIP落盘层。`packages/plugin-sdk`从当前types构建，`manifest.schema.json`由专用脚本生成校验；examples只做本地编译/Mock。`firefly-plugin`、`firefly-panel/1`与来源、路径、版本限制保持。
 7. **分发**：`npm run build`清理dist后编译Main/Preload/CLI/Renderer；`prepare:skills`从本仓库ZIP、适配源码和哈希规则确定性重建；`prepare:mingit`从vendor清单准备已校验第三方包；`build:screenshot-helper`从本仓库Cargo源码构建。`electron-builder.yml`引用dist/assets/vendor、独立prompts/skills、许可证、截图helper、QQ脚本、MinGit及Skills正式包。`package:win:dir`不等于Release发布，也不包含自动prepare:skills步骤，变更快照必须先完成该显式步骤。
@@ -101,16 +101,26 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 
 - `src/main/orchestrator/firefly-agent.ts` 是统一运行入口；无工具 Chat 与 Harness 按执行模式分工。
 - `src/main/orchestrator/harness/firefly-harness.ts` 拥有执行循环、工具调度、取消和终态推进，调用既有权限、审批、任务存储与恢复机制。
-- `mode-prompt-profile.ts` 按 Chat、Work、Learn、Code 选择各自 system、identity、Markdown soul 与台词参考。Work/Code 继续按现有位置加入任务角色展示说明。
+- `mode-prompt-profile.ts` 按 Chat、Work、Code 选择各自 system、identity、Markdown soul 与台词参考。Work/Code 继续按现有位置加入任务角色展示说明。
 - `harness/adapter/prompt-builder.ts` 在非 Chat 模式加载 `prompts/firefly_harness.md`；工具和运行规则仍按原层次组装。
 - `build-options.ts` 将环境中的称呼、当前上下文、风格、Skills、语气和工具约束放在原注入位置。`tone-injector.ts` 读取 `prompts/tone-rules.md`，缺失或不可读时使用同一流萤兜底。
 - 不加载旧 Firefly YAML 架构。世界书按现有触发、优先级和预算使用；原作经历不等于与当前用户共同经历。
 
+## Work 知识工作区与语音
+
+Work 会话显式绑定目录，通过“添加学习结构”确认后调用 `initKnowledgeWorkspace`，只补缺失文件。已绑定的目录含 `.obsidian` 或 `learn/progress.md` 时，`build-options.ts` 注入 `prompts/knowledge_workflow.md` 并按用户工具开关开放六个 Obsidian 工具；普通 Work 不自动初始化或更新进度。`obsidian_edit` 继续走 fs-write 审批；只读和逐次审批不会静默更新进度。入口及数据结构见 [知识工作区指南](../user-guide/knowledge-workspace.md)。
+
+Call 独立窗口、循环及 IPC 已退役；共享 ASR/TTS、Chat 语音播放/取消和渠道语音保留。插件语音输入只支持 `active-chat`；`active-call` 在取得租约前明确拒绝，不建立替代通话循环。
+
+## 持久 Agent 基础与接线状态
+
+`tasks/agent-session-registry.ts`、`tasks/task-session-store.ts`、`orchestrator/persistent-agent-runtime.ts`、`settings/agent-model-routing.ts` 与 Harness `delegate_agent` 边界构成持久会话基础：按父会话、工作区和 Agent 身份恢复，继承权限与取消，保存路由身份而非凭据。这些基础尚未接入生产。12 位现有角色的专业职责映射仍待用户确认，不代表 12 个专业 Agent 已上线；现有 task 路径不等于该集成已经完成。
+
 ## Skills
 
-自有目录为 `skills/firefly-{diagram,exam-paper,learn-tutor,obsidian-workspace,original-voice,plan-mode,plugin-dev,work-hygiene}`。教学、试卷、计划、Obsidian 和文件安全契约保留；语气样本改为标明来源性质的流萤表达示例，不冒充原作引文。
+旧八项项目 Skill 调整为五项发现入口：`skills/diagram/`、`skills/assessment/`、`skills/tutoring/`、`skills/knowledge-workspace/`、`skills/plugin-development/`。学习、测验、Vault、图示和插件开发能力保留。角色表达转入 `prompts/persona-support/`；计划与文件操作协议转入 `prompts/workflow-support/`，由提示词层明确组合，不另注册 Skill。保留来源、许可和附件，不冒充原作引文。39 项 vendor 加五项项目 Skills 已通过确定性生成、迁移保护回归及隔离启动注册检查；场景样例仅为维护资料，不自动注入。
 
-扫描、注册、模式过滤、按需正文与附件读取、autoInject 规则保持原机制。`skill-id-aliases.ts` 对八个旧 ID 做明确映射，兼容开关、模式覆盖、旧命令、工具白名单及用户 Skill 覆盖；新 ID 的显式设置优先，未设置的模式继承旧设置。更名不启用被关闭的 Skill、不增加工具权限。
+扫描、注册、模式过滤、按需正文与附件读取、autoInject 规则保持原机制。旧 ID 的设置和数据由 `src/main/migration/legacy-skill-migration.ts` 集中迁移，不提供任意运行时别名。显式新设置优先，用户关闭和修改受保护；更名不能扩大工具权限。旧 Learn 元数据先规范化到 Work，显式 Work=false 优先。迁移和最终快照的完整验收状态以对应 worker 证据为准。
 
 `invoke_skill` 仍最多返回正文前 6000 字符。需要后续正文时，用现有 `read_skill_reference` 的 `skill_id`、`source: "body"`、`ref: "SKILL.md"` 和提示给出的 `offset` 续读；默认 `source: "reference"` 保持附件读取方式，每页最多 8000 字符。按来源、文件和偏移去重，模式白名单、enabled、路径限制不变；正文续读沿用 invoke_skill 的动态效果分类，未声明仍 unknown，附件默认 read 不变。没有永久注入全部 Skills。
 

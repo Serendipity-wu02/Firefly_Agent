@@ -8,8 +8,7 @@ import { extractZip } from "../../src/shared/zip-extraction.ts";
 
 const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
 const builtinIds = [
-  "firefly-diagram", "firefly-exam-paper", "firefly-learn-tutor", "firefly-obsidian-workspace",
-  "firefly-original-voice", "firefly-plan-mode", "firefly-plugin-dev", "firefly-work-hygiene",
+  "assessment", "diagram", "knowledge-workspace", "plugin-development", "tutoring",
 ];
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
@@ -145,6 +144,6 @@ export async function generateSnapshot(root = projectRoot) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  generateSnapshot().then(result => console.log(`[build-skills-snapshot] ${result.changed ? "generated" : "unchanged"}: 39 vendor / 8 builtin, ${result.byteSize} bytes, sha256=${result.sha256}`))
+  generateSnapshot().then(result => console.log(`[build-skills-snapshot] ${result.changed ? "generated" : "unchanged"}: 39 vendor / 5 builtin, ${result.byteSize} bytes, sha256=${result.sha256}`))
     .catch(error => { console.error("[build-skills-snapshot]", error.message); process.exitCode = 1; });
 }

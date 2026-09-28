@@ -2048,7 +2048,7 @@ title="查看复刻说明（费用 / 规格 / 过期规则）" aria-label="复�
             <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>ASR</title><path d="M36 32V32C40.4183 32 44 28.4183 44 24C44 19.5817 40.4183 16 36 16" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M12 16C7.58172 16 4 19.5817 4 24C4 28.4183 7.58172 32 12 32V32" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M12 32V31.5V29V24V16C12 9.37258 17.3726 4 24 4C30.6274 4 36 9.37258 36 16V32C36 38.6274 30.6274 44 24 44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <div>
               <h1><span data-i18n="panel.asr.heading">ASR 设置</span></h1>
-              <p><span data-i18n="panel.asr.subheading">语音识别与通话配置</span></p>
+              <p><span data-i18n="panel.asr.subheading">语音识别服务配置</span></p>
             </div>
           </div>
           <div class="panel-body">
@@ -2096,30 +2096,9 @@ title="查看复刻说明（费用 / 规格 / 过期规则）" aria-label="复�
                 <label for="asr-mossland-key"><span data-i18n="panel.asr.mosslandKey">API Key</span></label>
                 <input type="password" id="asr-mossland-key" placeholder="MOSI API 平台 → API 密钥" data-i18n-placeholder="panel.asr.mosslandKeyPlaceholder" autocomplete="off" />
               </div>
-              <p class="tts-hint"><span data-i18n="panel.asr.mosslandHint">与 Mossland TTS 共用同一 API Key。音频在 VAD 判定本轮结束后上传到 moss-transcribe，不提供实时中间字幕。</span></p>
+              <p class="tts-hint"><span data-i18n="panel.asr.mosslandHint">与 Mossland TTS 共用同一 API Key。上传音频后返回完整转写文本，不提供实时中间字幕。</span></p>
             </div>
 
-            <div class="tts-section">
-              <h2 class="tts-section__title"><span data-i18n="panel.asr.callTitle">通话设置</span></h2>
-              <div class="tts-field">
-                <label for="asr-vad-silence"><span data-i18n="panel.asr.vadSilence">VAD 静默阈值（毫秒）</span></label>
-                <input type="number" id="asr-vad-silence" placeholder="1000" data-i18n-placeholder="panel.asr.vadSilencePlaceholder" min="300" max="10000" step="100" value="1000" />
-              </div>
-              <p class="tts-hint"><span data-i18n="panel.asr.vadSilenceHint">用户说话后停顿多久判定为说完。有人想词慢就填大一点（如 3000），反应快就填小一点（如 800）。默认 1000ms。</span></p>
-              <div class="tts-field">
-                <label for="asr-vad-threshold"><span data-i18n="panel.asr.vadThreshold">VAD 音量阈值（0.001 ~ 0.5）</span></label>
-                <input type="range" id="asr-vad-threshold" min="0.001" max="0.5" step="0.001" value="0.01" />
-                <span id="asr-vad-threshold-value">0.01</span>
-              </div>
-              <p class="tts-hint"><span data-i18n="panel.asr.vadThresholdHint">麦克风音量低或环境安静时调小（如 0.005），环境吵时调大。默认 0.01。</span></p>
-              <label class="setting-row">
-                <div>
-                  <strong><span data-i18n="panel.asr.showTranscriptTitle">通话中显示文字转写</span></strong>
-                  <p class="tts-hint"><span data-i18n="panel.asr.showTranscriptHint">开启后通话窗口显示实时识别文字和流萤回复文字</span></p>
-                </div>
-                <input type="checkbox" id="asr-show-transcript" />
-              </label>
-            </div>
           </div>
         </section>
 

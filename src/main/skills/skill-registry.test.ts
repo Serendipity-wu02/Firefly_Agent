@@ -54,16 +54,16 @@ describe("SkillRegistry", () => {
 
     expect(reg.getEnabledForMode("work").map(s => s.id).sort()).toEqual(["all", "work-only"]);
     expect(reg.getEnabledForMode("code").map(s => s.id).sort()).toEqual(["all", "code-only"]);
-    expect(reg.getEnabledForMode("learn").map(s => s.id).sort()).toEqual(["all"]);
+    expect(() => reg.getEnabledForMode("learn" as never)).toThrow("INVALID_SKILL_MODE");
   });
 
   it("getEnabledForMode 用户覆盖层优先于 modes 字段", () => {
     reg.register(entry("work-only", { modes: ["work"] }));
-    const overrides = { "work-only": { code: true, learn: false } };
+    const overrides = { "work-only": { code: true, work: false } };
 
     expect(reg.getEnabledForMode("code", overrides).map(s => s.id)).toEqual(["work-only"]);
-    expect(reg.getEnabledForMode("work", overrides).map(s => s.id)).toEqual(["work-only"]);
-    expect(reg.getEnabledForMode("learn", overrides)).toEqual([]);
+    expect(reg.getEnabledForMode("work", overrides)).toEqual([]);
+    expect(() => reg.getEnabledForMode("learn" as never, overrides)).toThrow("INVALID_SKILL_MODE");
   });
 
   it("getBody 懒加载 + 缓存（改磁盘不刷新）", () => {

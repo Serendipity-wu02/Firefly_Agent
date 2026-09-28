@@ -39,7 +39,7 @@ export interface PluginSchedulerServiceOptions {
   now?: () => Date;
 }
 
-const MODES: readonly PluginPromptMode[] = ["chat", "work", "learn", "code"];
+const MODES: readonly PluginPromptMode[] = ["chat", "work", "code"];
 const DEFAULT_HISTORY_LIMIT = 10;
 const MAX_HISTORY_LIMIT = 100;
 

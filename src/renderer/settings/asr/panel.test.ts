@@ -7,6 +7,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const html = fs.readFileSync(path.join(process.cwd(), "src/renderer/settings/index.html"), "utf8");
 
 describe("ASR settings panel", () => {
+  it("retains provider inputs and removes Call-only controls", () => {
+    for (const id of ["asr-engine", "asr-aliyun-app-key", "asr-aliyun-access-key-id", "asr-aliyun-access-key-secret", "asr-mossland-key", "asr-language"]) {
+      expect(document.getElementById(id)).not.toBeNull();
+    }
+    for (const id of ["asr-vad-silence", "asr-vad-threshold", "asr-show-transcript"]) {
+      expect(document.getElementById(id)).toBeNull();
+    }
+  });
+
   beforeEach(() => {
     vi.resetModules();
     const panel = html.match(/<section[^>]+id="asr-panel"[\s\S]*?<\/section>/)?.[0];
@@ -26,8 +35,10 @@ describe("ASR settings panel", () => {
       },
     });
 
-    const { loadAsrConfig } = await import("./panel");
-    await loadAsrConfig();
+    await import("./panel");
+    await vi.waitFor(() => {
+      expect((document.getElementById("asr-mossland-key") as HTMLInputElement).value).toBe("shared-moss-key");
+    });
 
     expect((document.getElementById("asr-engine") as HTMLSelectElement).value).toBe("mossland");
     expect((document.getElementById("asr-mossland-key") as HTMLInputElement).value).toBe("shared-moss-key");

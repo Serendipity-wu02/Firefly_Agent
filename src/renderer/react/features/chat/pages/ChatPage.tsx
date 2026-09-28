@@ -719,7 +719,7 @@ export function ChatPage() {
           conversationId: sessionId,
           messageId,
           text: segment,
-          speechMode: targetMode === "learn" ? "learn" : "default",
+          speechMode: "default",
           preferredAddress,
           automatic: true,
         });
@@ -1063,17 +1063,17 @@ export function ChatPage() {
 
 
 
-  async function initVaultStructure(sessionId: string, options?: { confirm?: boolean }) {
+  async function initVaultStructure(sessionId: string) {
     const store = chatStore();
     if (!store) return;
     // 结构学习会在工作区写入文件：覆盖性选择，需确认后执行
-    const confirmed = options?.confirm === false || await feedback.confirm({
+    const confirmed = await feedback.confirm({
       title: t("chatPage.learnStructureConfirmTitle"),
       message: t("chatPage.learnStructureConfirm"),
       confirmText: t("common.confirm"),
     });
     if (!confirmed) return;
-    const result = await store.initLearnWorkspace(sessionId);
+    const result = await store.initKnowledgeWorkspace(sessionId);
     if (!result.ok) {
       // 长操作失败：错误详情需阅读，用单按钮错误弹窗
       await feedback.alert({
@@ -1116,17 +1116,6 @@ export function ChatPage() {
           message: t("chatPage.setWorkspaceFailed", { error: result.error ?? t("chatPage.unknownError") }),
         });
         return;
-      }
-      // Learn 模式：空目录询问是否初始化通用学习结构
-      if (targetMode === "learn" && result.isEmpty) {
-        const confirmed = await feedback.confirm({
-          title: t("chatPage.learnStructureConfirmTitle"),
-          message: t("chatPage.emptyDirLearnStructureConfirm"),
-          confirmText: t("common.confirm"),
-        });
-        if (confirmed) {
-          await initVaultStructure(activeId, { confirm: false });
-        }
       }
       await refreshSessions(targetMode, false);
     } else {
@@ -1231,16 +1220,6 @@ export function ChatPage() {
           targetMode,
           pendingWorkspace.displayName ?? t("chatPage.defaultWorkspaceName"),
         ));
-      }
-      if (workspaceResult?.ok && targetMode === "learn" && workspaceResult.isEmpty) {
-        const confirmed = await feedback.confirm({
-          title: t("chatPage.learnStructureConfirmTitle"),
-          message: t("chatPage.emptyDirLearnStructureConfirm"),
-          confirmText: t("common.confirm"),
-        });
-        if (confirmed) {
-          await initVaultStructure(sessionId, { confirm: false });
-        }
       }
       setPendingWorkspaceByMode((current) => {
         const next = { ...current };
@@ -1643,7 +1622,7 @@ export function ChatPage() {
           <ChatPagePanelHost panel={activePanel} />
         ) : (
         <>
-        {(mode === "work" || mode === "learn") && (
+        {(mode === "work") && (
           <TodoPanel
             state={activeSessionId ? todoStateBySession[activeSessionId] : null}
             mode={mode}
@@ -1731,6 +1710,7 @@ export function ChatPage() {
               ? queueFlow.adjustMessage(activeSessionId, id)
               : Promise.resolve(false)}
             onChooseWorkspace={() => void chooseWorkspace()}
+            onInitializeKnowledge={() => { if (activeSessionId) void initVaultStructure(activeSessionId); }}
             onChooseFiles={(files) => void chooseFiles(files)}
             onRemoveAttachment={removeAttachment}
             onScreenshot={() => void handleScreenshot()}

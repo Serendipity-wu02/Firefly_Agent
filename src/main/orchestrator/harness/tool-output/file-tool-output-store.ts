@@ -22,6 +22,7 @@ const FIND_CONTEXT_CODE_POINTS = 160;
 interface ToolOutputRecordMeta extends Omit<ToolOutputRef, "resultRef"> {
   schemaVersion: typeof SCHEMA_VERSION;
   conversationId: string;
+  ownerSessionId?: string;
   outcome: PutToolOutputInput["outcome"];
   sha256: string;
 }
@@ -80,6 +81,7 @@ function isRecordMeta(value: unknown): value is ToolOutputRecordMeta {
     && typeof candidate.recordId === "string"
     && /^[a-f0-9]{64}$/.test(candidate.recordId)
     && typeof candidate.conversationId === "string"
+    && (candidate.ownerSessionId === undefined || (typeof candidate.ownerSessionId === "string" && candidate.ownerSessionId.trim().length > 0))
     && typeof candidate.runId === "string"
     && typeof candidate.toolCallId === "string"
     && typeof candidate.toolName === "string"
@@ -131,7 +133,8 @@ export class FileToolOutputStore implements ToolOutputStore {
       const existing = await this.readMetaIfPresent(recordDir);
       if (existing) {
         await this.readAndValidate(recordDir, input.conversationId, recordId);
-        if (existing.runId !== input.runId || existing.toolCallId !== input.toolCallId) {
+        if (existing.runId !== input.runId || existing.toolCallId !== input.toolCallId
+          || existing.ownerSessionId !== input.ownerSessionId) {
           throw new ToolOutputCorruptError("工具结果记录身份不匹配");
         }
         return toRef(existing);
@@ -147,6 +150,7 @@ export class FileToolOutputStore implements ToolOutputStore {
         schemaVersion: SCHEMA_VERSION,
         recordId,
         conversationId: input.conversationId,
+        ...(input.ownerSessionId !== undefined ? { ownerSessionId: input.ownerSessionId } : {}),
         runId: input.runId,
         toolCallId: input.toolCallId,
         toolName: input.toolName,
@@ -169,9 +173,10 @@ export class FileToolOutputStore implements ToolOutputStore {
   }
 
   async read(input: ReadToolOutputInput): Promise<ReadToolOutputResult | null> {
+    validateOwnerSessionId(input.ownerSessionId);
     validateRange(input.offset, input.length);
     const recordId = parseResultRef(input.resultRef);
-    const record = await this.readAndValidate(this.recordDir(input.conversationId, recordId), input.conversationId, recordId);
+    const record = await this.readAndValidate(this.recordDir(input.conversationId, recordId), input.conversationId, recordId, input.ownerSessionId);
     if (!record) return null;
     const points = Array.from(record.output);
     return {
@@ -183,11 +188,12 @@ export class FileToolOutputStore implements ToolOutputStore {
   }
 
   async find(input: FindToolOutputInput): Promise<FindToolOutputResult | null> {
+    validateOwnerSessionId(input.ownerSessionId);
     if (!input.query || Array.from(input.query).length > MAX_READ_CODE_POINTS) {
       throw new ToolOutputInvalidInputError("query 必须是 1-8192 个 Unicode 码点");
     }
     const recordId = parseResultRef(input.resultRef);
-    const record = await this.readAndValidate(this.recordDir(input.conversationId, recordId), input.conversationId, recordId);
+    const record = await this.readAndValidate(this.recordDir(input.conversationId, recordId), input.conversationId, recordId, input.ownerSessionId);
     if (!record) return null;
 
     const output = Array.from(record.output);
@@ -210,6 +216,7 @@ export class FileToolOutputStore implements ToolOutputStore {
   }
 
   private validatePutInput(input: PutToolOutputInput): void {
+    validateOwnerSessionId(input.ownerSessionId);
     if (!input.conversationId || !input.runId || !input.toolCallId || !input.toolName) {
       throw new ToolOutputInvalidInputError("工具结果缺少会话、运行、调用或工具标识");
     }
@@ -251,10 +258,12 @@ export class FileToolOutputStore implements ToolOutputStore {
     recordDir: string,
     conversationId: string,
     recordId: string,
+    ownerSessionId?: string,
   ): Promise<{ meta: ToolOutputRecordMeta; output: string } | null> {
     const meta = await this.readMetaIfPresent(recordDir);
     if (!meta) return null;
     if (meta.recordId !== recordId || meta.conversationId !== conversationId) return null;
+    if (ownerSessionId !== undefined && meta.ownerSessionId !== ownerSessionId) return null;
     let output: string;
     try {
       output = await readFile(path.join(recordDir, "output.txt"), "utf8");
@@ -273,4 +282,10 @@ export class FileToolOutputStore implements ToolOutputStore {
 
 function isNodeNotFound(error: unknown): boolean {
   return !!error && typeof error === "object" && (error as { code?: unknown }).code === "ENOENT";
+}
+
+function validateOwnerSessionId(ownerSessionId: string | undefined): void {
+  if (ownerSessionId !== undefined && (typeof ownerSessionId !== "string" || !ownerSessionId.trim())) {
+    throw new ToolOutputInvalidInputError("工具结果所有者标识无效");
+  }
 }

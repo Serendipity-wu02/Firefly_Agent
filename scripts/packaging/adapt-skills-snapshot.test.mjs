@@ -8,11 +8,12 @@ import { marked } from "marked";
 import matter from "gray-matter";
 import { createHash } from "node:crypto";
 import { buildAdaptedSnapshot } from "./adapt-skills-snapshot.mjs";
+import { readPreVnextSnapshot } from "./vnext-predecessor-fixture.mjs";
 import priorWorkflows from "../../src/main/skills/fixtures/prior-workflows-501da82.json" with { type: "json" };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 test("historical overlay repacking is deterministic and preserves every unrelated archive entry", async () => {
-  const historical = await JSZip.loadAsync(await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip")));
+  const historical = await JSZip.loadAsync(await readPreVnextSnapshot(root));
   for (const id of ["office-design", "as-planning-and-task-breakdown", "ecc-agent-introspection-debugging", "docx"]) {
     historical.file(`${id}/SKILL.md`, Buffer.from(priorWorkflows.files[`${id}/SKILL.md`], "base64"));
   }
@@ -43,8 +44,8 @@ test("historical overlay repacking is deterministic and preserves every unrelate
   assert.ok(first.files.some(file => file.path.endsWith("scripts/review-package")));
 });
 
-test("historical overlays reject the independently maintained current Office workflow", async () => {
-  const current = await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip"));
+test("historical overlays reject the independently maintained pre-vNext Office workflow", async () => {
+  const current = await readPreVnextSnapshot(root);
   await assert.rejects(buildAdaptedSnapshot(current, path.join(root, "scripts/packaging/skill-adaptations")), /REPAIR_SOURCE_MISMATCH/);
 });
 
@@ -108,8 +109,8 @@ test("distributed host instructions use registered Skill IDs and installed resou
   assert.match(await zip.file("pptx-generator/references/editing.md").async("string"), /isolated authorized Windows workspace/);
 });
 
-test("the 39-item host review and attachment hashes describe the distributed archive", async () => {
-  const bytes = await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip"));
+test("the historical 39-item host review and attachment hashes still describe the exact predecessor", async () => {
+  const bytes = await readPreVnextSnapshot(root);
   const zip = await JSZip.loadAsync(bytes);
   const review = JSON.parse(await fs.readFile(path.join(root, "docs/archive/refactor/2026-09-26-dependency-governance.distribution.json"), "utf8")).hostSemanticReview;
   assert.equal(review.archiveSha256, createHash("sha256").update(bytes).digest("hex"));
@@ -134,7 +135,7 @@ test("the 39-item host review and attachment hashes describe the distributed arc
 });
 
 test("does not apply anchor repairs to unknown modified content", async () => {
-  const zip = await JSZip.loadAsync(await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip")));
+  const zip = await JSZip.loadAsync(await readPreVnextSnapshot(root));
   zip.file("pptx-generator/SKILL.md", "unrecognized public fixture");
   const bytes = await zip.generateAsync({ type: "nodebuffer" });
   await assert.rejects(buildAdaptedSnapshot(bytes, path.join(root, "scripts/packaging/skill-adaptations")), /REPAIR_SOURCE_MISMATCH/);
@@ -142,7 +143,7 @@ test("does not apply anchor repairs to unknown modified content", async () => {
 });
 
 test("does not replace an unrecognized XLSX helper during snapshot adaptation", async () => {
-  const zip = await JSZip.loadAsync(await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip")));
+  const zip = await JSZip.loadAsync(await readPreVnextSnapshot(root));
   zip.file("xlsx/scripts/xlsx_workspace.py", "unrecognized helper content");
   const bytes = await zip.generateAsync({ type: "nodebuffer" });
   await assert.rejects(buildAdaptedSnapshot(bytes, path.join(root, "scripts/packaging/skill-adaptations")), /OVERLAY_SOURCE_MISMATCH/);

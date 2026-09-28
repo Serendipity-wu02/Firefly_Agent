@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, mkdtemp, rm, access } from "node:fs/promises";
+import { readFile, mkdtemp, rm, access, readdir } from "node:fs/promises";
 import os from "node:os";
 import { createRequire } from "node:module";
 import test from "node:test";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import YAML from "yaml";
 const require = createRequire(import.meta.url);
-const { FileMatcher } = require("app-builder-lib/out/fileMatcher.js");
+const { FileMatcher, copyFiles } = require("app-builder-lib/out/fileMatcher.js");
 const { copyDir } = require("builder-util");
 
 const source = await readFile(new URL("../../electron-builder.yml", import.meta.url), "utf8");
@@ -31,6 +31,29 @@ test("vendor resources ship the snapshot and legal notices without duplicate can
   await assert.rejects(access(path.join(destination, "skills")), { code: "ENOENT" });
   for (const key of ["build", "dev", "start", "package:win:dir"])
     assert.ok(!packageJson.scripts[key].includes("prepare:skills"), key);
+});
+
+test("extra files deliver five capabilities and nested support content without retired factories", async context => {
+  const config = YAML.parse(source);
+  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const destination = await mkdtemp(path.join(os.tmpdir(), "firefly-support-test-"));
+  context.after(() => rm(destination, { recursive: true, force: true }));
+  for (const name of ["skills", "prompts"]) {
+    const entry = config.extraFiles.find(entry => entry.from === name);
+    assert.equal(entry.to, name);
+    const matcher = new FileMatcher(path.join(root, entry.from), path.join(destination, entry.to), value => value, entry.filter);
+    await copyFiles([matcher], undefined, false);
+  }
+  assert.deepEqual((await readdir(path.join(destination, "skills"))).sort(),
+    ["assessment", "diagram", "knowledge-workspace", "plugin-development", "tutoring"]);
+  for (const name of [
+    "persona-support/original-voice.md", "persona-support/references/boundary.md", "persona-support/LICENSE",
+    "workflow-support/plan-mode.md", "workflow-support/work-hygiene.md", "workflow-support/LICENSE",
+    "workflow-support/references/coverage-check.md", "workflow-support/references/execution-handoff.md",
+    "workflow-support/references/plan-templates.md",
+  ]) {
+    assert.deepEqual(await readFile(path.join(destination, "prompts", name)), await readFile(path.join(root, "prompts", name)));
+  }
 });
 
 test("production TypeScript entry sets exclude tests but retain application and bridge entries", () => {

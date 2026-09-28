@@ -77,7 +77,7 @@ export function createPluginPromptRegistry(): PluginPromptRegistry {
       }
       if (provider.modes && (
         !Array.isArray(provider.modes)
-        || provider.modes.some((mode) => !["chat", "work", "learn", "code"].includes(mode))
+        || provider.modes.some((mode) => !["chat", "work", "code"].includes(mode))
       )) {
         throw new Error("插件提示词 Provider modes 含未知模式");
       }

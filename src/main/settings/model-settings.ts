@@ -9,6 +9,7 @@ import { logger, LogTag } from "../logger";
 import { migrateLegacyMinimaxDefaults } from "../orchestrator/vendors/minimax-defaults";
 import { getCapabilityOrOpenAI } from "../orchestrator/vendors/capabilities";
 import { addModelProfile, resolveDefaultModelProfile, updateModelProfile, type SavedModelProfile } from "./model-catalog";
+import { normalizeAgentModelProfiles } from "./agent-model-routing";
 
 /**
  * 统一模型配置入口：所有模块（包括 Code 模式）必须通过此函数读取。
@@ -132,6 +133,7 @@ export interface ModelSettings {
   /** 用户保存的可选模型；默认项决定新对话和非对话任务的模型。 */
   modelProfiles?: SavedModelProfile[];
   defaultModelProfileId?: string;
+  agentModelProfiles?: Record<string, string>;
   runtimeSync: "off" | "local" | "llm";
   stickerEnabled: boolean;
   stickerSize: StickerSize;
@@ -347,6 +349,7 @@ export function normalizeModelSettings(input: Partial<ModelSettings> | null | un
     perProvider,
     modelProfiles,
     defaultModelProfileId: typeof input?.defaultModelProfileId === "string" ? input.defaultModelProfileId : modelProfiles[0]?.id,
+    agentModelProfiles: normalizeAgentModelProfiles(input?.agentModelProfiles),
     runtimeSync: input?.runtimeSync === "llm" ? "llm" : input?.runtimeSync === "local" ? "local" : "off",
     stickerEnabled: input?.stickerEnabled === true,
     stickerSize: input?.stickerSize === "small" || input?.stickerSize === "large" ? input.stickerSize : "standard",

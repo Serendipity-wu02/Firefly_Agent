@@ -156,12 +156,6 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   asrAliyunAccessKeySecret: string;
   /** ASR 识别语言：zh(中文) | en(英文) | auto(自动) */
   asrLanguage: "zh" | "en" | "auto";
-  /** VAD 静默检测阈值（毫秒），500~2000，默认 1000 */
-  asrVadSilenceMs: number;
-  /** VAD 音量阈值（0~1），默认 0.01。环境吵或麦克风音量低时可调 */
-  asrVadThreshold: number;
-  /** 通话中显示文字转写 */
-  asrShowTranscript: boolean;
   /** 截图全局热键（Electron Accelerator 格式，如 "Alt+Shift+S"） */
   screenshotHotkey: string;
   /** 工具-模式覆盖层：用户自定义每个工具在 learn/code/work 模式下的可见性。

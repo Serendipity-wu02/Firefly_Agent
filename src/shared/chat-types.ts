@@ -17,7 +17,7 @@ export type ChatRole = "user" | "model";
 export type ChatSessionPurpose = "proactive-chat";
 
 /** 会话模式：创建时绑定，整个会话生命周期不变 */
-export type ConversationMode = "chat" | "work" | "code" | "learn";
+export type ConversationMode = "chat" | "work" | "code";
 
 export type ChatStickerId =
   | "playful"

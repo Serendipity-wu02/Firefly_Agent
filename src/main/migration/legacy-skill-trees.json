@@ -1,0 +1,104 @@
+{
+  "versions": [
+    {
+      "id": "cyrene-diagram",
+      "revision": "f1f6579",
+      "sha256": "7f41116c0c1d6e67a40221be0b3d3b87cf525c50926ea4c0e70037e466f41985"
+    },
+    {
+      "id": "cyrene-exam-paper",
+      "revision": "f1f6579",
+      "sha256": "1258ad7c8d49e92bc6b5f295641c28af29025a8df2e5ff6934aefe0b9427912d"
+    },
+    {
+      "id": "cyrene-learn-tutor",
+      "revision": "f1f6579",
+      "sha256": "847c5a1a5fd2a2e6f912038a0882045a5f00a8c8443d20db405b647a7c23178b"
+    },
+    {
+      "id": "cyrene-obsidian-workspace",
+      "revision": "f1f6579",
+      "sha256": "6e50063f8af9d1a758a475f0ba81e58a5aef3c5cd206733fdbfaeec2a72a60af"
+    },
+    {
+      "id": "cyrene-original-voice",
+      "revision": "f1f6579",
+      "sha256": "6d881d35bbd95a34ede23ece8ebd68c59dabcf4718d9d7de9671f127fdcec90f"
+    },
+    {
+      "id": "cyrene-plan-mode",
+      "revision": "f1f6579",
+      "sha256": "9bdc5f3e19a07234ae33762b9b2c6d807d6729fa19a63e65e0871ae2b03ac74c"
+    },
+    {
+      "id": "cyrene-plugin-dev",
+      "revision": "f1f6579",
+      "sha256": "a1901424858b44584c0f0597f3df7c4f03a2e73775948c6b49bad821a9a95f2a"
+    },
+    {
+      "id": "cyrene-work-hygiene",
+      "revision": "f1f6579",
+      "sha256": "08124d35d12108e57f3665bc4add22189889628ff8d7a2965225de2f40a6b2fe"
+    },
+    {
+      "id": "firefly-diagram",
+      "revision": "dedc7ea",
+      "sha256": "38095490aa56a4a5d25d655e063c58cc388ee7588276ecbc1fecbd1d27f92130"
+    },
+    {
+      "id": "firefly-exam-paper",
+      "revision": "dedc7ea",
+      "sha256": "fddcbfb06e22c9260349efa0453da0d298fb5fc20fc0d3a825205539ac326425"
+    },
+    {
+      "id": "firefly-learn-tutor",
+      "revision": "dedc7ea",
+      "sha256": "1c318e79487ced2e1f77ed6d690a2c53f143e66c1c7f27a1239522022e85092b"
+    },
+    {
+      "id": "firefly-obsidian-workspace",
+      "revision": "dedc7ea",
+      "sha256": "915e65cc79c9ad877c54538229a0891f9bdbc76227237efdc9fe630ba46f02ce"
+    },
+    {
+      "id": "firefly-original-voice",
+      "revision": "dedc7ea",
+      "sha256": "52e2b075c2d8e17600cd768c60456957e300b2d2c7887bcf1a46fdc60e66a47a"
+    },
+    {
+      "id": "firefly-plan-mode",
+      "revision": "dedc7ea",
+      "sha256": "ad7eda3d1fed00b5d262cb0970df654b3c3a413635a0327e04e9c6b0f5f359cb"
+    },
+    {
+      "id": "firefly-plugin-dev",
+      "revision": "dedc7ea",
+      "sha256": "afda5f188a3419bb52c8a8b49e9b8760afb0c7ed134a9b4bc8f1f3f77ff3a616"
+    },
+    {
+      "id": "firefly-work-hygiene",
+      "revision": "dedc7ea",
+      "sha256": "05607e094e701ce22d54a0849780192b8cb1b0d2d928e462edbfca93c3a2683f"
+    },
+    {
+      "id": "firefly-plugin-dev",
+      "revision": "6c18981",
+      "sha256": "7d0042c9951a72a17cb81a6848bd960beedb14078670d6f7d63c4f162c575ffe"
+    },
+    {
+      "id": "firefly-diagram",
+      "revision": "9d59527dff34677d873aaf5bc912ed057bf5cccd",
+      "sha256": "56924d77ffd6a10874192450f716486a3faf0edd5ea6761b2158de22a7c58ce4"
+    },
+    {
+      "id": "firefly-obsidian-workspace",
+      "revision": "9d59527dff34677d873aaf5bc912ed057bf5cccd",
+      "sha256": "c13756d98a60514c57af48b605527f8cccc6428fd1a8cb6a3237d410c0130c11"
+    },
+    {
+      "id": "firefly-plugin-dev",
+      "revision": "9d59527dff34677d873aaf5bc912ed057bf5cccd",
+      "sha256": "369d87735f0cd3d6ba0dc8d6541c8eb7b899d6fe447609d98a85c323a0ad76fe"
+    }
+  ]
+}

@@ -67,7 +67,7 @@ it("resolves required cross-Skill calls when each Skill is invoked directly", as
     for (const target of targets) {
       const targetSkill = skillRegistry.getById(target);
       expect(targetSkill, `${source} → ${target}`).toBeDefined();
-      for (const mode of sourceSkill.modes ?? ["work", "code", "learn"] as const) {
+      for (const mode of sourceSkill.modes ?? ["work", "code"] as const) {
         expect(skillRegistry.getEnabledForMode(mode).some(skill => skill.id === target), `${source} → ${target} in ${mode}`).toBe(true);
       }
       if (!result.includes(target)) {

@@ -6,6 +6,9 @@ import {
 } from "./openSessionByDeps";
 
 describe("bootstrapReactSession", () => {
+  it("opens persisted Learn sessions as Work", () => {
+    expect(normalizeSessionMode("learn")).toBe("work");
+  });
   it("opens the URL session and refreshes its list without selecting again", async () => {
     const openSession = vi.fn(async () => true);
     const refreshSessions = vi.fn(async () => {});
@@ -73,8 +76,8 @@ describe("normalizeSessionMode", () => {
     expect(normalizeSessionMode("daily")).toBe("work");
   });
 
-  it("'learn' 返回 'learn'", () => {
-    expect(normalizeSessionMode("learn")).toBe("learn");
+  it("'learn' 返回 'work'", () => {
+    expect(normalizeSessionMode("learn")).toBe("work");
   });
 
   it("undefined / 未知 / 空串都返回 null", () => {
@@ -117,7 +120,7 @@ describe("openSessionByIdWithDeps", () => {
     expect(selectSession).toHaveBeenCalledWith("daily-1", "work");
   });
 
-  it("learn 会话：selectSession(id, 'learn') 被调用，返回 true", async () => {
+  it("旧 learn 会话：selectSession(id, 'work') 被调用，返回 true", async () => {
     const selectSession = vi.fn(async () => {});
     const result = await openSessionByIdWithDeps({
       sessionId: "learn-1",
@@ -125,7 +128,7 @@ describe("openSessionByIdWithDeps", () => {
       selectSession,
     });
     expect(result).toBe(true);
-    expect(selectSession).toHaveBeenCalledWith("learn-1", "learn");
+    expect(selectSession).toHaveBeenCalledWith("learn-1", "work");
   });
 
   it("unknown / missing mode：selectSession 不被调用，返回 false", async () => {

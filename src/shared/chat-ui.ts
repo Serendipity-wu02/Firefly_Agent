@@ -12,7 +12,7 @@ export interface ChatSessionMetaUI {
   updatedAt: number;
   messageCount: number;
   purpose?: "proactive-chat";
-  mode: "chat" | "work" | "code" | "learn";
+  mode: "chat" | "work" | "code";
 }
 
 // 默认 identity 显示名（职位面板未做，所有会话先用这个）

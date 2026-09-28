@@ -25,7 +25,7 @@ it("delivers the licensed Firefly adaptation without foreign host hooks", async 
   expect(fs.existsSync(path.join(directory, "hooks"))).toBe(false);
   expect(fs.readFileSync(path.join(directory, "LICENSE"), "utf8")).toContain("Peter Skøtt Pedersen");
   const skill = scanSkills(root, "user").find(skill => skill.id === "self-improving-agent")!;
-  expect(skill.modes).toEqual(["work", "code", "learn"]);
+  expect(skill.modes).toEqual(["work", "code"]);
   expect(skill.effectKind).toBeUndefined();
   for (const name of ["LEARNINGS.md", "ERRORS.md", "FEATURE_REQUESTS.md", "SKILL-TEMPLATE.md"]) {
     expect(fs.statSync(path.join(directory, "firefly-templates", name)).isFile()).toBe(true);

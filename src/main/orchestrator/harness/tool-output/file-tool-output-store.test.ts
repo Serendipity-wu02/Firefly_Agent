@@ -35,6 +35,23 @@ afterEach(async () => {
 });
 
 describe("FileToolOutputStore", () => {
+  it("persists owner scope across reopening and rejects replay under another owner", async () => {
+    const { root, store } = await makeStore();
+    const owned = { ...input(), ownerSessionId: "agent-a" };
+    const ref = await store.put(owned);
+    const reopened = new FileToolOutputStore(root);
+    const read = { conversationId: owned.conversationId, resultRef: ref.resultRef, offset: 0, length: 100 };
+    await expect(reopened.read({ ...read, ownerSessionId: "agent-b" })).resolves.toBeNull();
+    await expect(reopened.find({ ...read, ownerSessionId: "agent-b", query: "工具" })).resolves.toBeNull();
+    await expect(reopened.read({ ...read, ownerSessionId: "agent-a" })).resolves.toMatchObject({ content: owned.output });
+    await expect(reopened.put({ ...owned, ownerSessionId: "agent-b" })).rejects.toBeInstanceOf(ToolOutputCorruptError);
+    await expect(reopened.put(input())).rejects.toBeInstanceOf(ToolOutputCorruptError);
+    await expect(reopened.put(owned)).resolves.toEqual(ref);
+    const legacy = await reopened.put({ ...input(), toolCallId: "legacy" });
+    await expect(reopened.put({ ...owned, toolCallId: "legacy" })).rejects.toBeInstanceOf(ToolOutputCorruptError);
+    await expect(reopened.read({ ...read, resultRef: legacy.resultRef, ownerSessionId: "agent-a" })).resolves.toBeNull();
+    await expect(reopened.read(read)).resolves.toMatchObject({ content: owned.output });
+  });
   it("uses a deterministic opaque record id for one logical invocation", () => {
     expect(toolOutputRecordId("conversation-a", "run-a", "call-a"))
       .toBe(createHash("sha256").update("conversation-a\0run-a\0call-a").digest("hex"));

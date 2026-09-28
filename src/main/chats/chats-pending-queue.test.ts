@@ -583,7 +583,7 @@ describe("chats pending claim & dispatch", () => {
   it("首条用户消息认领后立即派生临时标题，等待异步模型标题时不显示新对话", async () => {
     const store = await import("./chats-store");
     store.initialize();
-    const session = store.createSession({ mode: "learn" });
+    const session = store.createSession({ mode: "work" });
     store.enqueuePendingMessage(session.id, entry({
       id: "first-user",
       rawContent: "请帮我制定机器学习计划",

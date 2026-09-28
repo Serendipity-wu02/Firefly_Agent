@@ -17,7 +17,7 @@ export const FIREFLY_LOGO = [
 export const BANNER_LINES = [
   "♡ Firefly_Agent ♡",
   "Your Desktop AI Companion",
-  "Chat · Work · Learn · Code",
+  "Chat · Work · Code",
 ] as const;
 
 /** The framed box width used when the terminal width is unknown. */

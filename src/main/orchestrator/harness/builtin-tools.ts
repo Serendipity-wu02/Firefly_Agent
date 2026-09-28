@@ -18,6 +18,7 @@ import { parseToolCallArgs } from "./types";
 import { isAbortError } from "../../abort-utils";
 import { resolveUncertainEffect } from "./uncertain-effect-guard";
 import type { TaskExecuteRequest, TaskExecuteResult } from "../task-runtime";
+import type { AgentExecuteRequest, AgentExecuteResult } from "../persistent-agent-runtime";
 import { buildTaskCompanionPrompt, getTaskCompanionNames } from "../../tasks/task-character-pool";
 import { READ_TOOL_RESULT_TOOL_ID, readToolResultToolSpec } from "./tool-output/read-tool-result";
 import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, enterPlanModeToolSpec, writePlanToolSpec } from "./plan-tools";
@@ -26,6 +27,42 @@ import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, enterPlanModeToolSpec, wri
 
 export const UPDATE_TODO_TOOL_ID = "update_todo";
 export const TASK_TOOL_ID = "task";
+export const DELEGATE_AGENT_TOOL_ID = "delegate_agent";
+
+export const delegateAgentToolSpec: ToolSpec = {
+  name: DELEGATE_AGENT_TOOL_ID,
+  description: "委托已配置的持久专业 Agent。仅传 agent_id 与完整 prompt；运行时自动恢复当前会话和工作区下的该 Agent 上下文，不需要 task_id。父运行等待结果，子 Agent 不能再次委托；工具、Skills 与审批权限由运行时约束。",
+  parameters: {
+    type: "object",
+    properties: {
+      agent_id: { type: "string", description: "当前 Agent 目录中的准确 ID" },
+      prompt: { type: "string", description: "本次完整委托指令" },
+    },
+    required: ["agent_id", "prompt"],
+    additionalProperties: false,
+  },
+};
+
+export async function executeDelegateAgent(
+  call: ToolCall,
+  executor: ((request: AgentExecuteRequest) => Promise<AgentExecuteResult>) | undefined,
+): Promise<ToolObservation> {
+  if (!executor) return { outcome: "failure", category: "runtime_safety", tool: DELEGATE_AGENT_TOOL_ID, message: "当前运行未配置持久 Agent 委托" };
+  const args = parseToolCallArgs(call);
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    return { outcome: "failure", category: "invalid_arguments", tool: DELEGATE_AGENT_TOOL_ID, message: "delegate_agent 参数必须是对象" };
+  }
+  const agentId = typeof args.agent_id === "string" ? args.agent_id.trim() : "";
+  const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+  if (!agentId || !prompt || Object.keys(args).some(key => key !== "agent_id" && key !== "prompt")) {
+    return { outcome: "failure", category: "invalid_arguments", tool: DELEGATE_AGENT_TOOL_ID, message: "delegate_agent 仅接受非空 agent_id 与 prompt" };
+  }
+  const result = await executor({ agentId, prompt });
+  return {
+    outcome: result.status === "completed" ? "success" : "failure", tool: DELEGATE_AGENT_TOOL_ID,
+    message: `Agent ${result.agentId}: ${result.status}`, output: JSON.stringify(result),
+  };
+}
 
 const taskCompanionNames = getTaskCompanionNames();
 const hasTaskCompanions = taskCompanionNames.length > 0;
@@ -609,6 +646,7 @@ export async function executeConfirmUncertainEffect(
 
 export const HARNESS_BUILTIN_TOOL_IDS = new Set([
   TASK_TOOL_ID,
+  DELEGATE_AGENT_TOOL_ID,
   UPDATE_TODO_TOOL_ID,
   ASK_USER_TOOL_ID,
   CONFIRM_UNCERTAIN_EFFECT_TOOL_ID,
@@ -648,12 +686,14 @@ function planToolSpecsFor(planState: import("../plan-mode").PlanStateName | unde
 export function getHarnessBuiltinToolSpecs(options?: {
   includeInteractive?: boolean;
   includeTask?: boolean;
+  includeAgent?: boolean;
   planState?: import("../plan-mode").PlanStateName;
 }): ToolSpec[] {
   const interactive = options?.includeInteractive !== false
     ? [askUserToolSpec, confirmUncertainEffectToolSpec]
     : [];
   const task = options?.includeTask === false ? [] : [taskToolSpec];
+  const agent = options?.includeAgent === true ? [delegateAgentToolSpec] : [];
   const plan = planToolSpecsFor(options?.planState);
-  return [updateTodoToolSpec, ...interactive, ...task, readToolResultToolSpec, ...plan];
+  return [updateTodoToolSpec, ...interactive, ...task, ...agent, readToolResultToolSpec, ...plan];
 }

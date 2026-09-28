@@ -48,18 +48,15 @@ describe("Firefly character migration", () => {
       "prompts/soul.md",
       "prompts/chat_system.md",
       "prompts/work_system.md",
-      "prompts/learn_system.md",
+      "prompts/knowledge_workflow.md",
       "prompts/code_system.md",
       "prompts/firefly_harness.md",
       "prompts/chat_identity.md",
       "prompts/work_identity.md",
       "prompts/code_identity.md",
-      "prompts/learn_identity.md",
       "prompts/plan_identity.md",
       "prompts/canon_quotes.md",
       "prompts/canon_quotes_lite.md",
-      "prompts/phone_identity.md",
-      "prompts/phone_system.md",
     ];
     for (const file of promptFiles) {
       const content = read(file);
@@ -76,7 +73,9 @@ describe("Firefly character migration", () => {
       expect(quotes).not.toContain("火萤V型战略强袭装甲");
       expect(quotes).not.toContain("分享·心愿：");
     }
-    expect(read("prompts/phone_style.md")).not.toMatch(/昔涟|Cyrene/);
+    for (const file of ["prompts/phone_identity.md", "prompts/phone_system.md", "prompts/phone_style.md"]) {
+      expect(fs.existsSync(path.join(root, file)), file).toBe(false);
+    }
     for (const style of ["01_default.md", "02_lively.md", "03_healing.md", "04_focused.md", "05_sweet.md"]) {
       expect(read(`prompts/styles/${style}`), style).not.toMatch(/昔涟|Cyrene|人家|♪/);
     }

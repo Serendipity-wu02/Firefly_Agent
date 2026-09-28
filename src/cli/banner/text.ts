@@ -5,7 +5,7 @@
 export const BANNER_LINES = [
   "♡ Firefly_Agent ♡",
   "Your Desktop AI Companion",
-  "Chat · Work · Learn · Code",
+  "Chat · Work · Code",
 ] as const;
 
 export const ABOUT_LINES = [

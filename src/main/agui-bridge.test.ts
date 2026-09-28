@@ -119,6 +119,7 @@ vi.mock("./user-choice", () => ({
 vi.mock("./permission", () => ({
   cancelPendingApprovalsForRun: vi.fn(),
   checkPermission: vi.fn(),
+  getCurrentLevel: () => "read-only",
 }));
 
 describe("agui-bridge sticker event ordering", () => {
@@ -1251,6 +1252,12 @@ describe("agui-bridge sticker event ordering", () => {
 // 同一会话同一时刻最多一个 active run；不同会话允许并发。
 // 渲染端 busy 队列只是 UX 优化，主进程守卫才是跨进程最终一致性边界。
 describe("agui-bridge session run guard", () => {
+  it("rejects a supplied retired mode before starting an agent", async () => {
+    mocks.getSession.mockReturnValue({ id: "work", mode: "work", messages: [] });
+    const { runHandler } = await setupBridge();
+    await expect(runHandler({ sender: makeSender() }, { sessionId: "work", mode: "learn" })).rejects.toThrow("INVALID_CONVERSATION_MODE");
+    expect(mocks.runFireflyAgent).not.toHaveBeenCalled();
+  });
   const defaultBuildOptions = async () => ({
     options: {
       settings: { provider: "test", baseUrl: "", model: "", apiKey: "", contextWindowTokens: 256000 },
@@ -1855,7 +1862,7 @@ describe("agui-bridge transcript dispatch", () => {
   });
 
   // ── 四模式连续性验收：下一轮模型请求由权威轨迹物化（CTA Phase 1）──
-  it.each(["chat", "work", "code", "learn"] as const)(
+  it.each(["chat", "work", "code"] as const)(
     "%s 模式下一轮模型请求使用权威轨迹上下文",
     async (mode) => {
       const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-modes-"));

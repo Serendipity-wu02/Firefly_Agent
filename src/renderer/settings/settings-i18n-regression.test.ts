@@ -15,6 +15,11 @@ function createSettingsDocument(): JSDOM {
 }
 
 describe("settings i18n regressions", () => {
+  it("describes shared ASR without advertising retired Call or VAD controls", () => {
+    expect(t("settings.panel.asr.subheading")).toBe("语音识别服务配置");
+    expect(t("settings.panel.asr.mosslandHint")).toBe("与 Mossland TTS 共用同一 API Key。上传音频后返回完整转写文本，不提供实时中间字幕。");
+  });
+
   it("does not expose the removed chat-history wipe control", () => {
     const dom = createSettingsDocument();
     const document = dom.window.document;

@@ -20,7 +20,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
-it("preserves all 39 original manifests while allowing reviewed body changes", async () => {
+it("preserves all 39 original identities while applying the current Work/Code distribution", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-upstream-manifests-"));
   roots.push(root);
   await extractZip(archive, { dir: root });
@@ -30,7 +30,9 @@ it("preserves all 39 original manifests while allowing reviewed body changes", a
     const parsed = parseSkillFrontmatter(fs.readFileSync(path.join(root, id, "SKILL.md"), "utf8"))!;
     expect(parsed).not.toBeNull();
     for (const key of ["name", "description", "tools", "version", "effectKind", "modes", "hiddenFromUi"] as const) {
-      expect(parsed[key], `${id}/${key}`).toEqual(metadata[key]);
+      const expectedValue = key === "modes" && ["docx", "office-design", "pdf", "pptx-generator", "self-improving-agent", "skill-creator", "xlsx"].includes(id)
+        ? ["work", "code"] : metadata[key];
+      expect(parsed[key], `${id}/${key}`).toEqual(expectedValue);
     }
   }
 });
@@ -48,7 +50,7 @@ it("discovers the reviewed upstream rules without expanding mode or tool permiss
     expect(skill.tools).toBeUndefined();
     expect(skill.effectKind).toBeUndefined();
     expect(registry.getEnabledForMode("work").some(entry => entry.id === id)).toBe(false);
-    expect(registry.getEnabledForMode("learn").some(entry => entry.id === id)).toBe(false);
+    expect(() => registry.getEnabledForMode("learn" as never)).toThrow("INVALID_SKILL_MODE");
     for (const rule of rules) expect(registry.getBody(id)).toContain(rule);
     if (id === "as-using-agent-skills") {
       const body = registry.getBody(id)!;

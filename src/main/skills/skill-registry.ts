@@ -2,7 +2,6 @@
 // 启动时由 initSkills 灌入扫描结果；getBody/getReference 懒加载 + 缓存。
 
 import * as fs from "fs";
-import { resolveSkillId, resolveSkillSettings } from "./skill-id-aliases";
 import * as path from "path";
 import type { SkillEntry, SkillMode, SkillModeOverrides } from "./types";
 import { parseSkillFrontmatter } from "./skill-scanner";
@@ -13,8 +12,8 @@ export class SkillRegistry {
   private availability = new Map<string, () => boolean>();
 
   register(skill: SkillEntry): void {
-    this.bodyCache.delete(resolveSkillId(skill.id));
-    this.skills.set(resolveSkillId(skill.id), { ...skill, id: resolveSkillId(skill.id) });
+    this.bodyCache.delete(skill.id);
+    this.skills.set(skill.id, { ...skill });
   }
 
   getEnabled(): SkillEntry[] {
@@ -28,9 +27,10 @@ export class SkillRegistry {
    *    3. 否则按 modes 字段：!modes || modes.includes(mode)
    *  未声明 modes 且无覆盖的 skill 默认全模式可见。 */
   getEnabledForMode(mode: SkillMode, overrides?: SkillModeOverrides): SkillEntry[] {
+    if (mode !== "work" && mode !== "code") throw new Error("INVALID_SKILL_MODE");
     return Array.from(this.skills.values()).filter((s) => {
       if (!s.enabled || !(this.availability.get(s.id)?.() ?? true)) return false;
-      const override = overrides ? resolveSkillSettings(overrides)[s.id]?.[mode] : undefined;
+      const override = overrides ? overrides[s.id]?.[mode] : undefined;
       if (override !== undefined) return override;
       return !s.modes || s.modes.includes(mode);
     });
@@ -41,26 +41,26 @@ export class SkillRegistry {
   }
 
   getById(id: string): SkillEntry | undefined {
-    return this.skills.get(resolveSkillId(id));
+    return this.skills.get(id);
   }
 
   setEnabled(id: string, enabled: boolean): void {
-    const s = this.skills.get(resolveSkillId(id));
+    const s = this.skills.get(id);
     if (s) s.enabled = enabled;
   }
 
   unregister(id: string): boolean {
-    this.bodyCache.delete(resolveSkillId(id));
-    this.availability.delete(resolveSkillId(id));
-    return this.skills.delete(resolveSkillId(id));
+    this.bodyCache.delete(id);
+    this.availability.delete(id);
+    return this.skills.delete(id);
   }
 
   setAvailability(id: string, probe: () => boolean): void {
-    this.availability.set(resolveSkillId(id), probe);
+    this.availability.set(id, probe);
   }
 
   isAvailable(id: string): boolean {
-    return this.availability.get(resolveSkillId(id))?.() ?? true;
+    return this.availability.get(id)?.() ?? true;
   }
 
   /**
@@ -69,10 +69,9 @@ export class SkillRegistry {
    * 返回 null 表示 skill 不存在或读取失败。
    */
   getBody(id: string): string | null {
-    id = resolveSkillId(id);
     const cached = this.bodyCache.get(id);
     if (cached !== undefined) return cached;
-    const s = this.skills.get(resolveSkillId(id));
+    const s = this.skills.get(id);
     if (!s) return null;
     try {
       const raw = fs.readFileSync(s.bodyPath, "utf8");
@@ -92,7 +91,7 @@ export class SkillRegistry {
    * 否则拒绝（返回 null）。不直接拿 ref 拼路径。
    */
   getReference(id: string, ref: string): string | null {
-    const s = this.skills.get(resolveSkillId(id));
+    const s = this.skills.get(id);
     if (!s) return null;
     if (!s.references.includes(ref)) return null;
     if (ref.includes("/") || ref.includes("\\") || ref.includes("..")) return null;

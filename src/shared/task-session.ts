@@ -35,20 +35,37 @@ export interface TaskTraceRecord {
   status?: string;
 }
 
+export interface TaskUncertainEffect {
+  id: string;
+  toolCallId: string;
+  fingerprint: string;
+  toolName: string;
+  message: string;
+  repeatAuthorization?: { source: "user"; grantedAt: number };
+}
+
+export interface AgentSessionIdentity {
+  id: string;
+  modelProfile: string;
+  savedModelProfileId: string;
+}
+
 export interface TaskSession {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   id: string;
   parentConversationId: string;
   parentRunId: string;
   childRunId: string;
   description: string;
-  subagentType: TaskSubagentType;
+  subagentType?: TaskSubagentType;
+  agent?: AgentSessionIdentity;
   mode: "work" | "code";
   resolvedWorkspaceRoot?: string;
   status: TaskSessionStatus;
   messages: TaskTranscriptMessage[];
   trace: TaskTraceRecord[];
   todoItems: TodoItem[];
+  uncertainEffects?: TaskUncertainEffect[];
   resultText?: string;
   error?: { code: string; message: string };
   createdAt: number;

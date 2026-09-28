@@ -264,7 +264,7 @@ ctx.registerPromptProvider({
 ```
 
 Provider id 在当前插件内唯一，框架会补全为 `plugin:<插件id>:<provider-id>`。`modes` 可选，
-缺省覆盖 `chat`、`work`、`learn`、`code`。Provider 会收到当前用户文本、可选会话 id、
+缺省覆盖 `chat`、`work`、`code`；新 Provider 声明 `learn` 会被拒绝。Provider 会收到当前用户文本、可选会话 id、
 可选渠道及插件停止信号；不会收到完整对话历史。
 
 贡献内容进入每轮变化的 runtime context，不写入稳定提示词前缀，因此不会因动态内容破坏基础提示词
@@ -433,10 +433,10 @@ const task = await ctx.deps.scheduler.createTask({
 manifest 声明 `"deps": ["speech-input"]` 后可用。适用于自带 ASR 模型的本地语音插件：Firefly 只提供受控的最终文本提交入口，模型、运行时、麦克风采集和窗口都由插件自行维护。
 
 ```js
-// target 二选一："active-chat"（普通聊天窗口）或 "active-call"（活动通话）
+// 当前仅支持 "active-chat"（普通聊天窗口）；旧 "active-call" 已退役
 const lease = await ctx.deps.speechInput.acquire({ target: "active-chat" });
 
-// 租约被宿主中止（页面重载、会话删除、通话结束、插件停止、应用退出）
+// 租约被宿主中止（页面重载、会话删除、插件停止、应用退出）
 // 时 signal 触发，必须立即停止识别
 lease.signal.addEventListener("abort", stopRecognition, { once: true });
 
@@ -452,8 +452,8 @@ await lease.release();
 
 - 全局同一时刻只允许一个插件持有租约，占用中再 acquire 抛 `E_SPEECH_INPUT_BUSY`；
 - 取得租约时目标即被冻结：页面内切换会话不迁移租约；冻结目标失效时租约自动中止；
-- `active-chat` 目标要求有活动的聊天窗口，`active-call` 目标要求有进行中的通话，否则抛 `E_NO_ACTIVE_INPUT_TARGET`；`active-call` 会接管通话输入（停止内置 ASR），释放时归还；
-- commit 的失败按稳定错误码分支处理（如会话删除 `E_NOT_FOUND`、通话忙 `E_SPEECH_INPUT_BUSY`）。
+- `active-chat` 目标要求有活动的聊天窗口，否则抛 `E_NO_ACTIVE_INPUT_TARGET`；旧 `active-call` 请求明确抛 `E_INVALID_ARGUMENT`，不会取得租约。Call 窗口与专用循环退役不删除共享 ASR/TTS、Chat 播放或渠道语音能力；
+- commit 的失败按稳定错误码分支处理（如会话删除 `E_NOT_FOUND`）。
 
 ### 统一错误码
 
@@ -475,11 +475,11 @@ try {
 |---|---|
 | `E_CAPABILITY_UNAVAILABLE` | 声明的宿主服务不可用 |
 | `E_INVALID_ARGUMENT` | 参数非法（空文本、非法游标等） |
-| `E_NOT_FOUND` | 目标不存在（会话/任务已删除、通话已结束） |
+| `E_NOT_FOUND` | 目标不存在（会话/任务已删除） |
 | `E_NOT_OWNER` | 试图访问其他插件拥有的资源 |
 | `E_STORAGE_UNAVAILABLE` | 安全存储不可用 |
-| `E_SPEECH_INPUT_BUSY` | 语音输入租约被占用或通话轮次进行中 |
-| `E_NO_ACTIVE_INPUT_TARGET` | 无可用的聊天窗口或活动通话 |
+| `E_SPEECH_INPUT_BUSY` | 语音输入租约被占用 |
+| `E_NO_ACTIVE_INPUT_TARGET` | 无可用的聊天窗口 |
 | `E_PLUGIN_STOPPING` | 插件正在停止 |
 | `E_INTERNAL` | 宿主内部错误 |
 

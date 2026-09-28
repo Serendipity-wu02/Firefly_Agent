@@ -62,14 +62,7 @@ export interface ToolObservation {
 
 // ── Uncertain Effect（结果不确定的副作用追踪）────────────
 
-export interface UncertainEffect {
-  id: string;
-  toolCallId: string;
-  fingerprint: string;
-  toolName: string;
-  message: string;
-  repeatAuthorization?: { source: "user"; grantedAt: number };
-}
+export type UncertainEffect = import("../../../shared/task-session").TaskUncertainEffect;
 
 // ── Agent State（Agent 运行期可恢复状态）────────────────
 
@@ -314,6 +307,8 @@ export interface HarnessInput {
   transcriptSink?: import("../transcript-sink").TranscriptSink;
   /** 父会话注入的前台子任务执行器；子 Harness 不会继续注入它。 */
   taskExecutor?: (request: import("../task-runtime").TaskExecuteRequest) => Promise<import("../task-runtime").TaskExecuteResult>;
+  agentExecutor?: (request: import("../persistent-agent-runtime").AgentExecuteRequest) => Promise<import("../persistent-agent-runtime").AgentExecuteResult>;
+  allowedBuiltinToolIds?: ReadonlySet<string>;
 }
 
 export interface HarnessResult {

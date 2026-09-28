@@ -12,15 +12,15 @@
 
 | 能力 | 当前实现 |
 | --- | --- |
-| 桌面角色 | 流萤 Live2D 模型、点击与双击表情、拖动、动作播放与复位；Chat 动作沿用工具与事件链。12 位任务角色使用独立头像和身份映射，朋友圈默认关闭。 |
+| 桌面角色 | 流萤 Live2D 模型、点击与双击表情、拖动、动作播放与复位；Chat 动作沿用工具与事件链。12 位任务角色保留独立头像和展示身份；专业角色映射仍待用户确认，朋友圈默认关闭。 |
 | Chat | 角色化对话、模型档案、流式回复与历史。称呼采用明确偏好，其次已有昵称，默认“开拓者”；原作经历不会自动成为与当前用户的共同经历。 |
 | Work | 工具调用、文件和文档处理、Skills、Task/Subagent、审批与取消。明确要求读取的文件使用本次运行证据；预算不足时确认部分范围，任务完成与完整读取分别展示；已结束任务通过原生保存对话框导出 Markdown。 |
-| Learn | 学习对话、Obsidian 工作区中的资料与笔记、进度及 Skills 协作。后台进度更新依赖工作区、回复内容与服务结果，不保证每轮写入。 |
+| Work 知识工作区 | 学习、测验、笔记与进度能力保留在 Work。先绑定工作区，再明确确认“添加学习结构”，或绑定已初始化的 Vault；普通 Work 不自动创建 Vault 或维护进度。详见[使用说明](docs/user-guide/knowledge-workspace.md)。 |
 | Code | Git、LSP、AST、文件与命令工具，以及 Code Skills；执行沿用现有 Agent、工具权限与审批。外部语言服务器需要相应环境。 |
-| Skills | 39 项继承 Skills 与 8 项项目维护内置 Skills；扫描注册、模式过滤、按需正文及附件读取、用户覆盖，以及带哈希识别、备份和用户修改保护的托管更新。 |
+| Skills | 39 项第三方 Skills 与 `diagram`、`assessment`、`tutoring`、`knowledge-workspace`、`plugin-development` 五项项目 Skills，共 44 项；角色表达及计划/文件协议移至 `prompts/persona-support/`、`prompts/workflow-support/`，不再占用 Skill ID。保留扫描注册、模式过滤、按需正文及附件读取、用户覆盖，以及带哈希识别、备份和用户修改保护的托管更新。 |
 | Plugins | 本地安装、生命周期和隔离面板；本地可构建的 SDK、manifest/schema 契约与四个示例。尚无本项目在线市场或已发布 SDK 包的承诺。 |
 | Memory / RAG | 原始对话与向量索引分别保存，提供现有记忆与历史检索链。向量模型不可用时明确反馈，原始 Chat 仍保存，不把索引失败记成成功。 |
-| Voice / Channels | GPT-SoVITS、ASR、QQ Music 及飞书、微信、QQ 等已有接入链；服务、客户端、渠道凭据和资源由用户配置。接入代码存在不代表完整外部服务实测通过。 |
+| Voice / Channels | GPT-SoVITS、ASR、QQ Music 及飞书、微信、QQ 等已有接入链；服务、客户端、渠道凭据和资源由用户配置。Call 独立通话窗口、循环和接口已退役；共享 ASR/TTS、Chat 播放与渠道语音保留。接入代码存在不代表完整外部服务实测通过。 |
 
 模型、工具、Skills 和插件共享当前运行与权限机制。Skill 说明和头像不会自动扩大工具权限；启用状态和可用模式由现有配置决定。
 
@@ -28,7 +28,11 @@
 
 当前源码是 Firefly 独立维护的产品基线。原项目保留来源和历史兼容用途，运行和构建无需读取原项目工作树。
 
-**已验证范围**：独立源码构建，Main/Preload/Renderer 类型与构建检查，Main 和 Renderer 隔离基础启动，Chat / Work / Learn / Code 入口，39+8 Skills 注册，ZIP 恶意及正常归档回归，真实旧 Skills 归档的托管升级与用户保护，定向自动测试，XLSX `find-label` 基础 Smoke，以及本地插件 SDK/示例编译与 Mock。
+**历史已验证范围（vNext 调整前，不代表当前版本验收）**：独立源码构建，Main/Preload/Renderer 类型与构建检查，Main 和 Renderer 隔离基础启动，Chat / Work / Learn / Code 入口，39+8 Skills 注册，ZIP 恶意及正常归档回归，真实旧 Skills 归档的托管升级与用户保护，定向自动测试，XLSX `find-label` 基础 Smoke，以及本地插件 SDK/示例编译与 Mock。
+
+**当前 vNext 验证**：冻结源码后的完整测试为 538 个文件通过，4766 项通过、1 项因 Windows 符号链接权限跳过；Main/Preload/Renderer 类型检查、完整构建、插件 SDK 与四个示例验证通过。隔离用户目录中确认 Main/Renderer 启动、Chat / Work / Code 切换、44 项 Skills 注册及正常退出。旧 Learn 会话备份后迁移为 Work，新 Learn 请求拒绝；真实用户迁移未执行。
+
+**当前 vNext 未完成项**：持久 Agent 的会话存储、注册表、模型路由与 delegate 边界已有基础实现，但尚未接入 Main 生产链；12 位角色的专业映射仍待用户确认，模型路由界面与生产集成未完成，现有 task 兼容路径仍保留。这些自动验证不表示 vNext 全部完成。
 
 **仍未完整验收**：真实模型端到端、深度 GUI、外部 Office/LibreOffice/.NET 完整流程、真实用户环境、安装器升级、跨平台、TTS / QQ Music 完整审批链、持续帧率及公开发布所需的全部资产再分发许可。
 
@@ -88,7 +92,7 @@ npm run package:win:dir
 
 ## 架构与目录
 
-应用从 `src/main/index.ts` 启动，编译入口为 `dist/main/main/index.js`；Preload 提供受控 IPC，React 与 Live2D 负责窗口和桌面展示。四模式使用现有 Firefly Agent 执行链，工具、Task、审批与取消保持各自所有者。
+应用从 `src/main/index.ts` 启动，编译入口为 `dist/main/main/index.js`；Preload 提供受控 IPC，React 与 Live2D 负责窗口和桌面展示。Chat / Work / Code 三模式使用现有 Firefly Agent 执行链，工具、Task、审批与取消保持各自所有者。
 
 | 路径 | 职责 |
 | --- | --- |

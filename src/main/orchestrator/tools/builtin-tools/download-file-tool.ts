@@ -209,7 +209,7 @@ export const downloadFileTool: ToolDefinition = {
     "保存位置：绑定项目时存到项目目录，否则存到桌面。上限 64MiB。",
   enabled: true,
   risk: "fs-write",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   needsContext: true,
   effectKind: "mutation" as const,
   verificationPolicy: "artifact" as const,

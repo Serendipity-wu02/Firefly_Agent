@@ -72,9 +72,18 @@ function service(options: {
 }
 
 describe("GitService.getStatusForSession", () => {
-  it.each(["work", "chat", "learn"] as const)("does not expose Git state to a %s session", async (mode) => {
+  it.each(["work", "chat"] as const)("does not expose Git state to a %s session", async (mode) => {
     const result = await service({ mode }).getStatusForSession("session-1");
 
+    expect(result).toMatchObject({
+      state: "error",
+      message: "Git 工作台只在 Code 模式可用",
+      files: [],
+    });
+  });
+
+  it("rejects a retired Learn session without exposing Git state", async () => {
+    const result = await service({ mode: "learn" as never }).getStatusForSession("session-1");
     expect(result).toMatchObject({
       state: "error",
       message: "Git 工作台只在 Code 模式可用",

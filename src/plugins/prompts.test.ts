@@ -13,6 +13,11 @@ afterEach(() => {
 });
 
 describe("PluginPromptRegistry", () => {
+  it("rejects retired Learn provider modes", () => {
+    const registry = createPluginPromptRegistry();
+    expect(() => registry.register("study", { id: "study", modes: ["learn"], provide: () => "study" } as never,
+      new AbortController().signal)).toThrow("modes 含未知模式");
+  });
   it("按注册顺序拼接命名空间内容，并按模式过滤", async () => {
     const registry = createPluginPromptRegistry();
     const first = new AbortController();

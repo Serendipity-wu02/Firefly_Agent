@@ -45,12 +45,11 @@ function assertIndexReadable(): void {
 }
 
 function isConversationMode(value: unknown): value is ConversationMode {
-  return value === "chat" || value === "work" || value === "code"
-    || value === "learn";
+  return value === "chat" || value === "work" || value === "code";
 }
 
 function normalizePersistedMode(value: unknown, purpose: ChatSessionPurpose | undefined): ConversationMode {
-  if (value === "daily") return "work";
+  if (value === "daily" || value === "learn") return "work";
   return isConversationMode(value) ? value : inferLegacyMode(purpose);
 }
 
@@ -80,6 +79,12 @@ function atomicWriteJson(filePath: string, data: unknown): void {
   fs.renameSync(tmpPath, filePath);
 }
 
+function backupLearnSource(filePath: string): void {
+  const backupPath = filePath + ".pre-learn-retirement.bak";
+  if (fs.existsSync(backupPath) && !fs.statSync(backupPath).isFile()) throw new Error("Invalid migration backup");
+  if (!fs.existsSync(backupPath)) fs.copyFileSync(filePath, backupPath, fs.constants.COPYFILE_EXCL);
+}
+
 function readIndexFromDisk(): ChatSessionMeta[] {
   try {
     try {
@@ -91,6 +96,7 @@ function readIndexFromDisk(): ChatSessionMeta[] {
     const raw = fs.readFileSync(indexPath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) throw new Error("Invalid history index");
+    if (parsed.some((item) => item?.mode === "learn")) backupLearnSource(indexPath);
     let migrated = false;
     const normalized: ChatSessionMeta[] = [];
     for (const item of parsed) {
@@ -167,6 +173,12 @@ function readSessionFile(id: string): ChatSession | null {
     const parsed = JSON.parse(raw) as ChatSession;
     if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.messages)) {
       throw new Error("Invalid session data");
+    }
+    if ((parsed.mode as unknown) === "learn") {
+      if (fs.existsSync(indexPath)) backupLearnSource(indexPath);
+      backupLearnSource(filePath);
+      parsed.mode = "work";
+      atomicWriteJson(filePath, parsed);
     }
     parsed.mode = normalizePersistedMode(parsed.mode, parsed.purpose);
     delete (parsed as ChatSession & { codeSession?: unknown }).codeSession;
@@ -302,6 +314,7 @@ export function getRootDir(): string {
 }
 
 export function listSessions(options?: { mode?: ConversationMode }): ChatSessionMeta[] {
+  if (options?.mode !== undefined && !isConversationMode(options.mode)) throw new Error("INVALID_CONVERSATION_MODE");
   assertIndexReadable();
   // 返回深拷贝，避免外部修改影响缓存；置顶项优先，其余按 updatedAt 倒序
   const sessions = options?.mode
@@ -349,6 +362,7 @@ export function createSession(opts?: {
   const now = Date.now();
   const messages = opts?.initialMessages ?? [];
   const mode = opts?.mode ?? (opts?.purpose === "proactive-chat" ? "chat" : "work");
+  if (!isConversationMode(mode)) throw new Error("INVALID_CONVERSATION_MODE");
   const session: ChatSession = {
     id: randomUUID(),
     title: opts?.title?.trim() || (messages.length > 0 ? deriveTitle(messages) : "新对话"),

@@ -9,5 +9,5 @@ export interface TodoState {
   todos: TodoItem[];
   updatedAt: number;
   /** 该清单所属模式；用于多模式隔离（work / learn）。 */
-  mode?: "work" | "learn";
+  mode?: "work";
 }

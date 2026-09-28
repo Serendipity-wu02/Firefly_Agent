@@ -24,8 +24,7 @@ export type RuntimeTimeoutStage =
   | "tts-mossland"
   | "asr-mossland"
   | "external-http"
-  | "vision-caption"
-  | "call-management";
+  | "vision-caption";
 
 export interface TimeoutPolicy {
   /** 总超时（毫秒）。非流式调用主要使用此字段。 */
@@ -80,10 +79,6 @@ const STAGE_DEFAULTS: Record<RuntimeTimeoutStage, TimeoutPolicy> = {
   },
   "vision-caption": {
     // vision-captioner.ts VISION_TIMEOUT_MS：30s
-    totalMs: 30_000,
-  },
-  "call-management": {
-    // call-manager.ts 通话 LLM 请求：30s
     totalMs: 30_000,
   },
 };

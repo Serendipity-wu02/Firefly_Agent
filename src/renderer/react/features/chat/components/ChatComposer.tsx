@@ -35,6 +35,7 @@ interface ChatComposerProps {
   onEditQueuedMessage?: (id: string, content: string) => Promise<boolean>;
   onAdjustQueuedMessage?: (id: string) => Promise<boolean>;
   onChooseWorkspace: () => void;
+  onInitializeKnowledge?: () => void;
   onChooseFiles: (files: File[]) => void;
   onRemoveAttachment: (index: number) => void;
   onScreenshot: () => void;
@@ -214,6 +215,7 @@ export function ChatComposer({
   onEditQueuedMessage,
   onAdjustQueuedMessage,
   onChooseWorkspace,
+  onInitializeKnowledge,
   onChooseFiles,
   onRemoveAttachment,
   onScreenshot,
@@ -228,10 +230,10 @@ export function ChatComposer({
   const compositionActiveRef = useRef(false);
   const [enabledStickers, setEnabledStickers] = useState<EnabledSticker[]>([]);
   const supportsWorkFiles = ["work", "code"].includes(mode);
-  const supportsObsidianLibrary = mode === "learn";
+  const supportsObsidianLibrary = mode === "work";
   const supportsPermission = supportsWorkFiles || supportsObsidianLibrary;
   const supportsPlanToggle = mode === "code";
-  const supportsStyle = mode === "chat" || mode === "learn";
+  const supportsStyle = mode === "chat";
   const supportsStickers = mode !== "code";
   const requiresWorkspace = supportsWorkFiles;
   const placeholder = mode === "chat"
@@ -412,9 +414,9 @@ export function ChatComposer({
           </button>
         )}
         {supportsObsidianLibrary && (
-          <button type="button" className="cy-composer__footer-button" aria-label={t("composer.obsidianChoose")} onClick={onChooseWorkspace}>
+          <button type="button" className="cy-composer__footer-button" disabled={!workspaceRoot || !conversationId || modelBusy} aria-label={t("chatPage.learnStructureConfirmTitle")} onClick={onInitializeKnowledge}>
             <ObsidianVaultIcon />
-            <span>{workspaceName ?? t("composer.obsidianLibrary")}</span>
+            <span>{t("chatPage.learnStructureConfirmTitle")}</span>
             <ChevronIcon />
           </button>
         )}

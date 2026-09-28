@@ -8,8 +8,6 @@ import {
   asrAliyunAppKeyInput, asrAliyunAccessKeyIdInput, asrAliyunAccessKeySecretInput,
   asrMosslandConfig, asrMosslandKeyInput,
   asrLanguageSelect,
-  asrVadSilenceInput, asrVadThresholdInput, asrVadThresholdValue,
-  asrShowTranscriptCheckbox,
 } from "./dom";
 
 export function syncAsrVisibility(): void {
@@ -40,13 +38,6 @@ export async function loadAsrConfig(): Promise<void> {
       if (asrAliyunAccessKeySecretInput) asrAliyunAccessKeySecretInput.value = String(cfg.asrAliyunAccessKeySecret ?? "");
       if (asrMosslandKeyInput) asrMosslandKeyInput.value = String(cfg.ttsMosslandKey ?? "");
       if (asrLanguageSelect) asrLanguageSelect.value = String(cfg.asrLanguage ?? "zh");
-      if (asrVadSilenceInput) asrVadSilenceInput.value = String(cfg.asrVadSilenceMs ?? 1000);
-      if (asrVadThresholdInput) {
-        const v = Number(cfg.asrVadThreshold) || 0.01;
-        asrVadThresholdInput.value = String(v);
-        if (asrVadThresholdValue) asrVadThresholdValue.textContent = String(v);
-      }
-      if (asrShowTranscriptCheckbox) asrShowTranscriptCheckbox.checked = Boolean(cfg.asrShowTranscript);
     }
     syncAsrVisibility();
   } catch (err) {
@@ -65,15 +56,5 @@ asrAliyunAccessKeyIdInput?.addEventListener("input", () => { clearTimeout(asrSta
 asrAliyunAccessKeySecretInput?.addEventListener("input", () => { clearTimeout(asrState.aliyunAccessKeySecretTimer); asrState.aliyunAccessKeySecretTimer = setTimeout(() => void saveAsrField("asrAliyunAccessKeySecret", asrAliyunAccessKeySecretInput.value.trim()), 800); });
 asrMosslandKeyInput?.addEventListener("input", () => { clearTimeout(asrState.mosslandKeyTimer); asrState.mosslandKeyTimer = setTimeout(() => void saveAsrField("ttsMosslandKey", asrMosslandKeyInput.value.trim()), 800); });
 asrLanguageSelect?.addEventListener("change", () => void saveAsrField("asrLanguage", asrLanguageSelect.value));
-asrVadSilenceInput?.addEventListener("input", () => {
-  void saveAsrField("asrVadSilenceMs", Number(asrVadSilenceInput.value) || 1000);
-});
-asrVadThresholdInput?.addEventListener("input", () => {
-  const v = Number(asrVadThresholdInput.value) || 0.01;
-  if (asrVadThresholdValue) asrVadThresholdValue.textContent = String(v);
-  void saveAsrField("asrVadThreshold", v);
-});
-asrShowTranscriptCheckbox?.addEventListener("change", () => void saveAsrField("asrShowTranscript", asrShowTranscriptCheckbox.checked));
 
-// 模块加载时拉一次配置
 void loadAsrConfig();

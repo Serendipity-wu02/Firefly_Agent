@@ -161,7 +161,7 @@ export function AssistantMessageFooter({ content, messageId, streaming, conversa
           conversationId={conversationId}
           messageId={messageId}
           text={cleanText}
-          speechMode={mode === "learn" ? "learn" : "default"}
+          speechMode="default"
           preferredAddress={preferredAddress}
           onCacheKey={(cacheKey, converterVersion) => onTtsCacheKey?.(messageId, cacheKey, converterVersion)}
         />

@@ -28,7 +28,7 @@ it("ships usable review and delegation references without changing mode availabi
   ] as const) {
     expect(registry.getEnabledForMode("code").map(skill => skill.id)).toContain(id);
     expect(registry.getEnabledForMode("work").map(skill => skill.id)).not.toContain(id);
-    expect(registry.getEnabledForMode("learn").map(skill => skill.id)).not.toContain(id);
+    expect(() => registry.getEnabledForMode("learn" as never)).toThrow("INVALID_SKILL_MODE");
     for (const ref of references) expect(registry.getReference(id, ref), `${id}/${ref}`).toBeTruthy();
     expect(registry.getReference(id, "../LICENSE")).toBeNull();
     expect(fs.readFileSync(path.join(directory, id, "LICENSE"), "utf8")).toContain("Jesse Vincent");

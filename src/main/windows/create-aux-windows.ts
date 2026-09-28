@@ -3,13 +3,10 @@ import * as path from "path";
 import { IPC } from "../../shared/ipc-channels";
 import { isDev } from "../env";
 import { computeLayout } from "../window-layout";
-import { stopCall, setCallWindow } from "../call/call-manager";
 import {
-  callWindow,
   getCurrentAppIconPath,
   reactChatSession,
   reactChatWindow,
-  setCallWindowLocal,
   setReactChatWindow,
   setSettingsWindow,
   setSidebarWindow,
@@ -353,65 +350,4 @@ export async function createStickerManagerWindow(): Promise<{ ok: boolean; error
   });
 
   return { ok: true };
-}
-
-/**
- * 创建/复用语音通话窗口（450×800 竖屏，语音通话）。
- */
-export function createCallWindow(): void {
-  if (callWindow && !callWindow.isDestroyed()) {
-    callWindow.show();
-    callWindow.focus();
-    return;
-  }
-
-  const display = screen.getPrimaryDisplay();
-  const { width: dw, height: dh } = display.workArea;
-  const CALL_W = 420;
-  const CALL_H = 800;
-  const cx = Math.max(0, Math.floor((dw - CALL_W) / 2));
-  const cy = Math.max(0, Math.floor((dh - CALL_H) / 2));
-
-  const window = new BrowserWindow({
-    x: display.workArea.x + cx,
-    y: display.workArea.y + cy,
-    width: CALL_W,
-    height: CALL_H,
-    minWidth: 420,
-    minHeight: 600,
-    title: "流萤 · 语音通话",
-    icon: getCurrentAppIconPath(),
-    backgroundColor: "#00000000",
-    autoHideMenuBar: true,
-    show: false,
-    frame: false,
-    transparent: true,
-    resizable: true,
-    webPreferences: {
-      preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-  setCallWindowLocal(window);
-
-  if (isDev) {
-    window.loadURL("http://localhost:5173/call/");
-  } else {
-    window.loadFile(path.join(app.getAppPath(), "dist", "renderer", "call", "index.html"));
-  }
-
-  window.once("ready-to-show", () => {
-    showWindowWhenStartupReady(window);
-  });
-
-  window.on("closed", () => {
-    setCallWindowLocal(null);
-    stopCall();
-    setCallWindow(null);
-  });
-
-  // 绑定给 call-manager
-  setCallWindow(window);
 }

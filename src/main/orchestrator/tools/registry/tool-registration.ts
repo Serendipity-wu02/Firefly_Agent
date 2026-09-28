@@ -2,6 +2,7 @@ import { loadGeneralSettings } from "../../../settings/settings-facade";
 import { loadModelSettings } from "../../../settings/model-settings";
 import type { GeneralSettings } from "../../../settings/general-settings";
 import { registerEmailTools } from "../email-tools";
+import { registerObsidianTools } from "../../../knowledge/obsidian/obsidian-tools";
 import { registerDocumentTools } from "../document-tools";
 // fs-tools / built-in-tools 仍依赖模块加载副作用，先集中在此，后续可继续显式化
 import "../fs-tools";
@@ -25,6 +26,7 @@ export function syncBuiltInToolToggles(settings: GeneralSettings): void {
 }
 
 export function registerAllTools(deps: { codeGitService: GitService; lspManager: LspManager }): void {
+  registerObsidianTools();
   registerCodeGitTools(deps.codeGitService, toolRegistry);
   registerLspTool(deps.lspManager, toolRegistry);
   registerSearchCodeTool();

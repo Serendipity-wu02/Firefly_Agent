@@ -567,7 +567,7 @@ export const runShellTool: ToolDefinition = {
     "run_in_background (可选 true，后台执行并用 shell_job 管理)。",
   enabled: true,
   risk: "shell",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   effectKind: "unknown" as const,
   inputSchema: {
     type: "object",

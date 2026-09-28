@@ -8,7 +8,7 @@
 - [可靠性边界](architecture/firefly-reliability-boundaries.md)
 - [开发与验证命令](../DEVELOPMENT.md)
 - [脚本范围与副作用](../scripts/README.md)
-- [Learn 使用说明](user-guide/learn-mode.md)
+- [Work 知识工作区与学习能力](user-guide/knowledge-workspace.md)
 - [飞书接入](user-guide/feishu.md)、[NapCat 接入](user-guide/napcat-onebot.md)、[QQ 官方机器人接入](user-guide/qqbot-official.md)：本地接线已核对，外部平台操作仍需人工核验。
 - [插件开发](plugins/plugin-dev-guide.md)
 - [插件接口](plugins/plugin-authoring.md)

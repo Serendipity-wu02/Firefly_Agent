@@ -6,7 +6,6 @@
 
 import { toolRegistry, type ToolEffectKind } from "../orchestrator/tools/registry/tool-registry";
 import { skillRegistry } from "./skill-registry";
-import { resolveSkillId } from "./skill-id-aliases";
 import { logger, LogTag } from "../logger";
 import type { ToolContext } from "../orchestrator/tools/registry/tool-context";
 
@@ -20,7 +19,7 @@ const SKILL_BODY_MAX_CHARS = 6000;
 const SKILL_REF_MAX_CHARS = 8000;
 
 export function isSkillAllowedForRun(id: string, allowedSkillIds?: ReadonlySet<string>): boolean {
-  return allowedSkillIds ? Array.from(allowedSkillIds).some(allowed => resolveSkillId(allowed) === resolveSkillId(id)) : true;
+  return allowedSkillIds ? allowedSkillIds.has(id) : true;
 }
 
 /** 截断文本到 maxChars，超长时末尾附提示。保留前部（任务路由表/关键规则通常在前）。 */
@@ -75,7 +74,7 @@ export function registerSkillTools(): void {
     risk: "safe",
     effectKind: "read" as const, // 默认值，effectResolver 会根据实际 skill 覆盖
     effectResolver: (args: Record<string, unknown>): ToolEffectKind => {
-      const id = resolveSkillId(String(args.skill_id || ""));
+      const id = String(args.skill_id || "");
       const skill = skillRegistry.getById(id);
       if (!skill) return "unknown";
       // 未声明只产生 unknown 元数据；实际工具仍独立经过权限检查。
@@ -90,7 +89,7 @@ export function registerSkillTools(): void {
     },
     needsContext: true,
     execute: async (args, ctx?: ToolContext) => {
-      const id = resolveSkillId(String(args.skill_id || ""));
+      const id = String(args.skill_id || "");
       if (!isSkillAllowedForRun(id, ctx?.allowedSkillIds)) {
         return `[invoke_skill] E_SKILL_UNAVAILABLE_IN_MODE: ${id}`;
       }
@@ -129,7 +128,7 @@ export function registerSkillTools(): void {
     effectKind: "read" as const,
     effectResolver: (args: Record<string, unknown>): ToolEffectKind => {
       if (args.source !== "body") return "read";
-      const id = resolveSkillId(String(args.skill_id || ""));
+      const id = String(args.skill_id || "");
       return skillRegistry.getById(id)?.effectKind ?? "unknown";
     },
     verificationPolicy: "none" as const,
@@ -145,7 +144,7 @@ export function registerSkillTools(): void {
     },
     needsContext: true,
     execute: async (args, ctx?: ToolContext) => {
-      const id = resolveSkillId(String(args.skill_id || ""));
+      const id = String(args.skill_id || "");
       const ref = String(args.ref || "");
       if (!isSkillAllowedForRun(id, ctx?.allowedSkillIds)) {
         return `[read_skill_reference] E_SKILL_UNAVAILABLE_IN_MODE: ${id}`;

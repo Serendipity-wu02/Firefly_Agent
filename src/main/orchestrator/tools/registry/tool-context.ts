@@ -15,6 +15,7 @@ export interface ToolContext {
   userQuery: string;
   /** 当前聊天会话 ID；需要跨轮隔离状态的工具必须使用该字段。 */
   conversationId?: string;
+  ownerSessionId?: string;
   /** One Agent execution; resolved-only candidates must not cross this boundary. */
   runId?: string;
   /** Tool Runtime-owned opaque reference registry. */

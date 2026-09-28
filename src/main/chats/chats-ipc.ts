@@ -23,7 +23,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { createWorkMarkdownSnapshot } from "./work-markdown-export";
 import { inspectWorkReadFile, isWorkReadScopeCurrent, WORK_READ_PAGE_LINES } from "./work-read-scope";
-import { ensureVaultStructure, isEmptyDirectory } from "../learn/obsidian/vault-init";
+import { ensureVaultStructure } from "../knowledge/obsidian/vault-init";
 import { getDefaultModelProfile, loadModelSettings, resolveModelSettingsProfile } from "../settings/model-settings";
 import { FileToolOutputStore } from "../orchestrator/harness/tool-output/file-tool-output-store";
 import { getHarnessRunStore } from "../orchestrator/harness/run-store";
@@ -536,7 +536,7 @@ export function registerChatsIpc(
       }
       const existing = chatsStore.getSession(payload.sessionId);
       if (!existing) return { ok: false, error: "session not found" };
-      if (existing.mode !== "work" && existing.mode !== "code" && existing.mode !== "learn") {
+      if (existing.mode !== "work" && existing.mode !== "code") {
         return { ok: false, error: `${existing.mode ?? "unknown"} mode does not support workspace binding` };
       }
       // 路径验证：目录存在 + realpath 解析
@@ -563,9 +563,7 @@ export function registerChatsIpc(
             });
           } catch { /* ignore */ }
         }
-        // Learn 模式：检测目录是否为空，让 renderer 决定是否初始化结构
-        const empty = existing.mode === "learn" ? await isEmptyDirectory(resolved) : false;
-        return { ok: true, binding, isEmpty: empty };
+        return { ok: true, binding };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return { ok: false, error: msg };
@@ -574,14 +572,14 @@ export function registerChatsIpc(
   );
 
   ipc.handle(
-    IPC.CHATS_INIT_LEARN_WORKSPACE,
+    IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE,
     async (_event, sessionId: string) => {
       if (!sessionId) return { ok: false, error: "missing sessionId" };
       const binding = chatsStore.getWorkspaceBinding(sessionId);
       if (!binding) return { ok: false, error: "no workspace binding" };
       const session = chatsStore.getSession(sessionId);
-      if (!session || session.mode !== "learn") {
-        return { ok: false, error: "session is not in learn mode" };
+      if (!session || session.mode !== "work") {
+        return { ok: false, error: "session is not in work mode" };
       }
       const result = await ensureVaultStructure(binding.workspaceRoot);
       if (result.error) return { ok: false, error: result.error };

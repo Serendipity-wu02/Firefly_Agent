@@ -39,6 +39,45 @@ afterEach(() => {
 });
 
 describe("TaskRuntime", () => {
+  it.each([
+    { mode: "code" as const, resolvedWorkspaceRoot: "E:\\different-project" },
+    { mode: "work" as const, resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot },
+  ])("refuses a legacy resume into another workspace or mode before appending input", async target => {
+    const store = createStore();
+    const original = store.create({ parentConversationId: parent.parentConversationId, parentRunId: parent.parentRunId,
+      mode: parent.mode, resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot, subagentType: "general", description: "fixture", prompt: "original" });
+    store.checkpoint(original.id, { status: "completed" });
+    const before = store.get(original.id);
+    const runHarness = vi.fn();
+    const execute = createTaskExecutor({ parent: { ...parent, ...target }, store, runHarness });
+    await expect(execute({ taskId: original.id, subagentType: "general", description: "fixture", prompt: "do not append" }))
+      .rejects.toThrow(/TASK_(WORKSPACE|MODE)_MISMATCH/);
+    expect(runHarness).not.toHaveBeenCalled();
+    expect(store.get(original.id)).toEqual(before);
+  });
+  it("restores and checkpoints uncertain effects instead of authorizing a repeat on resume", async () => {
+    const store = createStore();
+    const session = store.create({
+      parentConversationId: parent.parentConversationId, parentRunId: parent.parentRunId,
+      description: "检查状态", prompt: "first", subagentType: "general", mode: "code",
+      resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot,
+    });
+    const effects = [{ id: "effect-1", toolCallId: "call-1", fingerprint: "fp-1", toolName: "write_file", message: "unknown" }];
+    store.checkpoint(session.id, { status: "interrupted", uncertainEffects: effects });
+    const runHarness = vi.fn(async (input: any) => {
+      expect(input.initialState.uncertainEffects).toEqual(effects);
+      input.onCheckpoint({ messages: input.messages, state: { todoItems: [], uncertainEffects: effects } });
+      expect(store.get(session.id)?.uncertainEffects).toEqual(effects);
+      return {
+        finalAnswer: "not repeated", finalState: { todoItems: [], uncertainEffects: effects },
+        terminated: false, rounds: 1, terminal: { status: "success" as const, externalEffectsMayContinue: false },
+      };
+    });
+    const execute = createTaskExecutor({ parent, store, runHarness });
+    await execute({ description: "检查状态", prompt: "resume", subagentType: "general", taskId: session.id });
+    expect(store.get(session.id)?.uncertainEffects).toEqual(effects);
+  });
+
   it("keeps the child role stable and workspace metadata session-scoped", () => {
     const layers = buildChildPromptLayers(parent, "SUBAGENT_PROFILE");
     expect(layers.stablePrefix).toBe("SUBAGENT_PROFILE");

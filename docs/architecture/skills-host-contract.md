@@ -24,7 +24,7 @@
 
 safe 工具由当前策略允许；fs-read/network 在只读档位允许；fs-write 在只读档位拒绝、scoped 允许、per-action 询问。shell 在 per-action 询问，其他档位进入既有沙箱约束，不表示“任意写入均安全”。显式 allow_all 是现有用户选择，保留其行为，不由 Skill 设置。
 
-Chat 的 Skills 集合为空；Work/Code/Learn 依据 enabled、availability、用户模式覆盖及 frontmatter 过滤。Skill.tools 是说明，不能把未进入当前 run 工具列表的名称变成可执行工具。用户同 ID 覆盖优先级保持现有 registry/initSkills 机制。
+Chat 的 Skills 集合为空；Work/Code 依据 enabled、availability、用户模式覆盖及 frontmatter 过滤。Skill.tools 是说明，不能把未进入当前 run 工具列表的名称变成可执行工具。用户同 ID 覆盖优先级保持现有 registry/initSkills 机制。
 
 ## 自动证据与限制
 

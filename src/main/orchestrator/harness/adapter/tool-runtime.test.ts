@@ -12,7 +12,7 @@ vi.mock("../../tools/registry/tool-registry", () => ({ toolRegistry: { getById }
 vi.mock("../../../permission", () => ({ checkPermission }));
 vi.mock("../../plan-mode", () => ({ isPlanReadOnly: vi.fn(() => false) }));
 vi.mock("../../task-runtime", () => ({ createTaskExecutor }));
-vi.mock("../../../tasks/task-session-store", () => ({ TaskSessionStore: taskStore }));
+vi.mock("../../../tasks/task-session-store", () => ({ getTaskSessionStore: taskStore }));
 vi.mock("../tool-output/file-tool-output-store", () => ({ FileToolOutputStore: toolOutputStore }));
 vi.mock("./event-mapper", () => ({ sendTaskLifecycleAsAgui: vi.fn() }));
 vi.mock("electron", () => ({ app: { getPath: vi.fn(() => "C:\\firefly-runtime") } }));

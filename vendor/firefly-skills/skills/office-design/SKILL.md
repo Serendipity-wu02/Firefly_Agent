@@ -5,6 +5,9 @@ license: MIT
 metadata:
   version: '1.0'
   category: document-design
+modes:
+  - work
+  - code
 ---
 
 # Shared Office appearance contract

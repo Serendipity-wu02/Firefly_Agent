@@ -41,6 +41,36 @@ afterEach(() => {
 });
 
 describe("TaskSessionStore", () => {
+  it("preserves uncertain effects through checkpoints, restart and resume", () => {
+    const { root, store } = createStore();
+    const created = store.create(createInput());
+    const effects = [{ id: "effect-1", toolCallId: "call-1", fingerprint: "fingerprint-1", toolName: "write_file", message: "outcome unknown" }];
+    store.checkpoint(created.id, { status: "interrupted", uncertainEffects: effects });
+    effects[0].message = "changed outside store";
+
+    const restarted = new TaskSessionStore(root);
+    const resumed = restarted.resume(created.id, {
+      mode: "code", resolvedWorkspaceRoot: "E:\\project",
+      parentConversationId: "chat-1", parentRunId: "run-2", subagentType: "general", prompt: "continue",
+    });
+    expect(resumed.uncertainEffects).toEqual([{ ...effects[0], message: "outcome unknown" }]);
+  });
+
+  it("reads legacy absent uncertainty as empty but rejects malformed uncertainty without rewriting", () => {
+    const { root, store } = createStore();
+    const created = store.create(createInput());
+    const file = path.join(root, "firefly-tasks", "sessions", `${created.id}.json`);
+    const legacy = JSON.parse(fs.readFileSync(file, "utf8"));
+    delete legacy.uncertainEffects;
+    fs.writeFileSync(file, JSON.stringify(legacy));
+    expect(store.get(created.id)?.uncertainEffects).toEqual([]);
+    legacy.uncertainEffects = [{ toolName: "write_file" }];
+    const malformed = JSON.stringify(legacy);
+    fs.writeFileSync(file, malformed);
+    expect(() => store.get(created.id)).toThrow("TASK_SESSION_READ_FAILED");
+    expect(fs.readFileSync(file, "utf8")).toBe(malformed);
+  });
+
   it("persists a private running child session outside chat sessions", () => {
     const { root, store } = createStore();
 
@@ -68,6 +98,7 @@ describe("TaskSessionStore", () => {
     tick();
 
     const resumed = store.resume(created.id, {
+      mode: "code", resolvedWorkspaceRoot: "E:\\project",
       parentConversationId: "chat-1",
       parentRunId: "run-2",
       subagentType: "general",
@@ -81,12 +112,14 @@ describe("TaskSessionStore", () => {
     ]);
     expect(() => store.resume(created.id, {
       parentConversationId: "chat-2",
+      mode: "code", resolvedWorkspaceRoot: "E:\\project",
       parentRunId: "run-3",
       subagentType: "general",
       prompt: "不应访问。",
     })).toThrow("TASK_PARENT_MISMATCH");
     expect(() => store.resume(created.id, {
       parentConversationId: "chat-1",
+      mode: "code", resolvedWorkspaceRoot: "E:\\project",
       parentRunId: "run-3",
       subagentType: "search",
       prompt: "不应改变类型。",

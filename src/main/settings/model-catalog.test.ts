@@ -4,6 +4,15 @@ import { normalizeModelSettings, getDefaultModelProfile, getPublicModelConfig, r
 import { resolveCaptionVisionConfig } from "../orchestrator/image-router";
 
 describe("model catalog", () => {
+  it("preserves explicit specialist model routes while normalizing saved settings", () => {
+    const normalized = normalizeModelSettings({
+      agentModelProfiles: { coding: "saved-code", research: "saved-research" },
+    });
+    expect(normalized.agentModelProfiles).toEqual({ coding: "saved-code", research: "saved-research" });
+    expect(normalizeModelSettings(normalized).agentModelProfiles).toEqual(normalized.agentModelProfiles);
+    expect(normalizeModelSettings({}).agentModelProfiles).toEqual({});
+  });
+
   it("keeps the first saved model as the default and rejects a duplicate key plus model", () => {
     const first = addModelProfile([], {
       id: "openai-1",

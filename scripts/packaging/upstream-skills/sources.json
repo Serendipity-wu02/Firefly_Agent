@@ -497,7 +497,11 @@
   ],
   "current_distribution": {
     "canonical_source": "vendor/firefly-skills/skills",
-    "formal_archive_sha256": "6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7",
+    "formal_archive_sha256": "8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388",
+    "builtin_ids": ["assessment", "diagram", "knowledge-workspace", "plugin-development", "tutoring"],
+    "distribution_modes": ["work", "code"],
+    "historical_mode_scope": "Per-source suggested modes are historical review input, not active vNext declarations. Current SKILL.md frontmatter is authoritative.",
+    "predecessor_evidence": "scripts/packaging/vnext-predecessor.json",
     "current_file_hashes": "vendor/firefly-skills/license-provenance.json.currentDistribution.changedFiles",
     "pinned_sources_scope": "Fixed upstream acquisition inputs; each current Firefly body and adaptation decision is recorded separately in license-provenance.json and the distribution governance record.",
     "firefly_maintained_workflows": ["office-design", "write-expense-report"],

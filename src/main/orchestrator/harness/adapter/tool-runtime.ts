@@ -7,7 +7,7 @@ import { policyFor } from "../../../permission-policy";
 import { isPlanReadOnly } from "../../plan-mode";
 import { contextRefRegistry, extractLastUserQuery, type ToolContext } from "../../tools/registry/tool-context";
 import type { HarnessInput } from "../index";
-import { TaskSessionStore } from "../../../tasks/task-session-store";
+import { getTaskSessionStore } from "../../../tasks/task-session-store";
 import { createTaskExecutor } from "../../task-runtime";
 import { FileToolOutputStore } from "../tool-output/file-tool-output-store";
 import { sendTaskLifecycleAsAgui } from "./event-mapper";
@@ -94,8 +94,9 @@ export function prepareToolRuntime(input: {
         includeInteractiveTools: options.harnessInteractiveTools,
         permissionMode: options.permissionMode,
         toolOutputStore,
+        workReadScopes: options.workReadScopes,
       },
-      store: new TaskSessionStore(app.getPath("userData")),
+      store: getTaskSessionStore(app.getPath("userData")),
       onLifecycle: (event) => sendTaskLifecycleAsAgui(event, threadId, runId, input.sendBaseEvent),
     })
     : undefined;

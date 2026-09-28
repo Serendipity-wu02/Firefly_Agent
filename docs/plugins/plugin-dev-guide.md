@@ -310,7 +310,7 @@ ctx.registerPromptProvider({
 ```
 
 - `id` 只需在当前插件内唯一，框架会自动加插件命名空间
-- `modes` 可选：`chat` / `work` / `learn` / `code`；不写表示全部模式
+- `modes` 可选：`chat` / `work` / `code`；不写表示全部模式
 - 返回空字符串表示本轮不注入
 - 单个 Provider 最多等待 2 秒、最多 16000 字符；失败或超时不会打断对话
 - 所有插件合计最多注入 32000 字符

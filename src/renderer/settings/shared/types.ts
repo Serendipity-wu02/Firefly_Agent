@@ -253,12 +253,12 @@ export interface SettingsApi {
     name: string;
     description: string;
     enabled: boolean;
-    modes: Array<"chat" | "work" | "code" | "learn"> | null;
+    modes: Array<"chat" | "work" | "code"> | null;
     deprecated: string | null;
   }>>;
-  getToolModeOverrides?: () => Promise<Record<string, Partial<Record<"chat" | "work" | "code" | "learn", boolean>>>>;
-  setToolModeOverride?: (toolId: string, mode: "chat" | "work" | "code" | "learn", enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
-  clearToolModeOverride?: (toolId: string, mode?: "chat" | "work" | "code" | "learn") => Promise<{ ok: boolean; error?: string }>;
+  getToolModeOverrides?: () => Promise<Record<string, Partial<Record<"chat" | "work" | "code", boolean>>>>;
+  setToolModeOverride?: (toolId: string, mode: "chat" | "work" | "code", enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
+  clearToolModeOverride?: (toolId: string, mode?: "chat" | "work" | "code") => Promise<{ ok: boolean; error?: string }>;
   // 三模适配层：Skill-模式覆盖层（聊天窗口用）。
   getSkillCatalog?: () => Promise<Array<{
     id: string;
@@ -266,14 +266,14 @@ export interface SettingsApi {
     description: string;
     enabled: boolean;
     source: string;
-    modes: ("work" | "code" | "learn")[] | null;
+    modes: ("work" | "code")[] | null;
     version?: string;
     references: string[];
   }>>;
   rescanSkills?: () => Promise<{ ok: boolean; count: number; error?: string }>;
-  getSkillModeOverrides?: () => Promise<Record<string, Partial<Record<"work" | "code" | "learn", boolean>>>>;
-  setSkillModeOverride?: (skillId: string, mode: "work" | "code" | "learn", enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
-  clearSkillModeOverride?: (skillId: string, mode?: "work" | "code" | "learn") => Promise<{ ok: boolean; error?: string }>;
+  getSkillModeOverrides?: () => Promise<Record<string, Partial<Record<"work" | "code", boolean>>>>;
+  setSkillModeOverride?: (skillId: string, mode: "work" | "code", enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
+  clearSkillModeOverride?: (skillId: string, mode?: "work" | "code") => Promise<{ ok: boolean; error?: string }>;
   addMcpServer?: (config: unknown) => Promise<{ ok: boolean; toolIds?: string[]; error?: string }>;
   removeMcpServer?: (serverId: string) => Promise<{ ok: boolean; error?: string }>;
   listMcpServers?: () => Promise<Array<{ id: string; name: string; connected: boolean; toolCount: number; toolIds: string[] }>>;

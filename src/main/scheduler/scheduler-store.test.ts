@@ -9,6 +9,20 @@ function tmpDir(): string {
 }
 
 describe("scheduler store", () => {
+  it("rejects new Learn schedules while restoring persisted Learn as Work", () => {
+    const dir = tmpDir();
+    const tasksFile = path.join(dir, "scheduled-tasks.json");
+    const task = { id: "study", title: "Study", prompt: "Study", mode: "learn", ownerPluginId: "study",
+      schedule: { kind: "daily", timeOfDay: "09:00" }, allowedToolIds: [], toolMode: "allow-list" };
+    fs.writeFileSync(tasksFile, JSON.stringify({ tasks: [task] }));
+    const store = createSchedulerStore({ tasksFile, historyFile: path.join(dir, "history.jsonl"),
+      now: () => new Date("2026-06-22T08:00:00.000Z"), id: () => "new" });
+    store.load();
+    expect(store.getTasks()[0].mode).toBe("work");
+    expect(() => store.addTask(task as never)).toThrow("会话模式无效");
+    expect(store.getTasks()).toHaveLength(1);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
   it("adds and persists a normalized task", () => {
     const dir = tmpDir();
     const store = createSchedulerStore({
