@@ -105,3 +105,18 @@ it("resolves required cross-Skill calls when each Skill is invoked directly", as
   expect(userResult).toContain("User supplied plan instructions");
   expect(userResult).not.toContain("Firefly execution uses");
 });
+
+it("keeps inherited workflow examples aligned with bundled Firefly commands", () => {
+  const root = path.resolve("vendor/firefly-skills/skills");
+  const planning = fs.readFileSync(path.join(root, "as-planning-and-task-breakdown/SKILL.md"), "utf8");
+  const recovery = fs.readFileSync(path.join(root, "ecc-agent-introspection-debugging/SKILL.md"), "utf8");
+  const docx = fs.readFileSync(path.join(root, "docx/SKILL.md"), "utf8");
+  const project = fs.readFileSync(path.join(root, "docx/scripts/dotnet/MiniMaxAIDocx.Core/MiniMaxAIDocx.Core.csproj"), "utf8");
+  expect(planning).toContain("upstream convention");
+  expect(planning).not.toContain("expected by the `/build` command");
+  expect(recovery).not.toContain("workspace-surface-audit");
+  expect(docx).toContain("未注册 `run-script` 命令");
+  expect(docx).not.toContain("-- run-script");
+  expect(project).toContain('PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1"');
+  expect(docx).toContain("3.5.1");
+});

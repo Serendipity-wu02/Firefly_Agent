@@ -11,7 +11,9 @@ Initial materialization preserves every distributed byte, including LF, CRLF and
 - [`../../scripts/packaging/upstream-skills/sources.json`](../../scripts/packaging/upstream-skills/sources.json) is the upstream acquisition catalogue.
 - [`license-provenance.json`](license-provenance.json) is the licensing/provenance authority; preserve historical scope and limitations.
 - [`LICENSE-NOTICES.md`](LICENSE-NOTICES.md) and each Skill's LICENSE/NOTICE retain applicable author, license and modification notices.
-- Current classification: 19 VERIFIED_UPSTREAM, 16 FIREFLY_ADAPTED_UPSTREAM, two CYRENE_DERIVED_REWRITE (`office-design`, `write-expense-report`), and two pending replacement reviews (`pdf`, `xlsx`). Materialization does not upgrade, replace, rewrite or relicense any of them.
+- Current classification: 19 verified upstream, 16 Firefly-adapted upstream, two Firefly-maintained workflows with inherited lineage (`office-design`, `write-expense-report`), and two retained Windows workflows (`pdf`, `xlsx`) whose newer upstream versions have not been shown to preserve all current behavior. The Office and expense workflows have separate NOTICE files; their historical authorship and MIT source remain recorded.
+
+The current formal ZIP contains 39 Skill IDs and 257 files (SHA-256 `6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7`). Against the previous formal ZIP, Office and expense workflows plus three host-instruction bodies changed; the other 34 directories are byte-identical. `license-provenance.json.currentDistribution` records the 15 changed members and their current hashes. This does not establish public redistribution clearance for unrelated assets or replace live Office/model verification.
 
 ## Historical adaptation versus current generation
 

@@ -495,6 +495,14 @@
       "reason": "Historical xlsx is a Windows-native local workflow. MiniMax is an independently available candidate, not proof of identical provenance or behaviour. Explicit --include-office-candidates stages it without activation."
     }
   ],
+  "current_distribution": {
+    "canonical_source": "vendor/firefly-skills/skills",
+    "formal_archive_sha256": "6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7",
+    "current_file_hashes": "vendor/firefly-skills/license-provenance.json.currentDistribution.changedFiles",
+    "pinned_sources_scope": "Fixed upstream acquisition inputs; each current Firefly body and adaptation decision is recorded separately in license-provenance.json and the distribution governance record.",
+    "firefly_maintained_workflows": ["office-design", "write-expense-report"],
+    "retained_windows_workflows": ["pdf", "xlsx"]
+  },
   "execution_status": {
     "github_write": "403 Resource not accessible by integration",
     "bulk_download_into_sandbox": "unavailable",

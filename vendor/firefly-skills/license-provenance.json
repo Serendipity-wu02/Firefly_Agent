@@ -1,4 +1,31 @@
 {
+  "currentDistribution": {
+    "archiveSha256": "6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7",
+    "manifestSha256": "62e6c60c8deedca78f465dceabdbdfd426653a6d463a04295440a460e6ff46bc",
+    "previousArchiveSha256": "667740966cf7f06139ab4cf65bb41489b207e3ab54627c1e2d0cfc297b9a5e72",
+    "skillCount": 39,
+    "fileCount": 257,
+    "unchangedSkillBodies": 34,
+    "managedPredecessors": "src/main/migration/managed-skill-versions.json",
+    "changedFiles": {
+      "as-planning-and-task-breakdown/SKILL.md": "1b22cb008254f7a0e60adfe5df73ad52df68886534a3b60a2d6bd13bfcbb7968",
+      "docx/SKILL.md": "91519178e3b1b94a84f0f4e927b93a3a85990e79f88fa0018695c5ad548b15b3",
+      "ecc-agent-introspection-debugging/SKILL.md": "8d87118672d4a53caf2cab6f11b2e99e383387a7c0d805b9501fd29f33458933",
+      "office-design/NOTICE.md": "2b6a1bb86f1ccd0982a6a484c6c4957ac639ce1ce071f9b4c08e68be87e33614",
+      "office-design/SKILL.md": "e3192be89ad6a4514a34571d92a0386400cd319b899129850fc0d64d587f4c9c",
+      "office-design/assets/themes/academic.json": "a09ad23e9bf4f1871ab8e3bc4f67caea7653228f0428e9020ac9bb39314501f6",
+      "office-design/assets/themes/business.json": "1e08e39113f1c5e58dc97cd9ce7c3a3ac57c6a196311bc95f3561534950028d0",
+      "office-design/assets/themes/financial.json": "801ef1bb6ed05ab0885918b260939c34c6a8742a664536773df53cdad64b2206",
+      "office-design/assets/themes/formal-cn.json": "f043cb22ff0943c392cc9494c4a316b3f50f3ca9aa6f3fe5935dc41927fd19e7",
+      "office-design/references/token-schema.md": "65741c055fa1ec623d0aae55c1d0f902e88248d00cdfd2fadc0cd97e3099a71f",
+      "office-design/scripts/validate_theme.py": "947f449085edbffb8090ab2e25fa9561bd852500a99e68f2e32d84786aaa669a",
+      "write-expense-report/NOTICE.md": "1bd8e7214160036db9f70ee18d9e9886b181c6330ee65e44fa2b6e999a9743d2",
+      "write-expense-report/SKILL.md": "75dd3fc8be2df051d5bae405ff019c9a9f51f5b41c51b054db5ce218a31e38c5",
+      "write-expense-report/references/helper-contract.md": "c51e4bf65a52fc262aac017067814f6832584b50d55d5cc198e7b033000eda21",
+      "write-expense-report/scripts/prepare-report.mjs": "8a98d85a9f58282978bf7117c8b79bf49b5650621eb1048f00db9a9d9de815f2"
+    },
+    "boundary": "Office and expense bodies are Firefly-maintained rewrites with historical Playa/Cyrene lineage and separate NOTICE files. Three additional host-instruction bodies correct unavailable command claims without changing their modes or tool grants. Other 34 Skill directories are byte-identical to the previous formal ZIP. Current distribution hashes do not alter historical source comparisons or grant public asset redistribution."
+  },
   "currentBodyUpgrades": [
     {
       "id": "as-api-and-interface-design",
@@ -64,9 +91,11 @@
     "oldBundleFilesRemovedFromDistribution": 15,
     "newBundleFiles": 9,
     "historicalGrant": "Ten old remake files still lack a proved grant; superseded for current distribution, not retroactively licensed. Prior selfImprovingCoveredFiles/unresolved records are historical. Existing user copies and backups are not deleted.",
-    "rawReceipt": "E:\\Codex\\Firefly-doc-security-review-20260926\\isolated-ci-20260926\\vendor\\firefly-upstream\\staging-20260927T033035Z-9a03593e6635\\receipt.json",
+    "historicalEvidence": {
+      "receiptLocationAtReview": "E:\\Codex\\Firefly-doc-security-review-20260926\\isolated-ci-20260926\\vendor\\firefly-upstream\\staging-20260927T033035Z-9a03593e6635\\receipt.json"
+    },
     "notice": "self-improving-agent/NOTICE.md and LICENSE inside snapshot",
-    "archiveSha256": "20c165e83b4b167fc48efc67aef31ea871364865a8e1bd23ba19a475e66bff91"
+    "intermediateAdaptedArchiveSha256": "20c165e83b4b167fc48efc67aef31ea871364865a8e1bd23ba19a475e66bff91"
   },
   "scope": "39 inherited application Skills; 28 former gaps individually reviewed, docx and skill-creator rechecked, nine SP prior scoped evidence retained",
   "records": [

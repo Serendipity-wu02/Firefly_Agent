@@ -146,7 +146,7 @@ Good pattern:
 - Use `sp-verification-before-completion` after recovery if code was changed.
 - Use the enabled `self-improving-agent` Skill only if its scope fits and the user permits persistent changes when the failure pattern is worth turning into an instinct or later skill.
 - Use user review of the stated decision (no bundled council Skill) when the issue is not technical failure but decision ambiguity.
-- Use `workspace-surface-audit` if the failure came from conflicting local state or repo drift.
+- If the failure came from conflicting local state or repo drift, inspect the actual workspace files and Git status/diff through the existing authorized file and command tools; do not assume a separate audit tool exists.
 
 ## Output Standard
 

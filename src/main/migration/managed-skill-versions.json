@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "versions": [
+    {
+      "id": "office-design",
+      "sourceCommit": "501da821c8c5abab15ed8fce7ca6d5390c6913c1",
+      "bodySha256": "235e0f84d967af606de67203c297d74534cb21a7019856c73142b04f08e3ff95",
+      "files": {
+        "SKILL.md": "235e0f84d967af606de67203c297d74534cb21a7019856c73142b04f08e3ff95",
+        "assets/themes/academic.json": "509f9706c285459e42a597c9ee5aa9499d7d80f44276c5ded22dbc7d05e253e5",
+        "assets/themes/business.json": "1c7168bb6d5ce5b1a6d6e791a0125b0794dd21d566ca34ef80539ab7360942a1",
+        "assets/themes/financial.json": "af5b3f93de213fb26ee4ec002d83037da0f343413fc0d8671e564202fe6e008a",
+        "assets/themes/formal-cn.json": "2ab1cd28a6e3a23f1e397f94559d0e663cb05d24b84e63ac7f93f2545b75b4a6",
+        "references/token-schema.md": "57254e56b7a417305a065d00435e89bb2ff62e19e1d2b6a64a38ddfafa42b408",
+        "scripts/validate_theme.py": "8a5258ab688060f827a3a24412adafa3c590c3a55fccd2a0f1760320805a688d",
+        "tests/test_validate_theme.py": "9d6368bce9df5c7f76ac1cdc2db30b4d104e029b97ec980308609524d2c33a08"
+      }
+    },
+    {
+      "id": "write-expense-report",
+      "sourceCommit": "501da821c8c5abab15ed8fce7ca6d5390c6913c1",
+      "bodySha256": "b28980a05566486ab17e3fa872920de1bc9a064af770d8da8782817f2bc510bc",
+      "files": {
+        "SKILL.md": "b28980a05566486ab17e3fa872920de1bc9a064af770d8da8782817f2bc510bc",
+        "references/column-spec.md": "3bccd480942cfacad7a2d835e2167683d26fc888f0480cd5ed10d92ef9505d37"
+      }
+    },
+    {
+      "id": "as-planning-and-task-breakdown",
+      "sourceCommit": "501da821c8c5abab15ed8fce7ca6d5390c6913c1",
+      "bodySha256": "d0b6b9922ea8cf8804898d8ae19ebfb7a2f0ccc9daedfb44437fc060d1b9ac10",
+      "files": {
+        "SKILL.md": "d0b6b9922ea8cf8804898d8ae19ebfb7a2f0ccc9daedfb44437fc060d1b9ac10"
+      }
+    },
+    {
+      "id": "ecc-agent-introspection-debugging",
+      "sourceCommit": "501da821c8c5abab15ed8fce7ca6d5390c6913c1",
+      "bodySha256": "8a248ae16a08300730ecef23ec86caba85c6b8bd9d236cbec3896978cf3bb3ce",
+      "files": {
+        "SKILL.md": "8a248ae16a08300730ecef23ec86caba85c6b8bd9d236cbec3896978cf3bb3ce"
+      }
+    },
+    {
+      "id": "docx",
+      "sourceCommit": "501da821c8c5abab15ed8fce7ca6d5390c6913c1",
+      "bodySha256": "838ad7d14da25d097c1b196fa23486de6d4a881cd090a72bd127fb34d05dc1bf",
+      "files": {
+        "SKILL.md": "838ad7d14da25d097c1b196fa23486de6d4a881cd090a72bd127fb34d05dc1bf"
+      }
+    }
+  ]
+}

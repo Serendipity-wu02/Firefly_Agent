@@ -8,10 +8,15 @@ import { marked } from "marked";
 import matter from "gray-matter";
 import { createHash } from "node:crypto";
 import { buildAdaptedSnapshot } from "./adapt-skills-snapshot.mjs";
+import priorWorkflows from "../../src/main/skills/fixtures/prior-workflows-501da82.json" with { type: "json" };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-test("repacking is deterministic and preserves every unrelated archive entry", async () => {
-  const original = await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip"));
+test("historical overlay repacking is deterministic and preserves every unrelated archive entry", async () => {
+  const historical = await JSZip.loadAsync(await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip")));
+  for (const id of ["office-design", "as-planning-and-task-breakdown", "ecc-agent-introspection-debugging", "docx"]) {
+    historical.file(`${id}/SKILL.md`, Buffer.from(priorWorkflows.files[`${id}/SKILL.md`], "base64"));
+  }
+  const original = await historical.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 9 }, platform: "DOS" });
   const overlay = path.join(root, "scripts/packaging/skill-adaptations");
   const first = await buildAdaptedSnapshot(original, overlay);
   const second = await buildAdaptedSnapshot(first.bytes, overlay);
@@ -36,6 +41,11 @@ test("repacking is deterministic and preserves every unrelated archive entry", a
   }
   assert.equal(Object.keys(after.files).filter(name => /^[^/]+\/SKILL.md$/.test(name)).length, 39);
   assert.ok(first.files.some(file => file.path.endsWith("scripts/review-package")));
+});
+
+test("historical overlays reject the independently maintained current Office workflow", async () => {
+  const current = await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip"));
+  await assert.rejects(buildAdaptedSnapshot(current, path.join(root, "scripts/packaging/skill-adaptations")), /REPAIR_SOURCE_MISMATCH/);
 });
 
 test("every distributed Markdown file target and heading anchor resolves", async () => {

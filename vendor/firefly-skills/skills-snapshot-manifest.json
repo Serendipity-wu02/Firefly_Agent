@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "generatedAt": "2026-09-01T04:27:19.824Z",
+  "generatedAt": "2026-09-28T13:05:02.909Z",
   "adaptedAt": "2026-09-25",
   "sourceSha256": "9b5b115c81c1629013603ca5b8c5f03145e4fecbe1587f0e55f54e0cd20ac336",
   "skills": [
@@ -44,8 +44,8 @@
     "write-expense-report",
     "xlsx"
   ],
-  "sha256": "667740966cf7f06139ab4cf65bb41489b207e3ab54627c1e2d0cfc297b9a5e72",
-  "byteSize": 819507,
+  "sha256": "6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7",
+  "byteSize": 835450,
   "selfSkills": [
     "firefly-diagram",
     "firefly-exam-paper",

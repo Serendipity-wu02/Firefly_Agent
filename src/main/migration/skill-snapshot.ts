@@ -5,6 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { rejectZipSymlink } from "../../shared/zip-entry-policy";
 import { updateManagedSkillBundle } from "./managed-skill-update";
 import managedFiles from "./managed-skill-files.json";
+import managedVersions from "./managed-skill-versions.json";
 
 const MANAGED_BUNDLES: Readonly<Record<string, string | readonly string[]>> = {
   "as-source-driven-development": "9af3c84ecee8ccf9ea56acd67897ccdcd4ce0ed960cbedb053633bc15b3256c0",
@@ -107,8 +108,11 @@ export async function migrateInstalledSkillSnapshot(userRoot: string, archive: s
     if (location === ".." || location.startsWith(`..${path.sep}`) || path.isAbsolute(location)) throw new Error("SKILL_MIGRATION_PATH_ESCAPE");
     if (readUnmodifiedSkill(target, hash)) pending.push([relative, hash]);
   }
-  const bundles = Object.entries(MANAGED_BUNDLES).flatMap(([id, hashes]) => {
-    const recognized = (typeof hashes === "string" ? [hashes] : hashes)
+  const bundleIds = new Set([...Object.keys(MANAGED_BUNDLES), ...managedVersions.versions.map(version => version.id)]);
+  const bundles = [...bundleIds].flatMap(id => {
+    const hashes = MANAGED_BUNDLES[id];
+    const priorVersions = managedVersions.versions.filter(version => version.id === id);
+    const recognized = [...(typeof hashes === "string" ? [hashes] : hashes ?? []), ...priorVersions.map(version => version.bodySha256)]
       .find(hash => readUnmodifiedSkill(path.join(root, id, "SKILL.md"), hash) !== null);
     if (!recognized) return [];
     if (!id.startsWith("sp-") || HOST_ADAPTED_SUPERPOWERS.has(id)
@@ -130,7 +134,9 @@ export async function migrateInstalledSkillSnapshot(userRoot: string, archive: s
       replaceUnmodifiedSkill(target, hash, fs.readFileSync(path.join(temporary, relative)));
     }
     for (const [id, hash] of bundles) {
-      const recognizedFiles = Object.fromEntries(Object.entries(managedFiles.files)
+      const priorVersion = managedVersions.versions.find(version => version.id === id && version.bodySha256 === hash);
+      const recognizedFiles = priorVersion ? Object.fromEntries(Object.entries(priorVersion.files)
+        .filter((entry): entry is [string, string] => typeof entry[1] === "string")) : Object.fromEntries(Object.entries(managedFiles.files)
         .filter(([file]) => file.startsWith(`${id}/`))
         .map(([file, fileHash]) => [file.slice(id.length + 1), fileHash]));
       try {

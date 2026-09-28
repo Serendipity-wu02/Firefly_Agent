@@ -1,8 +1,43 @@
 {
   "id": "academic",
-  "colors": {"primary": "#2A436A", "secondary": "#58759B", "accent": "#2A436A", "background": "#F5F4F0", "surface": "#FFFFFF", "foreground": "#1E1E2A", "muted": "#686877", "border": "#CFD6DF"},
-  "fonts": {"cjk": ["SimSun", "Microsoft YaHei"], "latin": ["Times New Roman", "Arial"], "fallback": ["Times-Roman"]},
-  "spacing": {"base": 8},
-  "roles": {"table_header": "primary", "input": "#0000FF", "formula": "#000000", "warning": "#A16207", "success": "#166534"},
-  "chart_colors": ["#2A436A", "#58759B", "#899CB5", "#B7C4D4"]
+  "colors": {
+    "primary": "#302E56",
+    "secondary": "#4C486B",
+    "accent": "#524693",
+    "background": "#FFFCF5",
+    "surface": "#F1EEE5",
+    "foreground": "#292735",
+    "muted": "#5D5965",
+    "border": "#C8C3D0"
+  },
+  "fonts": {
+    "cjk": [
+      "SimSun",
+      "Microsoft YaHei"
+    ],
+    "latin": [
+      "Times New Roman",
+      "Arial"
+    ],
+    "fallback": [
+      "Times-Roman",
+      "Helvetica"
+    ]
+  },
+  "spacing": {
+    "base": 6
+  },
+  "roles": {
+    "table_header": "primary",
+    "input": "#0000FF",
+    "formula": "#000000",
+    "warning": "#875000",
+    "success": "#246140"
+  },
+  "chart_colors": [
+    "#524693",
+    "#176D79",
+    "#935D29",
+    "#744C63"
+  ]
 }

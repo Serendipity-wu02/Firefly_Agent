@@ -57,13 +57,9 @@ Firefly host: `write_word` is registered in Work mode for simple new documents. 
 
 ## 快速入门：直接 C# 路径
 
-当任务需要结构化文档操作（自定义样式、复杂表格、多节布局、页眉/页脚、目录、图片）时，直接编写 C# 而不是纠结于 CLI 限制。使用此脚手架：
+当任务需要结构化文档操作（自定义样式、复杂表格、多节布局、页眉/页脚、目录、图片）时，可在已授权的独立 .NET Console 项目中使用 C#。本包的 MiniMaxAIDocx.Cli 未注册 `run-script` 命令，不能用该 CLI 直接运行 `.csx`。现有 `MiniMaxAIDocx.Core.csproj` 声明 `DocumentFormat.OpenXml` 版本 `3.5.1`；独立项目须核对并显式配置所需包和运行环境。不要在安装的 Skill 目录中创建任务文件。以下仅为 C# 片段，不是可直接执行的命令：
 
 ```csharp
-// 文件：scripts/dotnet/task.csx（或 Console 项目中的新 .cs 文件）
-// dotnet run --project (Join-Path $scriptRoot 'dotnet/MiniMaxAIDocx.Cli') -- run-script task.csx
-#r "nuget: DocumentFormat.OpenXml, 3.2.0"
-
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;

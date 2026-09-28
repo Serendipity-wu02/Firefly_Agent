@@ -22,12 +22,32 @@ async function fixture(context) {
 test("canonical generation exactly reproduces the tracked snapshot and all bytes", async () => {
   const result = await buildCanonicalSnapshot(root);
   const original = await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip"));
-  assert.equal(hash(result.bytes), "667740966cf7f06139ab4cf65bb41489b207e3ab54627c1e2d0cfc297b9a5e72");
+  assert.equal(hash(result.bytes), "6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7");
   assert.deepEqual(result.bytes, original);
-  assert.equal(result.files.size, 253);
+  assert.equal(result.files.size, 257);
   const zip = await JSZip.loadAsync(result.bytes);
   assert.deepEqual(Object.keys(zip.files).sort(), [...result.files.keys()].sort());
   for (const [name, bytes] of result.files) assert.deepEqual(await zip.file(name).async("nodebuffer"), bytes, name);
+});
+
+test("current distribution provenance matches the formal ZIP and canonical changed files", async () => {
+  const vendor = path.join(root, "vendor/firefly-skills");
+  const archive = await fs.readFile(path.join(vendor, "skills-snapshot.zip"));
+  const manifest = JSON.parse(await fs.readFile(path.join(vendor, "skills-snapshot-manifest.json"), "utf8"));
+  const provenance = JSON.parse(await fs.readFile(path.join(vendor, "license-provenance.json"), "utf8")).currentDistribution;
+  const zip = await JSZip.loadAsync(archive);
+  assert.equal(provenance.archiveSha256, hash(archive));
+  assert.equal(provenance.manifestSha256, hash(await fs.readFile(path.join(vendor, "skills-snapshot-manifest.json"))));
+  assert.equal(provenance.archiveSha256, manifest.sha256);
+  assert.equal(provenance.fileCount, Object.keys(zip.files).filter(name => !zip.files[name].dir).length);
+  assert.equal(provenance.skillCount, manifest.skills.length);
+  assert.equal(Object.keys(provenance.changedFiles).length, 15);
+  assert.equal(provenance.unchangedSkillBodies, provenance.skillCount - new Set(Object.keys(provenance.changedFiles).map(name => name.split("/")[0])).size);
+  for (const [name, expected] of Object.entries(provenance.changedFiles)) {
+    const canonical = await fs.readFile(path.join(vendor, "skills", name));
+    assert.equal(hash(canonical), expected, name);
+    assert.deepEqual(await zip.file(name).async("nodebuffer"), canonical, name);
+  }
 });
 
 test("two prepare runs are no-ops for archive, manifest timestamps and canonical bytes", async context => {
@@ -61,7 +81,7 @@ test("changed canonical content is packed without an adaptation overlay and hist
 test("generation can restore a missing generated ZIP from canonical input", async context => {
   const directory = await fixture(context);
   await fs.unlink(path.join(directory, "vendor/firefly-skills/skills-snapshot.zip"));
-  assert.equal((await generateSnapshot(directory)).sha256, "667740966cf7f06139ab4cf65bb41489b207e3ab54627c1e2d0cfc297b9a5e72");
+  assert.equal((await generateSnapshot(directory)).sha256, "6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7");
 });
 
 test("missing body and extra IDs fail without changing prior artifacts", async context => {

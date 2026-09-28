@@ -1,7 +1,7 @@
 {
   "hostSemanticReview": {
     "scope": "Final ZIP IDs/modes/cross-ID text and SP/Office attachment bytes inspected. External programs, models and GUI not executed.",
-    "archiveSha256": "667740966cf7f06139ab4cf65bb41489b207e3ab54627c1e2d0cfc297b9a5e72",
+    "archiveSha256": "6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7",
     "entries": [
       {
         "id": "as-api-and-interface-design",
@@ -310,7 +310,12 @@
           "code",
           "learn"
         ],
-        "crossSkillIds": [],
+        "crossSkillIds": [
+          "docx",
+          "pdf",
+          "pptx-generator",
+          "xlsx"
+        ],
         "referenceCount": 1,
         "scriptCount": 1,
         "templateCount": 0
@@ -477,9 +482,11 @@
         "modes": [
           "work"
         ],
-        "crossSkillIds": [],
-        "referenceCount": 1,
-        "scriptCount": 0,
+        "crossSkillIds": [
+          "xlsx"
+        ],
+        "referenceCount": 2,
+        "scriptCount": 1,
         "templateCount": 0
       },
       {
@@ -1291,45 +1298,52 @@
         ]
       },
       {
+        "path": "office-design/NOTICE.md",
+        "sha256": "2b6a1bb86f1ccd0982a6a484c6c4957ac639ce1ce071f9b4c08e68be87e33614",
+        "bytes": 1619,
+        "literalBodyMention": true,
+        "hostMarkers": []
+      },
+      {
         "path": "office-design/assets/themes/academic.json",
-        "sha256": "509f9706c285459e42a597c9ee5aa9499d7d80f44276c5ded22dbc7d05e253e5",
-        "bytes": 560,
-        "literalBodyMention": false,
+        "sha256": "a09ad23e9bf4f1871ab8e3bc4f67caea7653228f0428e9020ac9bb39314501f6",
+        "bytes": 766,
+        "literalBodyMention": true,
         "hostMarkers": []
       },
       {
         "path": "office-design/assets/themes/business.json",
-        "sha256": "1c7168bb6d5ce5b1a6d6e791a0125b0794dd21d566ca34ef80539ab7360942a1",
-        "bytes": 548,
+        "sha256": "1e08e39113f1c5e58dc97cd9ce7c3a3ac57c6a196311bc95f3561534950028d0",
+        "bytes": 734,
         "literalBodyMention": true,
         "hostMarkers": []
       },
       {
         "path": "office-design/assets/themes/financial.json",
-        "sha256": "af5b3f93de213fb26ee4ec002d83037da0f343413fc0d8671e564202fe6e008a",
-        "bytes": 549,
-        "literalBodyMention": false,
-        "hostMarkers": []
-      },
-      {
-        "path": "office-design/assets/themes/formal-cn.json",
-        "sha256": "2ab1cd28a6e3a23f1e397f94559d0e663cb05d24b84e63ac7f93f2545b75b4a6",
-        "bytes": 571,
-        "literalBodyMention": false,
-        "hostMarkers": []
-      },
-      {
-        "path": "office-design/references/token-schema.md",
-        "sha256": "57254e56b7a417305a065d00435e89bb2ff62e19e1d2b6a64a38ddfafa42b408",
-        "bytes": 902,
+        "sha256": "801ef1bb6ed05ab0885918b260939c34c6a8742a664536773df53cdad64b2206",
+        "bytes": 735,
         "literalBodyMention": true,
         "hostMarkers": []
       },
       {
+        "path": "office-design/assets/themes/formal-cn.json",
+        "sha256": "f043cb22ff0943c392cc9494c4a316b3f50f3ca9aa6f3fe5935dc41927fd19e7",
+        "bytes": 786,
+        "literalBodyMention": true,
+        "hostMarkers": []
+      },
+      {
+        "path": "office-design/references/token-schema.md",
+        "sha256": "65741c055fa1ec623d0aae55c1d0f902e88248d00cdfd2fadc0cd97e3099a71f",
+        "bytes": 6244,
+        "literalBodyMention": true,
+        "hostMarkers": ["Python","python"]
+      },
+      {
         "path": "office-design/scripts/validate_theme.py",
-        "sha256": "8a5258ab688060f827a3a24412adafa3c590c3a55fccd2a0f1760320805a688d",
-        "bytes": 1664,
-        "literalBodyMention": false,
+        "sha256": "947f449085edbffb8090ab2e25fa9561bd852500a99e68f2e32d84786aaa669a",
+        "bytes": 3693,
+        "literalBodyMention": true,
         "hostMarkers": []
       },
       {
@@ -2021,9 +2035,30 @@
         ]
       },
       {
+        "path": "write-expense-report/NOTICE.md",
+        "sha256": "1bd8e7214160036db9f70ee18d9e9886b181c6330ee65e44fa2b6e999a9743d2",
+        "bytes": 1651,
+        "literalBodyMention": true,
+        "hostMarkers": []
+      },
+      {
         "path": "write-expense-report/references/column-spec.md",
         "sha256": "3bccd480942cfacad7a2d835e2167683d26fc888f0480cd5ed10d92ef9505d37",
         "bytes": 253,
+        "literalBodyMention": true,
+        "hostMarkers": []
+      },
+      {
+        "path": "write-expense-report/references/helper-contract.md",
+        "sha256": "c51e4bf65a52fc262aac017067814f6832584b50d55d5cc198e7b033000eda21",
+        "bytes": 5151,
+        "literalBodyMention": true,
+        "hostMarkers": []
+      },
+      {
+        "path": "write-expense-report/scripts/prepare-report.mjs",
+        "sha256": "8a98d85a9f58282978bf7117c8b79bf49b5650621eb1048f00db9a9d9de815f2",
+        "bytes": 5201,
         "literalBodyMention": true,
         "hostMarkers": []
       },

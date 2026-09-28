@@ -7,36 +7,56 @@ metadata:
   category: document-design
 ---
 
-# Office 设计主题
+# Shared Office appearance contract
 
-PowerShell resource resolution: set `$skillDir` to the exact directory returned by `invoke_skill`, then `$scriptRoot = Join-Path $skillDir 'scripts'`. The command examples below use the same shell session; reinitialize both variables in a new shell. Keep inputs and outputs in the authorized workspace, not the installed Skill directory.
+Use this Skill to agree on one visual vocabulary before producing several document formats. It selects and validates tokens; it does not create documents, install dependencies, or authorize execution. Keep the existing format Skill responsible for content, layout, editing and artifact verification.
 
-选择最接近文档目的的主题，读取对应的 `assets/themes/<theme>.json`，并将语义 token 映射到目标格式的原生样式。
+## Decide before applying
 
-| 主题 | 适用场景 |
+1. Establish the requested outputs, audience, language and any supplied brand or institutional rules. Read actual templates and existing styles rather than inferring field names or font availability.
+2. For edits, retain the source document's styling unless the user explicitly requests a redesign. A shared theme is not permission to replace formatting, formulas, content or source files.
+3. Choose a packaged theme only when its purpose fits the agreed requirements. Ask the user when the requirements do not identify a theme. Custom tokens belong in the authorized workspace, not in the installed Skill directory.
+
+| Theme file under `assets/themes/` | Functional purpose |
 |---|---|
-| `business` | 报告、方案、通用商务文档 |
-| `academic` | 论文、研究、课程材料 |
-| `formal-cn` | 中文正式通知、公文、制度文件 |
-| `financial` | 预算、财务模型、审计材料 |
+| `business.json` | Sans-serif reports: dark navigation/header color, teal emphasis, pale table surfaces, readable secondary text. |
+| `academic.json` | Long-form research: serif-first text, paper-colored background, restrained indigo headings and individually labeled chart series. Not an institutional template. |
+| `formal-cn.json` | Chinese notices: CJK serif preference, dark text, neutral fills and limited red emphasis. Does not certify compliance with a document standard. |
+| `financial.json` | Dense numeric work: compact spacing, clear input/formula distinction, dark headers and separate caution/success states. Never changes number formats or formulas. |
 
-不要把坐标、页边距或单元格尺寸放入共享主题；这些属于各格式自身的布局职责。
+All four use a dark `primary` with a light `background`: the current PDF reader uses that pair for cover background and cover text. Font lists express preferences, not proof that the fonts are installed or support all needed glyphs. Charts also need labels or patterns; color alone must not carry meaning.
 
-## 校验
+## Resolve and validate locally
 
-在新增或修改主题后运行：
+Invoke `office-design` through `invoke_skill`. Set `$skillDir` to the exact absolute path displayed as **Skill 本地目录（仅用于定位资源，不授权执行）** in that result. It is a text path, not a JSON field. Never substitute the repository root, another Skill's directory, or the current working directory. Reinitialize these variables in each new PowerShell session.
+
+Once `$skillDir` has that returned value, and execution is allowed by the current mode and authorization, this read-only example validates the packaged business theme:
 
 ```powershell
-python (Join-Path $scriptRoot 'validate_theme.py') assets/themes/business.json
+if (-not [System.IO.Path]::IsPathRooted($skillDir)) { throw 'Use the absolute directory returned by invoke_skill.' }
+$scriptRoot = Join-Path $skillDir 'scripts'
+$themePath = Join-Path $skillDir 'assets\themes\business.json'
+python -B (Join-Path $scriptRoot 'validate_theme.py') $themePath
+if ($LASTEXITCODE -ne 0) { throw 'Theme validation failed; do not apply this theme.' }
 ```
 
-校验器确认颜色、字体、间距、数据角色和图表色板完整。主题无效时，不应用它；改用对应格式的既有默认主题并报告原因。
+For a custom theme, set `$themePath` to its verified absolute workspace path while keeping the validator under `$skillDir`. Validation reads the file and emits a JSON report; it never repairs or rewrites it. Exit `0` means valid, `1` means invalid tokens, and `2` means the input could not be read as UTF-8 JSON. Resolve every reported error before use; do not silently substitute another theme. If Python or an execution tool is unavailable, report the blocker rather than install software or claim validation.
 
-## 格式映射
+## Route using the actual consumers
 
-按需读取 [token-schema.md](references/token-schema.md)：
+Read [token-schema.md](references/token-schema.md) for required fields and exact mappings. Invoke each destination Skill separately and use its own returned absolute directory to resolve its resources.
 
-- PDF：颜色、字体和间距映射到 ReportLab 样式。
-- Word：映射到段落样式、表格样式、页眉和页脚。
-- Excel：映射到填充、字体、边框、数字格式和图表色板。
-- PowerPoint：映射到幻灯片背景、文本层级、形状和图表。
+| Route | What the current implementation supports |
+|---|---|
+| `pdf` | Its `scripts/make.py` accepts `--theme` with `business`, `academic`, `formal-cn` or `financial`. `apply_theme` reads shared **colors**, not shared fonts, roles, chart palettes or spacing. PDF typography and layout stay in the PDF pipeline. |
+| `pptx-generator` | Its `scripts/theme-loader.js` exposes `loadTheme` and returns `primary`, `secondary`, `accent`, `light`, `bg` as six-digit hex without `#`. Here `secondary` comes from **foreground**, not the shared `secondary`. This loader does not generate a deck or apply fonts. |
+| `xlsx` | Its visual workflow maps colors and roles deliberately; it has no automatic shared-theme loader. Resolve `roles` references against `colors` before writing native styles. Preserve blue hard-coded inputs, black formulas and the separate cross-sheet formula convention. |
+| `docx` | Use the format Skill for native styles and verified font selection. The host `write_word` reads `docx/styles/`, not these themes, and accepts `style`, not a shared-theme parameter. A shared appearance needs explicit native-style mapping through the authorized DOCX workflow. |
+
+The host registers `write_word`, `write_excel` and `write_pdf` in **Work mode only**, with `effectKind: mutation`. They are simple creation tools, not arbitrary theme engines. `write_excel` accepts `style` and these optional `colors` overrides: `headerFill`, `headerFont`, `headerBorder`, `zebraFill`, `borderColor` (opaque ARGB). It does not accept shared fonts, roles or chart palettes. `write_pdf` has no theme/style input. There is no registered PowerPoint writer; use only the actual permitted local workflow described by `pptx-generator` when its dependencies are present. Loading this Skill grants none of these tools or permissions.
+
+## Verification handoff
+
+Record the theme path and validation report, the exact tokens consumed by each format, verified fonts and unimplemented mappings. Create a separate authorized output instead of overwriting the source. Then use each format Skill's structural and visual checks: readable CJK glyphs, header contrast, chart labels, unclipped content, unchanged formulas and retained source content. Token validation alone is not an artifact or visual-verification receipt.
+
+See `NOTICE.md` for current maintenance and the retained historical license lineage.
