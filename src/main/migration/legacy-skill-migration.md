@@ -61,16 +61,18 @@ Production migration does not invoke Git or read another checkout.
 `vnext-skill-versions.json` recognizes the seven predecessor bundles from the real
 archive `6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7`.
 The accepted current archive is
-`8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388`.
+`bdc2d00cbf2a6e4d41c931990e5ec5b47b3a13a67742d43f8189bb96cea3b673`.
 The test reconstructs the former with `scripts/packaging/vnext-predecessor-fixture.mjs`,
 asserts its exact SHA-256 without Git history, and compares every distributed member with the latter,
 including previously repaired Office, expense and host workflows.
 
-No checkpoint 3 parent wiring remains for these APIs. If checkpoint 5 changes
-canonical Skill bodies and regenerates the ZIP, register that reviewed destination
-and any newly changed predecessor members here alongside generator/provenance
-updates. Keep the exact 6d3e predecessor recognition and its regression. An unknown
-archive must not become trusted by reading its own claimed manifest hash.
+The exact foundation archive `8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388`
+is also recognized by per-bundle hashes. Six bodies and one tools reference update
+to specialist delegation; originals are preserved with `.pre-specialists.bak`.
+The earlier seven frontmatter updates retain `.pre-vnext.bak` and the exact 6d3e
+recognition. Both predecessors are reconstructed and compared against every current
+ZIP member in tests without Git history. Unknown archives remain rejected; their
+own claimed manifest hashes do not establish trust.
 
 No real userData or services were used in verification; fixtures use OS temporary
 directories and immutable repository blobs.

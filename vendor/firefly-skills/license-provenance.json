@@ -1,24 +1,24 @@
 {
   "currentDistribution": {
-    "archiveSha256": "8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388",
-    "manifestSha256": "34d5eee1fe1638babe00fdcad8b8d1aceb09c95b78237d45568ca6d74322616d",
-    "previousArchiveSha256": "6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7",
-    "previousManifestSha256": "62e6c60c8deedca78f465dceabdbdfd426653a6d463a04295440a460e6ff46bc",
-    "predecessorEvidence": "scripts/packaging/vnext-predecessor.json",
+    "archiveSha256": "bdc2d00cbf2a6e4d41c931990e5ec5b47b3a13a67742d43f8189bb96cea3b673",
+    "manifestSha256": "83a6087f5c980f0ff1ac8cae874e3ec404b7fbd83b1f6e38e8774c1d80f314a5",
+    "previousArchiveSha256": "8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388",
+    "previousManifestSha256": "34d5eee1fe1638babe00fdcad8b8d1aceb09c95b78237d45568ca6d74322616d",
+    "predecessorEvidence": "scripts/packaging/specialist-predecessor.json",
     "skillCount": 39,
     "fileCount": 257,
-    "unchangedSkillBodies": 32,
-    "managedPredecessors": "src/main/migration/managed-skill-versions.json",
+    "unchangedSkillBodies": 33,
+    "managedPredecessors": "src/main/migration/vnext-skill-versions.json",
     "changedFiles": {
-      "docx/SKILL.md": "ae1c09cff742309fc5ee93d7029ee6f0eeb118a8b4253a85fcd0839c9d4eb99a",
-      "pdf/SKILL.md": "2919317dfbcd09a43d52b4692134a3fb13d62352cf9d5ceff81c0c52e0bd2613",
-      "xlsx/SKILL.md": "925c3e90bdd190fdc3a57d5c81a158e8a09e178d16a4b8dcb22674b307997d4a",
-      "pptx-generator/SKILL.md": "93a7394155d5a9f77269ef941d37a6cf958da254834dbfaa93c264e56f8269da",
-      "office-design/SKILL.md": "ca2b687a0a5c25411fe3208623b6f09c08e881e8140f1dd92682432ae347f894",
-      "self-improving-agent/SKILL.md": "772d7209ae965333c232193cdb32075b2bdc91b77b7d751a68d3bf6a85fadd8e",
-      "skill-creator/SKILL.md": "2e0a601e26508cff47d08b3047110c74fd4bec0a3647d18143b8016545264fc1"
+      "as-doubt-driven-development/SKILL.md": "d3193306ef5a29198147cff20a2846c285a1626b2b3740e2a4f62b2ce6de1851",
+      "as-using-agent-skills/SKILL.md": "c391a6e69ab07954aa2dc2d11c9d061e270c7607336bbbe4edc5c37bd734fd14",
+      "skill-creator/SKILL.md": "b64bd2bf30b16caea0fc35662cb74bf3d0c7150dec3e4bb7643889f9d33a723f",
+      "sp-dispatching-parallel-agents/SKILL.md": "267b4c536b42d7ccf3f29bec3ae1cd85a8661ae772068753c23b5744dca12940",
+      "sp-requesting-code-review/SKILL.md": "f8966710e882017641c284d8681baa5f1f82055bb0710714738470e9bc337787",
+      "sp-subagent-driven-development/SKILL.md": "68fe1d273a39738a5e190ea68ff41552840b39dc90157ccd0dc56a5f0ff01990",
+      "sp-using-superpowers/references/firefly-tools.md": "10d1e3fb91264d17e6f492d7acccfef7eec81395b9d0c26b789c09f4dccd3111"
     },
-    "boundary": "vNext distribution retains all 39 pinned adapted sources, licenses and attachments. Only seven frontmatter blocks change: five Office capabilities explicitly declare work/code; self-improving-agent and skill-creator drop the retired learn mode while retaining work/code. All other 32 directories are byte-identical to the immediate predecessor. Historical source, adaptation, managed predecessor hashes and reviewed upstream revisions retain their original meaning. Five Firefly-maintained builtins ship separately; persona and workflow support are prompt composition inputs, not new runtime loaders."
+    "boundary": "Firefly specialist delegation adaptation changes six Skill bodies and one tools reference relative to the exact foundation archive. Uses delegate_agent with explicit agent_id and prompt; persistent specialist sessions retain parent permission intersection and cannot recursively delegate. All other canonical files, modes and licensing materials are unchanged. The source/version/license records below retain their historical scope; this section records current Firefly modifications, not upstream authorship or real-model validation."
   },
   "currentBodyUpgrades": [
     {

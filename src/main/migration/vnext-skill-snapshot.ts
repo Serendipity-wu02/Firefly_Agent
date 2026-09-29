@@ -23,7 +23,7 @@ function matchesInstalledVersion(root: string, version: typeof versions.versions
   if (!fs.existsSync(directory) || !fs.lstatSync(directory).isDirectory()) return false;
   const expectedFiles = new Map(Object.entries(version.files));
   const expectedDirectories = new Set<string>();
-  const allowedBackups = new Set<string>(["SKILL.md.pre-vnext.bak"]);
+  const allowedBackups = new Set<string>(["SKILL.md.pre-vnext.bak", `${version.replacementPath}${version.backupSuffix}`]);
   for (const relative of expectedFiles.keys()) {
     allowedBackups.add(`${relative}.pre-firefly.bak`);
     let parent = path.posix.dirname(relative);
@@ -68,17 +68,19 @@ export async function migrateVnextSkillSnapshot(userRoot: string, archive: strin
     const { extractZip } = await import("../../shared/zip-extraction");
     await extractZip(pinnedArchive, { dir: source, onEntry: rejectZipSymlink });
     for (const version of pending) {
-      const body = path.join(userRoot, version.id, "SKILL.md");
-      const replacement = fs.readFileSync(path.join(source, version.id, "SKILL.md"));
-      if (hash(replacement) !== version.replacementBodySha256) throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
+      const body = path.join(userRoot, version.id, version.replacementPath);
+      const replacement = fs.readFileSync(path.join(source, version.id, version.replacementPath));
+      if (hash(replacement) !== version.replacementSha256) throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
       if (!matchesInstalledVersion(userRoot, version)) throw new Error("SKILL_CHANGED_DURING_MIGRATION");
-      const backup = `${body}.pre-vnext.bak`;
+      const backup = `${body}${version.backupSuffix}`;
       assertSkillMigrationPath(backup);
       assertSkillMigrationPath(`${body}.pre-firefly.bak`);
       const original = fs.readFileSync(body);
       if (!fs.existsSync(backup)) fs.copyFileSync(body, backup, fs.constants.COPYFILE_EXCL);
       if (!fs.readFileSync(backup).equals(original)) throw new Error("SKILL_UPDATE_BACKUP_CONFLICT");
-      if (replaceUnmodifiedSkill(body, version.files["SKILL.md"], replacement)) updated.push(version.id);
+      const expectedHash = new Map(Object.entries(version.files)).get(version.replacementPath);
+      if (!expectedHash) throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
+      if (replaceUnmodifiedSkill(body, expectedHash, replacement)) updated.push(version.id);
     }
     return updated;
   } finally {

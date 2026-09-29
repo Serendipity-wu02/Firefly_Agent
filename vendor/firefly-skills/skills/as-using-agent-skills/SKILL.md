@@ -86,6 +86,6 @@ This table is guidance for choosing the real ID, not a runtime alias registratio
 
 ## Delegation and approval
 
-Use only the existing `task` tool when delegated work is available and authorized. Its required fields are `description`, `prompt` and `subagent_type`; `general` is an existing type, and `task_id` resumes an existing child. Do not fabricate model, spawn_agent or agent_type fields. Children cannot delegate again or ask the user directly; unresolved context returns to the parent. The parent verifies real receipts rather than accepting child text as completion.
+Firefly Main uses `delegate_agent({agent_id, prompt})` when available and authorized. Choose the exact runtime directory ID: `strategy-planning` for planning, `implementation` for coding, `coordination-debug` for runtime debugging, `review` for review, `research` for research, or `documents-data` for documents in Work. Runtime resumes only the current conversation/workspace/agent session; callers provide no session, model or authority fields. Specialists cannot delegate again or ask the user directly; unresolved context returns to Main. Main verifies real receipts rather than accepting child text as completion.
 
 Existing modes, enabled state, effectKind, approval, cancellation and user-data ownership stay unchanged. Commits, branches, worktrees, installations, service changes, external calls and publishing require the task's actual authorization. Skills do not authorize any of those actions by themselves.

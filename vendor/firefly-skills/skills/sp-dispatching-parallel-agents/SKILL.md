@@ -10,7 +10,7 @@ hiddenFromUi: false
 
 # Dispatching Parallel Agents
 
-Firefly uses the existing `task` tool with `description`, `prompt`, and `subagent_type: "general"; `task_id` only resumes an existing child. The examples below describe independent work, not an available `Subagent` API. Dispatch only when the run allows that tool and the tasks are actually independent. Children cannot delegate further or change approval, cancellation, model selection or task ownership.
+Firefly Main uses `delegate_agent({agent_id, prompt})`: `implementation` for implementation, `coordination-debug` for debugging, `review` for review and `research` for investigation. The examples below describe independent work, not an available `Subagent` API or a promise of simultaneous execution. Runtime schedules calls and owns persistent session reuse; an active duplicate is rejected. Dispatch only when the run allows delegation. Specialists cannot delegate further, request user input or change approval, cancellation, model selection or ownership; return coordination requests to Main.
 
 ## Overview
 

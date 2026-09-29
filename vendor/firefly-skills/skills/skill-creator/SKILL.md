@@ -14,7 +14,7 @@ modes:
 
 # Skill Creator
 
-Firefly host adaptation: create or edit a `SKILL.md` in an authorized Skill directory, validate its `name` and `description` with Firefly's existing scanner, and refresh through the existing Skill panel or `SKILL_RESCAN` only when the user authorizes installation. This Skill's Claude/Cowork evaluation, hosted reviewer, `claude` CLI, background server and model-selection instructions describe optional external environments, not Firefly tools or mandatory steps. Do not invoke missing tools, access real user Skills, or run external scripts without checking their actual source and permission. Firefly's task tool accepts only `description`, `prompt`, `subagent_type`, and optional resume `task_id`; a child cannot delegate further.
+Firefly host adaptation: create or edit a `SKILL.md` in an authorized Skill directory, validate its `name` and `description` with Firefly's existing scanner, and refresh through the existing Skill panel or `SKILL_RESCAN` only when the user authorizes installation. This Skill's Claude/Cowork evaluation, hosted reviewer, `claude` CLI, background server and model-selection instructions describe optional external environments, not Firefly tools or mandatory steps. Do not invoke missing tools, access real user Skills, or run external scripts without checking their actual source and permission. Only Main may use `delegate_agent({agent_id: "tooling-skills", prompt: "complete Skill brief"})`, or `review` for a review. Runtime owns session/model routing; specialists return cross-agent requests to Main and cannot delegate further.
 
 A skill for creating new skills and iteratively improving them.
 

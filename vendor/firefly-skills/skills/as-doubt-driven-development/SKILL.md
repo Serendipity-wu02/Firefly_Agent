@@ -13,7 +13,7 @@ hiddenFromUi: false
 
 # Doubt-Driven Development
 
-Firefly's existing `task` tool uses `description`, `prompt`, and `subagent_type: "general"` when the run permits delegation. A child cannot delegate again; the parent performs review if delegation is unavailable. No external model or CLI is selected automatically. Use `as-source-driven-development` when checking framework facts.
+Firefly Main may use `delegate_agent({agent_id: "review", prompt: "complete review brief"})` when delegation is available; use `research` for evidence gathering. A specialist cannot delegate again and returns missing context to Main. The parent performs review if delegation is unavailable. No external model or CLI is selected automatically. Use `as-source-driven-development` when checking framework facts.
 
 ## Overview
 
@@ -115,7 +115,7 @@ CONTRACT: <paste contract>
 
 **Pass ARTIFACT + CONTRACT only. Do NOT pass the CLAIM.** Handing the reviewer your conclusion biases it toward agreement. The reviewer must independently determine whether the artifact satisfies the contract.
 
-In Firefly, use a permitted `task` with `subagent_type: "general"` and the complete review brief; there is no bundled `agents/` roster.
+In Firefly Main, use a permitted `delegate_agent` with `agent_id: "review"` and the complete review brief in `prompt`. Runtime owns session reuse; a specialist returns cross-agent requests to Main.
 
 **The adversarial prompt above takes precedence over the persona's default response shape.** Personas like `code-reviewer` are written to produce balanced verdicts with both strengths and weaknesses; doubt-driven needs issues-only output. Paste the adversarial prompt verbatim into the invocation so it overrides the persona's default. If a persona's response shape can't be overridden cleanly, fall back to a generic subagent with the adversarial prompt.
 
