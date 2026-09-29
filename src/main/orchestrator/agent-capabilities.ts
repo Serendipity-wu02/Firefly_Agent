@@ -12,8 +12,8 @@ export function resolveAgentCapabilities(
   parentSkills: readonly SkillEntry[],
 ): RunCapabilities {
   if (!profile.supportedModes.includes(mode)) throw new Error("AGENT_MODE_UNAVAILABLE");
-  const allowedTools = new Set(profile.allowedTools);
-  const allowedSkills = new Set(profile.allowedSkills);
+  const allowedTools = new Set(profile.allowedToolIds);
+  const allowedSkills = new Set(profile.allowedSkillIds);
   const tools = parentTools.filter(tool => allowedTools.has(tool.id) && !CHILD_BLOCKED_TOOLS.has(tool.id));
   const skills = parentSkills.filter(skill => allowedSkills.has(skill.id));
   return { mode, tools, toolIds: new Set(tools.map(tool => tool.id)), skills, skillIds: new Set(skills.map(skill => skill.id)) };

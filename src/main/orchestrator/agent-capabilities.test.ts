@@ -13,10 +13,10 @@ const skill = (id: string): SkillEntry => ({
   references: [], enabled: true, source: "builtin", modes: ["code"], effectKind: "unknown",
 });
 const profile: AgentProfile = {
-  id: "test-review", nickname: "test", role: "Review", systemPrompt: "Review only the authorized scope",
-  modelProfile: "default", allowedTools: ["read_file", "write_file", "task", "delegate_agent", "ask_user"],
-  allowedSkills: ["as-code-review-and-quality", "as-security-and-hardening"],
-  supportedModes: ["code"], persistent: true, timeoutMs: 0, concurrency: 1,
+  id: "test-review", nickname: "test", role: "Review", description: "Review", systemPrompt: "Review only the authorized scope",
+  modelProfile: "default", allowedToolIds: ["read_file", "write_file", "task", "delegate_agent", "ask_user"],
+  allowedSkillIds: ["as-code-review-and-quality", "as-security-and-hardening"],
+  supportedModes: ["code"], persistent: true, timeoutMs: 0, maxConcurrency: 1,
 };
 
 describe("specialist capability intersection", () => {

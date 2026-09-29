@@ -4,7 +4,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { policyFor } from "../permission-policy";
 import { dispatchToolCall } from "../orchestrator/harness/tool-dispatcher";
-import { getTaskAgentProfile, resolveTaskTools } from "../orchestrator/task-profiles";
+import { createSpecialistProfiles } from "../orchestrator/specialist-profiles";
+import { resolveAgentCapabilities } from "../orchestrator/agent-capabilities";
 import { resolveEffectKind, toolRegistry, type ToolDefinition } from "../orchestrator/tools/registry/tool-registry";
 import { skillRegistry } from "./skill-registry";
 import { parseSkillFrontmatter, scanSkills } from "./skill-scanner";
@@ -72,8 +73,9 @@ describe("Skill metadata does not authorize tool execution", () => {
     const parentTools = ["read_file", "task", "ask_user", "confirm_uncertain_effect"].map(id => ({
       id, name: id, description: id, enabled: true, inputSchema: { type: "object" as const, properties: {} }, execute,
     }));
-    expect(resolveTaskTools(getTaskAgentProfile("general"), parentTools).map(tool => tool.id)).toEqual(["read_file"]);
-    expect(resolveTaskTools(getTaskAgentProfile("document"), parentTools).map(tool => tool.id)).toEqual(["read_file"]);
+    for (const profile of createSpecialistProfiles("work", parentTools, [])) {
+      expect(resolveAgentCapabilities(profile, "work", parentTools, []).tools.map(tool => tool.id)).toEqual(["read_file"]);
+    }
     expect(execute).not.toHaveBeenCalled();
   });
 });
