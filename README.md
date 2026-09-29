@@ -74,10 +74,10 @@ npm run test:plugin-examples
 
 Main 和 Preload 的 TypeScript 检查包含在 `build:main` / `build:preload` 中。`npm test` 运行 `vitest.config.ts` 定义的套件，不包含脚本 Node 测试、Rust 测试、安装器或真实外部服务验收；脚本入口见 [scripts/README.md](./scripts/README.md)。Windows Bash 集成测试需将 `FIREFLY_TEST_BASH` 设置为本机实际存在的 Git Bash `bash.exe` 绝对路径。
 
-正式 Skills 快照变化时先运行 `npm run prepare:skills`，同步 ZIP、manifest 和通知。截图助手使用 Rust/Cargo Windows MSVC 工具链与 C++ 构建依赖。本地解包准备为：
+正式 Skills 目录变化时先核对 `vendor/firefly-skills/skills-manifest.json` 与来源通知，并运行 `npm run validate:skills`。构建直接打包已核验的目录，不生成 Skills ZIP。截图助手使用 Rust/Cargo Windows MSVC 工具链与 C++ 构建依赖。本地解包准备为：
 
 ```powershell
-npm run prepare:skills
+npm run validate:skills
 npm run package:win:dir
 ```
 
@@ -99,7 +99,7 @@ npm run package:win:dir
 | `src/main/`、`src/preload/`、`src/renderer/` | 应用服务、受控桥接、React 界面与 Live2D |
 | `src/main/orchestrator/` | Firefly Agent 编排、工具执行、Task/Subagent 与权限集成 |
 | `src/main/skills/`、`skills/` | Skills 扫描注册、读取及项目内置内容 |
-| `vendor/firefly-skills/`、`scripts/packaging/` | 正式继承快照、来源/许可、受控适配与打包准备 |
+| `vendor/firefly-skills/`、`scripts/packaging/` | 正式继承 Skills 目录、来源/许可、历史适配依据与打包校验 |
 | `src/plugins/`、`packages/plugin-sdk/`、`examples/` | 插件宿主、本地 SDK、schema 与开发示例 |
 | `src/shared/` | IPC、数据/事件契约和 ZIP 安全边界 |
 | `prompts/`、`assets/` | 分层角色提示词、世界观及产品资源 |

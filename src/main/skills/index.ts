@@ -9,8 +9,8 @@ import { skillRegistry } from "./skill-registry";
 import { registerSkillTools } from "./skill-tools";
 import type { SkillEntry } from "./types";
 import { logger, LogTag } from "../logger";
-import { getExternalContentPaths, resolveSkillScanSources, resolveSkillsSnapshotArchivePath } from "../external-content-paths";
-import { installSkillsSnapshot } from "./snapshot-install";
+import { getExternalContentPaths, resolveSkillScanSources, resolvePackagedSkillDirectory } from "../external-content-paths";
+import { synchronizeManagedSkillDirectories, validateManagedSourceDirectory } from "./directory-install";
 import { getProtectedSkillIds, migrateLegacySkillDirectories, migrateLegacySkillSettingsFile } from "../migration/legacy-skill-migration";
 import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
 import { assertVnextSkillSnapshotSource, migrateVnextSkillSnapshot } from "../migration/vnext-skill-snapshot";
@@ -37,21 +37,28 @@ function loadEnabledState(): Record<string, boolean> {
 }
 
 /**
- * 启动入口：首启把第三方 skills 快照解压到 user 区（哨兵保证只装一次），
+ * 启动入口：将受校验的第三方 Skills 目录同步到 user 区，
  * 再扫描双源 skills → 灌入 registry（user 目录级覆盖 builtin + 合并 enabled 状态）→ 注册 meta-tool。
  * 必须在 app.whenReady 之后调用（依赖 app.getPath）。
  */
 export async function initSkills(): Promise<void> {
   const paths = getExternalContentPaths();
 
-  // 快照安装必须在扫描之前完成，否则首启扫不到归档里的第三方 skill。
-  const archivePath = resolveSkillsSnapshotArchivePath(paths);
+  const sourceDirectory = resolvePackagedSkillDirectory(paths);
   const userSkillsDir = paths.userSkillDirectories[0];
   try {
-    assertVnextSkillSnapshotSource(archivePath);
-    await installSkillsSnapshot({ archivePath, userSkillsDir });
-    await migrateInstalledSkillSnapshot(userSkillsDir, archivePath);
-    await migrateVnextSkillSnapshot(userSkillsDir, archivePath);
+    if (sourceDirectory) {
+      const manifestPath = path.join(path.dirname(sourceDirectory), "skills-manifest.json");
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { skills: string[]; files: Record<string, string> };
+      if (!Array.isArray(manifest.skills) || !manifest.files || typeof manifest.files !== "object"
+        || Array.isArray(manifest.files)) throw new Error("SKILL_DIRECTORY_MANIFEST_INVALID");
+      validateManagedSourceDirectory(sourceDirectory, manifest.skills, manifest.files);
+      assertVnextSkillSnapshotSource(sourceDirectory);
+      await migrateInstalledSkillSnapshot(userSkillsDir, sourceDirectory);
+      await migrateVnextSkillSnapshot(userSkillsDir, sourceDirectory);
+      synchronizeManagedSkillDirectories({ sourceDirectory, userSkillsDir, expectedIds: manifest.skills,
+        expectedFileHashes: manifest.files });
+    }
   } catch (error) {
     const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_MIGRATION_FAILED";
     logger.warn(LogTag.Skills, "managed migration failed; scanning existing files without replacing them", { reason });

@@ -74,10 +74,10 @@ npm run test:plugin-examples
 
 Main and Preload TypeScript checks are included in `build:main` / `build:preload`. `npm test` runs the suite defined by `vitest.config.ts`, not Node script tests, Rust tests, installers or live external-service checks. See [scripts/README.md](./scripts/README.md) for script entry points. Windows Bash integration tests require `FIREFLY_TEST_BASH` to point to an existing Git Bash `bash.exe` using its actual absolute path.
 
-When the distributed Skills snapshot changes, run `npm run prepare:skills` first to synchronize the ZIP, manifest and notices. The screenshot helper needs a Rust/Cargo Windows MSVC toolchain and C++ build prerequisites. Local unpacked preparation is:
+When the distributed Skills directories change, review `vendor/firefly-skills/skills-manifest.json` and the source notices, then run `npm run validate:skills`. Packaging copies the validated directories directly; it does not generate a Skills ZIP. The screenshot helper needs a Rust/Cargo Windows MSVC toolchain and C++ build prerequisites. Local unpacked preparation is:
 
 ```powershell
-npm run prepare:skills
+npm run validate:skills
 npm run package:win:dir
 ```
 
@@ -99,7 +99,7 @@ The application starts at `src/main/index.ts`, compiled to `dist/main/main/index
 | `src/main/`, `src/preload/`, `src/renderer/` | Application services, controlled bridge, React interface and Live2D |
 | `src/main/orchestrator/` | Firefly Agent orchestration, tool execution, Task/Subagent and permission integration |
 | `src/main/skills/`, `skills/` | Skill discovery, registration, reading and project built-ins |
-| `vendor/firefly-skills/`, `scripts/packaging/` | Distributed inherited snapshot, provenance/licenses, controlled adaptations and package preparation |
+| `vendor/firefly-skills/`, `scripts/packaging/` | Distributed inherited Skills directories, provenance/licenses, historical adaptation evidence and package validation |
 | `src/plugins/`, `packages/plugin-sdk/`, `examples/` | Plugin host, local SDK, schema and development examples |
 | `src/shared/` | IPC, data/event contracts and ZIP security boundaries |
 | `prompts/`, `assets/` | Layered character prompts, world knowledge and product assets |

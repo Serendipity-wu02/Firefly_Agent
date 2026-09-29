@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { extractZip } from "../../shared/zip-extraction";
+import { copyVendorSkills, vendorSkillSource } from "../../test-utils/vendor-skill-source";
 import { scanSkills } from "./skill-scanner";
 import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
 
@@ -13,7 +13,7 @@ afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursiv
 it("delivers the licensed Firefly adaptation without foreign host hooks", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-self-source-"));
   roots.push(root);
-  await extractZip(path.resolve("vendor/firefly-skills/skills-snapshot.zip"), { dir: root });
+  copyVendorSkills(root);
   const directory = path.join(root, "self-improving-agent");
   const body = fs.readFileSync(path.join(directory, "SKILL.md"), "utf8");
   expect(body).toContain("Firefly-maintained");
@@ -42,7 +42,7 @@ it("recognizes the exact legacy hash and preserves user-modified bodies and atta
   expect(metadata.sourceFiles["self-improving-agent/SKILL.md"]).toBe("8477a270061ce850c3e580e613dd18f87ccfcdb556348687fce66b5ec77a9158");
   fs.writeFileSync(path.join(directory, "SKILL.md"), "user modified body");
   fs.writeFileSync(path.join(directory, "references/firefly-examples.md"), "user attachment");
-  await migrateInstalledSkillSnapshot(root, path.resolve("vendor/firefly-skills/skills-snapshot.zip"));
+  await migrateInstalledSkillSnapshot(root, vendorSkillSource);
   expect(fs.readFileSync(path.join(directory, "SKILL.md"), "utf8")).toBe("user modified body");
   expect(fs.readFileSync(path.join(directory, "references/firefly-examples.md"), "utf8")).toBe("user attachment");
 });
@@ -52,7 +52,7 @@ it("runs the reviewed extraction helper only in an explicit temporary workspace"
   roots.push(root);
   const bash = process.env.FIREFLY_TEST_BASH;
   if (!bash || !path.isAbsolute(bash) || !fs.statSync(bash).isFile()) throw new Error("FIREFLY_TEST_BASH must identify the actual Bash fixture");
-  await extractZip(path.resolve("vendor/firefly-skills/skills-snapshot.zip"), { dir: path.join(root, "extracted") });
+  copyVendorSkills(path.join(root, "extracted"));
   const script = path.join(root, "extracted/self-improving-agent/scripts/upstream-extract-skill.sh").split(path.sep).join("/");
   const output = path.join(root, "output");
   const run = (...args: string[]) => execFileSync(bash, [script, ...args], {

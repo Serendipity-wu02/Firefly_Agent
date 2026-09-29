@@ -3,13 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, expect, it } from "vitest";
-import { extractZip } from "../../shared/zip-extraction";
+import { copyVendorSkills, vendorSkillSource } from "../../test-utils/vendor-skill-source";
 import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
 import { parseSkillFrontmatter, scanSkills } from "./skill-scanner";
 import { SkillRegistry } from "./skill-registry";
 
 const roots: string[] = [];
-const archive = path.resolve("vendor/firefly-skills/skills-snapshot.zip");
 const upstreamRules = {
   "as-api-and-interface-design": ["Honouring an Idempotency Key", "Claim atomically", "success, failure, and _unknown_"],
   "as-context-engineering": ["Restartable Session Boundaries", "75% capacity", "only when the user or repository workflow authorizes it"],
@@ -23,7 +22,7 @@ afterEach(() => {
 it("preserves all 39 original identities while applying the current Work/Code distribution", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-upstream-manifests-"));
   roots.push(root);
-  await extractZip(archive, { dir: root });
+  copyVendorSkills(root);
   const expected = JSON.parse(fs.readFileSync(path.resolve("src/main/skills/fixtures/upstream-pre-upgrade/manifests.json"), "utf8"));
   expect(scanSkills(root, "user").map(skill => skill.id).sort()).toEqual(Object.keys(expected).sort());
   for (const [id, metadata] of Object.entries(expected) as Array<[string, Record<string, unknown>]>) {
@@ -40,7 +39,7 @@ it("preserves all 39 original identities while applying the current Work/Code di
 it("discovers the reviewed upstream rules without expanding mode or tool permissions", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-upstream-rules-"));
   roots.push(root);
-  await extractZip(archive, { dir: root });
+  copyVendorSkills(root);
   const registry = new SkillRegistry();
   for (const skill of scanSkills(root, "user")) registry.register(skill);
   expect(registry.getAll()).toHaveLength(39);
@@ -68,7 +67,7 @@ it("updates the recognized original body, backs it up and preserves modified and
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-upstream-update-"));
   roots.push(root);
   const installed = path.join(root, "installed");
-  await extractZip(archive, { dir: installed });
+  copyVendorSkills(installed);
   const bundles = JSON.parse(fs.readFileSync(path.resolve("scripts/packaging/skill-replacements.json"), "utf8")).bundles;
   const fixtures: Array<{ body: string; replacement: Buffer; source: Buffer; custom: string }> = [];
   for (const id of Object.keys(upstreamRules)) {
@@ -84,18 +83,18 @@ it("updates the recognized original body, backs it up and preserves modified and
     fs.writeFileSync(custom, "public user-owned fixture");
     fixtures.push({ body, replacement, source, custom });
   }
-  await migrateInstalledSkillSnapshot(installed, archive);
+  await migrateInstalledSkillSnapshot(installed, vendorSkillSource);
   for (const { body, replacement, source, custom } of fixtures) {
     expect(fs.readFileSync(body)).toEqual(replacement);
     expect(fs.readFileSync(`${body}.pre-firefly.bak`)).toEqual(source);
     expect(fs.readFileSync(custom, "utf8")).toBe("public user-owned fixture");
   }
-  await migrateInstalledSkillSnapshot(installed, archive);
+  await migrateInstalledSkillSnapshot(installed, vendorSkillSource);
   for (const { body, source } of fixtures) {
     expect(fs.readFileSync(`${body}.pre-firefly.bak`)).toEqual(source);
     fs.writeFileSync(body, "public user-edited body");
   }
-  await migrateInstalledSkillSnapshot(installed, archive);
+  await migrateInstalledSkillSnapshot(installed, vendorSkillSource);
   for (const { body } of fixtures) {
     expect(fs.readFileSync(body, "utf8")).toBe("public user-edited body");
   }
@@ -104,7 +103,7 @@ it("updates the recognized original body, backs it up and preserves modified and
 it("updates an unchanged Superpowers body and notice without replacing user attachments", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-host-update-"));
   roots.push(root);
-  await extractZip(archive, { dir: root });
+  copyVendorSkills(root);
   const id = "sp-using-superpowers";
   const body = path.join(root, id, "SKILL.md");
   const notice = path.join(root, id, "NOTICE.md");
@@ -126,13 +125,13 @@ it("updates an unchanged Superpowers body and notice without replacing user atta
   fs.rmSync(reference);
   const custom = path.join(root, id, "references", "user-note.md");
   fs.writeFileSync(custom, "public user attachment");
-  await migrateInstalledSkillSnapshot(root, archive);
+  await migrateInstalledSkillSnapshot(root, vendorSkillSource);
   expect(fs.readFileSync(body)).toEqual(newBody);
   expect(fs.readFileSync(notice)).toEqual(newNotice);
   expect(fs.existsSync(reference)).toBe(true);
   expect(fs.readFileSync(custom, "utf8")).toBe("public user attachment");
   expect(fs.existsSync(`${body}.pre-firefly.bak`)).toBe(true);
   expect(fs.existsSync(`${notice}.pre-firefly.bak`)).toBe(true);
-  await migrateInstalledSkillSnapshot(root, archive);
+  await migrateInstalledSkillSnapshot(root, vendorSkillSource);
   expect(fs.readFileSync(custom, "utf8")).toBe("public user attachment");
 });

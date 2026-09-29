@@ -2,10 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import JSZip from "jszip";
 import { afterEach, expect, it, vi } from "vitest";
-import { readFoundationSnapshot, readPreVnextSnapshot } from "../../../scripts/packaging/vnext-predecessor-fixture.mjs";
-import { extractZip } from "../../shared/zip-extraction";
+import { materializeFoundationDirectory, materializePreVnextDirectory } from "../../../scripts/packaging/vnext-predecessor-fixture.mjs";
 import { migrateInstalledSkillSnapshot } from "./skill-snapshot";
 import { migrateVnextSkillSnapshot } from "./vnext-skill-snapshot";
 
@@ -15,58 +13,57 @@ vi.mock("node:child_process", () => ({
 
 const roots: string[] = [];
 const repository = path.resolve(__dirname, "../../..");
-const currentArchive = path.join(repository, "vendor/firefly-skills/skills-snapshot.zip");
+const currentSource = path.join(repository, "vendor/firefly-skills/skills");
 const changedIds = ["docx", "office-design", "pdf", "pptx-generator", "self-improving-agent", "skill-creator", "xlsx"];
 async function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-vnext-snapshot-"));
   roots.push(root);
-  const old = await readPreVnextSnapshot(repository);
-  expect(createHash("sha256").update(old).digest("hex")).toBe("6d3ec335cbd5f39282e3f8f0878140d5275f6f96afc75b172b365824fce92ee7");
-  const oldArchive = path.join(root, "old.zip");
-  fs.writeFileSync(oldArchive, old);
   const installed = path.join(root, "skills");
-  await extractZip(oldArchive, { dir: installed });
+  await materializePreVnextDirectory(repository, installed);
   fs.writeFileSync(path.join(installed, ".snapshot-installed"), "old installation");
   return { root, installed };
 }
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 
+function expectCurrentFiles(installed: string): void {
+  function visit(relative: string): void {
+    for (const entry of fs.readdirSync(path.join(currentSource, relative), { withFileTypes: true })) {
+      const next = path.join(relative, entry.name);
+      if (entry.isDirectory()) visit(next);
+      else expect(fs.readFileSync(path.join(installed, next)), next).toEqual(fs.readFileSync(path.join(currentSource, next)));
+    }
+  }
+  visit("");
+}
+
 it("updates the exact foundation archive including the tools reference and preserves originals", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-specialist-snapshot-"));
   roots.push(root);
-  const archive = path.join(root, "foundation.zip");
-  fs.writeFileSync(archive, await readFoundationSnapshot(repository));
   const installed = path.join(root, "skills");
-  await extractZip(archive, { dir: installed });
+  await materializeFoundationDirectory(repository, installed);
   const reference = path.join(installed, "sp-using-superpowers/references/firefly-tools.md");
   const original = fs.readFileSync(reference);
-  const updated = await migrateVnextSkillSnapshot(installed, currentArchive);
+  const updated = await migrateVnextSkillSnapshot(installed, currentSource);
   expect(updated.sort()).toEqual(["as-doubt-driven-development", "as-using-agent-skills", "skill-creator", "sp-dispatching-parallel-agents", "sp-requesting-code-review", "sp-subagent-driven-development", "sp-using-superpowers"]);
   expect(fs.readFileSync(`${reference}.pre-specialists.bak`)).toEqual(original);
-  const current = await JSZip.loadAsync(fs.readFileSync(currentArchive));
-  for (const [relative, entry] of Object.entries(current.files)) {
-    if (!entry.dir) expect(fs.readFileSync(path.join(installed, relative)).equals(await entry.async("nodebuffer")), relative).toBe(true);
-  }
-  expect(await migrateVnextSkillSnapshot(installed, currentArchive)).toEqual([]);
+  expectCurrentFiles(installed);
+  expect(await migrateVnextSkillSnapshot(installed, currentSource)).toEqual([]);
 });
 
 it("upgrades the exact 6d3e predecessor to current bytes without reverting any of the 39 repairs", async () => {
   const { installed } = await fixture();
   const before = new Map(changedIds.map(id => [id, fs.readFileSync(path.join(installed, id, "SKILL.md"))]));
   fs.writeFileSync(path.join(installed, "xlsx", "SKILL.md.pre-firefly.bak"), "earlier preserved backup");
-  await migrateInstalledSkillSnapshot(installed, currentArchive);
-  expect(await migrateVnextSkillSnapshot(installed, currentArchive)).toEqual([...changedIds,
+  await migrateInstalledSkillSnapshot(installed, currentSource);
+  expect(await migrateVnextSkillSnapshot(installed, currentSource)).toEqual([...changedIds,
     "as-doubt-driven-development", "as-using-agent-skills", "sp-dispatching-parallel-agents",
     "sp-requesting-code-review", "sp-subagent-driven-development", "sp-using-superpowers",
   ]);
-  const current = await JSZip.loadAsync(fs.readFileSync(currentArchive));
-  for (const [relative, entry] of Object.entries(current.files)) {
-    if (!entry.dir) expect(fs.readFileSync(path.join(installed, relative)).equals(await entry.async("nodebuffer")), relative).toBe(true);
-  }
+  expectCurrentFiles(installed);
   for (const id of changedIds) expect(fs.readFileSync(path.join(installed, id, "SKILL.md.pre-vnext.bak"))).toEqual(before.get(id));
   expect(fs.readFileSync(path.join(installed, "xlsx", "SKILL.md.pre-firefly.bak"), "utf8")).toBe("earlier preserved backup");
   expect(fs.readFileSync(path.join(installed, ".snapshot-installed"), "utf8")).toBe("old installation");
-  expect(await migrateVnextSkillSnapshot(installed, currentArchive)).toEqual([]);
+  expect(await migrateVnextSkillSnapshot(installed, currentSource)).toEqual([]);
 });
 
 it("preserves modified bodies, modified attachments and same-name custom skills", async () => {
@@ -75,7 +72,7 @@ it("preserves modified bodies, modified attachments and same-name custom skills"
   fs.writeFileSync(path.join(installed, "office-design", "references", "token-schema.md"), "user reference");
   const office = fs.readFileSync(path.join(installed, "office-design", "SKILL.md"));
   fs.writeFileSync(path.join(installed, "xlsx", "SKILL.md"), "custom skill");
-  const updated = await migrateVnextSkillSnapshot(installed, currentArchive);
+  const updated = await migrateVnextSkillSnapshot(installed, currentSource);
   expect(updated).not.toContain("docx");
   expect(updated).not.toContain("office-design");
   expect(updated).not.toContain("xlsx");
@@ -114,7 +111,7 @@ it.each([
     return [name, fs.statSync(file).isDirectory() ? null : fs.readFileSync(file)];
   });
   const before = readBundle();
-  expect(await migrateVnextSkillSnapshot(installed, currentArchive)).not.toContain("self-improving-agent");
+  expect(await migrateVnextSkillSnapshot(installed, currentSource)).not.toContain("self-improving-agent");
   expect(readBundle()).toEqual(before);
 });
 
@@ -126,7 +123,7 @@ it("preserves exact managed backups and resumes with a matching vNext backup", a
   const assetBackup = path.join(bundle, "references/firefly-examples.md.pre-firefly.bak");
   fs.writeFileSync(backup, original);
   fs.writeFileSync(assetBackup, "earlier managed asset");
-  expect(await migrateVnextSkillSnapshot(installed, currentArchive)).toContain("self-improving-agent");
+  expect(await migrateVnextSkillSnapshot(installed, currentSource)).toContain("self-improving-agent");
   expect(fs.readFileSync(backup)).toEqual(original);
   expect(fs.readFileSync(assetBackup, "utf8")).toBe("earlier managed asset");
 });
@@ -138,7 +135,7 @@ it("rejects conflicting vNext backups without replacing the original body", asyn
   const original = fs.readFileSync(body);
   const backup = path.join(bundle, "SKILL.md.pre-vnext.bak");
   fs.writeFileSync(backup, "conflicting backup");
-  await expect(migrateVnextSkillSnapshot(installed, currentArchive)).rejects.toThrow("SKILL_UPDATE_BACKUP_CONFLICT");
+  await expect(migrateVnextSkillSnapshot(installed, currentSource)).rejects.toThrow("SKILL_UPDATE_BACKUP_CONFLICT");
   expect(fs.readFileSync(body)).toEqual(original);
   expect(fs.readFileSync(backup, "utf8")).toBe("conflicting backup");
 });

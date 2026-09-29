@@ -163,10 +163,14 @@ it("rejects mismatched declared output sizes and cleans staging", async () => {
   expect(readdirSync(root)).toEqual(["input.zip"]);
 });
 
-it("extracts the actual bundled Skills archive into a temporary directory", async () => {
+it("extracts a normal multi-directory archive into a temporary directory", async () => {
   const root = fixtureRoot();
   const dir = path.join(root, "skills");
-  await extractZip(path.resolve("vendor/firefly-skills/skills-snapshot.zip"), { dir });
+  const archive = await archiveFile(root, [
+    { name: "pdf/SKILL.md", text: "pdf" },
+    { name: "skill-creator/SKILL.md", text: "skill-creator" },
+  ]);
+  await extractZip(archive, { dir });
   expect(readFileSync(path.join(dir, "pdf/SKILL.md"), "utf8")).toContain("pdf");
   expect(readFileSync(path.join(dir, "skill-creator/SKILL.md"), "utf8")).toContain("skill-creator");
 });

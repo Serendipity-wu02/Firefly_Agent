@@ -7,29 +7,28 @@ import {
   findPromptPath,
   findSkillPath,
   resolveExternalContentPaths,
-  resolveSkillsSnapshotArchivePath,
+  resolvePackagedSkillDirectory,
   resolveSkillScanSources,
 } from "./external-content-paths";
 
 const temporaryDirectories: string[] = [];
 
-describe("skills snapshot location", () => {
-  it("resolves the Firefly archive in development and packaged resources", () => {
+describe("managed Skill directory location", () => {
+  it("resolves canonical directories in development and packaged resources", () => {
     const root = temporaryDirectory();
     const resources = path.join(root, "resources");
-    const archiveName = "skills-snapshot.zip";
-    const devArchive = path.join(root, "vendor", "firefly-skills", archiveName);
-    const packagedArchive = path.join(resources, "firefly-skills", archiveName);
+    const devSource = path.join(root, "vendor", "firefly-skills", "skills");
+    const packagedSource = path.join(resources, "firefly-skills", "skills");
 
-    expect(resolveSkillsSnapshotArchivePath({ installRoot: root }, {
+    expect(resolvePackagedSkillDirectory({ installRoot: root }, {
       isPackaged: false,
-      existsSync: (candidate) => candidate === devArchive,
-    })).toBe(devArchive);
-    expect(resolveSkillsSnapshotArchivePath({ installRoot: root }, {
+      existsSync: (directory) => directory === devSource,
+    })).toBe(devSource);
+    expect(resolvePackagedSkillDirectory({ installRoot: root }, {
       isPackaged: true,
       resourcesPath: resources,
-      existsSync: (candidate) => candidate === packagedArchive,
-    })).toBe(packagedArchive);
+      existsSync: (directory) => directory === packagedSource,
+    })).toBe(packagedSource);
   });
 });
 

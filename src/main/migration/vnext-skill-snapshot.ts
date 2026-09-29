@@ -1,8 +1,6 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { rejectZipSymlink } from "../../shared/zip-entry-policy";
 import { assertSkillMigrationPath } from "./legacy-skill-migration";
 import { replaceUnmodifiedSkill } from "./skill-snapshot";
 import versions from "./vnext-skill-versions.json";
@@ -11,9 +9,15 @@ function hash(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-export function assertVnextSkillSnapshotSource(archive: string | null): void {
-  if (archive && fs.existsSync(archive) && hash(fs.readFileSync(archive)) !== versions.targetArchiveSha256) {
-    throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
+export function assertVnextSkillSnapshotSource(sourceDirectory: string | null): void {
+  if (!sourceDirectory || !fs.existsSync(sourceDirectory)) return;
+  assertSkillMigrationPath(sourceDirectory);
+  for (const version of versions.versions) {
+    const replacement = path.join(sourceDirectory, version.id, version.replacementPath);
+    assertSkillMigrationPath(replacement);
+    if (!fs.existsSync(replacement) || hash(fs.readFileSync(replacement)) !== version.replacementSha256) {
+      throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
+    }
   }
 }
 
@@ -52,38 +56,27 @@ function matchesInstalledVersion(root: string, version: typeof versions.versions
   return visit(directory, "") && matched.size === expectedFiles.size;
 }
 
-export async function migrateVnextSkillSnapshot(userRoot: string, archive: string | null): Promise<string[]> {
-  if (!archive || !fs.existsSync(archive) || !fs.existsSync(userRoot)) return [];
+export async function migrateVnextSkillSnapshot(userRoot: string, sourceDirectory: string | null): Promise<string[]> {
+  if (!sourceDirectory || !fs.existsSync(sourceDirectory) || !fs.existsSync(userRoot)) return [];
   assertSkillMigrationPath(userRoot);
-  const bytes = fs.readFileSync(archive);
-  if (hash(bytes) !== versions.targetArchiveSha256) throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
+  assertVnextSkillSnapshotSource(sourceDirectory);
   const pending = versions.versions.filter(version => matchesInstalledVersion(userRoot, version));
   if (pending.length === 0) return [];
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-vnext-skill-migration-"));
   const updated: string[] = [];
-  try {
-    const pinnedArchive = path.join(temporary, "snapshot.zip");
-    fs.writeFileSync(pinnedArchive, bytes, { flag: "wx" });
-    const source = path.join(temporary, "source");
-    const { extractZip } = await import("../../shared/zip-extraction");
-    await extractZip(pinnedArchive, { dir: source, onEntry: rejectZipSymlink });
-    for (const version of pending) {
-      const body = path.join(userRoot, version.id, version.replacementPath);
-      const replacement = fs.readFileSync(path.join(source, version.id, version.replacementPath));
-      if (hash(replacement) !== version.replacementSha256) throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
-      if (!matchesInstalledVersion(userRoot, version)) throw new Error("SKILL_CHANGED_DURING_MIGRATION");
-      const backup = `${body}${version.backupSuffix}`;
-      assertSkillMigrationPath(backup);
-      assertSkillMigrationPath(`${body}.pre-firefly.bak`);
-      const original = fs.readFileSync(body);
-      if (!fs.existsSync(backup)) fs.copyFileSync(body, backup, fs.constants.COPYFILE_EXCL);
-      if (!fs.readFileSync(backup).equals(original)) throw new Error("SKILL_UPDATE_BACKUP_CONFLICT");
-      const expectedHash = new Map(Object.entries(version.files)).get(version.replacementPath);
-      if (!expectedHash) throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
-      if (replaceUnmodifiedSkill(body, expectedHash, replacement)) updated.push(version.id);
-    }
-    return updated;
-  } finally {
-    fs.rmSync(temporary, { recursive: true, force: true });
+  for (const version of pending) {
+    const body = path.join(userRoot, version.id, version.replacementPath);
+    const replacement = fs.readFileSync(path.join(sourceDirectory, version.id, version.replacementPath));
+    if (hash(replacement) !== version.replacementSha256) throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
+    if (!matchesInstalledVersion(userRoot, version)) throw new Error("SKILL_CHANGED_DURING_MIGRATION");
+    const backup = `${body}${version.backupSuffix}`;
+    assertSkillMigrationPath(backup);
+    assertSkillMigrationPath(`${body}.pre-firefly.bak`);
+    const original = fs.readFileSync(body);
+    if (!fs.existsSync(backup)) fs.copyFileSync(body, backup, fs.constants.COPYFILE_EXCL);
+    if (!fs.readFileSync(backup).equals(original)) throw new Error("SKILL_UPDATE_BACKUP_CONFLICT");
+    const expectedHash = new Map(Object.entries(version.files)).get(version.replacementPath);
+    if (!expectedHash) throw new Error("SKILL_SNAPSHOT_SOURCE_UNKNOWN");
+    if (replaceUnmodifiedSkill(body, expectedHash, replacement)) updated.push(version.id);
   }
+  return updated;
 }

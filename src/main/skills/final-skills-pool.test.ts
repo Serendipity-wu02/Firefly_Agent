@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import JSZip from "jszip";
 import { scanSkills } from "./skill-scanner";
 import { buildAutoInjectedSkillContext, buildSkillCatalog } from "./skill-catalog";
 import { skillRegistry } from "./skill-registry";
@@ -102,21 +101,21 @@ describe("final Skills pool delivery", () => {
     }
   });
 
-  it("ships the same 39 vendor bodies as canonical sources with no retired mode metadata", async () => {
+  it("ships the 39 canonical vendor bodies and five maintained Skills without retired mode metadata", () => {
     const vendor = path.join(root, "vendor/firefly-skills");
-    const manifest = JSON.parse(fs.readFileSync(path.join(vendor, "skills-snapshot-manifest.json"), "utf8"));
+    const manifest = JSON.parse(fs.readFileSync(path.join(vendor, "skills-manifest.json"), "utf8"));
     expect(manifest.selfSkills).toEqual(expectedIds);
     const entries = scanSkills(path.join(vendor, "skills"), "builtin");
     expect(entries.map(skill => skill.id).sort()).toEqual([...manifest.skills].sort());
     expect(entries).toHaveLength(39);
-    const zip = await JSZip.loadAsync(fs.readFileSync(path.join(vendor, "skills-snapshot.zip")));
     for (const entry of entries) {
       const relative = `${entry.id}/SKILL.md`;
       const canonical = fs.readFileSync(path.join(vendor, "skills", relative));
-      expect(await zip.file(relative)!.async("nodebuffer")).toEqual(canonical);
+      expect(canonical.length).toBeGreaterThan(0);
       expect(canonical.toString("utf8")).not.toMatch(/^\s*- learn\s*$/m);
       expect(entry.modes?.length).toBeGreaterThan(0);
       expect(entry.modes?.every(mode => mode === "work" || mode === "code")).toBe(true);
     }
+    expect(new Set([...entries.map(entry => entry.id), ...manifest.selfSkills]).size).toBe(44);
   });
 });

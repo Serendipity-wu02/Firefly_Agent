@@ -1,7 +1,5 @@
 {
   "sourceCommit": "890bc6165d7b3a476d6069c436145c181bd8a16b",
-  "sourceArchive": "vendor/firefly-skills/skills-snapshot.zip",
-  "sourceArchiveSha256": "98005bbb2126c231679d60373f1b50f9219b562c5f33fa98de0a130477c32b27",
   "files": {
     "docx/references/scenario_c_apply_template.md": "84828ed5e2105e8044251593ae6b84e7413f83841b5a3930bae0e7190bec6699",
     "docx/references/troubleshooting.md": "181192270af85f6a98a88f5e8ba3c60db512f05eef1a7ba65499c1afb012b81f",

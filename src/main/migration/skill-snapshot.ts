@@ -1,8 +1,8 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { rejectZipSymlink } from "../../shared/zip-entry-policy";
+import { assertSkillMigrationPath } from "./legacy-skill-migration";
+import { updateInstalledSkillDirectory } from "../skills/directory-install";
 import { updateManagedSkillBundle } from "./managed-skill-update";
 import managedFiles from "./managed-skill-files.json";
 import managedVersions from "./managed-skill-versions.json";
@@ -97,8 +97,9 @@ export function replaceUnmodifiedSkill(file: string, expectedHash: string, repla
   return true;
 }
 
-export async function migrateInstalledSkillSnapshot(userRoot: string, archive: string | null): Promise<void> {
-  if (!archive || !fs.existsSync(archive) || !fs.existsSync(userRoot)) return;
+export async function migrateInstalledSkillSnapshot(userRoot: string, sourceDirectory: string | null): Promise<void> {
+  if (!sourceDirectory || !fs.existsSync(sourceDirectory) || !fs.existsSync(userRoot)) return;
+  assertSkillMigrationPath(sourceDirectory);
   const root = fs.realpathSync(userRoot);
   const pending: Array<[string, string]> = [];
   for (const [relative, hash] of Object.entries(ORIGINAL_FILES)) {
@@ -122,32 +123,28 @@ export async function migrateInstalledSkillSnapshot(userRoot: string, archive: s
       ? [[id, recognized] as const] : [];
   });
   if (pending.length === 0 && bundles.length === 0) return;
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-migration-"));
-  try {
-    const { extractZip: extract } = await import("../../shared/zip-extraction");
-    await extract(archive, { dir: temporary, onEntry: rejectZipSymlink });
-    for (const [relative, hash] of pending) {
-      const target = path.join(root, relative);
-      if (!fs.existsSync(target)) continue;
-      const location = path.relative(root, fs.realpathSync(target));
-      if (location === ".." || location.startsWith(`..${path.sep}`) || path.isAbsolute(location)) throw new Error("SKILL_MIGRATION_PATH_ESCAPE");
-      replaceUnmodifiedSkill(target, hash, fs.readFileSync(path.join(temporary, relative)));
+  for (const [relative, hash] of pending) {
+    const target = path.join(root, relative);
+    const replacement = path.join(sourceDirectory, relative);
+    assertSkillMigrationPath(replacement);
+    if (!fs.existsSync(target)) continue;
+    const location = path.relative(root, fs.realpathSync(target));
+    if (location === ".." || location.startsWith(`..${path.sep}`) || path.isAbsolute(location)) throw new Error("SKILL_MIGRATION_PATH_ESCAPE");
+    replaceUnmodifiedSkill(target, hash, fs.readFileSync(replacement));
+  }
+  for (const [id, hash] of bundles) {
+    const priorVersion = managedVersions.versions.find(version => version.id === id && version.bodySha256 === hash);
+    const recognizedFiles = priorVersion ? Object.fromEntries(Object.entries(priorVersion.files)
+      .filter((entry): entry is [string, string] => typeof entry[1] === "string")) : Object.fromEntries(Object.entries(managedFiles.files)
+      .filter(([file]) => file.startsWith(`${id}/`))
+      .map(([file, fileHash]) => [file.slice(id.length + 1), fileHash]));
+    try {
+      const updated = updateInstalledSkillDirectory(path.join(root, id), stage =>
+        updateManagedSkillBundle(stage, path.join(sourceDirectory, id), hash, recognizedFiles));
+      if (!updated) console.info("[Skills] managed update preserved installed bundle", { id });
+    } catch (error) {
+      const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_UPDATE_FAILED";
+      console.warn("[Skills] managed update incomplete; originals retained for recovery", { id, reason });
     }
-    for (const [id, hash] of bundles) {
-      const priorVersion = managedVersions.versions.find(version => version.id === id && version.bodySha256 === hash);
-      const recognizedFiles = priorVersion ? Object.fromEntries(Object.entries(priorVersion.files)
-        .filter((entry): entry is [string, string] => typeof entry[1] === "string")) : Object.fromEntries(Object.entries(managedFiles.files)
-        .filter(([file]) => file.startsWith(`${id}/`))
-        .map(([file, fileHash]) => [file.slice(id.length + 1), fileHash]));
-      try {
-        const updated = updateManagedSkillBundle(path.join(root, id), path.join(temporary, id), hash, recognizedFiles);
-        if (!updated) console.info("[Skills] managed update preserved installed bundle", { id });
-      } catch (error) {
-        const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_UPDATE_FAILED";
-        console.warn("[Skills] managed update incomplete; originals retained for recovery", { id, reason });
-      }
-    }
-  } finally {
-    fs.rmSync(temporary, { recursive: true, force: true });
   }
 }

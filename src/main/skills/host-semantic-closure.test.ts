@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { extractZip } from "../../shared/zip-extraction";
+import { copyVendorSkills } from "../../test-utils/vendor-skill-source";
 import { scanSkills } from "./skill-scanner";
 import { skillRegistry } from "./skill-registry";
 import { registerSkillTools } from "./skill-tools";
@@ -10,7 +10,6 @@ import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 import { registerDocumentTools } from "../orchestrator/tools/document-tools";
 import { registerLifeTools } from "../orchestrator/tools/life-tools";
 
-const archive = path.resolve("vendor/firefly-skills/skills-snapshot.zip");
 const mappings: Record<string, string[]> = {
   "as-code-review-and-quality": ["as-security-and-hardening"],
   "as-debugging-and-error-recovery": ["ecc-tdd-workflow"],
@@ -45,7 +44,7 @@ afterEach(() => {
 
 it("resolves required cross-Skill calls when each Skill is invoked directly", async () => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-host-semantics-"));
-  await extractZip(archive, { dir: root });
+  copyVendorSkills(root);
   const skills = scanSkills(root, "builtin");
   ids = skills.map(skill => skill.id);
   expect(skills).toHaveLength(39);

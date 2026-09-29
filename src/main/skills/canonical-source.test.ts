@@ -3,7 +3,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
-import { extractZip } from "../../shared/zip-extraction";
 import { scanSkills } from "./skill-scanner";
 import { resolveExternalContentPaths, resolveSkillScanSources } from "../external-content-paths";
 
@@ -40,7 +39,7 @@ function metadata(directory: string) {
 
 it("materializes exactly the distributed vendor tree without adding a runtime source", async () => {
   const source = path.join(vendor, "skills");
-  const manifest = JSON.parse(fs.readFileSync(path.join(vendor, "skills-snapshot-manifest.json"), "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(vendor, "skills-manifest.json"), "utf8"));
   expect(fs.existsSync(source)).toBe(true);
   expect(fs.readdirSync(source).sort()).toEqual([...manifest.skills].sort());
   expect(manifest.skills).toHaveLength(39);
@@ -53,7 +52,7 @@ it("materializes exactly the distributed vendor tree without adding a runtime so
   }
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-canonical-test-"));
   temporaryRoots.push(temporary);
-  await extractZip(path.join(vendor, "skills-snapshot.zip"), { dir: path.join(temporary, "distributed") });
+  fs.cpSync(source, path.join(temporary, "distributed"), { recursive: true });
   expect(inventory(source)).toEqual(inventory(path.join(temporary, "distributed")));
   expect(metadata(source)).toEqual(metadata(path.join(temporary, "distributed")));
   const paths = resolveExternalContentPaths({ isPackaged: false, appPath: root,

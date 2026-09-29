@@ -84,22 +84,19 @@ function safeRelativePath(relativePath: string): string | null {
 }
 
 /**
- * Resolve the third-party skills snapshot archive path.
- *  - Packaged: extraResources copies vendor/firefly-skills into
- *    resources/firefly-skills/skills-snapshot.zip (outside asar, real disk path).
- *  - Dev: repository vendor/firefly-skills/skills-snapshot.zip.
- * Returns null when the archive is absent (e.g. build-skills-snapshot not run).
+ * Resolve the canonical vendor Skill directory without adding it as a scan root.
+ * Packaged resources and development use the same directory structure.
  */
-export function resolveSkillsSnapshotArchivePath(
+export function resolvePackagedSkillDirectory(
   paths: Pick<ExternalContentPaths, "installRoot"> = getExternalContentPaths(),
   options: { isPackaged?: boolean; resourcesPath?: string; existsSync?: (p: string) => boolean } = {},
 ): string | null {
   const isPackaged = options.isPackaged ?? app.isPackaged;
   const exists = options.existsSync ?? ((p: string) => fs.existsSync(p));
-  const candidate = isPackaged
-    ? path.join(options.resourcesPath ?? process.resourcesPath, "firefly-skills", "skills-snapshot.zip")
-    : path.join(paths.installRoot, "vendor", "firefly-skills", "skills-snapshot.zip");
-  return exists(candidate) ? candidate : null;
+  const source = isPackaged
+    ? path.join(options.resourcesPath ?? process.resourcesPath, "firefly-skills", "skills")
+    : path.join(paths.installRoot, "vendor", "firefly-skills", "skills");
+  return exists(source) ? source : null;
 }
 
 /** Find a prompt or prompt directory using user-first lookup order. */

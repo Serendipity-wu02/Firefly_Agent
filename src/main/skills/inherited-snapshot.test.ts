@@ -2,11 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { extractZip } from "../../shared/zip-extraction";
+import { copyVendorSkills, vendorSkillSource } from "../../test-utils/vendor-skill-source";
 import { scanSkills } from "./skill-scanner";
 import { SkillRegistry, skillRegistry } from "./skill-registry";
 import { execFileSync } from "node:child_process";
-import { installSkillsSnapshot } from "./snapshot-install";
+import { synchronizeManagedSkillDirectories } from "./directory-install";
 import { registerSkillTools, resetReadRefs } from "./skill-tools";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 
@@ -18,7 +18,7 @@ afterEach(() => {
 it("ships usable review and delegation references without changing mode availability", async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-inherited-skills-"));
   roots.push(directory);
-  await extractZip(path.resolve("vendor/firefly-skills/skills-snapshot.zip"), { dir: directory });
+  copyVendorSkills(directory);
   const registry = new SkillRegistry();
   for (const skill of scanSkills(directory, "user")) registry.register(skill);
   expect(registry.getAll()).toHaveLength(39);
@@ -42,7 +42,7 @@ it("runs the three maintained helpers on public fixture data without committing"
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-helpers-"));
   roots.push(root);
   const extracted = path.join(root, "extracted");
-  await extractZip(path.resolve("vendor/firefly-skills/skills-snapshot.zip"), { dir: extracted });
+  copyVendorSkills(extracted);
   const repo = path.join(root, "project");
   fs.mkdirSync(repo);
   execFileSync("git", ["init", "--quiet"], { cwd: repo });
@@ -75,18 +75,18 @@ it("first and repeated installs preserve user-created skills", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-install-"));
   roots.push(root);
   const userSkillsDir = path.join(root, "skills");
-  const archivePath = path.resolve("vendor/firefly-skills/skills-snapshot.zip");
-  expect(await installSkillsSnapshot({ archivePath, userSkillsDir })).toBe("installed");
+  const expectedIds = fs.readdirSync(vendorSkillSource);
+  expect(synchronizeManagedSkillDirectories({ sourceDirectory: vendorSkillSource, expectedIds, userSkillsDir }).installed).toHaveLength(39);
   fs.mkdirSync(path.join(userSkillsDir, "my-skill"));
   fs.writeFileSync(path.join(userSkillsDir, "my-skill", "SKILL.md"), "user");
-  expect(await installSkillsSnapshot({ archivePath, userSkillsDir })).toBe("skipped_sentinel");
+  expect(synchronizeManagedSkillDirectories({ sourceDirectory: vendorSkillSource, expectedIds, userSkillsDir })).toEqual({ installed: [], updated: [], preserved: [] });
   expect(fs.readFileSync(path.join(userSkillsDir, "my-skill", "SKILL.md"), "utf8")).toBe("user");
 });
 
 it("uses the current meta-tools with exact schema keys and preserves run gates", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-meta-"));
   roots.push(root);
-  await extractZip(path.resolve("vendor/firefly-skills/skills-snapshot.zip"), { dir: root });
+  copyVendorSkills(root);
   const ids = ["sp-requesting-code-review", "sp-subagent-driven-development"];
   try {
     for (const skill of scanSkills(root, "user").filter(skill => ids.includes(skill.id))) skillRegistry.register(skill);
@@ -119,7 +119,7 @@ it("uses the current meta-tools with exact schema keys and preserves run gates",
 it("can read every distributed body and reference fully through bounded meta-tool pages", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-skill-all-pages-"));
   roots.push(root);
-  await extractZip(path.resolve("vendor/firefly-skills/skills-snapshot.zip"), { dir: root });
+  copyVendorSkills(root);
   const skills = scanSkills(root, "user");
   try {
     skills.forEach(skill => skillRegistry.register(skill));

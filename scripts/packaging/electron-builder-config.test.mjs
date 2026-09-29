@@ -16,19 +16,26 @@ const installerInclude = await readFile(new URL("../../build/installer/installer
 const packageJson = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(await readFile(new URL("../../package-lock.json", import.meta.url), "utf8"));
 
-test("vendor resources ship the snapshot and legal notices without duplicate canonical sources", async context => {
+test("vendor resources ship canonical directories and legal notices without a ZIP", async context => {
   const config = YAML.parse(source);
-  const vendor = config.extraResources.find(entry => entry.from === "vendor/firefly-skills");
-  assert.equal(vendor.to, "firefly-skills");
-  assert.ok(Array.isArray(vendor.filter));
+  const entries = config.extraResources.filter(entry => entry.from.startsWith("vendor/firefly-skills/"));
+  assert.deepEqual(entries.map(entry => entry.from).sort(), [
+    "vendor/firefly-skills/LICENSE-NOTICES.md",
+    "vendor/firefly-skills/license-provenance.json",
+    "vendor/firefly-skills/licenses",
+    "vendor/firefly-skills/skills",
+    "vendor/firefly-skills/skills-manifest.json",
+  ].sort());
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const destination = await mkdtemp(path.join(os.tmpdir(), "firefly-resources-test-"));
   context.after(() => rm(destination, { recursive: true, force: true }));
-  const matcher = new FileMatcher(path.join(root, vendor.from), destination, value => value, vendor.filter);
-  await copyDir(matcher.from, matcher.to, { filter: matcher.createFilter() });
-  for (const name of ["skills-snapshot.zip", "skills-snapshot-manifest.json", "LICENSE-NOTICES.md", "license-provenance.json"])
+  for (const entry of entries) {
+    const matcher = new FileMatcher(path.join(root, entry.from), path.join(destination, path.relative("firefly-skills", entry.to)), value => value, entry.filter);
+    await copyFiles([matcher], undefined, false);
+  }
+  for (const name of ["skills-manifest.json", "LICENSE-NOTICES.md", "license-provenance.json", "skills/xlsx/SKILL.md"])
     await access(path.join(destination, name));
-  await assert.rejects(access(path.join(destination, "skills")), { code: "ENOENT" });
+  await assert.rejects(access(path.join(destination, "skills-snapshot.zip")), { code: "ENOENT" });
   for (const key of ["build", "dev", "start", "package:win:dir"])
     assert.ok(!packageJson.scripts[key].includes("prepare:skills"), key);
 });
