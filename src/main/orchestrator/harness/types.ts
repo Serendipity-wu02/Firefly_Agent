@@ -306,8 +306,8 @@ export interface HarnessInput {
    */
   transcriptSink?: import("../transcript-sink").TranscriptSink;
   /** 父会话注入的前台子任务执行器；子 Harness 不会继续注入它。 */
-  taskExecutor?: (request: import("../task-runtime").TaskExecuteRequest) => Promise<import("../task-runtime").TaskExecuteResult>;
   agentExecutor?: (request: import("../persistent-agent-runtime").AgentExecuteRequest) => Promise<import("../persistent-agent-runtime").AgentExecuteResult>;
+  agentDefinitions?: readonly { id: string; nickname: string; description: string }[];
   allowedBuiltinToolIds?: ReadonlySet<string>;
 }
 

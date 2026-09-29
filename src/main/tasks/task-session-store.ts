@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import type {
   TaskSession,
   TaskSessionStatus,
-  TaskSubagentType,
+  LegacyTaskSubagentType,
   TodoItem,
   TodoStatus,
   TaskTraceRecord,
@@ -34,7 +34,7 @@ export interface CreateTaskSessionInput {
   parentRunId: string;
   description: string;
   prompt: string;
-  subagentType: TaskSubagentType;
+  subagentType: LegacyTaskSubagentType;
   mode: "work" | "code";
   resolvedWorkspaceRoot?: string;
 }
@@ -42,7 +42,7 @@ export interface CreateTaskSessionInput {
 export interface ResumeTaskSessionInput {
   parentConversationId: string;
   parentRunId: string;
-  subagentType: TaskSubagentType;
+  subagentType: LegacyTaskSubagentType;
   prompt: string;
   mode: "work" | "code";
   resolvedWorkspaceRoot?: string;
@@ -90,7 +90,7 @@ function isTaskStatus(value: unknown): value is TaskSessionStatus {
     || value === "cancelled" || value === "interrupted";
 }
 
-function isTaskType(value: unknown): value is TaskSubagentType {
+function isTaskType(value: unknown): value is LegacyTaskSubagentType {
   return value === "general" || value === "document" || value === "search";
 }
 

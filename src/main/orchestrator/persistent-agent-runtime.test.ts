@@ -6,19 +6,19 @@ import type { AgentProfile } from "../../shared/agent-profile";
 import { TaskSessionStore } from "../tasks/task-session-store";
 import { createAgentExecutor } from "./persistent-agent-runtime";
 import type { HarnessInput, HarnessResult } from "./harness/types";
-import type { TaskRuntimeParentContext } from "./task-runtime";
+import type { ChildSessionParent } from "./child-session-types";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 import type { SkillEntry } from "../skills/types";
 import { skillRegistry } from "../skills/skill-registry";
 import { FileToolOutputStore } from "./harness/tool-output/file-tool-output-store";
 import { dispatchToolCall } from "./harness/tool-dispatcher";
-import { createTaskExecutor } from "./task-runtime";
+import { runChildSession } from "./child-session-runtime";
 
 const roots: string[] = [];
 const profile: AgentProfile = {
-  id: "test-agent", nickname: "艾利欧", role: "Test review", systemPrompt: "Fixture specialist identity",
-  modelProfile: "coding", allowedTools: ["read_file"], allowedSkills: [], supportedModes: ["code"],
-  persistent: true, timeoutMs: 0, concurrency: 1,
+  id: "test-agent", nickname: "艾利欧", role: "Test review", description: "Test review", systemPrompt: "Fixture specialist identity",
+  modelProfile: "coding", allowedToolIds: ["read_file"], allowedSkillIds: [], supportedModes: ["code"],
+  persistent: true, timeoutMs: 0, maxConcurrency: 1,
 };
 const models = {
   modelProfiles: [{ id: "saved-code", provider: "fixture", baseUrl: "http://127.0.0.1:12345", model: "fixture-model", apiKey: "", contextWindowTokens: 64000 }],
@@ -29,7 +29,7 @@ function setup() {
   roots.push(root);
   const read: ToolDefinition = { id: "read_file", name: "read", description: "fixture", enabled: true,
     inputSchema: { type: "object", properties: {} }, execute: async () => "fixture", effectKind: "read" };
-  const parent: TaskRuntimeParentContext = {
+  const parent: ChildSessionParent = {
     parentConversationId: "conversation", parentRunId: "run", mode: "code", systemPrompt: "parent persona",
     vendorConfig: { provider: "fixture", model: "parent-model", baseUrl: "http://127.0.0.1:12345", apiKey: "" },
     tools: [read], resolvedWorkspaceRoot: root, checkPermission: vi.fn(async () => false), includeInteractiveTools: false,
@@ -85,8 +85,10 @@ describe("persistent specialist runtime", () => {
       expect(await fetch({ userQuery: "", conversationId: parent.parentConversationId }, refs[0], query))
         .toMatchObject({ outcome: "success" });
     }
-    await createTaskExecutor({ store, parent: { ...parent, toolOutputStore: outputs }, runHarness })({
-      description: "legacy scope", prompt: "legacy", subagentType: "general",
+    await runChildSession({ store, parent: { ...parent, toolOutputStore: outputs }, runHarness,
+      session: store.create({ parentConversationId: parent.parentConversationId, parentRunId: parent.parentRunId,
+        mode: parent.mode, description: "legacy scope", prompt: "legacy", subagentType: "general" }),
+      description: "legacy scope", prompt: "legacy", systemPrompt: "Legacy transcript fixture", tools: [read], config: {}, lease: null,
     });
     expect(contexts[3].ownerSessionId).toBeUndefined();
     expect(contexts[3].conversationId).toBe(parent.parentConversationId);
@@ -124,7 +126,7 @@ describe("persistent specialist runtime", () => {
     try {
       const execute = createAgentExecutor({ store, parent: { ...parent, workReadScopes: scopes,
         capabilities: { mode: "code", tools: [read], toolIds: new Set([read.id]), skills: [skill], skillIds: new Set([skill.id]) } },
-        profiles: [{ ...profile, allowedSkills: [skill.id] }], modelSettings: models, runHarness });
+        profiles: [{ ...profile, allowedSkillIds: [skill.id] }], modelSettings: models, runHarness });
       await execute({ agentId: profile.id, prompt: "fixture" });
       expect(runHarness.mock.calls[0][0].systemPrompt).toContain("Authorized fixture rules");
       expect(runHarness.mock.calls[0][0].toolContext?.workReadScopes).toEqual(scopes);
@@ -152,7 +154,7 @@ describe("persistent specialist runtime", () => {
       toolContext: expect.objectContaining({ allowedSkillIds: new Set() }),
     }));
     expect(runHarness.mock.calls[0][0].systemPrompt).not.toContain("parent persona");
-    expect(runHarness.mock.calls[0][0].taskExecutor).toBeUndefined();
+    expect(runHarness.mock.calls[0][0].agentExecutor).toBeUndefined();
     expect(lifecycle.mock.calls.map(([event]) => event.status)).toEqual(["running", "completed", "running", "completed"]);
   });
 

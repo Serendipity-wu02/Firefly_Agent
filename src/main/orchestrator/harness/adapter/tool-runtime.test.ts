@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getById, checkPermission, createTaskExecutor, taskStore, toolOutputStore } = vi.hoisted(() => ({
+const { getById, checkPermission, createAgentExecutor, taskStore, toolOutputStore } = vi.hoisted(() => ({
   getById: vi.fn(),
   checkPermission: vi.fn(),
-  createTaskExecutor: vi.fn(() => ({ execute: vi.fn() })),
+  createAgentExecutor: vi.fn(() => vi.fn()),
   taskStore: vi.fn(),
   toolOutputStore: vi.fn(),
 }));
@@ -11,7 +11,8 @@ const { getById, checkPermission, createTaskExecutor, taskStore, toolOutputStore
 vi.mock("../../tools/registry/tool-registry", () => ({ toolRegistry: { getById } }));
 vi.mock("../../../permission", () => ({ checkPermission }));
 vi.mock("../../plan-mode", () => ({ isPlanReadOnly: vi.fn(() => false) }));
-vi.mock("../../task-runtime", () => ({ createTaskExecutor }));
+vi.mock("../../persistent-agent-runtime", () => ({ createAgentExecutor }));
+vi.mock("../../../settings/model-settings", () => ({ loadModelSettings: () => ({ modelProfiles: [], agentModelProfiles: {} }) }));
 vi.mock("../../../tasks/task-session-store", () => ({ getTaskSessionStore: taskStore }));
 vi.mock("../tool-output/file-tool-output-store", () => ({ FileToolOutputStore: toolOutputStore }));
 vi.mock("./event-mapper", () => ({ sendTaskLifecycleAsAgui: vi.fn() }));
@@ -23,7 +24,7 @@ describe("harness tool runtime", () => {
   beforeEach(() => {
     getById.mockReset();
     checkPermission.mockReset();
-    createTaskExecutor.mockClear();
+    createAgentExecutor.mockClear();
     checkPermission.mockResolvedValue({ allowed: true });
     getById.mockReturnValue({
       id: "read_file",
@@ -63,9 +64,11 @@ describe("harness tool runtime", () => {
       runId: "run-1",
       signal: controller.signal,
     }));
-    await runtime.taskExecutor;
-    expect(createTaskExecutor).toHaveBeenCalledWith(expect.objectContaining({
+    expect(runtime.agentExecutor).toBeDefined();
+    expect(runtime).not.toHaveProperty("taskExecutor");
+    expect(createAgentExecutor).toHaveBeenCalledWith(expect.objectContaining({
       parent: expect.objectContaining({ signal: controller.signal }),
     }));
+    expect(createAgentExecutor.mock.calls[0][0].profiles).toHaveLength(12);
   });
 });

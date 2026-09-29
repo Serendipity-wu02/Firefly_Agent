@@ -8,7 +8,9 @@ import { isPlanReadOnly } from "../../plan-mode";
 import { contextRefRegistry, extractLastUserQuery, type ToolContext } from "../../tools/registry/tool-context";
 import type { HarnessInput } from "../index";
 import { getTaskSessionStore } from "../../../tasks/task-session-store";
-import { createTaskExecutor } from "../../task-runtime";
+import { createAgentExecutor } from "../../persistent-agent-runtime";
+import { createSpecialistProfiles } from "../../specialist-profiles";
+import { loadModelSettings } from "../../../settings/model-settings";
 import { FileToolOutputStore } from "../tool-output/file-tool-output-store";
 import { sendTaskLifecycleAsAgui } from "./event-mapper";
 import type { PreparedHarnessRun } from "./run-preparation";
@@ -22,7 +24,8 @@ export interface PreparedToolRuntime {
   toolContext: ToolContext;
   checkPermission: NonNullable<HarnessInput["checkPermission"]>;
   toolOutputStore: FileToolOutputStore;
-  taskExecutor: HarnessInput["taskExecutor"];
+  agentExecutor: HarnessInput["agentExecutor"];
+  agentDefinitions: HarnessInput["agentDefinitions"];
 }
 
 export function prepareToolRuntime(input: {
@@ -78,8 +81,11 @@ export function prepareToolRuntime(input: {
   };
   const toolOutputStore = new FileToolOutputStore(app.getPath("userData"));
   // 只有 work/code 模式允许派生任务；chat 模式不创建 TaskSession，避免出现不可见的后台执行。
-  const taskExecutor = options.conversationMode === "work" || options.conversationMode === "code"
-    ? createTaskExecutor({
+  const profiles = createSpecialistProfiles(options.conversationMode ?? "chat", tools, options.capabilities?.skills ?? []);
+  const agentExecutor = options.conversationMode === "work" || options.conversationMode === "code"
+    ? createAgentExecutor({
+      profiles,
+      modelSettings: loadModelSettings(),
       parent: {
         parentConversationId: threadId,
         parentRunId: runId,
@@ -101,5 +107,6 @@ export function prepareToolRuntime(input: {
     })
     : undefined;
 
-  return { toolContext, checkPermission: permissionCheck, toolOutputStore, taskExecutor };
+  return { toolContext, checkPermission: permissionCheck, toolOutputStore, agentExecutor,
+    agentDefinitions: profiles.map(({ id, nickname, description }) => ({ id, nickname, description })) };
 }

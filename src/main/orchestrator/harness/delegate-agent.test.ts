@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { delegateAgentToolSpec, executeDelegateAgent, getHarnessBuiltinToolSpecs } from "./builtin-tools";
+import { delegateAgentToolSpec, executeDelegateAgent, getHarnessBuiltinToolSpecs, isHarnessBuiltin } from "./builtin-tools";
 import { dispatchToolCall } from "./tool-dispatcher";
 import { getPlanState } from "../plan-mode";
 
 const call = (args: Record<string, unknown>) => ({ id: "delegate-1", name: "delegate_agent", arguments: JSON.stringify(args) });
 
 describe("persistent agent delegation contract", () => {
+  it("never exposes the retired public task schema in a new run", () => {
+    expect(isHarnessBuiltin("task")).toBe(false);
+    expect(getHarnessBuiltinToolSpecs().some(tool => tool.name === "task")).toBe(false);
+  });
   it.each(["null", "[]", "123", "\"text\""])("rejects non-object JSON %s without invoking an agent", async raw => {
     const executor = vi.fn();
     expect(await executeDelegateAgent({ id: "invalid", name: "delegate_agent", arguments: raw }, executor))
@@ -22,7 +26,9 @@ describe("persistent agent delegation contract", () => {
         toolContext: { userQuery: "", conversationId },
         checkPermission: vi.fn(async () => false),
       });
-      expect(result).toMatchObject({ outcome: "not_executed", category: "runtime_safety" });
+      expect(result).toMatchObject(name === "task"
+        ? { outcome: "failure", category: "not_found" }
+        : { outcome: "not_executed", category: "runtime_safety" });
     }
     expect(getPlanState(conversationId)).toEqual(original);
   });
@@ -31,7 +37,7 @@ describe("persistent agent delegation contract", () => {
       required: ["agent_id", "prompt"], additionalProperties: false,
     });
     expect(Object.keys(delegateAgentToolSpec.parameters.properties)).toEqual(["agent_id", "prompt"]);
-    expect(getHarnessBuiltinToolSpecs({ includeInteractive: false, includeTask: false, includeAgent: true }).map(tool => tool.name))
+    expect(getHarnessBuiltinToolSpecs({ includeInteractive: false, includeAgent: true }).map(tool => tool.name))
       .toEqual(["update_todo", "delegate_agent", "read_tool_result"]);
   });
 

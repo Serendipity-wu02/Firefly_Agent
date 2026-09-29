@@ -3,12 +3,12 @@ import type { TaskDelegationPresentation, TaskSessionStatus } from "../../shared
 import { AgentSessionRegistry } from "../tasks/agent-session-registry";
 import { taskCharacterLeasePool, type TaskCharacterLeasePool } from "../tasks/task-character-pool";
 import type { TaskSessionStore } from "../tasks/task-session-store";
-import { resolveAgentModelProfile, type AgentModelRoutingSettings } from "../settings/agent-model-routing";
+import { resolveSpecialistModelProfile, type AgentModelRoutingSettings } from "../settings/agent-model-routing";
 import { buildSkillCatalog, buildAutoInjectedSkillContext } from "../skills/skill-catalog";
 import { skillRegistry } from "../skills/skill-registry";
 import { resolveAgentCapabilities } from "./agent-capabilities";
 import { runChildSession } from "./child-session-runtime";
-import type { TaskRuntimeParentContext } from "./task-runtime";
+import type { ChildSessionParent } from "./child-session-types";
 import type { runFireflyHarness } from "./harness/firefly-harness";
 import { createAbortError } from "../abort-utils";
 
@@ -16,7 +16,7 @@ export interface AgentExecuteRequest { agentId: string; prompt: string }
 export interface AgentExecuteResult { agentId: string; sessionId: string; status: TaskSessionStatus; text: string }
 
 export function createAgentExecutor(input: {
-  parent: TaskRuntimeParentContext;
+  parent: ChildSessionParent;
   store: TaskSessionStore;
   profiles: readonly AgentProfile[];
   modelSettings: AgentModelRoutingSettings;
@@ -39,7 +39,7 @@ export function createAgentExecutor(input: {
       skillBodies.set(skill.id, body);
     }
     const skillContext = buildAutoInjectedSkillContext([...capabilities.skills], id => skillBodies.get(id) ?? null);
-    const model = resolveAgentModelProfile(input.modelSettings, profile.modelProfile);
+    const model = resolveSpecialistModelProfile(input.modelSettings, profile.id, profile.modelProfile);
     const lease = (input.characterPool ?? taskCharacterLeasePool).acquire(input.parent.parentConversationId, profile.nickname);
     let session;
     try {

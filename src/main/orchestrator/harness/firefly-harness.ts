@@ -292,8 +292,8 @@ function createRun(input: HarnessInput): HarnessRun {
     ...registryToolSpecs,
     ...getHarnessBuiltinToolSpecs({
       includeInteractive: input.includeInteractiveTools,
-      includeTask: Boolean(input.taskExecutor),
       includeAgent: Boolean(input.agentExecutor),
+      agentDefinitions: input.agentDefinitions,
       planState: input.planState,
     }).filter(tool => !input.allowedBuiltinToolIds || input.allowedBuiltinToolIds.has(tool.name)),
   ];
@@ -325,7 +325,6 @@ function createRun(input: HarnessInput): HarnessRun {
       checkPermission: input.checkPermission,
       toolContext: input.toolContext,
       executionLedger: input.executionLedger,
-      taskExecutor: input.taskExecutor,
       agentExecutor: input.agentExecutor,
       deferOutputPersistence: true,
     },

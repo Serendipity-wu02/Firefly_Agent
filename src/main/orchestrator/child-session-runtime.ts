@@ -1,7 +1,7 @@
 import type { TaskSession, TaskDelegationPresentation, TaskTranscriptMessage } from "../../shared/task-session";
 import type { TaskSessionStore } from "../tasks/task-session-store";
 import type { TaskCharacterLease } from "../tasks/task-character-pool";
-import type { TaskExecuteResult, TaskRuntimeParentContext } from "./task-runtime";
+import type { ChildSessionResult, ChildSessionParent } from "./child-session-types";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 import type { ToolContext } from "./tools/registry/tool-context";
 import type { HarnessConfig, HarnessResult } from "./harness/types";
@@ -10,7 +10,7 @@ import { runFireflyHarness } from "./harness/firefly-harness";
 import { projectTaskTraceEvent } from "./task-events";
 import type { PromptLayers } from "./prompt-layers";
 
-export function buildChildPromptLayers(parent: TaskRuntimeParentContext, profilePrompt: string): PromptLayers {
+export function buildChildPromptLayers(parent: ChildSessionParent, profilePrompt: string): PromptLayers {
   const workspace = parent.resolvedWorkspaceRoot
     ? `可信工作目录：${parent.resolvedWorkspaceRoot}`
     : "当前没有绑定工作目录。";
@@ -22,7 +22,7 @@ export function buildChildPromptLayers(parent: TaskRuntimeParentContext, profile
 }
 
 export async function runChildSession(input: {
-  parent: TaskRuntimeParentContext;
+  parent: ChildSessionParent;
   store: TaskSessionStore;
   session: TaskSession;
   prompt: string;
@@ -33,7 +33,7 @@ export async function runChildSession(input: {
   lease: TaskCharacterLease | null;
   runHarness?: typeof runFireflyHarness;
   onLifecycle?: (event: TaskDelegationPresentation) => void;
-}): Promise<TaskExecuteResult> {
+}): Promise<ChildSessionResult> {
   const { parent, store, session, lease } = input;
   const toolContext: ToolContext = {
     userQuery: input.prompt, conversationId: parent.parentConversationId, runId: session.childRunId,
