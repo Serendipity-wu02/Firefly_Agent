@@ -134,6 +134,7 @@ export interface ModelSettings {
   modelProfiles?: SavedModelProfile[];
   defaultModelProfileId?: string;
   agentModelProfiles?: Record<string, string>;
+  specialistModelProfiles?: Record<string, string>;
   runtimeSync: "off" | "local" | "llm";
   stickerEnabled: boolean;
   stickerSize: StickerSize;
@@ -350,6 +351,7 @@ export function normalizeModelSettings(input: Partial<ModelSettings> | null | un
     modelProfiles,
     defaultModelProfileId: typeof input?.defaultModelProfileId === "string" ? input.defaultModelProfileId : modelProfiles[0]?.id,
     agentModelProfiles: normalizeAgentModelProfiles(input?.agentModelProfiles),
+    specialistModelProfiles: normalizeAgentModelProfiles(input?.specialistModelProfiles),
     runtimeSync: input?.runtimeSync === "llm" ? "llm" : input?.runtimeSync === "local" ? "local" : "off",
     stickerEnabled: input?.stickerEnabled === true,
     stickerSize: input?.stickerSize === "small" || input?.stickerSize === "large" ? input.stickerSize : "standard",

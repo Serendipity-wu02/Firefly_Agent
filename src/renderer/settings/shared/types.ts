@@ -20,6 +20,7 @@ import type { QqListenAuthRequirement } from "../../../shared/qq-listen";
 import type { CustomStyleConfig } from "../../../shared/style-sampling";
 import type { CustomEndpointMode } from "../custom-endpoint-state";
 import type { TimeoutSettings } from "../../../shared/timeout-types";
+import type { AgentRoutingView, AgentRoutingUpdate } from "../../../shared/specialist-agents";
 
 export interface ProviderProfile {
   baseUrl: string;
@@ -34,6 +35,8 @@ export interface ProviderProfile {
 }
 
 export interface ModelSettings {
+  agentModelProfiles?: Record<string, string>;
+  specialistModelProfiles?: Record<string, string>;
   mode: "auto" | "manual";
   provider: string;
   // 用户给模型起的自定义昵称，留空时用厂商 shortName。状态栏"正在喂养"显示它。
@@ -218,6 +221,8 @@ export interface SettingsApi {
   minimize: () => void;
   close: () => void;
   getConfig: () => Promise<ModelSettings>;
+  getAgentRouting?: () => Promise<AgentRoutingView>;
+  updateAgentRouting?: (input: AgentRoutingUpdate) => Promise<AgentRoutingView>;
   saveConfig: (config: Partial<ModelSettings>) => Promise<ModelSettings>;
   listModelProfiles?: () => Promise<{ profiles: Array<{ id: string; provider: string; displayName?: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: ApiTransport; reasoning?: ReasoningPreference; contextWindowTokens?: number; multimodal?: boolean }>; defaultModelProfileId?: string }>;
   saveModelProfile?: (profile: { id?: string; provider: string; displayName?: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: ApiTransport; reasoning?: ReasoningPreference; contextWindowTokens?: number; multimodal?: boolean }) => Promise<{ added: boolean; profiles: unknown[]; defaultModelProfileId?: string }>;

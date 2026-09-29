@@ -127,6 +127,8 @@ export const IPC = {
   SETTINGS_MODEL_PROFILE_SAVE: "settings:model-profiles:save",
   SETTINGS_MODEL_PROFILE_DELETE: "settings:model-profiles:delete",
   SETTINGS_MODEL_PROFILE_SET_DEFAULT: "settings:model-profiles:set-default",
+  SETTINGS_AGENT_ROUTING_GET: "settings:agent-routing:get",
+  SETTINGS_AGENT_ROUTING_UPDATE: "settings:agent-routing:update",
   SETTINGS_TEST_CONNECTION: "settings:test-connection",
   SETTINGS_TEST_VISION: "settings:test-vision",
   SETTINGS_GET_GENERAL: "settings:get-general",

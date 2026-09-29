@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAgentModelProfile, normalizeAgentModelProfiles } from "./agent-model-routing";
+import { resolveAgentModelProfile, normalizeAgentModelProfiles, resolveSpecialistModelProfile, getAgentRoutingView, updateAgentRouting } from "./agent-model-routing";
 
 const profiles = [
   { id: "local-default", provider: "test", baseUrl: "http://127.0.0.1:12345", model: "test-model", apiKey: "" },
@@ -7,6 +7,31 @@ const profiles = [
 ];
 
 describe("agent model routing", () => {
+  it("returns twelve identity-only rows and validates single updates without leaking credentials", () => {
+    const settings = { modelProfiles: profiles.map(profile => ({ ...profile, apiKey: "private-fixture" })),
+      agentModelProfiles: { reasoning: "local-default" } };
+    const view = getAgentRoutingView(settings);
+    expect(view.agents).toHaveLength(12);
+    expect(JSON.stringify(view)).not.toMatch(/private-fixture|baseUrl|apiKey/);
+    const patch = updateAgentRouting(settings, { kind: "agent", id: "review", profileId: "local-code" });
+    expect(patch.specialistModelProfiles).toEqual({ review: "local-code" });
+    expect(resolveSpecialistModelProfile({ ...settings, ...patch }, "review", "reasoning").id).toBe("local-code");
+    expect(resolveSpecialistModelProfile({ ...settings, ...patch }, "architecture", "reasoning").id).toBe("local-default");
+    expect(() => updateAgentRouting(settings, { kind: "agent", id: "fake", profileId: "local-code" })).toThrow();
+    expect(() => updateAgentRouting(settings, { kind: "route", id: "reasoning", profileId: "missing" })).toThrow();
+    expect(() => updateAgentRouting(settings, { kind: "agent", id: "review", profileId: "local-code", apiKey: "forged" })).toThrow();
+    expect(updateAgentRouting({ ...settings, ...patch }, { kind: "agent", id: "review", profileId: null }).specialistModelProfiles).toEqual({});
+  });
+  it("keeps per-agent overrides separate from abstract routes and fails on stale overrides", () => {
+    const settings = { modelProfiles: profiles, agentModelProfiles: { research: "local-default" },
+      specialistModelProfiles: { research: "local-code" } };
+    expect(resolveSpecialistModelProfile(settings, "research", "research").id).toBe("local-code");
+    expect(resolveSpecialistModelProfile(settings, "knowledge", "research").id).toBe("local-default");
+    expect(() => resolveSpecialistModelProfile({ ...settings, specialistModelProfiles: { research: "removed" } }, "research", "research"))
+      .toThrow("AGENT_MODEL_PROFILE_NOT_FOUND");
+    expect(() => resolveSpecialistModelProfile({ modelProfiles: profiles }, "review", "reasoning"))
+      .toThrow("AGENT_MODEL_ROUTE_UNCONFIGURED");
+  });
   it("binds the explicit route to a saved profile without using the first model or another route", () => {
     const settings = { modelProfiles: profiles, defaultModelProfileId: "local-default", agentModelProfiles: { coding: "local-code" } };
     expect(resolveAgentModelProfile(settings, "coding")).toEqual(profiles[1]);

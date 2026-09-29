@@ -22,6 +22,7 @@ import { switchEmbeddingModel } from "../rag";
 import { testVendorConnection } from "../orchestrator/vendors/test-connection";
 import type { VendorConfig } from "../orchestrator/vendors";
 import { normalizeModelSettings, getPublicModelConfig, listSavedModelProfiles, saveModelProfile, setDefaultModelProfile, saveModelSettings } from "./model-settings";
+import { getAgentRoutingView, updateAgentRouting } from "./agent-model-routing";
 import type { ModelSettings } from "./model-settings";
 import { assertModelSettingsReadable } from "./model-settings";
 import { assertGeneralSettingsReadable } from "./settings-facade";
@@ -100,6 +101,15 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     assertModelSettingsReadable();
     const settings = getModelSettings();
     return { profiles: listSavedModelProfiles(settings), defaultModelProfileId: settings.defaultModelProfileId };
+  });
+  ipc.handle(IPC.SETTINGS_AGENT_ROUTING_GET, () => {
+    assertModelSettingsReadable();
+    return getAgentRoutingView(getModelSettings());
+  });
+  ipc.handle(IPC.SETTINGS_AGENT_ROUTING_UPDATE, (_event, input: unknown) => {
+    assertModelSettingsReadable();
+    const saved = saveModelSettings(updateAgentRouting(getModelSettings(), input));
+    return getAgentRoutingView(saved);
   });
   ipc.handle(IPC.SETTINGS_MODEL_PROFILE_SAVE, (_event, profile) => {
     const saved = saveModelProfile(profile as Parameters<typeof saveModelProfile>[0]);

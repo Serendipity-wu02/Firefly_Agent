@@ -746,6 +746,11 @@ async function reloadProfiles(): Promise<void> {
     apiState.defaultProfileId = catalog.defaultModelProfileId;
     apiState.profilesLoadState = "ready";
     renderProfileList();
+    const routingPanel = document.getElementById("agent-routing-panel");
+    if (routingPanel && window.settings) {
+      const { loadAgentRoutingPanel } = await import("./api/agent-routing");
+      await loadAgentRoutingPanel(routingPanel, window.settings);
+    }
   } catch (error) {
     apiState.profilesLoadState = "error";
     renderProfileList();
