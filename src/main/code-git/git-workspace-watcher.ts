@@ -37,6 +37,8 @@ export function createGitWorkspaceWatcher(deps: GitWorkspaceWatcherDeps): GitWor
   const sessions = new Map<string, { key: string; references: number }>();
   const debounceMs = deps.debounceMs ?? 300;
   const createWatcher = deps.createWatcher ?? createPlatformWatcher;
+  const diagnosticsEnabled = process.env.FIREFLY_VITEST_DIAGNOSTICS === "1";
+  const diagnosticsStart = diagnosticsEnabled ? performance.now() : 0;
 
   const release = async (sessionId: string): Promise<void> => {
     const subscription = sessions.get(sessionId);
@@ -66,12 +68,22 @@ export function createGitWorkspaceWatcher(deps: GitWorkspaceWatcherDeps): GitWor
       await release(input.sessionId);
       let entry = watched.get(key);
       if (!entry) {
+        let scheduleCount = 0;
+        let fireCount = 0;
         const schedule = () => {
           const current = watched.get(key);
           if (!current) return;
+          if (diagnosticsEnabled) {
+            scheduleCount += 1;
+            console.info("[watch-schedule]", { at: Date.now(), elapsedMs: performance.now() - diagnosticsStart, workspaceRoot: input.workspaceRoot, scheduleCount, fireCount });
+          }
           if (current.timer) clearTimeout(current.timer);
           current.timer = setTimeout(() => {
             current.timer = undefined;
+            if (diagnosticsEnabled) {
+              fireCount += 1;
+              console.info("[watch-fire]", { at: Date.now(), elapsedMs: performance.now() - diagnosticsStart, workspaceRoot: input.workspaceRoot, scheduleCount, fireCount });
+            }
             deps.onWorkspaceChanged([...current.sessionIds]);
           }, debounceMs);
         };
@@ -146,6 +158,8 @@ function createNativeRecursiveWatcher(paths: string[], options: ChokidarOptions)
   const ignored = typeof options.ignored === "function" ? (options.ignored as (candidate: string) => boolean) : undefined;
   const listeners = new Map<string, Set<(value?: unknown) => void>>();
   const handles: fs.FSWatcher[] = [];
+  const diagnosticsEnabled = process.env.FIREFLY_VITEST_DIAGNOSTICS === "1";
+  const diagnosticsStart = diagnosticsEnabled ? performance.now() : 0;
 
   const emit = (event: string, value?: unknown): void => {
     for (const listener of listeners.get(event) ?? []) listener(value);
@@ -153,13 +167,19 @@ function createNativeRecursiveWatcher(paths: string[], options: ChokidarOptions)
 
   const attach = (watchRoot: string): void => {
     const nativeRoot = process.platform === "win32" ? fs.realpathSync.native(watchRoot) : watchRoot;
-    const handle = fs.watch(nativeRoot, { recursive: true, persistent: true }, (_eventType, filename) => {
+    const trace = (eventType: string, filename: string | Buffer | null, candidate: string | undefined, isIgnored: boolean | undefined, unclassified: boolean): void => {
+      console.info("[watch-native]", { at: Date.now(), elapsedMs: performance.now() - diagnosticsStart, watchRoot, eventType, filenameType: filename === null ? "null" : Buffer.isBuffer(filename) ? "buffer" : typeof filename, filename: String(filename), candidate, ignored: isIgnored, unclassified });
+    };
+    const handle = fs.watch(nativeRoot, { recursive: true, persistent: true }, (eventType, filename) => {
       if (typeof filename !== "string") {
+        if (diagnosticsEnabled) trace(eventType, filename, undefined, undefined, true);
         emit("change");
         return;
       }
       const candidate = path.resolve(watchRoot, filename);
-      if (ignored?.(candidate)) return;
+      const isIgnored = ignored?.(candidate) ?? false;
+      if (diagnosticsEnabled) trace(eventType, filename, candidate, isIgnored, false);
+      if (isIgnored) return;
       emit("change", candidate);
     });
     handle.once("error", (error) => emit("error", error));

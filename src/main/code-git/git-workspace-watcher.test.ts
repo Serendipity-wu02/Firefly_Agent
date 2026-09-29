@@ -143,6 +143,11 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
 
   itNative("工作区文件变化触发一次防抖通知，忽略目录内的变化不触发", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "firefly-watch-"));
+    const diagnosticsStart = performance.now();
+    const tracePhase = (phase: string) => {
+      if (process.env.FIREFLY_VITEST_DIAGNOSTICS) console.info("[watch-phase]", { at: Date.now(), elapsedMs: performance.now() - diagnosticsStart, root, phase });
+    };
+    tracePhase("setup");
     const gitDir = path.join(root, ".git");
     mkdirSync(path.join(gitDir, "refs", "heads"), { recursive: true });
     writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
@@ -153,24 +158,29 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
       await watcher.subscribe({ sessionId: "s1", workspaceRoot: root, gitDir });
       await sleep(200); // 等内核监视句柄完成注册
 
+      tracePhase("source-write");
       writeFileSync(path.join(root, "a.ts"), "1");
       await sleep(400);
       expect(changed).toHaveBeenCalledTimes(1);
       expect(changed).toHaveBeenCalledWith(["s1"]);
 
       // node_modules 里的写入经过忽略谓词过滤，不应触发刷新
+      tracePhase("node_modules-write");
       mkdirSync(path.join(root, "node_modules", "x"), { recursive: true });
       writeFileSync(path.join(root, "node_modules", "x", "y.js"), "1");
       await sleep(400);
       expect(changed).toHaveBeenCalledTimes(1);
 
       // git objects 噪音同样不应触发
+      tracePhase("git-object-mkdir");
       mkdirSync(path.join(gitDir, "objects", "aa"), { recursive: true });
+      tracePhase("git-object-write");
       writeFileSync(path.join(gitDir, "objects", "aa", "hash"), "blob");
       await sleep(400);
       expect(changed).toHaveBeenCalledTimes(1);
 
       // HEAD 变化属于元数据变更，应当触发
+      tracePhase("head-write");
       writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/dev\n");
       await sleep(400);
       expect(changed).toHaveBeenCalledTimes(2);
