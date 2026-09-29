@@ -13,8 +13,8 @@ import type { ToolDefinition } from "../tools/registry/tool-registry";
 import type { ToolCallResult } from "../types";
 import type { AgentState, HarnessEvent, ToolObservation } from "./types";
 import { parseToolCallArgs, toolCallFingerprint } from "./types";
-import { isHarnessBuiltin, isInteractiveHarnessBuiltin, TASK_TOOL_ID, DELEGATE_AGENT_TOOL_ID } from "./builtin-tools";
-import { executeUpdateTodo, executeAskUser, executeTask, executeDelegateAgent } from "./builtin-tools";
+import { isHarnessBuiltin, isInteractiveHarnessBuiltin, DELEGATE_AGENT_TOOL_ID } from "./builtin-tools";
+import { executeUpdateTodo, executeAskUser, executeDelegateAgent } from "./builtin-tools";
 import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, executeEnterPlanMode, executeWritePlan } from "./plan-tools";
 import { executeReadToolResult, READ_TOOL_RESULT_TOOL_ID } from "./tool-output/read-tool-result";
 import { resolveSideEffect } from "./side-effect-resolver";
@@ -84,7 +84,6 @@ export interface ToolDispatchContext {
   /** Harness 内部重试时延后保存，确保最终 observation 对应唯一 record。 */
   deferOutputPersistence?: boolean;
   executionLedger?: ExecutionLedger;
-  taskExecutor?: import("../task-runtime").TaskExecuteRequest extends infer _T ? (request: import("../task-runtime").TaskExecuteRequest) => Promise<import("../task-runtime").TaskExecuteResult> : never;
   agentExecutor?: import("./types").HarnessInput["agentExecutor"];
   allowedBuiltinToolIds?: ReadonlySet<string>;
 }
@@ -295,7 +294,7 @@ function shouldPersistResult(
   call: ToolCall,
   result: ToolDispatchResult,
 ): result is ToolDispatchResult & { output: string; outcome: "success" | "failure" | "unknown" } {
-  return (call.name === TASK_TOOL_ID || call.name === DELEGATE_AGENT_TOOL_ID || !isHarnessBuiltin(call.name))
+  return (call.name === DELEGATE_AGENT_TOOL_ID || !isHarnessBuiltin(call.name))
     && result.output !== undefined
     && (result.outcome === "success" || result.outcome === "failure" || result.outcome === "unknown");
 }
@@ -316,8 +315,6 @@ async function executeHarnessBuiltin(
       return executeEnterPlanMode(call, ctx.toolContext, ctx.onEvent);
     case WRITE_PLAN_TOOL_ID:
       return executeWritePlan(call, ctx.toolContext, ctx.onEvent);
-    case "task":
-      return executeTask(call, ctx.taskExecutor);
     case DELEGATE_AGENT_TOOL_ID:
       return executeDelegateAgent(call, ctx.agentExecutor);
     case READ_TOOL_RESULT_TOOL_ID:

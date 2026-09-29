@@ -12,6 +12,25 @@ const root = path.resolve(__dirname, "../../..");
 const expectedIds = ["assessment", "diagram", "knowledge-workspace", "plugin-development", "tutoring"];
 
 describe("final Skills pool delivery", () => {
+  it("loads specialist delegation guidance without a public legacy task contract", async () => {
+    const entries = scanSkills(path.join(root, "vendor/firefly-skills/skills"), "builtin");
+    const ids = ["as-doubt-driven-development", "as-using-agent-skills", "sp-dispatching-parallel-agents", "sp-requesting-code-review", "sp-subagent-driven-development", "skill-creator"];
+    try {
+      for (const entry of entries) skillRegistry.register(entry);
+      registerSkillTools();
+      for (const id of ids) {
+        const text = String(await toolRegistry.getById("invoke_skill")!.execute({ skill_id: id }, { userQuery: "public delegation fixture", allowedSkillIds: new Set(ids) }));
+        expect(text).toContain("delegate_agent");
+        expect(text).not.toMatch(/subagent_type|task_id|`task`/);
+      }
+      const reference = String(await toolRegistry.getById("read_skill_reference")!.execute({ skill_id: "sp-using-superpowers", ref: "firefly-tools.md" },
+        { userQuery: "public delegation reference", allowedSkillIds: new Set(["sp-using-superpowers"]) }));
+      expect(reference).toContain("delegate_agent");
+      expect(reference).not.toMatch(/subagent_type|task_id|`task`/);
+    } finally {
+      for (const entry of entries) skillRegistry.unregister(entry.id);
+    }
+  });
   it("loads replacement bodies and attachments through the existing Skill tools", async () => {
     const skills = scanSkills(path.join(root, "skills"), "builtin");
     try {

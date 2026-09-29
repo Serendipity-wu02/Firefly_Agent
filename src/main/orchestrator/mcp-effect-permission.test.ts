@@ -27,7 +27,6 @@ vi.mock("electron", () => ({
 }));
 vi.mock("fs", () => ({ mkdirSync: vi.fn(), writeFileSync: vi.fn() }));
 vi.mock("../rag/index", () => ({ searchMemory: vi.fn() }));
-vi.mock("./task-runtime", () => ({ createTaskExecutor: vi.fn() }));
 vi.mock("../tasks/task-session-store", () => ({ TaskSessionStore: class {} }));
 vi.mock("./harness/tool-output/file-tool-output-store", async (importOriginal) => ({
   ...await importOriginal<typeof import("./harness/tool-output/file-tool-output-store")>(),

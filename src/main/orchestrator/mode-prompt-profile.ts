@@ -13,7 +13,7 @@ const MODE_FILES: Record<ConversationMode, readonly string[]> = {
 export function buildModePrompt(mode: ConversationMode, load: PromptLoader = loadPromptFile): string {
   if (mode !== "chat" && mode !== "work" && mode !== "code") throw new Error("INVALID_CONVERSATION_MODE");
   const taskCompanions = mode === "work" || mode === "code"
-    ? buildTaskCompanionPrompt()
+    ? buildTaskCompanionPrompt(mode)
     : "";
   return [...MODE_FILES[mode].map(load), taskCompanions].filter(Boolean).join("\n\n---\n\n");
 }

@@ -11,7 +11,8 @@ describe("TaskCharacterLeasePool", () => {
     expect(getTaskCompanionNames()).toContain("卡芙卡");
     expect(getTaskCompanionNames()).not.toContain("卡夫卡");
     expect(getTaskCompanionNames()).toContain("知更鸟");
-    expect(buildTaskCompanionPrompt()).toContain("不改变权限、任务路由或子任务人设");
+    expect(buildTaskCompanionPrompt()).toContain("delegate_agent");
+    expect(buildTaskCompanionPrompt()).not.toMatch(/subagent_type|companion_id/);
     expect(buildTaskCompanionPrompt()).not.toContain("黄金裔");
   });
 

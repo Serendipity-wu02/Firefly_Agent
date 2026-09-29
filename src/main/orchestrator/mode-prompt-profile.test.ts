@@ -31,11 +31,14 @@ describe("buildModePrompt", () => {
 
   it("limits supplied display characters to work and code modes", () => {
     for (const mode of ["chat"] as const) {
-      expect(buildModePrompt(mode, load)).not.toContain("可选的子任务展示角色");
+      expect(buildModePrompt(mode, load)).not.toContain("当前模式的专业 Agent");
     }
     for (const mode of ["work", "code"] as const) {
-      expect(buildModePrompt(mode, load)).toContain("可选的子任务展示角色");
+      expect(buildModePrompt(mode, load)).toContain("当前模式的专业 Agent");
       expect(buildModePrompt(mode, load)).not.toContain("黄金裔");
     }
+    expect(buildModePrompt("work", load)).toContain("documents-data（知更鸟）");
+    expect(buildModePrompt("code", load)).not.toContain("documents-data（知更鸟）");
+    expect(buildModePrompt("work", load)).not.toMatch(/subagent_type|companion_id/);
   });
 });

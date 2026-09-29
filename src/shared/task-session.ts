@@ -2,7 +2,7 @@
 
 export type TaskSessionStatus = "running" | "completed" | "failed" | "cancelled" | "interrupted";
 
-export type TaskSubagentType = "general" | "document" | "search";
+export type LegacyTaskSubagentType = "general" | "document" | "search";
 
 export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
@@ -57,7 +57,7 @@ export interface TaskSession {
   parentRunId: string;
   childRunId: string;
   description: string;
-  subagentType?: TaskSubagentType;
+  subagentType?: LegacyTaskSubagentType;
   agent?: AgentSessionIdentity;
   mode: "work" | "code";
   resolvedWorkspaceRoot?: string;
@@ -77,7 +77,7 @@ export interface TaskSession {
 export interface TaskDelegationRecord {
   taskId: string;
   description: string;
-  subagentType: TaskSubagentType;
+  subagentType: LegacyTaskSubagentType;
   status: TaskSessionStatus;
   delegatedAt: number;
   updatedAt: number;

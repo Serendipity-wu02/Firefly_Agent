@@ -3,14 +3,18 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskSessionStore } from "../tasks/task-session-store";
-import { buildChildPromptLayers, createTaskExecutor } from "./task-runtime";
+import { buildChildPromptLayers, runChildSession } from "./child-session-runtime";
+import type { ChildSessionParent, ChildSessionResult } from "./child-session-types";
+import type { LegacyTaskSubagentType } from "../../shared/task-session";
+import { runFireflyHarness } from "./harness/firefly-harness";
+import { taskCharacterLeasePool, type TaskCharacterLeasePool } from "../tasks/task-character-pool";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 import type { TaskDelegationPresentation } from "../../shared/task-session";
 
 const roots: string[] = [];
 
 function createStore() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-task-runtime-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-child-compatibility-"));
   roots.push(root);
   return new TaskSessionStore(root, {
     createId: () => "task-1",
@@ -38,7 +42,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
-describe("TaskRuntime", () => {
+describe("legacy transcript compatibility through the shared child runner", () => {
   it.each([
     { mode: "code" as const, resolvedWorkspaceRoot: "E:\\different-project" },
     { mode: "work" as const, resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot },
@@ -49,7 +53,7 @@ describe("TaskRuntime", () => {
     store.checkpoint(original.id, { status: "completed" });
     const before = store.get(original.id);
     const runHarness = vi.fn();
-    const execute = createTaskExecutor({ parent: { ...parent, ...target }, store, runHarness });
+    const execute = runLegacyFixture({ parent: { ...parent, ...target }, store, runHarness });
     await expect(execute({ taskId: original.id, subagentType: "general", description: "fixture", prompt: "do not append" }))
       .rejects.toThrow(/TASK_(WORKSPACE|MODE)_MISMATCH/);
     expect(runHarness).not.toHaveBeenCalled();
@@ -73,7 +77,7 @@ describe("TaskRuntime", () => {
         terminated: false, rounds: 1, terminal: { status: "success" as const, externalEffectsMayContinue: false },
       };
     });
-    const execute = createTaskExecutor({ parent, store, runHarness });
+    const execute = runLegacyFixture({ parent, store, runHarness });
     await execute({ description: "检查状态", prompt: "resume", subagentType: "general", taskId: session.id });
     expect(store.get(session.id)?.uncertainEffects).toEqual(effects);
   });
@@ -94,7 +98,7 @@ describe("TaskRuntime", () => {
       rounds: 1,
       terminal: { status: "success" as const, externalEffectsMayContinue: false },
     }));
-    const execute = createTaskExecutor({ parent, store, runHarness });
+    const execute = runLegacyFixture({ parent, store, runHarness });
 
     const result = await execute({
       description: "检查取消链路",
@@ -122,7 +126,7 @@ describe("TaskRuntime", () => {
       finalAnswer: "检查完成。", finalState: { todoItems: [], uncertainEffects: [] },
       terminated: false, rounds: 1, terminal: { status: "success" as const, externalEffectsMayContinue: false },
     }));
-    const execute = createTaskExecutor({ parent, store, runHarness, onLifecycle: (event) => lifecycle.push(event) });
+    const execute = runLegacyFixture({ parent, store, runHarness, onLifecycle: (event) => lifecycle.push(event) });
 
     const result = await execute({ description: "检查取消链路", prompt: "检查取消传播", subagentType: "general", companionId: "艾利欧" });
 
@@ -139,7 +143,7 @@ describe("TaskRuntime", () => {
   it("does not create a child session when a supplied display character cannot be leased", async () => {
     const store = createStore();
     const runHarness = vi.fn();
-    const execute = createTaskExecutor({ parent, store, runHarness });
+    const execute = runLegacyFixture({ parent, store, runHarness });
 
     await expect(execute({ description: "检查取消链路", prompt: "检查取消传播", subagentType: "general", companionId: "风堇" }))
       .rejects.toThrow("TASK_COMPANION_UNKNOWN");
@@ -157,7 +161,7 @@ describe("TaskRuntime", () => {
       rounds: 1,
       terminal: { status: "success" as const, externalEffectsMayContinue: false },
     }));
-    const execute = createTaskExecutor({
+    const execute = runLegacyFixture({
       parent: { ...parent, includeInteractiveTools: false, permissionMode: "allow_all" },
       store,
       runHarness,
@@ -185,7 +189,7 @@ describe("TaskRuntime", () => {
       subagentType: "general",
       mode: "code",
     });
-    const execute = createTaskExecutor({ parent, store, runHarness: vi.fn() as never });
+    const execute = runLegacyFixture({ parent, store, runHarness: vi.fn() as never });
 
     await expect(execute({
       description: "继续已有任务",
@@ -217,7 +221,7 @@ describe("TaskRuntime", () => {
       rounds: 1,
       terminal: { status: "success" as const, externalEffectsMayContinue: false },
     }));
-    const execute = createTaskExecutor({ parent, store, runHarness });
+    const execute = runLegacyFixture({ parent, store, runHarness });
 
     await execute({
       description: "继续检查取消链路",
@@ -246,7 +250,7 @@ describe("TaskRuntime", () => {
       rounds: 1,
       terminal: { status: "success" as const, externalEffectsMayContinue: false },
     }));
-    const execute = createTaskExecutor({ parent, store, runHarness });
+    const execute = runLegacyFixture({ parent, store, runHarness });
 
     const result = await execute({
       description: "检查取消链路",
@@ -266,7 +270,7 @@ describe("TaskRuntime", () => {
       finalAnswer: "检查完成。", finalState: { todoItems: [], uncertainEffects: [] },
       terminated: false, rounds: 1, terminal: { status: "success" as const, externalEffectsMayContinue: false },
     }));
-    const execute = createTaskExecutor({ parent, store, runHarness, onLifecycle: (event) => lifecycle.push(event) });
+    const execute = runLegacyFixture({ parent, store, runHarness, onLifecycle: (event) => lifecycle.push(event) });
 
     const result = await execute({ description: "检查取消链路", prompt: "这是不能出现在父事件里的私密指令", subagentType: "general" });
 
@@ -281,7 +285,7 @@ describe("TaskRuntime", () => {
   ])("settles an anonymous child as $expected", async ({ terminal, expected }) => {
     const store = createStore();
     const lifecycle: Array<{ status: string }> = [];
-    const execute = createTaskExecutor({
+    const execute = runLegacyFixture({
       parent, store, onLifecycle: (event) => lifecycle.push(event),
       runHarness: vi.fn(async () => ({ finalAnswer: "", finalState: { todoItems: [], uncertainEffects: [] }, terminated: true, rounds: 1, terminal })),
     });
@@ -292,3 +296,58 @@ describe("TaskRuntime", () => {
     expect(lifecycle).toEqual([]);
   });
 });
+
+interface LegacyFixtureRequest {
+  description: string;
+  prompt: string;
+  subagentType: LegacyTaskSubagentType;
+  companionId?: string;
+  taskId?: string;
+}
+
+
+function runLegacyFixture(input: {
+  parent: ChildSessionParent;
+  store: TaskSessionStore;
+  runHarness?: typeof runFireflyHarness;
+  characterPool?: Pick<TaskCharacterLeasePool, "acquire">;
+  onLifecycle?: (event: TaskDelegationPresentation) => void;
+}): (request: LegacyFixtureRequest) => Promise<ChildSessionResult> {
+  const runHarness = input.runHarness ?? runFireflyHarness;
+  const characterPool = input.characterPool ?? taskCharacterLeasePool;
+  return async (request) => {
+    const lease = request.companionId
+      ? characterPool.acquire(input.parent.parentConversationId, request.companionId)
+      : null;
+    let session: ReturnType<TaskSessionStore["create"]>;
+    try {
+      session = request.taskId
+        ? input.store.resume(request.taskId, {
+            parentConversationId: input.parent.parentConversationId,
+            parentRunId: input.parent.parentRunId,
+            subagentType: request.subagentType,
+            prompt: request.prompt,
+            mode: input.parent.mode,
+            resolvedWorkspaceRoot: input.parent.resolvedWorkspaceRoot,
+          })
+        : input.store.create({
+            parentConversationId: input.parent.parentConversationId,
+            parentRunId: input.parent.parentRunId,
+            description: request.description,
+            prompt: request.prompt,
+            subagentType: request.subagentType,
+            mode: input.parent.mode,
+            resolvedWorkspaceRoot: input.parent.resolvedWorkspaceRoot,
+          });
+    } catch (error) {
+      lease?.release();
+      throw error;
+    }
+
+    return runChildSession({
+      ...input, session, lease, runHarness,
+      prompt: request.prompt, description: request.description, systemPrompt: "Legacy transcript fixture",
+      tools: input.parent.tools.filter(tool => !["task", "delegate_agent", "ask_user", "confirm_uncertain_effect"].includes(tool.id)), config: { totalTimeoutMs: 0 },
+    });
+  };
+}
