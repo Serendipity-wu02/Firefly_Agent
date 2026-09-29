@@ -22,6 +22,6 @@
 ## 来源与历史
 
 - [历史施工、问题与验收索引](archive/README.md)
-- [2026-09-26 结构整理记录](archive/reviews/structure-cleanup-2026-09-26.md)、[资源更新记录](archive/reviews/resource-refresh-2026-09-26.md)：按阶段保留，不代替当前操作指南。
+- [资源更新与来源记录](archive/reviews/resource-refresh-2026-09-26.md)：按阶段保留，不代替当前操作指南。
 - [源人设参考](reference/persona/README.md)：不加载、不分发，不作为当前提示词。
 - [MIT 许可](../LICENSE)、[第三方来源](../THIRD_PARTY_NOTICES.md)、[模型许可](../MODEL_LICENSE.md)

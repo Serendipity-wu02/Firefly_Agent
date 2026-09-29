@@ -6,6 +6,6 @@
 
 项目 ZIP 落盘入口是 `src/shared/zip-extraction.ts`，使用 `yauzl` 解析。保留路径边界、链接拒绝、重复条目限制、预算、临时目录隔离、失败清理及既有文件保护。安全回归与正常归档回归都必须通过。
 
-MinGit 和 Skills 包装脚本复用该入口；Skills 快照的来源、适配与产物哈希分别记录，不将生成成功当成来源或许可核实。
+MinGit 归档处理复用该入口；当前 Skills 按目录分发并通过 manifest 校验，旧 ZIP 哈希仅作来源记录，不将校验成功当成来源或许可核实。
 
 构建及脚本命令见 [开发说明](../../DEVELOPMENT.md) 和 [脚本入口](../../scripts/README.md)。`npm test` 不包含 Node 包装脚本测试，须另行运行 `node --test scripts/packaging/*.test.mjs`。安装器配置检查不代表实际安装、升级或公开发布验收通过。
