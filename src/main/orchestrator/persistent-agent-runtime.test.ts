@@ -12,7 +12,6 @@ import type { SkillEntry } from "../skills/types";
 import { skillRegistry } from "../skills/skill-registry";
 import { FileToolOutputStore } from "./harness/tool-output/file-tool-output-store";
 import { dispatchToolCall } from "./harness/tool-dispatcher";
-import { runChildSession } from "./child-session-runtime";
 
 const roots: string[] = [];
 const profile: AgentProfile = {
@@ -85,20 +84,8 @@ describe("persistent specialist runtime", () => {
       expect(await fetch({ userQuery: "", conversationId: parent.parentConversationId }, refs[0], query))
         .toMatchObject({ outcome: "success" });
     }
-    await runChildSession({ store, parent: { ...parent, toolOutputStore: outputs }, runHarness,
-      session: store.create({ parentConversationId: parent.parentConversationId, parentRunId: parent.parentRunId,
-        mode: parent.mode, description: "legacy scope", prompt: "legacy", subagentType: "general" }),
-      description: "legacy scope", prompt: "legacy", systemPrompt: "Legacy transcript fixture", tools: [read], config: {}, lease: null,
-    });
-    expect(contexts[3].ownerSessionId).toBeUndefined();
-    expect(contexts[3].conversationId).toBe(parent.parentConversationId);
-    for (const query of [undefined, "fixture"]) {
-      expect(await fetch(contexts[3], refs[0], query)).toMatchObject({ outcome: "success" });
-      expect(await fetch(contexts[3], refs[3], query)).toMatchObject({ outcome: "success" });
-      expect(await fetch(contexts[2], refs[3], query)).toMatchObject({ outcome: "failure", category: "not_found" });
-    }
     await outputs.deleteConversation(parent.parentConversationId);
-    for (const ref of refs) expect(await fetch(contexts[3], ref)).toMatchObject({ outcome: "failure", category: "not_found" });
+    for (const ref of refs) expect(await fetch(contexts[2], ref)).toMatchObject({ outcome: "failure", category: "not_found" });
   });
   it("does not append a prompt or invoke a child after parent cancellation", async () => {
     const { store, parent } = setup();

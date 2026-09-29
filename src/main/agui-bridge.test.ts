@@ -573,7 +573,7 @@ describe("agui-bridge sticker event ordering", () => {
     if (!handler) throw new Error("AGUI_RUN handler was not registered");
     await handler(
       { sender },
-      { messages: [{ role: "user", content: "累了" }], sessionId: "chat-sticker", style: "01_default.md" },
+      { messages: [{ role: "user", content: "累了" }], sessionId: "chat-sticker", styleId: "default" },
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
 

@@ -543,50 +543,37 @@ describe("memoryStore", () => {
     expect(traceEvents.some((event) => event.op === "conflict.log.add")).toBe(true)
   })
 
-  it("migrates legacy memory files with a backup", async () => {
+  it("rejects an unsupported memory schema without replacing its file", async () => {
     const memoryPath = path.join(electronMock.userDataDir, "memory.json")
-    fs.writeFileSync(
-      memoryPath,
-      JSON.stringify({
-        l0: { preferredName: "伙伴" },
-        l1: { roundCount: 7 },
-        l2: [{
-          id: "l2_legacy",
-          content: "旧记忆",
-          triggerText: "旧触发",
-          sourceConversationId: "test",
-          createdAt: 1,
-          lastAccessedAt: 1,
-          accessCount: 0,
-          weight: 0,
-          isPinned: false,
-          status: "active",
-          ragId: "rag_legacy",
-        }],
-        evidence: [],
-        reflectionLogs: [],
-        version: 1,
-      }),
-      "utf8",
-    )
+    const contents = JSON.stringify({ schemaVersion: 1, l0: { preferredName: "伙伴" }, l2: [] })
+    fs.writeFileSync(memoryPath, contents)
 
     const { memoryStore } = await import("./memory-store")
-    const store = await memoryStore.load()
-    const persisted = JSON.parse(fs.readFileSync(memoryPath, "utf8"))
-    const backups = fs.readdirSync(electronMock.userDataDir).filter((name) => name.startsWith("memory.backup."))
-
-    expect(store.schemaVersion).toBe(2)
-    expect(persisted.schemaVersion).toBe(2)
-    expect(store.l0.preferredName).toBe("伙伴")
-    expect(store.l1.roundCount).toBe(7)
-    expect(store.l2[0].syncStatus).toBe("synced")
-    expect(store.l2[0].evidenceIds).toEqual([])
-    expect(store.evidence).toEqual([])
-    expect(store.conflictLogs).toEqual([])
-    expect(backups).toHaveLength(1)
-    expect(readTraceEvents().some((event) => event.op === "migration.upgrade")).toBe(true)
+    await expect(memoryStore.load()).rejects.toThrow("MEMORY_STORE_READ_FAILED")
+    await expect(memoryStore.save({ schemaVersion: 2 } as never)).rejects.toThrow("MEMORY_STORE_READ_FAILED")
+    expect(fs.readFileSync(memoryPath, "utf8")).toBe(contents)
   })
 
+  it("rejects malformed current memory without replacing its file", async () => {
+    const memoryPath = path.join(electronMock.userDataDir, "memory.json")
+    const contents = JSON.stringify({ schemaVersion: 2, l0: {}, l1: {}, l2: "not-an-array" })
+    fs.writeFileSync(memoryPath, contents)
+
+    const { memoryStore } = await import("./memory-store")
+    await expect(memoryStore.load()).rejects.toThrow("MEMORY_STORE_READ_FAILED")
+    expect(fs.readFileSync(memoryPath, "utf8")).toBe(contents)
+  })
+
+  it("rejects incomplete current profiles without replacing the file", async () => {
+    const memoryPath = path.join(electronMock.userDataDir, "memory.json")
+    const contents = JSON.stringify({ schemaVersion: 2, version: 1, l0: {}, l1: {}, l2: [] })
+    fs.writeFileSync(memoryPath, contents)
+
+    const { memoryStore } = await import("./memory-store")
+    await expect(memoryStore.load()).rejects.toThrow("MEMORY_STORE_READ_FAILED")
+    await expect(memoryStore.save({ schemaVersion: 2 } as never)).rejects.toThrow("MEMORY_STORE_READ_FAILED")
+    expect(fs.readFileSync(memoryPath, "utf8")).toBe(contents)
+  })
   it("saves the transformed store before notifying Obsidian", async () => {
     const { memoryStore } = await import("./memory-store")
     await memoryStore.load()

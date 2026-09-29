@@ -209,7 +209,7 @@ export interface ModelSettingsLite {
   baseUrl: string;
   model: string;
   apiKey: string;
-  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+  explicitTransport?: "openai" | "anthropic" | "responses";
   /** 顶层 reasoning 镜像（来自 perProvider[currentProvider].reasoning）。adapter 直接读。 */
   reasoning?: import("../../shared/reasoning").ReasoningPreference;
   runtimeSync?: string;
@@ -433,22 +433,8 @@ function isStyleId(value: unknown): value is StyleId {
   return typeof value === "string" && (STYLE_IDS as readonly string[]).includes(value);
 }
 
-function styleIdFromLegacyFile(value: unknown): StyleId | undefined {
-  if (typeof value !== "string") return undefined;
-  const legacy: Record<string, StyleId> = {
-    "01_default.md": "default",
-    "02_lively.md": "lively",
-    "03_healing.md": "healing",
-    "04_focused.md": "focused",
-    "05_sweet.md": "sweet",
-  };
-  return legacy[value];
-}
-
 function resolveRunStyleId(input: AguiRunInput, saved: StyleSettingsLite): StyleId {
   if (isStyleId(input.styleId)) return input.styleId;
-  const legacyStyleId = styleIdFromLegacyFile(input.style);
-  if (legacyStyleId) return legacyStyleId;
   if (isStyleId(saved.currentStyleId)) return saved.currentStyleId;
   return normalizeStyleId(undefined);
 }
@@ -528,9 +514,7 @@ export async function buildAgentRunOptions(
   // slim view for downstream helpers that only need { role, content }
   const slimMessages = messages as unknown as Array<{ role: string; content?: string }>;
   const latestUserText = contentToText(messages.filter((m) => m.role === "user").at(-1)?.content) ?? "";
-  const executionMode = resolveExecutionMode(
-    input.executionMode ?? ((input.style || "").startsWith("talk") ? "chat" : "work"),
-  );
+  const executionMode = resolveExecutionMode(input.executionMode);
   const isChatMode = executionMode === "chat";
   const conversationId = input.sessionId || "default";
 

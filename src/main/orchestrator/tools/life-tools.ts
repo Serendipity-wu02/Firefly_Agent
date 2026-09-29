@@ -227,10 +227,10 @@ function registerExchangeRateTool(): void {
 // ══════════════════════════════════════════════════════════
 
 // 翻译需要调主模型，注入由 index.ts 完成
-let modelSettingsGetter: (() => { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses" | "auto" } | null) | null = null;
+let modelSettingsGetter: (() => { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses" } | null) | null = null;
 
 /** index.ts 启动时注入模型设置读取器。 */
-export function setTranslateConfig(getter: () => { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses" | "auto" } | null): void {
+export function setTranslateConfig(getter: () => { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses" } | null): void {
   modelSettingsGetter = getter;
 }
 

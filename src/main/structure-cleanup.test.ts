@@ -33,9 +33,9 @@ it("separates current contributors and model terms from upstream provenance", ()
   const contributors = read("docs/CONTRIBUTORS.md");
   expect(contributors).toContain("# Firefly_Agent Contributors");
   expect(contributors).toContain("Serendipity-wu02");
-  expect(contributors).not.toMatch(/lll69|Unknownuserfrommars|Asuna404|Tobi1chi|boring9720|liyi3068238601|LZhWi|lucifergzsz414|Modusensus|是依七哒|Cyrene|昔涟/);
+  expect(contributors).not.toMatch(/lll69|Unknownuserfrommars|Asuna404|Tobi1chi|boring9720|liyi3068238601|LZhWi|lucifergzsz414|Modusensus|是依七哒/);
   expect(read("MODEL_LICENSE.md")).toContain("src/renderer/public/models/firefly/");
-  expect(read("MODEL_LICENSE.md")).not.toMatch(/Cyrene|昔涟|unrestricted permission/);
+  expect(read("MODEL_LICENSE.md")).not.toContain("unrestricted permission");
   expect(read("THIRD_PARTY_NOTICES.md")).toContain("https://github.com/Playa-0v0/Cyrene-Agent");
   expect(read("THIRD_PARTY_NOTICES.md")).not.toContain("Existing upstream contributions are recorded");
   expect(read("LICENSE")).toContain("Copyright (c) 2026 Playa");

@@ -83,7 +83,7 @@ export interface AgentLoopSettings {
   baseUrl: string;
   model: string;
   apiKey: string;
-  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+  explicitTransport?: "openai" | "anthropic" | "responses";
   reasoning?: import("../../shared/reasoning").ReasoningPreference;
   /** 用户设置的模型上下文窗口（Token）。用于非 code 模式的对话压缩触发阈值。 */
   contextWindowTokens: number;
@@ -257,8 +257,7 @@ function terminalFromCompletionReason(
 }
 
 export function resolveExecutionMode(mode: unknown): AgentExecutionMode {
-  // 兼容尚未重启的旧 renderer 与历史内部调用。
-  return mode === "chat" || mode === "soul-only" ? "chat" : "work";
+  return mode === "chat" ? "chat" : "work";
 }
 
 /**

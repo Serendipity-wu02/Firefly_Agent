@@ -517,15 +517,6 @@ export function registerChatsIpc(
     }
   });
 
-  ipc.handle(
-    IPC.CHATS_MIGRATE_LEGACY,
-    (event, messages: ChatMessage[]) => {
-      const session = chatsStore.migrateLegacyMessages(messages);
-      if (session) broadcastChanged(event.sender);
-      return session;
-    },
-  );
-
   // ── 对话工作区绑定 ──────────────────────────────────────
 
   ipc.handle(

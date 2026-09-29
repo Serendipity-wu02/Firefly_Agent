@@ -25,8 +25,7 @@ it("installs exactly 39 vendor directories alongside five maintained Skills with
     expectedIds: manifest.skills, expectedFileHashes: manifest.files };
   expect(synchronizeManagedSkillDirectories(options).installed).toHaveLength(39);
   const sources = resolveSkillScanSources({
-    builtinSkillDirectory: path.join(root, "missing-defaults"),
-    installSkillDirectory: path.join(repository, "skills"),
+    builtinSkillDirectory: path.join(repository, "skills"),
     userSkillDirectories: [userSkillsDir],
   });
   expect(sources).toHaveLength(2);

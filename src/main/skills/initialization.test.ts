@@ -10,8 +10,6 @@ const ports = vi.hoisted(() => ({
   validate: vi.fn(),
   register: vi.fn(),
   tools: vi.fn(),
-  migrate: vi.fn(),
-  vnext: vi.fn(),
   warn: vi.fn(),
 }));
 vi.mock("electron", () => ({ app: { getPath: () => ports.root } }));
@@ -23,11 +21,6 @@ vi.mock("../external-content-paths", () => ({
 vi.mock("./directory-install", () => ({
   synchronizeManagedSkillDirectories: ports.sync,
   validateManagedSourceDirectory: ports.validate,
-}));
-vi.mock("../migration/skill-snapshot", () => ({ migrateInstalledSkillSnapshot: ports.migrate }));
-vi.mock("../migration/vnext-skill-snapshot", () => ({
-  assertVnextSkillSnapshotSource: vi.fn(),
-  migrateVnextSkillSnapshot: ports.vnext,
 }));
 vi.mock("./skill-scanner", () => ({ scanSkills: () => [{ id: "public-skill", enabled: true }] }));
 vi.mock("./skill-registry", () => ({ skillRegistry: { register: ports.register } }));
@@ -54,17 +47,16 @@ it("rejects an invalid directory manifest without installing or replacing existi
   fs.writeFileSync(path.join(path.dirname(ports.source), "skills-manifest.json"), "{}");
   await initSkills();
   expect(ports.sync).not.toHaveBeenCalled();
-  expect(ports.migrate).not.toHaveBeenCalled();
   expect(ports.register).toHaveBeenCalledWith({ id: "public-skill", enabled: true });
   expect(ports.warn).toHaveBeenCalled();
 });
 
 it("runs managed directory sync before scanning and preserves existing Skills after failure", async () => {
   fixture();
-  ports.migrate.mockImplementationOnce(() => { throw new Error("SKILL_UPDATE_BACKUP_CONFLICT"); });
+  ports.sync.mockImplementationOnce(() => { throw new Error("SKILL_UPDATE_BACKUP_CONFLICT"); });
   await expect(initSkills()).resolves.toBeUndefined();
   expect(ports.validate).toHaveBeenCalledWith(ports.source, ["public-skill"], {});
-  expect(ports.sync).not.toHaveBeenCalled();
+  expect(ports.sync).toHaveBeenCalledOnce();
   expect(ports.register).toHaveBeenCalledWith({ id: "public-skill", enabled: true });
   expect(ports.tools).toHaveBeenCalledOnce();
   expect(ports.warn).toHaveBeenCalled();

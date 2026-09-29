@@ -1,11 +1,10 @@
 import fs from "node:fs";
-import { ensureFireflyDataDirectory } from "../migration/firefly-data";
+import { fireflyDataDirectory } from "../firefly-data-paths";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
   TaskSession,
   TaskSessionStatus,
-  LegacyTaskSubagentType,
   TodoItem,
   TodoStatus,
   TaskTraceRecord,
@@ -17,6 +16,7 @@ import type {
 const SESSIONS_DIR_NAME = "sessions";
 const INDEX_FILE_NAME = "index.json";
 const TRACE_LIMIT = 2_000;
+const AGENT_SESSION_ID = /^agent-[a-f0-9]{64}$/;
 const sharedStores = new Map<string, TaskSessionStore>();
 
 export function getTaskSessionStore(userDataRoot: string): TaskSessionStore {
@@ -29,32 +29,22 @@ export function getTaskSessionStore(userDataRoot: string): TaskSessionStore {
   return store;
 }
 
-export interface CreateTaskSessionInput {
+export interface CreateAgentSessionInput {
   parentConversationId: string;
   parentRunId: string;
   description: string;
   prompt: string;
-  subagentType: LegacyTaskSubagentType;
-  mode: "work" | "code";
-  resolvedWorkspaceRoot?: string;
-}
-
-export interface ResumeTaskSessionInput {
-  parentConversationId: string;
-  parentRunId: string;
-  subagentType: LegacyTaskSubagentType;
-  prompt: string;
-  mode: "work" | "code";
-  resolvedWorkspaceRoot?: string;
-}
-
-export interface CreateAgentSessionInput extends Omit<CreateTaskSessionInput, "subagentType"> {
   agent: AgentSessionIdentity;
   sessionId: string;
+  mode: "work" | "code";
+  resolvedWorkspaceRoot?: string;
 }
 
-export interface ResumeAgentSessionInput extends Omit<ResumeTaskSessionInput, "subagentType"> {
+export interface ResumeAgentSessionInput {
+  parentConversationId: string;
+  parentRunId: string;
   agent: AgentSessionIdentity;
+  prompt: string;
   mode: "work" | "code";
   resolvedWorkspaceRoot: string;
 }
@@ -74,7 +64,6 @@ export interface TaskSessionCheckpoint {
 
 export interface TaskSessionStoreOptions {
   now?: () => number;
-  createId?: () => string;
   createChildRunId?: () => string;
 }
 
@@ -88,10 +77,6 @@ interface TaskSessionIndexRow {
 function isTaskStatus(value: unknown): value is TaskSessionStatus {
   return value === "running" || value === "completed" || value === "failed"
     || value === "cancelled" || value === "interrupted";
-}
-
-function isTaskType(value: unknown): value is LegacyTaskSubagentType {
-  return value === "general" || value === "document" || value === "search";
 }
 
 function isTodoStatus(value: unknown): value is TodoStatus {
@@ -140,10 +125,7 @@ function cloneUncertainEffects(value: unknown): TaskUncertainEffect[] {
 function isTaskSession(value: unknown): value is TaskSession {
   if (!value || typeof value !== "object") return false;
   const session = value as Partial<TaskSession>;
-  const validIdentity = session.schemaVersion === 1
-    ? isTaskType(session.subagentType) && session.agent === undefined
-    : session.schemaVersion === 2 && isAgentIdentity(session.agent) && session.subagentType === undefined;
-  return validIdentity
+  return session.schemaVersion === 2 && isAgentIdentity(session.agent)
     && typeof session.id === "string"
     && typeof session.parentConversationId === "string"
     && typeof session.parentRunId === "string"
@@ -177,42 +159,35 @@ export class TaskSessionStore {
   private readonly sessionsDir: string;
   private readonly indexPath: string;
   private readonly now: () => number;
-  private readonly createId: () => string;
   private readonly createChildRunId: () => string;
   private index = new Map<string, TaskSessionIndexRow>();
 
   constructor(root: string, options: TaskSessionStoreOptions = {}) {
-    this.taskRoot = ensureFireflyDataDirectory(root, "tasks");
+    this.taskRoot = fireflyDataDirectory(root, "tasks");
     this.sessionsDir = path.join(this.taskRoot, SESSIONS_DIR_NAME);
     this.indexPath = path.join(this.taskRoot, INDEX_FILE_NAME);
     this.now = options.now ?? Date.now;
-    this.createId = options.createId ?? randomUUID;
     this.createChildRunId = options.createChildRunId ?? randomUUID;
     this.initialize();
   }
 
-  create(input: CreateTaskSessionInput): TaskSession {
-    return this.createPrivateSession(input);
-  }
-
   createAgent(input: CreateAgentSessionInput): TaskSession {
     if (!isAgentIdentity(input.agent)) throw new Error("AGENT_IDENTITY_INVALID");
-    if (!/^agent-[a-f0-9]{64}$/.test(input.sessionId)) throw new Error("AGENT_SESSION_ID_INVALID");
+    if (!AGENT_SESSION_ID.test(input.sessionId)) throw new Error("AGENT_SESSION_ID_INVALID");
     if (this.get(input.sessionId)) throw new Error("AGENT_SESSION_EXISTS");
     return this.createPrivateSession(input);
   }
 
-  private createPrivateSession(input: CreateTaskSessionInput | CreateAgentSessionInput): TaskSession {
+  private createPrivateSession(input: CreateAgentSessionInput): TaskSession {
     const now = this.now();
-    const identity = "agent" in input ? input.agent : undefined;
     const session: TaskSession = {
-      schemaVersion: identity ? 2 : 1,
-      id: "sessionId" in input ? input.sessionId : this.createId(),
+      schemaVersion: 2,
+      id: input.sessionId,
       parentConversationId: input.parentConversationId,
       parentRunId: input.parentRunId,
       childRunId: this.createChildRunId(),
       description: input.description,
-      ...(identity ? { agent: { ...identity } } : { subagentType: (input as CreateTaskSessionInput).subagentType }),
+      agent: { ...input.agent },
       mode: input.mode,
       ...(input.resolvedWorkspaceRoot ? { resolvedWorkspaceRoot: input.resolvedWorkspaceRoot } : {}),
       status: "running",
@@ -223,7 +198,7 @@ export class TaskSessionStore {
       createdAt: now,
       updatedAt: now,
     };
-    this.write(session, Boolean(identity));
+    this.write(session);
     return cloneSession(session);
   }
 
@@ -242,19 +217,6 @@ export class TaskSessionStore {
       });
   }
 
-  resume(taskId: string, input: ResumeTaskSessionInput): TaskSession {
-    const session = this.require(taskId);
-    if (session.parentConversationId !== input.parentConversationId) {
-      throw new Error("TASK_PARENT_MISMATCH");
-    }
-    if (session.subagentType !== input.subagentType) {
-      throw new Error("TASK_PROFILE_MISMATCH");
-    }
-    if (session.mode !== input.mode) throw new Error("TASK_MODE_MISMATCH");
-    if (session.resolvedWorkspaceRoot !== input.resolvedWorkspaceRoot) throw new Error("TASK_WORKSPACE_MISMATCH");
-    return this.resumePrivateSession(session, input);
-  }
-
   resumeAgent(taskId: string, input: ResumeAgentSessionInput): TaskSession {
     const session = this.require(taskId);
     if (session.parentConversationId !== input.parentConversationId) throw new Error("TASK_PARENT_MISMATCH");
@@ -266,7 +228,7 @@ export class TaskSessionStore {
     return this.resumePrivateSession(session, input);
   }
 
-  private resumePrivateSession(session: TaskSession, input: Pick<ResumeTaskSessionInput, "parentRunId" | "prompt">): TaskSession {
+  private resumePrivateSession(session: TaskSession, input: Pick<ResumeAgentSessionInput, "parentRunId" | "prompt">): TaskSession {
     if (session.status === "running") {
       throw new Error("TASK_ALREADY_RUNNING");
     }
@@ -279,7 +241,7 @@ export class TaskSessionStore {
     session.completedAt = undefined;
     session.messages.push({ role: "user", content: input.prompt });
     session.updatedAt = this.now();
-    this.write(session, Boolean(session.agent));
+    this.write(session);
     return cloneSession(session);
   }
 
@@ -335,6 +297,7 @@ export class TaskSessionStore {
   }
 
   private read(taskId: string): TaskSession | null {
+    if (!AGENT_SESSION_ID.test(taskId)) return null;
     const file = path.join(this.sessionsDir, `${taskId}.json`);
     if (!fs.existsSync(file)) return null;
     try {
@@ -350,23 +313,17 @@ export class TaskSessionStore {
     }
   }
 
-  private write(session: TaskSession, acquire = false): void {
-    if (acquire) {
-      const previous = this.index.get(session.id);
-      this.index.set(session.id, this.indexRow(session));
-      try {
-        this.writeIndex();
-        this.writeSession(session);
-      } catch (error) {
-        if (previous) this.index.set(session.id, previous);
-        else this.index.delete(session.id);
-        throw error;
-      }
-      return;
-    }
-    this.writeSession(session);
+  private write(session: TaskSession): void {
+    const previous = this.index.get(session.id);
     this.index.set(session.id, this.indexRow(session));
-    this.writeIndex();
+    try {
+      this.writeIndex();
+      this.writeSession(session);
+    } catch (error) {
+      if (previous) this.index.set(session.id, previous);
+      else this.index.delete(session.id);
+      throw error;
+    }
   }
 
   private writeSession(session: TaskSession): void {
@@ -389,7 +346,7 @@ export class TaskSessionStore {
           || typeof candidate.parentConversationId !== "string"
           || !isTaskStatus(candidate.status)
           || typeof candidate.updatedAt !== "number") throw new Error("TASK_INDEX_READ_FAILED");
-        this.index.set(candidate.id, candidate as TaskSessionIndexRow);
+        if (AGENT_SESSION_ID.test(candidate.id)) this.index.set(candidate.id, candidate as TaskSessionIndexRow);
       }
     } catch {
       throw new Error("TASK_INDEX_READ_FAILED: 原文件已保留");

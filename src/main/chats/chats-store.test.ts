@@ -17,40 +17,21 @@ vi.mock("electron", () => ({
 }));
 
 describe("chats store", () => {
-  it.each(["learn", undefined])("backs up legacy Learn sources before migrating only the mode (index %s)", async (indexedMode) => {
+  it("rejects invalid persisted modes without rewriting history or allowing writes", async () => {
     const root = path.join(electronMock.userDataDir, "firefly-chats");
     fs.mkdirSync(path.join(root, "sessions"), { recursive: true });
-    const session = {
-      id: "legacy-learn", title: "Study", identityId: null, schemaVersion: 1,
-      createdAt: 1, updatedAt: 2, mode: "learn",
-      workspaceBinding: { workspaceRoot: "C:\\study", displayName: "study", boundAt: 1 },
-      messages: [{ id: "answer", role: "model", content: "done", at: 2,
-        toolExecutions: [{ id: "tool", name: "obsidian_read_file", status: "success", result: "notes" }] }],
-      pendingMessages: [{ id: "pending", rawContent: "continue", visibleContent: "continue", enqueuedAt: 3 }],
-    };
-    const meta = { id: session.id, title: session.title, identityId: null,
-      createdAt: 1, updatedAt: 2, messageCount: 1, mode: indexedMode };
-    const sessionPath = path.join(root, "sessions", "legacy-learn.json");
     const indexPath = path.join(root, "index.json");
-    const originalSession = JSON.stringify(session);
-    const originalIndex = JSON.stringify([meta]);
-    fs.writeFileSync(sessionPath, originalSession);
-    fs.writeFileSync(indexPath, originalIndex);
+    const original = JSON.stringify([{ id: "invalid", title: "Invalid", identityId: null,
+      createdAt: 1, updatedAt: 2, messageCount: 0, mode: "learn" }]);
+    fs.writeFileSync(indexPath, original);
     const store = await import("./chats-store");
     store.initialize();
-    expect(store.getSession(session.id)).toEqual({ ...session, mode: "work" });
-    expect(JSON.parse(fs.readFileSync(sessionPath, "utf8"))).toEqual({ ...session, mode: "work" });
-    expect(fs.readFileSync(sessionPath + ".pre-learn-retirement.bak", "utf8")).toBe(originalSession);
-    expect(fs.readFileSync(indexPath + ".pre-learn-retirement.bak", "utf8")).toBe(originalIndex);
-    expect(store.listSessions()[0].mode).toBe("work");
-    vi.resetModules();
-    const restarted = await import("./chats-store");
-    restarted.initialize();
-    expect(restarted.getSession(session.id)).toEqual({ ...session, mode: "work" });
-    expect(fs.readFileSync(sessionPath + ".pre-learn-retirement.bak", "utf8")).toBe(originalSession);
+    expect(() => store.listSessions()).toThrow("CHAT_HISTORY_READ_FAILED");
+    expect(() => store.createSession({ mode: "work" })).toThrow("CHAT_HISTORY_READ_FAILED");
+    expect(fs.readFileSync(indexPath, "utf8")).toBe(original);
   });
 
-  it("rejects retired and unknown modes before creating or listing sessions", async () => {
+  it("rejects removed and unknown modes before creating or listing sessions", async () => {
     const store = await import("./chats-store");
     store.initialize();
     for (const mode of ["learn", "other"]) {
@@ -58,25 +39,6 @@ describe("chats store", () => {
       expect(() => store.listSessions({ mode } as never)).toThrow("INVALID_CONVERSATION_MODE");
     }
     expect(store.listSessions()).toEqual([]);
-  });
-
-  it("preserves sources and blocks writes if the migration backup cannot be created", async () => {
-    const root = path.join(electronMock.userDataDir, "firefly-chats");
-    fs.mkdirSync(path.join(root, "sessions"), { recursive: true });
-    const indexPath = path.join(root, "index.json");
-    const sessionPath = path.join(root, "sessions", "legacy.json");
-    const meta = { id: "legacy", title: "Study", identityId: null, mode: "learn", createdAt: 1, updatedAt: 2, messageCount: 0 };
-    const index = JSON.stringify([meta]);
-    const session = JSON.stringify({ ...meta, messages: [], schemaVersion: 1 });
-    fs.writeFileSync(indexPath, index);
-    fs.writeFileSync(sessionPath, session);
-    fs.mkdirSync(indexPath + ".pre-learn-retirement.bak");
-    const store = await import("./chats-store");
-    store.initialize();
-    expect(() => store.listSessions()).toThrow("CHAT_HISTORY_READ_FAILED");
-    expect(() => store.createSession({ mode: "work" })).toThrow("CHAT_HISTORY_READ_FAILED");
-    expect(fs.readFileSync(indexPath, "utf8")).toBe(index);
-    expect(fs.readFileSync(sessionPath, "utf8")).toBe(session);
   });
 
   beforeEach(() => {
@@ -163,155 +125,6 @@ describe("chats store", () => {
     );
   });
 
-  it("migrates Daily sessions to Work without changing their project binding", async () => {
-    const root = path.join(electronMock.userDataDir, "firefly-chats");
-    const sessionsDir = path.join(root, "sessions");
-    fs.mkdirSync(sessionsDir, { recursive: true });
-    const baseMeta = {
-      title: "旧对话",
-      identityId: null,
-      createdAt: 1,
-      updatedAt: 1,
-      messageCount: 0,
-    };
-    fs.writeFileSync(path.join(root, "index.json"), JSON.stringify([
-      { ...baseMeta, id: "legacy-work" },
-      { ...baseMeta, id: "legacy-proactive", purpose: "proactive-chat" },
-      { ...baseMeta, id: "existing-code" },
-      { ...baseMeta, id: "daily-project", mode: "daily", workspaceRoot: "C:\\projects\\daily", workspaceDisplayName: "daily" },
-      { ...baseMeta, id: "invalid-mode" },
-    ]));
-    const baseSession = {
-      title: "旧对话",
-      identityId: null,
-      messages: [],
-      createdAt: 1,
-      updatedAt: 1,
-      schemaVersion: 1,
-    };
-    fs.writeFileSync(path.join(sessionsDir, "legacy-work.json"), JSON.stringify({
-      ...baseSession,
-      id: "legacy-work",
-    }));
-    fs.writeFileSync(path.join(sessionsDir, "legacy-proactive.json"), JSON.stringify({
-      ...baseSession,
-      id: "legacy-proactive",
-      purpose: "proactive-chat",
-    }));
-    fs.writeFileSync(path.join(sessionsDir, "existing-code.json"), JSON.stringify({
-      ...baseSession,
-      id: "existing-code",
-      mode: "code",
-      codeSession: { clineMode: "act", tasks: [] },
-    }));
-    fs.writeFileSync(path.join(sessionsDir, "daily-project.json"), JSON.stringify({
-      ...baseSession,
-      id: "daily-project",
-      title: "原 Daily 项目",
-      mode: "daily",
-      messages: [{ id: "daily-message", role: "user", content: "保留这条消息", at: 1 }],
-      workspaceBinding: { workspaceRoot: "C:\\projects\\daily", displayName: "daily", boundAt: 123 },
-    }));
-    fs.writeFileSync(path.join(sessionsDir, "invalid-mode.json"), JSON.stringify({
-      ...baseSession,
-      id: "invalid-mode",
-      mode: "invalid",
-    }));
-    fs.writeFileSync(path.join(sessionsDir, "backfilled-work.json"), JSON.stringify({
-      ...baseSession,
-      id: "backfilled-work",
-      mode: "work",
-    }));
-    const index = JSON.parse(fs.readFileSync(path.join(root, "index.json"), "utf8"));
-    index.push({ ...baseMeta, id: "backfilled-work", mode: "work" });
-    fs.writeFileSync(path.join(root, "index.json"), JSON.stringify(index));
-
-    const { initialize, listSessions } = await import("./chats-store");
-    initialize();
-
-    expect(listSessions().map(({ id, mode }) => ({ id, mode }))).toEqual([
-      { id: "legacy-work", mode: "work" },
-      { id: "legacy-proactive", mode: "chat" },
-      { id: "existing-code", mode: "code" },
-      { id: "daily-project", mode: "work" },
-      { id: "invalid-mode", mode: "work" },
-      { id: "backfilled-work", mode: "work" },
-    ]);
-    const migrationRoot = path.join(electronMock.userDataDir, "迁移文件夹");
-    expect(fs.existsSync(migrationRoot)).toBe(true);
-    expect(fs.readdirSync(migrationRoot)).toEqual([]);
-    expect(JSON.parse(fs.readFileSync(path.join(sessionsDir, "legacy-work.json"), "utf8"))).toEqual(
-      expect.objectContaining({
-        mode: "work",
-        workspaceBinding: expect.objectContaining({
-          workspaceRoot: migrationRoot,
-          displayName: "迁移文件夹",
-        }),
-      }),
-    );
-    expect(JSON.parse(fs.readFileSync(path.join(root, "index.json"), "utf8"))).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: "legacy-work", mode: "work", workspaceDisplayName: "迁移文件夹" }),
-        expect.objectContaining({ id: "legacy-proactive", mode: "chat" }),
-        expect.objectContaining({ id: "existing-code", mode: "code" }),
-        expect.objectContaining({ id: "daily-project", mode: "work", workspaceRoot: "C:\\projects\\daily", workspaceDisplayName: "daily" }),
-        expect.objectContaining({ id: "invalid-mode", mode: "work", workspaceDisplayName: "迁移文件夹" }),
-      ]),
-    );
-    expect(JSON.parse(fs.readFileSync(path.join(sessionsDir, "daily-project.json"), "utf8"))).toEqual(
-      expect.objectContaining({
-        title: "原 Daily 项目",
-        mode: "work",
-        messages: [{ id: "daily-message", role: "user", content: "保留这条消息", at: 1 }],
-        workspaceBinding: { workspaceRoot: "C:\\projects\\daily", displayName: "daily", boundAt: 123 },
-      }),
-    );
-  });
-
-  it("removes obsolete Cline metadata while retaining Code messages and workspace", async () => {
-    const store = await import("./chats-store");
-    store.initialize();
-    const session = store.createSession({
-      mode: "code",
-      initialMessages: [{ id: "code-message", role: "user", content: "保留代码会话", at: 1 }],
-    });
-
-    const persisted = store.getSession(session.id) as unknown as Record<string, unknown>;
-    expect(persisted.mode).toBe("code");
-    expect(persisted.messages).toEqual([{ id: "code-message", role: "user", content: "保留代码会话", at: 1 }]);
-    expect(persisted).not.toHaveProperty("codeSession");
-  });
-
-  it("keeps the legacy migration idempotent on restart", async () => {
-    const root = path.join(electronMock.userDataDir, "firefly-chats");
-    const sessionsDir = path.join(root, "sessions");
-    fs.mkdirSync(sessionsDir, { recursive: true });
-    const session = {
-      id: "legacy",
-      title: "旧对话",
-      identityId: null,
-      messages: [],
-      createdAt: 1,
-      updatedAt: 1,
-      schemaVersion: 1,
-    };
-    fs.writeFileSync(path.join(root, "index.json"), JSON.stringify([{
-      id: "legacy", title: "旧对话", identityId: null, createdAt: 1, updatedAt: 1, messageCount: 0,
-    }]));
-    fs.writeFileSync(path.join(sessionsDir, "legacy.json"), JSON.stringify(session));
-
-    let store = await import("./chats-store");
-    store.initialize();
-    const first = store.getSession("legacy");
-    vi.resetModules();
-    store = await import("./chats-store");
-    store.initialize();
-    const second = store.getSession("legacy");
-
-    expect(second?.mode).toBe("work");
-    expect(second?.workspaceBinding).toEqual(first?.workspaceBinding);
-  });
-
   it("indexes workspace metadata for grouped conversation lists", async () => {
     const store = await import("./chats-store");
     store.initialize();
@@ -329,24 +142,6 @@ describe("chats store", () => {
       id: session.id,
       workspaceRoot,
       workspaceDisplayName: "project-a",
-    }));
-  });
-
-  it("imports renderer legacy history into the Work migration project", async () => {
-    const store = await import("./chats-store");
-    store.initialize();
-
-    const session = store.migrateLegacyMessages([
-      { id: "old-1", role: "user", content: "以前的消息", at: 1 },
-    ]);
-
-    expect(session).toEqual(expect.objectContaining({
-      mode: "work",
-      workspaceBinding: expect.objectContaining({ displayName: "迁移文件夹" }),
-    }));
-    expect(store.listSessions({ mode: "work" })).toContainEqual(expect.objectContaining({
-      id: session?.id,
-      workspaceDisplayName: "迁移文件夹",
     }));
   });
 

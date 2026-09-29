@@ -55,7 +55,7 @@ describe("PROVIDER_CAPABILITIES — 已知条目存在性回归", () => {
       baseUrl: "https://api.minimaxi.com/anthropic",
       model: "MiniMax-M3",
       apiKey: "test-key",
-      explicitTransport: "auto" as const,
+      explicitTransport: "anthropic" as const,
     };
     const adapter = getAdapterForConfig(cfg);
     const request = adapter.buildRequest(

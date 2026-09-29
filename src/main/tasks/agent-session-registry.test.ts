@@ -47,7 +47,6 @@ describe("AgentSessionRegistry", () => {
     const { store, registry } = fixture();
     const first = registry.acquire(request);
     expect(first.schemaVersion).toBe(2);
-    expect(first.subagentType).toBeUndefined();
     expect(first.agent).toEqual({ id: request.agentId, modelProfile: request.modelProfile, savedModelProfileId: request.savedModelProfileId });
     store.checkpoint(first.id, { status: "completed", messages: [...first.messages, { role: "assistant", content: "reviewed" }] });
     const next = registry.acquire({ ...request, parentRunId: "run-2", prompt: "Continue the review" });
@@ -56,17 +55,15 @@ describe("AgentSessionRegistry", () => {
     expect(next.messages.map(message => message.content)).toEqual(["Read the public fixture", "reviewed", "Continue the review"]);
   });
 
-  it("isolates other agents, conversations and workspaces and does not adopt legacy general tasks", () => {
-    const { store, registry } = fixture();
-    const legacy = store.create({ ...request, subagentType: "general" });
-    store.checkpoint(legacy.id, { status: "completed" });
+  it("isolates agents, conversations and workspaces", () => {
+    const { registry } = fixture();
     const sessions = [
       registry.acquire(request),
       registry.acquire({ ...request, agentId: "test-research" }),
       registry.acquire({ ...request, parentConversationId: "conversation-2" }),
       registry.acquire({ ...request, resolvedWorkspaceRoot: path.join(request.resolvedWorkspaceRoot, "other") }),
     ];
-    expect(new Set([legacy.id, ...sessions.map(session => session.id)]).size).toBe(5);
+    expect(new Set(sessions.map(session => session.id)).size).toBe(4);
   });
 
   it("rejects concurrent resume, changed routing and changed mode without mutating the transcript", () => {

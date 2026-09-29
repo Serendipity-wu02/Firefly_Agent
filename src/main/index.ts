@@ -7,14 +7,13 @@
  * application/default-dependencies.ts；启动编排位于 application/application.ts。
  */
 
+import { userDataDir } from "./identity-preflight";
 import { app } from "electron";
 import { createApplication } from "./application/application";
 import { createDefaultApplicationDependencies } from "./application/default-dependencies";
 import { registerPluginPanelScheme } from "./plugin-panel-protocol";
 import { installGlobalNavigationGuard } from "./windows/external-link";
-import { configureFireflyApplicationIdentity } from "./app-identity";
 import { initializeMainFileLogging } from "./logger";
-import { migrateFireflyDataOnStartup } from "./migration/firefly-data";
 
 // 打包版双击启动时 stdout/stderr 管道可能不存在或中途关闭，
 // 此时任何 console.log 写入都会抛异步 EPIPE 并升级成 uncaughtException 弹错误框
@@ -27,9 +26,6 @@ for (const stream of [process.stdout, process.stderr]) {
   });
 }
 
-// This build owns a separate Electron identity and userData root. Configure
-// it before the single-instance lock and every app.getPath("userData") use.
-const userDataDir = configureFireflyApplicationIdentity(app);
 initializeMainFileLogging(userDataDir);
 
 // 插件设置面板协议：scheme 特权必须在 app.ready 之前注册（Electron 硬性要求）
@@ -46,10 +42,6 @@ application.prepareBeforeReady();
 
 if (application.isPrimaryProcess()) {
   void app.whenReady()
-    .then(() => {
-      const failed = migrateFireflyDataOnStartup(userDataDir);
-      if (failed.length > 0) console.warn("[FireflyMigration] stores not migrated:", failed.join(","));
-      return application.start();
-    })
+    .then(() => application.start())
     .catch((error) => application.handleFatalStartup(error));
 }

@@ -4,162 +4,108 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { TaskSessionStore } from "./task-session-store";
 
-const temporaryRoots: string[] = [];
+const roots: string[] = [];
+const sessionId = `agent-${"a".repeat(64)}`;
+const workspace = path.resolve(os.tmpdir(), "firefly-session-workspace");
+const agent = { id: "public-specialist", modelProfile: "review", savedModelProfileId: "saved-review" };
 
-function createStore() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-task-session-"));
-  temporaryRoots.push(root);
-  let now = 1_000;
-  let nextId = 1;
-  return {
-    root,
-    tick: () => { now += 1; },
-    store: new TaskSessionStore(root, {
-      now: () => now,
-      createId: () => `task-${nextId++}`,
-      createChildRunId: () => `child-run-${nextId}`,
-    }),
-  };
+function fixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-agent-session-store-"));
+  roots.push(root);
+  let now = 1000;
+  let childRun = 0;
+  const store = new TaskSessionStore(root, {
+    now: () => now,
+    createChildRunId: () => `child-run-${++childRun}`,
+  });
+  return { root, store, tick: () => { now += 1; } };
 }
 
-function createInput() {
-  return {
-    parentConversationId: "chat-1",
-    parentRunId: "run-1",
-    description: "检查取消链路",
-    prompt: "检查取消传播并列出证据。",
-    subagentType: "general" as const,
-    mode: "code" as const,
-    resolvedWorkspaceRoot: "E:\\project",
-  };
+function create(store: TaskSessionStore) {
+  return store.createAgent({
+    sessionId, agent, parentConversationId: "conversation-1", parentRunId: "run-1",
+    description: "Review a public fixture", prompt: "Read the fixture",
+    mode: "code", resolvedWorkspaceRoot: workspace,
+  });
 }
 
 afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
+  for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
-describe("TaskSessionStore", () => {
-  it("preserves uncertain effects through checkpoints, restart and resume", () => {
-    const { root, store } = createStore();
-    const created = store.create(createInput());
-    const effects = [{ id: "effect-1", toolCallId: "call-1", fingerprint: "fingerprint-1", toolName: "write_file", message: "outcome unknown" }];
-    store.checkpoint(created.id, { status: "interrupted", uncertainEffects: effects });
-    effects[0].message = "changed outside store";
-
-    const restarted = new TaskSessionStore(root);
-    const resumed = restarted.resume(created.id, {
-      mode: "code", resolvedWorkspaceRoot: "E:\\project",
-      parentConversationId: "chat-1", parentRunId: "run-2", subagentType: "general", prompt: "continue",
-    });
-    expect(resumed.uncertainEffects).toEqual([{ ...effects[0], message: "outcome unknown" }]);
+describe("Firefly agent session store", () => {
+  it("persists a private agent session outside chat history", () => {
+    const { root, store } = fixture();
+    const session = create(store);
+    expect(session).toMatchObject({ schemaVersion: 2, id: sessionId, agent,
+      status: "running", messages: [{ role: "user", content: "Read the fixture" }] });
+    expect(fs.existsSync(path.join(root, "firefly-tasks", "sessions", `${sessionId}.json`))).toBe(true);
+    expect(fs.existsSync(path.join(root, "firefly-chats", "sessions", `${sessionId}.json`))).toBe(false);
+    expect(store.listForParent("other-conversation")).toEqual([]);
   });
 
-  it("reads legacy absent uncertainty as empty but rejects malformed uncertainty without rewriting", () => {
-    const { root, store } = createStore();
-    const created = store.create(createInput());
-    const file = path.join(root, "firefly-tasks", "sessions", `${created.id}.json`);
-    const legacy = JSON.parse(fs.readFileSync(file, "utf8"));
-    delete legacy.uncertainEffects;
-    fs.writeFileSync(file, JSON.stringify(legacy));
-    expect(store.get(created.id)?.uncertainEffects).toEqual([]);
-    legacy.uncertainEffects = [{ toolName: "write_file" }];
-    const malformed = JSON.stringify(legacy);
+  it("preserves uncertain effects through checkpoint, restart, and authorized resume", () => {
+    const { root, store } = fixture();
+    create(store);
+    const effects = [{ id: "effect-1", toolCallId: "call-1", fingerprint: "hash-1",
+      toolName: "write_file", message: "outcome unknown" }];
+    store.checkpoint(sessionId, { status: "interrupted", uncertainEffects: effects });
+    effects[0].message = "mutated outside store";
+    const restarted = new TaskSessionStore(root);
+    const resumed = restarted.resumeAgent(sessionId, { agent, parentConversationId: "conversation-1",
+      parentRunId: "run-2", prompt: "Continue", mode: "code", resolvedWorkspaceRoot: workspace });
+    expect(resumed.uncertainEffects).toEqual([{ ...effects[0], message: "outcome unknown" }]);
+    expect(resumed.messages.map(message => message.content)).toEqual(["Read the fixture", "Continue"]);
+  });
+
+  it("rejects malformed current session data without rewriting it", () => {
+    const { root, store } = fixture();
+    create(store);
+    const file = path.join(root, "firefly-tasks", "sessions", `${sessionId}.json`);
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    data.uncertainEffects = [{ toolName: "write_file" }];
+    const malformed = JSON.stringify(data);
     fs.writeFileSync(file, malformed);
-    expect(() => store.get(created.id)).toThrow("TASK_SESSION_READ_FAILED");
+    expect(() => store.get(sessionId)).toThrow("TASK_SESSION_READ_FAILED");
     expect(fs.readFileSync(file, "utf8")).toBe(malformed);
   });
 
-  it("persists a private running child session outside chat sessions", () => {
-    const { root, store } = createStore();
-
-    const created = store.create(createInput());
-
-    expect(created).toMatchObject({
-      id: "task-1",
-      parentConversationId: "chat-1",
-      parentRunId: "run-1",
-      childRunId: "child-run-2",
-      status: "running",
-      messages: [{ role: "user", content: "检查取消传播并列出证据。" }],
-      trace: [],
-    });
-    expect(fs.existsSync(path.join(root, "firefly-tasks", "sessions", "task-1.json"))).toBe(true);
-    expect(fs.existsSync(path.join(root, "firefly-chats", "sessions", "task-1.json"))).toBe(false);
-    expect(store.get("task-1")).toMatchObject({ id: "task-1" });
-    expect(store.listForParent("chat-2")).toEqual([]);
+  it("does not load an old task identity as a current agent session", () => {
+    const { root, store } = fixture();
+    create(store);
+    const file = path.join(root, "firefly-tasks", "sessions", `${sessionId}.json`);
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    data.schemaVersion = 1;
+    delete data.agent;
+    const previous = JSON.stringify(data);
+    fs.writeFileSync(file, previous);
+    expect(() => store.get(sessionId)).toThrow("TASK_SESSION_READ_FAILED");
+    expect(fs.readFileSync(file, "utf8")).toBe(previous);
   });
 
-  it("resumes only a task owned by the same conversation and profile", () => {
-    const { store, tick } = createStore();
-    const created = store.create(createInput());
-    store.checkpoint(created.id, { status: "completed", resultText: "首轮检查完成" });
+  it("resumes only the same parent, agent, model, mode, and workspace", () => {
+    const { store, tick } = fixture();
+    create(store);
+    store.checkpoint(sessionId, { status: "completed" });
     tick();
-
-    const resumed = store.resume(created.id, {
-      mode: "code", resolvedWorkspaceRoot: "E:\\project",
-      parentConversationId: "chat-1",
-      parentRunId: "run-2",
-      subagentType: "general",
-      prompt: "继续检查权限等待时的取消。",
-    });
-
-    expect(resumed).toMatchObject({ status: "running", parentRunId: "run-2" });
-    expect(resumed.messages).toEqual([
-      { role: "user", content: "检查取消传播并列出证据。" },
-      { role: "user", content: "继续检查权限等待时的取消。" },
-    ]);
-    expect(() => store.resume(created.id, {
-      parentConversationId: "chat-2",
-      mode: "code", resolvedWorkspaceRoot: "E:\\project",
-      parentRunId: "run-3",
-      subagentType: "general",
-      prompt: "不应访问。",
-    })).toThrow("TASK_PARENT_MISMATCH");
-    expect(() => store.resume(created.id, {
-      parentConversationId: "chat-1",
-      mode: "code", resolvedWorkspaceRoot: "E:\\project",
-      parentRunId: "run-3",
-      subagentType: "search",
-      prompt: "不应改变类型。",
-    })).toThrow("TASK_PROFILE_MISMATCH");
+    const base = { agent, parentConversationId: "conversation-1", parentRunId: "run-2",
+      prompt: "Continue", mode: "code" as const, resolvedWorkspaceRoot: workspace };
+    expect(() => store.resumeAgent(sessionId, { ...base, parentConversationId: "other" })).toThrow("TASK_PARENT_MISMATCH");
+    expect(() => store.resumeAgent(sessionId, { ...base, agent: { ...agent, id: "other" } })).toThrow("AGENT_IDENTITY_MISMATCH");
+    expect(() => store.resumeAgent(sessionId, { ...base, agent: { ...agent, savedModelProfileId: "other" } })).toThrow("AGENT_MODEL_PROFILE_CHANGED");
+    expect(() => store.resumeAgent(sessionId, { ...base, resolvedWorkspaceRoot: path.join(workspace, "other") })).toThrow("AGENT_WORKSPACE_MISMATCH");
+    expect(store.resumeAgent(sessionId, base).status).toBe("running");
   });
 
-  it("marks a persisted running task as interrupted after restart", () => {
-    const { root, store } = createStore();
-    const created = store.create(createInput());
-
+  it("interrupts a running agent after restart and keeps its Todo notebook isolated", () => {
+    const { root, store } = fixture();
+    create(store);
+    store.checkpoint(sessionId, { todoItems: [{ id: "inspect", content: "Read fixture", status: "in_progress" }] });
     const restarted = new TaskSessionStore(root);
-
-    expect(restarted.get(created.id)).toMatchObject({
-      id: created.id,
-      status: "interrupted",
-      messages: [{ role: "user", content: "检查取消传播并列出证据。" }],
-    });
-  });
-
-  it("persists a task Todo notebook across restart without exposing mutable storage", () => {
-    const { root, store } = createStore();
-    const created = store.create(createInput());
-
-    store.checkpoint(created.id, {
-      todoItems: [{ id: "inspect", content: "检查取消链路", status: "in_progress" }],
-    });
-
-    const restarted = new TaskSessionStore(root);
-    const restored = restarted.get(created.id);
-
-    expect(restored?.todoItems).toEqual([
-      { id: "inspect", content: "检查取消链路", status: "in_progress" },
-    ]);
-
-    restored?.todoItems.push({ id: "report", content: "整理报告", status: "pending" });
-    expect(restarted.get(created.id)?.todoItems).toEqual([
-      { id: "inspect", content: "检查取消链路", status: "in_progress" },
-    ]);
-
-    const sibling = restarted.create({ ...createInput(), description: "另一个子任务" });
-    expect(sibling.todoItems).toEqual([]);
+    const session = restarted.get(sessionId);
+    expect(session?.status).toBe("interrupted");
+    expect(session?.todoItems).toEqual([{ id: "inspect", content: "Read fixture", status: "in_progress" }]);
+    session?.todoItems.push({ id: "extra", content: "Not persisted", status: "pending" });
+    expect(restarted.get(sessionId)?.todoItems).toHaveLength(1);
   });
 });

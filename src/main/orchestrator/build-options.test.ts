@@ -230,7 +230,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "生成一份文档" }],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
     const askOptions = result.options as typeof result.options & {
       askSystemContent?: string
@@ -244,7 +244,7 @@ describe("build-options", () => {
   it("passes the trusted runtime environment to the agent decision stages", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "帮我查一下今天的天气" }],
-      style: "01_default.md",
+      styleId: "default",
     }, createBuildDeps())
 
     expect((result.options as typeof result.options & {
@@ -264,7 +264,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
 
     expect(result.options.settings.reasoning).toEqual({ mode: "off" })
@@ -284,7 +284,7 @@ describe("build-options", () => {
 
       const result = await buildAgentRunOptions({
         messages: [{ role: "user", content: "你好" }],
-        style: "01_default.md",
+        styleId: "default",
         executionMode,
         mode: executionMode,
       }, deps)
@@ -297,7 +297,7 @@ describe("build-options", () => {
   it("adds a concise WeChat system when the run comes from WeChat", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
       channel: "wechat",
     }, createBuildDeps())
 
@@ -310,7 +310,7 @@ describe("build-options", () => {
   it("does not add channel system for desktop chat", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
     }, createBuildDeps())
 
     expect(result.options.soulSystemBaseContent).not.toContain("你正在通过微信回复用户")
@@ -320,7 +320,7 @@ describe("build-options", () => {
   it("messages 不含 system，由循环层组装 system", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
     }, createBuildDeps())
 
     // 原始 messages 不含 system 消息
@@ -337,7 +337,7 @@ describe("build-options", () => {
         { role: "assistant", content: "早点休息", at: Date.UTC(2026, 6, 12, 12, 2) },
         { role: "user", content: "我回来啦", at: Date.UTC(2026, 6, 13, 3, 0) },
       ],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
 
     expect(result.options.messages[0].content).toContain("<internal_context>用户发送这条消息的时间：2026-07-12 20:00")
@@ -353,7 +353,7 @@ describe("build-options", () => {
   it("toolSystemContent / soulSystemBaseContent 是分开的两套字符串", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
     }, createBuildDeps())
 
     expect(result.options.toolSystemContent).toBe("TOOL_SYSTEM")
@@ -392,7 +392,7 @@ describe("build-options", () => {
     const result = await buildAgentRunOptions({
       sessionId: "daily-session",
       messages: [{ role: "user", content: "搜索后写一份 Markdown 报告" }],
-      style: "01_default.md",
+      styleId: "default",
       executionMode: "work",
     }, deps)
 
@@ -413,7 +413,7 @@ describe("build-options", () => {
       sessionId: "conversation-bound",
       workspaceBindingSessionId: null,
       messages: [{ role: "user", content: "继续对话" }],
-      style: "01_default.md",
+      styleId: "default",
       executionMode: "work",
     }, deps)
 
@@ -525,7 +525,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "今天怎么样" }],
-      style: "01_default.md",
+      styleId: "default",
       channel: "wechat",
       executionMode: "chat",
     }, deps)
@@ -614,7 +614,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [originalUserMessage],
-      style: "01_default.md",
+      styleId: "default",
       sessionId: "conversation-1",
     }, deps)
 
@@ -637,7 +637,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "第二首" }],
-      style: "01_default.md",
+      styleId: "default",
       sessionId: "conversation-1",
     }, deps)
 
@@ -650,7 +650,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "好无聊" }],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
 
     expect(result.options.toolSystemContent).toContain("SKILL_CATALOG")
@@ -664,7 +664,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "今日推荐呢" }],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
 
     expect(result.options.toolSystemContent).toContain("AUTO_MUSIC_RULES")
@@ -690,7 +690,7 @@ describe("build-options", () => {
         { role: "assistant", content: "好的" },
         { role: "user", content: "请看这张图" },
       ],
-      style: "01_default.md",
+      styleId: "default",
       imageAttachments: [{ name: "图 像.png", filePath: imagePath, mime: "image/png" }],
     }, deps)
 
@@ -750,7 +750,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "这图哪里不对？" }],
-      style: "01_default.md",
+      styleId: "default",
       imageAttachments: [{ name: "setup.png", filePath: "C:\\tmp\\setup.png", mime: "image/png" }],
     }, deps)
 

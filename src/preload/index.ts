@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { normalizeFireflyEvent } from "../shared/legacy-firefly-contracts";
 import { IPC } from "../shared/ipc-channels";
 import type { QqListenAuthRequirement } from "../shared/qq-listen";
 import type { ApprovalRequest, ApprovalSettledPayload } from "../shared/permission-approval";
@@ -150,7 +149,7 @@ const aguiApi = {
   onEvent: (callback: (event: unknown) => void) => {
     const listener = (_e: unknown, event: unknown) => {
       try {
-        callback(normalizeFireflyEvent(event));
+        callback(event);
       } catch (err) {
         console.error("[Preload] listener抛错:", err);
       }
@@ -709,8 +708,6 @@ const chatStoreApi = {
   openFolder: () => ipcRenderer.invoke(IPC.CHATS_OPEN_FOLDER),
   openWorkspace: (workspaceRoot: string) =>
     ipcRenderer.invoke(IPC.CHATS_OPEN_WORKSPACE, workspaceRoot),
-  migrateLegacy: (messages: unknown[]) =>
-    ipcRenderer.invoke(IPC.CHATS_MIGRATE_LEGACY, messages),
   // 聊天窗口加载 / 切换 session 时上报；附带本页面的渲染目标标识与会话模式，
   // 主进程据此维护语音输入租约冻结的活动目标；其他窗口可查询/订阅
   setActiveSession: (sessionId: string | null, mode?: ConversationMode) =>

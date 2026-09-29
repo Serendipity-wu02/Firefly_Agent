@@ -27,11 +27,10 @@
 
 Main通过现有Harness调用 `delegate_agent({ agent_id, prompt })`，持久化沿用TaskSessionStore schema2。`AgentSessionRegistry`以会话、规范化工作区和准确Agent ID定位会话；复用保留消息、Todo、不确定副作用和模型档案身份。子Agent能力取父运行授权交集，不能再次委派、询问用户或确认父级副作用；输出按ownerSessionId隔离。
 
-Agent Routing保存 `agentModelProfiles`（抽象路由）和 `specialistModelProfiles`（角色覆盖）中的已保存档案ID，不复制密钥/URL。角色覆盖优先；缺失或失效档案明确报错，不自动选第一个模型。改变绑定不静默改绑既有会话；编辑同一档案的服务配置会影响后续请求。旧schema1记录不自动成为命名Agent会话；`LegacyTaskSubagentType`仅用于内部旧存储兼容，不再向模型暴露旧task API。
+Agent Routing保存 `agentModelProfiles`（抽象路由）和 `specialistModelProfiles`（角色覆盖）中的已保存档案ID，不复制密钥/URL。角色覆盖优先；缺失或失效档案明确报错，不自动选第一个模型。改变绑定不静默改绑既有会话；编辑同一档案的服务配置会影响后续请求。Agent 会话仅接受当前 schema2 身份；持久化读取失败保留原文件，不把其他任务记录当作命名 Agent 会话。
 
-Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列出的 Firefly 入口开始，不以原项目的实现作为默认答案。原项目只用于来源、版权或旧数据兼容追溯；不作为构建输入，也不作为缺失文件的运行回退。工程独立不改变第三方归属。
+Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列出的 Firefly 入口开始，不以原项目的实现作为默认答案。原项目只用于来源、版权追溯；不作为构建输入，也不作为缺失文件的运行回退。工程独立不改变第三方归属。
 
-历史结构核对记录（不是当前 vNext 验收）：2026-09-27 核对起点：`firefly-mini-v1.1.x`，HEAD `890bc6165d7b3a476d6069c436145c181bd8a16b`，171 项展开工作树差异，暂存区为空。起点是本次工作树，不是历史迁移基线。结构清单覆盖 1849 个已跟踪及未忽略的现有文件；本机生成目录单独区分，不把它们当产品源码。
 
 下表的“运/构/包/测”分别表示运行使用、构建输入、正式包输入、验证用途；“编译”表示通过 dist 间接分发。功能启停仍由现有配置决定，“运”不表示默认启用或已实机通过。
 
@@ -43,7 +42,7 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `src/renderer/live2d`、`assets`、`public` | 运/构/包/测 | 桌宠控制与动作解析；`assets/task-portraits` 由角色映射 import；public 由 Vite 复制模型、贴图及浏览器运行资源 | 图像/模型和 Cubism 等保留各自许可；不是应用用户数据 |
 | `src/renderer/settings`、`sidebar`、`sticker-manager`、`tasks`、`toast` | 运/构/编译/测 | `vite.config.ts` 的各 HTML entry → 对应窗口；共用 `ui`、`shared`、`lib`、`types`、`i18n-runtime` | 多窗口视图，不以名称相近判定为可删除的重复实现 |
 | `src/renderer/react-perf` | 专用构/测 | `scripts/perf/chat-renderer-baseline.mjs` 和 `FIREFLY_PERF_HARNESS` 选择专用入口 | 性能夹具，不是普通 build 的页面入口 |
-| `src/shared` | 运/构/编译/测 | IPC、事件、数据类型、路径/ZIP安全契约被 Main/preload/Renderer 按需引用 | `legacy-firefly-contracts.ts` 集中兼容旧数据；不双发事件 |
+| `src/shared` | 运/构/编译/测 | IPC、事件、数据类型、路径/ZIP安全契约被 Main/preload/Renderer 按需引用 | 当前 Firefly IPC、类型与安全契约；不双发事件 |
 | `src/plugins` | 运/构/编译/测 | `loader.ts`/`manager.ts` 由 Main plugin runtime 调用；manifest/schema、资源/存储/IPC约束 → 宿主端口 | 通用插件机制，不能以 SDK 重名认为存在第二套插件执行器 |
 | `src/cli` | 构/编译/测 | `index.ts` → `app.ts` → `commands`；`scripts/build/cli.mjs` 生成 `dist/cli/index.js` | `firefly run` 从调用者当前项目启动 Electron，不读取原项目 |
 | `packages/plugin-sdk` | 构/测；插件使用 | `scripts/plugin-sdk/build-sdk.mjs` 构建本地 `@firefly/plugin-sdk`；示例用本地产物编译 | 未发布 npm；许可保留；不伪造线上下载服务 |
@@ -83,7 +82,6 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `tasks` | task-session-store和task-character-pool被orchestrator/persistent-agent-runtime调用 | 展示角色池不拥有审批或模型权限 |
 | `permission` | bootstrap → 根级`permission.ts`/`permission-policy.ts`与`user-choice.ts` → Harness permissionCheck | 文件与目录同名是实现/装配拆分，需保留明确import解析 |
 | `skills` | index → 目录校验/托管同步 → scanner/registry → catalog/tools | 五项项目能力与 39 项 vendor Skills 进入同一注册表；用户覆盖优先，角色/流程协议不占 Skill ID |
-| `migration` | firefly-data、channel-credentials、skill-snapshot、managed-skill-update由启动、凭据读取、Skills调用 | 长期兼容/升级模块，不是临时脚本；保留原数据与备份，不移动用户路径 |
 | `settings` | settings-facade、model-settings、settings-ipc；根级settings-store管理用户资料 | 模型档案与用户称呼职责不同，不合并存储格式 |
 | `memory`、`rag` | memory-store/工作记忆；rag/index与embedding、document-index队列 | 原始记忆与可重建索引分离；未配置向量服务不等于原始历史不存在 |
 | `knowledge` | 绑定 Work Vault 的 Obsidian 工具与进度；`knowledge-workspace.ts` 判定资格，build-options/AGUI 消费 | 显式初始化，保存原 `learn/progress.md` 数据路径；每个运行捕获自己的工作区 |
@@ -102,22 +100,23 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 
 ### 唯一主线与具体入口
 
-1. **启动**：package `main=dist/main/main/index.js`，源码 `src/main/index.ts`；先应用身份和日志、scheme/导航保护，再创建application、单实例预配置；ready后数据兼容，再shell → core → background。退出由`application/shutdown.ts`协调。preload由窗口工厂选择`dist/preload/preload/index.js`；主工作台为Vite的`react/index.html` → `react/main.tsx`，桌宠及辅助窗口使用上表入口。
-2. **三模式**：Renderer Chat工作台的mode → preload AGUI_RUN → `agui-bridge.ts`会话/运行登记 → `AgentRuntime.buildOptions` → `build-options.ts`/`mode-prompt-profile.ts` → `FireflyAgent.runWithEvents`。Chat可走无工具路径，Work/Code使用同一Harness和各自模式过滤；Learn 新请求拒绝，旧会话备份后迁移为 Work。AGUI_CANCEL把AbortSignal传到同次run，终态经原订阅回送Renderer。
+1. **启动**：package `main=dist/main/main/index.js`，源码 `src/main/index.ts`；先应用身份和日志、scheme/导航保护，再创建application、单实例预配置；ready后shell → core → background。退出由`application/shutdown.ts`协调。preload由窗口工厂选择`dist/preload/preload/index.js`；主工作台为Vite的`react/index.html` → `react/main.tsx`，桌宠及辅助窗口使用上表入口。
+2. **三模式**：Renderer Chat工作台的mode → preload AGUI_RUN → `agui-bridge.ts`会话/运行登记 → `AgentRuntime.buildOptions` → `build-options.ts`/`mode-prompt-profile.ts` → `FireflyAgent.runWithEvents`。Chat可走无工具路径，Work/Code使用同一Harness和各自模式过滤；仅接受当前三模式记录。AGUI_CANCEL把AbortSignal传到同次run，终态经原订阅回送Renderer。
 3. **任务/工具/审批**：`harness/adapter/tool-runtime.ts`建立同次运行上下文，`persistent-agent-runtime.ts`/`specialist-profiles.ts`限制子任务工具，`tasks/task-session-store.ts`保存状态。`tool-registration.ts`注册工具；`skill-tools.ts`、插件和专项工具在各自初始化点注册到同一registry。`permission.ts`/`permission-policy.ts`和Harness dispatcher共同决定许可、effectKind、审批与取消，不由角色名称决定。
-4. **Skills**：`skills/index.ts::initSkills` → `external-content-paths.ts`确定正式目录与用户位置 → `directory-install.ts`校验并同步托管目录，历史精确版本由 `migration/skill-snapshot.ts` 等迁移入口识别 → `skill-scanner.ts` → `skill-registry.ts`。只扫描项目五项和用户目录，不把打包的 vendor 目录作为第二扫描源。`skill-tools.ts`提供`invoke_skill`和`read_skill_reference`；`skill-catalog.ts`是提示词目录/按规则注入入口。当前池为 39 项 vendor 加五项项目 Skills；旧 39+8 数量仅是历史基线。
-5. **数据**：`app-identity.ts`固定appName/userData名为Firefly，根目录来自Electron appData；settings-facade/model-settings、chats-store、task-session-store、memory-store、Harness run-store各自拥有对应数据。`plugin-runtime.ts`使用userData/plugins及plugin-data；Skills用userData/skills。`migration/firefly-data.ts`规范化旧数据，`channel-credentials.ts`保留旧凭据解密，不能以更名删除恢复路径。读失败与空列表区分沿现有存储契约。
+4. **Skills**：`skills/index.ts::initSkills` → `external-content-paths.ts`确定正式目录与用户位置 → `directory-install.ts`校验并同步托管目录 → `skill-scanner.ts` → `skill-registry.ts`。只扫描项目五项和用户目录，不把打包的 vendor 目录作为第二扫描源。`skill-tools.ts`提供`invoke_skill`和`read_skill_reference`；`skill-catalog.ts`是提示词目录/按规则注入入口。当前池为 39 项 vendor 加五项项目 Skills；旧 39+8 数量仅是历史基线。
+5. **数据**：`app-identity.ts`固定appName/userData名为Firefly，根目录来自Electron appData；settings-facade/model-settings、chats-store、task-session-store、memory-store、Harness run-store各自拥有对应数据。`plugin-runtime.ts`使用userData/plugins及plugin-data；Skills用userData/skills。读取失败阻止写回，渠道密钥仅按当前格式解密。读失败与空列表区分沿现有存储契约。
 6. **插件**：application core → `plugin-runtime.ts::startPluginRuntime` → `src/plugins/manager.ts`/`loader.ts`；`installer.ts`使用共享安全ZIP落盘层。`packages/plugin-sdk`从当前types构建，`manifest.schema.json`由专用脚本生成校验；examples只做本地编译/Mock。`firefly-plugin`、`firefly-panel/1`与来源、路径、版本限制保持。
 7. **分发**：`npm run build`清理dist后编译Main/Preload/CLI/Renderer；`validate:skills`只读校验 39+5 个 Skills 及固定文件哈希；`prepare:mingit`从vendor清单准备已校验第三方包；`build:screenshot-helper`从本仓库Cargo源码构建。`electron-builder.yml`直接复制 `vendor/firefly-skills/skills/`、目录 manifest、许可通知及项目 `skills/`，不打包旧 Skills ZIP 或开发适配输入。`package:win:dir`不等于安装器验收或 Release 发布；修改正式目录后须先运行 `validate:skills`。
-8. **更新**：应用更新service当前关闭；Skills升级只匹配已识别旧文件并保护用户修改；安装器的external-content-migration保留用户可编辑内容；firefly-data处理存储格式。四者目的不同，不以“统一更新”合成一个破坏性覆盖入口。
+8. **更新**：应用更新service当前关闭；Skills托管同步通过当前 manifest 与管理状态保护用户修改；安装器的 external-content-migration 保留用户可编辑内容。四者目的不同，不以“统一更新”合成一个破坏性覆盖入口。
 
 ### 结构决策与不变契约
 
-- 运行模块不为整齐而重命名：`migration`有明确长期兼容用途；`startup`/`application`、`chat`/`chats`、`services/cita`/`cita`已确认职责不同。为了整齐移动会增加调用和历史测试维护成本，没有消除实际重复所有者的收益。
+- 运行模块不为整齐而重命名：`startup`/`application`、`chat`/`chats`、`services/cita`/`cita`已确认职责不同。为了整齐移动会增加调用和历史测试维护成本，没有消除实际重复所有者的收益。
 - `scripts/build`、`packaging`、`verify`、`ci`等已按职责分开；正式 vendor Skills 目录、历史适配输入、resources 二进制暂存与 dist 输出各有不同用途。
 - 测试沿现有同目录布局保留：Vitest扫描src、skills/tests、packages/src；Node测试扫描scripts须显式执行；Rust测试由Cargo执行。Main/preload正式编译不应将`*.test.ts`列为根输入；测试代码不应通过`dist/**/*`进入正式包。对应修正与验证见集中报告。
 - 身份不能混用：仓库展示`Firefly_Agent`，npm包`firefly-agent`，Electron appName及userData子目录`Firefly`，appId `com.serendipitywu02.firefly`，CLI `firefly`，SDK `@firefly/plugin-sdk`。这些是不同协议职责，本轮不更改其值。
-- `docs/architecture`是长期入口；迁移、CI事故、refactor集中报告是证据索引，历史源码路径不作为正常操作命令。旧产品署名、第三方包名、来源URL、旧用户键继续按各自必要用途保留。
+- 隔离启动验证可显式设置 `FIREFLY_ISOLATED_SMOKE_APPDATA` 为已存在、位于常规 appData 之外的绝对目录；Main 在读取设置前重定向 Electron appData，再按原有身份规则生成该目录下的 `Firefly` userData。未设置时不改变正式路径；无效或重叠路径在启动前拒绝。此入口仅供本地测试，不应写入用户配置或正式启动脚本。
+- `docs/architecture` 是长期入口；迁移、CI 事故和 refactor 报告保留历史证据。版权署名、第三方包名和来源 URL 按实际许可与来源保留，不作为当前运行入口。
 - 没有把未知模型/办公服务、真实用户环境、深度GUI、TTS、QQ Music审批、持续帧率、安装器或跨平台状态写成通过。完整证据及独立性验证边界见[集中记录](firefly-reliability-boundaries.md)。
 
 ## 执行与身份
@@ -137,33 +136,31 @@ Call 独立窗口、循环及 IPC 已退役；共享 ASR/TTS、Chat 语音播放
 
 ## 持久 Agent 基础与接线状态
 
-`tasks/agent-session-registry.ts`、`tasks/task-session-store.ts`、`orchestrator/persistent-agent-runtime.ts`、`settings/agent-model-routing.ts` 与 Harness `delegate_agent` 边界构成持久会话基础：按父会话、工作区和 Agent 身份恢复，继承权限与取消，保存路由身份而非凭据。Main已接入上述持久委派与十二个确认映射，设置页提供模型路由绑定；旧public task入口及generic profiles已删除，仅保留schema1存储读取兼容。
+`tasks/agent-session-registry.ts`、`tasks/task-session-store.ts`、`orchestrator/persistent-agent-runtime.ts`、`settings/agent-model-routing.ts` 与 Harness `delegate_agent` 边界构成持久会话基础：按父会话、工作区和 Agent 身份恢复，继承权限与取消，保存路由身份而非凭据。Main已接入上述持久委派与十二个确认映射，设置页提供模型路由绑定；旧 public task 入口及 generic profiles 已删除。
 
 ## Skills
 
 旧八项项目 Skill 调整为五项发现入口：`skills/diagram/`、`skills/assessment/`、`skills/tutoring/`、`skills/knowledge-workspace/`、`skills/plugin-development/`。学习、测验、Vault、图示和插件开发能力保留。角色表达转入 `prompts/persona-support/`；计划与文件操作协议转入 `prompts/workflow-support/`，由提示词层明确组合，不另注册 Skill。保留来源、许可和附件，不冒充原作引文。39 项 vendor 加五项项目 Skills 已通过确定性生成、迁移保护回归及隔离启动注册检查；场景样例仅为维护资料，不自动注入。
 
-扫描、注册、模式过滤、按需正文与附件读取、autoInject 规则保持原机制。旧 ID 的设置和数据由 `src/main/migration/legacy-skill-migration.ts` 集中迁移，不提供任意运行时别名。显式新设置优先，用户关闭和修改受保护；更名不能扩大工具权限。旧 Learn 元数据先规范化到 Work，显式 Work=false 优先。迁移和正式目录的验收范围以本轮验证记录为准。
+扫描、注册、模式过滤、按需正文与附件读取、autoInject 规则保持原机制。设置仅使用当前 Skill ID 与模式，用户关闭和修改受保护；名称不扩大工具权限。正式目录的验收范围以实际验证记录为准。
 
 `invoke_skill` 仍最多返回正文前 6000 字符。需要后续正文时，用现有 `read_skill_reference` 的 `skill_id`、`source: "body"`、`ref: "SKILL.md"` 和提示给出的 `offset` 续读；默认 `source: "reference"` 保持附件读取方式，每页最多 8000 字符。按来源、文件和偏移去重，模式白名单、enabled、路径限制不变；正文续读沿用 invoke_skill 的动态效果分类，未声明仍 unknown，附件默认 read 不变。没有永久注入全部 Skills。
 
-继承 Skills 保留原 ID；审查和子任务开发两项现为 Firefly 维护适配，通过真实 `task` 参数及 `references/` 读取，不使用 Codex 开发插件的独立代理接口。九项 Superpowers 附完整 MIT 与来源通知；PPTX 六处锚点修正，不改生成能力。历史适配输入保存在 `scripts/packaging/skill-adaptations/`，正式分发直接复制已核验的 vendor 目录，不从该输入重新生成 ZIP。首次安装与后续托管更新均经目录校验、用户修改保护及备份；旧版本精确识别仍由迁移模块承担。
+继承 Skills 保留原 ID；审查和子任务开发两项现为 Firefly 维护适配，通过真实 `task` 参数及 `references/` 读取，不使用 Codex 开发插件的独立代理接口。九项 Superpowers 附完整 MIT 与来源通知；PPTX 六处锚点修正，不改生成能力。历史适配输入保存在 `scripts/packaging/skill-adaptations/`，正式分发直接复制已核验的 vendor 目录，不从该输入重新生成 ZIP。首次安装与后续托管同步均经目录校验、用户修改保护及备份。
 
 项目 SDK 为本地构建的 `@firefly/plugin-sdk`，通过本地 tarball 验证和安装，尚未发布到 npm。插件市场未配置；保留本地 ZIP 安装，默认不请求第三方市场。
 
 ### 托管升级保护与已登记维护问题
 
-`migration/managed-skill-files.json` 只记录旧分发文件的原字节哈希，不携带旧正文或当前 ZIP 地址。正文和附件分别识别：已等于新内容的文件不写入；只有精确匹配已知旧哈希的附件可备份后替换；用户编辑或未知同名附件保留整包。历史托管更新在隔离的目录副本上执行，完成后才切换目录；失败时保持原目录，成功后保留整包备份。
 
-`skill-snapshot.ts` 隔离每项托管失败，记录 Skill ID 和规范化错误码，继续其他条目；`skills/index.ts` 对迁移阶段失败保留诊断并继续扫描现有文件，不吞设置解析失败、不写空设置。旧安装目录的 XLSX/PDF/DOCX/PPTX/SP 文件识别及冲突保护由临时目录测试覆盖；当前运行时不再读取旧 ZIP。
 
 P2 后续事项：`skills/skill-tools.ts` 的 `readRefs` 是进程级 Set，当前生产调用链没有调用 `resetReadRefs()`；不同运行读取同一分页会受到此前读取记录影响。此项是已有实现缺陷，不属于本轮结构更名或已解决的静态 Skill ID 绑定；后续应限定运行作用域并验证跨会话读取，不以全局 alias 或扩大权限处理。本轮没有扩大修改该链路。Main 编译仍带入未由启动入口引用的 `sim` 源码，以及工具注册的副作用 import，亦保留为按模块整理事项，不把它们误判为第二套生产 Agent Loop。
 
 ## 兼容与数据
 
-`%APPDATA%\Firefly`、历史列表和配置读取保护不变。当前事件、角色身份、配置字段、插件协议和新数据目录使用 Firefly；旧数据由集中迁移入口读取，保留来源或备份，新数据优先。原生截图助手使用 `firefly-screenshot`，CLI 使用 `firefly`。
+`%APPDATA%\Firefly`、历史列表和配置读取保护不变。当前事件、角色身份、配置字段、插件协议和数据目录使用 Firefly；不读取或迁移其他产品的安装数据。原生截图助手使用 `firefly-screenshot`，CLI 使用 `firefly`。
 
-打包版用户 prompts 仍优先于内置文件；历史文件名通过集中旧格式适配入口读取，不覆盖用户自定义内容。
+打包版用户 prompts 仍优先于内置文件；不覆盖用户自定义内容。
 
 环境配置仅读取 `src/shared/firefly-environment.ts` 中明确列出的 `FIREFLY_*` 字段；渠道入站服务只接受 `x-firefly-channel-secret`。旧环境变量和旧请求头不在兼容范围内。历史记录中的旧公开桥与协议承诺已被当前实现取代，不据旧报告配置运行环境。
 
@@ -171,13 +168,13 @@ P2 后续事项：`skills/skill-tools.ts` 的 `readRefs` 是进程级 Set，当�
 
 运行入口、适配器与工具分发器仍分别承担模型调用、事件转换、执行和权限控制；不恢复旧施工稿中的第二套规划或强制完成工作流。`src/main/agui-bridge.ts`、`orchestrator/harness-adapter.ts` 与 `harness/firefly-harness.ts` 使用同一次运行身份，正常完成、失败和取消必须结算原运行，迟到事件不得覆盖下一次运行。临时流式文字不代表工具执行或文件完整读取成功。
 
-历史列表由 `chats/chats-store.ts` 管理，运行和子任务分别由 `harness/run-store.ts`、`tasks/task-session-store.ts` 管理。读取失败不是首次使用或空列表；失败状态不得触发空数据写回。重命名后的数据路径由 `migration/firefly-data.ts` 处理，原目录保留。实际迁移前需备份，并按索引中的记录身份核对数量、缺失项及冲突，不按目录存在就推断迁移完整。
+历史列表由 `chats/chats-store.ts` 管理，运行和子任务分别由 `harness/run-store.ts`、`tasks/task-session-store.ts` 管理。读取失败不是首次使用或空列表；失败状态不得触发空数据写回。当前数据路径由 `firefly-data-paths.ts` 决定；本次清理不访问真实用户目录。
 
 ## 插件与朋友圈边界
 
 当前插件开发入口为 [插件开发指南](../plugins/plugin-dev-guide.md) 和 [接口规范](../plugins/plugin-authoring.md)，不再使用旧市场施工方案。SDK 为本地构建产物，不宣称存在已发布的新 npm 包或官方市场。插件注册、停用和资源清理由现有 `src/plugins/`、`src/main/plugin-host/` 与 `src/main/plugin-runtime.ts` 负责；更名不开放权限决策或替换运行循环。
 
-面板使用 `firefly-plugin`、`firefly-panel/1` 与 `FireflyPanel`。来源窗口、origin、版本、启用状态和资源真实路径校验继续有效；已移除旧面板协议、scheme 与桥别名；历史数据规范化仍由独立迁移入口完成，不双发事件。
+面板使用 `firefly-plugin`、`firefly-panel/1` 与 `FireflyPanel`。来源窗口、origin、版本、启用状态和资源真实路径校验继续有效；已移除旧面板协议、scheme 与桥别名；不双发事件。
 
 朋友圈通过 `moments-policy.ts`、`moments-service.ts`、`moments-store.ts`、`character-personas.ts` 及现有 Renderer 面板运行。角色资料与任务执行职责分开。当前默认开关以 `settings-facade.ts` 为准；迁移不得因字段更名改变用户已经保存的开关。用户发帖身份由 Main 决定，不能由 Renderer 提交角色身份来冒充角色。旧角色社交示例和旧名单不再作为当前实现依据。
 

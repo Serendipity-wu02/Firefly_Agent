@@ -10,7 +10,7 @@ import type { TodoItem } from "./todo-types";
 import type { TaskDelegationPresentation } from "./task-session";
 import type { ContextUsageSnapshot } from "./context-usage";
 
-// - schemaVersion 用于以后改 schema 时的迁移判断；当前固定 1。
+// - schemaVersion 标记当前会话结构；当前固定 1。
 
 export type ChatRole = "user" | "model";
 
@@ -291,8 +291,8 @@ export interface ChatSession {
   titleIsCustom?: boolean;
   /** 对话工作区绑定（Coding Agent 使用的可信目录） */
   workspaceBinding?: ConversationWorkspaceBinding;
-  /** 会话模式：创建时绑定，整个会话生命周期不变。旧会话无此字段时默认 "work"。 */
-  mode?: ConversationMode;
+  /** 会话模式：创建时绑定，整个会话生命周期不变。 */
+  mode: ConversationMode;
   /** 用户是否置顶该会话；置顶项在列表中优先展示。 */
   pinned?: boolean;
   /** 当前会话选择的已保存模型；缺失时使用默认模型。 */
@@ -303,7 +303,7 @@ export interface ChatSession {
    * 避免 UI 显示过期数据（known-issues 问题 3）。
    */
   currentContextUsage?: ContextUsageSnapshot;
-  /** 会话级待发队列：旧会话无此字段视为空队列（向后兼容）。 */
+  /** 会话级待发队列；未入队时可省略。 */
   pendingMessages?: PendingChatMessage[];
   /** 待发派发状态：认领后 run 确认接受前存在；残留即恢复入口（向后兼容缺省为无）。 */
   pendingDispatch?: PendingDispatchState;

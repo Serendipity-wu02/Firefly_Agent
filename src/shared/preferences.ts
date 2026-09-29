@@ -11,9 +11,8 @@ export function normalizeChatSocialContextEnabled(value: unknown): boolean {
 }
 
 export function normalizeDefaultChatMode(value: unknown): DefaultChatMode {
-  // 兼容旧版磁盘值：talk -> chat，collab -> work。
-  if (value === "chat" || value === "talk") return "chat";
-  if (value === "work" || value === "collab") return "work";
+  if (value === "chat") return "chat";
+  if (value === "work") return "work";
   if (value === "code") return "code";
   return "chat";
 }

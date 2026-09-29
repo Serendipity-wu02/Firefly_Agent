@@ -204,7 +204,6 @@ describe("formal answer visibility", () => {
     }));
 
     expect(html).not.toContain("cy-agent-round");
-    expect(html).not.toContain("昔涟已完成");
     expect(html).toContain("思考目录结构");
     expect(html).toContain("先看项目结构");
     expect(html).toContain("查找 IPC 入口");

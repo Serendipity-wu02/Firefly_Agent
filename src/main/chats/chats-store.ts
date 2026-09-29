@@ -12,7 +12,7 @@
 // - 删除文件夹整体可移植：用户拷贝 firefly-chats/ 到新机器即可恢复。
 
 import { app, shell } from "electron";
-import { ensureFireflyDataDirectory } from "../migration/firefly-data";
+import { fireflyDataDirectory } from "../firefly-data-paths";
 import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
@@ -31,7 +31,6 @@ import type { ContextUsageSnapshot } from "../../shared/context-usage";
 
 const SESSIONS_SUBDIR = "sessions";
 const INDEX_FILE = "index.json";
-const LEGACY_MIGRATION_PROJECT_NAME = "迁移文件夹";
 
 let rootDir = "";
 let sessionsDir = "";
@@ -48,25 +47,6 @@ function isConversationMode(value: unknown): value is ConversationMode {
   return value === "chat" || value === "work" || value === "code";
 }
 
-function normalizePersistedMode(value: unknown, purpose: ChatSessionPurpose | undefined): ConversationMode {
-  if (value === "daily" || value === "learn") return "work";
-  return isConversationMode(value) ? value : inferLegacyMode(purpose);
-}
-
-function inferLegacyMode(purpose: ChatSessionPurpose | undefined): ConversationMode {
-  return purpose === "proactive-chat" ? "chat" : "work";
-}
-
-function legacyMigrationBinding(): ConversationWorkspaceBinding {
-  const workspaceRoot = path.join(app.getPath("userData"), LEGACY_MIGRATION_PROJECT_NAME);
-  fs.mkdirSync(workspaceRoot, { recursive: true });
-  return {
-    workspaceRoot,
-    displayName: LEGACY_MIGRATION_PROJECT_NAME,
-    boundAt: Date.now(),
-  };
-}
-
 function ensureDirs(): void {
   if (!fs.existsSync(rootDir)) fs.mkdirSync(rootDir, { recursive: true });
   if (!fs.existsSync(sessionsDir)) fs.mkdirSync(sessionsDir, { recursive: true });
@@ -77,12 +57,6 @@ function atomicWriteJson(filePath: string, data: unknown): void {
   const tmpPath = filePath + ".tmp";
   fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
   fs.renameSync(tmpPath, filePath);
-}
-
-function backupLearnSource(filePath: string): void {
-  const backupPath = filePath + ".pre-learn-retirement.bak";
-  if (fs.existsSync(backupPath) && !fs.statSync(backupPath).isFile()) throw new Error("Invalid migration backup");
-  if (!fs.existsSync(backupPath)) fs.copyFileSync(filePath, backupPath, fs.constants.COPYFILE_EXCL);
 }
 
 function readIndexFromDisk(): ChatSessionMeta[] {
@@ -96,9 +70,7 @@ function readIndexFromDisk(): ChatSessionMeta[] {
     const raw = fs.readFileSync(indexPath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) throw new Error("Invalid history index");
-    if (parsed.some((item) => item?.mode === "learn")) backupLearnSource(indexPath);
-    let migrated = false;
-    const normalized: ChatSessionMeta[] = [];
+    const sessions: ChatSessionMeta[] = [];
     for (const item of parsed) {
       if (!item || typeof item !== "object") throw new Error("Invalid history entry");
       const meta = item as Partial<ChatSessionMeta>;
@@ -108,26 +80,12 @@ function readIndexFromDisk(): ChatSessionMeta[] {
         typeof meta.createdAt === "number" &&
         typeof meta.updatedAt === "number" &&
         typeof meta.messageCount === "number" &&
+        isConversationMode(meta.mode) &&
         (meta.purpose === undefined || meta.purpose === "proactive-chat")
       );
       if (!valid) throw new Error("Invalid history entry");
-      const session = readSessionFile(meta.id!);
-      const indexedMode = meta.mode;
-      const mode = normalizePersistedMode(indexedMode ?? session?.mode, meta.purpose ?? session?.purpose);
-      const workspaceRoot = typeof meta.workspaceRoot === "string"
-        ? meta.workspaceRoot
-        : session?.workspaceBinding?.workspaceRoot;
-      const workspaceDisplayName = typeof meta.workspaceDisplayName === "string"
-        ? meta.workspaceDisplayName
-        : session?.workspaceBinding?.displayName;
-      const pinned = Boolean(meta.pinned ?? session?.pinned);
-      if (
-        mode !== indexedMode
-        || workspaceRoot !== meta.workspaceRoot
-        || workspaceDisplayName !== meta.workspaceDisplayName
-        || pinned !== meta.pinned
-      ) migrated = true;
-      normalized.push({
+      if (!isConversationMode(meta.mode)) throw new Error("Invalid history mode");
+      sessions.push({
         id: meta.id!,
         title: meta.title!,
         identityId: meta.identityId ?? null,
@@ -135,14 +93,13 @@ function readIndexFromDisk(): ChatSessionMeta[] {
         updatedAt: meta.updatedAt!,
         messageCount: meta.messageCount!,
         purpose: meta.purpose,
-        mode,
-        workspaceRoot,
-        workspaceDisplayName,
-        pinned,
+        mode: meta.mode,
+        workspaceRoot: meta.workspaceRoot,
+        workspaceDisplayName: meta.workspaceDisplayName,
+        pinned: meta.pinned,
       });
     }
-    if (migrated) atomicWriteJson(indexPath, normalized);
-    return normalized;
+    return sessions;
   } catch {
     indexReadFailed = true;
     logger.warn(LogTag.Runtime, "chat history index read failed; writes blocked");
@@ -174,14 +131,7 @@ function readSessionFile(id: string): ChatSession | null {
     if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.messages)) {
       throw new Error("Invalid session data");
     }
-    if ((parsed.mode as unknown) === "learn") {
-      if (fs.existsSync(indexPath)) backupLearnSource(indexPath);
-      backupLearnSource(filePath);
-      parsed.mode = "work";
-      atomicWriteJson(filePath, parsed);
-    }
-    parsed.mode = normalizePersistedMode(parsed.mode, parsed.purpose);
-    delete (parsed as ChatSession & { codeSession?: unknown }).codeSession;
+    if (!isConversationMode(parsed.mode)) throw new Error("Invalid session mode");
     return parsed;
   } catch {
     logger.warn(LogTag.Runtime, "chat session read failed; original file preserved");
@@ -193,58 +143,6 @@ function writeSessionFile(session: ChatSession): void {
   atomicWriteJson(sessionPath(session.id), session);
 }
 
-/**
- * 旧版会话没有 mode，也没有项目路径。升级时统一归入 Work，并绑定到
- * userData/迁移文件夹。旧版本曾把无模式会话回填成未绑定路径的 Work，
- * 因此这里同时识别“无合法 mode”和“Work 但无 workspaceBinding”两种形态。
- * 新版 Work 创建流程要求绑定路径，所以有明确项目的会话不会被误迁移。
- */
-function migrateLegacySessions(): void {
-  if (!fs.existsSync(indexPath)) return;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(indexPath, "utf8")) as unknown;
-    if (!Array.isArray(parsed)) return;
-    let binding: ConversationWorkspaceBinding | null = null;
-    let changed = false;
-    for (const item of parsed) {
-      if (!item || typeof item !== "object") continue;
-      const meta = item as Partial<ChatSessionMeta>;
-      if (typeof meta.id !== "string" || meta.purpose === "proactive-chat") continue;
-      const filePath = sessionPath(meta.id);
-      if (!fs.existsSync(filePath)) continue;
-      let session: ChatSession;
-      try {
-        session = JSON.parse(fs.readFileSync(filePath, "utf8")) as ChatSession;
-      } catch {
-        continue;
-      }
-      if (!session || !Array.isArray(session.messages)) continue;
-      const sourceMode: unknown = session.mode ?? meta.mode;
-      const isLegacyDaily = sourceMode === "daily";
-      const nextMode = normalizePersistedMode(sourceMode, session.purpose ?? meta.purpose);
-      const needsWorkspaceBinding = nextMode === "work" && !session.workspaceBinding
-        && (!isConversationMode(sourceMode) || isLegacyDaily || sourceMode === "work");
-      const hasCodeSession = "codeSession" in (session as ChatSession & { codeSession?: unknown });
-      const needsMigration = sourceMode !== nextMode || needsWorkspaceBinding || hasCodeSession;
-      if (!needsMigration) continue;
-      if (needsWorkspaceBinding) {
-        binding ??= legacyMigrationBinding();
-        session.workspaceBinding = { ...binding };
-      }
-      session.mode = nextMode;
-      delete (session as ChatSession & { codeSession?: unknown }).codeSession;
-      writeSessionFile(session);
-      meta.mode = nextMode;
-      meta.workspaceRoot = session.workspaceBinding?.workspaceRoot;
-      meta.workspaceDisplayName = session.workspaceBinding?.displayName;
-      changed = true;
-    }
-    if (changed) atomicWriteJson(indexPath, parsed);
-  } catch (err) {
-    console.warn("[chats-store] 旧会话迁移失败，保留原数据:", err);
-  }
-}
-
 function metaFromSession(session: ChatSession): ChatSessionMeta {
   return {
     id: session.id,
@@ -254,7 +152,7 @@ function metaFromSession(session: ChatSession): ChatSessionMeta {
     updatedAt: session.updatedAt,
     messageCount: session.messages.length,
     purpose: session.purpose,
-    mode: isConversationMode(session.mode) ? session.mode : inferLegacyMode(session.purpose),
+    mode: session.mode,
     workspaceRoot: session.workspaceBinding?.workspaceRoot,
     workspaceDisplayName: session.workspaceBinding?.displayName,
     pinned: session.pinned,
@@ -285,16 +183,12 @@ function deriveTitle(messages: ChatMessage[]): string {
 
 export function initialize(): void {
   if (initialized) return;
-  rootDir = ensureFireflyDataDirectory(app.getPath("userData"), "chats");
+  rootDir = fireflyDataDirectory(app.getPath("userData"), "chats");
   sessionsDir = path.join(rootDir, SESSIONS_SUBDIR);
   indexPath = path.join(rootDir, INDEX_FILE);
   try {
     ensureDirs();
     indexCache = readIndexFromDisk();
-    if (!indexReadFailed) {
-      migrateLegacySessions();
-      indexCache = readIndexFromDisk();
-    }
   } catch {
     indexReadFailed = true;
     logger.warn(LogTag.Runtime, "chat history initialization failed; writes blocked");
@@ -1063,24 +957,6 @@ export function getLatestSessionId(): string | null {
   // indexCache 已按 updatedAt desc 持久化，但保险起见再排一次
   const sorted = [...indexCache].sort((a, b) => b.updatedAt - a.updatedAt);
   return sorted[0].id;
-}
-
-// 一次性迁移：从聊天窗口 localStorage 拿来的旧 Message[] 包成单个 session。
-// 已经迁移过（再次调用且数据相同）时返回 null 让调用方决定是否提示。
-export function migrateLegacyMessages(messages: ChatMessage[]): ChatSession | null {
-  if (!messages || messages.length === 0) return null;
-  // 过滤掉无意义条目（空 content / 占位）
-  const cleaned = messages.filter(
-    (m) => m && (m.role === "user" || m.role === "model") && typeof m.content === "string" && m.content.trim(),
-  );
-  if (cleaned.length === 0) return null;
-  const session = createSession({
-    title: "历史对话",
-    identityId: null,
-    initialMessages: cleaned,
-    mode: "work",
-  });
-  return setWorkspaceBinding(session.id, legacyMigrationBinding());
 }
 
 // 在系统文件管理器中打开存储目录。

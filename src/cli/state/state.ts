@@ -28,7 +28,7 @@ export type FirstLaunchState =
 /**
  * Absolute path to ~/.firefly/state.json.
  *
- * Honors FIREFLY_HOME or the legacy FIREFLY_HOME (used by tests to isolate state). In production
+ * Honors FIREFLY_HOME (used by tests to isolate state). In production
  * this is never set and we use os.homedir().
  */
 export function statePath(): string {
@@ -49,9 +49,7 @@ function isRecord(v: unknown): v is FirstLaunchRecord {
 export function readState(): FirstLaunchState {
   let raw: string;
   try {
-    const currentPath = statePath();
-    const legacyPath = path.join(path.dirname(path.dirname(currentPath)), LEGACY_INTERNAL_DIRECTORY, "state.json");
-    raw = fs.readFileSync(fs.existsSync(currentPath) ? currentPath : legacyPath, "utf8");
+    raw = fs.readFileSync(statePath(), "utf8");
   } catch {
     return { kind: "missing" };
   }
@@ -78,4 +76,3 @@ export function writeState(s: StateFile): void {
   fs.writeFileSync(file, JSON.stringify(s, null, 2) + "\n", "utf8");
 }
 import { fireflyEnvironment } from "../../shared/firefly-environment";
-import { LEGACY_INTERNAL_DIRECTORY } from "../../shared/legacy-firefly-contracts";

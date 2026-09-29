@@ -238,7 +238,7 @@ describe("marketplace install contracts", () => {
     createZip(zip, [
       { name: "manifest.json", data: manifest() },
       { name: "index.cjs", data: "module.exports={register(){}}" },
-      { name: "cyrene-market.json", data: "{\"origin\":\"market\"}" },
+      { name: "firefly-market.json", data: "{\"origin\":\"market\"}" },
     ]);
     await expect(preparePluginZip(zip, root)).rejects.toThrow("宿主保留文件");
   });

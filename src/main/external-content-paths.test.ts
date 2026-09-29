@@ -45,19 +45,18 @@ afterEach(() => {
 });
 
 describe("resolveExternalContentPaths", () => {
-  it("keeps legacy prompt lookup but requires exact Skill identity", () => {
+  it("prefers current user prompts and keeps Skill identities exact", () => {
     const root = temporaryDirectory();
     const user = path.join(root, "user");
     const bundled = path.join(root, "bundled");
-    fs.mkdirSync(path.join(user, "cyrene-plan-mode"), { recursive: true });
-    fs.mkdirSync(path.join(bundled, "firefly-plan-mode"), { recursive: true });
-    fs.writeFileSync(path.join(user, "cyrene_harness.md"), "user");
+    fs.mkdirSync(path.join(user, "user-skill"), { recursive: true });
+    fs.mkdirSync(path.join(bundled, "diagram"), { recursive: true });
     fs.writeFileSync(path.join(bundled, "firefly_harness.md"), "bundled");
-    fs.writeFileSync(path.join(user, "cyrene-plan-mode", "SKILL.md"), "user");
-    fs.writeFileSync(path.join(bundled, "firefly-plan-mode", "SKILL.md"), "bundled");
-    expect(findPromptPath("firefly_harness.md", [user, bundled])).toBe(path.join(user, "cyrene_harness.md"));
-    expect(findSkillPath("firefly-plan-mode", "SKILL.md", { builtinSkillDirectory: bundled, userSkillDirectories: [user] })).toBe(path.join(bundled, "firefly-plan-mode", "SKILL.md"));
-    expect(findSkillPath("cyrene-plan-mode", "SKILL.md", { builtinSkillDirectory: bundled, userSkillDirectories: [user] })).toBe(path.join(user, "cyrene-plan-mode", "SKILL.md"));
+    fs.writeFileSync(path.join(user, "user-skill", "SKILL.md"), "user");
+    fs.writeFileSync(path.join(bundled, "diagram", "SKILL.md"), "bundled");
+    expect(findPromptPath("firefly_harness.md", [user, bundled])).toBe(path.join(bundled, "firefly_harness.md"));
+    expect(findSkillPath("diagram", "SKILL.md", { builtinSkillDirectory: bundled, userSkillDirectories: [user] })).toBe(path.join(bundled, "diagram", "SKILL.md"));
+    expect(findSkillPath("user-skill", "SKILL.md", { builtinSkillDirectory: bundled, userSkillDirectories: [user] })).toBe(path.join(user, "user-skill", "SKILL.md"));
     fs.writeFileSync(path.join(user, "firefly_harness.md"), "current user");
     expect(findPromptPath("firefly_harness.md", [user, bundled])).toBe(path.join(user, "firefly_harness.md"));
   });
@@ -92,8 +91,7 @@ describe("resolveExternalContentPaths", () => {
       path.join(userData, "prompts"),
       path.join(installRoot, "prompts"),
     ]);
-    expect(result.builtinSkillDirectory).toBe(path.join(installRoot, "defaults", "skills"));
-    expect(result.installSkillDirectory).toBe(path.join(installRoot, "skills"));
+    expect(result.builtinSkillDirectory).toBe(path.join(installRoot, "skills"));
     expect(result.userSkillDirectories).toEqual([path.join(userData, "skills")]);
   });
 });
@@ -135,32 +133,31 @@ describe("external content lookup", () => {
     })).toBe(path.join(userDataSkills, "xlsx", relativeAsset));
   });
 
-  it("resolves only the requested Skill identity without historical asset fallback", () => {
+  it("resolves only the requested Skill identity", () => {
     const root = temporaryDirectory();
     const user = path.join(root, "user");
     const builtin = path.join(root, "builtin");
-    fs.mkdirSync(path.join(user, "cyrene-diagram"), { recursive: true });
-    fs.mkdirSync(path.join(builtin, "firefly-diagram"), { recursive: true });
-    fs.writeFileSync(path.join(user, "cyrene-diagram", "SKILL.md"), "user");
-    fs.writeFileSync(path.join(builtin, "firefly-diagram", "SKILL.md"), "builtin");
+    fs.mkdirSync(path.join(user, "user-skill"), { recursive: true });
+    fs.mkdirSync(path.join(builtin, "diagram"), { recursive: true });
+    fs.writeFileSync(path.join(user, "user-skill", "SKILL.md"), "user");
+    fs.writeFileSync(path.join(builtin, "diagram", "SKILL.md"), "builtin");
     const paths = { builtinSkillDirectory: builtin, userSkillDirectories: [user] };
-    expect(findSkillPath("firefly-diagram", "SKILL.md", paths)).toBe(path.join(builtin, "firefly-diagram", "SKILL.md"));
-    expect(findSkillPath("cyrene-diagram", "SKILL.md", paths)).toBe(path.join(user, "cyrene-diagram", "SKILL.md"));
-    expect(findSkillPath("diagram", "SKILL.md", paths)).toBeNull();
+    expect(findSkillPath("diagram", "SKILL.md", paths)).toBe(path.join(builtin, "diagram", "SKILL.md"));
+    expect(findSkillPath("user-skill", "SKILL.md", paths)).toBe(path.join(user, "user-skill", "SKILL.md"));
+    expect(findSkillPath("missing-skill", "SKILL.md", paths)).toBeNull();
   });
 
-  it("treats the legacy packaged skills folder as builtin when defaults are absent", () => {
+  it("scans the packaged project Skills and user Skills once each", () => {
     const root = temporaryDirectory();
-    const legacySkills = path.join(root, "skills");
+    const builtinSkills = path.join(root, "skills");
     const userDataSkills = path.join(root, "user-data", "skills");
-    fs.mkdirSync(legacySkills, { recursive: true });
+    fs.mkdirSync(builtinSkills, { recursive: true });
 
     expect(resolveSkillScanSources({
-      builtinSkillDirectory: path.join(root, "defaults", "skills"),
-      installSkillDirectory: legacySkills,
-      userSkillDirectories: [legacySkills, userDataSkills],
+      builtinSkillDirectory: builtinSkills,
+      userSkillDirectories: [builtinSkills, userDataSkills],
     })).toEqual([
-      { directory: legacySkills, source: "builtin" },
+      { directory: builtinSkills, source: "builtin" },
       { directory: userDataSkills, source: "user" },
     ]);
   });

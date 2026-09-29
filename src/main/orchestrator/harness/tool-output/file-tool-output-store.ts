@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { ensureFireflyDataDirectory } from "../../../migration/firefly-data";
+import { fireflyDataDirectory } from "../../../firefly-data-paths";
 import type {
   FindToolOutputInput,
   FindToolOutputMatch,
@@ -120,7 +120,7 @@ export class FileToolOutputStore implements ToolOutputStore {
   private readonly now: () => number;
 
   constructor(root: string, options: FileToolOutputStoreOptions = {}) {
-    this.root = path.resolve(ensureFireflyDataDirectory(root, "runs"), "tool-results");
+    this.root = path.resolve(fireflyDataDirectory(root, "runs"), "tool-results");
     this.now = options.now ?? Date.now;
   }
 

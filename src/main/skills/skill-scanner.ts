@@ -34,7 +34,6 @@ function normalizeSkillModes(raw: unknown): SkillMode[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const modes = raw
     .map((mode) => typeof mode === "string" ? mode.trim().toLowerCase() : undefined)
-    .map((mode) => mode === "learn" ? "work" : mode)
     .filter((m): m is SkillMode => !!m && VALID_SKILL_MODES.has(m as SkillMode));
   return [...new Set(modes)];
 }

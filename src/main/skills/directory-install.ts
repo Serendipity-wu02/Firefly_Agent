@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { assertSkillMigrationPath } from "../migration/legacy-skill-migration";
+import { assertSkillPath } from "./skill-path-safety";
 
 type FileHashes = Record<string, string>;
 type ManagedState = Record<string, FileHashes>;
@@ -60,7 +60,7 @@ function assertName(name: string): void {
 }
 
 function assertDirectory(directory: string): void {
-  assertSkillMigrationPath(directory);
+  assertSkillPath(directory);
   const info = fs.lstatSync(directory);
   if (info.isSymbolicLink()) throw new Error("SKILL_DIRECTORY_LINK");
   if (!info.isDirectory()) throw new Error("SKILL_DIRECTORY_NOT_DIRECTORY");
@@ -108,7 +108,7 @@ function exists(location: string): boolean {
 }
 
 function readState(file: string): ManagedState {
-  assertSkillMigrationPath(file);
+  assertSkillPath(file);
   if (!fs.existsSync(file)) return {};
   const state: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
   if (!state || typeof state !== "object" || Array.isArray(state)
@@ -124,7 +124,7 @@ function readState(file: string): ManagedState {
 }
 
 function writeState(file: string, state: ManagedState): void {
-  assertSkillMigrationPath(file);
+  assertSkillPath(file);
   const temporary = `${file}.update-${randomUUID()}`;
   try {
     fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, { flag: "wx" });
@@ -161,8 +161,8 @@ export function updateInstalledSkillDirectory(target: string, updateStage: (stag
   const userSkillsDir = path.dirname(target);
   const stagingRoot = path.join(path.dirname(userSkillsDir), "skills-managed-staging");
   const backupRoot = path.join(path.dirname(userSkillsDir), "skills-managed-backups");
-  assertSkillMigrationPath(stagingRoot);
-  assertSkillMigrationPath(backupRoot);
+  assertSkillPath(stagingRoot);
+  assertSkillPath(backupRoot);
   fs.mkdirSync(stagingRoot, { recursive: true });
   fs.mkdirSync(backupRoot, { recursive: true });
   const stage = path.join(stagingRoot, `${path.basename(target)}-${randomUUID()}`);
@@ -181,15 +181,15 @@ export function synchronizeManagedSkillDirectories(options: DirectoryInstallOpti
   const { sourceDirectory, userSkillsDir, expectedIds } = options;
   const shipped = validateManagedSourceDirectory(sourceDirectory, expectedIds, options.expectedFileHashes);
 
-  assertSkillMigrationPath(userSkillsDir);
+  assertSkillPath(userSkillsDir);
   fs.mkdirSync(userSkillsDir, { recursive: true });
   const statePath = path.join(userSkillsDir, stateName);
   let state = readState(statePath);
   const result: DirectoryInstallResult = { installed: [], updated: [], preserved: [] };
   const stagingRoot = path.join(path.dirname(userSkillsDir), "skills-managed-staging");
   const backupRoot = path.join(path.dirname(userSkillsDir), "skills-managed-backups");
-  assertSkillMigrationPath(stagingRoot);
-  assertSkillMigrationPath(backupRoot);
+  assertSkillPath(stagingRoot);
+  assertSkillPath(backupRoot);
   for (const id of expectedIds) {
     const source = path.join(sourceDirectory, id);
     const target = path.join(userSkillsDir, id);

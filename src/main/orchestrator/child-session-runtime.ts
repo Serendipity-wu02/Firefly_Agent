@@ -37,7 +37,7 @@ export async function runChildSession(input: {
   const { parent, store, session, lease } = input;
   const toolContext: ToolContext = {
     userQuery: input.prompt, conversationId: parent.parentConversationId, runId: session.childRunId,
-    ...(session.schemaVersion === 2 ? { ownerSessionId: session.id } : {}),
+    ownerSessionId: session.id,
     signal: parent.signal, resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot, mode: parent.mode,
     allowedSkillIds: parent.capabilities?.skillIds, permissionMode: parent.permissionMode,
     workReadScopes: parent.workReadScopes,

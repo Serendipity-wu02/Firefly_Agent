@@ -42,8 +42,7 @@ export async function isEmptyDirectory(dir: string): Promise<boolean> {
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     // 忽略纯应用数据目录：只含它们时仍视为"空"，可被 Learn bootstrap 初始化。
-    // 旧版与当前应用的内部目录都不算用户笔记。
-    const ignoredDirs = new Set([".obsidian", LEGACY_INTERNAL_DIRECTORY, ".firefly"]);
+    const ignoredDirs = new Set([".obsidian", ".firefly"]);
     const ignoredFiles = new Set([".DS_Store", "Thumbs.db"]);
     return entries.every((entry) => {
       if (ignoredFiles.has(entry.name)) return true;
@@ -83,4 +82,3 @@ export async function ensureVaultStructure(root: string): Promise<VaultInitResul
 
   return { created, skipped };
 }
-import { LEGACY_INTERNAL_DIRECTORY } from "../../../shared/legacy-firefly-contracts";

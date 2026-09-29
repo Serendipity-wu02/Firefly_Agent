@@ -2,7 +2,7 @@
  * ObsidianWorkspaceService 写契约测试 —— 直接测试 edit() 的不变量：
  * - create 永不覆盖：目标已存在一律拒绝（PATH_ALREADY_EXISTS）
  * - 修改已有文件必须携带 expectedContentHash（CONTENT_HASH_REQUIRED / CONTENT_CONFLICT）
- * - resolveSafe 保护 .obsidian/、.cyrene/ 与 .firefly/ 内部目录
+ * - resolveSafe 保护 .obsidian/ 与 .firefly/ 内部目录
  * - isEmptyDirectory 忽略旧版与当前应用内部目录
  */
 
@@ -171,21 +171,6 @@ describe("ObsidianWorkspaceService 写契约不变量", () => {
       )
     })
 
-    it("拒绝读写 .cyrene/ 下的文件", async () => {
-      await expectError(
-        service.readFile({ path: ".cyrene/workspace.json" }),
-        "PATH_OUTSIDE_VAULT",
-      )
-      await expectError(
-        service.edit({
-          operation: "create",
-          path: ".cyrene/evil.md",
-          content: "x",
-        }),
-        "PATH_OUTSIDE_VAULT",
-      )
-    })
-
     it("拒绝读写 .obsidian/ 下的文件", async () => {
       await expectError(
         service.readFile({ path: ".obsidian/app.json" }),
@@ -201,16 +186,6 @@ describe("ObsidianWorkspaceService 写契约不变量", () => {
       )
     })
 
-    it("listFiles 不列出 .cyrene/ 内的文件（扩展名白名单兜底 + 跳过逻辑）", async () => {
-      writeFile("notes/visible.md", "# V\n")
-      writeFile(".cyrene/index.db", "fake-db")
-      writeFile(".cyrene/leak.md", "# 不该被列出\n")
-      const files = await service.listFiles({ recursive: true })
-      const paths = files.map((f) => f.path)
-      expect(paths).toContain("notes/visible.md")
-      expect(paths.some((p) => p.startsWith(".cyrene/"))).toBe(false)
-    })
-
     it("listFiles 不列出 .firefly/ 内的文件", async () => {
       writeFile(".firefly/leak.md", "# 不该被列出\n")
       const files = await service.listFiles({ recursive: true })
@@ -218,16 +193,10 @@ describe("ObsidianWorkspaceService 写契约不变量", () => {
     })
   })
 
-  describe("isEmptyDirectory 兼容 .cyrene/（Learn bootstrap）", () => {
+  describe("isEmptyDirectory 内部目录保护", () => {
     it("只含 .firefly/ 时仍判定为空", async () => {
       fs.mkdirSync(path.join(vaultRoot, ".firefly/history"), { recursive: true })
       fs.writeFileSync(path.join(vaultRoot, ".firefly/index.db"), "x")
-      expect(await isEmptyDirectory(vaultRoot)).toBe(true)
-    })
-
-    it("只含 .cyrene/ 时仍判定为空", async () => {
-      fs.mkdirSync(path.join(vaultRoot, ".cyrene/history"), { recursive: true })
-      fs.writeFileSync(path.join(vaultRoot, ".cyrene/index.db"), "x")
       expect(await isEmptyDirectory(vaultRoot)).toBe(true)
     })
 

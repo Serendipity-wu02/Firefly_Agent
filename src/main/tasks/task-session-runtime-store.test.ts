@@ -12,8 +12,10 @@ describe("Main task store lifecycle", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-task-store-lifecycle-"));
     roots.push(root);
     const first = getTaskSessionStore(root);
-    const child = first.create({ parentConversationId: "parent-1", parentRunId: "run-1", description: "fixture",
-      prompt: "public fixture", subagentType: "general", mode: "work" });
+    const child = first.createAgent({ sessionId: `agent-${"b".repeat(64)}`,
+      agent: { id: "fixture-agent", modelProfile: "review", savedModelProfileId: "saved-review" },
+      parentConversationId: "parent-1", parentRunId: "run-1", description: "fixture",
+      prompt: "public fixture", mode: "work" });
     const second = getTaskSessionStore(path.join(root, "."));
     expect(second).toBe(first);
     expect(second.get(child.id)?.status).toBe("running");

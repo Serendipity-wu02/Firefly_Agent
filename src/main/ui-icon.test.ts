@@ -4,8 +4,6 @@ import { normalizeUiIcon } from "../shared/ui-icon";
 describe("ui icon settings", () => {
   it.each([
     ["firefly", "firefly"],
-    ["cyrene-pink", "firefly"],
-    ["cyrene-sun", "firefly"],
     ["classic", "firefly"],
     ["unknown", "firefly"],
     [undefined, "firefly"],

@@ -2,8 +2,6 @@
 
 export type TaskSessionStatus = "running" | "completed" | "failed" | "cancelled" | "interrupted";
 
-export type LegacyTaskSubagentType = "general" | "document" | "search";
-
 export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
 export interface TodoItem {
@@ -51,14 +49,13 @@ export interface AgentSessionIdentity {
 }
 
 export interface TaskSession {
-  schemaVersion: 1 | 2;
+  schemaVersion: 2;
   id: string;
   parentConversationId: string;
   parentRunId: string;
   childRunId: string;
   description: string;
-  subagentType?: LegacyTaskSubagentType;
-  agent?: AgentSessionIdentity;
+  agent: AgentSessionIdentity;
   mode: "work" | "code";
   resolvedWorkspaceRoot?: string;
   status: TaskSessionStatus;
@@ -71,16 +68,6 @@ export interface TaskSession {
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
-}
-
-/** 存在于父助手消息中的最小公开记录；不包含子任务提示词或轨迹。 */
-export interface TaskDelegationRecord {
-  taskId: string;
-  description: string;
-  subagentType: LegacyTaskSubagentType;
-  status: TaskSessionStatus;
-  delegatedAt: number;
-  updatedAt: number;
 }
 
 export type TaskDelegationPresentationStatus = "running" | "completed" | "failed" | "cancelled";

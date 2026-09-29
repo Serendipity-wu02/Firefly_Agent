@@ -1,4 +1,3 @@
-import { normalizeFireflyEvent } from "../../../../../../shared/legacy-firefly-contracts";
 import type {
   AgentRoundRecord,
   ChatMessage,
@@ -818,7 +817,6 @@ export class AgentRunController {
 
   /** AG-UI 事件归约：流式内容、推理、工具、交互卡与终态全部在此处理。 */
   private handleEvent(event: AguiEvent) {
-    event = normalizeFireflyEvent(event);
     if (this.terminalReceived) return;
     if (event.type === "CUSTOM" && event.name === "firefly.round") {
       const value = event.value as { action?: unknown; roundId?: unknown } | null | undefined;

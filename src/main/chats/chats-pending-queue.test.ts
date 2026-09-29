@@ -185,31 +185,31 @@ describe("chats pending queue store", () => {
     expect(store.getPendingMessages(session.id)).toEqual([]);
   });
 
-  it("旧会话无 pendingMessages 字段视为空队列（向后兼容）", async () => {
+  it("current session without pendingMessages has an empty queue", async () => {
     const root = path.join(mocks.userDataDir, "firefly-chats");
     const sessionsDir = path.join(root, "sessions");
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.writeFileSync(path.join(root, "index.json"), JSON.stringify([{
-      id: "legacy", title: "旧对话", identityId: null, createdAt: 1, updatedAt: 1, messageCount: 1,
+      id: "current", title: "测试对话", identityId: null, createdAt: 1, updatedAt: 1, messageCount: 1, mode: "chat",
     }]));
-    fs.writeFileSync(path.join(sessionsDir, "legacy.json"), JSON.stringify({
-      id: "legacy",
-      title: "旧对话",
+    fs.writeFileSync(path.join(sessionsDir, "current.json"), JSON.stringify({
+      id: "current",
+      title: "测试对话",
       identityId: null,
-      messages: [{ id: "m1", role: "user", content: "历史消息", at: 1 }],
+      messages: [{ id: "m1", role: "user", content: "测试消息", at: 1 }],
       createdAt: 1,
       updatedAt: 1,
       schemaVersion: 1,
+      mode: "chat",
     }));
 
     const store = await import("./chats-store");
     store.initialize();
 
-    expect(store.getPendingMessages("legacy")).toEqual([]);
-    // 旧会话直接入队也能工作（字段延迟创建）
-    const result = store.enqueuePendingMessage("legacy", entry({ id: "new-q" }));
+    expect(store.getPendingMessages("current")).toEqual([]);
+    const result = store.enqueuePendingMessage("current", entry({ id: "new-q" }));
     expect(result).toEqual(expect.objectContaining({ ok: true }));
-    expect(store.getPendingMessages("legacy")?.map((item) => item.id)).toEqual(["new-q"]);
+    expect(store.getPendingMessages("current")?.map((item) => item.id)).toEqual(["new-q"]);
   });
 
   it("三条按序入队：数组顺序即入队顺序（派发顺序依据）", async () => {

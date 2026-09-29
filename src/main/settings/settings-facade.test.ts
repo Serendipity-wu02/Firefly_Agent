@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GeneralSettings } from "./general-settings";
 import { normalizeGeneralSettings } from "./settings-facade";
 
-it("transfers legacy Learn overrides while preserving explicit Work false", () => {
+it("ignores removed modes while preserving explicit Work overrides", () => {
   const settings = normalizeGeneralSettings({
     toolModeOverrides: { obsidian_edit: { learn: true, work: false }, obsidian_read_file: { learn: true } },
     skillModeOverrides: { study: { learn: true }, exam: { learn: true, work: false } },
   } as never);
-  expect(settings.toolModeOverrides).toEqual({ obsidian_edit: { work: false }, obsidian_read_file: { work: true } });
-  expect(settings.skillModeOverrides).toEqual({ study: { work: true }, exam: { work: false } });
+  expect(settings.toolModeOverrides).toEqual({ obsidian_edit: { work: false } });
+  expect(settings.skillModeOverrides).toEqual({ exam: { work: false } });
 });
 
 const electronMock = vi.hoisted(() => ({

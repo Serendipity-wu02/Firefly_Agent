@@ -231,8 +231,8 @@ export class ObsidianWorkspaceService {
     }
 
     // 禁止读写应用内部数据目录：.obsidian/ 由 Obsidian 维护，
-    // .firefly/ 是旧版内部目录；.firefly/ 是当前内部目录。
-    const protectedDirs = [".obsidian", LEGACY_INTERNAL_DIRECTORY, ".firefly"];
+    // .firefly/ 是当前应用内部目录。
+    const protectedDirs = [".obsidian", ".firefly"];
     for (const dir of protectedDirs) {
       if (
         normalized === dir ||
@@ -290,7 +290,7 @@ export class ObsidianWorkspaceService {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       for (const entry of entries) {
         // 跳过应用内部数据目录（listFiles 对外只暴露笔记扩展名文件）
-        if (entry.isDirectory() && (entry.name === ".obsidian" || entry.name === LEGACY_INTERNAL_DIRECTORY || entry.name === ".firefly")) continue;
+        if (entry.isDirectory() && (entry.name === ".obsidian" || entry.name === ".firefly")) continue;
 
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
@@ -640,4 +640,3 @@ export class ObsidianWorkspaceService {
 // ── 全局单例 ─────────────────────────────────────────────────
 
 export const obsidianWorkspace = new ObsidianWorkspaceService();
-import { LEGACY_INTERNAL_DIRECTORY } from "../../../shared/legacy-firefly-contracts";

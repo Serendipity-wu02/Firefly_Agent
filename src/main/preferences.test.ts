@@ -20,7 +20,7 @@ describe("preferences", () => {
     expect(normalizeDefaultChatMode("bad")).toBe("chat");
     expect(normalizeDefaultChatMode("work")).toBe("work");
     expect(normalizeDefaultChatMode("chat")).toBe("chat");
-    expect(normalizeDefaultChatMode("collab")).toBe("work");
+    expect(normalizeDefaultChatMode("collab")).toBe("chat");
     expect(normalizeDefaultChatMode("talk")).toBe("chat");
   });
 

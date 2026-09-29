@@ -3,9 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { copyVendorSkills, vendorSkillSource } from "../../test-utils/vendor-skill-source";
+import { copyVendorSkills } from "../../test-utils/vendor-skill-source";
 import { scanSkills } from "./skill-scanner";
-import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -30,21 +29,6 @@ it("delivers the licensed Firefly adaptation without foreign host hooks", async 
   for (const name of ["LEARNINGS.md", "ERRORS.md", "FEATURE_REQUESTS.md", "SKILL-TEMPLATE.md"]) {
     expect(fs.statSync(path.join(directory, "firefly-templates", name)).isFile()).toBe(true);
   }
-});
-
-it("recognizes the exact legacy hash and preserves user-modified bodies and attachments", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-self-upgrade-"));
-  roots.push(root);
-  const directory = path.join(root, "self-improving-agent");
-  fs.mkdirSync(path.join(directory, "references"), { recursive: true });
-  const original = fs.readFileSync(path.resolve("scripts/packaging/skill-replacements.json"), "utf8");
-  const metadata = JSON.parse(original).bundles.find((bundle: { id: string }) => bundle.id === "self-improving-agent");
-  expect(metadata.sourceFiles["self-improving-agent/SKILL.md"]).toBe("8477a270061ce850c3e580e613dd18f87ccfcdb556348687fce66b5ec77a9158");
-  fs.writeFileSync(path.join(directory, "SKILL.md"), "user modified body");
-  fs.writeFileSync(path.join(directory, "references/firefly-examples.md"), "user attachment");
-  await migrateInstalledSkillSnapshot(root, vendorSkillSource);
-  expect(fs.readFileSync(path.join(directory, "SKILL.md"), "utf8")).toBe("user modified body");
-  expect(fs.readFileSync(path.join(directory, "references/firefly-examples.md"), "utf8")).toBe("user attachment");
 });
 
 it("runs the reviewed extraction helper only in an explicit temporary workspace", async () => {

@@ -18,7 +18,6 @@ const spikeFiles = [
 
 describe("react perf harness cleanup", () => {
   it("uses the production renderer without an injected Streamdown experiment", () => {
-    expect(readFileSync(perfMain, "utf8")).not.toContain("__cyreneChatPerfMarkdownRenderer");
     expect(readFileSync(baselineScript, "utf8")).not.toContain("paired-control");
     for (const file of spikeFiles) {
       expect(existsSync(resolve(__dirname, file))).toBe(false);

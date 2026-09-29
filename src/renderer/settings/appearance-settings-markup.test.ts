@@ -36,8 +36,6 @@ describe("appearance settings markup", () => {
     const panel = form("appearance-form");
     expect(panel).toContain('id="ui-icon-select"');
     expect(panel).toContain('data-icon="firefly"');
-    expect(panel).not.toContain('data-icon="cyrene-pink"');
-    expect(panel).not.toContain('data-icon="cyrene-sun"');
     expect(panel).not.toContain('data-icon="classic"');
   });
 
@@ -64,7 +62,6 @@ describe("appearance settings markup", () => {
   it("no longer offers an assistant bubble switch (borderless is the only mode)", () => {
     const panel = form("appearance-form");
     expect(panel).not.toContain('id="assistant-bubble-enabled"');
-    expect(panel).not.toContain("昔涟回复气泡");
   });
 
   it("applies appearance changes without a save button", () => {

@@ -180,7 +180,7 @@ export function createChannelsSubsystem(
         ...historyMessages,
         { role: "user", content: agentUserText },
       ],
-      style: "01_default.md",
+      styleId: "default",
       sessionId,
       // 渠道绑定只共享文字上下文，不继承桌面对话的工作区权限。
       workspaceBindingSessionId: null,

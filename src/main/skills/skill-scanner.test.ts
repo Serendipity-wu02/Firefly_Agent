@@ -19,9 +19,9 @@ describe("built-in diagram Skill contract", () => {
 });
 
 describe("parseSkillFrontmatter", () => {
-  it("migrates explicit Learn metadata to Work without broadening unknown lists", () => {
+  it("rejects removed mode metadata without broadening unknown lists", () => {
     const parse = (modes: string) => parseSkillFrontmatter(`---\nname: study\ndescription: study\nmodes: ${modes}\n---\nStudy`);
-    expect(parse("[learn]")?.modes).toEqual(["work"]);
+    expect(parse("[learn]")?.modes).toEqual([]);
     expect(parse("[work, learn, code]")?.modes).toEqual(["work", "code"]);
     expect(parse("[unknown]")?.modes).toEqual([]);
   });
@@ -113,7 +113,7 @@ modes: [invalid, CODE, learn]
 正文`;
     const r = parseSkillFrontmatter(md);
     expect(r).not.toBeNull();
-    expect(r!.modes).toEqual(["code", "work"]);
+    expect(r!.modes).toEqual(["code"]);
   });
 });
 

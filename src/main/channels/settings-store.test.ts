@@ -60,6 +60,15 @@ describe("channels/settings-store", () => {
     expect(cfg.rateLimitPerUser).toBe(10);
   });
 
+  it("rejects an unsupported stored secret without replacing the original file", () => {
+    const file = path.join(os.tmpdir(), "channels-settings.json");
+    const original = JSON.stringify({ feishu: { appSecret: "plain:public-fixture" } });
+    fs.writeFileSync(file, original);
+    expect(() => loadChannelsSettings()).toThrow("CHANNELS_SETTINGS_READ_FAILED");
+    expect(() => saveChannelsSettings({ feishu: { enabled: true } })).toThrow("CHANNELS_SETTINGS_READ_FAILED");
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+  });
+
   it("encrypts the QQ access token and normalizes numeric allowlists", () => {
     saveChannelsSettings({ qq: {
       enabled: true,

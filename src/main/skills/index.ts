@@ -11,9 +11,6 @@ import type { SkillEntry } from "./types";
 import { logger, LogTag } from "../logger";
 import { getExternalContentPaths, resolveSkillScanSources, resolvePackagedSkillDirectory } from "../external-content-paths";
 import { synchronizeManagedSkillDirectories, validateManagedSourceDirectory } from "./directory-install";
-import { getProtectedSkillIds, migrateLegacySkillDirectories, migrateLegacySkillSettingsFile } from "../migration/legacy-skill-migration";
-import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
-import { assertVnextSkillSnapshotSource, migrateVnextSkillSnapshot } from "../migration/vnext-skill-snapshot";
 
 const LOG_PREFIX = "[Skills]";
 
@@ -27,10 +24,9 @@ function loadEnabledState(): Record<string, boolean> {
   try {
     const p = enabledStatePath();
     if (!fs.existsSync(p)) return {};
-    const raw = JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, boolean>;
+    const raw: unknown = JSON.parse(fs.readFileSync(p, "utf8"));
     if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.values(raw).some((value) => typeof value !== "boolean")) throw new Error("SKILL_SETTINGS_READ_FAILED");
-    const protectedIds = getExternalContentPaths().userSkillDirectories.flatMap(directory => getProtectedSkillIds(directory));
-    return migrateLegacySkillSettingsFile(p, { protectedIds }) as Record<string, boolean>;
+    return raw as Record<string, boolean>;
   } catch {
     throw new Error("SKILL_SETTINGS_READ_FAILED");
   }
@@ -53,20 +49,15 @@ export async function initSkills(): Promise<void> {
       if (!Array.isArray(manifest.skills) || !manifest.files || typeof manifest.files !== "object"
         || Array.isArray(manifest.files)) throw new Error("SKILL_DIRECTORY_MANIFEST_INVALID");
       validateManagedSourceDirectory(sourceDirectory, manifest.skills, manifest.files);
-      assertVnextSkillSnapshotSource(sourceDirectory);
-      await migrateInstalledSkillSnapshot(userSkillsDir, sourceDirectory);
-      await migrateVnextSkillSnapshot(userSkillsDir, sourceDirectory);
       synchronizeManagedSkillDirectories({ sourceDirectory, userSkillsDir, expectedIds: manifest.skills,
         expectedFileHashes: manifest.files });
     }
   } catch (error) {
-    const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_MIGRATION_FAILED";
-    logger.warn(LogTag.Skills, "managed migration failed; scanning existing files without replacing them", { reason });
+    const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_DIRECTORY_SYNC_FAILED";
+    logger.warn(LogTag.Skills, "managed directory sync failed; scanning existing files without replacing them", { reason });
   }
 
   const sources = resolveSkillScanSources(paths);
-
-  for (const directory of paths.userSkillDirectories) migrateLegacySkillDirectories(directory);
 
   // 合并：扫描源按低到高优先级排列，user 覆盖 builtin。
   const map = new Map<string, SkillEntry>();
@@ -123,7 +114,6 @@ export function listSkillsForUi() {
  */
 export function rescanSkills(): number {
   const paths = getExternalContentPaths();
-  for (const directory of paths.userSkillDirectories) migrateLegacySkillDirectories(directory);
   const sources = resolveSkillScanSources(paths);
 
   const map = new Map<string, SkillEntry>();

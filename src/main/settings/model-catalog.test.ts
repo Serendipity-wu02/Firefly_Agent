@@ -82,7 +82,7 @@ describe("model catalog", () => {
     expect(updateModelProfile(base, { id: "missing", provider: "GLM（智谱）", baseUrl: "", apiKey: "", model: "" })).toBeNull();
   });
 
-  it("marks the public status connected when a saved model exists even if the legacy mirror is empty", () => {
+  it("marks the public status connected when a saved model exists even if the current mirror is empty", () => {
     const settings = normalizeModelSettings({
       provider: "ChatGPT（OpenAI）",
       apiKey: "",
@@ -99,7 +99,7 @@ describe("model catalog", () => {
     expect(getPublicModelConfig(settings).connected).toBe(true);
   });
 
-  it("migrates an existing configured model into the default catalog entry", () => {
+  it("does not manufacture a saved profile from a top-level view", () => {
     const settings = normalizeModelSettings({
       provider: "ChatGPT（OpenAI）",
       baseUrl: "https://api.openai.com/v1",
@@ -107,14 +107,11 @@ describe("model catalog", () => {
       model: "gpt-5.6",
     });
 
-    expect(getDefaultModelProfile(settings)).toMatchObject({
-      provider: "ChatGPT（OpenAI）",
-      model: "gpt-5.6",
-    });
+    expect(getDefaultModelProfile(settings)).toBeUndefined();
   });
 
-  it("migrates every configured provider into profiles with readable ids, idempotently", () => {
-    const legacy = {
+  it("preserves provider settings without manufacturing catalog entries", () => {
+    const input = {
       provider: "GLM（智谱）",
       perProvider: {
         "GLM（智谱）": { baseUrl: "https://open.bigmodel.cn/api/paas/v4", apiKey: "sk-glm", model: "glm-4.7" },
@@ -123,26 +120,23 @@ describe("model catalog", () => {
       },
     };
 
-    const first = normalizeModelSettings(legacy);
-    expect(first.modelProfiles).toHaveLength(2);
-    expect(first.modelProfiles?.map((p) => p.id)).toEqual(["profile-GLM____-1", "profile-DeepSeek______-1"]);
-
-    // 幂等：normalize 已持久化的结果不会重复建档
+    const first = normalizeModelSettings(input);
+    expect(first.modelProfiles).toHaveLength(0);
+    expect(first.perProvider["GLM（智谱）"].model).toBe("glm-4.7");
     const second = normalizeModelSettings(first);
-    expect(second.modelProfiles).toHaveLength(2);
+    expect(second.modelProfiles).toHaveLength(0);
   });
 
   it("does not resurrect profiles from perProvider after the user cleared the catalog", () => {
-    const legacy = normalizeModelSettings({
+    const settings = normalizeModelSettings({
       provider: "GLM（智谱）",
       perProvider: {
         "GLM（智谱）": { baseUrl: "https://open.bigmodel.cn/api/paas/v4", apiKey: "sk-glm", model: "glm-4.7" },
       },
     });
-    expect(legacy.modelProfiles).toHaveLength(1);
+    expect(settings.modelProfiles).toHaveLength(0);
 
-    // 用户删光档案（modelProfiles: []）→ 重启后不得从 perProvider 复活
-    const cleared = normalizeModelSettings({ ...legacy, modelProfiles: [] });
+    const cleared = normalizeModelSettings({ ...settings, modelProfiles: [] });
     expect(cleared.modelProfiles).toHaveLength(0);
   });
 
@@ -153,7 +147,7 @@ describe("model catalog", () => {
       multimodal: false,
       modelProfiles: [
         { id: "p-full", provider: "GLM（智谱）", baseUrl: "https://a.com", apiKey: "k", model: "m", contextWindowTokens: 128000, multimodal: true },
-        { id: "p-legacy", provider: "GLM（智谱）", baseUrl: "https://b.com", apiKey: "k2", model: "m2" },
+        { id: "p-inherited", provider: "GLM（智谱）", baseUrl: "https://b.com", apiKey: "k2", model: "m2" },
       ],
     });
 
@@ -161,10 +155,9 @@ describe("model catalog", () => {
     expect(full.contextWindowTokens).toBe(128000);
     expect(full.multimodal).toBe(true);
 
-    // 老档案无档案级字段 → 回退全局值
-    const legacyProfile = resolveModelSettingsProfile(settings, "p-legacy");
-    expect(legacyProfile.contextWindowTokens).toBe(256000);
-    expect(legacyProfile.multimodal).toBe(false);
+    const inheritedProfile = resolveModelSettingsProfile(settings, "p-inherited");
+    expect(inheritedProfile.contextWindowTokens).toBe(256000);
+    expect(inheritedProfile.multimodal).toBe(false);
 
     // 未持久化 multimodal → 默认 true（多模态模型用户开箱即直发图片，
     // 判错有服务端 400 + caption 自动降级兜底）；显式 false 保留

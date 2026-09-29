@@ -99,8 +99,6 @@ export interface AguiRunInput {
   userTurnId?: string;
   /** 本轮 assistant 占位消息的稳定 turn ID。 */
   assistantTurnId?: string;
-  /** 旧版人格 style 文件名；仅保留兼容，不再承担运行模式语义。 */
-  style?: string;
   /** 本轮表达风格，与 executionMode 正交。 */
   styleId?: StyleId | string;
   sessionId?: string;    // 会话 ID；桌面运行模式只信任该会话持久化的 mode
@@ -112,8 +110,8 @@ export interface AguiRunInput {
   promptSource?: "conversation" | "plugin-agent";
   /** 仅主进程内部使用：传给插件提示词 Provider 的逻辑渠道，不参与内置渠道规则。 */
   promptChannel?: string;
-  /** @deprecated 仅保留 Renderer 兼容；主进程按 ChatSession.mode 分流并忽略该值。 */
-  executionMode?: ConversationMode | "soul-only" | "collaboration";
+  /** 主进程内部渠道入口；桌面运行以已保存的 ChatSession.mode 为准。 */
+  executionMode?: ConversationMode;
   /** 主进程内部使用：由 ChatSession.mode 注入，用于选择对应模式的 system prompt。 */
   mode?: ConversationMode;
   /** 本轮附件（文本内容，临时注入系统上下文，不存历史）。 */

@@ -1,5 +1,5 @@
 // 厂商适配器工厂：按 provider 显示名或 VendorConfig 返回对应 transport 的 adapter 实例。
-// 调度层只需 getAdapter(provider) 或 getAdapterForConfig(cfg)，不关心 transport 细节。
+// 调度层通过 getAdapterForConfig(cfg) 选择协议适配器。
 import { OpenAICompatAdapter } from "./openai-adapter";
 import { AnthropicAdapter } from "./anthropic-adapter";
 import { ResponsesAdapter } from "./responses-adapter";
@@ -26,22 +26,9 @@ export type { StreamDiagnostic, UnifiedStreamDelta } from "./sdk-stream/types";
 
 const cache = new Map<string, ChatVendorAdapter>();
 
-/** 按 provider 显示名取适配器实例（同一 provider 复用同一实例）—— 旧路径，按 capabilities 表 transport 取。 */
-export function getAdapter(provider: string): ChatVendorAdapter {
-  const existing = cache.get(provider);
-  if (existing) return existing;
-  const cap = getCapabilityOrOpenAI(provider);
-  const adapter: ChatVendorAdapter =
-    cap.transport === "anthropic"
-      ? new AnthropicAdapter(cap.id, cap)
-      : new OpenAICompatAdapter(cap.id, cap);
-  cache.set(provider, adapter);
-  return adapter;
-}
-
 /**
- * 按运行时配置取适配器实例。协议由用户显式选择；旧配置才回退厂商默认。
- * cache key 用 `${provider}::${transport}`，避免显式切 transport 后命中旧实例。
+ * 按运行时配置取适配器实例。未显式选择时使用厂商默认协议。
+ * cache key 用 `${provider}::${transport}`，避免显式切 transport 后命中错误实例。
  */
 export function getAdapterForConfig(cfg: VendorConfig): ChatVendorAdapter {
   const transport = resolveTransport({
@@ -70,16 +57,6 @@ export function getAdapterForConfig(cfg: VendorConfig): ChatVendorAdapter {
  */
 export function buildVendorUrl(baseUrl: string, transport: Transport): string {
   return resolveApiEndpoint(baseUrl, transport).url;
-}
-
-/**
- * 旧签名（保留兼容）：根据 provider 名查 transport 再调 buildVendorUrl。
- * 已有调用点（memory-judge / memory-compressor 之前的 buildVendorUrl(provider, baseUrl)）仍可用，
- * 但**新代码**建议直接用 buildVendorUrl(baseUrl, transport) + getAdapterForConfig(cfg)。
- */
-export function buildVendorUrlByProvider(provider: string, baseUrl: string): string {
-  const cap = getCapabilityOrOpenAI(provider);
-  return buildVendorUrl(baseUrl, cap.transport);
 }
 
 /**
