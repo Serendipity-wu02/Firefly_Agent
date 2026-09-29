@@ -12,7 +12,7 @@
 
 | Area | Current implementation |
 | --- | --- |
-| Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters retain separate portraits and display identities; specialist role mapping still awaits user confirmation. Moments is disabled by default. |
+| Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters retain separate portraits and have explicitly configured persistent specialist roles. Moments is disabled by default. |
 | Chat | Character conversations, model profiles, streamed replies and history. An explicit preferred form of address takes priority over an existing nickname; the default is “开拓者” (Trailblazer). Canonical story events do not automatically become shared experiences with the current user. |
 | Work | Tools, file and document processing, Skills, Task/Subagent, approvals and cancellation. Explicitly required file reads need evidence from the current run; budget limits require partial-range confirmation. Task completion and complete reading are reported separately. Finished tasks can be exported to Markdown through a native save dialog. |
 | Work knowledge workspace | Learning, quizzes, notes and progress remain available in Work. Bind a workspace, then explicitly confirm “添加学习结构” (add learning structure), or bind an initialized Vault. Ordinary Work does not automatically create a Vault or maintain progress. See the [knowledge workspace guide](docs/user-guide/knowledge-workspace.md). |
@@ -32,7 +32,7 @@ The current source tree is Firefly's independently maintained product baseline. 
 
 **Current vNext verification:** after freezing source changes, the full suite passed 538 files and 4766 tests, with one test skipped because Windows symbolic-link permission was unavailable. Main/Preload/Renderer typechecks, the full build, plugin SDK and four examples passed. An isolated user directory verified Main/Renderer startup, Chat / Work / Code switching, 44 registered Skills and normal exit. Persisted Learn sessions migrate to Work after backup; new Learn requests are rejected. Migration of real user data was not performed.
 
-**Unfinished vNext work:** persistent Agent storage, registry, model routing and delegation boundaries are foundation code, not wired into the production Main chain. The twelve character-to-specialist assignments await user confirmation; model-routing UI and production integration are incomplete, and the existing task compatibility path remains. These automated results do not mean all of vNext is complete.
+**Current vNext boundaries:** Main uses twelve persistent specialist Agents with explicit saved-model routing. Chat does not delegate; Work/Code expose their supported specialists. Existing saved profiles can be assigned in settings; missing configuration fails explicitly. The old public task tool is retired; schema1 history remains readable. Offline automation does not replace real-model, complete GUI or external-service acceptance.
 
 **Not fully accepted:** real-model end-to-end execution, deep GUI interaction, complete external Office/LibreOffice/.NET workflows, real-user environments, installer upgrades, cross-platform behavior, the complete TTS / QQ Music approval chain, sustained frame rate, and redistribution permission for every asset required for a public release.
 
