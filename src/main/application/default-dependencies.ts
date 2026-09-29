@@ -230,6 +230,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         logger.info(LogTag.Runtime, "starting Firefly_Agent");
       },
       createIpcScope: () => createIpcScope(),
+      onWillQuit: (callback) => { app.once("will-quit", callback); },
       createSplashWindow: (options) => createSplashWindow({ isDev, onShown: options.onShown }),
       createWindowManager: () => createWindowManager({
         getCurrentAppIconPath,

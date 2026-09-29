@@ -6,9 +6,9 @@ export const FIREFLY_APPLICATION_NAME = "Firefly";
 export const FIREFLY_USER_DATA_DIRECTORY = "Firefly";
 
 export interface FireflyIdentityApp {
-  getPath(name: "appData"): string;
+  getPath(name: "appData" | "userData" | "sessionData"): string;
   setName(name: string): void;
-  setPath(name: "userData" | "appData", value: string): void;
+  setPath(name: "userData" | "appData" | "sessionData", value: string): void;
 }
 
 /**
@@ -17,11 +17,13 @@ export interface FireflyIdentityApp {
  * package name and the packaged product display name.
  */
 export function configureFireflyApplicationIdentity(app: FireflyIdentityApp, isolatedAppData?: string): string {
+  let isolatedRoot: string | undefined;
   if (isolatedAppData !== undefined) {
     let root: string;
     try {
       if (!path.isAbsolute(isolatedAppData)) throw new Error("invalid root");
       root = fs.realpathSync(isolatedAppData);
+      isolatedRoot = root;
       if (!fs.statSync(root).isDirectory()) throw new Error("invalid directory");
       const existingAppData = path.resolve(app.getPath("appData"));
       const insideExisting = path.relative(existingAppData, root);
@@ -36,7 +38,20 @@ export function configureFireflyApplicationIdentity(app: FireflyIdentityApp, iso
     if (path.resolve(app.getPath("appData")) !== root) throw new Error("FIREFLY_ISOLATED_APPDATA_FAILED");
   }
   const userDataPath = path.join(app.getPath("appData"), FIREFLY_USER_DATA_DIRECTORY);
+  if (isolatedRoot !== undefined) fs.mkdirSync(userDataPath, { recursive: true });
   app.setName(FIREFLY_APPLICATION_NAME);
   app.setPath("userData", userDataPath);
+  if (isolatedRoot !== undefined) {
+    app.setPath("sessionData", userDataPath);
+    const paths = {
+      appData: path.resolve(app.getPath("appData")),
+      userData: path.resolve(app.getPath("userData")),
+      sessionData: path.resolve(app.getPath("sessionData")),
+    };
+    if (paths.appData !== isolatedRoot) throw new Error("FIREFLY_ISOLATED_APPDATA_FAILED");
+    if (paths.userData !== userDataPath) throw new Error("FIREFLY_ISOLATED_USER_DATA_FAILED");
+    if (paths.sessionData !== userDataPath) throw new Error("FIREFLY_ISOLATED_SESSION_DATA_FAILED");
+    console.info("[Firefly isolated paths]", paths);
+  }
   return userDataPath;
 }

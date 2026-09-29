@@ -36,12 +36,14 @@ describe("Firefly application identity", () => {
     const appData = path.join(os.tmpdir(), "firefly-real-app-data");
     const isolatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-isolated-app-data-"));
     let currentAppData = appData;
+    const paths = new Map<string, string>();
     const setPath = vi.fn((name: string, value: string) => {
+      paths.set(name, value);
       if (name === "appData") currentAppData = value;
     });
 
     const userDataPath = configureFireflyApplicationIdentity({
-      getPath: () => currentAppData,
+      getPath: (name) => name === "appData" ? currentAppData : paths.get(name) ?? "",
       setName: vi.fn(),
       setPath,
     }, isolatedRoot);
@@ -50,7 +52,22 @@ describe("Firefly application identity", () => {
     expect(setPath.mock.calls).toEqual([
       ["appData", isolatedRoot],
       ["userData", userDataPath],
+      ["sessionData", userDataPath],
     ]);
+    expect(fs.statSync(userDataPath).isDirectory()).toBe(true);
+  });
+
+  it("aborts isolated startup when Electron does not retain an isolated sessionData path", () => {
+    const isolatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-isolated-app-data-"));
+    const ordinaryAppData = path.join(os.tmpdir(), "firefly-real-app-data");
+    const paths = new Map<string, string>();
+
+    expect(() => configureFireflyApplicationIdentity({
+      getPath: (name) => name === "appData" ? paths.get(name) ?? ordinaryAppData
+        : name === "sessionData" ? ordinaryAppData : paths.get(name) ?? "",
+      setName: vi.fn(),
+      setPath: (name, value) => { paths.set(name, value); },
+    }, isolatedRoot)).toThrow("FIREFLY_ISOLATED_SESSION_DATA_FAILED");
   });
 
   it("rejects a non-absolute isolated root without assigning userData", () => {
