@@ -46,17 +46,23 @@ Requirements are Windows, Node.js `>=24 <25`, and npm `>=10`; the declared packa
 
 ```powershell
 npm ci
+$isolationRoot = Join-Path (Get-Location).Path "output\development-profile"
+New-Item -ItemType Directory -Force -Path $isolationRoot | Out-Null
+$env:FIREFLY_RUNTIME_PROFILE = "development"
+$env:FIREFLY_ISOLATION_ROOT = (Resolve-Path -LiteralPath $isolationRoot).Path
 npm run dev
 ```
 
-To start built output:
+`npm run dev` explicitly selects `development`. The isolation root must be an existing absolute directory and must not equal, contain, or be inside production appData. Startup rejects a missing or invalid root. This example creates the root only inside the current workspace.
+
+To start this checkout’s built output in the same PowerShell session with the environment variables above already set:
 
 ```powershell
 npm run build
 npm start
 ```
 
-`npm start` loads this repository's `dist`; rebuild after source changes. Development and built instances share the production data identity, so quit the current instance normally before opening another.
+`npm start` loads this repository's `dist`; rebuild after source changes. Running `electron .` from the checkout remains unpackaged; the variables above explicitly select `development` and supply its isolation root. An isolation root without an explicit profile is rejected. Set both variables again in a new PowerShell session. Both launch methods in this example use the `Firefly-development` identity and `$isolationRoot\Firefly-development` data directory; quit the current instance normally before opening another against that same development directory. The packaged application defaults to `production` and does not use this development isolation directory.
 
 Create a model profile in application settings, supply the protocol, address, model and credentials supported by your service, then select the profile. The repository contains no real credentials or ready-to-use model configuration. Conversations, selected materials and tool results sent to a model may leave your computer, depending on the service and operation you choose.
 
@@ -72,7 +78,7 @@ npm run check:plugin-sdk
 npm run test:plugin-examples
 ```
 
-Main and Preload TypeScript checks are included in `build:main` / `build:preload`. `npm test` runs the suite defined by `vitest.config.ts`, not Node script tests, Rust tests, installers or live external-service checks. See [scripts/README.md](./scripts/README.md) for script entry points. Windows Bash integration tests require `FIREFLY_TEST_BASH` to point to an existing Git Bash `bash.exe` using its actual absolute path.
+Main and Preload TypeScript checks are included in `build:main` / `build:preload`. Windows is the current primary acceptance platform. Screenshot path and default `cmd` integration cases run only on Windows; cross-platform process-manager cases remain enabled. Partial Linux passes do not establish Linux product support. `npm test` runs the suite defined by `vitest.config.ts`, not Node script tests, Rust tests, installers or live external-service checks. See [scripts/README.md](./scripts/README.md) for script entry points. Windows Bash integration tests require `FIREFLY_TEST_BASH` to point to an existing Git Bash `bash.exe` using its actual absolute path.
 
 When the distributed Skills directories change, review `vendor/firefly-skills/skills-manifest.json` and the source notices, then run `npm run validate:skills`. Packaging copies the validated directories directly; it does not generate a Skills ZIP. The screenshot helper needs a Rust/Cargo Windows MSVC toolchain and C++ build prerequisites. Local unpacked preparation is:
 
@@ -110,7 +116,7 @@ See the [runtime architecture](./docs/architecture/firefly-runtime.md) and [main
 
 ## Data and upgrade protection
 
-The default data directory is `%APPDATA%\Firefly`. The technical package name `firefly-agent`, display name `Firefly_Agent`, runtime data identity `Firefly`, and appId `com.serendipitywu02.firefly` have distinct roles; changing the display name does not recreate the data directory.
+The default `production` data directory is `%APPDATA%\Firefly`. The technical package name `firefly-agent`, display name `Firefly_Agent`, runtime data identity `Firefly`, and appId `com.serendipitywu02.firefly` have distinct roles; changing the display name does not recreate the data directory.
 
 Settings, model profiles, Chat / Work history, run records and user Skills do not belong in Git or the application package. Quit normally and back up before manual changes, preserving old directories. Do not overwrite an existing destination or simply combine directories. Central migration handles old formats and credential decryption; current data takes priority, conflicts are retained and diagnosed, and read errors do not trigger empty-data writes. Skills updates only modify recognized managed content and preserve user edits and same-name custom files.
 

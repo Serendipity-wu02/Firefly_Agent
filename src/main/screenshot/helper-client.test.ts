@@ -119,7 +119,8 @@ describe("ElectronScreenshotHelperClient", () => {
     expect(client.captureState).toBe("idle");
   });
 
-  it("keeps a released clipboard-and-file request pending until encoding completes", async () => {
+  // This fixture uses Windows paths from the Windows native screenshot helper.
+  it.runIf(process.platform === "win32")("keeps a released clipboard-and-file request pending until encoding completes", async () => {
     const { client, child, startReady } = createHarness();
     await startReady();
 

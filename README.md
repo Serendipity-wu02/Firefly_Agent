@@ -46,17 +46,23 @@
 
 ```powershell
 npm ci
+$isolationRoot = Join-Path (Get-Location).Path "output\development-profile"
+New-Item -ItemType Directory -Force -Path $isolationRoot | Out-Null
+$env:FIREFLY_RUNTIME_PROFILE = "development"
+$env:FIREFLY_ISOLATION_ROOT = (Resolve-Path -LiteralPath $isolationRoot).Path
 npm run dev
 ```
 
-从构建产物启动：
+`npm run dev` 显式选择 `development`。隔离根必须是已存在的绝对目录，且不能与正式 appData 相等或互为父子目录；缺失或无效时启动会拒绝继续。上述示例只在当前工作区创建隔离目录。
+
+从当前仓库的构建产物启动（在已设置上述环境变量的同一 PowerShell 会话中）：
 
 ```powershell
 npm run build
 npm start
 ```
 
-`npm start` 加载当前仓库的 `dist`，源码变化后先构建。开发与构建实例使用同一正式数据身份，请在开启另一实例前正常退出当前实例。
+`npm start` 加载当前仓库的 `dist`，源码变化后先构建。仓库内的 `electron .` 仍是未打包实例；上述环境变量显式选择 `development` 并提供隔离根。仅设置隔离根而未指定 profile 会被拒绝。新开 PowerShell 会话时需重新设置上述变量。此示例的两个启动方式使用 `Firefly-development` 身份及 `$isolationRoot\Firefly-development` 数据目录；它们共用这一开发目录，开启另一实例前正常退出当前实例。正式打包应用默认选择 `production`，不使用这个开发隔离目录。
 
 在应用设置中创建模型档案，填写服务实际支持的协议、地址、模型和自己的凭据，再选择档案。仓库不附带密钥或可直接使用的模型配置。发送给模型的对话、所选资料和工具结果可能离开本机，取决于你选择的服务与操作。
 
@@ -72,7 +78,7 @@ npm run check:plugin-sdk
 npm run test:plugin-examples
 ```
 
-Main 和 Preload 的 TypeScript 检查包含在 `build:main` / `build:preload` 中。`npm test` 运行 `vitest.config.ts` 定义的套件，不包含脚本 Node 测试、Rust 测试、安装器或真实外部服务验收；脚本入口见 [scripts/README.md](./scripts/README.md)。Windows Bash 集成测试需将 `FIREFLY_TEST_BASH` 设置为本机实际存在的 Git Bash `bash.exe` 绝对路径。
+Main 和 Preload 的 TypeScript 检查包含在 `build:main` / `build:preload` 中。当前主验收平台为 Windows，截图路径及默认 `cmd` 集成用例仅在 Windows 执行；跨平台进程管理用例保留，Linux 的局部通过不表示 Linux 产品支持已验收。`npm test` 运行 `vitest.config.ts` 定义的套件，不包含脚本 Node 测试、Rust 测试、安装器或真实外部服务验收；脚本入口见 [scripts/README.md](./scripts/README.md)。Windows Bash 集成测试需将 `FIREFLY_TEST_BASH` 设置为本机实际存在的 Git Bash `bash.exe` 绝对路径。
 
 正式 Skills 目录变化时先核对 `vendor/firefly-skills/skills-manifest.json` 与来源通知，并运行 `npm run validate:skills`。构建直接打包已核验的目录，不生成 Skills ZIP。截图助手使用 Rust/Cargo Windows MSVC 工具链与 C++ 构建依赖。本地解包准备为：
 
@@ -110,7 +116,7 @@ npm run package:win:dir
 
 ## 数据与升级保护
 
-默认用户数据目录为 `%APPDATA%\Firefly`。技术包名 `firefly-agent`、展示名 `Firefly_Agent`、运行数据身份 `Firefly` 和 appId `com.serendipitywu02.firefly` 各有用途；改展示名不重建数据目录。
+正式 `production` 的默认用户数据目录为 `%APPDATA%\Firefly`。技术包名 `firefly-agent`、展示名 `Firefly_Agent`、运行数据身份 `Firefly` 和 appId `com.serendipitywu02.firefly` 各有用途；改展示名不重建数据目录。
 
 设置、模型档案、Chat / Work 历史、运行记录及用户 Skills 不属于 Git 或安装包。手工处理前正常退出并备份，保留旧目录，不覆盖已有目标或直接混合目录。集中迁移处理旧格式和凭据解密，新数据优先，冲突保留并诊断，读取失败不写回空数据。Skills 更新只处理可识别的托管内容，保留用户修改和同名自定义文件。
 

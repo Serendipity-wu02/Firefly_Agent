@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { resolveScreenshotHelperPath } from "./helper-path";
 
 describe("resolveScreenshotHelperPath", () => {
-  it("uses the development Rust release binary", () => {
+  // This fixture uses Windows paths from the Windows native screenshot helper.
+  it.runIf(process.platform === "win32")("uses the development Rust release binary", () => {
     expect(resolveScreenshotHelperPath({
       isPackaged: false,
       appPath: "C:\\repo",
@@ -11,7 +12,8 @@ describe("resolveScreenshotHelperPath", () => {
     })).toBe("C:\\repo\\native\\firefly-screenshot\\target\\release\\firefly-screenshot.exe");
   });
 
-  it("uses the packaged resources binary", () => {
+  // This fixture uses Windows paths from the Windows native screenshot helper.
+  it.runIf(process.platform === "win32")("uses the packaged resources binary", () => {
     expect(resolveScreenshotHelperPath({
       isPackaged: true,
       appPath: "C:\\app\\resources\\app.asar",

@@ -35,6 +35,7 @@ import {
   type ShellSpawnSpec,
 } from "./shell-job-manager";
 import { toolRegistry } from "../registry/tool-registry";
+import { isPidExecuting as isPidAlive } from "../../../../../scripts/testing/process-liveness.mjs";
 
 let tmpDir: string;
 
@@ -81,17 +82,6 @@ async function snapshotEventually(
       throw new Error(`timeout waiting job ${jobId}: status=${snap.status} reason=${snap.reason}`);
     }
     await new Promise((r) => setTimeout(r, 150));
-  }
-}
-
-/** PID 是否存活（signal 0 = 存在性探测） */
-function isPidAlive(pid: number | null): boolean {
-  if (pid == null) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -282,7 +272,8 @@ describe("shell_job 工具协议（注册 + run_shell 后台集成）", () => {
     }
   });
 
-  it("run_shell run_in_background 集成：启动返回 jobId/logFile → status running → stop → 进程真死", async () => {
+  // The public default shell is cmd.exe; this integration is Windows-only.
+  it.runIf(process.platform === "win32")("run_shell run_in_background 集成：启动返回 jobId/logFile → status running → stop → 进程真死", async () => {
     const runShell = toolRegistry.getById("run_shell");
     if (!runShell) throw new Error("run_shell 未注册");
     const raw = JSON.parse(await runShell.execute(

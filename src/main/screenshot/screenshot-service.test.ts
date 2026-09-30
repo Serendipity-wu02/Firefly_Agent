@@ -65,7 +65,8 @@ describe("createScreenshotService", () => {
     expect(harness.sendInsert).not.toHaveBeenCalled();
   });
 
-  it("maps the chat button to clipboard-and-file with a renderer-safe preview URL", async () => {
+  // This fixture uses Windows paths from the Windows native screenshot helper.
+  it.runIf(process.platform === "win32")("maps the chat button to clipboard-and-file with a renderer-safe preview URL", async () => {
     const harness = createHarness();
     vi.mocked(harness.client.start).mockResolvedValueOnce(
       result({
@@ -182,7 +183,8 @@ describe("createScreenshotService", () => {
 });
 
 describe("validateScreenshotInsert", () => {
-  it("accepts only a non-empty PNG inside the fixed screenshot directory", () => {
+  // This fixture uses Windows paths from the Windows native screenshot helper.
+  it.runIf(process.platform === "win32")("accepts only a non-empty PNG inside the fixed screenshot directory", () => {
     const data = {
       filePath: "C:\\user-data\\screenshots\\capture.png",
       width: 800,
@@ -238,7 +240,8 @@ describe("validateScreenshotInsert", () => {
     ).toBeNull();
   });
 
-  it("does not confuse a valid dot-prefixed file name with parent traversal", () => {
+  // This fixture uses Windows paths from the Windows native screenshot helper.
+  it.runIf(process.platform === "win32")("does not confuse a valid dot-prefixed file name with parent traversal", () => {
     const data = {
       filePath: "C:\\user-data\\screenshots\\..capture.png",
       width: 20,
