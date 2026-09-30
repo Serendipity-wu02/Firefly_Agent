@@ -1,46 +1,41 @@
-// MCP Manager — 管理多个 MCP server 的生命周期、配置持久化、启动自动连接
-import * as fs from "fs";
-import * as path from "path";
-import { app } from "electron";
+// MCP lifecycle and persistent configuration; paths belong to StorageContext.
+import { AtomicJsonStore } from "../atomic-json-store";
+import { getStorageContext } from "../storage-context";
 import { connectMcpServer, disconnectMcpServer, getMcpServerStates, McpServerConfig } from "./mcp-adapter";
 import { logger, LogTag } from "../logger";
 
 const LOG_PREFIX = "[MCP Manager]";
-
-function getConfigPath(): string {
-  const userDataPath = app.getPath("userData");
-  return path.join(userDataPath, "mcp-servers.json");
+function record(value: unknown): value is Record<string, unknown> { return !!value && typeof value === "object" && !Array.isArray(value); }
+function validConfigs(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  const ids = new Set<string>();
+  return value.every((item: unknown) => {
+    if (!record(item) || typeof item.id !== "string" || !item.id || typeof item.name !== "string" || !item.name || (item.transport !== "stdio" && item.transport !== "sse")) return false;
+    if (ids.has(item.id)) return false;
+    ids.add(item.id);
+    if (["command", "cwd", "url"].some((key) => item[key] !== undefined && typeof item[key] !== "string")) return false;
+    if (item.args !== undefined && (!Array.isArray(item.args) || !item.args.every((arg: unknown) => typeof arg === "string"))) return false;
+    if (item.env !== undefined && (!record(item.env) || !Object.values(item.env).every((entry) => typeof entry === "string"))) return false;
+    return item.enabled === undefined || typeof item.enabled === "boolean";
+  });
 }
-
+function configStore(): AtomicJsonStore<McpServerConfig[]> {
+  return new AtomicJsonStore(getStorageContext().files.mcp, validConfigs);
+}
 function loadConfigs(): McpServerConfig[] {
+  const store = configStore(); // initialization errors must not become empty configuration
   try {
-    const raw = fs.readFileSync(getConfigPath(), "utf-8");
-    const configs = JSON.parse(raw);
-    if (Array.isArray(configs)) {
-      logger.info(LogTag.MCP, `loaded ${configs.length} MCP server configs`);
-      return configs;
-    }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.error(LOG_PREFIX, "读取配置失败:", (err as Error).message);
-    }
+    const configs = store.read([]);
+    logger.info(LogTag.MCP, `loaded ${configs.length} MCP server configs`);
+    return configs;
+  } catch (error) {
+    console.error(LOG_PREFIX, "configuration read failed:", (error as Error).message);
+    return [];
   }
-  return [];
 }
-
 function saveConfigs(configs: McpServerConfig[]): void {
-  try {
-    const dir = path.dirname(getConfigPath());
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(getConfigPath(), JSON.stringify(configs, null, 2), "utf-8");
-    console.log(LOG_PREFIX, "已保存 " + configs.length + " 个 MCP server 配置");
-  } catch (err) {
-    console.error(LOG_PREFIX, "保存配置失败:", (err as Error).message);
-  }
+  configStore().write(configs); // propagate write failure; never report a false success
 }
-
 /**
  * 一次性清理已下架的内置 MCP server 配置（id 白名单模式）。
  * 幂等：条目不存在时不报错、不写盘。
@@ -132,12 +127,18 @@ export async function addMcpServer(config: McpServerConfig): Promise<{
     return { ok: false, error: "已存在相同 ID 的 MCP server: " + config.id };
   }
 
+  let connected = false;
   try {
     const toolIds = await connectMcpServer(config);
+    connected = true;
     configs.push(config);
     saveConfigs(configs);
     return { ok: true, toolIds };
   } catch (err) {
+    if (connected) {
+      try { await disconnectMcpServer(config.id); }
+      catch { logger.warn(LogTag.MCP, "failed to disconnect unpersisted MCP server", { serverId: config.id }); }
+    }
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: msg };
   }

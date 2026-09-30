@@ -1,3 +1,4 @@
+import { getStorageContext } from "../storage-context";
 /**
  * 默认应用依赖装配（真正的组合根胶水层）：
  * 持有全部业务子系统的导入与工厂闭包，把它们按窄依赖喂给各启动阶段。
@@ -264,6 +265,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       // 升级迁移：NSIS 暂存的安装目录用户内容合并进 userData，
       // 必须在任何 prompts/skills 读取（initSkills、prompt 加载）之前执行
       migrateStagedExternalContent: () => migrateStagedExternalContent({
+        manifestFile: getStorageContext().files.contentManifest,
+        allowStagedMigration: getStorageContext().profile.kind === "production",
         isPackaged: app.isPackaged,
         ...getExternalContentPaths(),
       }),

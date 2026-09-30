@@ -6,9 +6,9 @@
 // 写入策略：record() 立即更新内存缓存，1 秒防抖落盘（避免高频写）。
 // 读取策略：首次访问时从磁盘加载到内存，后续直接读缓存。
 
-import { app } from "electron";
-import * as fs from "fs";
-import * as path from "path";
+import { getStorageContext } from "./storage-context";
+import { AtomicJsonStore } from "./atomic-json-store";
+
 
 export interface TokenUsageDay {
   input: number;
@@ -52,8 +52,19 @@ const DEFAULT_STORE: TokenUsageStore = { schemaVersion: 2, days: {} };
 const DEBOUNCE_MS = 1000;
 const MAX_WAIT_MS = 5000;
 
-function getFilePath(): string {
-  return path.join(app.getPath("userData"), "token-usage.json");
+function usageStore(): AtomicJsonStore<Partial<TokenUsageStore>> {
+  return new AtomicJsonStore(getStorageContext().files.tokenUsage, (value: unknown) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const candidate = value as Partial<TokenUsageStore>;
+    if (!candidate.days || typeof candidate.days !== "object" || Array.isArray(candidate.days)) return false;
+    const validCounters = (counters: unknown): boolean => {
+      if (!counters || typeof counters !== "object" || Array.isArray(counters)) return false;
+      const record = counters as Record<string, unknown>;
+      return ["input", "output", "requests"].every((key) => typeof record[key] === "number") &&
+        ["input", "output", "requests", "hit", "miss", "cacheCreation", "cacheUsageRequests", "attemptedRequests"].every((key) => record[key] === undefined || (typeof record[key] === "number" && Number.isFinite(record[key]) && record[key] >= 0));
+    };
+    return Object.values(candidate.days).every((day) => validCounters(day) && (day.models === undefined || (day.models && typeof day.models === "object" && !Array.isArray(day.models) && Object.values(day.models).every(validCounters))));
+  });
 }
 
 function todayKey(): string {
@@ -71,20 +82,14 @@ function clearTimers(): void {
 }
 
 function loadFromDisk(): TokenUsageStore {
-  const filePath = getFilePath();
+  const store = usageStore();
   try {
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, "utf8");
-      const parsed = JSON.parse(raw) as Partial<TokenUsageStore>;
-      return {
-        schemaVersion: 2,
-        days: parsed.days && typeof parsed.days === "object" ? parsed.days : {},
-      };
-    }
-  } catch (err) {
-    console.warn("[token-usage] 加载失败，重置为空:", err);
+    const parsed = store.read(DEFAULT_STORE);
+    return { schemaVersion: 2, days: parsed.days ?? {} };
+  } catch (error) {
+    console.warn("[token-usage] read failed:", (error as Error).message);
+    return { ...DEFAULT_STORE, days: {} };
   }
-  return { ...DEFAULT_STORE, days: {} };
 }
 
 function ensureLoaded(): TokenUsageStore {
@@ -110,17 +115,9 @@ function scheduleFlush(): void {
 
 function flushNow(): void {
   if (!cache) return;
-  const filePath = getFilePath();
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  // 原子写：先写 .tmp 再 rename
-  const tmpPath = filePath + ".tmp";
-  try {
-    fs.writeFileSync(tmpPath, JSON.stringify(cache, null, 2), "utf8");
-    fs.renameSync(tmpPath, filePath);
-  } catch (err) {
-    console.warn("[token-usage] 落盘失败:", err);
-  }
+  const store = usageStore();
+  try { store.write(cache); }
+  catch (error) { console.warn("[token-usage] write failed:", (error as Error).message); }
 }
 
 // ── public API ──
