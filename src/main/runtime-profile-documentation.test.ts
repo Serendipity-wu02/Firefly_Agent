@@ -26,7 +26,8 @@ describe("runtime profile startup documentation", () => {
         env: { FIREFLY_RUNTIME_PROFILE: profile, FIREFLY_ISOLATION_ROOT: isolationRoot },
       });
       expect(resolved.kind).toBe("development");
-      expect(resolved.userData).toBe(path.join(isolationRoot, "Firefly-development"));
+      // Windows temporary directories can use an 8.3 alias; the resolver owns canonical roots.
+      expect(resolved.userData).toBe(path.join(fs.realpathSync.native(isolationRoot), "Firefly-development"));
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
   });
 });
