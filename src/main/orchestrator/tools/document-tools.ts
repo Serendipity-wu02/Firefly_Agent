@@ -15,6 +15,8 @@ import { toolRegistry } from "./registry/tool-registry";
 import type { ToolContext } from "./registry/tool-context";
 import { findSkillPath } from "../../external-content-paths";
 import { getRunReviewTracker } from "../review/run-review-tracker";
+import { randomUUID } from "node:crypto";
+import { pipeline } from "node:stream/promises";
 
 const LOG_PREFIX = "[DocTools]";
 
@@ -514,32 +516,59 @@ export function registerDocumentTools(): void {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       captureBaseline(context, outputPath);
       const doc = new PDFKit.default();
-      const stream = fs.createWriteStream(outputPath);
-      doc.pipe(stream);
+      let stream: fs.WriteStream | undefined;
+      let completion: Promise<void> | undefined;
+      let temporaryPath: string | undefined;
+      let ownsTemporaryFile = false;
+      try {
+        // Collection fonts require a concrete PostScript face. Validate before
+        // opening output; absent system fonts retain the existing default fallback.
+        const fontCandidates = [
+          { file: "C:\\Windows\\Fonts\\msyh.ttc", family: "MicrosoftYaHei" },
+          { file: "C:\\Windows\\Fonts\\simsun.ttc", family: "SimSun" },
+          { file: "C:\\Windows\\Fonts\\simhei.ttf", family: undefined },
+        ];
+        let fontError: unknown;
+        let fontSelected = false;
+        for (const font of fontCandidates) {
+          if (!fs.existsSync(font.file)) continue;
+          try {
+            if (font.family) doc.font(font.file, font.family);
+            else doc.font(font.file);
+            fontSelected = true;
+            break;
+          } catch (error) { fontError = error; }
+        }
+        if (!fontSelected && fontError) throw new Error("FIREFLY_PDF_FONT_UNAVAILABLE", { cause: fontError });
 
-      // 中文字体：Windows 用微软雅黑，找不到则用默认（中文会乱码但能生成）
-      const fontCandidates = [
-        "C:\\Windows\\Fonts\\msyh.ttc",
-        "C:\\Windows\\Fonts\\simsun.ttc",
-        "C:\\Windows\\Fonts\\simhei.ttf",
-      ];
-      for (const f of fontCandidates) {
-        if (fs.existsSync(f)) { doc.font(f); break; }
+        // Same-directory rename commits only a complete PDF. Never unlink the
+        // previous target, including when Windows refuses replacement.
+        temporaryPath = path.join(dir, `.firefly-pdf-${randomUUID()}.tmp`);
+        stream = fs.createWriteStream(temporaryPath, { flags: "wx", mode: 0o600 });
+        stream.once("open", () => { ownsTemporaryFile = true; });
+        completion = pipeline(doc, stream);
+        // Rendering can throw synchronously before this promise is awaited.
+        void completion.catch(() => {});
+        doc.fontSize(22).text(String(args.title || ""), { align: "center" });
+        doc.moveDown();
+        doc.fontSize(12);
+        for (const p of (args.paragraphs as string[]) || []) {
+          doc.text(p, { align: "left" });
+          doc.moveDown(0.5);
+        }
+        doc.end();
+        await completion;
+        fs.renameSync(temporaryPath, outputPath);
+      } catch (error) {
+        doc.destroy();
+        stream?.destroy();
+        if (completion) await completion.catch(() => {});
+        throw error;
+      } finally {
+        // An exclusive-open collision is not ours to remove. Await pipeline
+        // closure above before deleting an owned temporary file on Windows.
+        if (temporaryPath && ownsTemporaryFile) fs.rmSync(temporaryPath, { force: true });
       }
-
-      doc.fontSize(22).text(String(args.title || ""), { align: "center" });
-      doc.moveDown();
-      doc.fontSize(12);
-      for (const p of (args.paragraphs as string[]) || []) {
-        doc.text(p, { align: "left" });
-        doc.moveDown(0.5);
-      }
-      doc.end();
-
-      await new Promise<void>((resolve, reject) => {
-        stream.on("finish", () => resolve());
-        stream.on("error", reject);
-      });
       console.log(LOG_PREFIX, "PDF 已生成:", outputPath);
       return `[write_pdf] 已生成：${outputPath}`;
     },
