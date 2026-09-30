@@ -30,11 +30,16 @@ describe("runtime profile boundary", () => {
   it.each(["development", "test", "smoke"])("resolves all %s Electron roots inside one explicit boundary without writing", (kind) => {
     const resolve = resolveRuntimeProfile;
     const isolationRoot = temporary();
+    // Keep the caller's raw path (including Windows 8.3 aliases) as resolver input.
+    const canonicalRoot = fs.realpathSync.native(isolationRoot);
     const profile = resolve(input(kind, isolationRoot));
     expect(profile.kind).toBe(kind);
     expect(profile.applicationName).toBe(`Firefly-${kind}`);
+    expect(profile.isolationRoot).toBe(canonicalRoot);
     for (const key of ["appData", "userData", "sessionData", "logs"] as const) {
-      expect(path.relative(isolationRoot, profile[key])).not.toMatch(/^\.\./);
+      const relative = path.relative(canonicalRoot, profile[key]);
+      expect(relative).not.toMatch(/^\.\./);
+      expect(path.isAbsolute(relative)).toBe(false);
     }
     expect(fs.readdirSync(isolationRoot)).toEqual([]);
   });
@@ -59,6 +64,20 @@ describe("runtime profile boundary", () => {
     const alias = path.join(outer, "alias");
     fs.symlinkSync(request.productionAppData, alias, "junction");
     expect(() => resolve({ ...request, argv: ["--firefly-profile=smoke", `--firefly-isolation-root=${alias}`] })).toThrow("FIREFLY_RUNTIME_PRODUCTION_OVERLAP");
+  });
+  it.runIf(process.platform === "win32")("rejects raw Windows 8.3 and canonical aliases of the same production directory", ({ skip }) => {
+    const rawRoot = temporary();
+    const canonicalRoot = fs.realpathSync.native(rawRoot);
+    // Some Windows installations disable 8.3 names. Do not substitute a junction.
+    if (!/~\d+(?:\\|$)/.test(rawRoot)) { skip(); return; }
+    expect(rawRoot.toLowerCase()).not.toBe(canonicalRoot.toLowerCase());
+    for (const [productionAppData, isolationRoot] of [[canonicalRoot, rawRoot], [rawRoot, canonicalRoot]]) {
+      expect(() => resolveRuntimeProfile({
+        argv: ["--firefly-profile=smoke", `--firefly-isolation-root=${isolationRoot}`],
+        env: {}, isPackaged: true, productionAppData,
+      })).toThrow("FIREFLY_RUNTIME_PRODUCTION_OVERLAP");
+    }
+    expect(fs.readdirSync(rawRoot)).toEqual([]);
   });
   it("rejects an existing child junction escaping isolation before mkdir", () => {
     const resolve = resolveRuntimeProfile;

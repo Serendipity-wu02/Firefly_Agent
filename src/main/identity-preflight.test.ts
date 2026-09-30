@@ -39,7 +39,7 @@ describe("earliest identity preflight", () => {
     const { getStorageContext } = await import("./storage-context");
     const storage = getStorageContext();
     expect(storage.profile.kind).toBe("smoke");
-    expect(preflight.userDataDir).toBe(path.join(isolation, "Firefly-smoke"));
+    expect(preflight.userDataDir).toBe(path.join(fs.realpathSync.native(isolation), "Firefly-smoke"));
     expect(storage.sessionRoot).toBe(fake.paths.get("sessionData"));
     expect(storage.logsRoot).toBe(fake.paths.get("logs"));
   });

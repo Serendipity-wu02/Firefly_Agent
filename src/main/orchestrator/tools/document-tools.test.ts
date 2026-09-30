@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { createHash } from "node:crypto";
 
 let tmpDir: string;
 
@@ -32,6 +33,14 @@ vi.mock("electron", () => ({
 // 样式目录 mock：测试不依赖 skills/ 真实文件
 vi.mock("../../external-content-paths", () => ({
   findSkillPath: (_skillId: string, _sub: string) => null,
+}));
+
+// This suite verifies write-ahead capture, not host-font rendering. Fail at the
+// generation boundary deterministically, before any output stream is opened.
+vi.mock("pdfkit", () => ({
+  default: class {
+    constructor() { throw new Error("PDF_GENERATION_FAILED"); }
+  },
 }));
 
 import { registerDocumentTools } from "./document-tools";
@@ -119,27 +128,22 @@ describe("Review 基线捕获（写盘前）", () => {
   });
 
   it("write_pdf 基线捕获先于生成（生成失败也不影响基线）", async () => {
-    fs.writeFileSync(path.join(tmpDir, "report.pdf"), Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 0, 1]));
+    const outputPath = path.join(tmpDir, "report.pdf");
+    const original = Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 0, 1]);
+    fs.writeFileSync(outputPath, original);
 
-    // 本机 msyh.ttc 与 pdfkit 的 subset 不兼容，doc.text() 会抛错——
-    // 恰好验证 write-ahead 语义：基线在任何写盘/生成动作之前已保存
-    let threw = false;
-    try {
-      await getTool("write_pdf").execute(
-        { filename: "report.pdf", title: "标题", paragraphs: ["段落一"] },
-        { runId: "run-pdf-1" },
-      );
-    } catch {
-      threw = true;
-    }
+    await expect(getTool("write_pdf").execute(
+      { filename: "report.pdf", title: "标题", paragraphs: ["段落一"] },
+      { runId: "run-pdf-1" },
+    )).rejects.toThrow("PDF_GENERATION_FAILED");
 
     const baselines = listBaselines("run-pdf-1");
     expect(baselines).toHaveLength(1);
     expect(baselines[0]).toMatch(/\.binary$/);
-    if (threw) {
-      // 生成失败时原二进制不应被截断破坏（createWriteStream 未成功写入）
-      // 等待 pdfkit 内部流动作结束，避免延迟 open 撞上目录清理
-      await new Promise((r) => setTimeout(r, 50));
-    }
+    const marker = path.join(tmpDir, "firefly-runs", "reviews", "run-pdf-1", "before", baselines[0]);
+    expect(JSON.parse(fs.readFileSync(marker, "utf8"))).toEqual({
+      size: original.length, hash: createHash("sha256").update(original).digest("hex"),
+    });
+    expect(fs.readFileSync(outputPath)).toEqual(original);
   });
 });
