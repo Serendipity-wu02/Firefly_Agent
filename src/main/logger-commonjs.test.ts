@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { createRequire, isBuiltin } from "node:module";
 import vm from "node:vm";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
@@ -7,6 +8,7 @@ import { describe, expect, it } from "vitest";
 describe("production logger CommonJS initialization", () => {
   it.each(["src/shared/logger.ts", "src/main/logger.ts"])("loads %s with the production module ordering", (file) => {
     const modules = new Map<string, Record<string, unknown>>();
+    const nativeRequire = createRequire(path.resolve(file));
     function load(filename: string): Record<string, unknown> {
       const absolute = path.resolve(filename);
       if (modules.has(absolute)) return modules.get(absolute)!;
@@ -20,7 +22,7 @@ describe("production logger CommonJS initialization", () => {
         process: { env: { FIREFLY_LOG_LEVEL: "error" } },
         require(specifier: string) {
           if (specifier === "node:process") return { env: { FIREFLY_LOG_LEVEL: "error" } };
-          if (specifier === "./log-sink-file") return { installFileLogSink: () => () => {} };
+          if (isBuiltin(specifier)) return nativeRequire(specifier);
           return load(path.resolve(path.dirname(absolute), `${specifier}.ts`));
         },
       }, { filename: absolute });

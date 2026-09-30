@@ -34,7 +34,7 @@
     "validate:skills": "node scripts/packaging/validate-skills.mjs",
     "verify:installer": "node scripts/verify/installer-artifacts.mjs",
     "package:win:dir": "npm run build && npm run build:screenshot-helper && npm run prepare:mingit && electron-builder --win --dir",
-    "dev": "npm run build:main && npm run build:preload && npm run build:cli && concurrently \"vite\" \"cross-env VITE_DEV=1 electron .\"",
+    "dev": "npm run build:main && npm run build:preload && npm run build:cli && concurrently \"vite\" \"cross-env VITE_DEV=1 electron . --firefly-profile=development\"",
     "start": "electron .",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -7,7 +7,7 @@
  * application/default-dependencies.ts；启动编排位于 application/application.ts。
  */
 
-import { userDataDir } from "./identity-preflight";
+import "./identity-preflight";
 import { app } from "electron";
 import { createApplication } from "./application/application";
 import { createDefaultApplicationDependencies } from "./application/default-dependencies";
@@ -26,7 +26,7 @@ for (const stream of [process.stdout, process.stderr]) {
   });
 }
 
-initializeMainFileLogging(userDataDir);
+initializeMainFileLogging();
 
 // 插件设置面板协议：scheme 特权必须在 app.ready 之前注册（Electron 硬性要求）
 registerPluginPanelScheme();

@@ -9,7 +9,10 @@
  */
 import { setLogLevel, type LogLevel } from "../shared/logger";
 import { logger } from "../shared/logger";
-import { installFileLogSink } from "./log-sink-file";
+import { createFileLogSink } from "./log-sink-file";
+import fs from "node:fs";
+import { addLogSink } from "../shared/logger";
+import { getStorageContext } from "./storage-context";
 import { fireflyEnvironment } from "../shared/firefly-environment";
 
 function resolveDefaultLevel(): LogLevel {
@@ -26,9 +29,11 @@ function resolveDefaultLevel(): LogLevel {
 
 setLogLevel(resolveDefaultLevel());
 
-export function initializeMainFileLogging(userDataDir: string): () => void {
+export function initializeMainFileLogging(): () => void {
+  const storage = getStorageContext();
   try {
-    return installFileLogSink(userDataDir);
+    fs.mkdirSync(storage.logsRoot, { recursive: true });
+    return addLogSink(createFileLogSink(storage.files.mainLog));
   } catch {
     // userData 不可用时静默跳过，日志落盘只是增强项
     return () => {};
