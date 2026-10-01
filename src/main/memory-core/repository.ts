@@ -39,6 +39,12 @@ export class MemoryRepository {
     if(!Number.isSafeInteger(row.revision)||row.revision<1)throw new Error("MEMORY_INPUT_INVALID");
     if(row.sourceId!==undefined)internalId(row.sourceId);
     if(row.parentId!==undefined)internalId(row.parentId);
+    // Raw batches retain legacy storage fixtures. Managed sources must use the
+    // semantic commands, which validate the durable head and bound revision.
+    const payloadRef=row.payload&&typeof row.payload==="object"?(row.payload as {sourceRef?:{sourceId?:unknown}}).sourceRef:undefined;
+    const sourceIds=[row.sourceId,row.table==="sources"?row.id:undefined,payloadRef&&typeof payloadRef.sourceId==="string"?payloadRef.sourceId:undefined];
+    const ledger=new SourceLedger(this.db,this.key);
+    if(sourceIds.some(id=>id!==undefined&&ledger.isManaged(command.scopeKey,id)))throw new Error("MEMORY_SOURCE_MANAGED");
     const state=row.state??"recorded";if(!STATES.has(state))throw new Error("MEMORY_INPUT_INVALID");
     this.db.prepare("INSERT INTO "+row.table+" (id,scope_key,revision,source_id,parent_id,state,payload) VALUES (?,?,?,?,?,?,?)")
      .run(row.id,command.scopeKey,row.revision,row.sourceId??null,row.parentId??null,state,this.seal(row.table,command.scopeKey,row.id,row.payload));

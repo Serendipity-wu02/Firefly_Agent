@@ -16,7 +16,9 @@ const providers=new WeakMap<object,MainSourceProvider>();
 export function createMainSourceProvider(provider:MainSourceProvider):object {
  parseInternalId(provider.providerId);
  if(typeof provider.authorize!=="function"||typeof provider.withLease!=="function")throw new Error("MEMORY_SOURCE_PROVIDER_DENIED");
- const token=Object.freeze({});providers.set(token,Object.freeze({...provider}));return token;
+ const token=Object.freeze({});
+ providers.set(token,Object.freeze({providerId:provider.providerId,authorize:provider.authorize.bind(provider),withLease:provider.withLease.bind(provider)}));
+ return token;
 }
 export function requireMainSourceProvider(token:unknown,scope:string,identity:SourceIdentity):MainSourceProvider {
  const provider=token&&typeof token==="object"?providers.get(token):undefined;
