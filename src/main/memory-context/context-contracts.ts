@@ -13,6 +13,9 @@ export interface FactDependency {factId:string;revision:number}
 export interface SourceDependency {sourceRef:BoundSourceRef;subjectKeys:string[]|null;derivedRefs:BoundSourceRef[]|null;excludeReason?:"secret"}
 export interface ContextTransport {contextCommand(command:unknown):Promise<unknown>}
 export interface TranscriptDependency {headId:string;revision:number;digest:string}
+export interface SummarySegment {sourceRef:BoundSourceRef;span:{start:number;end:number};role:ContextMessage["role"]}
+export interface SummaryReceipt {status:"committed"|"no-benefit";summaryId:string|null}
+export interface StoredSummary {actorKey:string;providerId:string;sessionId:string;bootId:string;id:string;generation:number;sourceDeps:SourceDependency[];inputRefs:BoundSourceRef[];segments:SummarySegment[]}
 /** Error text is always a reason code, never a provider/body payload. */
 export class ContextError extends Error {constructor(readonly code:string){super(code);this.name="ContextError"}}
 export function contextFail(code:string):never {throw new ContextError(code)}

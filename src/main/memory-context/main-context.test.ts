@@ -12,9 +12,11 @@ afterEach(()=>{for(const r of repos.splice(0))r.close();for(const root of roots.
 export async function contextFixture(){
  const {createMainActorAuthority}=await import("../memory-core/main-actor-authority"),{createMainContext}=await import("./main-context");
  const root=fs.mkdtempSync(path.join(os.tmpdir(),"context-s-"));roots.push(root);const key=randomBytes(32),databasePath=path.join(root,"memory.sqlite");
- let repo=openMemoryRepository({databasePath,key});repos.push(repo);let writes=0,cache="v1",countHook:undefined|(()=>Promise<void>);
+ let now=Date.now(),fault=false,currentKind="";const commands:unknown[]=[];
+ const repositoryOptions={databasePath,key,clock:()=>now,fault:()=>{if(fault&&currentKind==="summaryCommit")throw new Error("SUMMARY_INJECTED_FAULT")}};
+ let repo=openMemoryRepository(repositoryOptions);repos.push(repo);let writes=0,cache="v1",countHook:undefined|(()=>Promise<void>);
  const actorAuthority=createMainActorAuthority({resolveActor:()=>"actor-a"});
- const transport={sourceCommand:async(c:unknown)=>{writes++;return repo.sourceCommand(c)},policyCommand:async(c:unknown)=>repo.policyCommand(c),contextCommand:async(c:unknown)=>{writes++;return repo.contextCommand(c)}};
+ const transport={sourceCommand:async(c:unknown)=>{currentKind="source";commands.push(c);writes++;return repo.sourceCommand(c)},policyCommand:async(c:unknown)=>{currentKind="policy";return repo.policyCommand(c)},contextCommand:async(c:any)=>{currentKind=c.kind;commands.push(c);writes++;return repo.contextCommand(c)}};
  const registry=createMainSourceRegistry(transport,{coordinate:actorAuthority.coordinate});
  const provider=new SyntheticSourceProvider(path.join(root,"provider.json"),"scope-a"),access=registry.authority.access("scope-a"),identity={providerId:"synthetic",sessionId:"session-a",messageId:"binding"};
  const policy=createMainPolicy({registry,transport,resolveActor:()=>"actor-a",actorAuthority}),actor=policy.bindActor(access,provider.adapter,identity);
@@ -30,8 +32,8 @@ export async function contextFixture(){
  async function active(text="I prefer bash"){const s=await source(text),result=await policy.ingest(actor,s.ref);return {...s,...result}}
  async function forget(factId:string,revision=1){await policy.act(actor,await policy.event(actor,{kind:"forget",nonce:randomUUID(),factId,revision}))}
  const assemble=(refs:any[]=[],facts:any[]=[])=>context.assemble(actor,{sessionId:"session-a",sourceRefs:refs,factRefs:facts});
- function reopen(){repo.close();repo=openMemoryRepository({databasePath,key});repos.push(repo)}
- return {root,databasePath,key,get repo(){return repo},registry,provider,policy,actor,actorAuthority,access,identity,context,options,transport,source,active,forget,assemble,reopen,get writes(){return writes},setCache:(value:string)=>{cache=value},setCountHook:(hook:typeof countHook)=>{countHook=hook}};
+ function reopen(){repo.close();repo=openMemoryRepository(repositoryOptions);repos.push(repo)}
+ return {root,databasePath,key,get repo(){return repo},registry,provider,policy,actor,actorAuthority,access,identity,context,options,transport,source,active,forget,assemble,reopen,commands,advanceClock:(ms:number)=>{now+=ms},setFault:(value:boolean)=>{fault=value},get writes(){return writes},setCache:(value:string)=>{cache=value},setCountHook:(hook:typeof countHook)=>{countHook=hook}};
 }
 it("shared opaque Main actor assembles and dispatches one immutable request",async()=>{
  const f=await contextFixture(),s=await f.source("中文 English 🌱"),snapshot=await f.assemble([s.ref]);expect(snapshot.request.body.messages[0].text).toBe("中文 English 🌱");
@@ -157,4 +159,79 @@ it("configuration changed at the last counter continuation cannot send old body"
 it("durable snapshot stores count capability identity and metadata without prompt plaintext",async()=>{
  const f=await contextFixture(),s=await f.source("RAW_CONTEXT_BODY_CANARY"),snapshot=await f.assemble([s.ref]),{DatabaseSync}=await import("node:sqlite"),{RecordCodec}=await import("../memory-core/record-codec"),db=new DatabaseSync(f.databasePath,{readOnly:true});
  try{const row=db.prepare("SELECT payload FROM context_records WHERE id=?").get(snapshot.snapshotId),stored=new RecordCodec(f.key).open<any>("context-snapshot","scope-a",snapshot.snapshotId,row!.payload);expect(stored.counterIdentity).toEqual(f.options.counter.capability);expect(JSON.stringify(stored)).not.toContain("RAW_CONTEXT_BODY_CANARY");expect(stored.promptTokens).toBe(snapshot.promptTokens)}finally{db.close()}
+});
+const segment=(ref:any,text:string)=>({sourceRef:ref,span:{start:0,end:text.length}});
+async function prepareSummary(f:Awaited<ReturnType<typeof contextFixture>>,refs:any[]){return f.context.prepareSummary(f.actor,{sessionId:"session-a",inputRefs:refs,leaseMs:60000})}
+async function withSummary(f:Awaited<ReturnType<typeof contextFixture>>,id:string){return f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],summaryIds:[id]})}
+it("extractive summary preserves whole negation, speaker, Unicode and input order without promoting M",async()=>{
+ const f=await contextFixture(),text="I do not prefer bash. 我不偏好 Bash 🌱 e\u0301",a=await f.source(text),b=await f.source("OLD RAW CONTEXT ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]);
+ const receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]});expect(receipt.status).toBe("committed");const snapshot=await withSummary(f,receipt.summaryId!);expect(snapshot.request.body.messages[0]).toMatchObject({role:"user",text});expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it.each(["pending","edited","deleted","recreated"])("summary loses all availability when an unselected input becomes %s",async kind=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("SECOND INPUT ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]),receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]});
+ await f.registry.prepareChange(f.access,f.provider.adapter,b.ref);
+ if(kind==="edited"){f.provider.write(b.id,{text:"changed",role:"user",trust:"direct-user-event"});await f.registry.reconcile(f.access,f.provider.adapter,b.id)}
+ if(kind==="deleted"||kind==="recreated"){f.provider.remove(b.id);await expect(f.registry.reconcile(f.access,f.provider.adapter,b.id)).rejects.toThrow();if(kind==="recreated"){f.provider.write(b.id,{text:"SECOND INPUT ".repeat(100),role:"user",trust:"direct-user-event"});await f.registry.capture(f.access,f.provider.adapter,b.id)}}
+ expect((await withSummary(f,receipt.summaryId!)).request.body.messages).toEqual([]);
+});
+it("forget invalidates old summary permit while precise unrelated summary sources can rebuild",async()=>{
+ const f=await contextFixture(),active=await f.active(),text="I prefer English",a=await f.source(text),b=await f.source("I prefer detailed responses"),lease=await prepareSummary(f,[a.ref,b.ref]),receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]}),snapshot=await withSummary(f,receipt.summaryId!),permit=await f.context.validateForDispatch(f.actor,snapshot);await f.forget(active.factId!);
+ await expect(f.context.dispatch(f.actor,permit,()=>"bad")).rejects.toThrow("MEMORY_CONTEXT_STALE");expect((await withSummary(f,receipt.summaryId!)).request.body.messages[0].text).toBe(text);
+});
+it("forgotten never-extracted unselected dependency cannot be omitted to reuse summary",async()=>{
+ const f=await contextFixture(),active=await f.active(),text="I prefer English",a=await f.source(text),b=await f.source("I prefer bash"),lease=await prepareSummary(f,[a.ref,b.ref]),receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]});await f.forget(active.factId!);expect((await withSummary(f,receipt.summaryId!)).request.body.messages).toEqual([]);
+});
+it("summary prepared before forget cannot commit, unrelated fresh lease can rebuild",async()=>{
+ const f=await contextFixture(),active=await f.active(),text="I prefer English",a=await f.source(text),b=await f.source("I prefer detailed responses"),lease=await prepareSummary(f,[a.ref,b.ref]);await f.forget(active.factId!);
+ await expect(f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_STALE");const fresh=await prepareSummary(f,[a.ref,b.ref]);expect((await f.context.commitSummary(f.actor,fresh,{segments:[segment(a.ref,text)]})).status).toBe("committed");
+});
+it("expired lease rejects before source reads or token counting",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]);f.advanceClock(60001);let counts=0;f.setCountHook(async()=>{counts++});await expect(f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_LEASE_EXPIRED");expect(counts).toBe(0);
+});
+it("JSON and old Main lease capability fail closed",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]);await expect(f.context.commitSummary(f.actor,{}, {segments:[segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_LEASE_DENIED");const {createMainContext}=await import("./main-context"),fresh=createMainContext(f.options);await expect(fresh.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_LEASE_DENIED");
+});
+it("partial negation, surrogate boundary, out-of-order and duplicate excerpts are refused",async()=>{
+ const f=await contextFixture(),text="🌱 I do not prefer bash",a=await f.source(text),b=await f.source("second ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]);
+ await expect(f.context.commitSummary(f.actor,lease,{segments:[{sourceRef:a.ref,span:{start:2,end:text.length}}]})).rejects.toThrow("MEMORY_CONTEXT_SUMMARY_FULL_SOURCE_REQUIRED");
+ await expect(f.context.commitSummary(f.actor,lease,{segments:[{sourceRef:a.ref,span:{start:0,end:1}}]})).rejects.toThrow("MEMORY_SOURCE_SPAN_INVALID");
+ await expect(f.context.commitSummary(f.actor,lease,{segments:[segment(b.ref,"second ".repeat(100)),segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_SUMMARY_ORDER_INVALID");
+ await expect(f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text),segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_SUMMARY_ORDER_INVALID");
+});
+it("labelled secret corpus is reason-only and creates no summary lease or payload command",async()=>{
+ const f=await contextFixture(),s=await f.source("refresh_token=SUMMARY_SECRET_CANARY");await expect(prepareSummary(f,[s.ref])).rejects.toThrow("MEMORY_CONTEXT_SUMMARY_SECRET");expect(JSON.stringify(f.commands)).not.toContain("SUMMARY_SECRET_CANARY");const {DatabaseSync}=await import("node:sqlite"),db=new DatabaseSync(f.databasePath,{readOnly:true});try{expect(db.prepare("SELECT count(*) n FROM context_records WHERE kind IN ('summary','summary-lease')").get()?.n).toBe(0)}finally{db.close()}
+});
+it("summary stores only encrypted complete input references and spans, no message copy",async()=>{
+ const f=await contextFixture(),text="SUMMARY_BODY_CANARY",a=await f.source(text),b=await f.source("UNSELECTED_CANARY ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]),receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]}),{DatabaseSync}=await import("node:sqlite"),{RecordCodec}=await import("../memory-core/record-codec"),db=new DatabaseSync(f.databasePath,{readOnly:true});
+ try{const row=db.prepare("SELECT payload FROM context_records WHERE id=?").get(receipt.summaryId),stored=new RecordCodec(f.key).open<any>("context-summary","scope-a",receipt.summaryId!,row!.payload);expect(stored.sourceDeps.map((d:any)=>d.sourceRef.sourceId)).toEqual([a.ref.sourceId,b.ref.sourceId]);expect(JSON.stringify(stored)).not.toMatch(/SUMMARY_BODY_CANARY|UNSELECTED_CANARY/);expect(stored.segments[0].span).toEqual({start:0,end:text.length})}finally{db.close()}
+});
+it("summary fault rolls back rows and receipt; exact retry and reopen replay one result",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]),proposal={segments:[segment(a.ref,text)]};f.setFault(true);await expect(f.context.commitSummary(f.actor,lease,proposal)).rejects.toThrow("SUMMARY_INJECTED_FAULT");f.setFault(false);const receipt=await f.context.commitSummary(f.actor,lease,proposal);f.reopen();expect(await f.context.commitSummary(f.actor,lease,proposal)).toEqual(receipt);const {DatabaseSync}=await import("node:sqlite"),db=new DatabaseSync(f.databasePath,{readOnly:true});try{expect(db.prepare("SELECT count(*) n FROM context_records WHERE kind='summary'").get()?.n).toBe(1)}finally{db.close()}
+});
+it("completed receipt is diagnostic and cannot make deleted source summary available",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]),proposal={segments:[segment(a.ref,text)]},receipt=await f.context.commitSummary(f.actor,lease,proposal);await f.registry.prepareChange(f.access,f.provider.adapter,a.ref);f.provider.remove(a.id);await expect(f.registry.reconcile(f.access,f.provider.adapter,a.id)).rejects.toThrow();expect(await f.context.commitSummary(f.actor,lease,proposal)).toEqual(receipt);expect((await withSummary(f,receipt.summaryId!)).request.body.messages).toEqual([]);
+});
+it("no-benefit summary consumes lease without adding summary or M",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),lease=await prepareSummary(f,[a.ref]),receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]});expect(receipt).toEqual({status:"no-benefit",summaryId:null});expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("temporary summary refuses before any source/worker access",async()=>{
+ const f=await contextFixture(),a=f.actorAuthority.bindActor(f.access,f.provider.adapter,f.identity,{sessionMode:"temporary"}),before=f.writes;await expect(f.context.prepareSummary(a,{sessionId:"session-a",inputRefs:[],leaseMs:1000})).rejects.toThrow("MEMORY_CONTEXT_TEMPORARY_UNSUPPORTED");expect(f.writes).toBe(before);
+});
+it("committed summary rehydrates owned source refs in a fresh Main registry",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]),receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]});f.reopen();const {createMainContext}=await import("./main-context"),registry=createMainSourceRegistry(f.transport,{coordinate:f.actorAuthority.coordinate}),access=registry.authority.access("scope-a"),actor=f.actorAuthority.bindActor(access,f.provider.adapter,f.identity),fresh=createMainContext({...f.options,registry});expect((await fresh.assemble(actor,{sessionId:"session-a",sourceRefs:[],summaryIds:[receipt.summaryId!]})).request.body.messages[0].text).toBe(text);
+});
+it("source mutation at a summary counter continuation prevents commit",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]);let counts=0;f.setCountHook(async()=>{if(++counts===2)f.provider.write(b.id,{text:"edited without a ledger observation",role:"user",trust:"direct-user-event"})});await expect(f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]})).rejects.toThrow("MEMORY_SOURCE_STALE");
+});
+it("summary configuration mutation during counting cannot persist a stale result",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]);f.setCountHook(async()=>{f.options.budget.maxSTokens++});await expect(f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_REQUEST_CHANGED");
+});
+it("summary keeps the original assistant speaker",async()=>{
+ const f=await contextFixture(),text="I do not prefer bash",a=await f.source(text,"assistant","model"),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]),receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]});expect((await withSummary(f,receipt.summaryId!)).request.body.messages[0].role).toBe("assistant");
+});
+it("summary provider read failure exposes only a typed reason",async()=>{
+ const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]);f.provider.failReads=true;await expect(f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_SOURCE_READ_FAILED");
+});
+it("an explicit recent source remains selected when it was already visited as an origin",async()=>{
+ const f=await contextFixture(),a=await f.source("assistant context","assistant","model"),b=await f.source("I prefer English"),{createMainContext}=await import("./main-context"),context=createMainContext({...f.options,resolveDerivedRefs:(ref:any)=>ref.sourceId===a.ref.sourceId?[b.ref]:null});expect((await context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[a.ref,b.ref]})).request.body.messages).toHaveLength(2);
 });
