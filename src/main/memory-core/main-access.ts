@@ -26,7 +26,7 @@ function validateActivation(source:VerifiedSource,candidateId:string,reason:unkn
  if(reason==="policyAccepted"){
   if(source.intent!=="statement"||!eligibility||eligibility.directStatement!==true||eligibility.inferred!==false||eligibility.sensitive!==false||eligibility.conflict!==false)throw new Error("MEMORY_ACTIVATION_DENIED");
  }else if(reason==="explicitUserConfirmed"){
-  if(source.intent!=="confirmation"||source.candidateId!==candidateId)throw new Error("MEMORY_ACTIVATION_DENIED");
+  if(!["confirmation","remember"].includes(source.intent)||source.candidateId!==candidateId)throw new Error("MEMORY_ACTIVATION_DENIED");
  }else throw new Error("MEMORY_ACTIVATION_DENIED");
 }
 /** Main-only adapter factory. It is never exported from shared DTOs or exposed over IPC. */

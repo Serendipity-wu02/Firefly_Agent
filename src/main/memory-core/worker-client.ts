@@ -122,6 +122,7 @@ export class MemoryClient {
    try{this.worker.postMessage({id,type,body})}catch{this.fail("MEMORY_PROTOCOL_INVALID")}
   });
  }
+ jobCommand(command:unknown):Promise<unknown>{return this.request("job",command)}
  execute(command:unknown):Promise<import("../../shared/memory-contracts").MutationResult>{return this.request("execute",command)}
  current(scope:string):Promise<import("../../shared/memory-contracts").FactView[]>{return this.request("current",{scopeKey:scope})}
  history(scope:string,id:string):Promise<import("../../shared/memory-contracts").FactView[]>{return this.request("history",{scopeKey:scope,factId:id})}

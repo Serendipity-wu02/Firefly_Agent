@@ -14,3 +14,9 @@ export interface CandidateInput {commandId:string;candidateId:string;evidenceId:
 export interface ActivateInput {commandId:string;candidateId:string}
 export interface CorrectInput {commandId:string;factId:string;expectedRevision:number;sourceRef:SourceRef;fact:FactDraft}
 export interface ForgetInput {commandId:string;factId:string;expectedRevision:number;sourceRef:SourceRef}
+
+export interface EnqueueJobInput {commandId:string;jobId:string;sourceRef:SourceRef}
+export interface ClaimJobInput {commandId:string;jobId:string;leaseMs:number}
+export interface JobLease {jobId:string;leaseToken:string;leaseExpiresAt:number;sourceRef:SourceRef;suppressionGeneration:number}
+export interface JobProposal {candidateId:string;evidenceId:string;text:string;fact:FactDraft}
+export interface CommitJobInput {commandId:string;jobId:string;leaseToken:string;proposals:readonly JobProposal[]}

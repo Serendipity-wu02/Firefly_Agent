@@ -17,6 +17,7 @@ port.on("message",(message:unknown)=>{
    let result:unknown;
    switch(input.type){
     case "batch":result=repository.writeBatch(input.body as BatchCommand);break;
+    case "job":result=repository.jobCommand(input.body);break;
     case "execute":result=repository.execute(input.body);break;
     case "current":{const body=objectFields(input.body,["scopeKey"]);result=repository.current(parseInternalId(body.scopeKey));break}
     case "history":{const body=objectFields(input.body,["scopeKey","factId"]);result=repository.history(parseInternalId(body.scopeKey),parseInternalId(body.factId));break}

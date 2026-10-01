@@ -4,6 +4,7 @@ import type {SourceRef,FactDraft,FactView,MutationResult,ActivationReason} from 
 import {objectFields,parseSourceRef,parseFact,parseInternalId,positiveRevision,textField} from "./command-validation";
 import {executeTransaction,type TransactionFault} from "./command-transactions";
 import {sealPayload,openPayload} from "./payload-codec";
+import {Suppression} from "./suppression";
 import {canonicalJson} from "./repository-types";
 interface Projection {view:FactView;visibility:"active"|"forgotten"}
 export class FactRepository {
@@ -20,10 +21,10 @@ export class FactRepository {
  private row(table:string,scope:string,id:string){
   return this.db.prepare("SELECT * FROM "+table+" WHERE id=? AND scope_key=?").get(id,scope);
  }
- private source(scope:string,ref:SourceRef):{kind:string;sourceRef:SourceRef}{
+ private source(scope:string,ref:SourceRef):{kind:string;sourceRef:SourceRef;intent?:string;candidateId?:string|null;factId?:string|null}{
   const row=this.row("sources",scope,ref.sourceId);
   if(!row)throw new Error("MEMORY_SOURCE_INVALID");
-  const source=this.open<{kind:string;sourceRef:SourceRef}>("sources",scope,ref.sourceId,row.payload);
+  const source=this.open<{kind:string;sourceRef:SourceRef;intent?:string;candidateId?:string|null;factId?:string|null}>("sources",scope,ref.sourceId,row.payload);
   if(row.revision!==source.sourceRef.revision||source.sourceRef.sourceId!==ref.sourceId)throw new Error("MEMORY_DATA_INVALID");
   if(source.sourceRef.revision!==ref.revision)throw new Error("MEMORY_SOURCE_STALE");
   return source;
@@ -64,18 +65,26 @@ export class FactRepository {
   const command=objectFields(value,["kind","scopeKey","commandId","body"]);
   const scope=parseInternalId(command.scopeKey),commandId=parseInternalId(command.commandId);
   if(!["registerSource","appendEvidence","proposeCandidate","activateCandidate","correctFact","forgetFact"].includes(command.kind as string))throw new Error("MEMORY_INPUT_INVALID");
-  return executeTransaction({db:this.db,key:this.key,scope,commandId,request:value,fault:this.fault,apply:()=>{
+  return executeTransaction({db:this.db,key:this.key,scope,commandId,request:value,fault:this.fault,apply:()=>this.applyWithinTransaction(scope,command.kind as string,command.body)});
+ }
+ applyWithinTransaction(scope:string,kind:string,body:unknown):MutationResult{
+  if(!this.db.isTransaction)throw new Error("MEMORY_TRANSACTION_REQUIRED");
+  const command={kind,body},suppression=new Suppression(this.db,this.key);
    switch(command.kind){
     case "registerSource":{
-     const body=objectFields(command.body,["sourceRef","kind"]),ref=parseSourceRef(body.sourceRef);
+     const body=objectFields(command.body,["sourceRef","kind"],["intent","candidateId","factId"]),ref=parseSourceRef(body.sourceRef);
+     const intent=body.intent??"statement",candidateId=body.candidateId??null,factId=body.factId??null;
+     if(!["statement","confirmation","correction","forget","remember"].includes(intent as string))throw new Error("MEMORY_SOURCE_INVALID");
+     if(candidateId!==null)parseInternalId(candidateId);if(factId!==null)parseInternalId(factId);
+     const registered={sourceRef:ref,kind:body.kind,intent,candidateId,factId};
      if(!["user","assistant","system"].includes(body.kind as string))throw new Error("MEMORY_SOURCE_INVALID");
      const old=this.row("sources",scope,ref.sourceId);
      if(old){
-      const previous=this.open<{kind:string;sourceRef:SourceRef}>("sources",scope,ref.sourceId,old.payload);
-      if(previous.kind!==body.kind)throw new Error("MEMORY_SOURCE_INVALID");
+      const previous=this.open<{kind:string;sourceRef:SourceRef;intent?:string;candidateId?:string|null;factId?:string|null}>("sources",scope,ref.sourceId,old.payload);
+      if(previous.kind!==body.kind||(ref.revision===old.revision&&((previous.intent??"statement")!==intent||(previous.candidateId??null)!==candidateId||(previous.factId??null)!==factId)))throw new Error("MEMORY_SOURCE_INVALID");
       if(ref.revision<(old.revision as number))throw new Error("MEMORY_SOURCE_STALE");
-      if(ref.revision> (old.revision as number))this.db.prepare("UPDATE sources SET revision=?,payload=? WHERE id=? AND scope_key=?").run(ref.revision,this.seal("sources",scope,ref.sourceId,{sourceRef:ref,kind:body.kind}),ref.sourceId,scope);
-     }else this.insert("sources",scope,ref.sourceId,ref.revision,"recorded",{sourceRef:ref,kind:body.kind});
+      if(ref.revision> (old.revision as number))this.db.prepare("UPDATE sources SET revision=?,payload=? WHERE id=? AND scope_key=?").run(ref.revision,this.seal("sources",scope,ref.sourceId,registered),ref.sourceId,scope);
+     }else this.insert("sources",scope,ref.sourceId,ref.revision,"recorded",registered);
      return{id:ref.sourceId,revision:ref.revision};
     }
     case "appendEvidence":{
@@ -97,7 +106,12 @@ export class FactRepository {
      const auth=objectFields(body.authorization,["reason","sourceRef","policyVersion"]),eventRef=parseSourceRef(auth.sourceRef),event=this.source(scope,eventRef);
      if(event.kind!=="user"||!["policyAccepted","explicitUserConfirmed"].includes(auth.reason as string))throw new Error("MEMORY_ACTIVATION_DENIED");
      if(auth.reason==="policyAccepted"&&(source.kind!=="user"||fact.assertionKind!=="user-statement"||eventRef.sourceId!==sourceRef.sourceId||eventRef.revision!==sourceRef.revision||typeof auth.policyVersion!=="string"))throw new Error("MEMORY_ACTIVATION_DENIED");
-     if(auth.reason==="explicitUserConfirmed"&&auth.policyVersion!==null)throw new Error("MEMORY_ACTIVATION_DENIED");
+     if(auth.reason==="explicitUserConfirmed"&&(auth.policyVersion!==null||!["confirmation","remember"].includes(event.intent??"")||event.candidateId!==candidateId))throw new Error("MEMORY_ACTIVATION_DENIED");
+     if(auth.reason==="policyAccepted"&&event.intent!=="statement")throw new Error("MEMORY_ACTIVATION_DENIED");
+     if(suppression.subjectBlocked(scope,fact.subjectKey)){
+      if(event.intent!=="remember"||auth.reason!=="explicitUserConfirmed"||suppression.sourceBlocked(scope,eventRef)||suppression.sourceBlocked(scope,sourceRef))throw new Error("MEMORY_SUBJECT_SUPPRESSED");
+      suppression.advance(scope);
+     }else if(suppression.sourceBlocked(scope,sourceRef))throw new Error("MEMORY_SOURCE_SUPPRESSED");
      const index=this.subjectIndex(fact.subjectKey);
      if(this.db.prepare("SELECT id FROM current_facts WHERE scope_key=? AND subject_index=? AND state='active'").get(scope,index))throw new Error("MEMORY_FACT_CONFLICT");
      const id=randomUUID(),at=Date.now(),view:FactView={...fact,factId:id,revision:1,sourceRef,recordedAt:at,acceptedAt:at,supersededAt:null,activationReason:auth.reason as ActivationReason,policyVersion:auth.policyVersion as string|null,provenance:{candidateId,evidenceId:row.parent_id as string,activationSourceRef:eventRef}};
@@ -110,6 +124,7 @@ export class FactRepository {
      const body=objectFields(command.body,["factId","expectedRevision","sourceRef","fact"]),id=parseInternalId(body.factId),expected=positiveRevision(body.expectedRevision),sourceRef=parseSourceRef(body.sourceRef),fact=parseFact(body.fact);
      const previous=this.projection(scope,id).view;if(previous.revision!==expected)throw new Error("MEMORY_REVISION_CONFLICT");
      if(this.source(scope,sourceRef).kind!=="user")throw new Error("MEMORY_ACCESS_DENIED");
+     if(fact.subjectKey!==previous.subjectKey&&suppression.subjectBlocked(scope,fact.subjectKey))throw new Error("MEMORY_SUBJECT_SUPPRESSED");
      const index=this.subjectIndex(fact.subjectKey),conflict=this.db.prepare("SELECT id FROM current_facts WHERE scope_key=? AND subject_index=? AND state='active' AND id<>?").get(scope,index,id);
      if(conflict)throw new Error("MEMORY_FACT_CONFLICT");
      const target=this.row("current_facts",scope,id)!.parent_id as string,at=Date.now(),view:FactView={...fact,factId:id,revision:expected+1,sourceRef,recordedAt:at,acceptedAt:at,supersededAt:null,activationReason:"explicitUserConfirmed",policyVersion:null,provenance:{candidateId:null,evidenceId:null,activationSourceRef:sourceRef}};
@@ -124,12 +139,11 @@ export class FactRepository {
      if(this.source(scope,sourceRef).kind!=="user")throw new Error("MEMORY_ACCESS_DENIED");
      const at=Date.now();this.lifecycle(scope,view,this.row("current_facts",scope,id)!.parent_id as string,"forget",at);
      this.db.prepare("UPDATE current_facts SET state='forgotten',payload=? WHERE id=? AND scope_key=?").run(this.seal("current_facts",scope,id,{view,visibility:"forgotten"}),id,scope);
-     this.insert("deletion_markers",scope,randomUUID(),expected,"forgotten",{factId:id,sourceRef:view.sourceRef,forgetEvent:sourceRef,at});
+     suppression.forget(scope,view,sourceRef,at);
      this.invalidate(scope,id,expected);return{id,revision:expected};
     }
    }
    throw new Error("MEMORY_INPUT_INVALID");
-  }});
  }
  current(scope:string):FactView[]{
   parseInternalId(scope);

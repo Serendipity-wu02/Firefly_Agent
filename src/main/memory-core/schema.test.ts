@@ -6,6 +6,7 @@ import {DatabaseSync} from "node:sqlite";
 import {it,expect} from "vitest";
 import {ensureDatabaseAuth} from "./database-auth";
 import {openMemoryRepository} from "./repository";
+import {MEMORY_SCHEMA_VERSION} from "./schema";
 import {ENTITY_TABLES} from "./repository-types";
 it("rejects mismatched v1 database identity before any schema migration or file change",()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),"memory-schema-auth-")),databasePath=path.join(root,"memory.sqlite"),key=randomBytes(32);
@@ -37,7 +38,7 @@ it.each(["mismatched-key-version","migrate-empty-v1","refuse-nonempty-facts"])("
   db.close();
   const snapshot=()=>fs.readdirSync(root).sort().map(name=>({name,bytes:fs.readFileSync(path.join(root,name)),mtime:fs.statSync(path.join(root,name)).mtimeMs}));
   const before=snapshot();
-  if(kind==="migrate-empty-v1"){const repository=openMemoryRepository({databasePath,key});repository.close();const check=new DatabaseSync(databasePath,{readOnly:true});try{expect(check.prepare("PRAGMA user_version").get()?.user_version).toBe(2)}finally{check.close()}}
+  if(kind==="migrate-empty-v1"){const repository=openMemoryRepository({databasePath,key});repository.close();const check=new DatabaseSync(databasePath,{readOnly:true});try{expect(check.prepare("PRAGMA user_version").get()?.user_version).toBe(MEMORY_SCHEMA_VERSION)}finally{check.close()}}
   else{expect(()=>openMemoryRepository({databasePath,key})).toThrow(kind==="mismatched-key-version"?"MEMORY_DATABASE_AUTH_MISMATCH":"MEMORY_SCHEMA_UNSUPPORTED");expect(snapshot()).toEqual(before)}
  }finally{key.fill(0);fs.rmSync(root,{recursive:true,force:true})}
 });

@@ -1,6 +1,6 @@
 import type {DatabaseSync} from "node:sqlite";
 import {ENTITY_TABLES} from "./repository-types";
-export const MEMORY_SCHEMA_VERSION=2;
+export const MEMORY_SCHEMA_VERSION=3;
 function baseSchema(db:DatabaseSync,databaseId:string){
  db.exec("CREATE TABLE memory_metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), database_id TEXT NOT NULL, key_version INTEGER NOT NULL CHECK(key_version=1)) STRICT");
  db.prepare("INSERT INTO memory_metadata VALUES (1,?,1)").run(databaseId);
@@ -24,7 +24,7 @@ function factSchema(db:DatabaseSync){
 }
 export function initializeSchema(db:DatabaseSync,databaseId:string):void{
  const version=db.prepare("PRAGMA user_version").get()?.user_version;
- if(version!==0&&version!==1&&version!==MEMORY_SCHEMA_VERSION)throw new Error("MEMORY_SCHEMA_UNSUPPORTED");
+ if(version!==0&&version!==1&&version!==2&&version!==MEMORY_SCHEMA_VERSION)throw new Error("MEMORY_SCHEMA_UNSUPPORTED");
  if(version!==0){
   const metadata=db.prepare("SELECT database_id,key_version FROM memory_metadata WHERE singleton=1").get();
   if(metadata?.database_id!==databaseId||metadata.key_version!==1)throw new Error("MEMORY_DATABASE_AUTH_MISMATCH");
@@ -34,6 +34,11 @@ export function initializeSchema(db:DatabaseSync,databaseId:string):void{
   if(version===1&&(db.prepare("SELECT count(*) AS n FROM fact_revisions").get()?.n!==0||db.prepare("SELECT count(*) AS n FROM current_facts").get()?.n!==0))throw new Error("MEMORY_SCHEMA_UNSUPPORTED");
   db.exec("BEGIN IMMEDIATE");
   try{if(version===0)baseSchema(db,databaseId);factSchema(db);db.exec("PRAGMA user_version=2; COMMIT")}
+  catch(error){db.exec("ROLLBACK");throw error}
+ }
+ if(version!==MEMORY_SCHEMA_VERSION){
+  db.exec("BEGIN IMMEDIATE");
+  try{db.exec("CREATE TABLE scope_suppression (scope_key TEXT PRIMARY KEY,generation INTEGER NOT NULL CHECK(generation>=0),payload BLOB NOT NULL) STRICT; PRAGMA user_version=3; COMMIT")}
   catch(error){db.exec("ROLLBACK");throw error}
  }
  const metadata=db.prepare("SELECT database_id,key_version FROM memory_metadata WHERE singleton=1").get();

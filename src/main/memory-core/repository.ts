@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {randomUUID} from "node:crypto";
+import {JobRepository} from "./jobs";
 import {FactRepository} from "./fact-repository";
 import {executeTransaction} from "./command-transactions";
 import {DatabaseSync} from "node:sqlite";
@@ -12,7 +13,7 @@ import {canonicalJson,internalId,entityTable,type BatchCommand,type BatchResult,
 const STATES=new Set(["recorded","proposed","active","superseded","forgotten","pending","running","complete","invalidated"]);
 export class MemoryRepository {
  private closed=false;
- constructor(private readonly db:DatabaseSync,private readonly key:Buffer,private readonly databasePath:string,private readonly databaseId:string,private readonly fault?:(stage:"after-record"|"before-receipt")=>void){}
+ constructor(private readonly db:DatabaseSync,private readonly key:Buffer,private readonly databasePath:string,private readonly databaseId:string,private readonly fault?:(stage:"after-record"|"before-receipt")=>void,private readonly clock:()=>number=Date.now){}
  private assertOpen(){if(this.closed)throw new Error("MEMORY_REPOSITORY_CLOSED")}
  private binding(table:string,scope:string,id:string){return{recordType:table,id:JSON.stringify([scope,id]),schemaVersion:1,keyVersion:1}}
  private seal(table:string,scope:string,id:string,payload:unknown):Buffer{
@@ -23,6 +24,7 @@ export class MemoryRepository {
   const plain=openPayload(this.key,this.binding(table,scope,id),bytes);
   try{return JSON.parse(plain.toString("utf8"))}finally{plain.fill(0)}
  }
+ jobCommand(command:unknown):unknown{this.assertOpen();return new JobRepository(this.db,this.key,this.clock,this.fault).execute(command)}
  execute(command:unknown):import("../../shared/memory-contracts").MutationResult{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).execute(command)}
  current(scope:string):import("../../shared/memory-contracts").FactView[]{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).current(scope)}
  history(scope:string,factId:string):import("../../shared/memory-contracts").FactView[]{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).history(scope,factId)}
@@ -57,13 +59,13 @@ export class MemoryRepository {
  close():void{if(this.closed)return;this.closed=true;try{this.db.close()}finally{this.key.fill(0)}}
 }
 /** Worker-only entry. Main uses MemoryClient; Renderer never supplies databasePath. */
-export function openMemoryRepository(input:{databasePath:string;key:Uint8Array;fault?:(stage:"after-record"|"before-receipt")=>void}):MemoryRepository{
+export function openMemoryRepository(input:{databasePath:string;key:Uint8Array;fault?:(stage:"after-record"|"before-receipt")=>void;clock?:()=>number}):MemoryRepository{
  if(!path.isAbsolute(input.databasePath)||!(input.key instanceof Uint8Array)||input.key.length!==32)throw new Error("MEMORY_INPUT_INVALID");
  const databaseId=ensureDatabaseAuth(input.databasePath,input.key);
  const key=Buffer.from(input.key);let db:DatabaseSync|undefined;
  try{
   db=new DatabaseSync(input.databasePath,{enableForeignKeyConstraints:true,allowExtension:false});
   initializeSchema(db,databaseId);db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL");
-  return new MemoryRepository(db,key,input.databasePath,databaseId,input.fault);
+  return new MemoryRepository(db,key,input.databasePath,databaseId,input.fault,input.clock);
  }catch(error){db?.close();key.fill(0);throw error}
 }
