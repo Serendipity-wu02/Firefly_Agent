@@ -79,6 +79,7 @@ export class ContextRepository {
  private transcriptState(scope:string,owner:ContextOwner,ref:TranscriptDependency,deps:SourceDependency[]):string {
   const head=this.transcript.current(scope,owner,ref);
   for(const sourceRef of head.sourceRefs)this.assertSource(scope,owner,sourceRef);
+  if(head.sourceRefs.some(ref=>{const dep=deps.find(d=>canonicalJson(d.sourceRef)===canonicalJson(ref));return !dep||this.sourceState(scope,owner,dep,deps)!=="allowed"}))return "unavailable-root";
   if(this.suppression.generation(scope)===0)return "allowed";
   if(!head.sourceRefs.length)return "untraceable-derived";
   return head.sourceRefs.every(ref=>{const dep=deps.find(d=>canonicalJson(d.sourceRef)===canonicalJson(ref));return dep&&this.sourceState(scope,owner,dep,deps)==="allowed"})?"allowed":"untraceable-derived";

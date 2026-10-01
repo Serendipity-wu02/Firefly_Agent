@@ -233,5 +233,23 @@ it("summary provider read failure exposes only a typed reason",async()=>{
  const f=await contextFixture(),text="I prefer English",a=await f.source(text),b=await f.source("other ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]);f.provider.failReads=true;await expect(f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]})).rejects.toThrow("MEMORY_CONTEXT_SOURCE_READ_FAILED");
 });
 it("an explicit recent source remains selected when it was already visited as an origin",async()=>{
- const f=await contextFixture(),a=await f.source("assistant context","assistant","model"),b=await f.source("I prefer English"),{createMainContext}=await import("./main-context"),context=createMainContext({...f.options,resolveDerivedRefs:(ref:any)=>ref.sourceId===a.ref.sourceId?[b.ref]:null});expect((await context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[a.ref,b.ref]})).request.body.messages).toHaveLength(2);
+ const f=await contextFixture(),a=await f.source("I prefer concise responses"),b=await f.source("I prefer English"),{createMainContext}=await import("./main-context"),context=createMainContext({...f.options,resolveDerivedRefs:(ref:any)=>ref.sourceId===a.ref.sourceId?[b.ref]:null});expect((await context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[a.ref,b.ref]})).request.body.messages).toHaveLength(2);
+});
+it("canonical tool secret refuses before publishing body or token counting",async()=>{
+ const f=await contextFixture(),{createMainTranscriptProvider}=await import("./main-transcript-provider");let counts=0;f.setCountHook(async()=>{counts++});const provider=createMainTranscriptProvider({scopeKey:"scope-a",providerId:"canonical",sessionId:"session-a",withLease:async(_id,run)=>run(async()=>({incarnation:"v1",revision:1,throughSeq:1,sourceRefs:[],unit:{id:"turn",kind:"recent",messages:[{role:"assistant",text:"",toolCallIds:["call"]},{role:"tool",text:"refresh_token=REVIEW_SECRET_CANARY",toolCallId:"call"}]}}))});await expect(f.context.captureTranscript(f.actor,provider,"turn")).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_SECRET");expect(counts).toBe(0);expect(JSON.stringify(f.commands)).not.toContain("REVIEW_SECRET_CANARY");
+});
+it("a secret canonical root excludes its derived tool unit even at generation zero",async()=>{
+ const f=await contextFixture(),secret=await f.source("refresh_token=ROOT_SECRET_CANARY"),{createMainTranscriptProvider}=await import("./main-transcript-provider"),provider=createMainTranscriptProvider({scopeKey:"scope-a",providerId:"canonical",sessionId:"session-a",withLease:async(_id,run)=>run(async()=>({incarnation:"v1",revision:1,throughSeq:1,sourceRefs:[secret.ref],unit:{id:"turn",kind:"recent",messages:[{role:"assistant",text:"derived context"}]}}))}),token=await f.context.captureTranscript(f.actor,provider,"turn");expect((await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:[token]})).request.body.messages).toEqual([]);
+});
+it("protected raw recent turns cannot trim user input while retaining its assistant",async()=>{
+ const f=await contextFixture(),user=await f.source("U".repeat(300)),assistant=await f.source("ASSISTANT_REPLY","assistant","model");f.options.budget.maxSTokens=150;await expect(f.assemble([user.ref,assistant.ref])).rejects.toThrow("MEMORY_CONTEXT_RECENT_OVER_BUDGET");
+});
+it("an eligible leading raw assistant has no proved complete-turn boundary",async()=>{
+ const f=await contextFixture(),assistant=await f.source("ORPHAN_REPLY","assistant","model");await expect(f.assemble([assistant.ref])).rejects.toThrow("MEMORY_CONTEXT_RECENT_INCOMPLETE");
+});
+it("older extractive summaries precede newer recent turns",async()=>{
+ const f=await contextFixture(),text="EARLIER_USER",a=await f.source(text),b=await f.source("old omitted ".repeat(100)),lease=await prepareSummary(f,[a.ref,b.ref]),receipt=await f.context.commitSummary(f.actor,lease,{segments:[segment(a.ref,text)]}),recent=await f.source("LATER_USER");expect((await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[recent.ref],summaryIds:[receipt.summaryId!]})).request.body.messages.map((m:any)=>m.text)).toEqual([text,"LATER_USER"]);
+});
+it("mixing raw refs and canonical units without an ordered transcript is refused",async()=>{
+ const f=await contextFixture(),recent=await f.source("LATER_USER"),{createMainTranscriptProvider}=await import("./main-transcript-provider"),provider=createMainTranscriptProvider({scopeKey:"scope-a",providerId:"canonical",sessionId:"session-a",withLease:async(_id,run)=>run(async()=>({incarnation:"v1",revision:1,throughSeq:1,sourceRefs:[],unit:{id:"turn",kind:"recent",messages:[{role:"user",text:"EARLIER_USER"}]}}))}),token=await f.context.captureTranscript(f.actor,provider,"turn");await expect(f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[recent.ref],transcriptTokens:[token]})).rejects.toThrow("MEMORY_CONTEXT_ORDER_REQUIRED");
 });

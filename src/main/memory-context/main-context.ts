@@ -78,6 +78,7 @@ export function createMainContext(options:ContextOptions){
   let snapshot;
   try{snapshot=await provider.withLease(id,async read=>{const first=parseCanonicalTranscript(await read()),second=parseCanonicalTranscript(await read());if(canonicalJson(first)!==canonicalJson(second))contextFail("MEMORY_CONTEXT_TRANSCRIPT_CHANGED");return second})}
   catch(error){if(error instanceof ContextError)throw error;contextFail("MEMORY_CONTEXT_TRANSCRIPT_READ_FAILED")}
+  if(snapshot.unit.messages.some(message=>extractMaintenance(message.text).kind==="rejected"))contextFail("MEMORY_CONTEXT_TRANSCRIPT_SECRET");
   const refs=snapshot.sourceRefs.map(ref=>checkedRef(a,ref)),digest=createHash("sha256").update(canonicalJson(snapshot)).digest("hex");
   const ref=await options.actorAuthority.coordinate(()=>command<TranscriptDependency>(a,"transcriptPublish",{generation:baseline.generation,headId,operationId,incarnation:snapshot.incarnation,contentRevision:snapshot.revision,throughSeq:snapshot.throughSeq,digest,sourceRefs:refs},randomUUID()));
   const cap=Object.freeze({});transcriptTokens.set(cap,{actorToken:token,ref,unit:{...snapshot.unit,id:headId},sourceRefs:refs,adapter,locator:id});return cap;
@@ -106,6 +107,7 @@ export function createMainContext(options:ContextOptions){
   const selectedFacts=structuredClone(input.factRefs??[]);
   if(input.transcriptTokens!==undefined&&(!Array.isArray(input.transcriptTokens)||input.transcriptTokens.length>1000))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const toolStates=(input.transcriptTokens??[]).map(v=>transcriptState(token,v)),toolRefs=toolStates.map(s=>s.ref);
+  if(refs.length&&toolStates.length)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");
   if(new Set(toolRefs.map(r=>r.headId)).size!==toolRefs.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   if(input.summaryIds!==undefined&&(!Array.isArray(input.summaryIds)||input.summaryIds.length>1000||new Set(input.summaryIds).size!==input.summaryIds.length))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const summaries:StoredSummary[]=[],summaryExcluded:{sourceId:string;reason:string}[]=[];
@@ -115,14 +117,19 @@ export function createMainContext(options:ContextOptions){
   }
   const allRefs=[...new Map([...refs,...toolStates.flatMap(s=>s.sourceRefs),...summaries.flatMap(s=>s.sourceDeps.map(d=>d.sourceRef))].map(r=>[r.sourceId,r])).values()];
   const baseline=await command<{generation:number;facts:FactView[]}>(a,"baseline",{sourceRefs:allRefs,factRefs:selectedFacts,transcriptRefs:toolRefs});
-  const data=await corpus(a,allRefs),deps=data.deps,units:ContextUnit[]=refs.map(ref=>({id:ref.sourceId,kind:"recent",messages:[data.messages.get(ref.sourceId)!]}));
+  const data=await corpus(a,allRefs),deps=data.deps,units:ContextUnit[]=[],unitSources=new Map<string,string[]>();
   for(const summary of summaries)units.push({id:summary.id,kind:"summary",messages:summary.segments.map(s=>{const message=data.messages.get(s.sourceRef.sourceId)!;if(s.role!==message.role||s.span.start!==0||s.span.end!==message.text.length)contextFail("MEMORY_CONTEXT_SUMMARY_FULL_SOURCE_REQUIRED");return message})});
+  // Main provides ordered recent refs. Group a user and its following assistant messages as one turn.
+  const recent:ContextUnit[]=[];
+  for(const ref of refs){const message=data.messages.get(ref.sourceId)!,last=recent.at(-1);if(message.role==="assistant"&&last?.messages[0].role==="user"){last.messages.push(message);unitSources.get(last.id)!.push(ref.sourceId)}else{recent.push({id:ref.sourceId,kind:"recent",messages:[message]});unitSources.set(ref.sourceId,[ref.sourceId])}}
+  units.push(...recent);
   for(const state of toolStates)units.push(structuredClone(state.unit));
   const inspected=await command<{generation:number;sourceStates:{sourceId:string;reason:string}[];facts:FactView[]}>(a,"inspect",{generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,transcriptRefs:toolRefs});
-  const excluded=[...summaryExcluded,...inspected.sourceStates.filter(s=>s.reason!=="allowed")],allowed=units.filter(u=>!excluded.some(e=>e.sourceId===u.id)&&!summaries.some(s=>s.id===u.id&&s.sourceDeps.some(d=>excluded.some(e=>e.sourceId===d.sourceRef.sourceId))));
+  const excluded=[...summaryExcluded,...inspected.sourceStates.filter(s=>s.reason!=="allowed")],allowed=units.filter(u=>!excluded.some(e=>e.sourceId===u.id)&&!(unitSources.get(u.id)??[]).some(id=>excluded.some(e=>e.sourceId===id))&&!summaries.some(s=>s.id===u.id&&s.sourceDeps.some(d=>excluded.some(e=>e.sourceId===d.sourceRef.sourceId))));
+  if(allowed.some(u=>unitSources.has(u.id)&&u.messages[0].role==="assistant"))contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
   const result=await selectBudget({counter:options.counter,budget:options.budget,units:allowed,prepare:u=>options.prepare(u,structuredClone(inspected.facts)),prepareS:options.prepareS,signal:input.signal});
   const snapshotId=randomUUID();
-  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,transcriptRefs:toolRefs,requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:result.selectedIds.filter(id=>deps.some(d=>d.sourceRef.sourceId===id)),counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
+  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,transcriptRefs:toolRefs,requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:result.selectedIds.flatMap(id=>unitSources.get(id)??[]),counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
   const snapshot=Object.freeze({...result,snapshotId,generation:baseline.generation,excluded:structuredClone(excluded)});
   snapshots.set(snapshot,{actorToken:token,actor:a,units:allowed.filter(u=>result.selectedIds.includes(u.id)),facts:inspected.facts,snapshot,sourceRefs:deps.map(d=>d.sourceRef),transcripts:toolStates,configuration:configuration()});return snapshot;
  }
