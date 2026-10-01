@@ -8,27 +8,13 @@ Usage:
 
 What it does:
 1. Unzips the xlsx (which is a ZIP archive)
-2. Pretty-prints all XML and .rels files for readability
+2. Preserves original part bytes; edit only the intended XML files
 3. Prints a summary of key files to edit
 """
 
 import sys
 import zipfile
 import os
-import shutil
-import xml.dom.minidom
-
-
-def pretty_print_xml(content: bytes) -> str:
-    """Pretty-print XML bytes. Returns original content on parse failure."""
-    try:
-        dom = xml.dom.minidom.parseString(content)
-        pretty = dom.toprettyxml(indent="  ", encoding="utf-8").decode("utf-8")
-        # Remove the extra blank lines toprettyxml adds
-        lines = [line for line in pretty.splitlines() if line.strip()]
-        return "\n".join(lines) + "\n"
-    except Exception:
-        return content.decode("utf-8", errors="replace")
 
 
 def unpack(xlsx_path: str, output_dir: str) -> None:
@@ -39,9 +25,12 @@ def unpack(xlsx_path: str, output_dir: str) -> None:
     if not xlsx_path.lower().endswith((".xlsx", ".xlsm")):
         print(f"WARNING: '{xlsx_path}' does not have an .xlsx/.xlsm extension", file=sys.stderr)
 
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
+    if os.path.lexists(output_dir) and (
+        os.path.islink(output_dir) or getattr(os.path, "isjunction", lambda path: False)(output_dir)
+        or not os.path.isdir(output_dir) or os.listdir(output_dir)
+    ):
+        print("ERROR: Output must be a new or empty dedicated workspace; existing files are preserved", file=sys.stderr)
+        sys.exit(1)
 
     try:
         with zipfile.ZipFile(xlsx_path, "r") as z:
@@ -50,29 +39,24 @@ def unpack(xlsx_path: str, output_dir: str) -> None:
                 member_path = os.path.realpath(os.path.join(output_dir, member))
                 if not member_path.startswith(os.path.realpath(output_dir) + os.sep) and member_path != os.path.realpath(output_dir):
                     print(f"ERROR: Zip entry '{member}' would escape target directory (path traversal blocked)", file=sys.stderr)
-                    shutil.rmtree(output_dir, ignore_errors=True)
                     sys.exit(1)
+            os.makedirs(output_dir, exist_ok=True)
             z.extractall(output_dir)
     except zipfile.BadZipFile:
-        shutil.rmtree(output_dir, ignore_errors=True)
         print(f"ERROR: '{xlsx_path}' is not a valid ZIP/xlsx file", file=sys.stderr)
         sys.exit(1)
 
-    # Pretty-print XML and .rels files
+    # Preserve original bytes, including whitespace-sensitive or extension XML.
+    # Readability must not silently rewrite unrelated package parts.
     xml_count = 0
     for dirpath, _, filenames in os.walk(output_dir):
         for fname in filenames:
             if fname.endswith(".xml") or fname.endswith(".rels"):
                 fpath = os.path.join(dirpath, fname)
-                with open(fpath, "rb") as f:
-                    raw = f.read()
-                pretty = pretty_print_xml(raw)
-                with open(fpath, "w", encoding="utf-8") as f:
-                    f.write(pretty)
                 xml_count += 1
 
     print(f"Unpacked '{xlsx_path}' → '{output_dir}'")
-    print(f"Pretty-printed {xml_count} XML/rels files\n")
+    print(f"Preserved {xml_count} XML/rels files without rewriting\n")
 
     # Print key files grouped by category
     categories = {

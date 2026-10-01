@@ -61,21 +61,22 @@ def register_fonts(tokens: dict[str, Any]) -> dict[str, str]:
         "body": str(tokens.get("font_body_rl") or "Helvetica"),
         "bold": str(tokens.get("font_body_b_rl") or "Helvetica-Bold"),
     }
+    cjk_font = None
     for role, path in resolve_font_paths().items():
         name = f"FireflyCover{role.title()}"
         try:
             if name not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(name, str(path), subfontIndex=0))
             if role == "cjk":
-                registered["display"] = name
-                registered["body"] = name
-                registered["bold"] = name
+                cjk_font = name
             elif role == "display":
                 registered["display"] = name
             elif role == "body":
                 registered["body"] = name
         except (OSError, TTFError, ValueError):
             continue
+    if cjk_font:
+        registered.update(display=cjk_font, body=cjk_font, bold=cjk_font)
     return registered
 
 

@@ -32,6 +32,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import re
 import json
+from xlsx_workspace import WORKBOOK_PART, WORKSHEET_REL, _resolve_part_target
 
 # OOXML SpreadsheetML namespace
 NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -87,14 +88,17 @@ def get_sheet_files(z: zipfile.ZipFile) -> dict[str, str]:
     rels_xml = z.read("xl/_rels/workbook.xml.rels")
     rels = ET.fromstring(rels_xml)
     mapping = {}
-    for rel in rels:
-        rid = rel.get("Id", "")
-        target = rel.get("Target", "")
-        if "worksheets" in target:
-            # Target may be relative: "worksheets/sheet1.xml" -> "xl/worksheets/sheet1.xml"
-            if not target.startswith("xl/"):
-                target = "xl/" + target
-            mapping[rid] = target
+    relationships = {rel.get("Id", ""): rel for rel in rels}
+    if len(relationships) != len(rels):
+        raise ValueError("Duplicate workbook relationship IDs")
+    for rid in get_sheet_names(z):
+        rel = relationships.get(rid)
+        if rel is None or rel.get("Type") != WORKSHEET_REL or rel.get("TargetMode", "Internal") != "Internal":
+            raise ValueError("Workbook sheet relationship is missing or not an internal worksheet")
+        target = _resolve_part_target(WORKBOOK_PART, rel.get("Target", ""))
+        if target not in z.namelist():
+            raise ValueError("Worksheet relationship target is missing")
+        mapping[rid] = target
     return mapping
 
 
@@ -178,10 +182,15 @@ def check(xlsx_path: str, sheet_filter: str | None = None) -> dict:
         return results
 
     with z:
-        sheet_names = get_sheet_names(z)
-        sheet_files = get_sheet_files(z)
-        valid_sheet_names = set(sheet_names.values())
-        defined_names = get_defined_names(z)
+        try:
+            sheet_names = get_sheet_names(z)
+            sheet_files = get_sheet_files(z)
+            valid_sheet_names = set(sheet_names.values())
+            defined_names = get_defined_names(z)
+        except (ValueError, KeyError, ET.ParseError) as error:
+            results["errors"].append({"type": "file_error", "message": str(error)})
+            results["error_count"] = 1
+            return results
 
         for rid, sheet_name in sheet_names.items():
             # Apply sheet filter if requested

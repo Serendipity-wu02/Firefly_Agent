@@ -4,6 +4,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from pypdf import PdfReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -13,7 +14,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from palette import PALETTES, build_tokens
-from pdf_cover import SUPPORTED_PATTERNS, render_cover, resolve_font_paths, wrap_text  # type: ignore[import-not-found]
+from pdf_cover import SUPPORTED_PATTERNS, register_fonts, render_cover, resolve_font_paths, wrap_text  # type: ignore[import-not-found]
+from make import apply_windows_fonts
 
 
 PALETTES_PATTERN_NAMES = {palette["cover_pattern"] for palette in PALETTES.values()}
@@ -26,6 +28,19 @@ def tokens_for(pattern: str) -> dict[str, object]:
 
 
 class CoverUnitTests(unittest.TestCase):
+    def test_cjk_font_is_not_overridden_by_latin_font_candidates(self) -> None:
+        paths = {"cjk": Path("cjk.ttf"), "display": Path("latin-display.ttf"), "body": Path("latin-body.ttf")}
+        with patch("pdf_cover.resolve_font_paths", return_value=paths), patch("pdf_cover.TTFont"), \
+             patch("pdf_cover.pdfmetrics.registerFont"), patch("pdf_cover.pdfmetrics.getRegisteredFontNames", return_value=[]):
+            fonts = register_fonts({})
+        self.assertEqual(fonts, {"display": "FireflyCoverCjk", "body": "FireflyCoverCjk", "bold": "FireflyCoverCjk"})
+
+    def test_windows_cjk_tokens_cover_bold_and_table_headers(self) -> None:
+        tokens = build_tokens("中文", "report", "", "")
+        with patch("pdf_cover.resolve_font_paths", return_value={"cjk": Path("cjk.ttf")}):
+            apply_windows_fonts(tokens)
+        self.assertEqual(tokens["font_body_b_rl"], tokens["font_body_rl"])
+
     def test_supports_every_legacy_cover_pattern(self) -> None:
         self.assertTrue(PALETTES_PATTERN_NAMES <= SUPPORTED_PATTERNS)
 

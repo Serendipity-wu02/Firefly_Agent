@@ -31,6 +31,9 @@ import re
 import sys
 import xml.dom.minidom
 import xml.etree.ElementTree as ET
+from pathlib import Path
+
+from xlsx_workspace import WORKBOOK_PART, WORKSHEET_REL, _resolve_part_target
 
 NS_SS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -91,7 +94,14 @@ def find_ws_path(work_dir: str, sheet_name: str | None) -> str:
     rels_tree = ET.parse(os.path.join(work_dir, "xl", "_rels", "workbook.xml.rels"))
     for rel in rels_tree.getroot():
         if rel.get("Id") == rid:
-            return os.path.join(work_dir, "xl", rel.get("Target"))
+            if rel.get("Type") != WORKSHEET_REL or rel.get("TargetMode", "Internal") != "Internal":
+                raise ValueError("Worksheet relationship is not an internal worksheet")
+            part = _resolve_part_target(WORKBOOK_PART, rel.get("Target", ""))
+            root = Path(work_dir).resolve()
+            path = root.joinpath(*part.split("/")).resolve()
+            if not path.is_relative_to(root) or not path.is_file():
+                raise ValueError("Worksheet relationship target is missing or escapes workspace")
+            return str(path)
 
     print(f"ERROR: Relationship not found: {rid}")
     sys.exit(1)

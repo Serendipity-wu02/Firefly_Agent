@@ -70,6 +70,7 @@ def apply_windows_fonts(tokens: dict[str, Any]) -> None:
     tokens["font_paths"] = {"FireflyPdfCjk": cjk_path}
     tokens["font_display_rl"] = "FireflyPdfCjk"
     tokens["font_body_rl"] = "FireflyPdfCjk"
+    tokens["font_body_b_rl"] = "FireflyPdfCjk"
 
 
 def apply_theme(tokens: dict[str, Any], theme_id: str | None) -> None:

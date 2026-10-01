@@ -1,9 +1,9 @@
 {
   "currentDistribution": {
-    "archiveSha256": "bdc2d00cbf2a6e4d41c931990e5ec5b47b3a13a67742d43f8189bb96cea3b673",
-    "manifestSha256": "83a6087f5c980f0ff1ac8cae874e3ec404b7fbd83b1f6e38e8774c1d80f314a5",
-    "previousArchiveSha256": "8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388",
-    "previousManifestSha256": "34d5eee1fe1638babe00fdcad8b8d1aceb09c95b78237d45568ca6d74322616d",
+    "archiveSha256": null,
+    "manifestSha256": "ef80a65c7c97bd275f2a6a5efdb79cdc594491cbb1187e2a48dcfc07cd25e3b8",
+    "previousArchiveSha256": "bdc2d00cbf2a6e4d41c931990e5ec5b47b3a13a67742d43f8189bb96cea3b673",
+    "previousManifestSha256": "2f887c5e6f3fd818c398ece10cf973072eb17548774f10a2e027ce562ea0b212",
     "predecessorEvidence": "scripts/packaging/specialist-predecessor.json",
     "skillCount": 39,
     "fileCount": 257,
@@ -16,9 +16,18 @@
       "sp-dispatching-parallel-agents/SKILL.md": "267b4c536b42d7ccf3f29bec3ae1cd85a8661ae772068753c23b5744dca12940",
       "sp-requesting-code-review/SKILL.md": "f8966710e882017641c284d8681baa5f1f82055bb0710714738470e9bc337787",
       "sp-subagent-driven-development/SKILL.md": "68fe1d273a39738a5e190ea68ff41552840b39dc90157ccd0dc56a5f0ff01990",
-      "sp-using-superpowers/references/firefly-tools.md": "10d1e3fb91264d17e6f492d7acccfef7eec81395b9d0c26b789c09f4dccd3111"
+      "sp-using-superpowers/references/firefly-tools.md": "10d1e3fb91264d17e6f492d7acccfef7eec81395b9d0c26b789c09f4dccd3111",
+      "pdf/scripts/make.py": "8f5fbad629f35a5cc5502592787e16da831de29f3a6f6b96fdfed8e87146b05e",
+      "pdf/scripts/pdf_cover.py": "8bb8205348062a8d566219267dd994d29374a0d6c3231a4dec431ecebd32dfca",
+      "pdf/tests/test_make.py": "1e5e92dc1d259db86a12527c8e8e482cd96e7b662b219e2359dc2840c43dadfc",
+      "pdf/tests/test_pdf_cover.py": "9091b9d354b00875a2838492129b8272232cd32e48e5fca410218c0fd1d0aa77",
+      "xlsx/scripts/formula_check.py": "5ad364e20f5457ca3ab8fdb01bcc19aed94b177b9a5c27d7d30ed9f6eca627d1",
+      "xlsx/scripts/xlsx_add_column.py": "a32124f4609a93a00458fdd94a41dee1e987277c2859358c8c42d7d14c919a49",
+      "xlsx/scripts/xlsx_unpack.py": "5f0f40549fdfe89e88bda91236950ecaf95e79c737d840bc3c5ec01e37309d49",
+      "xlsx/tests/test_windows_workflow.py": "b3ef159fe6ba18597196e51acad37a5370691f14c3a3ba58178b717a12f2c3d7"
     },
-    "boundary": "Firefly specialist delegation adaptation changes six Skill bodies and one tools reference relative to the exact foundation archive. Uses delegate_agent with explicit agent_id and prompt; persistent specialist sessions retain parent permission intersection and cannot recursively delegate. All other canonical files, modes and licensing materials are unchanged. The source/version/license records below retain their historical scope; this section records current Firefly modifications, not upstream authorship or real-model validation."
+    "boundary": "Canonical directory distribution, not a newly generated archive. Retains the prior specialist adaptation and its seven file hashes. This office batch changes only the PDF/XLSX scripts and tests listed in officeVerification.changedFiles: CJK font priority and table-header coverage; safe worksheet relationship resolution; formula-check coverage for root/relative part targets; byte-preserving unpack with occupied-workspace rejection; behavioral foreign-cwd PowerShell and preservation/safety regressions. Skill bodies, licenses, modes, IDs, upstream acquisition snapshots and managed-user-change protections are retained. Prior archive metadata is preserved under distributionHistory; no native Office rendering or dynamic recalculation is claimed.",
+    "distributionType": "canonical-directory"
   },
   "currentBodyUpgrades": [
     {
@@ -6043,5 +6052,55 @@
     "Translated references retain their MiniMax derivative attribution based on named import commit and corresponding source documents; translations are not byte matches",
     "Product modifications are traceable through upstream contribution history and existing Firefly snapshot differences; unique original release is not claimed",
     "No downloaded upstream helper was executed"
-  ]
+  ],
+  "distributionHistory": [
+    {
+      "archiveSha256": "bdc2d00cbf2a6e4d41c931990e5ec5b47b3a13a67742d43f8189bb96cea3b673",
+      "manifestSha256": "83a6087f5c980f0ff1ac8cae874e3ec404b7fbd83b1f6e38e8774c1d80f314a5",
+      "previousArchiveSha256": "8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388",
+      "previousManifestSha256": "34d5eee1fe1638babe00fdcad8b8d1aceb09c95b78237d45568ca6d74322616d",
+      "predecessorEvidence": "scripts/packaging/specialist-predecessor.json",
+      "skillCount": 39,
+      "fileCount": 257,
+      "unchangedSkillBodies": 33,
+      "managedPredecessors": "src/main/migration/vnext-skill-versions.json",
+      "changedFiles": {
+        "as-doubt-driven-development/SKILL.md": "d3193306ef5a29198147cff20a2846c285a1626b2b3740e2a4f62b2ce6de1851",
+        "as-using-agent-skills/SKILL.md": "c391a6e69ab07954aa2dc2d11c9d061e270c7607336bbbe4edc5c37bd734fd14",
+        "skill-creator/SKILL.md": "b64bd2bf30b16caea0fc35662cb74bf3d0c7150dec3e4bb7643889f9d33a723f",
+        "sp-dispatching-parallel-agents/SKILL.md": "267b4c536b42d7ccf3f29bec3ae1cd85a8661ae772068753c23b5744dca12940",
+        "sp-requesting-code-review/SKILL.md": "f8966710e882017641c284d8681baa5f1f82055bb0710714738470e9bc337787",
+        "sp-subagent-driven-development/SKILL.md": "68fe1d273a39738a5e190ea68ff41552840b39dc90157ccd0dc56a5f0ff01990",
+        "sp-using-superpowers/references/firefly-tools.md": "10d1e3fb91264d17e6f492d7acccfef7eec81395b9d0c26b789c09f4dccd3111"
+      },
+      "boundary": "Firefly specialist delegation adaptation changes six Skill bodies and one tools reference relative to the exact foundation archive. Uses delegate_agent with explicit agent_id and prompt; persistent specialist sessions retain parent permission intersection and cannot recursively delegate. All other canonical files, modes and licensing materials are unchanged. The source/version/license records below retain their historical scope; this section records current Firefly modifications, not upstream authorship or real-model validation."
+    }
+  ],
+  "officeVerification": {
+    "baselineCommit": "de213b01b70b7e14cd7b8a1a16d0c31cf17f4dfe",
+    "date": "2026-10-01",
+    "changedFiles": {
+      "pdf/scripts/make.py": "8f5fbad629f35a5cc5502592787e16da831de29f3a6f6b96fdfed8e87146b05e",
+      "pdf/scripts/pdf_cover.py": "8bb8205348062a8d566219267dd994d29374a0d6c3231a4dec431ecebd32dfca",
+      "pdf/tests/test_make.py": "1e5e92dc1d259db86a12527c8e8e482cd96e7b662b219e2359dc2840c43dadfc",
+      "pdf/tests/test_pdf_cover.py": "9091b9d354b00875a2838492129b8272232cd32e48e5fca410218c0fd1d0aa77",
+      "xlsx/scripts/formula_check.py": "5ad364e20f5457ca3ab8fdb01bcc19aed94b177b9a5c27d7d30ed9f6eca627d1",
+      "xlsx/scripts/xlsx_add_column.py": "a32124f4609a93a00458fdd94a41dee1e987277c2859358c8c42d7d14c919a49",
+      "xlsx/scripts/xlsx_unpack.py": "5f0f40549fdfe89e88bda91236950ecaf95e79c737d840bc3c5ec01e37309d49",
+      "xlsx/tests/test_windows_workflow.py": "b3ef159fe6ba18597196e51acad37a5370691f14c3a3ba58178b717a12f2c3d7"
+    },
+    "acceptanceCommand": "python scripts/verify/office-windows.py --output <new-authorized-workspace>",
+    "dependencyScope": "Existing PDF Skill declarations only, isolated venv; no additional direct dependencies or native application installation.",
+    "testedPackages": {
+      "reportlab": "5.0.1",
+      "pypdf": "6.19.0",
+      "pypdfium2": "5.13.0",
+      "matplotlib": "3.11.2"
+    },
+    "limits": [
+      "Synthetic documents only; no real userData",
+      "Native Office rendering and dynamic recalculation not exercised",
+      "Local font availability remains environment-dependent"
+    ]
+  }
 }
