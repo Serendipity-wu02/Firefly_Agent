@@ -8,6 +8,21 @@ import {ensureDatabaseAuth} from "./database-auth";
 import {openMemoryRepository} from "./repository";
 import {MEMORY_SCHEMA_VERSION} from "./schema";
 import {ENTITY_TABLES} from "./repository-types";
+it.each([3,4,5])("migrates a real prior schema %s fixture without rewriting encrypted records",version=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"memory-support-schema-")),databasePath=path.join(root,"memory.sqlite"),key=randomBytes(32);
+ try{
+  let repo=openMemoryRepository({databasePath,key});repo.writeBatch({commandId:"old-schema-record",scopeKey:"scope-a",records:[{table:"sources",id:"legacy-fixture",revision:1,payload:{text:"encrypted legacy canary"}}]});repo.close();
+  let db=new DatabaseSync(databasePath);const original=db.prepare("SELECT payload FROM sources WHERE id='legacy-fixture'").get()?.payload;
+  db.exec("DROP TABLE fact_supports; DROP TABLE fact_reviews"+(version<=4?"; DROP TABLE policy_records":"")+(version===3?"; DROP TABLE source_generations; DROP TABLE source_heads":"")+"; PRAGMA user_version="+version);db.close();
+  repo=openMemoryRepository({databasePath,key});expect(repo.readRows("sources","scope-a")[0].payload).toEqual({text:"encrypted legacy canary"});repo.close();
+  db=new DatabaseSync(databasePath);try{expect(db.prepare("PRAGMA user_version").get()?.user_version).toBe(MEMORY_SCHEMA_VERSION);expect(db.prepare("SELECT payload FROM sources WHERE id='legacy-fixture'").get()?.payload).toEqual(original)}finally{db.close()}
+ }finally{key.fill(0);fs.rmSync(root,{recursive:true,force:true})}
+});
+it("failed v5 support migration rolls back its tables and schema version",()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"memory-support-rollback-")),databasePath=path.join(root,"memory.sqlite"),key=randomBytes(32);
+ try{const repo=openMemoryRepository({databasePath,key});repo.close();let db=new DatabaseSync(databasePath);db.exec("DROP TABLE fact_supports; PRAGMA user_version=5");db.close();expect(()=>openMemoryRepository({databasePath,key})).toThrow();db=new DatabaseSync(databasePath);try{expect(db.prepare("PRAGMA user_version").get()?.user_version).toBe(5);expect(db.prepare("SELECT name FROM sqlite_master WHERE name='fact_supports'").get()).toBeUndefined()}finally{db.close()}}
+ finally{key.fill(0);fs.rmSync(root,{recursive:true,force:true})}
+});
 it("rejects mismatched v1 database identity before any schema migration or file change",()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),"memory-schema-auth-")),databasePath=path.join(root,"memory.sqlite"),key=randomBytes(32);
  try{

@@ -1,4 +1,4 @@
-import {createHash} from "node:crypto";
+import {createHash,randomUUID} from "node:crypto";
 import type {SourceRef,BoundSourceRef} from "../../shared/memory-contracts";
 import {objectFields,parseInternalId,parseSourceRef,positiveRevision} from "../memory-core/command-validation";
 import {requireMainAccess} from "../memory-core/main-access";
@@ -9,6 +9,7 @@ import {requireMainSourceProvider} from "../memory-sources/main-source-provider"
 import type {createMainSourceRegistry} from "../memory-sources/source-registry";
 import {extractPreference} from "./extractor";
 import type {PolicyOutcome,PolicyCandidate,PolicyTransport,PolicyEvent} from "./policy-contracts";
+import type {SupportAudit} from "./fact-supports";
 
 export const POLICY_VERSION="main-preferences-v1";
 const digest=(value:unknown)=>createHash("sha256").update(canonicalJson(value)).digest("hex");
@@ -36,6 +37,9 @@ export function createMainPolicy(options:{registry:ReturnType<typeof createMainS
   return options.registry.readEvidence(actor.access,actor.adapter,ref);
  }
  return {
+  async recall(token:object):Promise<import("../../shared/memory-contracts").FactView[]>{return command(actorContext(token),"recall",{})},
+  async audit(token:object,factId:string):Promise<SupportAudit>{return command(actorContext(token),"audit",{factId:parseInternalId(factId)})},
+  async reconcileSupports(token:object):Promise<unknown>{const actor=actorContext(token);return command(actor,"reconcileSupports",{generation:await command<number>(actor,"generation",{})},randomUUID())},
   bindActor(access:object,adapter:object,value:SourceIdentity):object {
    const scopeKey=requireMainAccess(access).scopeKey,identity=parseSourceIdentity(value);
    requireMainSourceProvider(adapter,scopeKey,identity);
@@ -54,16 +58,17 @@ export function createMainPolicy(options:{registry:ReturnType<typeof createMainS
   async event(token:object,value:unknown):Promise<object> {
    const actor=actorContext(token),base=objectFields(value,["kind","nonce"],["candidateId","factId","revision","sourceRef"]);
    const kind=base.kind;
-   if(!["confirm","reject","revise","correct","forget","remember"].includes(kind as string))throw new Error("MEMORY_EVENT_DENIED");
-   const required=kind==="remember"?["kind","nonce","sourceRef"]:kind==="correct"?["kind","nonce","factId","revision","sourceRef"]:kind==="forget"?["kind","nonce","factId","revision"]:kind==="revise"?["kind","nonce","candidateId","revision","sourceRef"]:["kind","nonce","candidateId","revision"];
+   if(!["confirm","confirmFact","deny","reject","revise","correct","forget","remember"].includes(kind as string))throw new Error("MEMORY_EVENT_DENIED");
+   const required=kind==="remember"?["kind","nonce","sourceRef"]:["correct","confirmFact","deny"].includes(kind as string)?["kind","nonce","factId","revision","sourceRef"]:kind==="forget"?["kind","nonce","factId","revision"]:["revise","confirm"].includes(kind as string)?["kind","nonce","candidateId","revision","sourceRef"]:["kind","nonce","candidateId","revision"];
    const v=objectFields(value,required),nonce=parseInternalId(v.nonce);
    const body:PolicyEvent={kind:kind as PolicyEvent["kind"],nonce,generation:await command<number>(actor,"generation",{})};
    if(v.candidateId!==undefined)body.candidateId=parseInternalId(v.candidateId);
    if(v.factId!==undefined)body.factId=parseInternalId(v.factId);
    if(v.revision!==undefined)body.revision=positiveRevision(v.revision);
    if(v.sourceRef!==undefined){
-    body.sourceRef=boundSource(actor,v.sourceRef);body.extraction=extractPreference(await read(actor,body.sourceRef));
-    if(body.extraction.kind!=="direct")throw new Error(body.extraction.kind==="rejected"?"MEMORY_POLICY_SECRET":"MEMORY_POLICY_UNRESOLVED");
+    body.sourceRef=boundSource(actor,v.sourceRef);const parsed=extractPreference(await read(actor,body.sourceRef));
+    if(parsed.kind==="rejected")throw new Error("MEMORY_POLICY_SECRET");
+    if(["revise","correct","remember"].includes(kind as string)){if(parsed.kind!=="direct")throw new Error("MEMORY_POLICY_UNRESOLVED");body.extraction=parsed;}
    }
    const event=Object.freeze({});events.set(event,{actor:token,body:structuredClone(body)});return event;
   },

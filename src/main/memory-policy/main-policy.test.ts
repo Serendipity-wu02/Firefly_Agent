@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import os from "node:os";
+import {DatabaseSync} from "node:sqlite";
 import path from "node:path";
 import {randomBytes,randomUUID} from "node:crypto";
 import {afterEach,it,expect} from "vitest";
@@ -27,7 +28,7 @@ function fixture(fault?:(stage:"after-record"|"before-receipt")=>void){
   return {id,ref:await registry.capture(access,provider.adapter,id)};
  }
  async function input(text:string,trust="direct-user-event",role="user"){const s=await source(text,trust,role);return {s,result:await policy.ingest(actor,s.ref)}}
- async function event(kind:string,target:Record<string,unknown>){return policy.event(actor,{kind,nonce:randomUUID(),...target})}
+ async function event(kind:string,target:Record<string,unknown>){const confirmation=kind==="confirm"&&!target.sourceRef?await source("I confirm the selected fact"):null;return policy.event(actor,{kind,nonce:randomUUID(),...(confirmation?{sourceRef:confirmation.ref}:{}),...target})}
  function reopen(){repo.close();repo=openMemoryRepository({databasePath,key});repos.push(repo)}
  return {root,get repo(){return repo},provider,registry,access,actor,policy,transport,source,input,event,reopen,setHook:(hook:typeof beforePolicy)=>{beforePolicy=hook},denyIdentity:()=>{resolved=null}};
 }
@@ -49,7 +50,8 @@ it("unresolved candidates persist reference and reason without copying arbitrary
  const page=await f.policy.candidates(f.actor,{limit:10});expect(page.items).toHaveLength(3);for(const item of page.items){expect(item.assertion).toBe("");expect(item.sourceRef.binding).toBeDefined();}
 });
 it.each(["我密码是 SECRET_CANARY_B2","refresh_token=SECRET_CANARY_B2","My passphrase is SECRET_CANARY_B2"])("secret refusals persist no evidence or candidate body: %s",async text=>{
- const f=fixture(),before=f.repo.readRows("evidence","scope-a");expect((await f.input(text)).result).toEqual({status:"rejected",reason:"secret"});
+ const f=fixture(),commands:unknown[]=[];f.setHook(async command=>{commands.push(command)});const before=f.repo.readRows("evidence","scope-a");expect((await f.input(text)).result).toEqual({status:"rejected",reason:"secret"});
+ expect(JSON.stringify(commands)).not.toContain("SECRET_CANARY_B2");
  expect(f.repo.readRows("evidence","scope-a")).toEqual(before);expect(f.repo.readRows("candidates","scope-a")).toEqual([]);expect((await f.policy.candidates(f.actor,{limit:10})).items).toEqual([]);
  for(const name of fs.readdirSync(f.root).filter(n=>n.startsWith("memory.sqlite")))expect(fs.readFileSync(path.join(f.root,name)).includes(Buffer.from("SECRET_CANARY_B2"))).toBe(false);
 });
@@ -73,7 +75,7 @@ it("reject/revise bind revision and invalidate stale confirmation, retry is idem
 it("synthetic event nonce cannot be reused for another candidate or action",async()=>{
  const f=fixture(),a=(await f.input("I prefer bash","history")).result,b=(await f.input("I prefer English","history")).result,nonce=randomUUID();
  const token=await f.policy.event(f.actor,{kind:"reject",nonce,candidateId:a.candidateId,revision:1});await f.policy.act(f.actor,token);
- const forged=await f.policy.event(f.actor,{kind:"confirm",nonce,candidateId:b.candidateId,revision:1});await expect(f.policy.act(f.actor,forged)).rejects.toThrow("MEMORY_COMMAND_CONFLICT");await expect(f.policy.act(f.actor,{})).rejects.toThrow("MEMORY_EVENT_DENIED");
+ const confirmation=await f.source("I confirm the selected fact");const forged=await f.policy.event(f.actor,{kind:"confirm",nonce,candidateId:b.candidateId,revision:1,sourceRef:confirmation.ref});await expect(f.policy.act(f.actor,forged)).rejects.toThrow("MEMORY_COMMAND_CONFLICT");await expect(f.policy.act(f.actor,{})).rejects.toThrow("MEMORY_EVENT_DENIED");
 });
 it("explicit correction appends immutable revision; forget is a different event",async()=>{
  const f=fixture(),active=(await f.input("I prefer bash")).result,s=await f.source("I prefer cmd");
@@ -124,4 +126,76 @@ it("concurrent candidate edit wins one revision; stale confirm cannot accept ano
  const f=fixture(),c=(await f.input("I prefer bash","history")).result,a=await f.source("I prefer cmd"),b=await f.source("I prefer PowerShell");
  const ea=await f.event("revise",{candidateId:c.candidateId,revision:1,sourceRef:a.ref}),eb=await f.event("revise",{candidateId:c.candidateId,revision:1,sourceRef:b.ref});
  const results=await Promise.allSettled([f.policy.act(f.actor,ea),f.policy.act(f.actor,eb)]);expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);expect((results.find(r=>r.status==="rejected") as PromiseRejectedResult).reason.message).toBe("MEMORY_REVISION_CONFLICT");
+});
+it("sole automatic support pauses recall when pending/deleted, without rewriting immutable fact",async()=>{
+ const f=fixture(),active=await f.input("I prefer bash");expect(await f.policy.recall(f.actor)).toHaveLength(1);
+ await f.registry.prepareChange(f.access,f.provider.adapter,active.s.ref);expect(await f.policy.recall(f.actor)).toEqual([]);expect((await f.policy.audit(f.actor,active.result.factId!)).status).toBe("pending-review");expect(f.repo.current("scope-a")).toHaveLength(1);
+ f.provider.remove(active.s.id);await expect(f.registry.reconcile(f.access,f.provider.adapter,active.s.id)).rejects.toThrow("MEMORY_SOURCE_DELETED");expect(await f.policy.recall(f.actor)).toEqual([]);
+ const audit=await f.policy.audit(f.actor,active.result.factId!);expect(JSON.stringify(audit)).not.toContain("I prefer bash");expect(audit.supports[0]).toMatchObject({kind:"automatic",validity:"deleted"});
+});
+it("independent same-value automatic supports preserve recall when one disappears",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash"),b=await f.input("我默认用 Bash");expect(b.result).toMatchObject({status:"active",factId:a.result.factId,reason:"duplicate-support"});expect(f.repo.current("scope-a")).toHaveLength(1);
+ await f.registry.prepareChange(f.access,f.provider.adapter,a.s.ref);expect(await f.policy.recall(f.actor)).toHaveLength(1);expect((await f.policy.audit(f.actor,a.result.factId!)).supports).toHaveLength(2);
+ await f.registry.prepareChange(f.access,f.provider.adapter,b.s.ref);expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("an independently sourced explicit confirmation survives original edit but not its own deletion",async()=>{
+ const f=fixture(),a=await f.input("I prefer English","history"),confirmation=await f.source("I explicitly confirm this selected preference");
+ const confirmed=await f.policy.act(f.actor,await f.event("confirm",{candidateId:a.result.candidateId,revision:1,sourceRef:confirmation.ref}));
+ await f.registry.prepareChange(f.access,f.provider.adapter,a.s.ref);expect(await f.policy.recall(f.actor)).toHaveLength(1);expect((await f.policy.audit(f.actor,confirmed.factId!)).supports[0]).toMatchObject({kind:"explicitUserConfirmed",sourceRef:confirmation.ref});
+ await f.registry.prepareChange(f.access,f.provider.adapter,confirmation.ref);f.provider.remove(confirmation.id);await expect(f.registry.reconcile(f.access,f.provider.adapter,confirmation.id)).rejects.toThrow("MEMORY_SOURCE_DELETED");expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("confirmation needs an independent live direct source; model flags cannot substitute it",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash","history");
+ await expect(f.policy.event(f.actor,{kind:"confirm",nonce:randomUUID(),candidateId:a.result.candidateId,revision:1})).rejects.toThrow("MEMORY_INPUT_INVALID");
+ await expect(f.policy.act(f.actor,await f.event("confirm",{candidateId:a.result.candidateId,revision:1,sourceRef:a.s.ref}))).rejects.toThrow("MEMORY_CONFIRMATION_NOT_INDEPENDENT");
+ const model=await f.source("I confirm the selected preference","model");await expect(f.policy.act(f.actor,await f.event("confirm",{candidateId:a.result.candidateId,revision:1,sourceRef:model.ref}))).rejects.toThrow("MEMORY_EVENT_DENIED");
+});
+it("confirmFact adds independent support to paused current; duplicates do not manufacture independence",async()=>{
+ const f=fixture(),a=await f.input("I prefer cmd"),confirmation=await f.source("This selected preference is correct");
+ const input={factId:a.result.factId,revision:1,sourceRef:confirmation.ref};await f.policy.act(f.actor,await f.event("confirmFact",input));await f.policy.act(f.actor,await f.event("confirmFact",input));
+ expect((await f.policy.audit(f.actor,a.result.factId!)).supports).toHaveLength(2);await f.registry.prepareChange(f.access,f.provider.adapter,a.s.ref);expect(await f.policy.recall(f.actor)).toHaveLength(1);
+});
+it("explicit denial enters review, never forget; a trusted correction restores new revision",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash"),denial=await f.source("This selected fact is incorrect");
+ expect((await f.policy.act(f.actor,await f.event("deny",{factId:a.result.factId,revision:1,sourceRef:denial.ref}))).status).toBe("pending-review");expect(await f.policy.recall(f.actor)).toEqual([]);expect(f.repo.current("scope-a")).toHaveLength(1);expect(f.repo.history("scope-a",a.result.factId!)).toHaveLength(1);
+ const corrected=await f.source("I prefer cmd");await f.policy.act(f.actor,await f.event("correct",{factId:a.result.factId,revision:1,sourceRef:corrected.ref}));expect((await f.policy.recall(f.actor))[0].revision).toBe(2);expect((await f.policy.audit(f.actor,a.result.factId!)).status).toBe("eligible");
+});
+it("forget suppresses alternative supports and late maintenance/job, no alternate-source resurrection",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash"),b=await f.input("我默认用 Bash");
+ f.repo.jobCommand({kind:"enqueue",scopeKey:"scope-a",commandId:"support-enqueue",body:{jobId:"support-old-job",sourceRef:b.s.ref}});const lease=f.repo.jobCommand({kind:"claim",scopeKey:"scope-a",commandId:"support-claim",body:{jobId:"support-old-job",leaseMs:60000}}) as any;
+ await f.policy.act(f.actor,await f.event("forget",{factId:a.result.factId,revision:1}));expect(await f.policy.recall(f.actor)).toEqual([]);expect((await f.policy.audit(f.actor,a.result.factId!)).status).toBe("forgotten");expect((await f.policy.ingest(f.actor,b.s.ref)).status).toBe("suppressed");
+ expect(()=>f.repo.jobCommand({kind:"commit",scopeKey:"scope-a",commandId:"support-late",body:{jobId:"support-old-job",leaseToken:lease.leaseToken,proposals:[{candidateId:"late-support-c",evidenceId:"late-support-e",text:"I prefer bash",fact:f.repo.readRows("current_facts","scope-a")[0].payload && {subjectKey:"different-model-key",assertion:"bash",assertionKind:"user-statement",time:{validFrom:null,validTo:null,referenceTime:null}}}]}})).toThrow("MEMORY_JOB_SUPPRESSED");
+});
+it("stale reconciliation cannot reopen forgotten support state",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash");let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ f.setHook(async c=>{if(c.kind==="reconcileSupports"){started();await gate}});const late=f.policy.reconcileSupports(f.actor);await ready;await f.policy.act(f.actor,await f.event("forget",{factId:a.result.factId,revision:1}));release();await expect(late).rejects.toThrow("MEMORY_POLICY_SUPPRESSED");expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("deleted/recreated same locator never validates old support and audit is scoped",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash");await f.registry.prepareChange(f.access,f.provider.adapter,a.s.ref);f.provider.remove(a.s.id);await expect(f.registry.reconcile(f.access,f.provider.adapter,a.s.id)).rejects.toThrow();f.provider.write(a.s.id,{text:"I prefer bash",role:"user",trust:"direct-user-event"});await f.registry.capture(f.access,f.provider.adapter,a.s.id);
+ expect(await f.policy.recall(f.actor)).toEqual([]);await expect(f.policy.audit({},a.result.factId!)).rejects.toThrow("MEMORY_ACTOR_DENIED");expect((await f.policy.audit(f.actor,a.result.factId!)).supports[0].validity).toBe("stale");
+});
+it("confirmation edited after Main event issuance fails commit atomically",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash","history"),proof=await f.source("I confirm the selected preference"),event=await f.event("confirm",{candidateId:a.result.candidateId,revision:1,sourceRef:proof.ref});
+ await f.registry.prepareChange(f.access,f.provider.adapter,proof.ref);await expect(f.policy.act(f.actor,event)).rejects.toThrow("MEMORY_SOURCE_PENDING");expect(f.repo.current("scope-a")).toEqual([]);expect((await f.policy.candidates(f.actor,{limit:10})).items).toHaveLength(1);
+});
+it("forget also retains denial-source suppression, never audit body",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash"),d=await f.source("This selected fact is incorrect");await f.policy.act(f.actor,await f.event("deny",{factId:a.result.factId,revision:1,sourceRef:d.ref}));await f.policy.act(f.actor,await f.event("forget",{factId:a.result.factId,revision:1}));
+ const marker=f.repo.readRows("deletion_markers","scope-a")[0].payload as any;expect(marker.origins.some((r:any)=>r.sourceId===d.ref.sourceId)).toBe(true);
+ expect(()=>f.repo.jobCommand({kind:"enqueue",scopeKey:"scope-a",commandId:"post-forget-denial",body:{jobId:"denial-resurrect",sourceRef:d.ref}})).toThrow("MEMORY_SOURCE_SUPPRESSED");expect(JSON.stringify(await f.policy.audit(f.actor,a.result.factId!))).not.toContain("This selected fact is incorrect");
+});
+
+it("an existing automatic origin cannot masquerade as independent confirmation",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash"),b=await f.input("我默认用 Bash");
+ await expect(f.policy.act(f.actor,await f.event("confirmFact",{factId:a.result.factId,revision:1,sourceRef:b.s.ref}))).rejects.toThrow("MEMORY_CONFIRMATION_NOT_INDEPENDENT");
+ expect((await f.policy.audit(f.actor,a.result.factId!)).supports).toHaveLength(2);
+});
+
+it("real v5 automatic provenance bootstraps, unverifiable legacy confirmation stays pending",async()=>{
+ const f=fixture(),automatic=await f.input("I prefer bash"),candidate=await f.input("I prefer English","history");
+ const confirmed=await f.policy.act(f.actor,await f.event("confirm",{candidateId:candidate.result.candidateId,revision:1}));
+ f.repo.close();const db=new DatabaseSync(path.join(f.root,"memory.sqlite"));db.exec("DROP TABLE fact_supports; DROP TABLE fact_reviews; PRAGMA user_version=5");db.close();f.reopen();
+ expect((await f.policy.recall(f.actor)).map(r=>r.factId)).toEqual([automatic.result.factId]);
+ expect((await f.policy.audit(f.actor,confirmed.factId!)).status).toBe("pending-review");expect(f.repo.current("scope-a")).toHaveLength(2);
+ const proof=await f.source("I confirm the selected preference again");await f.policy.act(f.actor,await f.event("confirmFact",{factId:confirmed.factId,revision:1,sourceRef:proof.ref}));
+ expect(await f.policy.recall(f.actor)).toHaveLength(2);expect(f.repo.history("scope-a",confirmed.factId!)).toHaveLength(1);
 });
