@@ -1,0 +1,86 @@
+import {createHash} from "node:crypto";
+import type {SourceRef,BoundSourceRef} from "../../shared/memory-contracts";
+import {objectFields,parseInternalId,parseSourceRef,positiveRevision} from "../memory-core/command-validation";
+import {requireMainAccess} from "../memory-core/main-access";
+import {canonicalJson} from "../memory-core/repository-types";
+import {parseSourceIdentity} from "../memory-core/source-ledger";
+import type {SourceIdentity} from "../memory-core/source-contracts";
+import {requireMainSourceProvider} from "../memory-sources/main-source-provider";
+import type {createMainSourceRegistry} from "../memory-sources/source-registry";
+import {extractPreference} from "./extractor";
+import type {PolicyOutcome,PolicyCandidate,PolicyTransport,PolicyEvent} from "./policy-contracts";
+
+export const POLICY_VERSION="main-preferences-v1";
+const digest=(value:unknown)=>createHash("sha256").update(canonicalJson(value)).digest("hex");
+interface Actor {access:object;adapter:object;scopeKey:string;actorKey:string;providerId:string;sessionId:string}
+interface Event {actor:object;body:PolicyEvent}
+interface Cursor {actor:object;generation:number;after:string}
+
+/** Main-only synthetic seam. No renderer, IPC or production user ingress imports it. */
+export function createMainPolicy(options:{registry:ReturnType<typeof createMainSourceRegistry>;transport:PolicyTransport;resolveActor:(scope:string,identity:SourceIdentity)=>string|null}) {
+ const actors=new WeakMap<object,Actor>(),events=new WeakMap<object,Event>(),cursors=new WeakMap<object,Cursor>();
+ function actorContext(value:unknown):Actor {
+  const actor=value&&typeof value==="object"?actors.get(value):undefined;
+  if(!actor)throw new Error("MEMORY_ACTOR_DENIED");return actor;
+ }
+ function boundSource(actor:Actor,value:unknown):BoundSourceRef {
+  const ref=parseSourceRef(value);
+  if(!ref.binding||ref.binding.providerId!==actor.providerId||ref.binding.sessionId!==actor.sessionId)throw new Error("MEMORY_ACTOR_DENIED");
+  if(ref.span)throw new Error("MEMORY_POLICY_FULL_SOURCE_REQUIRED");
+  requireMainAccess(actor.access).verifySource(ref);return ref as BoundSourceRef;
+ }
+ async function command<T>(actor:Actor,kind:string,body:unknown,commandId?:string):Promise<T> {
+  return options.transport.policyCommand({kind,scopeKey:actor.scopeKey,...(commandId?{commandId}:{}),body:{actorKey:actor.actorKey,...body as object}}) as Promise<T>;
+ }
+ async function read(actor:Actor,ref:BoundSourceRef):Promise<string> {
+  return options.registry.readEvidence(actor.access,actor.adapter,ref);
+ }
+ return {
+  bindActor(access:object,adapter:object,value:SourceIdentity):object {
+   const scopeKey=requireMainAccess(access).scopeKey,identity=parseSourceIdentity(value);
+   requireMainSourceProvider(adapter,scopeKey,identity);
+   const actorKey=options.resolveActor(scopeKey,identity);
+   if(typeof actorKey!=="string"||!actorKey)throw new Error("MEMORY_ACTOR_DENIED");
+   parseInternalId(actorKey);const token=Object.freeze({});
+   actors.set(token,{access,adapter,scopeKey,actorKey,providerId:identity.providerId,sessionId:identity.sessionId});return token;
+  },
+  async ingest(token:unknown,value:SourceRef):Promise<PolicyOutcome> {
+   const actor=actorContext(token),ref=boundSource(actor,value);
+   const generation=await command<number>(actor,"generation",{});
+   const extraction=extractPreference(await read(actor,ref));
+   const body={sourceRef:ref,generation,extraction,policyVersion:POLICY_VERSION};
+   return command(actor,"ingest",body,"policy-ingest-"+digest({scope:actor.scopeKey,actor:actor.actorKey,...body}));
+  },
+  async event(token:object,value:unknown):Promise<object> {
+   const actor=actorContext(token),base=objectFields(value,["kind","nonce"],["candidateId","factId","revision","sourceRef"]);
+   const kind=base.kind;
+   if(!["confirm","reject","revise","correct","forget","remember"].includes(kind as string))throw new Error("MEMORY_EVENT_DENIED");
+   const required=kind==="remember"?["kind","nonce","sourceRef"]:kind==="correct"?["kind","nonce","factId","revision","sourceRef"]:kind==="forget"?["kind","nonce","factId","revision"]:kind==="revise"?["kind","nonce","candidateId","revision","sourceRef"]:["kind","nonce","candidateId","revision"];
+   const v=objectFields(value,required),nonce=parseInternalId(v.nonce);
+   const body:PolicyEvent={kind:kind as PolicyEvent["kind"],nonce,generation:await command<number>(actor,"generation",{})};
+   if(v.candidateId!==undefined)body.candidateId=parseInternalId(v.candidateId);
+   if(v.factId!==undefined)body.factId=parseInternalId(v.factId);
+   if(v.revision!==undefined)body.revision=positiveRevision(v.revision);
+   if(v.sourceRef!==undefined){
+    body.sourceRef=boundSource(actor,v.sourceRef);body.extraction=extractPreference(await read(actor,body.sourceRef));
+    if(body.extraction.kind!=="direct")throw new Error(body.extraction.kind==="rejected"?"MEMORY_POLICY_SECRET":"MEMORY_POLICY_UNRESOLVED");
+   }
+   const event=Object.freeze({});events.set(event,{actor:token,body:structuredClone(body)});return event;
+  },
+  async act(token:object,event:unknown):Promise<PolicyOutcome> {
+   const actor=actorContext(token),claim=event&&typeof event==="object"?events.get(event):undefined;
+   if(!claim||claim.actor!==token)throw new Error("MEMORY_EVENT_DENIED");
+   return command(actor,"event",claim.body,"policy-event-"+digest({scope:actor.scopeKey,actor:actor.actorKey,nonce:claim.body.nonce}));
+  },
+  async candidates(token:object,input:{limit:number;cursor?:object}):Promise<{items:PolicyCandidate[];cursor:object|null}> {
+   const actor=actorContext(token),v=objectFields(input,["limit"],["cursor"]);
+   if(!Number.isSafeInteger(v.limit)||(v.limit as number)<1||(v.limit as number)>100)throw new Error("MEMORY_INPUT_INVALID");
+   const generation=await command<number>(actor,"generation",{});let after="";
+   if(v.cursor!==undefined){const claim=v.cursor&&typeof v.cursor==="object"?cursors.get(v.cursor):undefined;if(!claim||claim.actor!==token)throw new Error("MEMORY_CURSOR_DENIED");if(claim.generation!==generation)throw new Error("MEMORY_CURSOR_STALE");after=claim.after;}
+   const items=await command(actor,"candidates",{generation,after,limit:(v.limit as number)+1}) as PolicyCandidate[];
+   const more=items.length>(v.limit as number),selected=items.slice(0,v.limit as number);let cursor:object|null=null;
+   if(more){cursor=Object.freeze({});cursors.set(cursor,{actor:token,generation,after:selected[selected.length-1].candidateId});}
+   return {items:selected,cursor};
+  },
+ };
+}

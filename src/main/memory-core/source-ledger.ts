@@ -5,6 +5,7 @@ import {objectFields,parseInternalId,parseSourceRef,positiveRevision} from "./co
 import {canonicalJson} from "./repository-types";
 import {executeTransaction,type TransactionFault} from "./command-transactions";
 import {RecordCodec} from "./record-codec";
+import {Suppression} from "./suppression";
 import type {SourceIdentity,SourceObservation,SourceHead} from "./source-contracts";
 
 export function parseSourceIdentity(value:unknown):SourceIdentity {
@@ -42,6 +43,7 @@ export class SourceLedger {
   if(!(row.locator_index instanceof Uint8Array)||!Buffer.from(row.locator_index).equals(index))throw new Error("MEMORY_DATA_INVALID");
   if(head.ref!==null){const ref=parseSourceRef(head.ref);if(!ref.binding||ref.sourceId!==head.sourceId)throw new Error("MEMORY_DATA_INVALID")}
   if(head.published!==null)parseSourceObservation(head.published);
+  for(const value of [head.captureSuppressionGeneration,head.observedSuppressionGeneration])if(value!==undefined&&(!Number.isSafeInteger(value)||value<0))throw new Error("MEMORY_DATA_INVALID");
   if(head.state==="pending"){parseInternalId(head.operationId)}else if(head.operationId!==null)throw new Error("MEMORY_DATA_INVALID");
   return head;
  }
@@ -98,7 +100,7 @@ export class SourceLedger {
    this.db.prepare("INSERT INTO sources(id,scope_key,revision,source_id,parent_id,state,payload) VALUES(?,?,1,NULL,NULL,'pending',?)")
     .run(sourceId,scope,this.codec.seal("sources",scope,sourceId,{sourceRef,kind:"system",intent:"statement",candidateId:null,factId:null}));
   }else this.db.prepare("UPDATE sources SET state='pending' WHERE id=? AND scope_key=?").run(head.sourceId,scope);
-  head={...head,state:"pending",operationId:randomUUID()};this.save(scope,head);return head;
+  head={...head,state:"pending",operationId:randomUUID(),captureSuppressionGeneration:new Suppression(this.db,this.key).generation(scope)};this.save(scope,head);return head;
  }
  private finish(scope:string,value:unknown):BoundSourceRef {
   const v=objectFields(value,["sourceId","operationId","observation"]),sourceId=parseInternalId(v.sourceId),operationId=parseInternalId(v.operationId);
@@ -118,7 +120,9 @@ export class SourceLedger {
   if(!Number.isSafeInteger(revision))throw new Error("MEMORY_SOURCE_VERSION_MISMATCH");
   const ref:BoundSourceRef={sourceId,revision,binding:{...head.identity,contentRevision:observation.contentRevision,generation:observation.generation}};
   const state=observation.state==="deleted"?"deleted":"ready";
-  const published:SourceHead={...head,ref,published:observation,state,operationId:null};
+  const observedSuppressionGeneration=same?head.observedSuppressionGeneration:head.captureSuppressionGeneration;
+  const published:SourceHead={...head,ref,published:observation,state,operationId:null,
+   ...(observedSuppressionGeneration===undefined?{}:{observedSuppressionGeneration})};
   this.db.prepare("UPDATE sources SET revision=?,state=?,payload=? WHERE id=? AND scope_key=?")
    .run(revision,state==="ready"?"recorded":"invalidated",this.codec.seal("sources",scope,sourceId,{sourceRef:ref,kind:observation.role,intent:"statement",candidateId:null,factId:null}),sourceId,scope);
   this.save(scope,published);

@@ -10,5 +10,7 @@ export interface SourceObservation extends SourceIdentity {
 export interface SourceHead {
  sourceId:string;identity:SourceIdentity;state:"ready"|"pending"|"deleted";
  ref:BoundSourceRef|null;published:SourceObservation|null;operationId:string|null;
+ /** Main capture generation, retained for unchanged content; older B1 heads omit it. */
+ captureSuppressionGeneration?:number;observedSuppressionGeneration?:number;
 }
 export interface SourceLedgerTransport {sourceCommand(command:unknown):Promise<unknown>}

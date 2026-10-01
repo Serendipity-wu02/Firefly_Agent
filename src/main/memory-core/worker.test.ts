@@ -29,6 +29,19 @@ function fixture(){
  return {storage,keyProtection,workerFactory:(data:any)=>new Worker(workerPath,{workerData:data,execArgv:[]})};
 }
 const batch={commandId:"worker-command",scopeKey:"scope-a",records:[{table:"sources" as const,id:"worker-source",revision:1,payload:{text:"中文 English 🌱"}}]};
+it("round-trips B2 private policy through a real worker, then forgets without resurrecting on restart",async()=>{
+ const {createMainSourceRegistry}=await import("../memory-sources/source-registry");
+ const {SyntheticSourceProvider}=await import("../../../scripts/verify/memory-sources/synthetic-provider");
+ const {createMainPolicy}=await import("../memory-policy/main-policy");
+ const f=fixture(),client=await openClient(f),identity={providerId:"synthetic",sessionId:"policy-worker-session",messageId:"policy-worker-message"};
+ const provider=new SyntheticSourceProvider(path.join(f.storage.memory.dataRoot,"policy-synthetic.json"),"scope-a");
+ provider.write(identity,{text:"我默认用 PowerShell",role:"user",trust:"direct-user-event"});
+ const registry=createMainSourceRegistry(client),access=registry.authority.access("scope-a"),ref=await registry.capture(access,provider.adapter,identity);
+ const policy=createMainPolicy({registry,transport:client,resolveActor:()=>"worker-human"}),actor=policy.bindActor(access,provider.adapter,identity);
+ const active=await policy.ingest(actor,ref);expect(active.status).toBe("active");expect((await client.current("scope-a"))[0].activationReason).toBe("policyAccepted");
+ const forget=await policy.event(actor,{kind:"forget",nonce:"worker-forget",factId:active.factId,revision:1});expect((await policy.act(actor,forget)).status).toBe("forgotten");await client.close();
+ const fresh=await openClient(f);expect(await fresh.current("scope-a")).toEqual([]);expect(await fresh.policyCommand({kind:"generation",scopeKey:"scope-a",body:{actorKey:"worker-human"}})).toBe(1);
+});
 it("serializes worker commands and returns encrypted repository data",async()=>{
  const f=fixture(),client=await openClient(f);
  expect(await Promise.all([client.writeBatch(batch),client.writeBatch(batch)])).toEqual([{inserted:1},{inserted:1}]);

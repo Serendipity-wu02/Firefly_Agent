@@ -123,6 +123,7 @@ export class MemoryClient {
   });
  }
  jobCommand(command:unknown):Promise<unknown>{return this.request("job",command)}
+ policyCommand(command:unknown):Promise<unknown>{return this.request("policy",command)}
  execute(command:unknown):Promise<import("../../shared/memory-contracts").MutationResult>{return this.request("execute",command)}
  sourceCommand(command:unknown):Promise<unknown>{return this.request("source",command)}
  current(scope:string):Promise<import("../../shared/memory-contracts").FactView[]>{return this.request("current",{scopeKey:scope})}
