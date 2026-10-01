@@ -1,3 +1,4 @@
+import {assertProbeRoot} from "./probe-root";
 import fs from "node:fs";
 import path from "node:path";
 import {loadOrCreateMemoryKey,type KeyStage} from "../../../src/main/memory-core/protected-key";
@@ -5,7 +6,7 @@ import {copyMemoryKeyBytes} from "../../../src/main/memory-core/key-provider";
 import {createWindowsKeyProtection} from "../../../src/main/memory-core/windows-dpapi";
 import {sealPayload,openPayload} from "../../../src/main/memory-core/payload-codec";
 const cwd=process.cwd(),root=process.argv.find(a=>a.startsWith("--root="))?.slice(7),pause=process.argv.find(a=>a.startsWith("--pause="))?.slice(8);
-if(!root||!path.isAbsolute(root)||!cwd.startsWith("E:\\")||path.relative(path.join(cwd,"output","memory-core"),root).startsWith(".."))throw new Error("TEST_ISOLATION_INVALID");
+assertProbeRoot(cwd,root);
 const roots={dataRoot:path.join(root,"data"),indexRoot:path.join(root,"index"),tempRoot:path.join(root,"temp")};
 (async()=>{
  let handle;

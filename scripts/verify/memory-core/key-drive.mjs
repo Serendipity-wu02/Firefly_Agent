@@ -1,3 +1,4 @@
+import {validateKeyResult} from "./probe-result.mjs";
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -21,24 +22,29 @@ const snapshot=root=>fs.existsSync(path.join(root,'data'))?Object.fromEntries(fs
 async function run(entry,root,pause){
  fs.mkdirSync(path.join(root,'temp'),{recursive:true});
  const child=spawn(electron,[entry,'--root='+root,...(pause?['--pause='+pause]:[])],{cwd,env:envFor(root),windowsHide:true,stdio:['ignore','pipe','pipe']});
- let stderr='',stdout='',marker=false,killResult;
+ let stderr='',stdout='',marker=false,killResult,killError,timedOut=false;
+ const killOwned=()=>{
+  if(killResult)return;
+  const killer=spawn('C:\\Windows\\System32\\taskkill.exe',['/PID',String(child.pid),'/T','/F'],{cwd,env:envFor(root),windowsHide:true,stdio:['ignore','pipe','pipe']});
+  killer.stdout.resume();killer.stderr.resume();
+  killResult=new Promise((resolve,reject)=>{killer.once('error',reject);killer.once('close',code=>code===0?resolve():reject(new Error('OWNED_PROCESS_KILL_FAILED')))}).catch(error=>{killError=error;child.kill()});
+ };
  const ended=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>resolve({code,signal}))});
- const timer=setTimeout(()=>{child.kill();},40000);
+ const timer=setTimeout(()=>{timedOut=true;killOwned();},40000);
  child.stderr.on('data',b=>{stderr+=b.toString()});
  child.stdout.on('data',b=>{
   stdout+=b.toString();
   if(pause&&!marker&&stdout.includes(JSON.stringify({stage:pause}))){
    marker=true;
-   const killer=spawn('C:\\Windows\\System32\\taskkill.exe',['/PID',String(child.pid),'/T','/F'],{cwd,env:envFor(root),windowsHide:true,stdio:['ignore','pipe','pipe']});
-   killer.stdout.resume();killer.stderr.resume();
-   killResult=new Promise((resolve,reject)=>{killer.once('error',reject);killer.once('close',code=>code===0?resolve():reject(new Error('OWNED_PROCESS_KILL_FAILED')))});
+   killOwned();
   }
  });
- const exit=await ended;clearTimeout(timer);await killResult;
+ let exit;try{exit=await ended}finally{clearTimeout(timer);await killResult}
+ if(killError)throw killError;
  const lines=stdout.trim().split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line));
  fs.writeFileSync(path.join(output,'run-'+records.length+'.json'),JSON.stringify({root,pause,exit,lines,stderrBytes:Buffer.byteLength(stderr)},null,2));
  const result={root,pause,exit,lines,stderrBytes:Buffer.byteLength(stderr)};records.push(result);
- if(pause)assert.ok(marker,'missing checkpoint');
+ validateKeyResult({lines,exit,pause,marker,timedOut});
  return result;
 }
 for(const [mode,entry] of [['development',path.join(packageDir,'entry.cjs')],['packaged',path.join(asar,'entry.cjs')]]){

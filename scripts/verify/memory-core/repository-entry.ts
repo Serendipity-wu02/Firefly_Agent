@@ -1,3 +1,4 @@
+import {installCheckpoint} from "./checkpoint-hook";
 import fs from "node:fs";
 import path from "node:path";
 import {Worker} from "node:worker_threads";
@@ -11,20 +12,24 @@ if(process.cwd()!==cwd)throw new Error("PROBE_CWD_INVALID");
 const argument=(name:string)=>process.argv.find(value=>value.startsWith(name+"="))?.slice(name.length+1);
 const root=argument("--probe-root"),mode=argument("--probe-mode")??"basic";
 if(!root||!within(path.join(cwd,"output","memory-core"),canonicalPath(root)))throw new Error("PROBE_ROOT_INVALID");
-const resultPath=path.join(root,"result.json");
-const report=(value:unknown)=>{fs.writeFileSync(resultPath,JSON.stringify(value,null,2));console.log("MEMORY_CORE_PROBE "+JSON.stringify(value))};
+const pause=argument("--probe-pause"),runId=argument("--probe-run-id");
+if(!runId||!/^[a-f0-9-]{36}$/.test(runId))throw new Error("PROBE_RUN_ID_INVALID");
+installCheckpoint(root,pause,runId);
+const resultPath=path.join(root,"result-"+runId+".json");
+const report=(input:object)=>{const value={...input,mode,runId};fs.writeFileSync(resultPath,JSON.stringify(value,null,2));console.log("MEMORY_CORE_PROBE "+JSON.stringify(value))};
 const production=path.join(root,"synthetic-production"),isolation=path.join(root,"isolated");
 fs.mkdirSync(production,{recursive:true});fs.mkdirSync(isolation,{recursive:true});
 const profile=resolveRuntimeProfile({argv:["--firefly-profile=test","--firefly-isolation-root="+isolation],env:{},isPackaged:app.isPackaged,productionAppData:production});
 applyElectronPaths(app,profile);
 app.setPath("temp",path.join(root,"temp"));
 const storage=createStorageContext(profile);
-const canary="合成主库恢复 中文 English 混合 🌱";
+const canary="FIREFLY_SYNTHETIC_\u4e2d\u6587_English_\u6df7\u5408_\ud83c\udf40_CANARY";
 (async()=>{
  let client:MemoryClient|undefined;
  try{
   await app.whenReady();
-  client=await MemoryClient.open({storage,keyProtection:createWindowsKeyProtection(storage.memory.tempRoot),workerFactory:data=>new Worker(path.join(__dirname,"worker.js"),{workerData:{...data,probeReport:path.join(root,"worker-runtime.json")},execArgv:[]})});
+  client=await MemoryClient.open({storage,keyProtection:createWindowsKeyProtection(storage.memory.tempRoot),workerFactory:data=>new Worker(path.join(__dirname,"worker.js"),{workerData:{...data,probeReport:path.join(root,"worker-runtime.json"),probePause:pause,probeRunId:runId},execArgv:[]})});
+  if(mode==="jobs"){const {verifyJobs}=await import("./jobs-probe");const checks=await verifyJobs(client,canary);await client.close();client=undefined;report({ok:true,mode,...checks});app.exit(0);return}
   if(mode==="facts"){
    const {MemoryService}=await import("../../../src/main/memory-core/memory-service");
    const {createMainMemoryAuthority}=await import("../../../src/main/memory-core/main-access");
@@ -78,6 +83,9 @@ const canary="合成主库恢复 中文 English 混合 🌱";
   await client.close();client=undefined;report(result);app.exit(0);
  }catch(error){
   await client?.close().catch(()=>{});
-  report({ok:false,error:error instanceof Error&&/^(MEMORY|PROBE)_[A-Z_]+$/.test(error.message)?error.message:"PROBE_FAILURE"});app.exit(1);
+  const initializationPath=path.join(root,"worker-init-"+runId+".json");
+  const initialization=fs.existsSync(initializationPath)?JSON.parse(fs.readFileSync(initializationPath,"utf8")):undefined;
+  const initializationError=initialization?.runId===runId&&/^MEMORY_[A-Z_]+$/.test(initialization.error)?initialization.error:undefined;
+  report({ok:false,initializationError,error:error instanceof Error&&/^(MEMORY|PROBE)_[A-Z_]+$/.test(error.message)?error.message:"PROBE_FAILURE",frames:error instanceof Error?error.stack?.split("\n").filter(line=>/^\s+at /.test(line)).slice(0,3):[]});app.exit(1);
  }
 })();
