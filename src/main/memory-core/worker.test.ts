@@ -106,3 +106,22 @@ it("reports failed ownership cleanup rather than claiming shutdown completed",as
  }});clients.push(client);
  await expect(client.close()).rejects.toThrow("MEMORY_OWNERSHIP_CLEANUP_FAILED");expect(lease.release).toHaveBeenCalledOnce();
 });
+
+it("executes trusted fact commands on the worker and preserves Main scope boundaries",async()=>{
+ const {MemoryService}=await import("./memory-service");
+ const {createMainMemoryAuthority}=await import("./main-access");
+ const client=await MemoryClient.open(fixture());clients.push(client);
+ const sourceRef={sourceId:"trusted-worker-source",revision:1};
+ const authority=createMainMemoryAuthority({policyVersion:"policy-v1",resolveSource:()=>({...sourceRef,scopeKey:"scope-a",kind:"user",intent:"statement",policyEligibility:{directStatement:true,inferred:false,sensitive:false,conflict:false}})});
+ const access=authority.access("scope-a"),service=new MemoryService(client);
+ await service.registerSource(access,"worker-register",sourceRef);
+ await service.appendEvidence(access,{commandId:"worker-evidence",evidenceId:"trusted-evidence",sourceRef,text:"中文 English 合成陈述"});
+ await service.proposeCandidate(access,{commandId:"worker-proposal",candidateId:"trusted-candidate",evidenceId:"trusted-evidence",fact:{subjectKey:"合成语言",assertion:"中文 English 🌱",assertionKind:"user-statement",time:{validFrom:null,validTo:null,referenceTime:null}}});
+ expect(await service.current(access)).toEqual([]);
+ const token=authority.authorize(access,{candidateId:"trusted-candidate",sourceRef,reason:"policyAccepted"});
+ const active=await service.activateCandidate(access,token,{commandId:"worker-activate",candidateId:"trusted-candidate"});
+ expect((await service.current(access))[0]).toMatchObject({factId:active.id,assertion:"中文 English 🌱",activationReason:"policyAccepted"});
+ expect(await service.current(authority.access("scope-b"))).toEqual([]);
+ await expect(service.current(JSON.parse(JSON.stringify(access)))).rejects.toThrow("MEMORY_ACCESS_DENIED");
+ expect(await service.history(access,active.id)).toHaveLength(1);
+});

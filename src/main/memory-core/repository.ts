@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import {createHmac,hkdfSync,randomUUID,timingSafeEqual} from "node:crypto";
+import {randomUUID} from "node:crypto";
+import {FactRepository} from "./fact-repository";
+import {executeTransaction} from "./command-transactions";
 import {DatabaseSync} from "node:sqlite";
 import {ensureDatabaseAuth} from "./database-auth";
 import {createMemoryBackup,type MemoryBackupResult} from "./backups";
@@ -21,37 +23,27 @@ export class MemoryRepository {
   const plain=openPayload(this.key,this.binding(table,scope,id),bytes);
   try{return JSON.parse(plain.toString("utf8"))}finally{plain.fill(0)}
  }
+ execute(command:unknown):import("../../shared/memory-contracts").MutationResult{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).execute(command)}
+ current(scope:string):import("../../shared/memory-contracts").FactView[]{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).current(scope)}
+ history(scope:string,factId:string):import("../../shared/memory-contracts").FactView[]{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).history(scope,factId)}
  writeBatch(command:BatchCommand):BatchResult{
   this.assertOpen();internalId(command?.commandId);internalId(command.scopeKey);
   if(!Array.isArray(command.records)||command.records.length===0||command.records.length>1000)throw new Error("MEMORY_INPUT_INVALID");
-  const request=Buffer.from(canonicalJson(command));
-  if(request.length>8*1024*1024)throw new Error("MEMORY_INPUT_INVALID");
-  const receiptKey=Buffer.from(hkdfSync("sha256",this.key,Buffer.alloc(0),"FireflyMemoryReceiptDigest-v1",32));
-  let digest:Buffer;try{digest=createHmac("sha256",receiptKey).update(request).digest()}finally{request.fill(0);receiptKey.fill(0)}
-  this.db.exec("BEGIN IMMEDIATE");
-  try{
-   const receipt=this.db.prepare("SELECT scope_key,request_digest,result FROM command_receipts WHERE command_id=?").get(command.commandId);
-   if(receipt){
-    if(receipt.scope_key!==command.scopeKey||!(receipt.request_digest instanceof Uint8Array)||!timingSafeEqual(digest,receipt.request_digest))throw new Error("MEMORY_COMMAND_CONFLICT");
-    const result=this.open("command-receipt",command.scopeKey,command.commandId,receipt.result as Uint8Array) as BatchResult;
-    this.db.exec("COMMIT");return result;
-   }
+  return executeTransaction({db:this.db,key:this.key,scope:command.scopeKey,commandId:command.commandId,request:command,fault:this.fault,apply:()=>{
    for(const row of command.records){
     entityTable(row.table);internalId(row.id);
     if(!Number.isSafeInteger(row.revision)||row.revision<1)throw new Error("MEMORY_INPUT_INVALID");
     if(row.sourceId!==undefined)internalId(row.sourceId);
     if(row.parentId!==undefined)internalId(row.parentId);
     const state=row.state??"recorded";if(!STATES.has(state))throw new Error("MEMORY_INPUT_INVALID");
-    const bytes=this.seal(row.table,command.scopeKey,row.id,row.payload);
-    this.db.prepare(`INSERT INTO ${row.table} (id,scope_key,revision,source_id,parent_id,state,payload) VALUES (?,?,?,?,?,?,?)`)
-     .run(row.id,command.scopeKey,row.revision,row.sourceId??null,row.parentId??null,state,bytes);
+    this.db.prepare("INSERT INTO "+row.table+" (id,scope_key,revision,source_id,parent_id,state,payload) VALUES (?,?,?,?,?,?,?)")
+     .run(row.id,command.scopeKey,row.revision,row.sourceId??null,row.parentId??null,state,this.seal(row.table,command.scopeKey,row.id,row.payload));
     this.fault?.("after-record");
    }
-   const result={inserted:command.records.length};this.fault?.("before-receipt");
-   this.db.prepare("INSERT INTO command_receipts VALUES (?,?,?,?)").run(command.commandId,command.scopeKey,digest,this.seal("command-receipt",command.scopeKey,command.commandId,result));
-   this.db.exec("COMMIT");return result;
-  }catch(error){this.db.exec("ROLLBACK");throw error}
+   return{inserted:command.records.length};
+  }});
  }
+
  readRows(table:EntityTable,scopeKey:string):MemoryRow[]{
   this.assertOpen();entityTable(table);internalId(scopeKey);
   return this.db.prepare(`SELECT id,revision,source_id,parent_id,state,payload FROM ${table} WHERE scope_key=? ORDER BY id`).all(scopeKey).map(row=>({

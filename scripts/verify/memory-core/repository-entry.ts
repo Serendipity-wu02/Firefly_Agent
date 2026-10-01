@@ -25,6 +25,44 @@ const canary="合成主库恢复 中文 English 混合 🌱";
  try{
   await app.whenReady();
   client=await MemoryClient.open({storage,keyProtection:createWindowsKeyProtection(storage.memory.tempRoot),workerFactory:data=>new Worker(path.join(__dirname,"worker.js"),{workerData:{...data,probeReport:path.join(root,"worker-runtime.json")},execArgv:[]})});
+  if(mode==="facts"){
+   const {MemoryService}=await import("../../../src/main/memory-core/memory-service");
+   const {createMainMemoryAuthority}=await import("../../../src/main/memory-core/main-access");
+   const sources=new Map<string,import("../../../src/main/memory-core/main-access").VerifiedSource>();
+   const ref={sourceId:"fact-source",revision:1};
+   sources.set(ref.sourceId,{...ref,scopeKey:"scope-test",kind:"user",intent:"statement",policyEligibility:{directStatement:true,inferred:false,sensitive:false,conflict:false}});
+   const authority=createMainMemoryAuthority({policyVersion:"policy-v1",resolveSource:r=>sources.get(r.sourceId)!}),access=authority.access("scope-test"),service=new MemoryService(client);
+   await service.registerSource(access,"fact-register",ref);
+   await service.appendEvidence(access,{commandId:"fact-evidence",evidenceId:"fact-evidence",sourceRef:ref,text:canary});
+   await service.proposeCandidate(access,{commandId:"fact-propose",candidateId:"fact-candidate",evidenceId:"fact-evidence",fact:{subjectKey:"合成双语",assertion:canary,assertionKind:"user-statement",time:{validFrom:null,validTo:null,referenceTime:null}}});
+   if((await service.current(access)).length!==0)throw new Error("PROBE_CANDIDATE_BECAME_ACTIVE");
+   const token=authority.authorize(access,{candidateId:"fact-candidate",sourceRef:ref,reason:"policyAccepted"});
+   const active=await service.activateCandidate(access,token,{commandId:"fact-activate",candidateId:"fact-candidate"});
+   const correction={sourceId:"fact-correction",revision:1};
+   sources.set(correction.sourceId,{...correction,scopeKey:"scope-test",kind:"user",intent:"correction",factId:active.id});
+   await service.registerSource(access,"correction-register",correction);
+   const outcomes=await Promise.allSettled([0,1].map(index=>service.correctFact(access,{commandId:"correct-"+index,factId:active.id,expectedRevision:1,sourceRef:correction,fact:{subjectKey:"合成双语",assertion:canary+" "+index,assertionKind:"user-statement",time:{validFrom:null,validTo:null,referenceTime:null}}})));
+   if(outcomes.filter(value=>value.status==="fulfilled").length!==1||(outcomes.find(value=>value.status==="rejected") as PromiseRejectedResult).reason.message!=="MEMORY_REVISION_CONFLICT")throw new Error("PROBE_REVISION_CONFLICT_FAILED");
+   const history=await service.history(access,active.id);
+   if(history.length!==2||history[0].supersededAt===null||history[1].revision!==2)throw new Error("PROBE_REVISION_HISTORY_FAILED");
+   if((await service.current(authority.access("scope-other"))).length!==0)throw new Error("PROBE_SCOPE_LEAK");
+   const rollback={commandId:"rollback-constraint",scopeKey:"scope-test",records:[{table:"sources" as const,id:"rollback-source",revision:1,payload:{text:canary}},{table:"sources" as const,id:"rollback-source",revision:1,payload:{text:canary}}]};
+   let rejected=false;try{await client.writeBatch(rollback)}catch{rejected=true}
+   if(!rejected||(await client.readRows("sources","scope-test")).some(row=>row.id==="rollback-source"))throw new Error("PROBE_ROLLBACK_FAILED");
+   await client.writeBatch({...rollback,records:rollback.records.slice(0,1)});
+   const forgetting={sourceId:"fact-forget",revision:1};
+   sources.set(forgetting.sourceId,{...forgetting,scopeKey:"scope-test",kind:"user",intent:"forget",factId:active.id});
+   await service.registerSource(access,"forget-register",forgetting);
+   await service.forgetFact(access,{commandId:"fact-forget",factId:active.id,expectedRevision:2,sourceRef:forgetting});
+   if((await service.current(access)).length!==0)throw new Error("PROBE_FORGET_FAILED");
+   let historyDenied=false;try{await service.history(access,active.id)}catch(error){historyDenied=error instanceof Error&&error.message==="MEMORY_FACT_NOT_FOUND"}
+   if(!historyDenied)throw new Error("PROBE_FORGOTTEN_HISTORY_VISIBLE");
+   const workerRuntime=JSON.parse(fs.readFileSync(path.join(root,"worker-runtime.json"),"utf8"));
+   await client.close();client=undefined;
+   report({ok:true,mode,workerRuntime,workerInAsar:__dirname.includes("app.asar"),candidateAuthorization:true,concurrentRevisionConflict:true,appendHistory:true,transactionRollback:true,scopeIsolation:true,forgetRecallBlocked:true,normalExit:true});
+   app.exit(0);return;
+  }
+
   if(mode==="reject"){throw new Error("PROBE_UNEXPECTED_KEY_ACCEPTANCE")}
   const command={commandId:"integration-seed",scopeKey:"scope-test",records:[{table:"sources" as const,id:"source-test",revision:1,payload:{text:canary,title:"合成来源不应明文"}}]};
   if(mode==="basic"||mode==="hold"){

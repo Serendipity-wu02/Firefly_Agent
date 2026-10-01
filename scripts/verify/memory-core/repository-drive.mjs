@@ -48,6 +48,7 @@ async function run(mode,root,action,kill=false){
 }
 try{
  for(const mode of ["development","packaged"]){
+  const facts=await run(mode,path.join(output,mode+"-facts"),"facts");assert.equal(facts.ok,true);assert.equal(facts.concurrentRevisionConflict,true);assert.equal(facts.transactionRollback,true);
   const root=path.join(output,mode);
   const first=await run(mode,root,"basic");assert.equal(first.ok,true);assert.equal(first.versions.electron,"43.1.0");assert.equal(first.versions.node,"24.18.0");assert.equal(first.versions.sqlite,"3.53.1");assert.equal(first.workerInAsar,mode==="packaged");assert.equal(first.workerRuntime.electron,"43.1.0");assert.equal(first.workerRuntime.node,"24.18.0");assert.equal(first.workerRuntime.sqlite,"3.53.1");assert.ok(first.workerRuntime.threadId>0);
   assert.equal((await run(mode,root,"read")).canaryMatch,true);
@@ -70,7 +71,7 @@ try{
    try{const refused=await run(mode,live,"reject");assert.equal(refused.ok,false);assert.ok(/^MEMORY_/.test(refused.error));assert.deepEqual(snapshot(liveData),original)}finally{fs.writeFileSync(keyFile,key)}
   }
   assert.equal((await run(mode,live,"read")).canaryMatch,true);
-  gates[mode]={openReopen:"PASS",actualWorker:"PASS",appAsar:mode==="packaged"?"PASS":"NOT_APPLICABLE",dpapi:"PASS",idempotentConcurrent:"PASS",consistentBackup:"PASS",cleanShutdown:"PASS",killReopen:"PASS",liveWalWrongMissingAndCorruptKeyZeroChange:"PASS",backupRestore:"PASS"};
+  gates[mode]={trustedFactsAndRevisions:"PASS",rollback:"PASS",scope:"PASS",forgetReadBarrier:"PASS",openReopen:"PASS",actualWorker:"PASS",appAsar:mode==="packaged"?"PASS":"NOT_APPLICABLE",dpapi:"PASS",idempotentConcurrent:"PASS",consistentBackup:"PASS",cleanShutdown:"PASS",killReopen:"PASS",liveWalWrongMissingAndCorruptKeyZeroChange:"PASS",backupRestore:"PASS"};
  }
  const report={gate:"PASS",baseline:"be6beede628e6e00dc6304355af4ab3dd65f919c",gates,runs,productionAccess:"NONE",wrongValidProtectedKey:"PASS",backupRestore:"PASS",initialAuthKillBoundaries:"NOT_RUN",powerLoss:"NOT_RUN",systemRebootNewModule:"NOT_RUN",canaryScan:"NOT_RUN"};
  fs.writeFileSync(path.join(output,"report.json"),JSON.stringify(report,null,2));
