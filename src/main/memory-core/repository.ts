@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {randomUUID} from "node:crypto";
 import {JobRepository} from "./jobs";
+import {SourceLedger} from "./source-ledger";
 import {FactRepository} from "./fact-repository";
 import {executeTransaction} from "./command-transactions";
 import {DatabaseSync} from "node:sqlite";
@@ -25,6 +26,7 @@ export class MemoryRepository {
   try{return JSON.parse(plain.toString("utf8"))}finally{plain.fill(0)}
  }
  jobCommand(command:unknown):unknown{this.assertOpen();return new JobRepository(this.db,this.key,this.clock,this.fault).execute(command)}
+ sourceCommand(command:unknown):unknown{this.assertOpen();return new SourceLedger(this.db,this.key,this.fault).execute(command)}
  execute(command:unknown):import("../../shared/memory-contracts").MutationResult{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).execute(command)}
  current(scope:string):import("../../shared/memory-contracts").FactView[]{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).current(scope)}
  history(scope:string,factId:string):import("../../shared/memory-contracts").FactView[]{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).history(scope,factId)}

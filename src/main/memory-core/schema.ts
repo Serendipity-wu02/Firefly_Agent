@@ -1,6 +1,6 @@
 import type {DatabaseSync} from "node:sqlite";
 import {ENTITY_TABLES} from "./repository-types";
-export const MEMORY_SCHEMA_VERSION=3;
+export const MEMORY_SCHEMA_VERSION=4;
 function baseSchema(db:DatabaseSync,databaseId:string){
  db.exec("CREATE TABLE memory_metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), database_id TEXT NOT NULL, key_version INTEGER NOT NULL CHECK(key_version=1)) STRICT");
  db.prepare("INSERT INTO memory_metadata VALUES (1,?,1)").run(databaseId);
@@ -24,7 +24,7 @@ function factSchema(db:DatabaseSync){
 }
 export function initializeSchema(db:DatabaseSync,databaseId:string):void{
  const version=db.prepare("PRAGMA user_version").get()?.user_version;
- if(version!==0&&version!==1&&version!==2&&version!==MEMORY_SCHEMA_VERSION)throw new Error("MEMORY_SCHEMA_UNSUPPORTED");
+ if(version!==0&&version!==1&&version!==2&&version!==3&&version!==MEMORY_SCHEMA_VERSION)throw new Error("MEMORY_SCHEMA_UNSUPPORTED");
  if(version!==0){
   const metadata=db.prepare("SELECT database_id,key_version FROM memory_metadata WHERE singleton=1").get();
   if(metadata?.database_id!==databaseId||metadata.key_version!==1)throw new Error("MEMORY_DATABASE_AUTH_MISMATCH");
@@ -36,9 +36,14 @@ export function initializeSchema(db:DatabaseSync,databaseId:string):void{
   try{if(version===0)baseSchema(db,databaseId);factSchema(db);db.exec("PRAGMA user_version=2; COMMIT")}
   catch(error){db.exec("ROLLBACK");throw error}
  }
- if(version!==MEMORY_SCHEMA_VERSION){
+ if(version===0||version===1||version===2){
   db.exec("BEGIN IMMEDIATE");
   try{db.exec("CREATE TABLE scope_suppression (scope_key TEXT PRIMARY KEY,generation INTEGER NOT NULL CHECK(generation>=0),payload BLOB NOT NULL) STRICT; PRAGMA user_version=3; COMMIT")}
+  catch(error){db.exec("ROLLBACK");throw error}
+ }
+ if(version!==MEMORY_SCHEMA_VERSION){
+  db.exec("BEGIN IMMEDIATE");
+  try{db.exec("CREATE TABLE source_heads (scope_key TEXT NOT NULL,locator_index BLOB NOT NULL CHECK(length(locator_index)=32),source_id TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('ready','pending','deleted')),payload BLOB NOT NULL,PRIMARY KEY(scope_key,locator_index),UNIQUE(source_id,scope_key),FOREIGN KEY(source_id,scope_key) REFERENCES sources(id,scope_key)) STRICT; CREATE TABLE source_generations (scope_key TEXT NOT NULL,source_id TEXT NOT NULL,generation_index BLOB NOT NULL CHECK(length(generation_index)=32),PRIMARY KEY(scope_key,source_id,generation_index),FOREIGN KEY(source_id,scope_key) REFERENCES source_heads(source_id,scope_key)) STRICT; PRAGMA user_version=4; COMMIT")}
   catch(error){db.exec("ROLLBACK");throw error}
  }
  const metadata=db.prepare("SELECT database_id,key_version FROM memory_metadata WHERE singleton=1").get();

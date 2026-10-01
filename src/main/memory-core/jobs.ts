@@ -6,6 +6,7 @@ import {executeTransaction,type TransactionFault} from "./command-transactions";
 import {RecordCodec} from "./record-codec";
 import {Suppression} from "./suppression";
 import {FactRepository} from "./fact-repository";
+import {SourceLedger} from "./source-ledger";
 interface JobRecord {sourceRef:SourceRef;suppressionGeneration:number;state:"pending"|"running"|"complete";revision:number;leaseToken:string|null;leaseExpiresAt:number|null}
 export function parseJobBody(kind:string,value:unknown):Record<string,unknown>{
  if(kind==="enqueue"){
@@ -34,6 +35,7 @@ export class JobRepository {
  }
  private now():number{const n=this.clock();if(!Number.isSafeInteger(n)||n<0)throw new Error("MEMORY_CLOCK_INVALID");return n}
  private source(scope:string,ref:SourceRef):void{
+  new SourceLedger(this.db,this.key).assertCurrent(scope,ref);
   const row=this.db.prepare("SELECT revision,payload FROM sources WHERE id=? AND scope_key=?").get(ref.sourceId,scope);
   if(!row)throw new Error("MEMORY_SOURCE_INVALID");
   const source=this.codec.open<{sourceRef:SourceRef}>("sources",scope,ref.sourceId,row.payload);

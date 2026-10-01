@@ -1,11 +1,14 @@
 import type {SourceRef,ActivationReason} from "../../shared/memory-contracts";
 import {parseInternalId} from "./command-validation";
 import {objectFields,parseSourceRef} from "./command-validation";
+import {canonicalJson} from "./repository-types";
 export interface VerifiedSource {
  scopeKey:string;sourceId:string;revision:number;kind:"user"|"assistant"|"system";
  intent:"statement"|"confirmation"|"correction"|"forget"|"remember";
  candidateId?:string;factId?:string;
  policyEligibility?:{directStatement:boolean;inferred:boolean;sensitive:boolean;conflict:boolean};
+ binding?:import("../../shared/memory-contracts").SourceBinding;
+ sourceTrust?:import("./source-contracts").SourceTrust;
 }
 export interface MainAuthorityOptions {resolveSource:(ref:SourceRef)=>VerifiedSource;policyVersion:string}
 export interface MainMemoryAuthority {
@@ -40,6 +43,7 @@ export function createMainMemoryAuthority(options:MainAuthorityOptions):MainMemo
     const ref=parseSourceRef(value);let source:VerifiedSource;
     try{source=options.resolveSource(ref)}catch{throw new Error("MEMORY_SOURCE_INVALID")}
     if(!source||source.scopeKey!==scopeKey||source.sourceId!==ref.sourceId||source.revision!==ref.revision||!["user","assistant","system"].includes(source.kind)||!["statement","confirmation","correction","forget","remember"].includes(source.intent))throw new Error("MEMORY_SOURCE_INVALID");
+    if((ref.binding||source.binding)&&canonicalJson(ref.binding??null)!==canonicalJson(source.binding??null))throw new Error("MEMORY_SOURCE_INVALID");
     return {...source,policyEligibility:source.policyEligibility?{...source.policyEligibility}:undefined};
    };
    accesses.set(token,{scopeKey,verifySource});return token;

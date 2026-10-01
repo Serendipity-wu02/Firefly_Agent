@@ -13,11 +13,17 @@ export function positiveRevision(value:unknown):number{
  return value;
 }
 export function parseSourceRef(value:unknown):SourceRef{
- const input=objectFields(value,["sourceId","revision"],["span"]),sourceId=parseInternalId(input.sourceId),revision=positiveRevision(input.revision);
- if(input.span===undefined)return{sourceId,revision};
+ const input=objectFields(value,["sourceId","revision"],["span","binding"]),sourceId=parseInternalId(input.sourceId),revision=positiveRevision(input.revision);
+ let binding:import("../../shared/memory-contracts").SourceBinding|undefined;
+ if(input.binding!==undefined){
+  const b=objectFields(input.binding,["providerId","sessionId","messageId","contentRevision","generation"]);
+  binding={providerId:parseInternalId(b.providerId),sessionId:parseInternalId(b.sessionId),messageId:parseInternalId(b.messageId),contentRevision:positiveRevision(b.contentRevision),generation:parseInternalId(b.generation)};
+ }
+ const ref={sourceId,revision,...(binding?{binding}:{})};
+ if(input.span===undefined)return ref;
  const span=objectFields(input.span,["start","end"]);
  if(typeof span.start!=="number"||typeof span.end!=="number"||!Number.isSafeInteger(span.start)||!Number.isSafeInteger(span.end)||span.start<0||span.end<=span.start)throw new Error("MEMORY_INPUT_INVALID");
- return{sourceId,revision,span:{start:span.start,end:span.end}};
+ return{...ref,span:{start:span.start,end:span.end}};
 }
 export function textField(value:unknown):string{
  if(typeof value!=="string"||value.trim().length===0||Buffer.byteLength(value)>65536)throw new Error("MEMORY_INPUT_INVALID");

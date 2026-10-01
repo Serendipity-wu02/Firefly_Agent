@@ -124,6 +124,7 @@ export class MemoryClient {
  }
  jobCommand(command:unknown):Promise<unknown>{return this.request("job",command)}
  execute(command:unknown):Promise<import("../../shared/memory-contracts").MutationResult>{return this.request("execute",command)}
+ sourceCommand(command:unknown):Promise<unknown>{return this.request("source",command)}
  current(scope:string):Promise<import("../../shared/memory-contracts").FactView[]>{return this.request("current",{scopeKey:scope})}
  history(scope:string,id:string):Promise<import("../../shared/memory-contracts").FactView[]>{return this.request("history",{scopeKey:scope,factId:id})}
  writeBatch(input:BatchCommand):Promise<BatchResult>{return this.request("batch",input)}

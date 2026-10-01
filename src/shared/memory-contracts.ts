@@ -1,5 +1,7 @@
 /** Safe cross-process business DTOs. No paths, keys, database handles or authorization constructors. */
-export interface SourceRef {sourceId:string;revision:number;span?:{start:number;end:number}}
+export interface SourceBinding {providerId:string;sessionId:string;messageId:string;contentRevision:number;generation:string}
+export interface SourceRef {sourceId:string;revision:number;span?:{start:number;end:number};binding?:SourceBinding}
+export interface BoundSourceRef extends SourceRef {binding:SourceBinding}
 export interface FactTime {validFrom:number|null;validTo:number|null;referenceTime:number|null}
 export interface FactDraft {subjectKey:string;assertion:string;assertionKind:"user-statement"|"inference";time:FactTime}
 export type ActivationReason="policyAccepted"|"explicitUserConfirmed";

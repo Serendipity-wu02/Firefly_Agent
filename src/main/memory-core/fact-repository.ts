@@ -6,6 +6,7 @@ import {executeTransaction,type TransactionFault} from "./command-transactions";
 import {sealPayload,openPayload} from "./payload-codec";
 import {Suppression} from "./suppression";
 import {canonicalJson} from "./repository-types";
+import {SourceLedger} from "./source-ledger";
 interface Projection {view:FactView;visibility:"active"|"forgotten"}
 export class FactRepository {
  constructor(private readonly db:DatabaseSync,private readonly key:Uint8Array,private readonly fault?:TransactionFault){}
@@ -22,6 +23,7 @@ export class FactRepository {
   return this.db.prepare("SELECT * FROM "+table+" WHERE id=? AND scope_key=?").get(id,scope);
  }
  private source(scope:string,ref:SourceRef):{kind:string;sourceRef:SourceRef;intent?:string;candidateId?:string|null;factId?:string|null}{
+  new SourceLedger(this.db,this.key).assertCurrent(scope,ref);
   const row=this.row("sources",scope,ref.sourceId);
   if(!row)throw new Error("MEMORY_SOURCE_INVALID");
   const source=this.open<{kind:string;sourceRef:SourceRef;intent?:string;candidateId?:string|null;factId?:string|null}>("sources",scope,ref.sourceId,row.payload);
@@ -73,6 +75,7 @@ export class FactRepository {
    switch(command.kind){
     case "registerSource":{
      const body=objectFields(command.body,["sourceRef","kind"],["intent","candidateId","factId"]),ref=parseSourceRef(body.sourceRef);
+     if(new SourceLedger(this.db,this.key).isManaged(scope,ref.sourceId))throw new Error("MEMORY_SOURCE_MANAGED");
      const intent=body.intent??"statement",candidateId=body.candidateId??null,factId=body.factId??null;
      if(!["statement","confirmation","correction","forget","remember"].includes(intent as string))throw new Error("MEMORY_SOURCE_INVALID");
      if(candidateId!==null)parseInternalId(candidateId);if(factId!==null)parseInternalId(factId);

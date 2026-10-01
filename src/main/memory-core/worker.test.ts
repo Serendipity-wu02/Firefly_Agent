@@ -34,6 +34,22 @@ it("serializes worker commands and returns encrypted repository data",async()=>{
  expect(await Promise.all([client.writeBatch(batch),client.writeBatch(batch)])).toEqual([{inserted:1},{inserted:1}]);
  expect((await client.readRows("sources","scope-a"))[0].payload).toEqual(batch.records[0].payload);
 });
+it("round-trips managed sources through a real worker and preserves pending across client restart",async()=>{
+ const {createMainSourceRegistry}=await import("../memory-sources/source-registry");
+ const {SyntheticSourceProvider}=await import("../../../scripts/verify/memory-sources/synthetic-provider");
+ const f=fixture(),client=await openClient(f),identity={providerId:"synthetic",sessionId:"worker-session",messageId:"worker-message"};
+ const provider=new SyntheticSourceProvider(path.join(f.storage.memory.dataRoot,"synthetic-provider.json"),"scope-a");
+ provider.write(identity,{text:"中文 worker English 😀",role:"user",trust:"direct-user-event"});
+ const registry=createMainSourceRegistry(client),access=registry.authority.access("scope-a"),ref=await registry.capture(access,provider.adapter,identity);
+ await client.jobCommand({kind:"enqueue",scopeKey:"scope-a",commandId:"source-worker-enqueue",body:{jobId:"source-worker-job",sourceRef:ref}});
+ await registry.prepareChange(access,provider.adapter,ref);await client.close();
+ provider.write(identity,{text:"changed 中文 worker 😀",role:"user",trust:"direct-user-event"});
+ const reopened=await openClient(f),next=createMainSourceRegistry(reopened),nextAccess=next.authority.access("scope-a");
+ await expect(next.capture(nextAccess,provider.adapter,identity)).rejects.toThrow("MEMORY_SOURCE_PENDING");
+ const fresh=await next.reconcile(nextAccess,provider.adapter,identity);
+ expect(await next.readEvidence(nextAccess,provider.adapter,fresh)).toBe("changed 中文 worker 😀");
+ await expect(reopened.jobCommand({kind:"claim",scopeKey:"scope-a",commandId:"source-worker-claim",body:{jobId:"source-worker-job",leaseMs:60000}})).rejects.toThrow("MEMORY_SOURCE_STALE");
+});
 it("owns the profile for its whole lifetime independently of the publication lease",async()=>{
  const f=fixture(),first=await openClient(f);
  await expect(openClient(f)).rejects.toThrow("MEMORY_OPEN_BUSY");
