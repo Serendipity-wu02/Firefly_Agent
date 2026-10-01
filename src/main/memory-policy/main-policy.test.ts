@@ -23,8 +23,8 @@ function fixture(fault?:(stage:"after-record"|"before-receipt")=>void){
  const policy=createMainPolicy({registry,transport,resolveActor:()=>resolved});
  const base={providerId:"synthetic",sessionId:"session-a",messageId:"binding-only"};
  const actor=policy.bindActor(access,provider.adapter,base);
- async function source(text:string,trust="direct-user-event",role="user",sessionId="session-a"){
-  const id={...base,messageId:randomUUID(),sessionId};provider.write(id,{text,trust:trust as any,role:role as any});
+ async function source(text:string,trust="direct-user-event",role="user",sessionId="session-a",occurredAt?:number){
+  const id={...base,messageId:randomUUID(),sessionId};provider.write(id,{text,trust:trust as any,role:role as any,...(occurredAt!==undefined?{occurredAt}:{})});
   return {id,ref:await registry.capture(access,provider.adapter,id)};
  }
  async function input(text:string,trust="direct-user-event",role="user"){const s=await source(text,trust,role);return {s,result:await policy.ingest(actor,s.ref)}}
@@ -198,4 +198,128 @@ it("real v5 automatic provenance bootstraps, unverifiable legacy confirmation st
  expect((await f.policy.audit(f.actor,confirmed.factId!)).status).toBe("pending-review");expect(f.repo.current("scope-a")).toHaveLength(2);
  const proof=await f.source("I confirm the selected preference again");await f.policy.act(f.actor,await f.event("confirmFact",{factId:confirmed.factId,revision:1,sourceRef:proof.ref}));
  expect(await f.policy.recall(f.actor)).toHaveLength(2);expect(f.repo.history("scope-a",confirmed.factId!)).toHaveLength(1);
+});
+
+async function integrate(f:ReturnType<typeof fixture>,text:string,occurredAt?:number,trust="direct-user-event"){
+ const s=await f.source(text,trust,"user","session-a",occurredAt);return {s,result:await f.policy.integrate(f.actor,s.ref)};
+}
+it("clear timed current change supersedes only the matching fact with automatic provenance",async()=>{
+ const f=fixture(),a=await integrate(f,"I prefer bash",1000),b=await integrate(f,"I now prefer cmd instead of bash",2000);
+ expect(b.result.items[0]).toMatchObject({status:"active",factId:a.result.items[0].factId,factRevision:2,reason:"clear-current-change"});
+ const fact=(await f.policy.recall(f.actor))[0];expect(fact).toMatchObject({assertion:"I now prefer cmd instead of bash",activationReason:"policyAccepted",policyVersion:"main-maintenance-v1",time:{validFrom:2000,validTo:null,referenceTime:2000}});
+ const history=f.repo.history("scope-a",fact.factId);expect(history).toHaveLength(2);expect(history[0].assertion).toBe("I prefer bash");expect(history[0].supersededAt).not.toBeNull();
+ expect((await f.policy.audit(f.actor,fact.factId)).supports.map(r=>r.factRevision).sort()).toEqual([1,2]);
+});
+it.each([
+ ["unknown-time","I now prefer cmd",undefined,1000],
+ ["unknown-prior-time","I now prefer cmd",2000,undefined],
+ ["out-of-order","我现在默认改用 cmd",500,1000],
+ ["out-of-order","I now use cmd",1000,1000],
+ ["future-effective","From 2099-01-01 I prefer cmd",2000,1000],
+ ["conflict","I prefer cmd",2000,1000],
+ ["change-old-mismatch","I now prefer cmd instead of PowerShell",2000,1000],
+])("%s remains candidate without arrival overwrite",async(reason,text,time,prior)=>{
+ const f=fixture();await integrate(f,"I prefer bash",prior as number|undefined);const b=await integrate(f,text as string,time as number|undefined);expect(b.result.items[0]).toMatchObject({status:"candidate",reason});expect(f.repo.current("scope-a")[0].assertion).toBe("I prefer bash");
+});
+it("work Python, personal Rust and additive abilities coexist without replacing values",async()=>{
+ const f=fixture();await integrate(f,"我工作用 Python，个人用 Rust",1000);await integrate(f,"I use Rust for work",2000);await integrate(f,"I know Python and Rust",3000);
+ const recall=await f.policy.recall(f.actor);expect(recall).toHaveLength(5);expect(new Set(recall.map(r=>r.subjectKey)).size).toBe(5);expect(recall.every(r=>r.revision===1)).toBe(true);
+ const duplicate=await integrate(f,"I use Python for work",4000);expect(duplicate.result.items[0].reason).toBe("duplicate-support");expect(await f.policy.recall(f.actor)).toHaveLength(5);
+});
+it("a work-context shell change leaves personal and default contexts intact",async()=>{
+ const f=fixture();await integrate(f,"I prefer bash",1000);await integrate(f,"I use bash for work",1000);await integrate(f,"I use PowerShell personally",1000);await integrate(f,"I now use cmd for work",2000);
+ const recall=await f.policy.recall(f.actor);expect(recall).toHaveLength(3);expect(recall.filter(r=>r.revision===2)).toHaveLength(1);expect(recall.filter(r=>r.revision===1)).toHaveLength(2);
+});
+it("explicit denial from integration enters review and preserves assertion history",async()=>{
+ const f=fixture(),a=await integrate(f,"I prefer bash",1000),b=await integrate(f,"I no longer use bash",2000);expect(b.result.items[0].status).toBe("pending-review");expect(await f.policy.recall(f.actor)).toEqual([]);expect(f.repo.history("scope-a",a.result.items[0].factId!)).toHaveLength(1);
+});
+it("queued automatic change cannot overrule a concurrent manual correction",async()=>{
+ const f=fixture();await integrate(f,"I prefer bash",1000);const s=await f.source("I now use cmd","direct-user-event","user","session-a",2000);
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);f.setHook(async c=>{if(c.kind==="integrate"){started();await gate}});
+ const late=f.policy.integrate(f.actor,s.ref);await ready;const old=f.repo.current("scope-a")[0],proof=await f.source("I prefer PowerShell");await f.policy.act(f.actor,await f.event("correct",{factId:old.factId,revision:1,sourceRef:proof.ref}));release();expect((await late).items[0]).toMatchObject({status:"candidate",reason:"stale-base"});expect(f.repo.current("scope-a")[0].assertion).toBe("I prefer PowerShell");
+});
+it("queued integration loses to forget and stores no evidence",async()=>{
+ const f=fixture();await integrate(f,"I prefer bash",1000);const s=await f.source("I now use cmd","direct-user-event","user","session-a",2000);
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);f.setHook(async c=>{if(c.kind==="integrate"){started();await gate}});const late=f.policy.integrate(f.actor,s.ref);await ready;const old=f.repo.current("scope-a")[0];await f.policy.act(f.actor,await f.event("forget",{factId:old.factId,revision:1}));const before=f.repo.readRows("evidence","scope-a").length;release();await expect(late).rejects.toThrow("MEMORY_POLICY_SUPPRESSED");expect(f.repo.readRows("evidence","scope-a")).toHaveLength(before);expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("integration rejects changed source at commit and cannot use unsupported predecessor",async()=>{
+ const f=fixture(),a=await integrate(f,"I prefer bash",1000);await f.registry.prepareChange(f.access,f.provider.adapter,a.s.ref);const b=await integrate(f,"I now use cmd",2000);expect(b.result.items[0]).toMatchObject({status:"candidate",reason:"prior-needs-review"});expect(f.repo.current("scope-a")[0].revision).toBe(1);
+});
+it("future provider occurrence cannot become active before its time",async()=>{
+ const f=fixture();const b=await integrate(f,"I prefer bash",Date.now()+86400000);expect(b.result.items[0]).toMatchObject({status:"candidate",reason:"future-source"});expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("secret integration is reason-only before worker body; source raw read remains manual",async()=>{
+ const f=fixture(),s=await f.source("I now prefer cmd refresh_token=SECRET_CANARY_B4","direct-user-event","user","session-a",1000),commands:unknown[]=[];f.setHook(async c=>{commands.push(c)});
+ expect((await f.policy.integrate(f.actor,s.ref)).items).toEqual([{status:"rejected",reason:"secret"}]);expect(JSON.stringify(commands)).not.toContain("SECRET_CANARY_B4");expect(f.repo.readRows("evidence","scope-a")).toEqual([]);expect(await f.registry.readEvidence(f.access,f.provider.adapter,s.ref)).toContain("SECRET_CANARY_B4");
+});
+it("occurrence edit increments source revision and invalidates old refs without guessing time",async()=>{
+ const f=fixture(),a=await integrate(f,"I prefer bash",1000);await f.registry.prepareChange(f.access,f.provider.adapter,a.s.ref);f.provider.write(a.s.id,{text:"I prefer bash",role:"user",trust:"direct-user-event",occurredAt:2000});const fresh=await f.registry.reconcile(f.access,f.provider.adapter,a.s.id);expect(fresh.revision).toBeGreaterThan(a.s.ref.revision);expect(await f.policy.recall(f.actor)).toEqual([]);await expect(f.policy.integrate(f.actor,a.s.ref)).rejects.toThrow("MEMORY_SOURCE_INVALID");await expect(f.registry.readEvidence(f.access,f.provider.adapter,a.s.ref)).rejects.toThrow("MEMORY_SOURCE_STALE");
+});
+
+it.each([
+ ["I prefer English","I now prefer Chinese","language"],
+ ["I prefer detailed responses","我现在偏好简洁回复","response-style"],
+ ["Call me Lin","Please now call me Alex 🐝","address"],
+])("clear change retains same attribute: %s -> %s",async(before,after)=>{
+ const f=fixture(),a=await integrate(f,before,1000),b=await integrate(f,after,2000);expect(b.result.items[0]).toMatchObject({status:"active",factId:a.result.items[0].factId,factRevision:2});expect(await f.policy.recall(f.actor)).toHaveLength(1);
+});
+it("concurrent clear changes admit one expected revision, no arrival overwrite",async()=>{
+ const f=fixture();await integrate(f,"I prefer bash",1000);const a=await f.source("I now use cmd","direct-user-event","user","session-a",2000),b=await f.source("I now use PowerShell","direct-user-event","user","session-a",3000);
+ let release!:()=>void,started!:()=>void,count=0;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);f.setHook(async c=>{if(c.kind==="integrate"){if(++count===2)started();await gate}});const pa=f.policy.integrate(f.actor,a.ref),pb=f.policy.integrate(f.actor,b.ref);await ready;release();const result=await Promise.all([pa,pb]);expect(result.flatMap(r=>r.items).filter(r=>r.reason==="clear-current-change")).toHaveLength(1);expect(result.flatMap(r=>r.items).filter(r=>r.reason==="stale-base")).toHaveLength(1);expect(f.repo.current("scope-a")[0].revision).toBe(2);
+});
+it("source edited during queued integration rejects every claim atomically",async()=>{
+ const f=fixture(),s=await f.source("我工作用 Python，个人用 Rust","direct-user-event","user","session-a",1000);let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);f.setHook(async c=>{if(c.kind==="integrate"){started();await gate}});const late=f.policy.integrate(f.actor,s.ref);await ready;await f.registry.prepareChange(f.access,f.provider.adapter,s.ref);release();await expect(late).rejects.toThrow("MEMORY_SOURCE_PENDING");expect(f.repo.current("scope-a")).toEqual([]);expect(f.repo.readRows("evidence","scope-a")).toEqual([]);
+});
+
+it.each(["integrate","ingest"] as const)("queued same-value %s cannot support a later manual revision",async method=>{
+ const f=fixture();await integrate(f,"I prefer bash",1000);const s=await f.source(method==="integrate"?"I now use cmd":"I prefer cmd","direct-user-event","user","session-a",2000);
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);f.setHook(async c=>{if(c.kind===method){started();await gate}});const late=f.policy[method](f.actor,s.ref);await ready;const old=f.repo.current("scope-a")[0],proof=await f.source("I prefer cmd");await f.policy.act(f.actor,await f.event("correct",{factId:old.factId,revision:1,sourceRef:proof.ref}));release();const result=await late,items="items" in result?result.items:[result];expect(items[0]).toMatchObject({status:"candidate",reason:"stale-base"});
+ await f.registry.prepareChange(f.access,f.provider.adapter,proof.ref);expect(await f.policy.recall(f.actor)).toEqual([]);expect((await f.policy.audit(f.actor,old.factId)).supports.filter(r=>r.factRevision===2)).toHaveLength(1);
+});
+it.each([undefined,500,1000])("same-value clear change cannot bypass time requirement: %s",async time=>{
+ const f=fixture();await integrate(f,"I prefer bash",1000);const b=await integrate(f,"I now use bash",time);expect(b.result.items[0]).toMatchObject({status:"candidate",reason:time===undefined?"unknown-time":"out-of-order"});expect((await f.policy.audit(f.actor,f.repo.current("scope-a")[0].factId)).supports).toHaveLength(1);
+});
+
+it("manual correction retains known provider time and never invents a recording-time reference",async()=>{
+ const f=fixture();await integrate(f,"I prefer bash",1000);const old=f.repo.current("scope-a")[0],proof=await f.source("I prefer cmd","direct-user-event","user","session-a",2000);await f.policy.act(f.actor,await f.event("correct",{factId:old.factId,revision:1,sourceRef:proof.ref}));expect(f.repo.current("scope-a")[0].time).toEqual({validFrom:null,validTo:null,referenceTime:2000});
+});
+it("Main capabilities and full-source binding remain mandatory for integration",async()=>{
+ const f=fixture(),s=await f.source("I prefer bash","direct-user-event","user","session-a",1000);await expect(f.policy.integrate({},s.ref)).rejects.toThrow("MEMORY_ACTOR_DENIED");await expect(f.policy.integrate(f.actor,{...s.ref,span:{start:0,end:4}})).rejects.toThrow("MEMORY_POLICY_FULL_SOURCE_REQUIRED");await expect(f.policy.integrate(f.actor,{...s.ref,binding:{...s.ref.binding,sessionId:"other"}})).rejects.toThrow("MEMORY_ACTOR_DENIED");expect(f.repo.current("scope-a")).toEqual([]);
+});
+it("worker re-parses claims and refuses forged attribute, context or subject payload",async()=>{
+ const f=fixture(),s=await f.source("I use Python for work","direct-user-event","user","session-a",1000);f.setHook(async c=>{if(c.kind==="integrate")c.body.extraction.claims[0].context="personal"});await expect(f.policy.integrate(f.actor,s.ref)).rejects.toThrow("MEMORY_INPUT_INVALID");expect(f.repo.current("scope-a")).toEqual([]);expect(f.repo.readRows("evidence","scope-a")).toEqual([]);
+});
+
+it.each(["ingest","integrate"] as const)("%s receipt survives new Main factory and never attaches old source to a new revision",async method=>{
+ const f=fixture(),s=await f.source("I prefer bash","direct-user-event","user","session-a",1000),first=await f.policy[method](f.actor,s.ref);const fact=f.repo.current("scope-a")[0],proof=await f.source("I prefer cmd","direct-user-event","user","session-a",2000);await f.policy.act(f.actor,await f.event("correct",{factId:fact.factId,revision:1,sourceRef:proof.ref}));f.reopen();
+ const fresh=createMainPolicy({registry:f.registry,transport:f.transport,resolveActor:()=>"opaque-human-a"}),actor=fresh.bindActor(f.access,f.provider.adapter,{providerId:"synthetic",sessionId:"session-a",messageId:"rebound"});expect(await fresh[method](actor,s.ref)).toEqual(first);expect((await fresh.audit(actor,fact.factId)).supports.filter(r=>r.factRevision===2)).toHaveLength(1);expect(f.repo.current("scope-a")[0].revision).toBe(2);
+});
+
+it("future occurrence stays candidate even through confirmation until its occurrence is current",async()=>{
+ const f=fixture(),a=await integrate(f,"I prefer bash",Date.now()+86400000),proof=await f.source("I confirm the selected preference");await expect(f.policy.act(f.actor,await f.event("confirm",{candidateId:a.result.items[0].candidateId,revision:1,sourceRef:proof.ref}))).rejects.toThrow("MEMORY_POLICY_FUTURE");expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("multi-claim transaction fault rolls back every fact, support and evidence; retry/reopen recovers",async()=>{
+ let armed=false;const f=fixture(stage=>{if(armed&&stage==="before-receipt"){expect(f.repo.current("scope-a")).toHaveLength(2);throw new Error("INJECTED_MULTI_FAULT")}}),s=await f.source("我工作用 Python，个人用 Rust","direct-user-event","user","session-a",1000);f.setHook(async c=>{if(c.kind==="integrate")armed=true});await expect(f.policy.integrate(f.actor,s.ref)).rejects.toThrow("INJECTED_MULTI_FAULT");expect(f.repo.current("scope-a")).toEqual([]);expect(f.repo.readRows("evidence","scope-a")).toEqual([]);expect(f.repo.readRows("candidates","scope-a")).toEqual([]);armed=false;f.setHook(undefined);const first=await f.policy.integrate(f.actor,s.ref);expect(first.items).toHaveLength(2);f.reopen();expect(await f.policy.recall(f.actor)).toHaveLength(2);expect(await f.policy.integrate(f.actor,s.ref)).toEqual(first);
+});
+
+it("old ingest cannot activate or confirm a future occurrence",async()=>{
+ const f=fixture(),s=await f.source("I prefer bash","direct-user-event","user","session-a",Date.now()+86400000),candidate=await f.policy.ingest(f.actor,s.ref);expect(candidate).toMatchObject({status:"candidate",reason:"future-source"});const proof=await f.source("I confirm this selected preference");await expect(f.policy.act(f.actor,await f.event("confirm",{candidateId:candidate.candidateId,revision:1,sourceRef:proof.ref}))).rejects.toThrow("MEMORY_POLICY_FUTURE");expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it.each(["confirmFact","deny"])("a future source cannot authorize %s on a current fact",async kind=>{
+ const f=fixture(),a=await f.input("I prefer bash"),proof=await f.source("This selected preference is correct","direct-user-event","user","session-a",Date.now()+86400000);await expect(f.policy.act(f.actor,await f.event(kind,{factId:a.result.factId,revision:1,sourceRef:proof.ref}))).rejects.toThrow("MEMORY_POLICY_FUTURE");expect((await f.policy.audit(f.actor,a.result.factId!)).supports).toHaveLength(1);expect((await f.policy.audit(f.actor,a.result.factId!)).reviews).toEqual([]);
+});
+it("old ingest future same-value source cannot preserve recall after original becomes pending",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash"),s=await f.source("I prefer bash","direct-user-event","user","session-a",Date.now()+86400000);expect(await f.policy.ingest(f.actor,s.ref)).toMatchObject({status:"candidate",reason:"future-source"});await f.registry.prepareChange(f.access,f.provider.adapter,a.s.ref);expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+
+it("future confirmation proof rolls back candidate activation",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash","history"),proof=await f.source("I confirm this preference","direct-user-event","user","session-a",Date.now()+86400000);await expect(f.policy.act(f.actor,await f.event("confirm",{candidateId:a.result.candidateId,revision:1,sourceRef:proof.ref}))).rejects.toThrow("MEMORY_POLICY_FUTURE");expect(f.repo.current("scope-a")).toEqual([]);expect((await f.policy.candidates(f.actor,{limit:10})).items).toHaveLength(1);
+});
+it("future manual correction and remember roll back revisions and suppression advancement",async()=>{
+ const f=fixture(),a=await f.input("I prefer bash"),future=await f.source("I prefer cmd","direct-user-event","user","session-a",Date.now()+86400000);await expect(f.policy.act(f.actor,await f.event("correct",{factId:a.result.factId,revision:1,sourceRef:future.ref}))).rejects.toThrow("MEMORY_POLICY_FUTURE");expect(f.repo.current("scope-a")[0].revision).toBe(1);
+ await f.policy.act(f.actor,await f.event("forget",{factId:a.result.factId,revision:1}));const fresh=await f.source("I prefer cmd","direct-user-event","user","session-a",Date.now()+86400000);await expect(f.policy.act(f.actor,await f.event("remember",{sourceRef:fresh.ref}))).rejects.toThrow("MEMORY_POLICY_FUTURE");expect(f.repo.current("scope-a")).toEqual([]);const current=await f.source("I prefer cmd");expect(await f.policy.act(f.actor,await f.event("remember",{sourceRef:current.ref}))).toMatchObject({status:"active"});expect(await f.policy.recall(f.actor)).toHaveLength(1);
+});
+
+it("revise cannot erase future source time then activate through live confirmation",async()=>{
+ const f=fixture(),s=await f.source("I prefer bash","direct-user-event","user","session-a",Date.now()+86400000),candidate=await f.policy.ingest(f.actor,s.ref);const revised=await f.policy.act(f.actor,await f.event("revise",{candidateId:candidate.candidateId,revision:1,sourceRef:s.ref})),proof=await f.source("I confirm this preference");expect(revised.candidateRevision).toBe(2);await expect(f.policy.act(f.actor,await f.event("confirm",{candidateId:candidate.candidateId,revision:2,sourceRef:proof.ref}))).rejects.toThrow("MEMORY_POLICY_FUTURE");expect(f.repo.current("scope-a")).toEqual([]);
 });

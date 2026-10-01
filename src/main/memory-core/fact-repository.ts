@@ -124,13 +124,17 @@ export class FactRepository {
      return{id,revision:1};
     }
     case "correctFact":{
-     const body=objectFields(command.body,["factId","expectedRevision","sourceRef","fact"]),id=parseInternalId(body.factId),expected=positiveRevision(body.expectedRevision),sourceRef=parseSourceRef(body.sourceRef),fact=parseFact(body.fact);
+     const body=objectFields(command.body,["factId","expectedRevision","sourceRef","fact"],["policyVersion"]),id=parseInternalId(body.factId),expected=positiveRevision(body.expectedRevision),sourceRef=parseSourceRef(body.sourceRef),fact=parseFact(body.fact);
      const previous=this.projection(scope,id).view;if(previous.revision!==expected)throw new Error("MEMORY_REVISION_CONFLICT");
      if(this.source(scope,sourceRef).kind!=="user")throw new Error("MEMORY_ACCESS_DENIED");
      if(fact.subjectKey!==previous.subjectKey&&suppression.subjectBlocked(scope,fact.subjectKey))throw new Error("MEMORY_SUBJECT_SUPPRESSED");
      const index=this.subjectIndex(fact.subjectKey),conflict=this.db.prepare("SELECT id FROM current_facts WHERE scope_key=? AND subject_index=? AND state='active' AND id<>?").get(scope,index,id);
      if(conflict)throw new Error("MEMORY_FACT_CONFLICT");
-     const target=this.row("current_facts",scope,id)!.parent_id as string,at=Date.now(),view:FactView={...fact,factId:id,revision:expected+1,sourceRef,recordedAt:at,acceptedAt:at,supersededAt:null,activationReason:"explicitUserConfirmed",policyVersion:null,provenance:{candidateId:null,evidenceId:null,activationSourceRef:sourceRef}};
+     if(body.policyVersion!==undefined){
+      const observation=new SourceLedger(this.db,this.key).assertCurrent(scope,sourceRef)?.published;
+      if(body.policyVersion!=="main-maintenance-v1"||observation?.role!=="user"||observation.trust!=="direct-user-event"||fact.assertionKind!=="user-statement"||fact.subjectKey!==previous.subjectKey)throw new Error("MEMORY_ACTIVATION_DENIED");
+     }
+     const target=this.row("current_facts",scope,id)!.parent_id as string,at=Date.now(),view:FactView={...fact,factId:id,revision:expected+1,sourceRef,recordedAt:at,acceptedAt:at,supersededAt:null,activationReason:body.policyVersion===undefined?"explicitUserConfirmed":"policyAccepted",policyVersion:typeof body.policyVersion==="string"?body.policyVersion:null,provenance:{candidateId:null,evidenceId:null,activationSourceRef:sourceRef}};
      this.lifecycle(scope,previous,target,"supersession",at);
      const revisionId=this.appendRevision(scope,view);
      this.db.prepare("UPDATE current_facts SET revision=?,source_id=?,parent_id=?,subject_index=?,payload=? WHERE id=? AND scope_key=?").run(view.revision,sourceRef.sourceId,revisionId,index,this.seal("current_facts",scope,id,{view,visibility:"active"}),id,scope);

@@ -3,7 +3,7 @@ import {parseInternalId} from "../memory-core/command-validation";
 
 export interface SourceSnapshot extends SourceIdentity {
  contentRevision:number;generation:string;state:"live"|"deleted";
- role:SourceRole;trust:SourceTrust;text:string;
+ role:SourceRole;trust:SourceTrust;text:string;occurredAt?:number;
 }
 export interface MainSourceProvider {
  providerId:string;

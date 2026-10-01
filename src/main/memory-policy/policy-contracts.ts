@@ -1,5 +1,7 @@
 import type {BoundSourceRef} from "../../shared/memory-contracts";
 import type {Extraction,Attribute} from "./extractor";
+export interface IntegrationResult {items:PolicyOutcome[]}
+export interface PolicyBaseline {factId:string;revision:number;subjectKey:string}
 /** Private worker/Main contracts, never renderer DTOs. */
 export interface PolicyTransport {policyCommand(value:unknown):Promise<unknown>}
 export interface PolicyOutcome {status:"candidate"|"active"|"rejected"|"suppressed"|"forgotten"|"pending-review";reason?:string;candidateId?:string;candidateRevision?:number;factId?:string;factRevision?:number}

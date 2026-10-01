@@ -1,3 +1,4 @@
+import {extractMaintenance,MAINTENANCE_VERSION} from "./maintenance-extractor";
 import {createHash,randomUUID} from "node:crypto";
 import type {SourceRef,BoundSourceRef} from "../../shared/memory-contracts";
 import {objectFields,parseInternalId,parseSourceRef,positiveRevision} from "../memory-core/command-validation";
@@ -48,12 +49,21 @@ export function createMainPolicy(options:{registry:ReturnType<typeof createMainS
    parseInternalId(actorKey);const token=Object.freeze({});
    actors.set(token,{access,adapter,scopeKey,actorKey,providerId:identity.providerId,sessionId:identity.sessionId});return token;
   },
+  async integrate(token:object,value:BoundSourceRef):Promise<import("./policy-contracts").IntegrationResult> {
+   const actor=actorContext(token),ref=boundSource(actor,value);
+   const generation=await command<number>(actor,"generation",{});
+   const baseline=await command<import("./policy-contracts").PolicyBaseline[]>(actor,"baseline",{});
+   const extraction=extractMaintenance(await read(actor,ref));
+   const intent={sourceRef:ref,generation,extraction,policyVersion:MAINTENANCE_VERSION};
+   return command(actor,"integrate",{...intent,baseline},"policy-integrate-"+digest({scope:actor.scopeKey,actor:actor.actorKey,...intent}));
+  },
   async ingest(token:unknown,value:SourceRef):Promise<PolicyOutcome> {
    const actor=actorContext(token),ref=boundSource(actor,value);
    const generation=await command<number>(actor,"generation",{});
+   const baseline=await command<import("./policy-contracts").PolicyBaseline[]>(actor,"baseline",{});
    const extraction=extractPreference(await read(actor,ref));
-   const body={sourceRef:ref,generation,extraction,policyVersion:POLICY_VERSION};
-   return command(actor,"ingest",body,"policy-ingest-"+digest({scope:actor.scopeKey,actor:actor.actorKey,...body}));
+   const intent={sourceRef:ref,generation,extraction,policyVersion:POLICY_VERSION};
+   return command(actor,"ingest",{...intent,baseline},"policy-ingest-"+digest({scope:actor.scopeKey,actor:actor.actorKey,...intent}));
   },
   async event(token:object,value:unknown):Promise<object> {
    const actor=actorContext(token),base=objectFields(value,["kind","nonce"],["candidateId","factId","revision","sourceRef"]);

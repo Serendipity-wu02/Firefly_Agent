@@ -1,4 +1,4 @@
-export type Attribute = "shell" | "language" | "response-style" | "address" | "unclassified";
+export type Attribute = "shell" | "language" | "response-style" | "address" | "programming-usage" | "programming-ability" | "unclassified";
 export type Extraction = {kind:"rejected";reason:"secret"} | {kind:"direct"|"candidate";attribute:Attribute;value:string|null;reason:string;text:string};
 /** Deliberately small grammar. It neither calls a model nor grants source trust. */
 export function extractPreference(text:string):Extraction {

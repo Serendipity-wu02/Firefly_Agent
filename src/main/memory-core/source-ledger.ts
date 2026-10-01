@@ -13,13 +13,14 @@ export function parseSourceIdentity(value:unknown):SourceIdentity {
  return {providerId:parseInternalId(v.providerId),sessionId:parseInternalId(v.sessionId),messageId:parseInternalId(v.messageId)};
 }
 export function parseSourceObservation(value:unknown):SourceObservation {
- const v=objectFields(value,["providerId","sessionId","messageId","contentRevision","generation","state","role","trust","fingerprint"]);
+ const v=objectFields(value,["providerId","sessionId","messageId","contentRevision","generation","state","role","trust","fingerprint"],["occurredAt"]);
  const identity=parseSourceIdentity({providerId:v.providerId,sessionId:v.sessionId,messageId:v.messageId});
+ if(v.occurredAt!==undefined&&(!Number.isSafeInteger(v.occurredAt)||(v.occurredAt as number)<0))throw new Error("MEMORY_TIME_INVALID");
  if(!["live","deleted"].includes(v.state as string)||!["user","assistant","system"].includes(v.role as string)
   ||!["direct-user-event","history","imported","model","system"].includes(v.trust as string)
   ||typeof v.fingerprint!=="string"||!/^[a-f0-9]{64}$/.test(v.fingerprint))throw new Error("MEMORY_SOURCE_INVALID");
  return {...identity,contentRevision:positiveRevision(v.contentRevision),generation:parseInternalId(v.generation),
-  state:v.state as SourceObservation["state"],role:v.role as SourceObservation["role"],trust:v.trust as SourceObservation["trust"],fingerprint:v.fingerprint};
+  state:v.state as SourceObservation["state"],role:v.role as SourceObservation["role"],trust:v.trust as SourceObservation["trust"],fingerprint:v.fingerprint,...(v.occurredAt!==undefined?{occurredAt:v.occurredAt as number}:{})};
 }
 function referenceIdentity(ref:SourceRef):string {
  const {span,...identity}=parseSourceRef(ref);return canonicalJson(identity);

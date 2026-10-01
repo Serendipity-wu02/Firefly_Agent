@@ -6,6 +6,8 @@ export type SourceTrust="direct-user-event"|"history"|"imported"|"model"|"system
 export interface SourceObservation extends SourceIdentity {
  contentRevision:number;generation:string;state:"live"|"deleted";
  role:SourceRole;trust:SourceTrust;fingerprint:string;
+ /** Provider-owned event time; absent remains unknown. */
+ occurredAt?:number;
 }
 export interface SourceHead {
  sourceId:string;identity:SourceIdentity;state:"ready"|"pending"|"deleted";

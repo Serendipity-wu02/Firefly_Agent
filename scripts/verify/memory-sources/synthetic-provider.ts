@@ -29,9 +29,9 @@ export class SyntheticSourceProvider {
  }
  private save(){fs.mkdirSync(path.dirname(this.file),{recursive:true});const staging=this.file+".tmp";fs.writeFileSync(staging,JSON.stringify(this.entries));fs.renameSync(staging,this.file)}
  private mutable(identity:SourceIdentity):string {const id=canonicalJson(identity);if(this.leases.has(id)&&!this.racing)throw new Error("SYNTHETIC_LEASE_BUSY");return id}
- write(identity:SourceIdentity,content:{text:string;role:SourceRole;trust:SourceTrust}){
+ write(identity:SourceIdentity,content:{text:string;role:SourceRole;trust:SourceTrust;occurredAt?:number}){
   const id=this.mutable(identity),old=this.entries[id],fresh=!old||old.state==="deleted";
-  const unchanged=old&&old.state==="live"&&old.text===content.text&&old.role===content.role&&old.trust===content.trust;
+  const unchanged=old&&old.state==="live"&&old.text===content.text&&old.role===content.role&&old.trust===content.trust&&old.occurredAt===content.occurredAt;
   this.entries[id]={...identity,...content,state:"live",generation:fresh?randomUUID():old.generation,contentRevision:fresh?1:unchanged?old.contentRevision:old.contentRevision+1};this.save();
  }
  remove(identity:SourceIdentity){const id=this.mutable(identity),old=this.entries[id];if(!old)throw new Error("SYNTHETIC_NOT_FOUND");this.entries[id]={...old,text:"",state:"deleted",contentRevision:old.contentRevision+1};this.save()}
