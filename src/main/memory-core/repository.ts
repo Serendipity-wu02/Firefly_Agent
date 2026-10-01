@@ -5,6 +5,7 @@ import {JobRepository} from "./jobs";
 import {SourceLedger} from "./source-ledger";
 import {FactRepository} from "./fact-repository";
 import {PolicyRepository} from "../memory-policy/policy-repository";
+import {ContextRepository} from "../memory-context/context-repository";
 import {executeTransaction} from "./command-transactions";
 import {DatabaseSync} from "node:sqlite";
 import {ensureDatabaseAuth} from "./database-auth";
@@ -28,6 +29,7 @@ export class MemoryRepository {
  }
  jobCommand(command:unknown):unknown{this.assertOpen();return new JobRepository(this.db,this.key,this.clock,this.fault).execute(command)}
  policyCommand(command:unknown):unknown{this.assertOpen();return new PolicyRepository(this.db,this.key,this.fault).execute(command)}
+ contextCommand(command:unknown):unknown{this.assertOpen();return new ContextRepository(this.db,this.key,this.fault).execute(command)}
  sourceCommand(command:unknown):unknown{this.assertOpen();return new SourceLedger(this.db,this.key,this.fault).execute(command)}
  execute(command:unknown):import("../../shared/memory-contracts").MutationResult{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).execute(command)}
  current(scope:string):import("../../shared/memory-contracts").FactView[]{this.assertOpen();return new FactRepository(this.db,this.key,this.fault).current(scope)}

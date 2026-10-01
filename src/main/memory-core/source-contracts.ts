@@ -14,5 +14,7 @@ export interface SourceHead {
  ref:BoundSourceRef|null;published:SourceObservation|null;operationId:string|null;
  /** Main capture generation, retained for unchanged content; older B1 heads omit it. */
  captureSuppressionGeneration?:number;observedSuppressionGeneration?:number;
+ /** Original locator epoch; editing/recapturing history does not create a new user event. */
+ firstObservedSuppressionGeneration?:number;
 }
 export interface SourceLedgerTransport {sourceCommand(command:unknown):Promise<unknown>}

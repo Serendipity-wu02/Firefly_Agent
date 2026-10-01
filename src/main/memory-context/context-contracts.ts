@@ -10,7 +10,9 @@ export interface ContextUnit {id:string;kind:"recent"|"summary";messages:Context
 export interface BudgetInput {counter:TokenCounter;budget:ContextBudget;units:ContextUnit[];prepare:(units:ContextUnit[])=>PreparedRequest;prepareS:(units:ContextUnit[])=>PreparedRequest;signal?:AbortSignal}
 export interface BudgetResult {request:PreparedRequest;requestDigest:string;selectedIds:string[];promptTokens:number;sTokens:number;inputLimit:number;counterIdentity:RequestIdentity}
 export interface FactDependency {factId:string;revision:number}
-export interface SourceDependency {sourceRef:BoundSourceRef;subjectKeys:string[]|null;derivedRefs:BoundSourceRef[]|null}
+export interface SourceDependency {sourceRef:BoundSourceRef;subjectKeys:string[]|null;derivedRefs:BoundSourceRef[]|null;excludeReason?:"secret"}
+export interface ContextTransport {contextCommand(command:unknown):Promise<unknown>}
+export interface TranscriptDependency {headId:string;revision:number;digest:string}
 /** Error text is always a reason code, never a provider/body payload. */
 export class ContextError extends Error {constructor(readonly code:string){super(code);this.name="ContextError"}}
 export function contextFail(code:string):never {throw new ContextError(code)}

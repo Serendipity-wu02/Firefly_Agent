@@ -193,7 +193,7 @@ it("an existing automatic origin cannot masquerade as independent confirmation",
 it("real v5 automatic provenance bootstraps, unverifiable legacy confirmation stays pending",async()=>{
  const f=fixture(),automatic=await f.input("I prefer bash"),candidate=await f.input("I prefer English","history");
  const confirmed=await f.policy.act(f.actor,await f.event("confirm",{candidateId:candidate.result.candidateId,revision:1}));
- f.repo.close();const db=new DatabaseSync(path.join(f.root,"memory.sqlite"));db.exec("DROP TABLE fact_supports; DROP TABLE fact_reviews; PRAGMA user_version=5");db.close();f.reopen();
+ f.repo.close();const db=new DatabaseSync(path.join(f.root,"memory.sqlite"));db.exec("DROP TABLE context_records; DROP TABLE fact_supports; DROP TABLE fact_reviews; PRAGMA user_version=5");db.close();f.reopen();
  expect((await f.policy.recall(f.actor)).map(r=>r.factId)).toEqual([automatic.result.factId]);
  expect((await f.policy.audit(f.actor,confirmed.factId!)).status).toBe("pending-review");expect(f.repo.current("scope-a")).toHaveLength(2);
  const proof=await f.source("I confirm the selected preference again");await f.policy.act(f.actor,await f.event("confirmFact",{factId:confirmed.factId,revision:1,sourceRef:proof.ref}));

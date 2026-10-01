@@ -27,6 +27,7 @@ function generation(value:unknown):number {
 function subject(actor:string,attribute:Attribute,context:ContextKey="default",cardinality:"one"|"many"="one",value:string|null=null):string {
  return "actor-attribute-"+createHash("sha256").update(canonicalJson({actor,attribute,...(context!=="default"?{context}:{}),...(cardinality==="many"?{cardinality,value}:{})})).digest("hex");
 }
+export {subject as policySubjectKey};
 function extraction(value:unknown):Extraction {
  const base=objectFields(value,["kind","reason"],["attribute","value","text"]);
  if(base.kind==="rejected"){objectFields(value,["kind","reason"]);if(base.reason!=="secret")throw new Error("MEMORY_INPUT_INVALID");return {kind:"rejected",reason:"secret"};}
@@ -48,6 +49,12 @@ export class PolicyRepository {
  constructor(private readonly db:DatabaseSync,private readonly key:Uint8Array,private readonly fault?:TransactionFault) {
   this.codec=new RecordCodec(key);this.suppression=new Suppression(db,key);this.ledger=new SourceLedger(db,key);this.facts=new FactRepository(db,key,fault);
   this.supports=new FactSupports(db,key);
+ }
+ /** Context worker reuses policy eligibility in its own transaction; no nested BEGIN. */
+ eligibleFactsWithinTransaction(scope:string,actor:string):import("../../shared/memory-contracts").FactView[] {
+  if(!this.db.isTransaction)throw new Error("MEMORY_TRANSACTION_REQUIRED");
+  const owners=this.records(scope).filter(r=>r.actorKey===actor&&r.factId!==null);
+  return this.facts.current(scope).filter(f=>owners.some(r=>r.factId===f.factId)&&this.supports.audit(scope,actor,f.factId,f).status==="eligible");
  }
  private records(scope:string):Candidate[] {
   return this.db.prepare("SELECT id,revision,payload FROM policy_records WHERE scope_key=? ORDER BY id").all(scope).map(row=>{
@@ -181,7 +188,7 @@ export class PolicyRepository {
     const owners=this.records(scope).filter(r=>r.actorKey===actor&&r.factId!==null),facts=this.facts.current(scope);
     let result:unknown;
     if(cmd.kind==="audit"){const id=parseInternalId(input.factId);if(!owners.some(r=>r.factId===id))throw new Error("MEMORY_FACT_NOT_FOUND");result=this.supports.audit(scope,actor,id,facts.find(f=>f.factId===id));}
-    else result=facts.filter(f=>owners.some(r=>r.factId===f.factId)&&this.supports.audit(scope,actor,f.factId,f).status==="eligible");
+    else result=this.eligibleFactsWithinTransaction(scope,actor);
     this.db.exec("COMMIT");return result;
    }catch(error){this.db.exec("ROLLBACK");throw error}
   }

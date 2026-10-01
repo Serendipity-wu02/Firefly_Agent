@@ -30,7 +30,7 @@ function evidence(text:string,ref:SourceRef,quote?:string):string {
  if(quote!==undefined&&result!==quote)throw new Error("MEMORY_SOURCE_QUOTE_MISMATCH");return result;
 }
 /** Isolated Main registry. No production chats adapter, policy or IPC is installed. */
-export function createMainSourceRegistry(transport:SourceLedgerTransport){
+export function createMainSourceRegistry(transport:SourceLedgerTransport,options:{coordinate?:<T>(operation:()=>Promise<T>|T)=>Promise<T>}={}){
  const mirror=new Map<string,{scope:string;ref:BoundSourceRef;snapshot:SourceSnapshot}>();
  function resolveVerifiedSource(value:SourceRef):VerifiedSource {
   const ref=parseSourceRef(value),entry=mirror.get(ref.sourceId);
@@ -76,5 +76,10 @@ export function createMainSourceRegistry(transport:SourceLedgerTransport){
   if(refKey(ref)!==refKey(fresh))throw new Error("MEMORY_SOURCE_STALE");
   return evidence(mirror.get(fresh.sourceId)!.snapshot.text,ref,quote);
  }
- return {authority,capture,prepareChange,reconcile,readEvidence,resolveVerifiedSource};
+ const coordinate=options.coordinate??(<T>(operation:()=>Promise<T>|T)=>Promise.resolve().then(operation));
+ return {authority,coordinator:options.coordinate,
+  capture:(...args:Parameters<typeof capture>)=>coordinate(()=>capture(...args)),
+  prepareChange:(...args:Parameters<typeof prepareChange>)=>coordinate(()=>prepareChange(...args)),
+  reconcile:(...args:Parameters<typeof reconcile>)=>coordinate(()=>reconcile(...args)),
+  readEvidence:(...args:Parameters<typeof readEvidence>)=>coordinate(()=>readEvidence(...args)),resolveVerifiedSource};
 }

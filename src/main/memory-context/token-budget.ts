@@ -36,7 +36,7 @@ async function count(counter:TokenCounter,request:PreparedRequest,signal?:AbortS
  let result:number;try{result=await counter.count(request)}catch{contextFail("MEMORY_CONTEXT_COUNT_FAILED")}
  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");if(!Number.isSafeInteger(result)||result<0)contextFail("MEMORY_CONTEXT_COUNT_FAILED");return result;
 }
-function validateUnit(unit:ContextUnit):void {
+export function validateUnit(unit:ContextUnit):void {
  if(!unit||typeof unit.id!=="string"||!unit.id||!["recent","summary"].includes(unit.kind)||!Array.isArray(unit.messages)||!unit.messages.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
  const pending=new Set<string>(),seen=new Set<string>();
  for(const message of unit.messages){

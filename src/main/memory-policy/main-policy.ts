@@ -1,5 +1,6 @@
 import {extractMaintenance,MAINTENANCE_VERSION} from "./maintenance-extractor";
 import {createHash,randomUUID} from "node:crypto";
+import {createMainActorAuthority} from "../memory-core/main-actor-authority";
 import type {SourceRef,BoundSourceRef} from "../../shared/memory-contracts";
 import {objectFields,parseInternalId,parseSourceRef,positiveRevision} from "../memory-core/command-validation";
 import {requireMainAccess} from "../memory-core/main-access";
@@ -19,11 +20,11 @@ interface Event {actor:object;body:PolicyEvent}
 interface Cursor {actor:object;generation:number;after:string}
 
 /** Main-only synthetic seam. No renderer, IPC or production user ingress imports it. */
-export function createMainPolicy(options:{registry:ReturnType<typeof createMainSourceRegistry>;transport:PolicyTransport;resolveActor:(scope:string,identity:SourceIdentity)=>string|null}) {
- const actors=new WeakMap<object,Actor>(),events=new WeakMap<object,Event>(),cursors=new WeakMap<object,Cursor>();
+export function createMainPolicy(options:{registry:ReturnType<typeof createMainSourceRegistry>;transport:PolicyTransport;resolveActor:(scope:string,identity:SourceIdentity)=>string|null;actorAuthority?:import("../memory-core/main-actor-authority").MainActorAuthority}) {
+ const actorAuthority=options.actorAuthority??createMainActorAuthority({resolveActor:options.resolveActor});
+ const events=new WeakMap<object,Event>(),cursors=new WeakMap<object,Cursor>();
  function actorContext(value:unknown):Actor {
-  const actor=value&&typeof value==="object"?actors.get(value):undefined;
-  if(!actor)throw new Error("MEMORY_ACTOR_DENIED");return actor;
+  return actorAuthority.requireActor(value);
  }
  function boundSource(actor:Actor,value:unknown):BoundSourceRef {
   const ref=parseSourceRef(value);
@@ -32,7 +33,8 @@ export function createMainPolicy(options:{registry:ReturnType<typeof createMainS
   requireMainAccess(actor.access).verifySource(ref);return ref as BoundSourceRef;
  }
  async function command<T>(actor:Actor,kind:string,body:unknown,commandId?:string):Promise<T> {
-  return options.transport.policyCommand({kind,scopeKey:actor.scopeKey,...(commandId?{commandId}:{}),body:{actorKey:actor.actorKey,...body as object}}) as Promise<T>;
+  const execute=()=>options.transport.policyCommand({kind,scopeKey:actor.scopeKey,...(commandId?{commandId}:{}),body:{actorKey:actor.actorKey,...body as object}});
+  return (options.actorAuthority?actorAuthority.coordinate(execute):execute()) as Promise<T>;
  }
  async function read(actor:Actor,ref:BoundSourceRef):Promise<string> {
   return options.registry.readEvidence(actor.access,actor.adapter,ref);
@@ -42,12 +44,7 @@ export function createMainPolicy(options:{registry:ReturnType<typeof createMainS
   async audit(token:object,factId:string):Promise<SupportAudit>{return command(actorContext(token),"audit",{factId:parseInternalId(factId)})},
   async reconcileSupports(token:object):Promise<unknown>{const actor=actorContext(token);return command(actor,"reconcileSupports",{generation:await command<number>(actor,"generation",{})},randomUUID())},
   bindActor(access:object,adapter:object,value:SourceIdentity):object {
-   const scopeKey=requireMainAccess(access).scopeKey,identity=parseSourceIdentity(value);
-   requireMainSourceProvider(adapter,scopeKey,identity);
-   const actorKey=options.resolveActor(scopeKey,identity);
-   if(typeof actorKey!=="string"||!actorKey)throw new Error("MEMORY_ACTOR_DENIED");
-   parseInternalId(actorKey);const token=Object.freeze({});
-   actors.set(token,{access,adapter,scopeKey,actorKey,providerId:identity.providerId,sessionId:identity.sessionId});return token;
+   return actorAuthority.bindActor(access,adapter,value);
   },
   async integrate(token:object,value:BoundSourceRef):Promise<import("./policy-contracts").IntegrationResult> {
    const actor=actorContext(token),ref=boundSource(actor,value);
