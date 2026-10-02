@@ -1,4 +1,5 @@
 import {requireMainAccess} from "./main-access";
+import {randomUUID} from "node:crypto";
 import {parseInternalId} from "./command-validation";
 import {parseSourceIdentity} from "./source-ledger";
 import type {SourceIdentity} from "./source-contracts";
@@ -15,6 +16,6 @@ export function createMainActorAuthority(options:{resolveActor:(scope:string,ide
   const sessionMode=settings.sessionMode??"persistent";if(!["persistent","temporary"].includes(sessionMode))throw new Error("MEMORY_ACTOR_DENIED");
   const token=Object.freeze({});actors.set(token,Object.freeze({access,adapter,scopeKey,actorKey,providerId:identity.providerId,sessionId:identity.sessionId,sessionMode}));return token;
  }
- return {coordinate,requireActor,bindActor};
+ return Object.freeze({coordinate,requireActor,bindActor,bootId:randomUUID()});
 }
 export type MainActorAuthority=ReturnType<typeof createMainActorAuthority>;

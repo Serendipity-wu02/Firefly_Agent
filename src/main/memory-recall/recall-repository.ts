@@ -8,14 +8,21 @@ import {canonicalJson} from "../memory-core/repository-types";
 import {Suppression} from "../memory-core/suppression";
 import {PolicyRepository} from "../memory-policy/policy-repository";
 import {FactSupports} from "../memory-policy/fact-supports";
-import {calculateStrength,initializeStrength,transitionPolicy,validateRecallPolicy,DEFAULT_RECALL_POLICY} from "./recall-decay";
-import {recallFail,type RecallPolicy,type RecallState,type RecallFactRef,type RecallProtection,type StrengthState} from "./recall-contracts";
+import {calculateStrength,initializeStrength,transitionPolicy,validateRecallPolicy,refreshStrength,isArchiveCandidate,DEFAULT_RECALL_POLICY} from "./recall-decay";
+import {recallFail,type RecallPolicy,type RecallState,type RecallFactRef,type RecallProtection,type StrengthState,type RecallAction,type RecallPreview} from "./recall-contracts";
 
 interface PolicyRecord {id:string;actorKey:string;revision:number;configuredAt:number;policy:RecallPolicy}
 function natural(value:unknown):number{if(!Number.isSafeInteger(value)||(value as number)<0)recallFail("MEMORY_RECALL_STATE_INVALID");return value as number}
 function strength(s:StrengthState):StrengthState{return {lastAccessAt:s.lastAccessAt,decayAnchorAt:s.decayAnchorAt,lastCalculatedAt:s.lastCalculatedAt,strengthAtLastCalculation:s.strengthAtLastCalculation}}
 function opaque(kind:string,values:unknown):string{return "recall-"+kind+"-"+createHash("sha256").update(canonicalJson(values)).digest("hex")}
 function refs(value:unknown):RecallFactRef[]{if(!Array.isArray(value)||value.length>200)recallFail("MEMORY_RECALL_INPUT_INVALID");const result=value.map(raw=>{const r=objectFields(raw,["factId","revision"]);return {factId:parseInternalId(r.factId),revision:positiveRevision(r.revision)}});if(new Set(result.map(r=>canonicalJson(r))).size!==result.length)recallFail("MEMORY_RECALL_INPUT_INVALID");return result}
+function action(value:unknown):RecallAction{if(!["archive","restore","pin","unpin","maintenance"].includes(value as string))recallFail("MEMORY_RECALL_INPUT_INVALID");return value as RecallAction}
+function preview(value:unknown):RecallPreview{
+ const p=objectFields(value,["action","generation","policyVersion","policyRevision","expiresAt","targets","requiredFactRefs","candidates","mode"]);
+ if(!Array.isArray(p.targets)||p.targets.length>200||!["disabled","dry-run","enabled"].includes(p.mode as string))recallFail("MEMORY_RECALL_INPUT_INVALID");
+ const targets=p.targets.map(raw=>{const r=objectFields(raw,["factId","revision","projectionRevision","visibilityRevision"]);return {factId:parseInternalId(r.factId),revision:positiveRevision(r.revision),projectionRevision:positiveRevision(r.projectionRevision),visibilityRevision:natural(r.visibilityRevision)}});refs(targets.map(({factId,revision})=>({factId,revision})));
+ return {action:action(p.action),generation:natural(p.generation),policyVersion:parseInternalId(p.policyVersion),policyRevision:positiveRevision(p.policyRevision),expiresAt:natural(p.expiresAt),targets,requiredFactRefs:refs(p.requiredFactRefs),candidates:natural(p.candidates),mode:p.mode as RecallPreview["mode"]};
+}
 
 /** Worker-only recall projection. It cannot mutate fact truth or support records. */
 export class RecallRepository {
@@ -58,10 +65,10 @@ export class RecallRepository {
  }
  execute(value:unknown):unknown{
   const c=objectFields(value,["kind","scopeKey","body"],["commandId"]),scope=parseInternalId(c.scopeKey),identity=["actorKey","providerId","sessionId","bootId"];
-  const b=objectFields(c.body,identity,["factRefs","policy"]),actor=parseInternalId(b.actorKey);for(const k of identity)parseInternalId(b[k]);
-  if(!["rank","metadata","configure"].includes(c.kind as string))recallFail("MEMORY_RECALL_INPUT_INVALID");
-  objectFields(b,c.kind==="rank"?identity:[...identity,c.kind==="metadata"?"factRefs":"policy"]);
-  if(c.kind!=="configure"&&c.commandId!==undefined)recallFail("MEMORY_RECALL_INPUT_INVALID");
+  const b=objectFields(c.body,identity,["factRefs","policy","action","preview","requiredFactRefs"]),actor=parseInternalId(b.actorKey);for(const k of identity)parseInternalId(b[k]);
+  if(!["rank","metadata","configure","preview","maintenancePreview","commit"].includes(c.kind as string))recallFail("MEMORY_RECALL_INPUT_INVALID");
+  const fields:Record<string,string[]>={rank:[],metadata:["factRefs"],configure:["policy"],preview:["factRefs","action"],maintenancePreview:["requiredFactRefs"],commit:["preview"]};objectFields(b,[...identity,...fields[c.kind as string]]);
+  const mutation=c.kind==="configure"||c.kind==="commit";if(!mutation&&c.commandId!==undefined)recallFail("MEMORY_RECALL_INPUT_INVALID");
   const apply=()=>{
    const now=this.now(),stored=this.policy(scope,actor,now),policy=stored.policy;
    if(c.kind==="configure"){
@@ -74,12 +81,38 @@ export class RecallRepository {
     this.save(scope,"policy",{...stored,revision:stored.revision+1,configuredAt:now,policy:{...next}});return {policyVersion:next.version};
    }
    const available=this.facts.eligibleFactsWithinTransaction(scope,actor),generation=this.suppression.generation(scope);
+   if(c.kind==="preview"||c.kind==="maintenancePreview"){
+    const kind=c.kind==="maintenancePreview"?"maintenance":action(b.action);if(c.kind==="preview"&&kind==="maintenance")recallFail("MEMORY_RECALL_INPUT_INVALID");
+    const requiredFactRefs=c.kind==="maintenancePreview"?refs(b.requiredFactRefs):[],selected=c.kind==="maintenancePreview"?available.map(f=>({factId:f.factId,revision:f.revision})):refs(b.factRefs);
+    for(const r of requiredFactRefs)if(!available.some(f=>f.factId===r.factId&&f.revision===r.revision))recallFail("MEMORY_RECALL_FACT_UNAVAILABLE");
+    const states=selected.map(ref=>{const fact=available.find(f=>f.factId===ref.factId&&f.revision===ref.revision);if(!fact)recallFail("MEMORY_RECALL_FACT_UNAVAILABLE");const state=this.state(scope,actor,ref,policy,now);if(kind!=="maintenance")return state;
+     const protection={...this.protection(scope,actor,fact,state),required:requiredFactRefs.some(r=>r.factId===ref.factId&&r.revision===ref.revision)};return state.visibility==="normal"&&isArchiveCandidate(strength(state),now,policy,protection)?state:null;
+    }).filter((s):s is RecallState=>s!==null);
+    const targets=(kind==="maintenance"?states.slice(0,policy.batchSize):states).map(s=>({factId:s.factId,revision:s.factRevision,projectionRevision:s.projectionRevision,visibilityRevision:s.visibilityRevision}));
+    return {action:kind,generation,policyVersion:policy.version,policyRevision:stored.revision,expiresAt:now+60000,targets,requiredFactRefs,candidates:states.length,mode:policy.maintenanceMode} satisfies RecallPreview;
+   }
+   if(c.kind==="commit"){
+    const p=preview(b.preview);if(p.generation!==generation||p.policyVersion!==policy.version||p.policyRevision!==stored.revision)recallFail("MEMORY_RECALL_STALE");if(now>=p.expiresAt)recallFail("MEMORY_RECALL_PREVIEW_EXPIRED");if(p.expiresAt>now+60000)recallFail("MEMORY_RECALL_CLOCK_INVALID");
+    if(p.action==="maintenance"&&(policy.maintenanceMode!=="enabled"||p.mode!=="enabled"||p.targets.length>policy.batchSize))recallFail("MEMORY_RECALL_MAINTENANCE_DENIED");let changed=0;
+    for(const target of p.targets){
+     const fact=available.find(f=>f.factId===target.factId&&f.revision===target.revision);if(!fact)recallFail("MEMORY_RECALL_FACT_UNAVAILABLE");
+     const id=opaque("state",{actor,factId:target.factId,revision:target.revision}),old=this.read<RecallState>(scope,id,"state",actor);if(!old)recallFail("MEMORY_RECALL_STALE");this.checkedState(old,now,policy);
+     if(old.projectionRevision!==target.projectionRevision||old.visibilityRevision!==target.visibilityRevision)recallFail("MEMORY_RECALL_STALE");
+     if(p.action==="maintenance"){const protection={...this.protection(scope,actor,fact,old),required:p.requiredFactRefs.some(r=>r.factId===fact.factId&&r.revision===fact.revision)};if(old.visibility!=="normal"||!isArchiveCandidate(strength(old),now,policy,protection))recallFail("MEMORY_RECALL_STALE")}
+     let next={...old,...calculateStrength(strength(old),now,policy)};const archive=p.action==="archive"||p.action==="maintenance";
+     if(archive&&old.visibility==="normal")next={...next,visibility:"archived",visibilityRevision:old.visibilityRevision+1,archivedAt:now,archiveReason:p.action==="maintenance"?"decay":"manual"};
+     else if(p.action==="restore"&&old.visibility==="archived")next={...next,...refreshStrength(strength(old),now),visibility:"normal",visibilityRevision:old.visibilityRevision+1,archivedAt:null,archiveReason:null};
+     else if(p.action==="pin"||p.action==="unpin")next={...next,pinned:p.action==="pin"};
+     if(canonicalJson(next)!==canonicalJson(old)){next.projectionRevision++;this.save(scope,"state",next);changed++}
+    }
+    return {changed};
+   }
    if(c.kind==="metadata"){
     const targets=refs(b.factRefs).map(ref=>{if(!available.some(f=>f.factId===ref.factId&&f.revision===ref.revision))recallFail("MEMORY_RECALL_FACT_UNAVAILABLE");return this.state(scope,actor,ref,policy,now)});return {generation,policy,targets};
    }
    const items=available.map(fact=>{const state=this.state(scope,actor,fact,policy,now);return {fact,state,protection:this.protection(scope,actor,fact,state),score:state.strengthAtLastCalculation}}).filter(item=>item.state.visibility==="normal");items.sort((a,b)=>b.score-a.score||a.fact.factId.localeCompare(b.fact.factId));return {generation,policy,items};
   };
-  if(c.kind==="configure")return executeTransaction({db:this.db,key:this.key,scope,commandId:parseInternalId(c.commandId),request:c,fault:this.fault,apply});
+  if(mutation)return executeTransaction({db:this.db,key:this.key,scope,commandId:parseInternalId(c.commandId),request:c,fault:this.fault,apply});
   this.db.exec("BEGIN IMMEDIATE");try{const result=apply();this.db.exec("COMMIT");return result}catch(error){this.db.exec("ROLLBACK");throw error}
  }
 }
