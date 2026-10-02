@@ -18,11 +18,13 @@ async function until(check){for(let i=0;i<300;i++){if(check())return;await pause
 const actualAdmission='E:\\Codex\\2026-10-01\\task\\memory-online-once-admission-55df896';
 const snapshot=()=>['arm.json','boot.json','spent.json','ledger.json'].map(f=>fs.existsSync(path.join(actualAdmission,f)));
 const initial=snapshot(),runs=[];
-for(const isPackaged of [false,true])for(const mode of ['startup','prepare','success','cancel','duplicate']){
+for(const isPackaged of [false,true])for(const mode of ['startup','prepare','success','cancel','duplicate','provider','model','url','transport','key','empty','read-error']){
  const root=path.join(output,(isPackaged?'asar-':'dev-')+mode),sourceRoot=path.join(output,(isPackaged?'asar-':'dev-')+mode+'-source');
  for(const sub of ['temp','cache','logs','initial-userdata','fake-admission'])fs.mkdirSync(path.join(root,sub),{recursive:true});
  fs.mkdirSync(path.join(sourceRoot,'Firefly'),{recursive:true});
- fs.writeFileSync(path.join(sourceRoot,'Firefly/model-settings.json'),JSON.stringify({schemaVersion:2,modelProfiles:[{id:'synthetic-profile',provider:'DeepSeek（深度求索）',model:'deepseek-flash',baseUrl:'https://api.deepseek.com',apiKey:'SYNTHETIC-H-KEY'}]}));
+ const profile={id:'synthetic-profile',provider:'DeepSeek（深度求索）',model:'deepseek-flash',baseUrl:'https://api.deepseek.com',apiKey:'SYNTHETIC-H-KEY'};
+ if(mode==='provider')profile.provider='SYNTHETIC-PROVIDER';if(mode==='model')profile.model='SYNTHETIC-MODEL';if(mode==='url')profile.baseUrl='https://synthetic.invalid';if(mode==='transport')profile.explicitTransport='anthropic';if(mode==='key')profile.apiKey='';
+ fs.writeFileSync(path.join(sourceRoot,'Firefly/model-settings.json'),mode==='read-error'?'{':JSON.stringify({schemaVersion:2,modelProfiles:mode==='empty'?[]:[profile]}));
  const now=Date.now();fs.writeFileSync(path.join(root,'fake-admission/arm.json'),JSON.stringify({armed:true,experimentId:'memory-h-deepseek-flash-once-55df896',priorAttempts:0,budgetMicroCny:5000000,inputMicroCnyPerToken:2,outputMicroCnyPerToken:8,priceVerifiedAt:now-1000,expiresAt:now+3600000}));
  const env={...process.env,ELECTRON_RUN_AS_NODE:undefined,TEMP:path.join(root,'temp'),TMP:path.join(root,'temp'),TMPDIR:path.join(root,'temp'),APPDATA:sourceRoot,LOCALAPPDATA:sourceRoot,ELECTRON_LOG_FILE:path.join(root,'logs/electron.log'),CHROME_LOG_FILE:path.join(root,'logs/chromium.log'),FIREFLY_MEMORY_ONLINE_DIAGNOSTIC_ROOT:root,FIREFLY_STARTUP_CASE:mode};
  const exe=isPackaged?path.join(packaged,'FireflyStartupSynthetic.exe'):path.join(cwd,'node_modules/electron/dist/electron.exe');
@@ -40,4 +42,4 @@ for(const isPackaged of [false,true])for(const mode of ['startup','prepare','suc
  assert.deepEqual(snapshot(),initial);
 }
 const result={output,runs,totalScenarios:runs.length,actualAdmissionUnchanged:true,realNetworkRequests:0,realConfigurationRead:false};
-fs.writeFileSync(path.join(base,'native-results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify({output,totalScenarios:runs.length,actualAdmissionUnchanged:true}));
+fs.writeFileSync(path.join(cwd,'output/memory-online-diagnostics/native-results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify({output,totalScenarios:runs.length,actualAdmissionUnchanged:true}));

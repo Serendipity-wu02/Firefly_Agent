@@ -8,7 +8,7 @@ import { initializeStorageContext } from "../storage-context";
 import { loadTrayIcon } from "../tray-icon";
 import { getCachedSavedModelProfile, listCachedSavedModelProfileIds, loadModelSettings, prepareReadOnlyDiagnosticModelCache } from "../settings/model-settings";
 import { resolveVendorRuntimeSettings, setVendorRuntimeSettingsGetter } from "../orchestrator/vendors/runtime-settings";
-import { eligibleProfile } from "./boundary";
+import { inspectPreparedProfiles } from "./preparation-diagnostics";
 import { createDiagnosticController } from "./diagnostic-controller";
 import { createMainProbeEntry } from "./main-entry";
 import { ADMISSION_ROOT } from "./runner";
@@ -40,7 +40,7 @@ export async function startDiagnosticMain():Promise<void> {
     const ready=prepareReadOnlyDiagnosticModelCache(source);
     if(ready)setVendorRuntimeSettingsGetter(()=>resolveVendorRuntimeSettings(loadModelSettings()));return ready;
    },
-   eligibleProfileCount:()=>listCachedSavedModelProfileIds().filter(id=>{const p=getCachedSavedModelProfile(id);return p!==undefined&&p.id===id&&eligibleProfile(p);}).length,
+   inspectPreparedProfiles:()=>inspectPreparedProfiles(listCachedSavedModelProfileIds(),getCachedSavedModelProfile),
    createEntry:onReceipt=>createMainProbeEntry(true,{root:ADMISSION_ROOT,resolveProfile:getCachedSavedModelProfile,listProfileIds:listCachedSavedModelProfileIds,fetch:globalThis.fetch,now:Date.now,show:options=>dialog.showMessageBox(options),onReceipt}),
    show:options=>dialog.showMessageBox(options),
    setMenu:items=>{if(tray&&!tray.isDestroyed()){tray.setContextMenu(Menu.buildFromTemplate(items));menuReady=true;}},

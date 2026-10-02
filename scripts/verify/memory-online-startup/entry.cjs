@@ -7,7 +7,7 @@ const admission=path.join(root,'fake-admission'),source=path.join(process.env.AP
 const environmentRedirectedAppData=path.resolve(app.getPath('appData')).toLowerCase()===path.resolve(process.env.APPDATA).toLowerCase();
 app.setPath('appData',process.env.APPDATA);
 assert.equal(path.resolve(app.getPath('appData')).toLowerCase(),path.resolve(process.env.APPDATA).toLowerCase());
-let reads=0,writes=0,fetches=0,normalLoads=0,menu,dialogs=0,failed=false;
+let reads=0,writes=0,fetches=0,normalLoads=0,menu,dialogs=0,failed=false,lastDialogDetail="";
 const originalLoad=Module._load;
 Module._load=function(id,parent,...args){
  const normalized=String(id).replaceAll('\\','/');
@@ -28,7 +28,7 @@ globalThis.fetch=async(url,options)=>{
  if(mode==='cancel')return new Promise(()=>{});
  return new Response(JSON.stringify({id:'synthetic',object:'chat.completion',model:'deepseek-flash',choices:[{index:0,message:{role:'assistant',content:secret},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20,total_tokens:120,prompt_cache_hit_tokens:64,prompt_cache_miss_tokens:36}}));
 };
-dialog.showMessageBox=async(options)=>{dialogs++;assert.ok(!JSON.stringify(options).includes(secret));assert.ok(!JSON.stringify(options).includes('synthetic-profile'));return {response:options.message==='测试版本已就绪'?1:0};};
+dialog.showMessageBox=async(options)=>{dialogs++;lastDialogDetail=options.detail??"";assert.ok(!JSON.stringify(options).includes(secret));assert.ok(!JSON.stringify(options).includes('synthetic-profile'));assert.ok(!/SYNTHETIC-|synthetic.invalid/.test(JSON.stringify(options)));return {response:options.message==='测试版本已就绪'?1:0};};
 const setMenu=Tray.prototype.setContextMenu;
 Tray.prototype.setContextMenu=function(value){menu=value;return setMenu.call(this,value);};
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -39,20 +39,28 @@ function untouched(){for(const file of ['boot.json','spent.json','ledger.json'])
 function result(){const output={mode,environmentRedirectedAppData,isPackaged:app.isPackaged,electron:process.versions.electron,node:process.versions.node,reads,writes,fetches,normalLoads,dialogs,readiness:state(),realNetworkRequests:0,realConfigurationRead:false};assert.ok(!JSON.stringify(output).includes(secret));assert.ok(!JSON.stringify(output).includes('synthetic-profile'));originalWrite(path.join(root,'result.json'),JSON.stringify(output,null,2));}
 async function verify(){
  await until(()=>menu&&fs.existsSync(path.join(root,'readiness.json'))&&state().menuReady);
- assert.equal(reads,0);assert.equal(fetches,0);untouched();assert.equal(menu.items.length,4);
+ assert.equal(reads,0);assert.equal(fetches,0);untouched();assert.equal(menu.items.length,5);
  assert.equal(state().phase,'awaiting-user-preparation');assert.equal(menu.items[1].enabled,false);
  if(mode==='duplicate') {await until(()=>fs.existsSync(path.join(root,'quit-verification')));assert.ok(state().duplicateCount>=1);untouched();assert.equal(reads,0);}
+ else if(['provider','model','url','transport','key','empty','read-error'].includes(mode)){
+  click(0);await until(()=>state().phase==='refused'&&dialogs>=2);
+  const expected={provider:'PROVIDER_MISMATCH',model:'MODEL_MISMATCH',url:'BASE_URL_MISMATCH',transport:'TRANSPORT_MISMATCH',key:'KEY_MISSING',empty:'NO_SAVED_PROFILES','read-error':'CONFIGURATION_UNAVAILABLE'}[mode];
+  assert.equal(menu.items[0].enabled,false);assert.equal(menu.items[1].enabled,false);assert.equal(menu.items[2].enabled,true);
+  assert.deepEqual(state().preparation.reasons,[{code:expected,count:1}]);assert.ok(lastDialogDetail.includes(expected));
+  for(let i=0;i<2;i++){const before=dialogs;click(2);await until(()=>dialogs>before);assert.ok(lastDialogDetail.includes(expected));}
+  assert.equal(reads,1);assert.equal(writes,0);assert.equal(fetches,0);untouched();
+ }
  else if(mode!=='startup'){
   click(0);await until(()=>state().phase==='ready-to-test');assert.equal(reads,1);assert.equal(writes,0);assert.equal(fetches,0);untouched();
   if(mode==='success'||mode==='cancel'){
    click(1);click(1); // Coalescing may still leave stale Menu until next microtask.
-   if(mode==='cancel'){await until(()=>fetches===1);click(2);await until(()=>state().receipt?.status==='cancelled');assert.equal(fetches,1);}
+   if(mode==='cancel'){await until(()=>fetches===1);click(3);await until(()=>state().receipt?.status==='cancelled');assert.equal(fetches,1);}
    else {await until(()=>state().phase==='finished');assert.equal(fetches,2);assert.equal(state().receipt.status,'completed');}
    assert.equal(state().receipt.reservedMicroCny,4198400);
    assert.equal(fs.existsSync(path.join(admission,'spent.json')),true);
   }
  }
- assert.equal(normalLoads,0);result();click(3);
+ assert.equal(normalLoads,0);result();click(4);
 }
 process.on('uncaughtException',()=>{failed=true;app.exit(1);});
 try{require('./compiled/main/index');void verify().catch(()=>{originalWrite(path.join(root,'failed.json'),JSON.stringify({failed:true,reads,writes,fetches,normalLoads}));app.exit(1);});}catch{app.exit(1);}
