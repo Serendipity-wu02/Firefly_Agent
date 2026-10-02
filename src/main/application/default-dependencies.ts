@@ -116,9 +116,8 @@ import { registerCodeGitIpc } from "../code-git/code-git-ipc";
 import { installSingleInstanceGuard } from "../single-instance";
 import { createWindowManager } from "../windows/window-manager";
 import { createTray } from "../tray";
-import { eligibleProfile } from "../memory-online-once/boundary";
-import { ADMISSION_ROOT, createProbeRunner } from "../memory-online-once/runner";
-import { createNativeProbeEntry } from "../memory-online-once/native-entry";
+import { ADMISSION_ROOT } from "../memory-online-once/runner";
+import { createMainProbeEntry } from "../memory-online-once/main-entry";
 import { createSplashWindow } from "../startup/create-splash-window";
 import { revealStartupWindows } from "../startup/startup-window-reveal";
 import { bootstrapMusicService } from "../music/bootstrap";
@@ -170,14 +169,13 @@ async function reconcileUserMemoryIndex(): Promise<void> {
 }
 
 export function createDefaultApplicationDependencies(): ApplicationDependencies {
-  // Native human action only. Construction performs no settings/file/network I/O.
-  const memoryOnlineRunner = createProbeRunner({root:ADMISSION_ROOT,
-    resolveProfile:getCachedSavedModelProfile,fetch:(...args)=>globalThis.fetch(...args),now:Date.now});
-  const memoryOnlineEntry = createNativeProbeEntry({runner:memoryOnlineRunner,
-    listProfileIds:()=>listCachedSavedModelProfileIds().filter(id=>{
-      const profile=getCachedSavedModelProfile(id);return profile!==undefined && eligibleProfile(profile);
-    }),show:options=>dialog.showMessageBox(options)});
-  app.once("will-quit",()=>memoryOnlineEntry.cancel());
+  // Explicit diagnostic launch only. Switch enables UI, never creates/rearms a budget.
+  // Boot binding touches only fixed E: non-secret admission; profile lookup stays cache-only.
+  const memoryOnlineEntry = createMainProbeEntry(app.commandLine?.hasSwitch("firefly-memory-online-once")===true, {
+    root:ADMISSION_ROOT,resolveProfile:getCachedSavedModelProfile,listProfileIds:listCachedSavedModelProfileIds,
+    fetch:(...args)=>globalThis.fetch(...args),now:Date.now,show:options=>dialog.showMessageBox(options),
+  });
+  app.once("will-quit",()=>memoryOnlineEntry?.cancel());
   // Agent Runtime 早于插件管理器构造；通过窄闭包在运行期转发宿主事件，避免反转启动顺序。
   let pluginManager: PluginManager | undefined;
   // 生命周期事件发布器：插件系统就绪前发布的事件没有监听器，直接丢弃
@@ -261,7 +259,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         togglePetWindow: input.togglePetWindow,
         requestActivation: input.requestActivation,
         quit: () => app.quit(),
-        memoryOnlineOnce: {run:()=>{void memoryOnlineEntry.run();},cancel:()=>memoryOnlineEntry.cancel()},
+        memoryOnlineOnce: memoryOnlineEntry ? {run:()=>{void memoryOnlineEntry.run();},cancel:()=>memoryOnlineEntry.cancel()} : undefined,
       }),
       flushTokenUsage,
     }),

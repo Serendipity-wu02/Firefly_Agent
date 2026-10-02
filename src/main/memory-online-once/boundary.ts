@@ -49,6 +49,13 @@ function record(value: unknown): value is Record<string,unknown> { return value 
 function integer(value:unknown): value is number {return typeof value === "number" && Number.isSafeInteger(value) && value>=0;}
 export function sanitizeUsage(raw: unknown): NumericUsage | null {
   if (!record(raw) || raw.model !== "deepseek-flash" || raw.error !== undefined || !record(raw.usage)) return null;
+  if (raw.object !== "chat.completion" || typeof raw.id !== "string" || raw.id.length===0 || raw.id.length>256
+    || !Array.isArray(raw.choices) || raw.choices.length!==1) return null;
+  const choice=raw.choices[0];
+  if (!record(choice) || choice.index!==0 || !record(choice.message) || choice.message.role!=="assistant"
+    || !(typeof choice.message.content==="string" || choice.message.content===null)
+    || typeof choice.finish_reason!=="string"
+    || !["stop","length","tool_calls","content_filter","insufficient_system_resource"].includes(choice.finish_reason)) return null;
   const u = raw.usage, p = u.prompt_tokens, c = u.completion_tokens, t = u.total_tokens;
   if (!integer(p) || !integer(c) || !integer(t) || p>MAX_INPUT_TOKENS || c>MAX_OUTPUT_TOKENS || p+c!==t) return null;
   const hit=u.prompt_cache_hit_tokens, miss=u.prompt_cache_miss_tokens;

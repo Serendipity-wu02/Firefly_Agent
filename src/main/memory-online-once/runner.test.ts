@@ -17,7 +17,7 @@ function setup(fetch=vi.fn(async()=>response()), extra:Record<string,unknown>={}
  return {runner,fetch,root,arm};
 }
 function response(usage:unknown={prompt_tokens:100,completion_tokens:20,total_tokens:120},extra:Record<string,unknown>={}) {
- return new Response(JSON.stringify({model:"deepseek-flash",usage,choices:[{message:{content:profile.apiKey},finish_reason:"stop"}],...extra}),{status:200});
+ return new Response(JSON.stringify({id:"fake-id",object:"chat.completion",model:"deepseek-flash",usage,choices:[{index:0,message:{role:"assistant",content:profile.apiKey},finish_reason:"stop"}],...extra}),{status:200});
 }
 function assertSanitized(result:ProbeReceipt) {
  const text=JSON.stringify(result);expect(text).not.toContain(profile.apiKey);expect(text).not.toContain("choices");expect(text).not.toContain("headers");expect(text).not.toContain("stack");
@@ -102,4 +102,42 @@ describe("durable one-shot Main runner using only simulated network",()=>{
    expect(await result).toMatchObject({status:"uncertain",attempts:1,upperMicroCny:TOTAL_RESERVE_MICRO_CNY});expect(fetch).toHaveBeenCalledOnce();
   }
  });
+ it("revokes an unused admission after cancel or another boot, including vanished ledger",async()=>{
+  const {runner,fetch,root}=setup();runner.cancel();expect((await runner.start(profile.id)).status).toBe("cancelled");
+  const restarted=createProbeRunner({root,resolveProfile:()=>profile,fetch,now:()=>now});
+  expect((await restarted.start(profile.id)).status).toBe("refused");expect(fetch).not.toHaveBeenCalled();
+ });
+ it("never accepts an arm introduced after boot",async()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"memory-online-cold-"));roots.push(root);const fetch=vi.fn(async()=>response());
+  const runner=createProbeRunner({root,resolveProfile:()=>profile,fetch,now:()=>now});
+  fs.writeFileSync(path.join(root,"arm.json"),JSON.stringify({experimentId:EXPERIMENT_ID,priorAttempts:0,budgetMicroCny:BUDGET_MICRO_CNY,priceVerifiedAt:now-1000,inputMicroCnyPerToken:2,outputMicroCnyPerToken:8,expiresAt:now+3600000,armed:true}));
+  expect((await runner.start(profile.id)).status).toBe("refused");expect(fetch).not.toHaveBeenCalled();
+ });
+ it("rechecks arm expiry before the repeat request",async()=>{
+  let current=now;const fetch=vi.fn(async()=>{current=now+3600001;return response();});
+  const {runner}=setup(fetch,{now:()=>current});
+  const result=await runner.start(profile.id);expect(result.status).toBe("uncertain");expect(fetch).toHaveBeenCalledOnce();
+ });
+ it("stops on a non-completion object with superficially valid numeric usage",async()=>{
+  const fetch=vi.fn(async()=>new Response(JSON.stringify({model:"deepseek-flash",usage:{prompt_tokens:0,completion_tokens:0,total_tokens:0}})));
+  const {runner}=setup(fetch);expect((await runner.start(profile.id)).status).toBe("uncertain");expect(fetch).toHaveBeenCalledOnce();
+ });
+ it.each(["http","content-length"])("closes rejected %s response streams and aborts transport",async mode=>{
+  let cancelled=false,signal:AbortSignal|undefined;
+  const fetch=vi.fn(async(_url:unknown,init?:RequestInit)=>{
+   signal=init!.signal as AbortSignal;
+   return new Response(new ReadableStream({cancel(){cancelled=true;}}),mode==="http"?{status:401}:{headers:{"Content-Length":"65537"}});
+  });
+  const {runner}=setup(fetch);expect((await runner.start(profile.id)).status).toBe("uncertain");
+  expect(cancelled).toBe(true);expect(signal!.aborted).toBe(true);expect(fetch).toHaveBeenCalledOnce();
+ });
+
+ it("cancels a late response body arriving after abort",async()=>{
+  let resolve!:(r:Response)=>void,cancelled=false;
+  const {runner}=setup(vi.fn(()=>new Promise<Response>(r=>{resolve=r;})));
+  const pending=runner.start(profile.id);runner.cancel();expect((await pending).status).toBe("cancelled");
+  resolve(new Response(new ReadableStream({cancel(){cancelled=true;}})));
+  await new Promise(r=>setImmediate(r));expect(cancelled).toBe(true);
+ });
+
 });
