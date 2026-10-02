@@ -9,7 +9,7 @@ export function createHistoryTokenizer():HistoryTokenizer {
  const jieba=new Jieba(),words=new Set<string>();
  return {get version(){return 'history-jieba-v1-'+createHash('sha256').update(JSON.stringify([...words].sort())).digest('hex')},
   register(add:string[]){if(!Array.isArray(add)||add.length>128||add.some(w=>typeof w!=='string'||!w||w.length>128))throw new Error('MEMORY_HISTORY_INPUT_INVALID');for(const w of add)words.add(w)},
-  tokens(text:string){if(typeof text!=='string'||text.length>65536)throw new Error('MEMORY_HISTORY_INPUT_INVALID');
+  tokens(text:string){if(typeof text!=='string'||text.length>65536+127)throw new Error('MEMORY_HISTORY_INPUT_INVALID');
    const sorted=[...words].sort((a,b)=>b.length-a.length||compare(a,b)),out:string[]=[];
    const escaped=sorted.map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
    for(const part of escaped.length?text.split(new RegExp('('+escaped.join('|')+')','u')):[text]){

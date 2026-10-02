@@ -12,6 +12,9 @@ function fixture(){const f=recallFixture();fixtures.push(f);const command=(kind:
 afterEach(()=>{for(const f of fixtures.splice(0))f.close()});
 async function document(f:ReturnType<typeof fixture>,text='H_ENCRYPTED_SECRET cat'){const s=await f.source(text);return {id:randomUUID(),incarnation:randomUUID(),revision:1,origin:'canonical',sourceDeps:[{sourceRef:s.ref,subjectKeys:null,derivedRefs:null}],messages:[{id:s.id.messageId,role:'user',text,occurredAt:null,timeZone:null,sourceRef:s.ref}],vector:null}}
 const scope=[{providerId:'synthetic',sessionId:'session-a'}];
+it('accepted maximum text across multiple messages reaches explicit excerpt budgets without poisoning queries',async()=>{
+ const f=fixture(),small=await document(f);put(f,small);for(const count of [2,128]){const sizes=Array.from({length:count},(_,i)=>Math.floor(65536/count)+(i<65536%count?1:0));put(f,{id:'large-'+count,incarnation:'v1',revision:1,origin:'synthetic-import',sourceDeps:[],vector:null,messages:sizes.map((size,i)=>({id:'m'+i,role:i===0?'user':'assistant',text:('cat '+i+' ').repeat(size).slice(0,size),occurredAt:null,timeZone:null}))})}const result=query(f);expect(result.status).toBe('excerpt-budget-exhausted');expect(result.hits.some((h:any)=>h.document.id===small.id)).toBe(true);
+});
 function query(f:ReturnType<typeof fixture>,extra:any={}){return f.command('query',{sessions:scope,query:'cat',settings:DEFAULT_HISTORY_SETTINGS,...extra})}
 function put(f:ReturnType<typeof fixture>,doc:any){return f.command('put',{document:doc,generation:0},randomUUID())}
 it('encrypted canonical history reopens and querying changes no persisted bytes or M usage',async()=>{
@@ -52,7 +55,7 @@ it('index hard budget returns explicit state and preserves every historical docu
 });
 it('tool pairs are inseparable and missing results are refused',async()=>{
  const f=fixture(),d=await document(f),assistant={id:'call-message',role:'assistant',text:'cat tool call',occurredAt:null,timeZone:null,toolCallIds:['tool1']},tool={id:'tool-result',role:'tool',text:'cat tool result',occurredAt:null,timeZone:null,toolCallId:'tool1'};
- expect(()=>put(f,{...d,messages:[...d.messages,assistant]})).toThrow('MEMORY_CONTEXT_TOOL_PAIR_INVALID');put(f,{...d,messages:[...d.messages,assistant,tool]});expect(query(f).hits[0].document.messages).toHaveLength(3);
+ expect(()=>put(f,{...d,messages:[...d.messages,assistant]})).toThrow('MEMORY_CONTEXT_TOOL_PAIR_INVALID');expect(()=>put(f,{...d,messages:[...d.messages,assistant,tool]})).toThrow('MEMORY_HISTORY_SOURCE_MISMATCH');const {sourceRef:_source,...importedUser}=d.messages[0];put(f,{...d,origin:'synthetic-import',sourceDeps:[],messages:[importedUser,assistant,tool]});expect(query(f).hits[0].document.messages).toHaveLength(3);
  expect(query(f,{settings:{...DEFAULT_HISTORY_SETTINGS,maxExcerptChars:10,maxTotalChars:10}})).toMatchObject({status:'excerpt-budget-exhausted',hits:[]});
 });
 it('text, role and original event time cannot diverge from canonical sources',async()=>{

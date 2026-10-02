@@ -1,4 +1,4 @@
-import {readHistoryEvidence} from "../memory-history/main-history";
+import {readHistoryEvidence,validateHistoryEvidence} from "../memory-history/main-history";
 import {createHash,randomUUID} from "node:crypto";
 import {canonicalJson} from "../memory-core/repository-types";
 import type {BoundSourceRef,FactView} from "../../shared/memory-contracts";
@@ -21,7 +21,7 @@ interface ContextOptions {
 }
 interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];transcriptTokens?:object[];summaryIds?:string[];historyTokens?:object[];signal?:AbortSignal}
 interface Snapshot extends BudgetResult {snapshotId:string;generation:number;excluded:{sourceId:string;reason:string}[]}
-interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:FactView[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];configuration:string}
+interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:FactView[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];historyTokens:object[];configuration:string}
 interface PermitState {snapshot:SnapshotState;id:string;used:boolean}
 interface TranscriptState {actorToken:object;ref:TranscriptDependency;unit:ContextUnit;sourceRefs:BoundSourceRef[];adapter:object;locator:string}
 interface LeaseState {actorToken:object;id:string;summaryId:string;commandId:string;inputRefs:BoundSourceRef[]}
@@ -95,11 +95,14 @@ export function createMainContext(options:ContextOptions){
  }
  async function recount(state:SnapshotState):Promise<BudgetResult>{
   await command(state.actor,"validateSnapshot",{snapshotId:state.snapshot.snapshotId});
+  for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,state.actorToken,cap);
   for(const ref of state.sourceRefs)await readSource(state.actor,ref);
   for(const old of state.transcripts){const fresh=await captureTranscript(state.actorToken,old.adapter,old.locator);if(canonicalJson(transcriptState(state.actorToken,fresh).ref)!==canonicalJson(old.ref))contextFail("MEMORY_CONTEXT_TRANSCRIPT_STALE")}
   const prepared=freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts)));
   if(requestDigest(prepared)!==state.snapshot.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
   const result=await selectBudget({counter:options.counter,budget:options.budget,units:state.units,prepare:u=>options.prepare(u,structuredClone(state.facts)),prepareS:options.prepareS});
+  for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,state.actorToken,cap);
+  await command(state.actor,"validateSnapshot",{snapshotId:state.snapshot.snapshotId});
   if(result.requestDigest!==state.snapshot.requestDigest||result.promptTokens!==state.snapshot.promptTokens||result.inputLimit!==state.snapshot.inputLimit)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");return result;
  }
  async function assemble(token:object,input:ContextInput):Promise<Snapshot>{
@@ -108,6 +111,7 @@ export function createMainContext(options:ContextOptions){
   const refs=input.sourceRefs.map(value=>checkedRef(a,value));if(new Set(refs.map(r=>r.sourceId)).size!==refs.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const selectedFacts=structuredClone(input.factRefs??[]);
   if(input.historyTokens!==undefined&&(!Array.isArray(input.historyTokens)||input.historyTokens.length>8))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+  for(const cap of input.historyTokens??[])await validateHistoryEvidence(options.actorAuthority,token,cap);
   const historical=(input.historyTokens??[]).map(cap=>readHistoryEvidence(options.actorAuthority,token,cap)),historyDeps=historical.flatMap(h=>h.dependencies);
   if(input.transcriptTokens!==undefined&&(!Array.isArray(input.transcriptTokens)||input.transcriptTokens.length>1000))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const toolStates=(input.transcriptTokens??[]).map(v=>transcriptState(token,v)),toolRefs=toolStates.map(s=>s.ref);
@@ -133,10 +137,11 @@ export function createMainContext(options:ContextOptions){
   const excluded=[...summaryExcluded,...inspected.sourceStates.filter(s=>s.reason!=="allowed")],allowed=units.filter(u=>!excluded.some(e=>e.sourceId===u.id)&&!(unitSources.get(u.id)??[]).some(id=>excluded.some(e=>e.sourceId===id))&&!summaries.some(s=>s.id===u.id&&s.sourceDeps.some(d=>excluded.some(e=>e.sourceId===d.sourceRef.sourceId))));
   if(allowed.some(u=>unitSources.has(u.id)&&u.messages[0].role==="assistant"))contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
   const result=await selectBudget({counter:options.counter,budget:options.budget,units:allowed,prepare:u=>options.prepare(u,structuredClone(inspected.facts)),prepareS:options.prepareS,signal:input.signal});
+  for(const [index,h] of historical.entries())if(result.selectedIds.includes(h.unit.id))await validateHistoryEvidence(options.actorAuthority,token,input.historyTokens![index]);
   const snapshotId=randomUUID();
   await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs,historyDeps:historical.filter(h=>result.selectedIds.includes(h.unit.id)).flatMap(h=>h.dependencies),requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:result.selectedIds.flatMap(id=>unitSources.get(id)??[]),counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
   const snapshot=Object.freeze({...result,snapshotId,generation:baseline.generation,excluded:structuredClone(excluded)});
-  snapshots.set(snapshot,{actorToken:token,actor:a,units:allowed.filter(u=>result.selectedIds.includes(u.id)),facts:inspected.facts,snapshot,sourceRefs:deps.map(d=>d.sourceRef),transcripts:toolStates,configuration:configuration()});return snapshot;
+  snapshots.set(snapshot,{actorToken:token,actor:a,units:allowed.filter(u=>result.selectedIds.includes(u.id)),facts:inspected.facts,snapshot,sourceRefs:deps.map(d=>d.sourceRef),transcripts:toolStates,historyTokens:(input.historyTokens??[]).filter((_cap,index)=>result.selectedIds.includes(historical[index].unit.id)),configuration:configuration()});return snapshot;
  }
  async function validateForDispatch(token:object,value:object):Promise<object>{
   const state=snapshotState(token,value),result=await recount(state),id=randomUUID();
