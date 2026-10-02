@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import type { RuntimeProfile } from "../runtime-profile";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS } from "../orchestrator/model-config";
 import { foldReasoning, normalizeReasoningPreference, type ReasoningPreference } from "../../shared/reasoning";
 import type { StickerSize } from "../../shared/sticker-types";
@@ -336,6 +337,7 @@ export function setDefaultModelProfile(id: string): ModelSettings {
 
 let modelSettingsCache: ModelSettings | null = null;
 let modelSettingsReadFailed = false;
+let diagnosticReadOnly = false;
 
 /** Main-only strict snapshot. Never loads or stats the settings file. Not registered in IPC. */
 export function getCachedSavedModelProfile(id: string): SavedModelProfile | undefined {
@@ -353,13 +355,14 @@ export function listCachedSavedModelProfileIds(): string[] {
 
 
 export function assertModelSettingsReadable(): void {
+  if (diagnosticReadOnly) throw new Error("DIAGNOSTIC_READ_ONLY");
   loadModelSettings();
   if (modelSettingsReadFailed) throw new Error("MODEL_SETTINGS_READ_FAILED: 模型配置读取失败，原文件已保留");
 }
 
-function loadModelSettings0(): ModelSettings {
+function loadModelSettings0(sourcePath?: string): ModelSettings {
   try {
-    const filePath = getSettingsPath();
+    const filePath = sourcePath ?? getSettingsPath();
     try {
       fs.statSync(filePath);
     } catch (error) {
@@ -393,6 +396,15 @@ function loadModelSettings0(): ModelSettings {
     logger.warn(LogTag.Runtime, "startup model settings", { readFailed: true });
     return { ...DEFAULT_MODEL_SETTINGS };
   }
+}
+
+/** Main-only explicit native preparation. Uses existing validated loader, never writes source. */
+export function prepareReadOnlyDiagnosticModelCache(source: RuntimeProfile): boolean {
+  if (source.kind !== "production" || source.isolationRoot !== undefined
+    || modelSettingsCache !== null || diagnosticReadOnly) throw new Error("DIAGNOSTIC_SOURCE_REFUSED");
+  diagnosticReadOnly = true;
+  modelSettingsCache = loadModelSettings0(path.join(source.userData, "model-settings.json"));
+  return !modelSettingsReadFailed;
 }
 
 export function loadModelSettings(): ModelSettings {

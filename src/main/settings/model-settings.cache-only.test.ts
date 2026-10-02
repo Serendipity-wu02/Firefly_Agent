@@ -20,4 +20,19 @@ describe("Main cache-only saved-profile lookup",()=>{
   expect(m.getCachedSavedModelProfile("saved-id")!.apiKey).toBe("FAKE-KEY");
   expect(mocks.read).not.toHaveBeenCalled();expect(mocks.stat).not.toHaveBeenCalled();
  });
+ it("prepares existing Main source read-only only on explicit preparation, using the existing loader",async()=>{
+  const m=await import("./model-settings");
+  expect(mocks.read).not.toHaveBeenCalled();
+  mocks.stat.mockReturnValue({size:100});mocks.exists.mockReturnValue(true);mocks.read.mockReturnValue(JSON.stringify({schemaVersion:2,modelProfiles:[{id:"saved",provider:"DeepSeek（深度求索）",baseUrl:"https://api.deepseek.com",model:"deepseek-flash",apiKey:"FAKE-KEY"}]}));
+  expect(m.prepareReadOnlyDiagnosticModelCache({kind:"production",applicationName:"Firefly",appData:"E:/fake-source",userData:"E:/fake-source/Firefly",sessionData:"E:/fake-source/Firefly",logs:"E:/fake-source/Firefly/logs"})).toBe(true);
+  expect(mocks.read).toHaveBeenCalledWith(expect.stringMatching(/fake-source.*Firefly.*model-settings\.json/),"utf8");
+  expect(m.getCachedSavedModelProfile("saved")!.apiKey).toBe("FAKE-KEY");
+  expect(()=>m.saveModelSettings({model:"changed"})).toThrow("DIAGNOSTIC_READ_ONLY");expect(mocks.write).not.toHaveBeenCalled();expect(mocks.dir).not.toHaveBeenCalled();
+ });
+ it("refuses nonproduction sources and cannot refresh diagnostic credentials",async()=>{
+  const m=await import("./model-settings");
+  expect(()=>m.prepareReadOnlyDiagnosticModelCache({kind:"smoke",applicationName:"fake",appData:"E:/fake",userData:"E:/fake",sessionData:"E:/fake",logs:"E:/fake",isolationRoot:"E:/fake"})).toThrow("DIAGNOSTIC_SOURCE_REFUSED");
+  expect(mocks.read).not.toHaveBeenCalled();
+ });
+
 });

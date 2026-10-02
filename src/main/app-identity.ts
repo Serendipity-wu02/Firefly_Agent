@@ -11,6 +11,11 @@ export interface FireflyIdentityApp {
   setPath(name: "userData" | "appData" | "sessionData", value: string): void;
 }
 
+/** Read-only metadata capture, shared by ordinary and restricted startup. */
+export function getFireflyApplicationDataPath(app:Pick<FireflyIdentityApp,"getPath">):string {
+  return app.getPath("appData");
+}
+
 /**
  * Must run before the single-instance lock and before any settings store is
  * constructed. The user-data directory is independent of the technical npm
@@ -37,7 +42,7 @@ export function configureFireflyApplicationIdentity(app: FireflyIdentityApp, iso
     app.setPath("appData", root);
     if (path.resolve(app.getPath("appData")) !== root) throw new Error("FIREFLY_ISOLATED_APPDATA_FAILED");
   }
-  const userDataPath = path.join(app.getPath("appData"), FIREFLY_USER_DATA_DIRECTORY);
+  const userDataPath = path.join(getFireflyApplicationDataPath(app), FIREFLY_USER_DATA_DIRECTORY);
   if (isolatedRoot !== undefined) fs.mkdirSync(userDataPath, { recursive: true });
   app.setName(FIREFLY_APPLICATION_NAME);
   app.setPath("userData", userDataPath);

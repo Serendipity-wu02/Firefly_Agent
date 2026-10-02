@@ -95,3 +95,10 @@ describe("Firefly application identity", () => {
   });
 
 });
+
+it("captures existing appData metadata without applying identity or creating source paths",async()=>{
+ const identity=await import("./app-identity");
+ const calls:string[]=[];
+ expect(identity.getFireflyApplicationDataPath({getPath(name){calls.push(name);return "E:/synthetic-source";}})).toBe("E:/synthetic-source");
+ expect(calls).toEqual(["appData"]);
+});

@@ -1,6 +1,7 @@
 import type { MessageBoxOptions } from "electron";
 import type { ProbeReceipt } from "./runner";
 interface NativeProbeDependencies {
+  onReceipt?(receipt:ProbeReceipt):void;
   listProfileIds():string[];
   runner:{start(id:string):Promise<ProbeReceipt>;cancel():void};
   show(options:MessageBoxOptions):Promise<{response:number}>;
@@ -21,6 +22,7 @@ export function createNativeProbeEntry(deps:NativeProbeDependencies) {
       const choice=await deps.show({type:"question",title:"记忆 H：一次性在线测试",message:"选择现有 DeepSeek Flash 配置",detail:"只发送固定合成样本，最多两次相同请求；总预算上限 ¥5。结果只显示用量。预算凭证必须有效，取消或完成后本入口不会重试。",buttons:[...ids.map((_,i)=>`DeepSeek Flash 配置 ${i+1}`),"取消"],defaultId:ids.length,cancelId:ids.length,noLink:true});
       if(!Number.isInteger(choice.response) || choice.response<0 || choice.response>=ids.length){deps.runner.cancel();return;}
       const receipt=await deps.runner.start(ids[choice.response]);
+      deps.onReceipt?.(receipt);
       await deps.show({type:"info",title:"记忆 H 在线测试结果",message:statusLabels[receipt.status],detail:detail(receipt),buttons:["关闭"]});
     } catch {deps.runner.cancel();/* no raw native/config/network errors reach UI or logs */}
   }
