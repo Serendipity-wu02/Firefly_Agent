@@ -42,7 +42,7 @@ it('word-order differences are not discarded as lexical duplicates',()=>{
  expect(ids(rankHistory([doc('a','door north opens door south'),doc('b','door south opens door north')],'door'))).toEqual(['a','b']);
 });
 it('exact lexical duplicates at a different known event time preserve distinct history',()=>{
- const docs=[doc('a','harbor port',1000),doc('b','harbor port',1000),doc('c','harbor port',2000)];
+ const docs=[{...doc('a','harbor port',1000),exactIdentity:'same-source'},{...doc('b','harbor port',1000),exactIdentity:'same-source'},doc('c','harbor port',2000)];
  expect(ids(rankHistory(docs,'harbor port'))).toEqual(['a','c']);
 });
 it.each([{kind:'range',from:2,to:1},{kind:'latest',actorKey:'other'},{kind:'range',from:NaN,to:3},{kind:'unknown'}])('rejects malformed temporal request %j',temporal=>{
@@ -64,4 +64,11 @@ it('compatibility folding is nonexpanding at the accepted document length bound'
 
 it('sign punctuation cannot collapse contradictory numeric records as duplicates',()=>{
  expect(ids(rankHistory([doc('a','gain -1',1000),doc('b','gain +1',1000)],'gain'))).toEqual(['a','b']);
+});
+
+it('missing complete evidence identity cannot infer equivalence from repeated text',()=>{
+ expect(ids(rankHistory([doc('a','harbor port',1000),doc('b','harbor port',1000)],'harbor port'))).toEqual(['a','b']);
+});
+it('a supplied full-evidence key cannot collide with fallback candidate identity',()=>{
+ expect(ids(rankHistory([{...doc('a','harbor port'),exactIdentity:'b'},doc('b','harbor port')],'harbor port'))).toEqual(['a','b']);
 });

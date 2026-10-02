@@ -94,7 +94,7 @@ export class HistoryRepository {
  validateWithinTransaction(scope:string,actorKey:string,value:unknown):StoredHistory[]{
   return parseHistoryDependencies(value).map(dep=>{
    if(dep.partition.actorKey!==actorKey||!dep.partition.sessions.some(s=>s.providerId===dep.providerId&&s.sessionId===dep.sessionId))fail('MEMORY_HISTORY_ACCESS_DENIED');
-   if(dep.generation!==this.generation(scope,actorKey)||dep.indexVersion!=='history-index-v1'||dep.rankingVersion!=='history-ranking-v2'||!/^history-jieba-v2-[a-f0-9]{64}$/.test(dep.tokenizerVersion))fail('MEMORY_HISTORY_STALE');
+   if(dep.generation!==this.generation(scope,actorKey)||dep.indexVersion!=='history-index-v1'||dep.rankingVersion!=='history-ranking-v3'||!/^history-jieba-v2-[a-f0-9]{64}$/.test(dep.tokenizerVersion))fail('MEMORY_HISTORY_STALE');
    const d=this.read(scope,actorKey,dep,dep.documentId);if(!d||d.incarnation!==dep.incarnation||d.revision!==dep.revision||d.digest!==dep.digest)fail('MEMORY_HISTORY_STALE');this.checkedDocument(scope,d,dep.recallDeps);return d;
   });
  }
@@ -128,7 +128,7 @@ export class HistoryRepository {
     const tokenizer=createHistoryTokenizer();if(b.customWords!==undefined)tokenizer.register(list(b.customWords,128).map(x=>text(x,128)));
     if(v&&documents.some(d=>!d.vector||d.vector.identity!==v.identity))fail('MEMORY_HISTORY_VECTOR_INVALID');
     const candidateDocuments=new Map(documents.map(d=>[this.id(scope,d.actorKey,d,d.id),d]));
-    const ranked=rankHistory([...candidateDocuments].map(([id,d])=>({id,text:d.messages.map(m=>m.text).join('\n'),timeSpan:historyTimeSpan(d.messages),...(v?{vector:d.vector!.values}:{})})),query,{limit:config.limit,candidateLimit:config.candidateLimit,rrfK:config.rrfK,mmrLambda:config.mmrLambda,...(temporal?{temporal}:{}),...(v?{queryVector:v.values}:{}),tokenizer});
+    const ranked=rankHistory([...candidateDocuments].map(([id,d])=>({id,text:d.messages.map(m=>m.text).join('\n'),timeSpan:historyTimeSpan(d.messages),exactIdentity:createHmac('sha256',this.key).update(canonicalJson({origin:d.origin,providerId:d.providerId,sessionId:d.sessionId,messages:d.messages,sourceDeps:d.sourceDeps,transcriptRef:d.transcriptRef??null,...(!d.sourceDeps.length?{documentId:d.id,incarnation:d.incarnation}:{})})).digest('hex'),...(v?{vector:d.vector!.values}:{})})),query,{limit:config.limit,candidateLimit:config.candidateLimit,rrfK:config.rrfK,mmrLambda:config.mmrLambda,...(temporal?{temporal}:{}),...(v?{queryVector:v.values}:{}),tokenizer});
     if(ranked.temporal)result.temporal=ranked.temporal;
     let used=0;for(const candidate of ranked.items){const d=candidateDocuments.get(candidate.id)!,length=d.messages.reduce((n,m)=>n+m.text.length,0);if(length>config.maxExcerptChars||used+length>config.maxTotalChars){result.status='excerpt-budget-exhausted';continue}used+=length;
      result.hits.push({document:d,score:candidate.score,dependency:{documentId:d.id,providerId:d.providerId,sessionId:d.sessionId,incarnation:d.incarnation,revision:d.revision,digest:d.digest,generation:this.generation(scope,owner.actorKey),partition,indexVersion:'history-index-v1',tokenizerVersion:ranked.tokenizerVersion,rankingVersion:ranked.version,recallDeps:this.checkedDocument(scope,d)}});

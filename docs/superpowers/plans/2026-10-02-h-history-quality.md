@@ -23,3 +23,11 @@ Actor/session/scope filtering, source/current-head/forget checks, excerpt/index 
 ## Limits and next decision
 
 BM25-only genuine paraphrases, newest outside candidate budget, partial/unknown event times and near-semantic redundancy remain explicit limitations. Higher-layer intent mapping and real embedding quality need separately approved implementation/evaluation. DeepSeek official direct Flash is authorized within RMB5, but a safe existing secret-owning invocation seam is still required; no key extraction, display, copy, configuration or real-chat reads.
+
+## Independent corrective review H-Q1
+
+After first frozen challenge scoring, independent synthetic probes demonstrated that identical joined text/span can still have different roles, complete tool-call IDs, individual original message times or time zones. Four Main RED cases confirmed it; a same-bound-source positive control passed. This was a design equivalence gap, not an authorization bypass.
+
+The repository now computes a keyed identity over the complete ordered original messages, origin, provider/session, source dependencies and transcript head. Unsourced synthetic imports also retain document/incarnation identity because distinct original events cannot be proved equivalent from content. The query/put input cannot supply this key. Ranking without a supplied trusted identity keeps distinct candidate IDs. Ranking advances to v3 and invalidates v1/v2 evidence; tokenizer remains v2. Identical captures of the same complete bound source can still fold. No fuzzy equivalence is claimed. This correction follows independent safety/attribution evidence, not challenge labels.
+
+First untouched-candidate comparison.json remains immutable. Final comparison is a separately named seen-set corrective recheck, not a new untouched holdout claim. Qrels, denominators, rejection filters and first-pass failures stay unchanged. Parent should decide a separately designed, fresh independent challenge if final-candidate unseen acceptance is required.

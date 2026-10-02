@@ -80,6 +80,7 @@ it('malformed/foreign dependencies and changed index settings cannot be claimed'
 it('a fresh query is required after a ranking/tokenizer protocol version change',async()=>{
  const f=fixture();put(f,await document(f));const dep=query(f).hits[0].dependency;
  expect(()=>f.command('validate',{dependencies:[dep]})).not.toThrow();
+ expect(()=>f.command('validate',{dependencies:[{...dep,rankingVersion:'history-ranking-v2'}]})).toThrow('MEMORY_HISTORY_STALE');
  expect(()=>f.command('validate',{dependencies:[{...dep,rankingVersion:'history-ranking-v1'}]})).toThrow('MEMORY_HISTORY_STALE');
  expect(()=>f.command('validate',{dependencies:[{...dep,tokenizerVersion:dep.tokenizerVersion.replace('-v2-','-v1-')}]})).toThrow('MEMORY_HISTORY_STALE');
 });

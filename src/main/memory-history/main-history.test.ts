@@ -103,3 +103,18 @@ it('synthetic embedding identity is checked before and after every local contrac
 it('automatic H cannot bypass archived M roots or revive a pre-archive evidence capability',async()=>{
  const f=fixture(),a=await f.active(),ref={factId:a.factId,revision:1},recall=createMainRecall({actorAuthority:f.authority,transport:f.transport});await f.history.captureSource(f.actor,a.ref,{documentId:'m-source-history',incarnation:'v1',revision:1});const old=await f.history.query(f.actor,{query:'bash'});expect(old.hits).toHaveLength(1);await recall.apply(f.actor,await recall.preview(f.actor,[ref],'archive'));expect((await f.history.query(f.actor,{query:'bash'})).hits).toEqual([]);await recall.apply(f.actor,await recall.preview(f.actor,[ref],'restore'));await expect(f.context.assemble(f.actor,{sessionId:'session-a',sourceRefs:[],historyTokens:[old.evidence]})).rejects.toThrow('MEMORY_RECALL_VISIBILITY_STALE');expect((await f.history.query(f.actor,{query:'bash'})).hits).toHaveLength(1);
 });
+
+it.each(['role','tool-call-id','inner-message-time','time-zone'])('keeps distinct complete history attribution: %s',async variant=>{
+ const f=fixture(),id={...f.identity,messageId:'quartz-root'};
+ if(variant==='role'){
+  for(const role of ['user','assistant'] as const){const id={...f.identity,messageId:'quartz-'+role};f.provider.write(id,{text:'quartz release approved',role,trust:role==='user'?'direct-user-event':'model',occurredAt:1000});const ref=await f.registry.capture(f.access,f.provider.adapter,id);await f.history.captureSource(f.actor,ref,{documentId:'history-'+role,incarnation:'v1',revision:1,timeZone:'Etc/UTC'})}
+ }else{
+  f.provider.write(id,{text:'quartz request',role:'user',trust:'direct-user-event',occurredAt:1000});const ref=await f.registry.capture(f.access,f.provider.adapter,id);
+  for(const n of [0,1]){const call=variant==='tool-call-id'?'call-'+n:'call',time=variant==='inner-message-time'?1200+n*100:1200,zone=variant==='time-zone'&&n===1?'America/New_York':'Etc/UTC';const doc:any={id:'turn-'+n,incarnation:'v1',revision:1,origin:'canonical',vector:null,sourceDeps:[{sourceRef:ref,subjectKeys:null,derivedRefs:null}],messages:[{id:'root',role:'user',text:'quartz request',occurredAt:1000,timeZone:'Etc/UTC',sourceRef:ref},{id:'assistant',role:'assistant',text:'quartz execute',occurredAt:time,timeZone:zone,toolCallIds:[call]},{id:'tool',role:'tool',text:'quartz completed',occurredAt:2000,timeZone:'Etc/UTC',toolCallId:call}]};const provider=createMainHistoryProvider(f.authority,f.actor,{withLease:async(_id,run)=>run(async()=>structuredClone(doc))});await f.history.captureTranscript(f.actor,provider,'turn-'+n)}
+ }
+ const result=await f.history.query(f.actor,{query:'quartz'});expect(result.hits).toHaveLength(2);
+});
+it('folds two captures only when the complete original source evidence is identical',async()=>{
+ const f=fixture(),source=await f.source('quartz same original evidence');for(const documentId of ['quartz-a','quartz-b'])await f.history.captureSource(f.actor,source.ref,{documentId,incarnation:'v1',revision:1});
+ expect((await f.history.query(f.actor,{query:'quartz'})).hits).toHaveLength(1);
+});

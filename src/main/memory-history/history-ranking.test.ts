@@ -22,7 +22,7 @@ it('vector MMR diversifies redundant hits after RRF',()=>{
  expect(r.items.map(x=>x.id).slice(0,2)).toEqual(['a','c']);
 });
 it('BM25-only explicitly uses lexical duplicate filtering, not vector MMR',()=>{
- const r=rankHistory([doc('a','cat dog'),doc('b','cat dog'),doc('c','cat fish')],'cat');
+ const r=rankHistory([{...doc('a','cat dog'),exactIdentity:'same-source'},{...doc('b','cat dog'),exactIdentity:'same-source'},doc('c','cat fish')],'cat');
  expect(r.diversity).toBe('lexical-dedup');expect(r.routeRanks.vector).toEqual([]);expect(r.items.map(x=>x.id)).toEqual(['a','c']);
 });
 it('unmatched documents are never promoted by an empty lexical query',()=>{
@@ -31,7 +31,7 @@ it('unmatched documents are never promoted by an empty lexical query',()=>{
 it('bounded routes and results have deterministic ties independent of ingestion order',()=>{
  const docs=Array.from({length:70},(_,i)=>doc(String(i).padStart(3,'0'),'cat '+i));
  const a=rankHistory(docs,'cat'),b=rankHistory(docs.reverse(),'cat');expect(a.items).toEqual(b.items);
- expect(a.items).toHaveLength(8);expect(a.routeRanks.lexical).toHaveLength(50);expect(a.version).toBe('history-ranking-v2');
+ expect(a.items).toHaveLength(8);expect(a.routeRanks.lexical).toHaveLength(50);expect(a.version).toBe('history-ranking-v3');
 });
 it.each([[0,0],[NaN,1],[Infinity,1],[],[1]])('invalid vector %j fails closed',v=>{
  expect(()=>normalizeVector(v,2)).toThrow('MEMORY_HISTORY_VECTOR_INVALID');

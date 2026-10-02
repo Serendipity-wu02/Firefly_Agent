@@ -31,7 +31,7 @@ export function normalizeVector(value:number[],dims:number):number[]{
  if(!Number.isSafeInteger(dims)||dims<1||dims>4096||!Array.isArray(value)||value.length!==dims||value.some(v=>typeof v!=='number'||!Number.isFinite(v)))throw new Error('MEMORY_HISTORY_VECTOR_INVALID');
  const norm=Math.hypot(...value);if(!Number.isFinite(norm)||norm===0)throw new Error('MEMORY_HISTORY_VECTOR_INVALID');return value.map(v=>v/norm);
 }
-export interface RankDocument {id:string;text:string;vector?:number[];timeSpan?:HistoryTimeSpan|null}
+export interface RankDocument {id:string;text:string;vector?:number[];timeSpan?:HistoryTimeSpan|null;exactIdentity?:string}
 export interface RankOptions {limit?:number;candidateLimit?:number;rrfK?:number;mmrLambda?:number;queryVector?:number[];signal?:AbortSignal;tokenizer?:HistoryTokenizer;temporal?:HistoryTemporalQuery}
 export interface Ranked {id:string;score:number}
 const dot=(a:number[],b:number[])=>a.reduce((sum,v,i)=>sum+v*b[i],0);
@@ -39,7 +39,7 @@ export function rankHistory(docs:RankDocument[],query:string,options:RankOptions
  const {limit=8,candidateLimit=50,rrfK=60,mmrLambda=.7,signal}=options;
  if(signal?.aborted)throw new Error('MEMORY_HISTORY_CANCELLED');
  if(!Number.isSafeInteger(limit)||limit<1||limit>8||!Number.isSafeInteger(candidateLimit)||candidateLimit<1||candidateLimit>50||!Number.isSafeInteger(rrfK)||rrfK<1||!Number.isFinite(mmrLambda)||mmrLambda<0||mmrLambda>1||new Set(docs.map(d=>d.id)).size!==docs.length)throw new Error('MEMORY_HISTORY_INPUT_INVALID');
- const temporal=parseHistoryTemporal(options.temporal);docs.forEach(d=>validateHistoryTimeSpan(d.timeSpan));
+ const temporal=parseHistoryTemporal(options.temporal);docs.forEach(d=>{validateHistoryTimeSpan(d.timeSpan);if(d.exactIdentity!==undefined&&(typeof d.exactIdentity!=='string'||!d.exactIdentity||d.exactIdentity.length>256))throw new Error('MEMORY_HISTORY_INPUT_INVALID')});
  if(temporal&&options.queryVector)throw new Error('MEMORY_HISTORY_TEMPORAL_VECTOR_UNSUPPORTED');
  const unknownDocuments=docs.filter(d=>!d.timeSpan).length;
  const timeResult:HistoryTemporalResult|undefined=temporal?{kind:temporal.kind,status:unknownDocuments===docs.length?'unavailable':unknownDocuments?'partial':'applied',unknownDocuments}:undefined;
@@ -68,6 +68,7 @@ export function rankHistory(docs:RankDocument[],query:string,options:RankOptions
    const candidates=left.map(r=>({r,score:mmrLambda*r.score/max-(1-mmrLambda)*(items.length?Math.max(...items.map(s=>dot(vectors.get(r.id)!,vectors.get(s.id)!))):0)})).sort((a,b)=>b.score-a.score||compare(a.r.id,b.r.id));
    const next=candidates[0].r;items.push(next);left.splice(left.findIndex(r=>r.id===next.id),1);
   }
- }else{const seen=new Set<string>(),byId=new Map(docs.map(d=>[d.id,d]));for(const r of selectedOrder){const key=JSON.stringify({text:byId.get(r.id)!.text,timeSpan:byId.get(r.id)!.timeSpan??null});if(seen.has(key))continue;seen.add(key);items.push(r);if(items.length===limit)break}}
- return {version:'history-ranking-v2' as const,tokenizerVersion:tokenizer.version,diversity:options.queryVector?'vector-mmr' as const:'lexical-dedup' as const,routeRanks:routes,fused,items,...(timeResult?{temporal:timeResult}:{})};
+ // Only trusted full-evidence identity can prove duplication; text/span are insufficient.
+ }else{const seen=new Set<string>(),byId=new Map(docs.map(d=>[d.id,d]));for(const r of selectedOrder){const key=JSON.stringify(byId.get(r.id)!.exactIdentity===undefined?{candidateId:r.id}:{exactIdentity:byId.get(r.id)!.exactIdentity});if(seen.has(key))continue;seen.add(key);items.push(r);if(items.length===limit)break}}
+ return {version:'history-ranking-v3' as const,tokenizerVersion:tokenizer.version,diversity:options.queryVector?'vector-mmr' as const:'lexical-dedup' as const,routeRanks:routes,fused,items,...(timeResult?{temporal:timeResult}:{})};
 }
