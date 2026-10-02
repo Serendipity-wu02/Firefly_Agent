@@ -15,6 +15,7 @@ import type {BoundSourceRef} from '../../shared/memory-contracts';
 import type {SourceDependency} from '../memory-context/context-contracts';
 import {TranscriptLedger} from '../memory-context/transcript-ledger';
 import {createHistoryTokenizer,normalizeVector,rankHistory} from './history-ranking';
+import {historyTimeSpan,parseHistoryTemporal} from './history-temporal';
 import type {HistoryDocument,HistoryMessage,HistorySession,HistoryPartition,HistoryDependency,StoredHistory,HistoryResult,HistorySettings,HistoryVector} from './history-contracts';
 function fail(code='MEMORY_HISTORY_INPUT_INVALID'):never {throw new Error(code)}
 const natural=(v:unknown):number=>{if(!Number.isSafeInteger(v)||(v as number)<0)fail();return v as number};
@@ -93,12 +94,12 @@ export class HistoryRepository {
  validateWithinTransaction(scope:string,actorKey:string,value:unknown):StoredHistory[]{
   return parseHistoryDependencies(value).map(dep=>{
    if(dep.partition.actorKey!==actorKey||!dep.partition.sessions.some(s=>s.providerId===dep.providerId&&s.sessionId===dep.sessionId))fail('MEMORY_HISTORY_ACCESS_DENIED');
-   if(dep.generation!==this.generation(scope,actorKey)||dep.indexVersion!=='history-index-v1'||dep.rankingVersion!=='history-ranking-v1'||!/^history-jieba-v1-[a-f0-9]{64}$/.test(dep.tokenizerVersion))fail('MEMORY_HISTORY_STALE');
+   if(dep.generation!==this.generation(scope,actorKey)||dep.indexVersion!=='history-index-v1'||dep.rankingVersion!=='history-ranking-v2'||!/^history-jieba-v2-[a-f0-9]{64}$/.test(dep.tokenizerVersion))fail('MEMORY_HISTORY_STALE');
    const d=this.read(scope,actorKey,dep,dep.documentId);if(!d||d.incarnation!==dep.incarnation||d.revision!==dep.revision||d.digest!==dep.digest)fail('MEMORY_HISTORY_STALE');this.checkedDocument(scope,d,dep.recallDeps);return d;
   });
  }
  execute(value:unknown):unknown {
-  const c=objectFields(value,['kind','scopeKey','body'],['commandId']),scope=parseInternalId(c.scopeKey),b=objectFields(c.body,['actorKey','providerId','sessionId'],['sessions','query','settings','vector','customWords','document','generation','documentId','revision','dependencies','documents','digest','transcriptHeads']);
+  const c=objectFields(value,['kind','scopeKey','body'],['commandId']),scope=parseInternalId(c.scopeKey),b=objectFields(c.body,['actorKey','providerId','sessionId'],['sessions','query','settings','vector','customWords','document','generation','documentId','revision','dependencies','documents','digest','transcriptHeads','temporal']);
   const owner={actorKey:parseInternalId(b.actorKey),providerId:parseInternalId(b.providerId),sessionId:parseInternalId(b.sessionId)},identity=['actorKey','providerId','sessionId'];
   const apply=()=>{
    if(c.kind==='baseline'){objectFields(b,identity);return {generation:this.generation(scope,owner.actorKey)}}
@@ -119,7 +120,7 @@ export class HistoryRepository {
    }
    if(c.kind==='delete'){objectFields(b,[...identity,'documentId','revision']);const d=this.read(scope,owner.actorKey,owner,parseInternalId(b.documentId));if(!d||d.revision!==positiveRevision(b.revision))fail('MEMORY_HISTORY_STALE');d.state='deleted';this.save(scope,d);return {deleted:true}}
    if(c.kind==='query'){
-    objectFields(b,[...identity,'sessions','query','settings'],['vector','customWords','transcriptHeads']);const activeHeads=new Set(list(b.transcriptHeads??[],4096).map(parseInternalId));const sessions=parseHistorySessions(b.sessions),config=settings(b.settings),query=text(b.query,4096),v=b.vector===undefined?null:vector(b.vector),partition:HistoryPartition={actorKey:owner.actorKey,sessions};
+    objectFields(b,[...identity,'sessions','query','settings'],['vector','customWords','transcriptHeads','temporal']);const temporal=parseHistoryTemporal(b.temporal),activeHeads=new Set(list(b.transcriptHeads??[],4096).map(parseInternalId));const sessions=parseHistorySessions(b.sessions),config=settings(b.settings),query=text(b.query,4096),v=b.vector===undefined?null:vector(b.vector),partition:HistoryPartition={actorKey:owner.actorKey,sessions};
     const rows=this.db.prepare("SELECT * FROM history_records WHERE scope_key=? AND kind='document' AND partition_index IN ("+sessions.map(()=>'?').join(',')+") ORDER BY id LIMIT ?").all(scope,...sessions.map(s=>this.partition(scope,owner.actorKey,s)),config.maxIndexDocuments+1);
     const result:HistoryResult={status:'ok',hits:[],diversity:v?'vector-mmr':'lexical-dedup',settingsVersion:config.version};if(rows.length>config.maxIndexDocuments)return {...result,status:'index-budget-exhausted'};
     let bytes=0;const documents:StoredHistory[]=[];
@@ -127,7 +128,8 @@ export class HistoryRepository {
     const tokenizer=createHistoryTokenizer();if(b.customWords!==undefined)tokenizer.register(list(b.customWords,128).map(x=>text(x,128)));
     if(v&&documents.some(d=>!d.vector||d.vector.identity!==v.identity))fail('MEMORY_HISTORY_VECTOR_INVALID');
     const candidateDocuments=new Map(documents.map(d=>[this.id(scope,d.actorKey,d,d.id),d]));
-    const ranked=rankHistory([...candidateDocuments].map(([id,d])=>({id,text:d.messages.map(m=>m.text).join('\n'),...(v?{vector:d.vector!.values}:{})})),query,{limit:config.limit,candidateLimit:config.candidateLimit,rrfK:config.rrfK,mmrLambda:config.mmrLambda,...(v?{queryVector:v.values}:{}),tokenizer});
+    const ranked=rankHistory([...candidateDocuments].map(([id,d])=>({id,text:d.messages.map(m=>m.text).join('\n'),timeSpan:historyTimeSpan(d.messages),...(v?{vector:d.vector!.values}:{})})),query,{limit:config.limit,candidateLimit:config.candidateLimit,rrfK:config.rrfK,mmrLambda:config.mmrLambda,...(temporal?{temporal}:{}),...(v?{queryVector:v.values}:{}),tokenizer});
+    if(ranked.temporal)result.temporal=ranked.temporal;
     let used=0;for(const candidate of ranked.items){const d=candidateDocuments.get(candidate.id)!,length=d.messages.reduce((n,m)=>n+m.text.length,0);if(length>config.maxExcerptChars||used+length>config.maxTotalChars){result.status='excerpt-budget-exhausted';continue}used+=length;
      result.hits.push({document:d,score:candidate.score,dependency:{documentId:d.id,providerId:d.providerId,sessionId:d.sessionId,incarnation:d.incarnation,revision:d.revision,digest:d.digest,generation:this.generation(scope,owner.actorKey),partition,indexVersion:'history-index-v1',tokenizerVersion:ranked.tokenizerVersion,rankingVersion:ranked.version,recallDeps:this.checkedDocument(scope,d)}});
     }return result;

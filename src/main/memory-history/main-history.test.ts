@@ -9,6 +9,19 @@ import {createMainRecall} from '../memory-recall/main-recall';
 import {createMainActorAuthority} from '../memory-core/main-actor-authority';
 import {createMainSourceRegistry} from '../memory-sources/source-registry';
 const fixtures:ReturnType<typeof recallFixture>[]=[];
+it('explicit temporal intent reaches the authorized repository with unchanged original quotes',async()=>{
+ const f=fixture();for(const [name,text,occurredAt] of [['old','harbor port harbor port harbor port',1000],['new','harbor port new',2000]] as const){const id={...f.identity,messageId:name};f.provider.write(id,{text,role:'user',trust:'direct-user-event',occurredAt});const ref=await f.registry.capture(f.access,f.provider.adapter,id);await f.history.captureSource(f.actor,ref,{documentId:name,incarnation:'v1',revision:1,timeZone:'Etc/UTC'})}
+ const q=await f.history.query(f.actor,{query:'harbor port',temporal:{kind:'latest'}} as any);expect(q.hits[0].document.id).toBe('new');expect((q as any).temporal).toMatchObject({kind:'latest',status:'applied'});
+ const snap=await f.context.assemble(f.actor,{sessionId:'session-a',sourceRefs:[],historyTokens:[q.evidence]});expect(JSON.stringify(snap.request.body)).toContain('harbor port new');expect(JSON.stringify(snap.request.body)).toContain('"eventTime\\":2000');
+ const ordinary=await f.history.query(f.actor,{query:'latest harbor port'});expect(ordinary.hits[0].document.id).toBe('old');expect((ordinary as any).temporal).toBeUndefined();
+});
+it('explicit historical interval preserves a complete straddling tool turn and excludes unknown times',async()=>{
+ const f=fixture(),id={...f.identity,messageId:'timed-tool'};f.provider.write(id,{text:'harbor port',role:'user',trust:'direct-user-event',occurredAt:1000});const ref=await f.registry.capture(f.access,f.provider.adapter,id),document:any={id:'timed-tool',incarnation:'v1',revision:1,origin:'canonical',sourceDeps:[{sourceRef:ref,subjectKeys:null,derivedRefs:null}],vector:null,messages:[{id:'u',role:'user',text:'harbor port',occurredAt:1000,timeZone:'Etc/UTC',sourceRef:ref},{id:'a',role:'assistant',text:'lookup',occurredAt:1400,timeZone:'Etc/UTC',toolCallIds:['t']},{id:'t',role:'tool',text:'harbor port result',occurredAt:2000,timeZone:'Etc/UTC',toolCallId:'t'}]},provider=createMainHistoryProvider(f.authority,f.actor,{withLease:async(_id,run)=>run(async()=>structuredClone(document))});await f.history.captureTranscript(f.actor,provider,'timed-tool');await capture(f,'harbor port unknown');
+ const q=await f.history.query(f.actor,{query:'harbor port',temporal:{kind:'range',from:1500,to:1600}} as any);expect(q.hits).toHaveLength(1);expect(q.hits[0].document.messages).toHaveLength(3);expect((q as any).temporal).toMatchObject({kind:'range',status:'partial',unknownDocuments:1});
+});
+it('bad temporal input is refused before any transcript provider read',async()=>{
+ const f=fixture(),b=await secondScope(f);b.reads.count=0;await expect(f.history.query(b.actor,{query:'cat',temporal:{kind:'range',from:2,to:1}} as any)).rejects.toThrow('MEMORY_HISTORY_INPUT_INVALID');expect(b.reads.count).toBe(0);
+});
 function fixture(){const f=recallFixture();fixtures.push(f);const transport={...f.transport,historyCommand:async(c:any)=>f.repo.historyCommand(c)},history=createMainHistory({actorAuthority:f.authority,registry:f.registry,transport});
  const identity={providerId:'synthetic',model:'fixture',transport:'synthetic',framingVersion:'v1'},prepare=(units:any[],facts:any[]=[])=>({...identity,inputTypes:['text'],body:{messages:units.flatMap(u=>u.messages),facts:facts.map(f=>f.assertion)}});
  const options={actorAuthority:f.authority,registry:f.registry,transport,clock:f.now,counter:{capability:{...identity,mode:'exact' as const,inputTypes:['text']},count:async(r:any)=>JSON.stringify(r.body).length},budget:{maxContextTokens:20000,reservedOutputTokens:64,safetyMarginTokens:16,maxSTokens:16000,minRecentCompleteTurns:0},prepare,prepareS:prepare};
