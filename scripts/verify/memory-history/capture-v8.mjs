@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {build} from 'esbuild';
+const cwd=process.cwd(),root=path.join(cwd,'output','memory-h','v8-writer');
+if(path.parse(cwd).root.toUpperCase()!=='E:\\')throw new Error('OWNED_E_ROOT_REQUIRED');
+fs.mkdirSync(root,{recursive:true});
+const bundle=path.join(root,'v8-writer.cjs');
+await build({entryPoints:['src/main/memory-core/repository.ts'],outfile:bundle,bundle:true,platform:'node',target:'node24',format:'cjs'});
+const {openMemoryRepository}=createRequire(import.meta.url)(bundle);
+const file=path.join(root,'memory.sqlite'),key=Buffer.alloc(32,8);
+const repo=openMemoryRepository({databasePath:file,key});
+repo.writeBatch({scopeKey:'scope-a',commandId:'actual-v8-fixture',records:[{table:'sources',id:'actual-v8-source',revision:1,payload:{text:'ACTUAL_V8_SYNTHETIC_RECORD'}}]});repo.close();
+const hashes=Object.fromEntries(['v8-writer.cjs','memory.sqlite','memory.sqlite.auth'].map(name=>[name,createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
+fs.writeFileSync(path.join(root,'manifest.json'),JSON.stringify({schemaVersion:8,base:'3c13c2da264280cfa44b00906c414e42323d2f5f',hashes},null,2));
+console.log(JSON.stringify({root,hashes}));

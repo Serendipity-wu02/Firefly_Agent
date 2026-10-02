@@ -126,6 +126,7 @@ export class MemoryClient {
  policyCommand(command:unknown):Promise<unknown>{return this.request("policy",command)}
  contextCommand(command:unknown):Promise<unknown>{return this.request("context",command)}
  recallCommand(command:unknown):Promise<unknown>{return this.request("recall",command)}
+ historyCommand(command:unknown):Promise<unknown>{return this.request("historical",command)}
  execute(command:unknown):Promise<import("../../shared/memory-contracts").MutationResult>{return this.request("execute",command)}
  sourceCommand(command:unknown):Promise<unknown>{return this.request("source",command)}
  current(scope:string):Promise<import("../../shared/memory-contracts").FactView[]>{return this.request("current",{scopeKey:scope})}

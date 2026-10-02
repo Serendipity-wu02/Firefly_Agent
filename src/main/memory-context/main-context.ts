@@ -1,3 +1,4 @@
+import {readHistoryEvidence} from "../memory-history/main-history";
 import {createHash,randomUUID} from "node:crypto";
 import {canonicalJson} from "../memory-core/repository-types";
 import type {BoundSourceRef,FactView} from "../../shared/memory-contracts";
@@ -18,7 +19,7 @@ interface ContextOptions {
  /** Trusted Main provenance resolver, never a renderer supplied ancestry declaration. */
  resolveDerivedRefs?:(ref:BoundSourceRef)=>BoundSourceRef[]|null;
 }
-interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];transcriptTokens?:object[];summaryIds?:string[];signal?:AbortSignal}
+interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];transcriptTokens?:object[];summaryIds?:string[];historyTokens?:object[];signal?:AbortSignal}
 interface Snapshot extends BudgetResult {snapshotId:string;generation:number;excluded:{sourceId:string;reason:string}[]}
 interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:FactView[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];configuration:string}
 interface PermitState {snapshot:SnapshotState;id:string;used:boolean}
@@ -106,6 +107,8 @@ export function createMainContext(options:ContextOptions){
   if(!Array.isArray(input.sourceRefs)||input.sourceRefs.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const refs=input.sourceRefs.map(value=>checkedRef(a,value));if(new Set(refs.map(r=>r.sourceId)).size!==refs.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const selectedFacts=structuredClone(input.factRefs??[]);
+  if(input.historyTokens!==undefined&&(!Array.isArray(input.historyTokens)||input.historyTokens.length>8))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+  const historical=(input.historyTokens??[]).map(cap=>readHistoryEvidence(options.actorAuthority,token,cap)),historyDeps=historical.flatMap(h=>h.dependencies);
   if(input.transcriptTokens!==undefined&&(!Array.isArray(input.transcriptTokens)||input.transcriptTokens.length>1000))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const toolStates=(input.transcriptTokens??[]).map(v=>transcriptState(token,v)),toolRefs=toolStates.map(s=>s.ref);
   if(refs.length&&toolStates.length)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");
@@ -117,20 +120,21 @@ export function createMainContext(options:ContextOptions){
    if(changed){summaryExcluded.push({sourceId:id,reason:"MEMORY_SOURCE_STALE"});continue}summaries.push(summary);
   }
   const allRefs=[...new Map([...refs,...toolStates.flatMap(s=>s.sourceRefs),...summaries.flatMap(s=>s.sourceDeps.map(d=>d.sourceRef))].map(r=>[r.sourceId,r])).values()];
-  const baseline=await command<{generation:number;facts:FactView[];recallDeps:import("../memory-recall/recall-contracts").RecallDependency[]}>(a,"baseline",{sourceRefs:allRefs,factRefs:selectedFacts,transcriptRefs:toolRefs});
+  const baseline=await command<{generation:number;facts:FactView[];recallDeps:import("../memory-recall/recall-contracts").RecallDependency[]}>(a,"baseline",{sourceRefs:allRefs,factRefs:selectedFacts,transcriptRefs:toolRefs,historyDeps});
   const data=await corpus(a,allRefs),deps=data.deps,units:ContextUnit[]=[],unitSources=new Map<string,string[]>();
+  units.push(...historical.filter(h=>h.dependencies.length).map(h=>h.unit));
   for(const summary of summaries)units.push({id:summary.id,kind:"summary",messages:summary.segments.map(s=>{const message=data.messages.get(s.sourceRef.sourceId)!;if(s.role!==message.role||s.span.start!==0||s.span.end!==message.text.length)contextFail("MEMORY_CONTEXT_SUMMARY_FULL_SOURCE_REQUIRED");return message})});
   // Main provides ordered recent refs. Group a user and its following assistant messages as one turn.
   const recent:ContextUnit[]=[];
   for(const ref of refs){const message=data.messages.get(ref.sourceId)!,last=recent.at(-1);if(message.role==="assistant"&&last?.messages[0].role==="user"){last.messages.push(message);unitSources.get(last.id)!.push(ref.sourceId)}else{recent.push({id:ref.sourceId,kind:"recent",messages:[message]});unitSources.set(ref.sourceId,[ref.sourceId])}}
   units.push(...recent);
   for(const state of toolStates)units.push(structuredClone(state.unit));
-  const inspected=await command<{generation:number;sourceStates:{sourceId:string;reason:string}[];facts:FactView[]}>(a,"inspect",{generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs});
+  const inspected=await command<{generation:number;sourceStates:{sourceId:string;reason:string}[];facts:FactView[]}>(a,"inspect",{generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs,historyDeps});
   const excluded=[...summaryExcluded,...inspected.sourceStates.filter(s=>s.reason!=="allowed")],allowed=units.filter(u=>!excluded.some(e=>e.sourceId===u.id)&&!(unitSources.get(u.id)??[]).some(id=>excluded.some(e=>e.sourceId===id))&&!summaries.some(s=>s.id===u.id&&s.sourceDeps.some(d=>excluded.some(e=>e.sourceId===d.sourceRef.sourceId))));
   if(allowed.some(u=>unitSources.has(u.id)&&u.messages[0].role==="assistant"))contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
   const result=await selectBudget({counter:options.counter,budget:options.budget,units:allowed,prepare:u=>options.prepare(u,structuredClone(inspected.facts)),prepareS:options.prepareS,signal:input.signal});
   const snapshotId=randomUUID();
-  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs,requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:result.selectedIds.flatMap(id=>unitSources.get(id)??[]),counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
+  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs,historyDeps:historical.filter(h=>result.selectedIds.includes(h.unit.id)).flatMap(h=>h.dependencies),requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:result.selectedIds.flatMap(id=>unitSources.get(id)??[]),counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
   const snapshot=Object.freeze({...result,snapshotId,generation:baseline.generation,excluded:structuredClone(excluded)});
   snapshots.set(snapshot,{actorToken:token,actor:a,units:allowed.filter(u=>result.selectedIds.includes(u.id)),facts:inspected.facts,snapshot,sourceRefs:deps.map(d=>d.sourceRef),transcripts:toolStates,configuration:configuration()});return snapshot;
  }

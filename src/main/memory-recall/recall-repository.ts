@@ -73,6 +73,14 @@ export class RecallRepository {
   const facts=selected.map(ref=>{const f=available.find(f=>f.factId===ref.factId&&f.revision===ref.revision);if(!f)recallFail("MEMORY_RECALL_FACT_UNAVAILABLE");return f});
   const recallDeps=facts.map((fact,index)=>{const state=this.state(scope,actor,fact,policy,now);if(state.visibility!=="normal")recallFail("MEMORY_RECALL_FACT_ARCHIVED");if(deps&&deps[index].visibilityRevision!==state.visibilityRevision)recallFail("MEMORY_RECALL_VISIBILITY_STALE");return {factId:fact.factId,revision:fact.revision,visibilityRevision:state.visibilityRevision}});return {facts,recallDeps};
  }
+ /** H may inspect visibility without initializing policy, recalculating projection or refreshing access. */
+ readVisibleFactsWithinTransaction(scope:string,actor:string,factRefs:RecallFactRef[],expected?:RecallDependency[]):{facts:FactView[];recallDeps:RecallDependency[]}{
+  this.transaction();const selected=refs(factRefs),deps=expected===undefined?undefined:parseRecallDependencies(expected),now=this.now();
+  if(deps&&canonicalJson(deps.map(({factId,revision})=>({factId,revision})))!==canonicalJson(selected))recallFail("MEMORY_RECALL_VISIBILITY_STALE");
+  const policyRecord=this.read<PolicyRecord>(scope,opaque("policy",actor),"policy",actor);if(policyRecord&&natural(policyRecord.configuredAt)>now)recallFail("MEMORY_RECALL_CLOCK_INVALID");const policy=policyRecord?validateRecallPolicy(policyRecord.policy):DEFAULT_RECALL_POLICY,available=this.facts.eligibleFactsWithinTransaction(scope,actor);
+  const facts=selected.map(ref=>{const f=available.find(f=>f.factId===ref.factId&&f.revision===ref.revision);if(!f)recallFail("MEMORY_RECALL_FACT_UNAVAILABLE");return f});
+  const recallDeps=facts.map((fact,index)=>{const old=this.read<RecallState>(scope,opaque("state",{actor,factId:fact.factId,revision:fact.revision}),"state",actor);if(old)this.checkedState(old,now,policy);if(old?.visibility==="archived")recallFail("MEMORY_RECALL_FACT_ARCHIVED");const visibilityRevision=old?.visibilityRevision??0;if(deps&&deps[index].visibilityRevision!==visibilityRevision)recallFail("MEMORY_RECALL_VISIBILITY_STALE");return {factId:fact.factId,revision:fact.revision,visibilityRevision}});return {facts,recallDeps};
+ }
  private use(scope:string,owner:RecallUseOwner,id:string):UseRecord{
   const r=this.read<UseRecord>(scope,parseInternalId(id),"use",owner.actorKey);if(!r)recallFail("MEMORY_RECALL_USE_DENIED");objectFields(r,["id","actorKey","providerId","sessionId","bootId","revision","state","createdAt","invokedAt","dependencies","recorded"]);
   for(const k of ["actorKey","providerId","sessionId","bootId"] as const)if(r[k]!==owner[k])recallFail("MEMORY_RECALL_USE_DENIED");

@@ -1,6 +1,6 @@
 import type {DatabaseSync} from "node:sqlite";
 import {ENTITY_TABLES} from "./repository-types";
-export const MEMORY_SCHEMA_VERSION=8;
+export const MEMORY_SCHEMA_VERSION=9;
 function baseSchema(db:DatabaseSync,databaseId:string){
  db.exec("CREATE TABLE memory_metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), database_id TEXT NOT NULL, key_version INTEGER NOT NULL CHECK(key_version=1)) STRICT");
  db.prepare("INSERT INTO memory_metadata VALUES (1,?,1)").run(databaseId);
@@ -24,7 +24,7 @@ function factSchema(db:DatabaseSync){
 }
 export function initializeSchema(db:DatabaseSync,databaseId:string):void{
  const version=db.prepare("PRAGMA user_version").get()?.user_version;
- if(![0,1,2,3,4,5,6,7,8].includes(version as number))throw new Error("MEMORY_SCHEMA_UNSUPPORTED");
+ if(![0,1,2,3,4,5,6,7,8,9].includes(version as number))throw new Error("MEMORY_SCHEMA_UNSUPPORTED");
  if(version!==0){
   const metadata=db.prepare("SELECT database_id,key_version FROM memory_metadata WHERE singleton=1").get();
   if(metadata?.database_id!==databaseId||metadata.key_version!==1)throw new Error("MEMORY_DATABASE_AUTH_MISMATCH");
@@ -64,6 +64,11 @@ export function initializeSchema(db:DatabaseSync,databaseId:string):void{
  if((version as number)<8){
   db.exec("BEGIN IMMEDIATE");
   try{db.exec("CREATE TABLE recall_records(id TEXT NOT NULL,scope_key TEXT NOT NULL,kind TEXT NOT NULL CHECK(kind IN ('policy','state','use')),revision INTEGER NOT NULL CHECK(revision>0),payload BLOB NOT NULL,PRIMARY KEY(id,scope_key)) STRICT;CREATE INDEX recall_records_by_kind ON recall_records(scope_key,kind);PRAGMA user_version=8;COMMIT")}
+  catch(error){db.exec("ROLLBACK");throw error}
+ }
+ if((version as number)<9){
+  db.exec("BEGIN IMMEDIATE");
+  try{db.exec("CREATE TABLE history_records(id TEXT NOT NULL,scope_key TEXT NOT NULL,partition_index BLOB NOT NULL CHECK(length(partition_index)=32),kind TEXT NOT NULL CHECK(kind IN ('document','quarantine')),payload BLOB NOT NULL,PRIMARY KEY(id,scope_key)) STRICT;CREATE INDEX history_records_by_partition ON history_records(scope_key,partition_index,kind);PRAGMA user_version=9;COMMIT")}
   catch(error){db.exec("ROLLBACK");throw error}
  }
  const metadata=db.prepare("SELECT database_id,key_version FROM memory_metadata WHERE singleton=1").get();

@@ -1,6 +1,6 @@
 # H historical retrieval and independent migration: next implementation plan
 
-Status: proposal for the next isolated stage; no H implementation, production installation, data migration, provider request or dependency change in this branch. S remains recent context and source-backed summaries; M remains long-lived valid facts; H remains historical conversation retrieval. The approved M plan is `2026-10-01-memory-recall-implementation.md`.
+Status: original proposal; approved follow-up implementation and binding refinements are in `2026-10-02-memory-h-isolated-implementation.md`. The original proposed raw weighting and preview/apply wording below are superseded by that plan; no H implementation, production installation, data migration, provider request or dependency change in this branch. S remains recent context and source-backed summaries; M remains long-lived valid facts; H remains historical conversation retrieval. The approved M plan is `2026-10-01-memory-recall-implementation.md`.
 
 ## Verified existing interfaces and why direct reuse needs boundaries
 

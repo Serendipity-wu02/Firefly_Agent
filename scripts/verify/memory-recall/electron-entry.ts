@@ -36,7 +36,7 @@ async function migrateAndRollback(){
  const exited=new Promise<number>(resolve=>worker.once("exit",resolve));await new Promise<void>((resolve,reject)=>{worker.once("message",m=>m.type==="ready"?resolve():reject(new Error("PROBE_WORKER_PROTOCOL")));worker.once("error",reject);worker.once("exit",()=>reject(new Error("PROBE_WORKER_EARLY_EXIT")))});
  const request=(type:string,body:unknown)=>new Promise<any>((resolve,reject)=>{const id=++sequence,handler=(m:any)=>{if(m.id!==id)return;worker.off("message",handler);m.ok?resolve(m.result):reject(new Error(m.error))};worker.on("message",handler);worker.postMessage({id,type,body})});
  try{assert.deepEqual((await request("rows",{table:"sources",scopeKey:"scope-a"}))[0].payload,{text:"ACTUAL_V7_SYNTHETIC_RECORD"});await request("close",{});assert.equal(await exited,0)}finally{await worker.terminate();key.fill(0)}
- let db=new DatabaseSync(file);assert.equal(db.prepare("PRAGMA user_version").get()?.user_version,8);assert.deepEqual(db.prepare("SELECT payload FROM sources WHERE id='actual-v7-source'").get()?.payload,payload);db.close();
+ let db=new DatabaseSync(file);assert.equal(db.prepare("PRAGMA user_version").get()?.user_version,9);assert.deepEqual(db.prepare("SELECT payload FROM sources WHERE id='actual-v7-source'").get()?.payload,payload);db.close();
  if(mode==="rollback"){
   // Exact v7 writer from the retained pre-v8 bundle, never a current writer with
   // dropped tables/reset PRAGMA. Roll back into a new owned root from full backup.
@@ -45,7 +45,7 @@ async function migrateAndRollback(){
   const restored=path.join(ownedRoot,"restored-v7");fs.mkdirSync(restored);for(const suffix of ["",".auth"])fs.copyFileSync(path.join(backup,"memory.sqlite"+suffix),path.join(restored,"memory.sqlite"+suffix));assert.equal(hash(path.join(restored,"memory.sqlite")),"abe66d5aabccf0dcba143f8184b5ae41a029de9dbcabea889bfd3d17ff818434");
   const repo=old.openMemoryRepository({databasePath:path.join(restored,"memory.sqlite"),key:testKey});assert.deepEqual(repo.readRows("sources","scope-a")[0].payload,{text:"ACTUAL_V7_SYNTHETIC_RECORD"});repo.close();testKey.fill(0);db=new DatabaseSync(path.join(restored,"memory.sqlite"));assert.equal(db.prepare("PRAGMA user_version").get()?.user_version,7);db.close();
  }
- return {actualV7Writer:true,migratedVersion:8,encryptedSourceUnchanged:true,backupRollback:mode==="rollback"};
+ return {actualV7Writer:true,migratedVersion:9,encryptedSourceUnchanged:true,backupRollback:mode==="rollback"};
 }
 
 (async()=>{let client:MemoryClient|undefined;try{
