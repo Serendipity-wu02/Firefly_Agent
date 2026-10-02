@@ -1,5 +1,7 @@
 import {afterEach,it,expect} from 'vitest';
 import {randomUUID} from 'node:crypto';
+import path from 'node:path';
+import {SyntheticSourceProvider} from '../../../scripts/verify/memory-sources/synthetic-provider';
 import {recallFixture} from '../../../scripts/verify/memory-recall/recall-fixture';
 import {createMainHistory,createMainHistoryProvider} from './main-history';
 import {createMainContext} from '../memory-context/main-context';
@@ -13,6 +15,15 @@ function fixture(){const f=recallFixture();fixtures.push(f);const transport={...
  return {...f,history,transport,options,context:createMainContext(options)};
 }
 afterEach(()=>{for(const f of fixtures.splice(0))f.close()});
+async function secondScope(f:ReturnType<typeof fixture>){
+ const provider=new SyntheticSourceProvider(path.join(f.root,'scope-b.json'),'scope-b'),access=f.registry.authority.access('scope-b'),actor=f.authority.bindActor(access,provider.adapter,f.identity),id={...f.identity,messageId:'scope-b-root'};provider.write(id,{text:'cat B',role:'user',trust:'direct-user-event'});const ref=await f.registry.capture(access,provider.adapter,id),reads={count:0},document={id:'scope-b-doc',incarnation:'v1',revision:1,origin:'canonical',sourceDeps:[{sourceRef:ref,subjectKeys:null,derivedRefs:null}],vector:null,messages:[{id:'u',role:'user',text:'cat B',occurredAt:null,timeZone:null,sourceRef:ref},{id:'a',role:'assistant',text:'cat private B',occurredAt:null,timeZone:null}]},historyProvider=createMainHistoryProvider(f.authority,actor,{withLease:async(_id,run)=>{reads.count++;return run(async()=>structuredClone(document as any))}});await f.history.captureTranscript(actor,historyProvider,'scope-b-turn');return {actor,reads,document,historyProvider};
+}
+it('scope filtering precedes transcript provider reads even when actor/provider/session names match',async()=>{
+ const f=fixture();await capture(f,'cat A');const b=await secondScope(f);b.reads.count=0;b.document.revision=2;b.document.messages[1].text='cat changed B';expect(()=>f.history.grantSessions(f.actor,[b.actor])).toThrow('MEMORY_HISTORY_ACCESS_DENIED');await expect(f.history.captureTranscript(f.actor,b.historyProvider,'scope-b-turn')).rejects.toThrow('MEMORY_HISTORY_PROVIDER_DENIED');const q=await f.history.query(f.actor,{query:'cat'});expect(q.hits).toHaveLength(1);expect(q.hits[0].document.messages[0].text).toBe('cat A');expect(b.reads.count).toBe(0);expect((await f.history.query(b.actor,{query:'cat'})).hits).toEqual([]);expect(b.reads.count).toBe(1);
+});
+it('another scope cannot overwrite the source actor used by existing evidence or dispatch',async()=>{
+ const f=fixture();await capture(f,'cat A');const q=await f.history.query(f.actor,{query:'cat'}),snapshot=await f.context.assemble(f.actor,{sessionId:'session-a',sourceRefs:[],historyTokens:[q.evidence]}),permit=await f.context.validateForDispatch(f.actor,snapshot),b=await secondScope(f);expect((await f.history.query(b.actor,{query:'cat'})).hits).toHaveLength(1);let sends=0;expect((await f.context.dispatch(f.actor,permit,()=>{sends++;return 'scope-a sent'})).status).toBe('sent');expect(sends).toBe(1);expect((await f.context.assemble(f.actor,{sessionId:'session-a',sourceRefs:[],historyTokens:[q.evidence]})).request.body.messages).toHaveLength(1);
+});
 function toolDocument(source:any){return {id:'fresh-tool',incarnation:'v1',revision:1,origin:'canonical',sourceDeps:[{sourceRef:source.ref,subjectKeys:null,derivedRefs:null}],vector:null,messages:[{id:'u',role:'user',text:'cat',occurredAt:null,timeZone:null,sourceRef:source.ref},{id:'a',role:'assistant',text:'cat call',occurredAt:null,timeZone:null,toolCallIds:['t']},{id:'t',role:'tool',text:'cat OLD',occurredAt:null,timeZone:null,toolCallId:'t'}]}}
 it('unsourced tool mutation during budget counting fails before a snapshot is stored',async()=>{
  const f=fixture(),source=await f.source('cat');let current=toolDocument(source);const provider=createMainHistoryProvider(f.authority,f.actor,{withLease:async(_id,run)=>run(async()=>structuredClone(current))});await f.history.captureTranscript(f.actor,provider,'fresh-tool');const q=await f.history.query(f.actor,{query:'cat'});let edited=false;const ctx=createMainContext({...f.options,counter:{...f.options.counter,count:async(r:any)=>{if(!edited){edited=true;current={...current,revision:2,messages:current.messages.map(m=>m.id==='t'?{...m,text:'cat NEW'}:m)}}return JSON.stringify(r.body).length}}});await expect(ctx.assemble(f.actor,{sessionId:'session-a',sourceRefs:[],historyTokens:[q.evidence]})).rejects.toThrow('MEMORY_HISTORY_STALE');
