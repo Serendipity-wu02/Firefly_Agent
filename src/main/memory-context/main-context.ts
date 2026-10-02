@@ -7,7 +7,7 @@ import type {MainActorAuthority,MainActorContext} from "../memory-core/main-acto
 import type {createMainSourceRegistry} from "../memory-sources/source-registry";
 import {extractMaintenance} from "../memory-policy/maintenance-extractor";
 import {policySubjectKey} from "../memory-policy/policy-repository";
-import {ContextError,contextFail,type ContextBudget,type TokenCounter,type ContextUnit,type PreparedRequest,type BudgetResult,type ContextTransport,type SourceDependency,type FactDependency,type TranscriptDependency,type StoredSummary,type SummaryReceipt,type SummarySegment} from "./context-contracts";
+import {ContextError,contextFail,CONTEXT_CLAIM_WINDOW_MS,type ContextBudget,type TokenCounter,type ContextUnit,type PreparedRequest,type BudgetResult,type ContextTransport,type SourceDependency,type FactDependency,type TranscriptDependency,type StoredSummary,type SummaryReceipt,type SummarySegment} from "./context-contracts";
 import {selectBudget,requestDigest,freezeRequest,countPrepared} from "./token-budget";
 import {parseCanonicalTranscript,requireMainTranscriptProvider} from "./main-transcript-provider";
 
@@ -146,11 +146,12 @@ export function createMainContext(options:ContextOptions){
   const state=permit.snapshot,result=await recount(state);
   const sent=await options.actorAuthority.coordinate(async()=>{
    if(configuration()!==state.configuration||requestDigest(freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts))))!==result.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
-   if(permit.used)contextFail("MEMORY_CONTEXT_PERMIT_USED");permit.used=true;
+   if(permit.used)contextFail("MEMORY_CONTEXT_PERMIT_USED");const attemptAt=(options.clock??Date.now)();if(!Number.isSafeInteger(attemptAt)||attemptAt<0)contextFail("MEMORY_RECALL_CLOCK_INVALID");permit.used=true;
    const useTicketId="use-"+randomUUID(),processBootId=options.actorAuthority.bootId;
-   await command(state.actor,"claim",{snapshotId:state.snapshot.snapshotId,permitId:permit.id,requestDigest:result.requestDigest,useTicketId,processBootId},randomUUID());
+   const claim=await command<{claimedAt:number}>(state.actor,"claim",{snapshotId:state.snapshot.snapshotId,permitId:permit.id,requestDigest:result.requestDigest,useTicketId,processBootId,attemptAt},randomUUID());
    // Invocation is the application linearization point. No await/dump between claim and send.
-   const invokedAt=(options.clock??Date.now)();let response:Promise<T>|null;
+   const invokedAt=(options.clock??Date.now)();if(!Number.isSafeInteger(invokedAt)||!Number.isSafeInteger(claim.claimedAt)||invokedAt<claim.claimedAt||invokedAt-claim.claimedAt>CONTEXT_CLAIM_WINDOW_MS){await command(state.actor,"useUnknown",{useTicketId,processBootId},"unknown-"+useTicketId).catch(()=>{});contextFail("MEMORY_RECALL_CLOCK_INVALID")}
+   let response:Promise<T>|null;
    try{response=Promise.resolve(send(result.request));void response.catch(()=>{})}catch{response=null}
    try{await command(state.actor,"confirmUse",{useTicketId,processBootId,invokedAt},"confirm-"+useTicketId)}catch{
     // The callback already ran. Durable confirmation failure cannot trigger a
