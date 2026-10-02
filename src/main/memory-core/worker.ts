@@ -20,6 +20,7 @@ port.on("message",(message:unknown)=>{
     case "job":result=repository.jobCommand(input.body);break;
     case "policy":result=repository.policyCommand(input.body);break;
     case "context":result=repository.contextCommand(input.body);break;
+    case "recall":result=repository.recallCommand(input.body);break;
     case "source":result=repository.sourceCommand(input.body);break;
     case "execute":result=repository.execute(input.body);break;
     case "current":{const body=objectFields(input.body,["scopeKey"]);result=repository.current(parseInternalId(body.scopeKey));break}

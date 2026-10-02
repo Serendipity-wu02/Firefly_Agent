@@ -3,4 +3,6 @@ export interface StrengthState {lastAccessAt:number|null;decayAnchorAt:number;la
 export interface RecallProtection {pinned:boolean;explicitConfirmation:boolean;required:boolean}
 export interface RecallDependency {factId:string;revision:number;visibilityRevision:number}
 export interface RecallTransport {recallCommand(command:unknown):Promise<unknown>}
+export interface RecallFactRef {factId:string;revision:number}
+export interface RecallState extends StrengthState {id:string;actorKey:string;factId:string;factRevision:number;projectionRevision:number;visibilityRevision:number;visibility:"normal"|"archived";pinned:boolean;policyVersion:string;archivedAt:number|null;archiveReason:"manual"|"decay"|null;accessCount:number}
 export function recallFail(code:string):never{throw new Error(code)}
