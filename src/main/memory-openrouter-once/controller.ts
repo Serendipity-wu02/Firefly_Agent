@@ -1,3 +1,5 @@
+import { MAX_INPUT_TOKENS,MAX_OUTPUT_TOKENS,INPUT_NANO_USD_PER_TOKEN,OUTPUT_NANO_USD_PER_TOKEN,type NumericUsage } from "./boundary";
+import { projectFailure } from "./diagnostics";
 import { randomUUID } from "node:crypto";
 import type { MessageBoxOptions, MenuItemConstructorOptions } from "electron";
 import { createSessionProfile, type SessionProfile } from "./session-profile";
@@ -9,7 +11,36 @@ interface Dependencies {
  writeState(state:Record<string,unknown>):void;quit():void;
 }
 const numeric=(v:unknown)=>typeof v==="number"&&Number.isSafeInteger(v)&&v>=0?v:0;
-function projectReceipt(r:ProbeReceipt):Record<string,unknown>{return {status:["completed","refused","uncertain","cancelled"].includes(r.status)?r.status:"refused",attempts:Math.min(numeric(r.attempts),2),reservedNanoUsd:numeric(r.reservedNanoUsd),upperNanoUsd:numeric(r.upperNanoUsd),costNanoUsd:numeric(r.costNanoUsd),usage:r.usage.slice(0,2).map(u=>({promptTokens:numeric(u.promptTokens),completionTokens:numeric(u.completionTokens),totalTokens:numeric(u.totalTokens),costNanoUsd:numeric(u.costNanoUsd),upperNanoUsd:numeric(u.upperNanoUsd),...(u.cacheHitTokens===undefined?{}:{cacheHitTokens:numeric(u.cacheHitTokens)}),...(u.reasoningTokens===undefined?{}:{reasoningTokens:numeric(u.reasoningTokens)})}))};}
+function projectUsage(raw:unknown):NumericUsage|undefined {
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return undefined;
+ const value=raw as Record<string,unknown>;
+ const keys=["promptTokens","completionTokens","totalTokens","costNanoUsd","upperNanoUsd"];
+ if(!keys.every(k=>typeof value[k]==="number"&&Number.isSafeInteger(value[k])&&(value[k] as number)>=0))return undefined;
+ const u=value as unknown as NumericUsage;
+ if(u.promptTokens>MAX_INPUT_TOKENS||u.completionTokens>MAX_OUTPUT_TOKENS||u.totalTokens!==u.promptTokens+u.completionTokens||u.upperNanoUsd!==u.promptTokens*INPUT_NANO_USD_PER_TOKEN+u.completionTokens*OUTPUT_NANO_USD_PER_TOKEN||u.costNanoUsd>u.upperNanoUsd)return undefined;
+ if(u.cacheHitTokens!==undefined&&(!Number.isSafeInteger(u.cacheHitTokens)||u.cacheHitTokens<0||u.cacheHitTokens>u.promptTokens))return undefined;
+ if(u.reasoningTokens!==undefined&&u.reasoningTokens!==0)return undefined;
+ return {promptTokens:u.promptTokens,completionTokens:u.completionTokens,totalTokens:u.totalTokens,costNanoUsd:u.costNanoUsd,upperNanoUsd:u.upperNanoUsd,...(u.cacheHitTokens===undefined?{}:{cacheHitTokens:u.cacheHitTokens}),...(u.reasoningTokens===undefined?{}:{reasoningTokens:u.reasoningTokens})};
+}
+function projectReceipt(r:ProbeReceipt):Record<string,unknown>{
+ const parsed=Array.isArray(r.usage)?Array.from(r.usage.slice(0,2),projectUsage):[];
+ const validEvidence=Array.isArray(r.usage)&&r.usage.length>0&&r.usage.length<=2&&parsed.every(u=>u!==undefined)&&Number.isSafeInteger(r.attempts)&&r.attempts>=r.usage.length&&r.attempts<=2;
+ const usage=validEvidence?parsed as NumericUsage[]:[];
+ const sum=usage.reduce((total,u)=>total+u.costNanoUsd,0);
+ const expected=usage.length===r.attempts?"complete":"partial";
+ const costValid=validEvidence&&r.costNanoUsd===sum&&sum<=1e9&&r.costStatus===expected&&["completed","uncertain","cancelled"].includes(r.status)&&(r.status!=="completed"||expected==="complete");
+ const costStatus=costValid?expected:"unknown";
+ const failure=projectFailure(r.failure);
+ return {status:["completed","refused","uncertain","cancelled"].includes(r.status)?r.status:"refused",attempts:Math.min(numeric(r.attempts),2),reservedNanoUsd:numeric(r.reservedNanoUsd),upperNanoUsd:numeric(r.upperNanoUsd),costStatus,costNanoUsd:costValid?sum:null,...(failure?{failure}:{}),usage};
+}
+function costText(receipt:Record<string,unknown>):string {
+ if(receipt.costStatus==="complete")return `已报告扣费：USD ${numeric(receipt.costNanoUsd)/1e9}`;
+ if(receipt.costStatus==="partial")return `总费用：未知；已确认部分：USD ${numeric(receipt.costNanoUsd)/1e9}`;
+ return "实际费用：未知（未取得有效费用回执）";
+}
+function failureText(receipt:Record<string,unknown>):string {
+ const failure=projectFailure(receipt.failure);return failure?`\n原因：${failure.code}\n阶段：${failure.stage}${failure.httpStatus===undefined?"":`\nHTTP 状态：${failure.httpStatus}`}`:"";
+}
 export function createController(deps:Dependencies){
  let profile:SessionProfile|undefined,phase="awaiting-user-input",stopped=false,action:Promise<void>|undefined;
  let runner:ReturnType<Dependencies["createRunner"]>|undefined,receipt:Record<string,unknown>|undefined;
@@ -35,7 +66,7 @@ export function createController(deps:Dependencies){
     runner=deps.createRunner(requested=>profile&&profile.id===requested?{...profile}:undefined);
     const result=await runner.start(id);receipt=projectReceipt(result);phase=stopped?"cancelled":"finished";
     clear();stopped=true;publish();
-    await deps.show({type:"info",title:"OpenRouter H 测试结果",message:result.status==="completed"?"测试完成":"测试停止",detail:`状态：${receipt.status}\n请求次数：${receipt.attempts}\n已报告扣费：USD ${numeric(receipt.costNanoUsd)/1e9}\n费用上界：USD ${numeric(receipt.upperNanoUsd)/1e9}\n预算保留：USD ${numeric(receipt.reservedNanoUsd)/1e9}\n本入口不会重试或重置预算。`,buttons:["关闭"]});
+    await deps.show({type:"info",title:"OpenRouter H 测试结果",message:result.status==="completed"?"测试完成":"测试停止",detail:`状态：${receipt.status}\n请求次数：${receipt.attempts}\n${costText(receipt)}${failureText(receipt)}\n保守费用上界：USD ${numeric(receipt.upperNanoUsd)/1e9}\n预算保留：USD ${numeric(receipt.reservedNanoUsd)/1e9}\n本入口不会重试或重置预算。`,buttons:["关闭"]});
    }catch{runner?.cancel();clear();stopped=true;phase="refused";publish();}
   });return action??Promise.resolve();
  }

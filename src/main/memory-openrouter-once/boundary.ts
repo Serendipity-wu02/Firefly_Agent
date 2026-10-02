@@ -1,5 +1,6 @@
 /** Fixed synthetic probe. Never loads settings, user history, tools, or network. */
 import { createHash } from "node:crypto";
+import { safeFailure, type SafeFailure, type FailureCode } from "./diagnostics";
 import { validKey, type SessionProfile } from "./session-profile";
 export const MODEL="deepseek/deepseek-v4.1-flash";
 export const ENDPOINT="https://openrouter.ai/api/v1/chat/completions";
@@ -20,22 +21,30 @@ export function buildFixedRequest(p:SessionProfile):{url:string;method:"POST";he
 export interface NumericUsage { promptTokens:number;completionTokens:number;totalTokens:number;costNanoUsd:number;upperNanoUsd:number;cacheHitTokens?:number;reasoningTokens?:number; }
 function record(v:unknown):v is Record<string,unknown>{return v!==null&&typeof v==="object"&&!Array.isArray(v);}
 function integer(v:unknown):v is number{return typeof v==="number"&&Number.isSafeInteger(v)&&v>=0;}
-/** Project numeric accounting only. No response text, identifiers, raw errors or headers leave Main. */
-export function sanitizeUsage(raw:unknown):NumericUsage|null {
- if(!record(raw)||raw.model!==MODEL||raw.provider!=="DeepSeek"||raw.error!==undefined||!record(raw.usage))return null;
- if(raw.object!=="chat.completion"||typeof raw.id!=="string"||raw.id.length===0||raw.id.length>256||!Array.isArray(raw.choices)||raw.choices.length!==1)return null;
+/** Inspect without returning response strings, identifiers, headers or exception details. */
+export function inspectUsage(raw:unknown):{usage:NumericUsage}|{failure:SafeFailure} {
+ const fail=(code:FailureCode)=>({failure:safeFailure(code)});
+ if(!record(raw)||raw.error!==undefined)return fail("ENVELOPE_INVALID");
+ if(raw.model!==MODEL||raw.provider!=="DeepSeek")return fail("IDENTITY_MISMATCH");
+ if(raw.object!=="chat.completion"||typeof raw.id!=="string"||raw.id.length===0||raw.id.length>256||!Array.isArray(raw.choices)||raw.choices.length!==1)return fail("ENVELOPE_INVALID");
  const choice=raw.choices[0];
- if(!record(choice)||choice.index!==0||!record(choice.message)||choice.message.role!=="assistant"||!(typeof choice.message.content==="string"||choice.message.content===null)||typeof choice.finish_reason!=="string"||!["stop","length","tool_calls","content_filter"].includes(choice.finish_reason))return null;
+ if(!record(choice)||choice.index!==0||!record(choice.message)||choice.message.role!=="assistant"||!(typeof choice.message.content==="string"||choice.message.content===null)||typeof choice.finish_reason!=="string"||!["stop","length","tool_calls","content_filter"].includes(choice.finish_reason))return fail("ENVELOPE_INVALID");
+ if(!record(raw.usage))return fail("USAGE_INVALID");
  const u=raw.usage,p=u.prompt_tokens,c=u.completion_tokens,t=u.total_tokens;
- if(!integer(p)||!integer(c)||!integer(t)||p>MAX_INPUT_TOKENS||c>MAX_OUTPUT_TOKENS||p+c!==t||u.is_byok!==false)return null;
- // OpenRouter usage.cost is the charged USD-credit amount; BYOK upstream bills are outside this experiment.
+ if(!integer(p)||!integer(c)||!integer(t)||p>MAX_INPUT_TOKENS||c>MAX_OUTPUT_TOKENS||p+c!==t)return fail("USAGE_INVALID");
+ if(u.is_byok!==false)return fail("BILLING_SOURCE_INVALID");
+ // Account charges and BYOK upstream billing are separate; preserve the balance-only policy.
  // https://openrouter.ai/docs/cookbook/administration/usage-accounting
- if(u.cost_details!==undefined){if(!record(u.cost_details))return null;const upstream=u.cost_details.upstream_inference_cost;if(upstream!==undefined&&upstream!==null&&upstream!==0)return null;}
- if(typeof u.cost!=="number"||!Number.isFinite(u.cost)||u.cost<0||u.cost>BUDGET_NANO_USD/1e9)return null;
+ if(u.cost_details!==undefined){if(!record(u.cost_details))return fail("BILLING_SOURCE_INVALID");const upstream=u.cost_details.upstream_inference_cost;if(upstream!==undefined&&upstream!==null&&upstream!==0)return fail("BILLING_SOURCE_INVALID");}
+ if(typeof u.cost!=="number"||!Number.isFinite(u.cost)||u.cost<0||u.cost>BUDGET_NANO_USD/1e9)return fail("COST_INVALID");
  const costNanoUsd=Math.ceil(u.cost*1e9),upperNanoUsd=p*INPUT_NANO_USD_PER_TOKEN+c*OUTPUT_NANO_USD_PER_TOKEN;
- if(!integer(costNanoUsd)||costNanoUsd>upperNanoUsd)return null;
+ if(!integer(costNanoUsd)||costNanoUsd>upperNanoUsd)return fail("COST_INVALID");
  let cached:number|undefined,reasoning:number|undefined;
- if(u.prompt_tokens_details!==undefined){if(!record(u.prompt_tokens_details))return null;const v=u.prompt_tokens_details.cached_tokens;if(v!==undefined){if(!integer(v)||v>p)return null;cached=v;}const w=u.prompt_tokens_details.cache_write_tokens;if(w!==undefined&&w!==0)return null;}
- if(u.completion_tokens_details!==undefined){if(!record(u.completion_tokens_details))return null;const v=u.completion_tokens_details.reasoning_tokens;if(v!==undefined){if(v!==0)return null;reasoning=0;}}
- return {promptTokens:p,completionTokens:c,totalTokens:t,costNanoUsd,upperNanoUsd,...(cached===undefined?{}:{cacheHitTokens:cached}),...(reasoning===undefined?{}:{reasoningTokens:reasoning})};
+ if(u.prompt_tokens_details!==undefined){if(!record(u.prompt_tokens_details))return fail("USAGE_INVALID");const v=u.prompt_tokens_details.cached_tokens;if(v!==undefined){if(!integer(v)||v>p)return fail("USAGE_INVALID");cached=v;}const w=u.prompt_tokens_details.cache_write_tokens;if(w!==undefined&&w!==0)return fail("USAGE_INVALID");}
+ if(u.completion_tokens_details!==undefined){if(!record(u.completion_tokens_details))return fail("USAGE_INVALID");const v=u.completion_tokens_details.reasoning_tokens;if(v!==undefined){if(v!==0)return fail("USAGE_INVALID");reasoning=0;}}
+ return {usage:{promptTokens:p,completionTokens:c,totalTokens:t,costNanoUsd,upperNanoUsd,...(cached===undefined?{}:{cacheHitTokens:cached}),...(reasoning===undefined?{}:{reasoningTokens:reasoning})}};
+}
+/** Compatibility projection for callers that only need accepted numeric usage. */
+export function sanitizeUsage(raw:unknown):NumericUsage|null {
+ const result=inspectUsage(raw);return "usage" in result?result.usage:null;
 }

@@ -92,7 +92,7 @@ describe("durable one-shot Main runner using only simulated network",()=>{
   expect(result).toMatchObject({status:"uncertain",attempts:1,upperNanoUsd:TOTAL_RESERVE_NANO_USD,reservedNanoUsd:TOTAL_RESERVE_NANO_USD});expect(fetch).toHaveBeenCalledOnce();
  });
  it("cancels before admission with zero fetch and consumes the process permit",async()=>{
-  const {runner,fetch}=setup();runner.cancel();expect((await runner.start(profile.id)).status).toBe("cancelled");expect(fetch).not.toHaveBeenCalled();
+  const {runner,fetch}=setup();runner.cancel();expect(await runner.start(profile.id)).toMatchObject({status:"cancelled",failure:{code:"CANCELLED"},costStatus:"unknown",costNanoUsd:null});expect(fetch).not.toHaveBeenCalled();
  });
  it("cancels hanging fetch even if injected transport ignores abort",async()=>{
   const {runner,fetch}=setup(vi.fn(()=>new Promise<Response>(()=>{})));
@@ -104,7 +104,7 @@ describe("durable one-shot Main runner using only simulated network",()=>{
   for(const mode of ["fetch","body"]) {
    const {runner,fetch}=setup(vi.fn(async()=>mode==="body"?new Response(new ReadableStream({start(){}})):await new Promise<Response>(()=>{})));
    const result=runner.start(profile.id);await vi.advanceTimersByTimeAsync(30001);
-   expect(await result).toMatchObject({status:"uncertain",attempts:1,upperNanoUsd:TOTAL_RESERVE_NANO_USD});expect(fetch).toHaveBeenCalledOnce();
+   expect(await result).toMatchObject({status:"uncertain",attempts:1,upperNanoUsd:TOTAL_RESERVE_NANO_USD,failure:{code:"DEADLINE_EXCEEDED",stage:mode==="body"?"body":"network"}});expect(fetch).toHaveBeenCalledOnce();
   }
  });
  it("revokes an unused admission after cancel or another boot, including vanished ledger",async()=>{
@@ -143,6 +143,58 @@ describe("durable one-shot Main runner using only simulated network",()=>{
   const pending=runner.start(profile.id);runner.cancel();expect((await pending).status).toBe("cancelled");
   resolve(new Response(new ReadableStream({cancel(){cancelled=true;}})));
   await new Promise(r=>setImmediate(r));expect(cancelled).toBe(true);
+ });
+
+ it.each([
+  ["network","NETWORK_FAILED","network",undefined], ["http","HTTP_REJECTED","http",401],
+  ["body","BODY_READ_FAILED","body",200], ["oversize","BODY_TOO_LARGE","body",200],
+  ["missing-body","BODY_MISSING","body",200], ["json","JSON_INVALID","json",200],
+  ["envelope","ENVELOPE_INVALID","response",200], ["identity","IDENTITY_MISMATCH","identity",200],
+  ["usage","USAGE_INVALID","usage",200], ["billing","BILLING_SOURCE_INVALID","cost",200],
+  ["cost","COST_INVALID","cost",200],
+ ])("records only a safe classification for %s",async(mode,code,stage,httpStatus)=>{
+  const fetch=vi.fn(async()=>{
+   if(mode==="network")throw Object.assign(new Error(profile.apiKey),{code:profile.apiKey,headers:{secret:profile.apiKey}});
+   if(mode==="http")return new Response(profile.apiKey,{status:401,headers:{"X-Secret":profile.apiKey}});
+   if(mode==="body")return new Response(new ReadableStream({start(c){c.error(new Error(profile.apiKey));}}));
+   if(mode==="oversize")return new Response(profile.apiKey.repeat(4000));
+   if(mode==="missing-body")return new Response(null);
+   if(mode==="json")return new Response("{"+profile.apiKey);
+   if(mode==="envelope")return response(undefined,{choices:[]});
+   if(mode==="identity")return response(undefined,{model:profile.apiKey});
+   if(mode==="usage")return response({prompt_tokens:profile.apiKey});
+   if(mode==="billing")return response({is_byok:profile.apiKey,prompt_tokens:100,completion_tokens:20,total_tokens:120,cost:0});
+   return response({is_byok:false,prompt_tokens:100,completion_tokens:20,total_tokens:120,cost:profile.apiKey});
+  });
+  const {runner,root}=setup(fetch);const r=await runner.start(profile.id);
+  expect(r).toMatchObject({status:"uncertain",attempts:1,costNanoUsd:null,costStatus:"unknown",upperNanoUsd:TOTAL_RESERVE_NANO_USD,failure:{code,stage,...(httpStatus===undefined?{}:{httpStatus})}});
+  expect(Object.keys(r.failure!).sort()).toEqual(httpStatus===undefined?["code","stage"]:["code","httpStatus","stage"]);
+  expect(fetch).toHaveBeenCalledOnce();assertSanitized(r);const ledger=fs.readFileSync(path.join(root,"ledger.json"),"utf8");expect(ledger).not.toContain(profile.apiKey);expect(JSON.parse(ledger).receipt).toEqual(r);
+ });
+ it("keeps a partial confirmed cost when the second attempt fails",async()=>{
+  const fetch=vi.fn(async()=>response()).mockResolvedValueOnce(response()).mockRejectedValueOnce(new Error(profile.apiKey));
+  const {runner}=setup(fetch);const r=await runner.start(profile.id);
+  expect(r).toMatchObject({status:"uncertain",attempts:2,costStatus:"partial",costNanoUsd:27000,upperNanoUsd:TOTAL_RESERVE_NANO_USD,failure:{code:"NETWORK_FAILED",stage:"network"}});expect(r.usage).toHaveLength(1);expect(fetch).toHaveBeenCalledTimes(2);
+ });
+ it("distinguishes a verified zero cost from missing evidence",async()=>{
+  const {runner}=setup(vi.fn(async()=>response({is_byok:false,prompt_tokens:100,completion_tokens:20,total_tokens:120,cost:0})));
+  expect(await runner.start(profile.id)).toMatchObject({status:"completed",costStatus:"complete",costNanoUsd:0});
+ });
+ it("classifies deadlines separately without copying transport errors",async()=>{
+  vi.useFakeTimers();const {runner}=setup(vi.fn(()=>new Promise<Response>(()=>{})));const pending=runner.start(profile.id);await vi.advanceTimersByTimeAsync(30001);
+  expect(await pending).toMatchObject({failure:{code:"DEADLINE_EXCEEDED",stage:"network"},costStatus:"unknown",costNanoUsd:null});
+ });
+
+ it.each([400,403,429,500,503])("preserves only numeric HTTP rejection status %i",async status=>{
+  const {runner,fetch}=setup(vi.fn(async()=>new Response(profile.apiKey,{status,statusText:profile.apiKey,headers:{"X-Secret":profile.apiKey}})));
+  const r=await runner.start(profile.id);expect(r.failure).toEqual({code:"HTTP_REJECTED",stage:"http",httpStatus:status});assertSanitized(r);expect(fetch).toHaveBeenCalledOnce();
+ });
+ it("classifies local journal creation failure without releasing its spent reservation",async()=>{
+  const {runner,fetch,root}=setup();const original=fs.openSync;const spy=vi.spyOn(fs,"openSync").mockImplementation(((file:any,...args:any[])=>{if(String(file).endsWith("ledger.json"))throw new Error(profile.apiKey);return (original as any)(file,...args);}) as any);
+  try {const r=await runner.start(profile.id);expect(r).toMatchObject({status:"uncertain",attempts:0,costStatus:"unknown",costNanoUsd:null,reservedNanoUsd:TOTAL_RESERVE_NANO_USD,failure:{code:"STORAGE_FAILED",stage:"storage"}});expect(fetch).not.toHaveBeenCalled();expect(fs.existsSync(path.join(root,"spent.json"))).toBe(true);assertSanitized(r);}finally{spy.mockRestore();}
+ });
+ it("rejects invalid content-length without returning its value",async()=>{
+  const {runner}=setup(vi.fn(async()=>new Response(profile.apiKey,{headers:{"Content-Length":profile.apiKey}})));const r=await runner.start(profile.id);expect(r.failure).toEqual({code:"BODY_LENGTH_INVALID",stage:"body",httpStatus:200});assertSanitized(r);
  });
 
 });
