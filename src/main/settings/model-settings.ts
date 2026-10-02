@@ -337,6 +337,21 @@ export function setDefaultModelProfile(id: string): ModelSettings {
 let modelSettingsCache: ModelSettings | null = null;
 let modelSettingsReadFailed = false;
 
+/** Main-only strict snapshot. Never loads or stats the settings file. Not registered in IPC. */
+export function getCachedSavedModelProfile(id: string): SavedModelProfile | undefined {
+  if (modelSettingsReadFailed || !modelSettingsCache) return undefined;
+  const profile = modelSettingsCache.modelProfiles?.find(item => item.id === id);
+  if (!profile) return undefined;
+  return {id:profile.id,provider:profile.provider,baseUrl:profile.baseUrl,model:profile.model,
+    apiKey:profile.apiKey,explicitTransport:profile.explicitTransport};
+}
+/** Native Main picker receives only IDs; no default/fallback and no renderer export. */
+export function listCachedSavedModelProfileIds(): string[] {
+  if (modelSettingsReadFailed || !modelSettingsCache) return [];
+  return (modelSettingsCache.modelProfiles ?? []).map(profile => profile.id);
+}
+
+
 export function assertModelSettingsReadable(): void {
   loadModelSettings();
   if (modelSettingsReadFailed) throw new Error("MODEL_SETTINGS_READ_FAILED: 模型配置读取失败，原文件已保留");
