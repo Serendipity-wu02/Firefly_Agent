@@ -12,6 +12,7 @@ import {selectBudget,requestDigest,freezeRequest,countPrepared} from "./token-bu
 import {parseCanonicalTranscript,requireMainTranscriptProvider} from "./main-transcript-provider";
 
 interface ContextOptions {
+ clock?:()=>number;
  registry:ReturnType<typeof createMainSourceRegistry>;transport:ContextTransport;actorAuthority:MainActorAuthority;counter:TokenCounter;budget:ContextBudget;
  prepare:(units:ContextUnit[],facts:FactView[])=>PreparedRequest;prepareS:(units:ContextUnit[])=>PreparedRequest;
  /** Trusted Main provenance resolver, never a renderer supplied ancestry declaration. */
@@ -116,7 +117,7 @@ export function createMainContext(options:ContextOptions){
    if(changed){summaryExcluded.push({sourceId:id,reason:"MEMORY_SOURCE_STALE"});continue}summaries.push(summary);
   }
   const allRefs=[...new Map([...refs,...toolStates.flatMap(s=>s.sourceRefs),...summaries.flatMap(s=>s.sourceDeps.map(d=>d.sourceRef))].map(r=>[r.sourceId,r])).values()];
-  const baseline=await command<{generation:number;facts:FactView[]}>(a,"baseline",{sourceRefs:allRefs,factRefs:selectedFacts,transcriptRefs:toolRefs});
+  const baseline=await command<{generation:number;facts:FactView[];recallDeps:import("../memory-recall/recall-contracts").RecallDependency[]}>(a,"baseline",{sourceRefs:allRefs,factRefs:selectedFacts,transcriptRefs:toolRefs});
   const data=await corpus(a,allRefs),deps=data.deps,units:ContextUnit[]=[],unitSources=new Map<string,string[]>();
   for(const summary of summaries)units.push({id:summary.id,kind:"summary",messages:summary.segments.map(s=>{const message=data.messages.get(s.sourceRef.sourceId)!;if(s.role!==message.role||s.span.start!==0||s.span.end!==message.text.length)contextFail("MEMORY_CONTEXT_SUMMARY_FULL_SOURCE_REQUIRED");return message})});
   // Main provides ordered recent refs. Group a user and its following assistant messages as one turn.
@@ -124,12 +125,12 @@ export function createMainContext(options:ContextOptions){
   for(const ref of refs){const message=data.messages.get(ref.sourceId)!,last=recent.at(-1);if(message.role==="assistant"&&last?.messages[0].role==="user"){last.messages.push(message);unitSources.get(last.id)!.push(ref.sourceId)}else{recent.push({id:ref.sourceId,kind:"recent",messages:[message]});unitSources.set(ref.sourceId,[ref.sourceId])}}
   units.push(...recent);
   for(const state of toolStates)units.push(structuredClone(state.unit));
-  const inspected=await command<{generation:number;sourceStates:{sourceId:string;reason:string}[];facts:FactView[]}>(a,"inspect",{generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,transcriptRefs:toolRefs});
+  const inspected=await command<{generation:number;sourceStates:{sourceId:string;reason:string}[];facts:FactView[]}>(a,"inspect",{generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs});
   const excluded=[...summaryExcluded,...inspected.sourceStates.filter(s=>s.reason!=="allowed")],allowed=units.filter(u=>!excluded.some(e=>e.sourceId===u.id)&&!(unitSources.get(u.id)??[]).some(id=>excluded.some(e=>e.sourceId===id))&&!summaries.some(s=>s.id===u.id&&s.sourceDeps.some(d=>excluded.some(e=>e.sourceId===d.sourceRef.sourceId))));
   if(allowed.some(u=>unitSources.has(u.id)&&u.messages[0].role==="assistant"))contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
   const result=await selectBudget({counter:options.counter,budget:options.budget,units:allowed,prepare:u=>options.prepare(u,structuredClone(inspected.facts)),prepareS:options.prepareS,signal:input.signal});
   const snapshotId=randomUUID();
-  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,transcriptRefs:toolRefs,requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:result.selectedIds.flatMap(id=>unitSources.get(id)??[]),counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
+  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs,requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:result.selectedIds.flatMap(id=>unitSources.get(id)??[]),counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
   const snapshot=Object.freeze({...result,snapshotId,generation:baseline.generation,excluded:structuredClone(excluded)});
   snapshots.set(snapshot,{actorToken:token,actor:a,units:allowed.filter(u=>result.selectedIds.includes(u.id)),facts:inspected.facts,snapshot,sourceRefs:deps.map(d=>d.sourceRef),transcripts:toolStates,configuration:configuration()});return snapshot;
  }
@@ -138,15 +139,25 @@ export function createMainContext(options:ContextOptions){
   await options.actorAuthority.coordinate(()=>command(state.actor,"permit",{snapshotId:state.snapshot.snapshotId,permitId:id,requestDigest:result.requestDigest},randomUUID()));
   const permit=Object.freeze({});permits.set(permit,{snapshot:state,id,used:false});return permit;
  }
+ // "sent" means the local sender callback completed successfully; neither this
+ // result nor the durable invocation ticket proves remote delivery.
  async function dispatch<T>(token:object,value:object,send:(request:PreparedRequest)=>Promise<T>|T):Promise<{status:"sent";requestDigest:string;result:T}|{status:"result-unknown";requestDigest:string}>{
   actor(token);const permit=permits.get(value);if(!permit||permit.snapshot.actorToken!==token)contextFail("MEMORY_CONTEXT_PERMIT_DENIED");if(permit.used)contextFail("MEMORY_CONTEXT_PERMIT_USED");
   const state=permit.snapshot,result=await recount(state);
   const sent=await options.actorAuthority.coordinate(async()=>{
    if(configuration()!==state.configuration||requestDigest(freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts))))!==result.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
    if(permit.used)contextFail("MEMORY_CONTEXT_PERMIT_USED");permit.used=true;
-   await command(state.actor,"claim",{snapshotId:state.snapshot.snapshotId,permitId:permit.id,requestDigest:result.requestDigest},randomUUID());
+   const useTicketId="use-"+randomUUID(),processBootId=options.actorAuthority.bootId;
+   await command(state.actor,"claim",{snapshotId:state.snapshot.snapshotId,permitId:permit.id,requestDigest:result.requestDigest,useTicketId,processBootId},randomUUID());
    // Invocation is the application linearization point. No await/dump between claim and send.
-   try{return {result:Promise.resolve(send(result.request))}}catch{return {result:null}}
+   const invokedAt=(options.clock??Date.now)();let response:Promise<T>|null;
+   try{response=Promise.resolve(send(result.request));void response.catch(()=>{})}catch{response=null}
+   try{await command(state.actor,"confirmUse",{useTicketId,processBootId,invokedAt},"confirm-"+useTicketId)}catch{
+    // The callback already ran. Durable confirmation failure cannot trigger a
+    // resend or be described as an unsent request; preserve an unknown ticket.
+    await command(state.actor,"useUnknown",{useTicketId,processBootId},"unknown-"+useTicketId).catch(()=>{});return {result:null};
+   }
+   return {result:response};
   });
   if(sent.result===null)return {status:"result-unknown",requestDigest:result.requestDigest};
   try{return {status:"sent",requestDigest:result.requestDigest,result:await sent.result}}catch{return {status:"result-unknown",requestDigest:result.requestDigest}};

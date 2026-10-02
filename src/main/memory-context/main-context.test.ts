@@ -24,7 +24,7 @@ export async function contextFixture(){
  const counter={capability:{...requestIdentity,mode:"exact" as const,inputTypes:["text"]},count:async(r:any)=>{await countHook?.();return JSON.stringify(r.body).length}};
  const budget={maxContextTokens:100000,reservedOutputTokens:64,safetyMarginTokens:16,maxSTokens:10000,minRecentCompleteTurns:1};
  const prepare=(units:any[],facts:any[]=[])=>({...requestIdentity,inputTypes:["text"],body:{system:"fixed",cache,messages:units.flatMap(u=>u.messages),facts:facts.map(f=>f.assertion)}});
- const options={registry,transport,actorAuthority,counter,budget,prepare,prepareS:(u:any[])=>({...requestIdentity,inputTypes:["text"],body:{messages:u.flatMap(x=>x.messages)}})};
+ const options={registry,transport,actorAuthority,clock:()=>now,counter,budget,prepare,prepareS:(u:any[])=>({...requestIdentity,inputTypes:["text"],body:{messages:u.flatMap(x=>x.messages)}})};
  const context=createMainContext(options);
  async function source(text:string,role="user",trust="direct-user-event"){
   const id={...identity,messageId:randomUUID()};provider.write(id,{text,role:role as any,trust:trust as any});return {id,ref:await registry.capture(access,provider.adapter,id)};

@@ -15,13 +15,14 @@ export function createMainRecall(options:{actorAuthority:MainActorAuthority;tran
   const a=actor(token),requiredFactRefs=structuredClone(settings.requiredFactRefs??[]);let archived=0,batches=0,candidates=0,mode:RecallPolicy["maintenanceMode"]="disabled";
   for(let index=0;index<maxBatches;index++){
    if(settings.signal?.aborted)return {mode,candidates,archived,batches,cancelled:true};
-   const batch=await options.actorAuthority.coordinate(async()=>{const p=await command<RecallPreview>(a,"maintenancePreview",{requiredFactRefs});if(settings.signal?.aborted)return {p,changed:0,cancelled:true};if(p.mode!=="enabled"||!p.targets.length)return {p,changed:0,cancelled:false};const result=await command<{changed:number}>(a,"commit",{preview:p},randomUUID());return {p,changed:result.changed,cancelled:false}});
+   const batch=await options.actorAuthority.coordinate(async()=>{if(index===0)await command(a,"recover",{},randomUUID());const p=await command<RecallPreview>(a,"maintenancePreview",{requiredFactRefs});if(settings.signal?.aborted)return {p,changed:0,cancelled:true};if(p.mode!=="enabled"||!p.targets.length)return {p,changed:0,cancelled:false};const result=await command<{changed:number}>(a,"commit",{preview:p},randomUUID());return {p,changed:result.changed,cancelled:false}});
    mode=batch.p.mode;candidates=Math.max(candidates,batch.p.candidates);if(batch.cancelled)return {mode,candidates,archived,batches,cancelled:true};
    if(!batch.changed)return {mode,candidates,archived,batches,cancelled:false};archived+=batch.changed;batches++;await settings.onBatch?.(batches);
   }
   return {mode,candidates,archived,batches,cancelled:!!settings.signal?.aborted};
  }
  return {preview,apply,maintain,
+  async recover(token:object):Promise<{unknown:number}>{const a=actor(token);return options.actorAuthority.coordinate(()=>command(a,"recover",{},randomUUID()))},
   async rank(token:object):Promise<RecallRank>{const a=actor(token);return options.actorAuthority.coordinate(()=>command(a,"rank",{}))},
   async metadata(token:object,factRefs:RecallFactRef[]):Promise<RecallMetadata>{const a=actor(token);return options.actorAuthority.coordinate(()=>command(a,"metadata",{factRefs:structuredClone(factRefs)}))},
   async configure(token:object,policy:RecallPolicy):Promise<{policyVersion:string}>{const a=actor(token),validated=validateRecallPolicy(policy);return options.actorAuthority.coordinate(()=>command(a,"configure",{policy:validated},randomUUID()))}

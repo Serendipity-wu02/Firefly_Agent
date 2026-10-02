@@ -9,10 +9,12 @@ import type {BoundSourceRef,FactView} from "../../shared/memory-contracts";
 import {contextFail,type SourceDependency,type FactDependency,type TranscriptDependency,type TokenCounter,type StoredSummary,type SummarySegment,type SummaryReceipt} from "./context-contracts";
 import {canonicalJson} from "../memory-core/repository-types";
 import {TranscriptLedger} from "./transcript-ledger";
+import {RecallRepository,parseRecallDependencies} from "../memory-recall/recall-repository";
+import type {RecallDependency} from "../memory-recall/recall-contracts";
 
 export interface ContextOwner {actorKey:string;providerId:string;sessionId:string;bootId:string}
 export interface StoredSnapshot extends ContextOwner {
- id:string;generation:number;sourceDeps:SourceDependency[];requiredSources:string[];factRefs:FactDependency[];transcriptRefs:TranscriptDependency[];requiredTranscripts:string[];requiredSummaries:string[];
+ id:string;generation:number;sourceDeps:SourceDependency[];requiredSources:string[];factRefs:FactDependency[];recallDeps:RecallDependency[];transcriptRefs:TranscriptDependency[];requiredTranscripts:string[];requiredSummaries:string[];
  requestDigest:string;promptTokens:number;inputLimit:number;state:"ready"|"claimed";
  counterIdentity:TokenCounter["capability"];
 }
@@ -72,9 +74,10 @@ export class ContextRepository {
   if(!dep.subjectKeys?.length)return "untraceable-source";
   return dep.subjectKeys.some(subject=>this.suppression.subjectBlocked(scope,subject))?"suppressed-subject":"allowed";
  }
- private checkedFacts(scope:string,owner:ContextOwner,refs:FactDependency[]):FactView[] {
+ private checkedFacts(scope:string,owner:ContextOwner,refs:FactDependency[],expected?:RecallDependency[]):{facts:FactView[];recallDeps:RecallDependency[]} {
   const available=this.policy.eligibleFactsWithinTransaction(scope,owner.actorKey);
-  return refs.map(ref=>{const fact=available.find(f=>f.factId===ref.factId&&f.revision===ref.revision);if(!fact)contextFail("MEMORY_CONTEXT_FACT_STALE");return fact});
+  for(const ref of refs)if(!available.some(f=>f.factId===ref.factId&&f.revision===ref.revision))contextFail("MEMORY_CONTEXT_FACT_STALE");
+  return new RecallRepository(this.db,this.key,this.clock,this.fault).visibleFactsWithinTransaction(scope,owner.actorKey,refs,expected);
  }
  private transcriptState(scope:string,owner:ContextOwner,ref:TranscriptDependency,deps:SourceDependency[]):string {
   const head=this.transcript.current(scope,owner,ref);
@@ -87,7 +90,7 @@ export class ContextRepository {
  private checkSnapshot(scope:string,owner:ContextOwner,snapshot:StoredSnapshot):void {
   this.sameOwner(snapshot,owner);this.assertGeneration(scope,snapshot.generation);
   for(const dep of snapshot.sourceDeps){const status=this.sourceState(scope,owner,dep,snapshot.sourceDeps);if(snapshot.requiredSources.includes(dep.sourceRef.sourceId)&&status!=="allowed")contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE")}
-  this.checkedFacts(scope,owner,snapshot.factRefs);
+  this.checkedFacts(scope,owner,snapshot.factRefs,parseRecallDependencies(snapshot.recallDeps??[]));
   for(const ref of snapshot.transcriptRefs){const status=this.transcriptState(scope,owner,ref,snapshot.sourceDeps);if(snapshot.requiredTranscripts.includes(ref.headId)&&status!=="allowed")contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE")}
   for(const id of snapshot.requiredSummaries)this.checkSummary(scope,owner,this.read<StoredSummary>(scope,id,"summary",owner,false));
  }
@@ -99,7 +102,7 @@ export class ContextRepository {
  }
  execute(value:unknown):unknown {
   const command=objectFields(value,["kind","scopeKey","body"],["commandId"]),scope=parseInternalId(command.scopeKey);
-  const body=objectFields(command.body,["actorKey","providerId","sessionId","bootId"],["sourceRefs","sourceDeps","factRefs","generation","snapshotId","permitId","requestDigest","promptTokens","inputLimit","requiredSources","transcriptRefs","requiredTranscripts","headId","operationId","expectedRef","incarnation","contentRevision","throughSeq","digest","counterIdentity","requiredSummaries","leaseId","leaseMs","inputRefs","summaryId","intent","segments","beforeTokens","afterTokens","summaryLimit"]),owner=this.owner(body);
+  const body=objectFields(command.body,["actorKey","providerId","sessionId","bootId"],["sourceRefs","sourceDeps","factRefs","generation","snapshotId","permitId","requestDigest","promptTokens","inputLimit","requiredSources","transcriptRefs","requiredTranscripts","headId","operationId","expectedRef","incarnation","contentRevision","throughSeq","digest","counterIdentity","requiredSummaries","leaseId","leaseMs","inputRefs","summaryId","intent","segments","beforeTokens","afterTokens","summaryLimit","recallDeps","useTicketId","processBootId","invokedAt"]),owner=this.owner(body);
   const identity=["actorKey","providerId","sessionId","bootId"];
   const apply=()=>{
    if(command.kind==="summaryGet"){
@@ -127,6 +130,10 @@ export class ContextRepository {
     if(receipt.status==="committed")this.save(scope,"summary",{...owner,id,generation:lease.generation,sourceDeps:lease.sourceDeps,inputRefs:lease.inputRefs,segments} as StoredSummary);
     lease.completed={intent:body.intent,receipt};this.save(scope,"summary-lease",lease);return {receipt};
    }
+   if(command.kind==="confirmUse"||command.kind==="useUnknown"){
+    objectFields(body,[...identity,"useTicketId","processBootId",...(command.kind==="confirmUse"?["invokedAt"]:[])]);const useOwner={...owner,bootId:parseInternalId(body.processBootId)},recall=new RecallRepository(this.db,this.key,this.clock,this.fault),id=parseInternalId(body.useTicketId);
+    return command.kind==="confirmUse"?recall.confirmUseWithinTransaction(scope,useOwner,id,natural(body.invokedAt)):recall.unknownUseWithinTransaction(scope,useOwner,id);
+   }
    if(command.kind==="validateSnapshot"){
     objectFields(body,[...identity,"snapshotId"]);const snapshot=this.read<StoredSnapshot>(scope,parseInternalId(body.snapshotId),"snapshot",owner);this.checkSnapshot(scope,owner,snapshot);if(snapshot.state!=="ready")contextFail("MEMORY_CONTEXT_PERMIT_USED");return {valid:true};
    }
@@ -144,16 +151,16 @@ export class ContextRepository {
    }
    if(command.kind==="baseline"){
     objectFields(body,[...identity,"sourceRefs","factRefs"],["transcriptRefs"]);for(const ref of list(body.sourceRefs).map(bound))this.assertSource(scope,owner,ref);for(const ref of transcripts(body.transcriptRefs??[]))this.transcript.current(scope,owner,ref);
-    return {generation:this.suppression.generation(scope),facts:this.checkedFacts(scope,owner,factRefs(body.factRefs))};
+    return {generation:this.suppression.generation(scope),...this.checkedFacts(scope,owner,factRefs(body.factRefs))};
    }
    if(command.kind==="inspect"){
-    objectFields(body,[...identity,"generation","sourceDeps","factRefs"],["transcriptRefs"]);this.assertGeneration(scope,body.generation);const deps=parseSourceDependencies(body.sourceDeps);
-    return {generation:body.generation,sourceStates:[...deps.map(dep=>({sourceId:dep.sourceRef.sourceId,reason:this.sourceState(scope,owner,dep,deps)})),...transcripts(body.transcriptRefs??[]).map(ref=>({sourceId:ref.headId,reason:this.transcriptState(scope,owner,ref,deps)}))],facts:this.checkedFacts(scope,owner,factRefs(body.factRefs))};
+    objectFields(body,[...identity,"generation","sourceDeps","factRefs"],["transcriptRefs","recallDeps"]);this.assertGeneration(scope,body.generation);const deps=parseSourceDependencies(body.sourceDeps);
+    return {generation:body.generation,sourceStates:[...deps.map(dep=>({sourceId:dep.sourceRef.sourceId,reason:this.sourceState(scope,owner,dep,deps)})),...transcripts(body.transcriptRefs??[]).map(ref=>({sourceId:ref.headId,reason:this.transcriptState(scope,owner,ref,deps)}))],...this.checkedFacts(scope,owner,factRefs(body.factRefs),parseRecallDependencies(body.recallDeps??[]))};
    }
    if(command.kind==="snapshot"){
-    objectFields(body,[...identity,"generation","sourceDeps","factRefs","snapshotId","requiredSources","requestDigest","promptTokens","inputLimit","counterIdentity"],["transcriptRefs","requiredTranscripts","requiredSummaries"]);
+    objectFields(body,[...identity,"generation","sourceDeps","factRefs","snapshotId","requiredSources","requestDigest","promptTokens","inputLimit","counterIdentity"],["transcriptRefs","requiredTranscripts","requiredSummaries","recallDeps"]);
     if(typeof body.requestDigest!=="string"||! /^[a-f0-9]{64}$/.test(body.requestDigest))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
-    const record:StoredSnapshot={...owner,id:parseInternalId(body.snapshotId),generation:natural(body.generation),sourceDeps:parseSourceDependencies(body.sourceDeps),factRefs:factRefs(body.factRefs),
+    const record:StoredSnapshot={...owner,id:parseInternalId(body.snapshotId),generation:natural(body.generation),sourceDeps:parseSourceDependencies(body.sourceDeps),factRefs:factRefs(body.factRefs),recallDeps:parseRecallDependencies(body.recallDeps??[]),
      requiredSources:list(body.requiredSources).map(parseInternalId),transcriptRefs:transcripts(body.transcriptRefs??[]),requiredTranscripts:list(body.requiredTranscripts??[]).map(parseInternalId),requiredSummaries:list(body.requiredSummaries??[]).map(parseInternalId),counterIdentity:counterIdentity(body.counterIdentity),requestDigest:body.requestDigest,promptTokens:natural(body.promptTokens),inputLimit:natural(body.inputLimit),state:"ready"};
     if(record.promptTokens>record.inputLimit)contextFail("MEMORY_CONTEXT_OVER_BUDGET");
     if(record.requiredSources.some(id=>!record.sourceDeps.some(d=>d.sourceRef.sourceId===id)))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
@@ -161,13 +168,14 @@ export class ContextRepository {
     this.checkSnapshot(scope,owner,record);this.save(scope,"snapshot",record);return {snapshotId:record.id,generation:record.generation};
    }
    if(command.kind==="permit"||command.kind==="claim"){
-    objectFields(body,[...identity,"snapshotId","permitId","requestDigest"]);
+    objectFields(body,[...identity,"snapshotId","permitId","requestDigest",...(command.kind==="claim"?["useTicketId","processBootId"]:[])]);
     const snapshot=this.read<StoredSnapshot>(scope,parseInternalId(body.snapshotId),"snapshot",owner);
     this.checkSnapshot(scope,owner,snapshot);if(snapshot.state!=="ready")contextFail("MEMORY_CONTEXT_PERMIT_USED");
     if(body.requestDigest!==snapshot.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
     const id=parseInternalId(body.permitId);
     if(command.kind==="permit"){this.save(scope,"permit",{...owner,id,snapshotId:snapshot.id,state:"ready"} as StoredPermit);return {permitId:id}}
     const permit=this.read<StoredPermit>(scope,id,"permit",owner);if(permit.snapshotId!==snapshot.id||permit.state!=="ready")contextFail("MEMORY_CONTEXT_PERMIT_USED");
+    new RecallRepository(this.db,this.key,this.clock,this.fault).prepareUseWithinTransaction(scope,{...owner,bootId:parseInternalId(body.processBootId)},parseInternalId(body.useTicketId),snapshot.recallDeps);
     permit.state="claimed";snapshot.state="claimed";this.save(scope,"permit",permit);this.save(scope,"snapshot",snapshot);return {claimed:true};
    }
    contextFail("MEMORY_CONTEXT_COMMAND_INVALID");
