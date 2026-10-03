@@ -82,7 +82,7 @@ export class ConversationTranscriptStore {
   private readonly now: () => number;
   /** 每会话写队列尾（settled promise），串行化所有文件操作。 */
   private readonly queues = new Map<string, Promise<void>>();
-  private readonly mutationObservers = new Map<string, (kind: TranscriptMutation) => Promise<void>>();
+  private readonly mutationObservers = new Map<string, (kind: TranscriptMutation, entry?: TranscriptEntry) => Promise<void>>();
 
   constructor(userDataRoot: string, options?: ConversationTranscriptStoreOptions) {
     this.root = path.join(userDataRoot, ROOT_DIR_NAME);
@@ -115,8 +115,8 @@ export class ConversationTranscriptStore {
       }
 
       // seq 只在队列内分配：现有最大 seq + 1（快照基线 + 已重放增量）
-      await this.beforeMutation(conversationId, "append");
       const entry = { ...input, seq: state.maxSeq + 1, at: input.at ?? this.now() } as TranscriptEntry;
+      await this.beforeMutation(conversationId, "append", structuredClone(entry));
       const dir = this.conversationDir(conversationId);
       await fs.promises.mkdir(dir, { recursive: true });
       await fs.promises.appendFile(path.join(dir, JSONL_FILE_NAME), `${JSON.stringify(entry)}\n`, "utf8");
@@ -171,7 +171,7 @@ export class ConversationTranscriptStore {
 
 
   /** A single trusted Main observer; inactive by default for ordinary stores. */
-  observeMutations(conversationId: string, before: (kind: TranscriptMutation) => Promise<void>): () => void {
+  observeMutations(conversationId: string, before: (kind: TranscriptMutation, entry?: TranscriptEntry) => Promise<void>): () => void {
     this.conversationDir(conversationId);
     if (this.mutationObservers.has(conversationId)) throw new Error("TRANSCRIPT_OBSERVER_EXISTS");
     this.mutationObservers.set(conversationId, before);
@@ -210,8 +210,8 @@ export class ConversationTranscriptStore {
     });
   }
 
-  private async beforeMutation(conversationId: string, kind: TranscriptMutation): Promise<void> {
-    await this.mutationObservers.get(conversationId)?.(kind);
+  private async beforeMutation(conversationId: string, kind: TranscriptMutation, entry?: TranscriptEntry): Promise<void> {
+    await this.mutationObservers.get(conversationId)?.(kind, entry);
   }
 
   /** 会话目录（含路径穿越校验）。 */

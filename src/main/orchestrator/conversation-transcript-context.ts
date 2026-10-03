@@ -27,6 +27,8 @@ export interface TranscriptRunReader {
 
 export interface MaterializedTranscript {
   messages: ChatMessage[];
+  /** Exact persisted envelope for each materialized message; synthetic closures use their call envelope. */
+  messageSources?: TranscriptEntry[];
   uncertainEffects: UncertainEffect[];
   throughSeq: number;
 }
@@ -38,7 +40,7 @@ type TranscriptRewindEntry = Extract<TranscriptEntry, { kind: "turn_rewind" }>;
 /** 活动视图节点：user（含 replace_user 合成的）或 assistant（含已提交工具结果）。 */
 type ActiveNode =
   | { kind: "user"; entry: TranscriptUserEntry | TranscriptRewindEntry; text: string }
-  | { kind: "assistant"; entry: TranscriptAssistantEntry; toolResults: Map<string, ChatMessage> };
+  | { kind: "assistant"; entry: TranscriptAssistantEntry; toolResults: Map<string, {message: ChatMessage; entry: TranscriptEntry}> };
 
 /** 锚点解析：当前活动视图中该 turnId 下 revision 最大的 user（盘上历史 revision 不参与）。 */
 function findActiveUserIndex(active: ActiveNode[], turnId: string): number {
@@ -111,7 +113,7 @@ export function materializeTranscript(
           (item) => item.kind === "assistant" && item.entry.id === entry.payload.assistantEntryId,
         );
         if (node && node.kind === "assistant" && !node.toolResults.has(entry.payload.toolCallId)) {
-          node.toolResults.set(entry.payload.toolCallId, entry.payload.message);
+          node.toolResults.set(entry.payload.toolCallId, {message: entry.payload.message, entry});
         }
         break;
       }
@@ -138,13 +140,16 @@ export function materializeTranscript(
   }
 
   const messages: ChatMessage[] = [];
+  const messageSources: TranscriptEntry[] = [];
   for (const node of active) {
     if (node.kind === "user") {
       messages.push({ role: "user", content: node.text });
+      messageSources.push(node.entry);
       continue;
     }
     const payload = node.entry.payload;
     messages.push(payload);
+    messageSources.push(node.entry);
     if (!payload.toolCalls?.length) continue;
 
     // 缺失结果按 runStore 执行状态分类闭合；读取侧按信封 runId 分流
@@ -153,9 +158,11 @@ export function materializeTranscript(
     for (const call of payload.toolCalls) {
       const persisted = node.toolResults.get(call.id);
       if (persisted) {
-        messages.push(persisted);
+        messages.push(persisted.message);
+        messageSources.push(persisted.entry);
         continue;
       }
+      messageSources.push(node.entry);
       const record = statusById.get(call.id);
       const isUnknown = record?.status === "started" || record?.status === "unknown";
       if (isUnknown) {
@@ -170,7 +177,7 @@ export function materializeTranscript(
     }
   }
 
-  return { messages, uncertainEffects, throughSeq };
+  return { messages, messageSources, uncertainEffects, throughSeq };
 }
 
 /** 权威上下文构建：等队列清空 → 读轨迹 → 物化 → 安全 token 尾窗。 */
@@ -188,6 +195,7 @@ export async function buildModelContext(input: {
   const cutIndex = findSafeCutPointForRetainedTokens(materialized.messages, input.retainTokens);
   return {
     messages: materialized.messages.slice(cutIndex),
+    messageSources: materialized.messageSources?.slice(cutIndex),
     uncertainEffects: materialized.uncertainEffects,
     throughSeq: snapshot.throughSeq,
   };

@@ -17,12 +17,12 @@ import type {HistoryDependency} from "../memory-history/history-contracts";
 export interface ContextOwner {actorKey:string;providerId:string;sessionId:string;bootId:string}
 export interface StoredSnapshot extends ContextOwner {
  id:string;generation:number;sourceDeps:SourceDependency[];requiredSources:string[];factRefs:FactDependency[];recallDeps:RecallDependency[];transcriptRefs:TranscriptDependency[];requiredTranscripts:string[];requiredSummaries:string[];
- requestDigest:string;promptTokens:number;inputLimit:number;state:"ready"|"claimed";
+ guardRefs?:TranscriptDependency[];requestDigest:string;promptTokens:number;inputLimit:number;state:"ready"|"claimed";
  counterIdentity:TokenCounter["capability"];
  historyDeps?:HistoryDependency[];
 }
 interface StoredPermit extends ContextOwner {id:string;snapshotId:string;state:"ready"|"claimed"}
-interface SummaryLease extends ContextOwner {id:string;generation:number;sourceDeps:SourceDependency[];inputRefs:BoundSourceRef[];expiresAt:number;completed?:{intent:string;receipt:SummaryReceipt}}
+interface SummaryLease extends ContextOwner {id:string;generation:number;sourceDeps:SourceDependency[];inputRefs:BoundSourceRef[];transcriptRefs?:TranscriptDependency[];inputTranscriptRefs?:TranscriptDependency[];guardRefs?:TranscriptDependency[];expiresAt:number;completed?:{intent:string;receipt:SummaryReceipt}}
 function natural(value:unknown):number {if(!Number.isSafeInteger(value)||(value as number)<0)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return value as number}
 function list(value:unknown,max=1000):unknown[] {if(!Array.isArray(value)||value.length>max)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return value}
 function bound(value:unknown):BoundSourceRef {const ref=parseSourceRef(value);if(!ref.binding||ref.span)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return ref as BoundSourceRef}
@@ -87,40 +87,52 @@ export class ContextRepository {
   for(const sourceRef of head.sourceRefs)this.assertSource(scope,owner,sourceRef);
   if(head.sourceRefs.some(ref=>{const dep=deps.find(d=>canonicalJson(d.sourceRef)===canonicalJson(ref));return !dep||this.sourceState(scope,owner,dep,deps)!=="allowed"}))return "unavailable-root";
   if(this.suppression.generation(scope)===0)return "allowed";
-  if(!head.sourceRefs.length)return "untraceable-derived";
+  if(!head.sourceRefs.length){
+   if(!head.provenance?.length)return "untraceable-derived";
+   const old=head.provenance.filter(e=>(e.suppressionGeneration??0)<this.suppression.generation(scope));
+   if(old.some(e=>e.role!=="user"))return "untraceable-derived";
+   if(old.some(e=>!e.subjectKeys?.length))return "untraceable-source";
+   return old.some(e=>e.subjectKeys!.some(subject=>this.suppression.subjectBlocked(scope,subject)))?"suppressed-subject":"allowed";
+  }
   return head.sourceRefs.every(ref=>{const dep=deps.find(d=>canonicalJson(d.sourceRef)===canonicalJson(ref));return dep&&this.sourceState(scope,owner,dep,deps)==="allowed"})?"allowed":"untraceable-derived";
  }
  private checkSnapshot(scope:string,owner:ContextOwner,snapshot:StoredSnapshot):void {
   this.sameOwner(snapshot,owner);this.assertGeneration(scope,snapshot.generation);
+  for(const ref of snapshot.guardRefs??[])this.transcript.current(scope,owner,ref);
   new HistoryRepository(this.db,this.key,undefined,this.clock).validateWithinTransaction(scope,owner.actorKey,snapshot.historyDeps??[]);
   for(const dep of snapshot.sourceDeps){const status=this.sourceState(scope,owner,dep,snapshot.sourceDeps);if(snapshot.requiredSources.includes(dep.sourceRef.sourceId)&&status!=="allowed")contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE")}
   this.checkedFacts(scope,owner,snapshot.factRefs,parseRecallDependencies(snapshot.recallDeps??[]));
   for(const ref of snapshot.transcriptRefs){const status=this.transcriptState(scope,owner,ref,snapshot.sourceDeps);if(snapshot.requiredTranscripts.includes(ref.headId)&&status!=="allowed")contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE")}
   for(const id of snapshot.requiredSummaries)this.checkSummary(scope,owner,this.read<StoredSummary>(scope,id,"summary",owner,false));
  }
- private checkSummary(scope:string,owner:ContextOwner,summary:Pick<StoredSummary,"sourceDeps">):void {
+ private checkSummary(scope:string,owner:ContextOwner,summary:Pick<StoredSummary,"sourceDeps"|"transcriptRefs">):void {
   for(const dep of summary.sourceDeps)if(this.sourceState(scope,owner,dep,summary.sourceDeps)!=="allowed")contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE");
+  for(const ref of summary.transcriptRefs??[])if(this.transcriptState(scope,owner,ref,summary.sourceDeps)!=="allowed")contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE");
  }
  private checkLease(scope:string,owner:ContextOwner,lease:SummaryLease):void {
-  this.assertGeneration(scope,lease.generation);if(this.clock()>=lease.expiresAt)contextFail("MEMORY_CONTEXT_LEASE_EXPIRED");this.checkSummary(scope,owner,lease);
+  this.assertGeneration(scope,lease.generation);if(this.clock()>=lease.expiresAt)contextFail("MEMORY_CONTEXT_LEASE_EXPIRED");this.checkSummary(scope,owner,lease);for(const ref of lease.guardRefs??[])this.transcript.current(scope,owner,ref);
  }
  execute(value:unknown):unknown {
   const command=objectFields(value,["kind","scopeKey","body"],["commandId"]),scope=parseInternalId(command.scopeKey);
-  const body=objectFields(command.body,["actorKey","providerId","sessionId","bootId"],["sourceRefs","sourceDeps","factRefs","generation","snapshotId","permitId","requestDigest","promptTokens","inputLimit","requiredSources","transcriptRefs","requiredTranscripts","headId","operationId","expectedRef","incarnation","contentRevision","throughSeq","digest","counterIdentity","requiredSummaries","leaseId","leaseMs","inputRefs","summaryId","intent","segments","beforeTokens","afterTokens","summaryLimit","recallDeps","useTicketId","processBootId","invokedAt","attemptAt","historyDeps"]),owner=this.owner(body);
+  const body=objectFields(command.body,["actorKey","providerId","sessionId","bootId"],["sourceRefs","sourceDeps","factRefs","generation","snapshotId","permitId","requestDigest","promptTokens","inputLimit","requiredSources","transcriptRefs","requiredTranscripts","headId","operationId","expectedRef","incarnation","contentRevision","throughSeq","digest","counterIdentity","requiredSummaries","leaseId","leaseMs","inputRefs","summaryId","intent","segments","beforeTokens","afterTokens","summaryLimit","recallDeps","useTicketId","processBootId","invokedAt","attemptAt","historyDeps","guardRefs","provenance","inputTranscriptRefs","transcriptSegments","expectedRefs"]),owner=this.owner(body);
   const identity=["actorKey","providerId","sessionId","bootId"];
   const apply=()=>{
    if(command.kind==="summaryGet"){
     objectFields(body,[...identity,"summaryId"]);const summary=this.read<StoredSummary>(scope,parseInternalId(body.summaryId),"summary",owner,false);
-    try{this.checkSummary(scope,owner,summary)}catch(error){if(error instanceof Error&&["MEMORY_SOURCE_PENDING","MEMORY_SOURCE_STALE","MEMORY_SOURCE_DELETED","MEMORY_SOURCE_INVALID","MEMORY_CONTEXT_SOURCE_UNAVAILABLE"].includes(error.message))return {available:false,reason:error.message};throw error}
+    try{this.checkSummary(scope,owner,summary)}catch(error){if(error instanceof Error&&["MEMORY_SOURCE_PENDING","MEMORY_SOURCE_STALE","MEMORY_SOURCE_DELETED","MEMORY_SOURCE_INVALID","MEMORY_CONTEXT_SOURCE_UNAVAILABLE","MEMORY_CONTEXT_TRANSCRIPT_PENDING","MEMORY_CONTEXT_TRANSCRIPT_STALE","MEMORY_CONTEXT_TRANSCRIPT_DELETED","MEMORY_CONTEXT_TRANSCRIPT_DENIED"].includes(error.message))return {available:false,reason:error.message};throw error}
     return {available:true,summary};
    }
    if(command.kind==="summaryLease"){
-    objectFields(body,[...identity,"leaseId","generation","sourceDeps","inputRefs","leaseMs"]);const duration=natural(body.leaseMs);if(duration<1||duration>300000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
-    const inputRefs=list(body.inputRefs).map(bound),sourceDeps=parseSourceDependencies(body.sourceDeps);if(!inputRefs.length||new Set(inputRefs.map(r=>r.sourceId)).size!==inputRefs.length||inputRefs.some(r=>!sourceDeps.some(d=>canonicalJson(r)===canonicalJson(d.sourceRef))))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
-    const lease:SummaryLease={...owner,id:parseInternalId(body.leaseId),generation:this.assertGeneration(scope,body.generation),sourceDeps,inputRefs,expiresAt:this.clock()+duration};this.checkLease(scope,owner,lease);this.save(scope,"summary-lease",lease);return {leaseId:lease.id};
+    objectFields(body,[...identity,"leaseId","generation","sourceDeps","inputRefs","leaseMs"],["transcriptRefs","inputTranscriptRefs","guardRefs"]);const duration=natural(body.leaseMs);if(duration<1||duration>300000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+    const inputRefs=list(body.inputRefs).map(bound),sourceDeps=parseSourceDependencies(body.sourceDeps);const transcriptRefs=transcripts(body.transcriptRefs??[]),inputTranscriptRefs=transcripts(body.inputTranscriptRefs??[]),guardRefs=transcripts(body.guardRefs??[]);
+    if((!inputRefs.length&&!inputTranscriptRefs.length)||(inputRefs.length&&inputTranscriptRefs.length)||new Set(inputRefs.map(r=>r.sourceId)).size!==inputRefs.length||inputRefs.some(r=>!sourceDeps.some(d=>canonicalJson(r)===canonicalJson(d.sourceRef)))||new Set(inputTranscriptRefs.map(r=>r.headId)).size!==inputTranscriptRefs.length||inputTranscriptRefs.some(r=>!transcriptRefs.some(d=>canonicalJson(r)===canonicalJson(d))))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+    const lease:SummaryLease={...owner,id:parseInternalId(body.leaseId),generation:this.assertGeneration(scope,body.generation),sourceDeps,inputRefs,transcriptRefs,inputTranscriptRefs,guardRefs,expiresAt:this.clock()+duration};this.checkLease(scope,owner,lease);this.save(scope,"summary-lease",lease);return {leaseId:lease.id};
+   }
+   if(command.kind==="summaryLeaseRead"){
+    objectFields(body,[...identity,"leaseId"]);const lease=this.read<SummaryLease>(scope,parseInternalId(body.leaseId),"summary-lease",owner);this.checkLease(scope,owner,lease);return {ready:true};
    }
    if(command.kind==="summaryLeaseState"||command.kind==="summaryCommit"){
-    objectFields(body,[...identity,"leaseId","intent"],command.kind==="summaryCommit"?["summaryId","segments","beforeTokens","afterTokens","summaryLimit"]:[]);
+    objectFields(body,[...identity,"leaseId","intent"],command.kind==="summaryCommit"?["summaryId","segments","beforeTokens","afterTokens","summaryLimit","transcriptSegments"]:[]);
     if(typeof body.intent!=="string"||! /^[a-f0-9]{64}$/.test(body.intent))contextFail("MEMORY_CONTEXT_INPUT_INVALID");const lease=this.read<SummaryLease>(scope,parseInternalId(body.leaseId),"summary-lease",owner);
     if(lease.completed){if(lease.completed.intent!==body.intent)contextFail("MEMORY_CONTEXT_LEASE_USED");return {receipt:lease.completed.receipt}}
     this.checkLease(scope,owner,lease);if(command.kind==="summaryLeaseState")return {ready:true};
@@ -129,9 +141,12 @@ export class ContextRepository {
      const index=lease.inputRefs.findIndex(r=>canonicalJson(r)===canonicalJson(sourceRef));if(index<=previous||index<0)contextFail("MEMORY_CONTEXT_SUMMARY_ORDER_INVALID");previous=index;
      const head=this.assertSource(scope,owner,sourceRef);if(segment.role!==head.published!.role||start!==0||end<1)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return {sourceRef,span:{start,end},role:segment.role as SummarySegment["role"]};
     });
+    let prior=-1;const transcriptSegments=transcripts(body.transcriptSegments??[]);
+    for(const ref of transcriptSegments){const index=(lease.inputTranscriptRefs??[]).findIndex(r=>canonicalJson(r)===canonicalJson(ref));if(index<0||index<=prior)contextFail("MEMORY_CONTEXT_SUMMARY_ORDER_INVALID");prior=index}
+    if(segments.length&&transcriptSegments.length)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");
     const before=natural(body.beforeTokens),after=natural(body.afterTokens),limit=natural(body.summaryLimit),id=parseInternalId(body.summaryId);
-    const receipt:SummaryReceipt=segments.length&&after<before&&after<=limit?{status:"committed",summaryId:id}:{status:"no-benefit",summaryId:null};
-    if(receipt.status==="committed")this.save(scope,"summary",{...owner,id,generation:lease.generation,sourceDeps:lease.sourceDeps,inputRefs:lease.inputRefs,segments} as StoredSummary);
+    const receipt:SummaryReceipt=(segments.length||transcriptSegments.length)&&after<before&&after<=limit?{status:"committed",summaryId:id}:{status:"no-benefit",summaryId:null};
+    if(receipt.status==="committed")this.save(scope,"summary",{...owner,id,generation:lease.generation,sourceDeps:lease.sourceDeps,inputRefs:lease.inputRefs,segments,transcriptRefs:lease.transcriptRefs??[],transcriptSegments} as StoredSummary);
     lease.completed={intent:body.intent,receipt};this.save(scope,"summary-lease",lease);return {receipt};
    }
    if(command.kind==="confirmUse"||command.kind==="useUnknown"){
@@ -141,20 +156,27 @@ export class ContextRepository {
    if(command.kind==="validateSnapshot"){
     objectFields(body,[...identity,"snapshotId"]);const snapshot=this.read<StoredSnapshot>(scope,parseInternalId(body.snapshotId),"snapshot",owner);this.checkSnapshot(scope,owner,snapshot);if(snapshot.state!=="ready")contextFail("MEMORY_CONTEXT_PERMIT_USED");return {valid:true};
    }
+   if(command.kind==="transcriptReserveBatch"){
+    objectFields(body,[...identity,"generation","operationId","expectedRefs"]);const generation=this.assertGeneration(scope,body.generation),refs=list(body.expectedRefs,2000).map(ref=>transcripts([ref])[0]),operationId=parseInternalId(body.operationId);
+    if(!refs.length||new Set(refs.map(ref=>ref.headId)).size!==refs.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+    for(const ref of refs)this.transcript.current(scope,owner,ref);
+    for(const ref of refs)this.transcript.reserve(scope,owner,ref.headId,operationId,generation,ref);
+    return {reserved:true};
+   }
    if(command.kind==="transcriptReserve"){
     objectFields(body,[...identity,"generation","headId","operationId","expectedRef"]);const g=this.assertGeneration(scope,body.generation);
     this.transcript.reserve(scope,owner,parseInternalId(body.headId),parseInternalId(body.operationId),g,body.expectedRef===null?null:transcripts([body.expectedRef])[0]);return {reserved:true};
    }
    if(command.kind==="transcriptPublish"){
-    objectFields(body,[...identity,"generation","headId","operationId","incarnation","contentRevision","throughSeq","digest","sourceRefs"]);this.assertGeneration(scope,body.generation);
+    objectFields(body,[...identity,"generation","headId","operationId","incarnation","contentRevision","throughSeq","digest","sourceRefs"],["provenance"]);this.assertGeneration(scope,body.generation);
     if(typeof body.digest!=="string"||! /^[a-f0-9]{64}$/.test(body.digest))contextFail("MEMORY_CONTEXT_INPUT_INVALID");const refs=list(body.sourceRefs).map(bound);for(const ref of refs)this.assertSource(scope,owner,ref);
-    return this.transcript.publish(scope,owner,parseInternalId(body.headId),parseInternalId(body.operationId),{incarnation:parseInternalId(body.incarnation),contentRevision:positiveRevision(body.contentRevision),throughSeq:natural(body.throughSeq),digest:body.digest,sourceRefs:refs});
+    return this.transcript.publish(scope,owner,parseInternalId(body.headId),parseInternalId(body.operationId),{incarnation:parseInternalId(body.incarnation),contentRevision:positiveRevision(body.contentRevision),throughSeq:natural(body.throughSeq),digest:body.digest,sourceRefs:refs,...(body.provenance===undefined?{}:{provenance:body.provenance})});
    }
    if(command.kind==="transcriptDelete"){
     objectFields(body,[...identity,"generation","expectedRef"]);this.assertGeneration(scope,body.generation);this.transcript.remove(scope,owner,transcripts([body.expectedRef])[0]);return {deleted:true};
    }
    if(command.kind==="baseline"){
-    objectFields(body,[...identity,"sourceRefs","factRefs"],["transcriptRefs","historyDeps"]);new HistoryRepository(this.db,this.key,undefined,this.clock).validateWithinTransaction(scope,owner.actorKey,body.historyDeps??[]);for(const ref of list(body.sourceRefs).map(bound))this.assertSource(scope,owner,ref);for(const ref of transcripts(body.transcriptRefs??[]))this.transcript.current(scope,owner,ref);
+    objectFields(body,[...identity,"sourceRefs","factRefs"],["transcriptRefs","historyDeps","guardRefs"]);for(const ref of transcripts(body.guardRefs??[]))this.transcript.current(scope,owner,ref);new HistoryRepository(this.db,this.key,undefined,this.clock).validateWithinTransaction(scope,owner.actorKey,body.historyDeps??[]);for(const ref of list(body.sourceRefs).map(bound))this.assertSource(scope,owner,ref);for(const ref of transcripts(body.transcriptRefs??[]))this.transcript.current(scope,owner,ref);
     return {generation:this.suppression.generation(scope),...this.checkedFacts(scope,owner,factRefs(body.factRefs))};
    }
    if(command.kind==="inspect"){
@@ -162,10 +184,10 @@ export class ContextRepository {
     return {generation:body.generation,sourceStates:[...deps.map(dep=>({sourceId:dep.sourceRef.sourceId,reason:this.sourceState(scope,owner,dep,deps)})),...transcripts(body.transcriptRefs??[]).map(ref=>({sourceId:ref.headId,reason:this.transcriptState(scope,owner,ref,deps)}))],...this.checkedFacts(scope,owner,factRefs(body.factRefs),parseRecallDependencies(body.recallDeps??[]))};
    }
    if(command.kind==="snapshot"){
-    objectFields(body,[...identity,"generation","sourceDeps","factRefs","snapshotId","requiredSources","requestDigest","promptTokens","inputLimit","counterIdentity"],["transcriptRefs","requiredTranscripts","requiredSummaries","recallDeps","historyDeps"]);
+    objectFields(body,[...identity,"generation","sourceDeps","factRefs","snapshotId","requiredSources","requestDigest","promptTokens","inputLimit","counterIdentity"],["transcriptRefs","requiredTranscripts","requiredSummaries","recallDeps","historyDeps","guardRefs"]);
     if(typeof body.requestDigest!=="string"||! /^[a-f0-9]{64}$/.test(body.requestDigest))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
     const record:StoredSnapshot={...owner,id:parseInternalId(body.snapshotId),generation:natural(body.generation),sourceDeps:parseSourceDependencies(body.sourceDeps),factRefs:factRefs(body.factRefs),recallDeps:parseRecallDependencies(body.recallDeps??[]),
-     historyDeps:parseHistoryDependencies(body.historyDeps??[]),requiredSources:list(body.requiredSources).map(parseInternalId),transcriptRefs:transcripts(body.transcriptRefs??[]),requiredTranscripts:list(body.requiredTranscripts??[]).map(parseInternalId),requiredSummaries:list(body.requiredSummaries??[]).map(parseInternalId),counterIdentity:counterIdentity(body.counterIdentity),requestDigest:body.requestDigest,promptTokens:natural(body.promptTokens),inputLimit:natural(body.inputLimit),state:"ready"};
+     guardRefs:transcripts(body.guardRefs??[]),historyDeps:parseHistoryDependencies(body.historyDeps??[]),requiredSources:list(body.requiredSources).map(parseInternalId),transcriptRefs:transcripts(body.transcriptRefs??[]),requiredTranscripts:list(body.requiredTranscripts??[]).map(parseInternalId),requiredSummaries:list(body.requiredSummaries??[]).map(parseInternalId),counterIdentity:counterIdentity(body.counterIdentity),requestDigest:body.requestDigest,promptTokens:natural(body.promptTokens),inputLimit:natural(body.inputLimit),state:"ready"};
     if(record.promptTokens>record.inputLimit)contextFail("MEMORY_CONTEXT_OVER_BUDGET");
     if(record.requiredSources.some(id=>!record.sourceDeps.some(d=>d.sourceRef.sourceId===id)))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
     if(record.requiredTranscripts.some(id=>!record.transcriptRefs.some(r=>r.headId===id)))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
@@ -185,7 +207,7 @@ export class ContextRepository {
    }
    contextFail("MEMORY_CONTEXT_COMMAND_INVALID");
   };
-  if(["baseline","inspect","validateSnapshot","summaryGet","summaryLeaseState"].includes(command.kind as string)){
+  if(["baseline","inspect","validateSnapshot","summaryGet","summaryLeaseState","summaryLeaseRead"].includes(command.kind as string)){
    if(command.commandId!==undefined)contextFail("MEMORY_CONTEXT_INPUT_INVALID");this.db.exec("BEGIN IMMEDIATE");try{const result=apply();this.db.exec("COMMIT");return result}catch(error){this.db.exec("ROLLBACK");throw error}
   }
   return executeTransaction({db:this.db,key:this.key,scope,commandId:parseInternalId(command.commandId),request:value,fault:this.fault,apply});

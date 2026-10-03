@@ -16,7 +16,7 @@ const owned=new WeakMap<object,ReturnType<typeof clientScope>>();
 const verifiedSyntheticCleanupFailures=new WeakSet<MemoryClient>();
 function clientScope(){return createTestResourceScope<MemoryClient>(async client=>{if(!verifiedSyntheticCleanupFailures.has(client))await client.close()})}
 function openClient(input:Parameters<typeof MemoryClient.open>[0]){return owned.get(input.storage)!.open(()=>MemoryClient.open(input))}
-const workerPath=path.resolve("output/memory-core/worker-tests/worker.cjs");
+const workerPath=path.resolve(process.env.FIREFLY_MEMORY_WORKER_TEST_OUTPUT??"output/memory-core/worker-tests/worker.cjs");
 beforeAll(async()=>{await build({entryPoints:["src/main/memory-core/worker.ts"],outfile:workerPath,bundle:true,platform:"node",target:"node24",format:"cjs"})});
 afterEach(async()=>{const ownScopes=scopes.splice(0),ownDirs=dirs.splice(0);vi.useRealTimers();await Promise.all(ownScopes.map(scope=>scope.close()));for(const dir of ownDirs)fs.rmSync(dir,{recursive:true,force:true})});
 function fixture(){

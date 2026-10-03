@@ -177,3 +177,30 @@ it("refuses replacement text containing unsupported content blocks",async()=>{
  await f.store.append("session-a",{id:"rewind-blocks",at:1001,kind:"turn_rewind",turnId:"u1",revision:2,payload:{anchorUserTurnId:"u1",disposition:"replace_user",reason:"edit",replacementUser:malformed}});
  await expect(f.capture()).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_FORMAT_UNSUPPORTED");
 });
+
+it("captures each active complete turn separately under the store lease",async()=>{
+ const f=await fixture();
+ await f.store.append("session-a",{id:"a1",at:1001,kind:"assistant",payload:{role:"assistant",content:"first answer"}});
+ await f.store.append("session-a",user("u2","second user"));
+ const turns=await f.adapter.captureTurns();
+ expect(turns).toHaveLength(2);
+ const snapshot=await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:turns});
+ expect(snapshot.selectedIds).toHaveLength(2);
+ expect(snapshot.request.body.messages).toEqual([{role:"user",text:"synthetic user"},{role:"assistant",text:"first answer"},{role:"user",text:"second user"}]);
+});
+it("invalidates every published turn and view after recapture and a mutation",async()=>{
+ const f=await fixture();await f.store.append("session-a",user("u2","second"));
+ const turns=await f.adapter.captureTurns(),snapshots=[];
+ for(const turn of turns)snapshots.push(await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:[turn]}));
+ const permits=[];for(const snapshot of snapshots)permits.push(await f.context.validateForDispatch(f.actor,snapshot));
+ await f.adapter.captureTurns();await f.store.append("session-a",user("u3","third"));
+ let sends=0;for(const permit of permits)await expect(f.context.dispatch(f.actor,permit,()=>{sends++})).rejects.toThrow();
+ expect(sends).toBe(0);
+});
+it("selects the latest complete turn with an exact budget instead of retaining the entire conversation",async()=>{
+ const f=await fixture();await f.store.append("session-a",{id:"long",at:1001,kind:"assistant",payload:{role:"assistant",content:"large history ".repeat(900)}});
+ await f.store.append("session-a",user("u2","latest"));
+ const snapshot=await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:await f.adapter.captureTurns()});
+ expect(snapshot.request.body.messages).toEqual([{role:"user",text:"latest"}]);
+ expect(snapshot.selectedIds).toHaveLength(1);
+});
