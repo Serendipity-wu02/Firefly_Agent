@@ -635,14 +635,15 @@ describe("AgentRuntime default-disabled Main S entry", () => {
     const input = { request: { model: "fixture-model", messages: [], maxTokens: 128, stream: false } };
     await Promise.all([runtime.runSContext(input), runtime.runSContext(input)]);
     expect(createPort).toHaveBeenCalledTimes(1); expect(run).toHaveBeenCalledTimes(2);
-    expect(run.mock.calls[0][0]).toBe(input);
+    expect(run.mock.calls[0][0]).toEqual({...input,signal:undefined});
+    expect(run.mock.calls[0][0]).not.toBe(input);
   });
   it("does not provision an already aborted run or invoke after provisioning abort", async () => {
     const abort = new AbortController(), run = vi.fn();
     const createPort = vi.fn(async () => { abort.abort(); return { run }; });
     const deps = createDeps(vi.fn()); deps.sContext = { enabled: true, createPort };
     const runtime = createAgentRuntime(deps);
-    await expect(runtime.runSContext({ signal: abort.signal } as any)).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
+    await expect(runtime.runSContext({ request:{model:"fixture-model",messages:[],maxTokens:128,stream:false},signal: abort.signal } as any)).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
     expect(run).not.toHaveBeenCalled(); expect(createPort).toHaveBeenCalledTimes(1);
     await expect(runtime.runSContext({ signal: abort.signal } as any)).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
     expect(createPort).toHaveBeenCalledTimes(1);
@@ -653,8 +654,8 @@ describe("AgentRuntime default-disabled Main S entry", () => {
     const createPort = vi.fn(async () => { throw Error("SYNTHETIC_PROVISION_FAILURE"); });
     deps.sContext = { enabled: true, createPort };
     const runtime = createAgentRuntime(deps);
-    await expect(runtime.runSContext({} as any)).rejects.toThrow("SYNTHETIC_PROVISION_FAILURE");
-    await expect(runtime.runSContext({} as any)).rejects.toThrow("SYNTHETIC_PROVISION_FAILURE");
+    await expect(runtime.runSContext({request:{model:"fixture-model",messages:[],maxTokens:128,stream:false}})).rejects.toThrow("SYNTHETIC_PROVISION_FAILURE");
+    await expect(runtime.runSContext({request:{model:"fixture-model",messages:[],maxTokens:128,stream:false}})).rejects.toThrow("SYNTHETIC_PROVISION_FAILURE");
     expect(createPort).toHaveBeenCalledTimes(1); expect(fallback).not.toHaveBeenCalled();
   });
 });

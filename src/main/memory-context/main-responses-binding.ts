@@ -1,4 +1,5 @@
 import type OpenAI from "openai";
+import {copyResponseJson,copyMainResponsesRequest as snapshotResponsesRequest,type UndefinedOmission} from "../orchestrator/vendors/response-request-snapshot";
 import type {InputTokenCountParams} from "openai/resources/responses/input-tokens";
 import type {ResponseCreateParams} from "openai/resources/responses/responses";
 import {createHash,randomUUID} from "node:crypto";
@@ -37,39 +38,9 @@ const transportKeys=["baseURL","maxRetries","fetch","fetchOptions","post","reque
 function integer(value:unknown,min=0):number {if(!Number.isSafeInteger(value)||(value as number)<min)unsupported();return value as number}
 function text(value:unknown):asserts value is string {if(typeof value!=="string"||!value.trim()||value.length>1024)unsupported()}
 function digest(value:unknown):string {return createHash("sha256").update(canonicalJson(value)).digest("hex")}
-type UndefinedOmission=boolean|((path:readonly string[],key:string)=>boolean);
-const optionalRequestFields:readonly string[]=["tools","toolChoiceIntent","temperature","topP","stream"];
-const optionalMessageFields:readonly string[]=["toolCalls","toolCallId","name"];
-function omitRequestOptional(path:readonly string[],key:string):boolean {
- return path.length===0&&optionalRequestFields.includes(key)
-  ||path.length===2&&path[0]==="messages"&&/^(0|[1-9][0-9]*)$/.test(path[1])&&optionalMessageFields.includes(key);
-}
-function copyJson(value:unknown,depth=0,omitUndefined:UndefinedOmission=false,path:readonly string[]=[]):unknown {
- if(depth>32)unsupported();
- if(value===null||typeof value==="string"||typeof value==="boolean")return value;
- if(typeof value==="number"&&Number.isFinite(value))return value;
- if(typeof value!=="object"||!value)unsupported();
- const array=Array.isArray(value),prototype=Object.getPrototypeOf(value);
- if(prototype!==(array?Array.prototype:Object.prototype)||Object.getOwnPropertyDescriptor(prototype,"toJSON"))unsupported();
- const descriptors=Object.getOwnPropertyDescriptors(value),ownKeys=Reflect.ownKeys(descriptors);
- if(ownKeys.length>10001)unsupported();
- const output=array?[]:{};
- for(const key of ownKeys){
-  if(typeof key!=="string")return unsupported();const field=descriptors[key];
-  if(!("value" in field)||(!field.enumerable&&!(array&&key==="length")))unsupported();
-  if(array&&key==="length")continue;
-  if(array&&(!/^(0|[1-9][0-9]*)$/.test(key)||Number(key)>=(value as unknown[]).length))unsupported();
-  if(field.value===undefined&&(omitUndefined===true||typeof omitUndefined==="function"&&omitUndefined(path,key)))continue;
-  Object.defineProperty(output,key,{value:copyJson(field.value,depth+1,omitUndefined,[...path,key]),enumerable:true,writable:true,configurable:true});
- }
- if(array&&Object.keys(output).length!==(value as unknown[]).length)unsupported();
- return output;
-}
-function jsonCopy<T>(value:T,omitUndefined:UndefinedOmission=false):T {
- try{const json=canonicalJson(copyJson(value,0,omitUndefined));if(Buffer.byteLength(json)>8*1024*1024)unsupported();return JSON.parse(json) as T}catch{return unsupported()}
-}
-/** Descriptor-checked copy; no accessors or caller-owned serialization hooks run. */
-export function copyMainResponsesRequest(request:ChatRequest):ChatRequest{return jsonCopy(request,omitRequestOptional)}
+function jsonCopy<T>(value:T,omitUndefined:UndefinedOmission=false):T{return copyResponseJson(value,omitUndefined,unsupported)}
+/** Preserve the binding's typed reason-code errors while sharing the pure snapshot. */
+export function copyMainResponsesRequest(request:ChatRequest):ChatRequest{return snapshotResponsesRequest(request,unsupported)}
 /** Validates an explicit caller contract; does not discover/verify actual production model limits. */
 export function createMainResponsesLimits(input:ResponsesLimitsInput):object {
  keys(input,["model","limitsSource","modelMaxOutputTokens","budget"]);text(input.model);text(input.limitsSource);integer(input.modelMaxOutputTokens,1);

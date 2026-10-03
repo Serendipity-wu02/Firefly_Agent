@@ -1,4 +1,5 @@
 import { app } from "electron";
+import {copyMainResponsesRequest} from "./vendors/response-request-snapshot";
 import type {MainSRuntimePort,MainSRuntimeInput,MainSRuntimeResult} from "../memory-context/main-s-runtime-port";
 import { loadPromptFile } from "../prompts/prompt-loader";
 import type { AguiRunInput } from "../agui-bridge";
@@ -124,12 +125,18 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
   async function runSContext(input:MainSRuntimeInput):Promise<MainSRuntimeResult>{
     const injection=rawDeps.sContext;
     if(injection?.enabled!==true)throw Error("MEMORY_CONTEXT_RUNTIME_DISABLED");
-    if(input.signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
+    const signalField=Object.getOwnPropertyDescriptor(input,"signal");
+    if(signalField&&!("value" in signalField))throw Error("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
+    const signal=signalField?.value as AbortSignal|undefined;
+    if(signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
+    const requestField=Object.getOwnPropertyDescriptor(input,"request");
+    if(!requestField||!("value" in requestField))throw Error("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
+    const snapshot:MainSRuntimeInput={request:copyMainResponsesRequest(requestField.value),signal};
     // Store the promise before provisioning, including a failure; never silently retry/fallback.
     sPort??=Promise.resolve().then(()=>injection.createPort());
     const port=await sPort;
-    if(input.signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
-    return port.run(input);
+    if(signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
+    return port.run(snapshot);
   }
 
   async function observeRuntimeState(

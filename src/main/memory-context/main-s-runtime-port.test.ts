@@ -123,3 +123,35 @@ it("refuses empty canonical captures before any model count or sender",async()=>
 it("abort from the last configuration check cannot invoke SDK create",async()=>{const f=await fixture(),abort=new AbortController();f.onConfiguration(()=>{if(f.commands.some((c:any)=>c.kind==="claim"))abort.abort()});await expect(f.port.run({request:f.request,signal:abort.signal})).resolves.toMatchObject({status:"result-unknown"});expect(f.sends).toHaveLength(0)});
 
 it("abort after SDK invocation reports unknown without retry or legacy fallback",async()=>{const f=await fixture(),abort=new AbortController();f.onSend(async()=>{abort.abort();throw Error("SYNTHETIC_SDK_ABORT")});await expect(f.port.run({request:f.request,signal:abort.signal})).resolves.toMatchObject({status:"result-unknown"});expect(f.sends).toHaveLength(1)});
+
+it("AgentRuntime snapshots request before a delayed lazy factory resolves",async()=>{
+ const f=await fixture(),{createAgentRuntime}=await import("../orchestrator/agent-runtime");let release!:(port:typeof f.port)=>void,started!:()=>void;
+ const pending=new Promise<typeof f.port>(resolve=>{release=resolve}),start=new Promise<void>(resolve=>{started=resolve});
+ const createPort=vi.fn(()=>{started();return pending});
+ const runtime=createAgentRuntime({runtimeStateService:{},sContext:{enabled:true,createPort}} as any);
+ const input={request:f.request},run=runtime.runSContext(input);await start;
+ f.request.messages[0].content="changed during factory";f.request.tools![0].parameters={type:"string"};
+ input.request={...f.request,messages:[{role:"system",content:"replaced request during factory"}]};release(f.port);
+ await expect(run).resolves.toMatchObject({status:"sent"});expect(f.sends).toHaveLength(1);
+ expect(f.sends[0].body.instructions).toBe("fixed synthetic instructions");expect(f.sends[0].body.tools[0].parameters.type).toBe("object");
+});
+it("AgentRuntime fixes the original signal while a delayed factory is pending",async()=>{
+ const f=await fixture(),{createAgentRuntime}=await import("../orchestrator/agent-runtime");let release!:(port:typeof f.port)=>void,started!:()=>void;
+ const pending=new Promise<typeof f.port>(resolve=>{release=resolve}),start=new Promise<void>(resolve=>{started=resolve});
+ const original=new AbortController(),replacement=new AbortController(),createPort=vi.fn(()=>{started();return pending});
+ const runtime=createAgentRuntime({runtimeStateService:{},sContext:{enabled:true,createPort}} as any);
+ const input={request:f.request,signal:original.signal},run=runtime.runSContext(input);const rejected=expect(run).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");await start;
+ input.signal=replacement.signal;original.abort();release(f.port);await rejected;
+ expect(f.captures).toBe(0);expect(f.counts).toHaveLength(0);expect(f.sends).toHaveLength(0);
+});
+it.each(["request-getter","signal-getter","message-getter","schema-getter","schema-toJSON"])("AgentRuntime refuses %s without executing it or provisioning",async kind=>{
+ const f=await fixture(),{createAgentRuntime}=await import("../orchestrator/agent-runtime");let touched=0;const createPort=vi.fn(()=>f.port),input:any={request:f.request};
+ const getter=()=>{touched++;return kind==="signal-getter"?undefined:f.request};
+ if(kind==="request-getter"||kind==="signal-getter")Object.defineProperty(input,kind==="request-getter"?"request":"signal",{enumerable:true,get:getter});
+ if(kind==="message-getter")Object.defineProperty(f.request.messages[0],"content",{enumerable:true,get:()=>{touched++;return "unexpected"}});
+ if(kind==="schema-getter")Object.defineProperty(f.request.tools![0].parameters,"type",{enumerable:true,get:()=>{touched++;return "object"}});
+ if(kind==="schema-toJSON")Object.defineProperty(f.request.tools![0].parameters,"toJSON",{value:()=>{touched++;return {type:"object"}}});
+ const runtime=createAgentRuntime({runtimeStateService:{},sContext:{enabled:true,createPort}} as any);
+ await expect(runtime.runSContext(input)).rejects.toThrow("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
+ expect(touched).toBe(0);expect(createPort).not.toHaveBeenCalled();expect(f.captures).toBe(0);expect(f.counts).toHaveLength(0);expect(f.sends).toHaveLength(0);
+});
