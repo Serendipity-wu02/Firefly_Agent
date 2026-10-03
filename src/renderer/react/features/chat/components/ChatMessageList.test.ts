@@ -41,6 +41,12 @@ describe("React chat sticker messages", () => {
 });
 
 describe("formal answer visibility", () => {
+  it.each(["pending","unknown","interrupted"] as const)("%s original text has only a diagnostic bubble without the formal TTS role",state=>{
+    const message:ChatMessageItem={id:"s-a",role:"assistant",content:"CACHE",ttsCacheKey:"unsafe",responseStarted:true,sSettlement:{state,runId:"r",assistantEntryId:"entry",originalText:"RAW"}};
+    const items=createMessageItems([message],[]);
+    expect(items.some(item=>item.role==="assistant")).toBe(false);
+    expect(items.find(item=>item.role==="sAudit")).toMatchObject({content:"RAW",extraInfo:{state}});
+  });
   it("shows Main file-read status separately from the model answer", () => {
     const message: ChatMessageItem = {
       id: "assistant-read", role: "assistant", content: "我已读完全文", responseStarted: true,

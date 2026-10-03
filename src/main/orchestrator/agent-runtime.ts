@@ -5,7 +5,7 @@ import type {AgentLoopResult} from "./firefly-agent";
 import {copyMainResponsesRequest} from "./vendors/response-request-snapshot";
 import type {MainSRuntimePort,MainSRuntimeInput,MainSRuntimeResult} from "../memory-context/main-s-runtime-port";
 import { loadPromptFile } from "../prompts/prompt-loader";
-import type { AguiRunInput } from "../agui-bridge";
+import type { AguiRunInput, BuildOptionsFn } from "../agui-bridge";
 import type { ScheduledTask } from "../scheduler/types";
 import type { ChannelId } from "../channels/types";
 import type { ModelSettings } from "../settings/model-settings";
@@ -117,7 +117,7 @@ export interface AgentRunFinishedContext {
 export interface AgentRuntime {
   /** Default-disabled controlled Main entry; production wiring does not provision it. */
   runSContext(input:MainSRuntimeInput):Promise<MainSRuntimeResult>;
-  buildOptions(input: AguiRunInput): Promise<{ options: FireflyRunOptions; latestUserText: string }>;
+  buildOptions: BuildOptionsFn;
   onRunFinished(result: FireflyRunResult, latestUserText: string, context: AgentRunFinishedContext): Promise<{ sticker: string | null }>;
   buildSchedulerOptions(task: ScheduledTask): Promise<SchedulerRunOptions>;
 }
@@ -125,6 +125,18 @@ export interface AgentRuntime {
 export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
   const runtimeStateService = rawDeps.runtimeStateService;
   let sPort:Promise<MainSRuntimePort>|undefined;
+  function provisionSPort():Promise<MainSRuntimePort> {
+    const injection=rawDeps.sContext;
+    if(injection?.enabled!==true)throw Error("MEMORY_CONTEXT_RUNTIME_DISABLED");
+    return sPort??=Promise.resolve().then(()=>injection.createPort());
+  }
+  async function prepareTranscript():Promise<void> {
+    const injection=rawDeps.sContext;
+    if(injection?.enabled!==true)return;
+    const builder=Object.getOwnPropertyDescriptor(injection,"streamRequest");
+    if(builder&&!("value" in builder)||builder?.value!==undefined&&typeof builder.value!=="function")throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+    if(builder?.value!==undefined)await provisionSPort();
+  }
   async function runSContext(input:MainSRuntimeInput):Promise<MainSRuntimeResult>{
     const injection=rawDeps.sContext;
     if(injection?.enabled!==true)throw Error("MEMORY_CONTEXT_RUNTIME_DISABLED");
@@ -138,8 +150,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     if(streamField&&!("value" in streamField))throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
     const snapshot:MainSRuntimeInput={request:copyMainResponsesRequest(requestField.value),signal,...(streamField?.value!==undefined?{stream:copyControlledStreamTarget(streamField.value)}:{})};
     // Store the promise before provisioning, including a failure; never silently retry/fallback.
-    sPort??=Promise.resolve().then(()=>injection.createPort());
-    const port=await sPort;
+    const port=await provisionSPort();
     if(signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
     return port.run(snapshot);
   }
@@ -320,7 +331,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
 
   return {
     runSContext,
-    buildOptions: async (input) => {
+    buildOptions: Object.assign(async (input:AguiRunInput) => {
       // Capture the controlled Main scope and builder before the existing asynchronous options build.
       const injection=rawDeps.sContext;
       let controlled:{scope:{conversationId?:string;userTurnId?:string;assistantTurnId?:string};buildRequest:(options:FireflyRunOptions)=>ChatRequest}|undefined;
@@ -345,12 +356,18 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
         next.controlledResponses=async(current,signal,onEvent)=>{
           if(current.executionMode!=="chat"||current.tools?.length)throw Error("MEMORY_CONTEXT_STREAM_MODE_UNSUPPORTED");
           if(!scope.conversationId||!scope.userTurnId||!scope.assistantTurnId||!current.runId||!current.transcriptSink||!current.isControlledRunCurrent||current.conversationId!==scope.conversationId)throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
-          const sent=await runSContext({request:buildRequest(current),signal,stream:{...scope,conversationId:scope.conversationId,userTurnId:scope.userTurnId,assistantTurnId:scope.assistantTurnId,runId:current.runId,sink:current.transcriptSink,isCurrent:current.isControlledRunCurrent,onEvent}});
-          if(sent.status!=="sent")throw Error("MEMORY_CONTEXT_SEND_UNKNOWN");return sent.result as AgentLoopResult;
+          try{
+            const sent=await runSContext({request:buildRequest(current),signal,stream:{...scope,conversationId:scope.conversationId,userTurnId:scope.userTurnId,assistantTurnId:scope.assistantTurnId,runId:current.runId,sink:current.transcriptSink,isCurrent:current.isControlledRunCurrent,onEvent}});
+            if(sent.status!=="sent")throw Error("MEMORY_CONTEXT_SEND_UNKNOWN");return sent.result as AgentLoopResult;
+          }catch(error){
+            // Persistence uncertainty remains a runtime error even with an aborted outer signal.
+            if(error instanceof Error&&error.message==="MEMORY_CONTEXT_SETTLEMENT_UNKNOWN")return {reply:"",toolResults:[],completionReason:"no_tool",terminal:{status:"runtime_error",reason:"MEMORY_CONTEXT_SETTLEMENT_UNKNOWN",externalEffectsMayContinue:false}};
+            throw error;
+          }
         };
       }
       return { options:next, latestUserText };
-    },
+    },{prepareTranscript}),
 
     onRunFinished: async (result, latestUserText, context) => {
       const onRunFinishedDeps = buildOnRunFinishedDeps(context.modelProfileId);

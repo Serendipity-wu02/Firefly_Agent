@@ -12,7 +12,12 @@
  * 本文件只含类型与实现逻辑，无任何运行时依赖（store 由调用方注入）。
  */
 
-import type {TranscriptAppendGuard} from "./conversation-transcript-store";
+import { TranscriptPersistenceError, type TranscriptAppendGuard } from "./conversation-transcript-store";
+import {
+  copySAssistantBinding, copySAssistantMessage, copySAssistantSettlementPayload,
+  type SAssistantBinding, type SAssistantSettlementBinding,
+  type SAssistantSettlementResult, type TranscriptAppendInput,
+} from "./conversation-transcript-types";
 import type { ConversationTranscriptStore } from "./conversation-transcript-store";
 import type { HarnessRunSession } from "./harness/run-store";
 import type { ToolCallOutcome } from "./harness/types";
@@ -31,6 +36,17 @@ export class TranscriptWriteError extends Error {
 
 /** Run 绑定的轨迹提交端：一个 run 一个实例，entryId 全程确定性。 */
 export interface TranscriptSink {
+  appendSAssistant(input: {
+    message: ChatMessage;
+    binding: SAssistantBinding;
+    guard?: TranscriptAppendGuard;
+  }): Promise<string>;
+  settleSAssistant(input: {
+    binding: SAssistantSettlementBinding;
+    result: SAssistantSettlementResult;
+    safeReason: string;
+    guard?: TranscriptAppendGuard;
+  }): Promise<void>;
   /** 落盘一条 canonical assistant 消息，返回其 entryId（工具结果提交的锚点）。 */
   appendAssistant(input: { message: ChatMessage; roundId?: string;guard?:TranscriptAppendGuard }): Promise<string>;
   /** 落盘一条 canonical 工具结果消息（挂在所属 assistant 条目上）。 */
@@ -68,7 +84,46 @@ export function createTranscriptSink(input: {
   // 无 roundId 的 assistant 追加序号（ChatLoop 单轮路径）
   let assistantCounter = 0;
 
-  const sink:TranscriptSink={
+  const assertOwned = (binding: SAssistantBinding) => {
+    if (binding.runId !== runId || !assistantTurnId || binding.assistantTurnId !== assistantTurnId) {
+      throw Error("TRANSCRIPT_S_BINDING_INVALID");
+    }
+  };
+  const sink: TranscriptSink = {
+    async appendSAssistant(input) {
+      const binding = copySAssistantBinding(input.binding);
+      const message = copySAssistantMessage(input.message);
+      const guard = input.guard;
+      assertOwned(binding);
+      const id = `${runId}:assistant:s-response`;
+      const entry = await store.append(conversationId, {
+        kind: "assistant", id, at: Date.now(), runId, turnId: assistantTurnId,
+        roundId: "s-response",
+        sSettlement: {version: 1, userTurnId: binding.userTurnId, userRevision: binding.userRevision},
+        payload: message,
+      }, guard);
+      return entry.id;
+    },
+    async settleSAssistant(input) {
+      const payload = copySAssistantSettlementPayload({
+        binding: input.binding, result: input.result, safeReason: input.safeReason,
+      });
+      const guard = input.guard;
+      assertOwned(payload.binding);
+      const draft: Extract<TranscriptAppendInput, {kind: "assistant_settlement"}> = {
+        kind: "assistant_settlement", id: `s-settlement:v1:${payload.binding.assistantEntryId}`,
+        at: Date.now(), runId, turnId: assistantTurnId, payload,
+      };
+      try {
+        await store.append(conversationId, draft, guard);
+      } catch (error) {
+        if (!(error instanceof TranscriptPersistenceError)) throw error;
+        try {
+          if (await store.confirmSAssistantSettlement(conversationId, draft)) return;
+        } catch { /* no durable proof */ }
+        throw Error("TRANSCRIPT_S_SETTLEMENT_UNKNOWN", {cause: error});
+      }
+    },
     async appendAssistant({ message, roundId,guard }) {
       const entryId = `${runId}:assistant:${roundId ?? `n${assistantCounter++}`}`;
       for (const call of message.toolCalls ?? []) {

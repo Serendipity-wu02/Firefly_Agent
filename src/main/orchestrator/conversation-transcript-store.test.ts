@@ -115,3 +115,17 @@ it("refuses a mutation before changing transcript bytes when its observer fails"
  await store.append("c1",userDraft("e2","u2",1,"second"));
  expect((await store.read("c1")).entries).toHaveLength(2);
 });
+
+
+describe("S transcript envelope validation", () => {
+  it.each([0, 2, NaN])("rejects unsupported S settlement version %s without creating a file", async (version) => {
+    const { store } = createStore();
+    expect(() => store.append("c1", { id: "s-a", kind: "assistant", runId: "s-run", turnId: "s-at", sSettlement: { version, userTurnId: "s-u", userRevision: 1 }, payload: { role: "assistant", content: "synthetic complete" } } as any)).toThrow("TRANSCRIPT_S_BINDING_INVALID");
+    expect((await store.read("c1")).entries).toEqual([]);
+  });
+  it("does not accept a forged completed marker with no matching assistant", async () => {
+    const { store } = createStore();
+    await expect(store.append("c1", { id: "s-marker", kind: "assistant_settlement", runId: "s-run", turnId: "s-at", payload: { binding: { runId: "s-run", assistantTurnId: "s-at", userTurnId: "s-u", userRevision: 1, assistantEntryId: "missing" }, result: "success", safeReason: "completed" } } as any)).rejects.toThrow("TRANSCRIPT_S_BINDING_INVALID");
+    expect((await store.read("c1")).entries).toEqual([]);
+  });
+});

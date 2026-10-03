@@ -220,7 +220,14 @@ it.each([
  ["conflict","I prefer cmd",2000,1000],
  ["change-old-mismatch","I now prefer cmd instead of PowerShell",2000,1000],
 ])("%s remains candidate without arrival overwrite",async(reason,text,time,prior)=>{
- const f=fixture();await integrate(f,"I prefer bash",prior as number|undefined);const b=await integrate(f,text as string,time as number|undefined);expect(b.result.items[0]).toMatchObject({status:"candidate",reason});expect(f.repo.current("scope-a")[0].assertion).toBe("I prefer bash");
+ const f=fixture();
+ const initial=await integrate(f,"I prefer bash",prior as number|undefined);
+ if(prior===undefined){
+  expect(initial.result.items[0]).toMatchObject({status:"candidate",reason:"unknown-time"});
+  const proof=await f.source("I confirm the selected preference","direct-user-event","user","session-a",1000);
+  await f.policy.act(f.actor,await f.event("confirm",{candidateId:initial.result.items[0].candidateId,revision:1,sourceRef:proof.ref}));
+ }
+ const b=await integrate(f,text as string,time as number|undefined);expect(b.result.items[0]).toMatchObject({status:"candidate",reason});expect(f.repo.current("scope-a")[0].assertion).toBe("I prefer bash");
 });
 it("work Python, personal Rust and additive abilities coexist without replacing values",async()=>{
  const f=fixture();await integrate(f,"我工作用 Python，个人用 Rust",1000);await integrate(f,"I use Rust for work",2000);await integrate(f,"I know Python and Rust",3000);

@@ -28,6 +28,8 @@ import { getDefaultModelProfile, loadModelSettings, resolveModelSettingsProfile 
 import { FileToolOutputStore } from "../orchestrator/harness/tool-output/file-tool-output-store";
 import { getHarnessRunStore } from "../orchestrator/harness/run-store";
 import { getConversationTranscriptStore } from "../orchestrator/conversation-transcript-store";
+import { projectSSettlementMessages } from "../orchestrator/conversation-transcript-context";
+import { getStorageContext } from "../storage-context";
 import { getRunReviewTracker } from "../orchestrator/review/run-review-tracker";
 import { getAdapterForConfig } from "../orchestrator/vendors";
 import { activeChatTargetRegistry } from "../plugin-host/active-chat-target";
@@ -63,6 +65,7 @@ const compactingSessions = new Set<string>();
 function visibleUserText(content: string): string {
   return content.replace(/\[sticker:[^\]]+\]/gi, "").trim();
 }
+function stripSProjection(message:ChatMessage):ChatMessage {const {sSettlement:_projection,...stored}=message;return stored}
 
 export function registerChatsIpc(
   ipcOption?: IpcScope,
@@ -93,7 +96,12 @@ export function registerChatsIpc(
     (_event, options?: { mode?: ConversationMode }) => chatsStore.listSessions(options),
   );
 
-  ipc.handle(IPC.CHATS_GET, (_event, id: string) => chatsStore.getSession(id));
+  const project=async<T extends {messages:ChatMessage[]}>(id:string,value:T|null):Promise<T|null>=>{
+    if(!value)return value;
+    const store=getConversationTranscriptStore(getStorageContext().dataRoot);
+    return store.withReadLease(id,async read=>({...value,messages:projectSSettlementMessages(value.messages,(await read()).entries)}));
+  };
+  ipc.handle(IPC.CHATS_GET, (_event, id: string) => project(id,chatsStore.getSession(id)));
   ipc.handle(IPC.CHATS_EXPORT_WORK_MARKDOWN, async (event, id: unknown) => {
     if (typeof id !== "string" || !id) return { ok: false, error: "invalid-session" };
     const session = chatsStore.getSession(id);
@@ -113,7 +121,7 @@ export function registerChatsIpc(
   });
   ipc.handle(IPC.CHATS_GET_PAGE, (_event, payload: { id: string; before?: number | null; limit?: number }) => {
     if (!payload?.id) return null;
-    return chatsStore.getSessionPage(payload.id, payload.before ?? null, payload.limit ?? 80);
+    return project(payload.id,chatsStore.getSessionPage(payload.id, payload.before ?? null, payload.limit ?? 80));
   });
 
   ipc.handle(
@@ -137,7 +145,7 @@ export function registerChatsIpc(
     IPC.CHATS_APPEND,
     (event, payload: { id: string; message: ChatMessage }) => {
       if (!payload || !payload.id || !payload.message) return null;
-      const session = chatsStore.appendMessage(payload.id, payload.message);
+      const session = chatsStore.appendMessage(payload.id, stripSProjection(payload.message));
       if (session) {
         broadcastChanged(event.sender);
         if (payload.message.role === "user") {
@@ -156,7 +164,7 @@ export function registerChatsIpc(
     IPC.CHATS_UPSERT,
     (event, payload: { id: string; message: ChatMessage } | null | undefined) => {
       if (!payload?.id || !payload.message) return null;
-      const session = chatsStore.upsertMessage(payload.id, payload.message);
+      const session = chatsStore.upsertMessage(payload.id, stripSProjection(payload.message));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -181,7 +189,7 @@ export function registerChatsIpc(
     IPC.CHATS_REPLACE_MESSAGES,
     (event, payload: { id: string; messages: ChatMessage[] }) => {
       if (!payload || !payload.id || !Array.isArray(payload.messages)) return null;
-      const session = chatsStore.replaceMessages(payload.id, payload.messages);
+      const session = chatsStore.replaceMessages(payload.id, payload.messages.map(stripSProjection));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -190,7 +198,7 @@ export function registerChatsIpc(
     IPC.CHATS_REPLACE_TAIL,
     (event, payload: { id: string; startIndex: number; messages: ChatMessage[] }) => {
       if (!payload?.id || !Array.isArray(payload.messages)) return null;
-      const session = chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages);
+      const session = chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages.map(stripSProjection));
       if (session) broadcastChanged(event.sender);
       return session;
     },

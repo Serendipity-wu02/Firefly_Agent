@@ -14,6 +14,8 @@ import {createMainResponsesBinding,createMainResponsesLimits,type ResponsesSdkCl
 import {setVendorRuntimeSettingsGetter} from "../orchestrator/vendors/runtime-settings";
 import {createAgentRuntime} from "../orchestrator/agent-runtime";
 import {FireflyAgent} from "../orchestrator/firefly-agent";
+import {classifySAssistantSettlement} from "../orchestrator/conversation-transcript-settlement";
+import {materializeTranscript} from "../orchestrator/conversation-transcript-context";
 
 vi.mock("electron",()=>({app:{getPath:()=>{throw Error("PRODUCT_DATA_FORBIDDEN")}}}));
 vi.mock("../timeout-manager",()=>({getTimeoutSettings:()=>({chatRequestTimeout:0})}));
@@ -88,6 +90,7 @@ it("actual Runtime -> FireflyAgent streams standard chat events and writes the f
 it("stream keeps canonical historical tool call/result framing intact",async()=>{
  const f=await fixture();await f.store.append("session-a",{id:"a0",at:1001,kind:"assistant",payload:{role:"assistant",content:"check",toolCalls:[{id:"t0",name:"lookup",arguments:"{}"}]}});
  await f.store.append("session-a",{id:"t0",at:1002,kind:"tool_result",payload:{assistantEntryId:"a0",toolCallId:"t0",outcome:"success",message:{role:"tool",content:"result",toolCallId:"t0",name:"lookup"}}});
+ await f.store.append("session-a",{id:"u2",at:1003,kind:"user",turnId:"u2",revision:1,payload:{text:"new question"}});f.target.userTurnId="u2";
  await f.runtime.runSContext(f.input);expect(JSON.stringify(f.sent[0].body.input)).toContain("function_call_output");expect((await f.assistants()).at(-1)!.payload).toEqual({role:"assistant",content:"hello world"});
 });
 it.each(["failed","error","incomplete","duplicate-terminal","post-terminal-delta","wrong-sequence","no-terminal","text-mismatch","tool","reasoning","refusal","citation","transport"])("stream %s cannot append partial/fake completion or resend",async kind=>{
@@ -134,7 +137,7 @@ it.each(["abort","new-turn","forget"])("%s while final append is queued cannot p
 });
 it("default-off Runtime build does not read the stream builder or provision the port",async()=>{
  let touched=0;const injection:any={enabled:false};Object.defineProperty(injection,"streamRequest",{get(){touched++;throw Error("FORBIDDEN")}});Object.defineProperty(injection,"createPort",{get(){touched++;throw Error("FORBIDDEN")}});
- const runtime=createAgentRuntime({runtimeStateService:{getState:()=>({})},sContext:injection} as any);const built=await runtime.buildOptions({messages:[],sessionId:"session-a",mode:"chat"});expect(built.options.controlledResponses).toBeUndefined();expect(touched).toBe(0);
+ const runtime=createAgentRuntime({runtimeStateService:{getState:()=>({})},sContext:injection} as any);await runtime.buildOptions.prepareTranscript?.({messages:[],sessionId:"session-a",mode:"chat"});const built=await runtime.buildOptions({messages:[],sessionId:"session-a",mode:"chat"});expect(built.options.controlledResponses).toBeUndefined();expect(touched).toBe(0);
 });
 
 it("rejects a same-ID sink owned by a different canonical store before count/send",async()=>{
@@ -178,6 +181,55 @@ it("completion waits for stream EOF before canonical append",async()=>{
 });
 
 const lifecycle=normal;
+it.each(["append","forget"] as const)("external %s queued during pending append cannot be mistaken for own response progress",async kind=>{
+ const f=await fixture(),fact=kind==="forget"?await f.active("I prefer bash"):undefined;
+ let started!:()=>void,release!:()=>void;const start=new Promise<void>(r=>{started=r}),wait=new Promise<void>(r=>{release=r}),append=fs.promises.appendFile.bind(fs.promises);
+ vi.spyOn(fs.promises,"appendFile").mockImplementation(async(...args:any[])=>{if(String(args[1]).includes('"kind":"assistant"')){started();await wait}return (append as any)(...args)});
+ const run=f.runtime.runSContext(f.input),failed=expect(run).rejects.toThrow();await start;
+ const changed=kind==="append"?f.store.append("session-a",{kind:"user",id:"u2",turnId:"u2",revision:1,at:1004,payload:{text:"external new user"}}):f.forget(fact!.factId!);
+ release();await changed;await failed;const raw=(await f.store.read("session-a")).entries;
+ expect(classifySAssistantSettlement(raw,raw.find(e=>e.kind==="assistant")!.id)).toBe("interrupted");
+ expect(f.display.some(e=>e.type==="text_message_end")).toBe(false);
+});
+it("failed interrupted settlement stays unknown through the actual FireflyAgent cancellation path",async()=>{
+ const f=await fixture(),abort=new AbortController(),built=await f.runtime.buildOptions({sessionId:"session-a",userTurnId:"u1",assistantTurnId:"assistant-s",mode:"chat",messages:[]});
+ let started!:()=>void,release!:()=>void;const start=new Promise<void>(r=>{started=r}),wait=new Promise<void>(r=>{release=r}),append=fs.promises.appendFile.bind(fs.promises);
+ vi.spyOn(fs.promises,"appendFile").mockImplementation(async(...args:any[])=>{if(String(args[1]).includes('"kind":"assistant"')){started();await wait}if(String(args[1]).includes('"kind":"assistant_settlement"'))throw Error("SYNTHETIC_IO_FAILURE");return (append as any)(...args)});
+ Object.assign(built.options,{runId:"run-s",signal:abort.signal,transcriptSink:f.sink,isControlledRunCurrent:f.target.isCurrent});
+ const agent=new FireflyAgent({threadId:"unknown-thread",description:"synthetic"}),events:any[]=[];
+ const done=new Promise<void>((resolve,reject)=>agent.runWithEvents(built.options).subscribe({next:e=>events.push(e),error:reject,complete:resolve}));
+ await start;abort.abort();release();await done;
+ expect(events.filter(e=>e.type==="RUN_FINISHED")).toEqual([expect.objectContaining({result:expect.objectContaining({status:"runtime_error",reason:"MEMORY_CONTEXT_SETTLEMENT_UNKNOWN"})})]);
+ expect(events.some(e=>e.type==="TEXT_MESSAGE_END")).toBe(false);
+ const entries=(await f.store.read("session-a")).entries;expect(classifySAssistantSettlement(entries,entries.find(e=>e.kind==="assistant")!.id)).toBe("pending");
+});
+it("successful stream confirms one durable S settlement before exposing its terminal",async()=>{
+ const f=await fixture();await f.runtime.runSContext(f.input);
+ const entries=(await f.store.read("session-a")).entries,assistant=entries.find(e=>e.kind==="assistant")!;
+ expect(classifySAssistantSettlement(entries,assistant.id)).toBe("success");
+ expect(entries.filter(e=>e.kind==="assistant_settlement")).toHaveLength(1);
+ expect(assistant).toMatchObject({sSettlement:{version:1,userTurnId:"u1",userRevision:1}});
+});
+it("cancel during dispatched pending append preserves an interrupted audit reply excluded from later context",async()=>{
+ const f=await fixture(),abort=new AbortController();let started!:()=>void,release!:()=>void;
+ const start=new Promise<void>(r=>started=r),wait=new Promise<void>(r=>release=r),append=fs.promises.appendFile.bind(fs.promises);
+ vi.spyOn(fs.promises,"appendFile").mockImplementation(async(...args:any[])=>{if(String(args[1]).includes('"kind":"assistant"')){started();await wait}return (append as any)(...args)});
+ const run=f.runtime.runSContext({...f.input,signal:abort.signal}),failed=expect(run).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");await start;abort.abort();release();await failed;
+ const entries=(await f.store.read("session-a")).entries,assistant=entries.find(e=>e.kind==="assistant")!;
+ expect(classifySAssistantSettlement(entries,assistant.id)).toBe("interrupted");
+ expect(materializeTranscript(entries,{get:()=>null}).messages).toEqual([{role:"user",content:"synthetic user"}]);
+});
+it("late cancel after success settlement dispatch cannot abort durable confirmation or downgrade success",async()=>{
+ const f=await fixture(),abort=new AbortController();let started!:()=>void,release!:()=>void;
+ const start=new Promise<void>(r=>started=r),wait=new Promise<void>(r=>release=r),append=fs.promises.appendFile.bind(fs.promises);
+ vi.spyOn(fs.promises,"appendFile").mockImplementation(async(...args:any[])=>{if(String(args[1]).includes('"kind":"assistant_settlement"')){started();await wait}return (append as any)(...args)});
+ const run=f.runtime.runSContext({...f.input,signal:abort.signal});
+ // Timeout guard also proves the pre-existing missing settlement behavior without hanging the suite.
+ await Promise.race([start,run.then(()=>{throw Error("SETTLEMENT_NOT_DISPATCHED")})]);abort.abort();release();
+ expect((await run).status).toBe("sent");const entries=(await f.store.read("session-a")).entries;
+ expect(classifySAssistantSettlement(entries,entries.find(e=>e.kind==="assistant")!.id)).toBe("success");
+ expect(f.display.filter(e=>e.type==="text_message_end")).toHaveLength(1);
+});
 it("accepts the installed SDK's complete plain-text event lifecycle",async()=>{const f=await fixture();f.setEvents(lifecycle());await f.runtime.runSContext(f.input);expect(await f.assistants()).toHaveLength(1)});
 it.each(["duplicate-item","duplicate-part","duplicate-textdone","duplicate-partdone","duplicate-itemdone","early-partdone","early-itemdone","in-progress-tool","delta-before-part","logprobs"])("rejects %s event lifecycle before writeback",async kind=>{
  const f=await fixture(),events:any[]=lifecycle();
@@ -251,4 +303,31 @@ it.each(["", "bad\nentry", "bad\u0000entry", "bad\u007fentry", "x".repeat(1025)]
  const {parseTranscriptProvenance}=await import("./main-transcript-provider"),{parseInternalId}=await import("../memory-core/command-validation");
  expect(()=>parseTranscriptProvenance([{entryId:id,turnId:"ui:u1",seq:1,occurredAt:1000,role:"user"}])).toThrow("MEMORY_CONTEXT_INPUT_INVALID");
  expect(()=>parseInternalId("run-s:assistant:s-response")).toThrow("MEMORY_INPUT_INVALID");
+});
+
+it("forget then reopen admits a freshly committed user before lazy controlled provisioning without reviving old text",async()=>{
+ const f=await fixture(),fact=await f.active("I prefer PowerShell");await f.forget(fact.factId!);await f.closeTranscript();f.reopen();
+ const store=new ConversationTranscriptStore(path.join(f.root,"conversation"));let adapter:ReturnType<typeof createConversationTranscriptAdapter>,provisions=0;
+ const runtime=createAgentRuntime({runtimeStateService:{getState:()=>({})},sContext:{enabled:true,streamRequest:()=>f.request,createPort:()=>{
+  provisions++;return createMainSRuntimePort({enabled:true,clock:f.options.clock,registry:f.registry,transport:f.transport,actorAuthority:f.actorAuthority,actorToken:f.actor,binding:f.binding,createTranscript:context=>(adapter=createConversationTranscriptAdapter({enabled:true,store,context,actorAuthority:f.actorAuthority,actorToken:f.actor})!)})!;
+ }}} as any);
+ const input={sessionId:"session-a",userTurnId:"fresh-u",assistantTurnId:"fresh-a",mode:"chat" as const,messages:[]};
+ await runtime.buildOptions.prepareTranscript?.(input);
+ await store.append("session-a",{id:"fresh-u",at:1002,kind:"user",turnId:"fresh-u",revision:1,payload:{text:"fresh ordinary question"}});
+ const built=await runtime.buildOptions(input);Object.assign(built.options,{runId:"fresh-run",transcriptSink:createTranscriptSink({store,conversationId:"session-a",runId:"fresh-run",assistantTurnId:"fresh-a"}),isControlledRunCurrent:()=>true});
+ try{
+  const result=await built.options.controlledResponses!(built.options,new AbortController().signal,()=>{});expect(result.terminal?.status).toBe("success");
+  expect(provisions).toBe(1);expect(f.sent).toHaveLength(1);expect(JSON.stringify(f.sent[0].body.input)).toContain("fresh ordinary question");expect(JSON.stringify(f.sent[0].body.input)).not.toContain("synthetic user");expect(JSON.stringify(f.sent[0].body)).not.toContain("PowerShell");expect(await f.policy.recall(f.actor)).toEqual([]);
+ }finally{await adapter?.close()}
+});
+
+it("early controlled provisioning rejects temporary actors before context reads and retains its failed lifetime",async()=>{
+ const f=await fixture(),temporary=f.actorAuthority.bindActor(f.access,f.provider.adapter,f.identity,{sessionMode:"temporary"}),before=f.commands.length;let provisions=0;
+ const runtime=createAgentRuntime({runtimeStateService:{getState:()=>({})},sContext:{enabled:true,streamRequest:()=>f.request,createPort:()=>{
+  provisions++;return createMainSRuntimePort({enabled:true,registry:f.registry,transport:f.transport,actorAuthority:f.actorAuthority,actorToken:temporary,binding:f.binding,createTranscript:()=>{throw Error("TEMPORARY_TRANSCRIPT_FORBIDDEN")}})!;
+ }}} as any);
+ const input={sessionId:"session-a",userTurnId:"u1",assistantTurnId:"assistant-s",mode:"chat" as const,messages:[]};
+ await expect(runtime.buildOptions.prepareTranscript!(input)).rejects.toThrow("MEMORY_CONTEXT_TEMPORARY_UNSUPPORTED");
+ await expect(runtime.buildOptions.prepareTranscript!(input)).rejects.toThrow("MEMORY_CONTEXT_TEMPORARY_UNSUPPORTED");
+ expect(provisions).toBe(1);expect(f.commands).toHaveLength(before);expect(f.counted).toHaveLength(0);expect(f.sent).toHaveLength(0);
 });

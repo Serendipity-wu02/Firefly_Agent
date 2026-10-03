@@ -44,7 +44,7 @@ async function contextFixture(){
   counter:{capability:{...requestIdentity,mode:"exact",inputTypes:["text"]},count:async request=>JSON.stringify(request.body).length},
   budget:{maxContextTokens:100000,reservedOutputTokens:64,safetyMarginTokens:16,maxSTokens:10000,minRecentCompleteTurns:1}
  });
- return {root,repo,actorAuthority,access,identity,provider,policy,actor,context,transport,get writes(){return writes}};
+ return {root,repo,actorAuthority,access,identity,provider,policy,actor,context,transport,registry,get writes(){return writes}};
 }
 
 const user=(id="u1",text="synthetic user"):TranscriptAppendInput=>({id,at:1000,kind:"user",turnId:id,revision:1,payload:{text}});
@@ -203,4 +203,18 @@ it("selects the latest complete turn with an exact budget instead of retaining t
  const snapshot=await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:await f.adapter.captureTurns()});
  expect(snapshot.request.body.messages).toEqual([{role:"user",text:"latest"}]);
  expect(snapshot.selectedIds).toHaveLength(1);
+});
+
+it("early observation never grants current epochs to historical backfill after forget",async()=>{
+ const f=await contextFixture(),id={...f.identity,messageId:"old-preference"};f.provider.write(id,{text:"I prefer PowerShell",role:"user",trust:"direct-user-event"});
+ const ref=await f.registry.capture(f.access,f.provider.adapter,id),fact=await f.policy.ingest(f.actor,ref);
+ await f.policy.act(f.actor,await f.policy.event(f.actor,{kind:"forget",nonce:"forget-before-backfill",factId:fact.factId,revision:1}));
+ const store=new ConversationTranscriptStore(path.join(f.root,"conversation")),adapter=createConversationTranscriptAdapter({enabled:true,store,context:f.context,actorAuthority:f.actorAuthority,actorToken:f.actor})!;
+ await store.append("session-a",{...user("old-user","I prefer PowerShell"),id:"backfill:v1:old-user"});
+ await store.append("session-a",{id:"backfill:v1:old-assistant",at:1001,kind:"assistant",payload:{role:"assistant",content:"OLD_BACKFILL_REPLY"}});
+ await store.append("session-a",user("fresh-user","fresh ordinary question"));
+ try{
+  const snapshot=await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:await adapter.captureTurns()});
+  expect(snapshot.request.body.messages).toEqual([{role:"user",text:"fresh ordinary question"}]);expect(await f.policy.recall(f.actor)).toEqual([]);
+ }finally{await adapter.close()}
 });

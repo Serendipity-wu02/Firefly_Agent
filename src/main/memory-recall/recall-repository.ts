@@ -1,3 +1,4 @@
+import {transactionNow,withTransactionClock} from "../memory-core/transaction-clock";
 import {createHash} from "node:crypto";
 import type {DatabaseSync} from "node:sqlite";
 import type {FactView} from "../../shared/memory-contracts";
@@ -32,7 +33,7 @@ export class RecallRepository {
  private readonly codec:RecordCodec;private readonly facts:PolicyRepository;private readonly supports:FactSupports;private readonly suppression:Suppression;
  constructor(private readonly db:DatabaseSync,private readonly key:Uint8Array,private readonly clock:()=>number=Date.now,private readonly fault?:TransactionFault){this.codec=new RecordCodec(key);this.facts=new PolicyRepository(db,key);this.supports=new FactSupports(db,key);this.suppression=new Suppression(db,key)}
  private transaction(){if(!this.db.isTransaction)recallFail("MEMORY_TRANSACTION_REQUIRED")}
- private now():number{return natural(this.clock())}
+ private now():number{return transactionNow(this.db)}
  private read<T extends {id:string;actorKey:string}>(scope:string,id:string,kind:"policy"|"state"|"use",actor:string):T|undefined{
   this.transaction();const row=this.db.prepare("SELECT kind,revision,payload FROM recall_records WHERE scope_key=? AND id=?").get(scope,id);if(!row)return;
   if(row.kind!==kind)recallFail("MEMORY_DATA_INVALID");const record=this.codec.open<T>("recall-"+kind,scope,id,row.payload);
@@ -68,7 +69,7 @@ export class RecallRepository {
   return {pinned:state.pinned,required:pending,explicitConfirmation:audit.status==="eligible"&&audit.supports.some(s=>s.factRevision===fact.revision&&s.validity==="valid"&&s.kind==="explicitUserConfirmed"&&s.proof!==null)};
  }
  visibleFactsWithinTransaction(scope:string,actor:string,factRefs:RecallFactRef[],expected?:RecallDependency[]):{facts:FactView[];recallDeps:RecallDependency[]}{
-  this.transaction();const selected=refs(factRefs),deps=expected===undefined?undefined:parseRecallDependencies(expected),now=this.now(),policy=this.policy(scope,actor,now).policy,available=this.facts.eligibleFactsWithinTransaction(scope,actor);
+  this.transaction();const selected=refs(factRefs),deps=expected===undefined?undefined:parseRecallDependencies(expected),now=this.now(),policy=this.policy(scope,actor,now).policy,available=this.facts.eligibleFactsWithinTransaction(scope,actor,now);
   if(deps&&canonicalJson(deps.map(({factId,revision})=>({factId,revision})))!==canonicalJson(selected))recallFail("MEMORY_RECALL_VISIBILITY_STALE");
   const facts=selected.map(ref=>{const f=available.find(f=>f.factId===ref.factId&&f.revision===ref.revision);if(!f)recallFail("MEMORY_RECALL_FACT_UNAVAILABLE");return f});
   const recallDeps=facts.map((fact,index)=>{const state=this.state(scope,actor,fact,policy,now);if(state.visibility!=="normal")recallFail("MEMORY_RECALL_FACT_ARCHIVED");if(deps&&deps[index].visibilityRevision!==state.visibilityRevision)recallFail("MEMORY_RECALL_VISIBILITY_STALE");return {factId:fact.factId,revision:fact.revision,visibilityRevision:state.visibilityRevision}});return {facts,recallDeps};
@@ -77,7 +78,7 @@ export class RecallRepository {
  readVisibleFactsWithinTransaction(scope:string,actor:string,factRefs:RecallFactRef[],expected?:RecallDependency[]):{facts:FactView[];recallDeps:RecallDependency[]}{
   this.transaction();const selected=refs(factRefs),deps=expected===undefined?undefined:parseRecallDependencies(expected),now=this.now();
   if(deps&&canonicalJson(deps.map(({factId,revision})=>({factId,revision})))!==canonicalJson(selected))recallFail("MEMORY_RECALL_VISIBILITY_STALE");
-  const policyRecord=this.read<PolicyRecord>(scope,opaque("policy",actor),"policy",actor);if(policyRecord&&natural(policyRecord.configuredAt)>now)recallFail("MEMORY_RECALL_CLOCK_INVALID");const policy=policyRecord?validateRecallPolicy(policyRecord.policy):DEFAULT_RECALL_POLICY,available=this.facts.eligibleFactsWithinTransaction(scope,actor);
+  const policyRecord=this.read<PolicyRecord>(scope,opaque("policy",actor),"policy",actor);if(policyRecord&&natural(policyRecord.configuredAt)>now)recallFail("MEMORY_RECALL_CLOCK_INVALID");const policy=policyRecord?validateRecallPolicy(policyRecord.policy):DEFAULT_RECALL_POLICY,available=this.facts.eligibleFactsWithinTransaction(scope,actor,now);
   const facts=selected.map(ref=>{const f=available.find(f=>f.factId===ref.factId&&f.revision===ref.revision);if(!f)recallFail("MEMORY_RECALL_FACT_UNAVAILABLE");return f});
   const recallDeps=facts.map((fact,index)=>{const old=this.read<RecallState>(scope,opaque("state",{actor,factId:fact.factId,revision:fact.revision}),"state",actor);if(old)this.checkedState(old,now,policy);if(old?.visibility==="archived")recallFail("MEMORY_RECALL_FACT_ARCHIVED");const visibilityRevision=old?.visibilityRevision??0;if(deps&&deps[index].visibilityRevision!==visibilityRevision)recallFail("MEMORY_RECALL_VISIBILITY_STALE");return {factId:fact.factId,revision:fact.revision,visibilityRevision}});return {facts,recallDeps};
  }
@@ -93,7 +94,7 @@ export class RecallRepository {
  }
  confirmUseWithinTransaction(scope:string,owner:RecallUseOwner,id:string,invokedAt:number):{useStatus:"invoked";recorded:number}{
   this.transaction();const ticket=this.use(scope,owner,id),now=this.now();if(ticket.state==="unknown")recallFail("MEMORY_RECALL_USE_UNKNOWN");if(ticket.state==="invoked")return {useStatus:"invoked",recorded:ticket.recorded};
-  if(natural(invokedAt)<ticket.createdAt||invokedAt>now)recallFail("MEMORY_RECALL_CLOCK_INVALID");const policy=this.policy(scope,owner.actorKey,now).policy,available=this.facts.eligibleFactsWithinTransaction(scope,owner.actorKey);let recorded=0;
+  if(natural(invokedAt)<ticket.createdAt||invokedAt>now)recallFail("MEMORY_RECALL_CLOCK_INVALID");const policy=this.policy(scope,owner.actorKey,now).policy,available=this.facts.eligibleFactsWithinTransaction(scope,owner.actorKey,now);let recorded=0;
   for(const dep of ticket.dependencies){const fact=available.find(f=>f.factId===dep.factId&&f.revision===dep.revision);if(!fact)continue;const state=this.state(scope,owner.actorKey,fact,policy,now);if(state.visibility!=="normal"||state.visibilityRevision!==dep.visibilityRevision)continue;if(state.lastAccessAt!==null&&invokedAt<state.lastAccessAt)recallFail("MEMORY_RECALL_CLOCK_INVALID");
    // A scan after invocation may have advanced its calculation clock. Rebase the
    // observed invocation itself, then decay forward; never invent a later access.
@@ -120,7 +121,7 @@ export class RecallRepository {
     }
     this.save(scope,"policy",{...stored,revision:stored.revision+1,configuredAt:now,policy:{...next}});return {policyVersion:next.version};
    }
-   const available=this.facts.eligibleFactsWithinTransaction(scope,actor),generation=this.suppression.generation(scope);
+   const available=this.facts.eligibleFactsWithinTransaction(scope,actor,now),generation=this.suppression.generation(scope);
    if(c.kind==="preview"||c.kind==="maintenancePreview"){
     const kind=c.kind==="maintenancePreview"?"maintenance":action(b.action);if(c.kind==="preview"&&kind==="maintenance")recallFail("MEMORY_RECALL_INPUT_INVALID");
     const requiredFactRefs=c.kind==="maintenancePreview"?refs(b.requiredFactRefs):[],selected=c.kind==="maintenancePreview"?available.map(f=>({factId:f.factId,revision:f.revision})):refs(b.factRefs);
@@ -152,7 +153,7 @@ export class RecallRepository {
    }
    const items=available.map(fact=>{const state=this.state(scope,actor,fact,policy,now);return {fact,state,protection:this.protection(scope,actor,fact,state),score:state.strengthAtLastCalculation}}).filter(item=>item.state.visibility==="normal");items.sort((a,b)=>b.score-a.score||a.fact.factId.localeCompare(b.fact.factId));return {generation,policy,items};
   };
-  if(mutation)return executeTransaction({db:this.db,key:this.key,scope,commandId:parseInternalId(c.commandId),request:c,fault:this.fault,apply});
-  this.db.exec("BEGIN IMMEDIATE");try{const result=apply();this.db.exec("COMMIT");return result}catch(error){this.db.exec("ROLLBACK");throw error}
+  if(mutation)return executeTransaction({db:this.db,key:this.key,scope,commandId:parseInternalId(c.commandId),request:c,fault:this.fault,clock:this.clock,apply});
+  this.db.exec("BEGIN IMMEDIATE");try{return withTransactionClock(this.db,this.clock,()=>{const result=apply();this.db.exec("COMMIT");return result})}catch(error){this.db.exec("ROLLBACK");throw error}
  }
 }

@@ -64,8 +64,8 @@ it('text, role and original event time cannot diverge from canonical sources',as
 it('same revision digest is idempotent and different digest cannot overwrite',async()=>{
  const f=fixture(),d=await document(f);put(f,d);expect(put(f,d).status).toBe('duplicate');expect(()=>put(f,{...d,incarnation:randomUUID()})).toThrow('MEMORY_HISTORY_CONFLICT');expect(query(f).hits).toHaveLength(1);
 });
-it('delete then new incarnation never validates an old document dependency',async()=>{
- const f=fixture(),d=await document(f);put(f,d);const dep=query(f).hits[0].dependency;f.command('delete',{documentId:d.id,revision:1},randomUUID());expect(query(f).hits).toEqual([]);put(f,{...d,revision:2,incarnation:randomUUID()});expect(()=>f.command('validate',{dependencies:[dep]})).toThrow('MEMORY_HISTORY_STALE');
+it('delete blocks a higher revision and new incarnation and invalidates the old dependency',async()=>{
+ const f=fixture(),d=await document(f);put(f,d);const dep=query(f).hits[0].dependency;f.command('delete',{documentId:d.id,revision:1},randomUUID());expect(query(f).hits).toEqual([]);expect(()=>put(f,{...d,revision:2,incarnation:randomUUID()})).toThrow('MEMORY_HISTORY_CONFLICT');expect(query(f).hits).toEqual([]);expect(()=>f.command('validate',{dependencies:[dep]})).toThrow('MEMORY_HISTORY_STALE');
 });
 it('model identity or vector dimension mismatch fails closed without provider fallback',async()=>{
  const f=fixture(),d=await document(f);put(f,{...d,vector:{identity:'synthetic-v1',values:[1,0]}});expect(()=>query(f,{vector:{identity:'synthetic-other',values:[1,0]}})).toThrow('MEMORY_HISTORY_VECTOR_INVALID');expect(()=>query(f,{vector:{identity:'synthetic-v1',values:[1]}})).toThrow('MEMORY_HISTORY_VECTOR_INVALID');

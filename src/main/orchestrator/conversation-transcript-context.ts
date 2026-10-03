@@ -19,7 +19,9 @@ import {
 } from "./harness/types";
 import type { ConversationTranscriptStore } from "./conversation-transcript-store";
 import type { TranscriptEntry } from "./conversation-transcript-types";
+import { classifySAssistantSettlement } from "./conversation-transcript-settlement";
 import type { ChatMessage, ToolCall } from "./vendors/types";
+import type { ChatMessage as StoredChatMessage } from "../../shared/chat-types";
 
 export interface TranscriptRunReader {
   get(runId: string): HarnessRunSession | null;
@@ -31,6 +33,24 @@ export interface MaterializedTranscript {
   messageSources?: TranscriptEntry[];
   uncertainEffects: UncertainEffect[];
   throughSeq: number;
+}
+
+/** Read-only presentation projection; canonical entries and cached session remain untouched. */
+export function projectSSettlementMessages(messages:readonly StoredChatMessage[],entries:TranscriptEntry[]):StoredChatMessage[] {
+  const active=materializeTranscript(entries,{get:()=>null}),activeIds=new Set(active.messageSources?.map(e=>e.id));
+  const users=active.messageSources?.filter(e=>e.kind==="user"||e.kind==="turn_rewind")??[];
+  return messages.map(message=>{
+    const {sSettlement:_cache,...copy}=message;
+    if(message.role!=="model")return copy;
+    const matches=entries.filter(e=>e.kind==="assistant"&&e.turnId===message.id&&(e.sSettlement||e.roundId==="s-response"));
+    const entry=matches.at(-1);if(!entry||entry.kind!=="assistant")return copy;
+    let state=classifySAssistantSettlement(entries,entry.id);if(state==="legacy")return copy;
+    const boundUser=[...users].reverse().find(e=>e.turnId===entry.sSettlement?.userTurnId);
+    if(matches.length!==1||message.answersUserMessageId!==entry.sSettlement?.userTurnId||boundUser?.revision!==entry.sSettlement?.userRevision||state==="success"&&!activeIds.has(entry.id))state="unknown";
+    const projection={state,runId:entry.runId??"",assistantEntryId:entry.id,originalText:typeof entry.payload.content==="string"?entry.payload.content:""};
+    if(state==="success")return {...copy,content:projection.originalText,sSettlement:projection,runSnapshot:{...message.runSnapshot,status:"terminal",terminalStatus:"success",runId:projection.runId,updatedAt:entry.at}};
+    return {...copy,content:"",sticker:undefined,ttsCacheKey:undefined,ttsCacheVersion:undefined,sSettlement:projection};
+  });
 }
 
 type TranscriptUserEntry = Extract<TranscriptEntry, { kind: "user" }>;
@@ -147,6 +167,8 @@ export function materializeTranscript(
       messageSources.push(node.entry);
       continue;
     }
+    const settlement = classifySAssistantSettlement(entries, node.entry.id);
+    if (settlement !== "legacy" && settlement !== "success") continue;
     const payload = node.entry.payload;
     messages.push(payload);
     messageSources.push(node.entry);

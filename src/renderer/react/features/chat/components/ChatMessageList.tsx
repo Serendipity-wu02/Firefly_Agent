@@ -34,6 +34,7 @@ import { reportChatPerfRender } from "./chat-perf-probe";
 import { StreamdownMessageContent } from "./StreamdownMessageContent";
 
 export interface ChatMessageItem {
+  sSettlement?: import("../../../../../shared/chat-types").ChatMessage["sSettlement"];
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
@@ -948,6 +949,12 @@ function createRoles(
       />
     ),
   },
+  sAudit: {
+    placement:"start" as const,variant:"borderless" as const,
+    contentRender:(content:string,info:{extraInfo?:{state?:string}})=>(
+      <details open><summary>{t(`messageList.sSettlement${info.extraInfo?.state??"unknown"}`)}</summary><MarkdownContent content={content}/></details>
+    ),
+  },
   activity: {
     placement: "start" as const,
     variant: "borderless" as const,
@@ -1127,7 +1134,8 @@ function convertMessage(message: ChatMessageItem, enabledStickers: readonly Enab
       extraInfo: { weather: message.weather },
     });
   }
-  if (stages.includes("assistant")) {
+  if(message.sSettlement&&message.sSettlement.state!=="success")assistantItems.push({key:`${message.id}-s-audit`,role:"sAudit",content:message.sSettlement.originalText,extraInfo:{state:message.sSettlement.state}});
+  if (stages.includes("assistant")&&(!message.sSettlement||message.sSettlement.state==="success")) {
     // 运行块内的正文不重复头像（头像已钉在活动卡头部）：
     // 保留头像占位只做视觉隐藏，正文左边缘与活动卡时间线内容精确对齐。
     // 活动卡未渲染时（如首轮直接回答的纯文本运行）正文保留自己的头像。

@@ -1,4 +1,5 @@
 import type {TranscriptSink} from "./transcript-sink";
+import {SRunSettlementGate} from "./run-settlement";
 import type {AgentLoopEvent,AgentLoopResult,FireflyRunOptions} from "./firefly-agent";
 
 /** Private Main callback contract; never a renderer DTO or a model request override. */
@@ -7,6 +8,11 @@ export interface ControlledStreamTarget {
  sink:TranscriptSink;onEvent:(event:AgentLoopEvent)=>void;isCurrent:()=>boolean;
 }
 export type ControlledResponsesRun=(options:FireflyRunOptions,signal:AbortSignal,onEvent:(event:AgentLoopEvent)=>void)=>Promise<AgentLoopResult>;
+const settlements=new WeakMap<TranscriptSink,SRunSettlementGate>();
+/** Shared only by the Main runtime and bridge for this actual bound sink. */
+export function controlledSettlement(sink:TranscriptSink):SRunSettlementGate {
+ let gate=settlements.get(sink);if(!gate){gate=new SRunSettlementGate();settlements.set(sink,gate)}return gate;
+}
 export function copyControlledStreamTarget(value:ControlledStreamTarget):ControlledStreamTarget {
  const fail=():never=>{throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID")};
  if(!value||Object.getPrototypeOf(value)!==Object.prototype)fail();

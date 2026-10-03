@@ -12,6 +12,8 @@ import {executeTransaction,type TransactionFault} from "../memory-core/command-t
 import {extractPreference,type Extraction, type Attribute} from "./extractor";
 import type {PolicyCandidate,PolicyOutcome,PolicyBaseline,IntegrationResult} from "./policy-contracts";
 import {FactSupports,type ConfirmationProof} from "./fact-supports";
+import {transactionNow,withTransactionClock} from "../memory-core/transaction-clock";
+import {isFactEffectiveAt} from "./fact-validity";
 
 const POLICY_VERSION="main-preferences-v1";
 interface Candidate {
@@ -46,15 +48,15 @@ function matchesBaseline(previous:{factId:string;revision:number;subjectKey:stri
 export class PolicyRepository {
  private readonly codec:RecordCodec;private readonly suppression:Suppression;private readonly ledger:SourceLedger;private readonly facts:FactRepository;
  private readonly supports:FactSupports;
- constructor(private readonly db:DatabaseSync,private readonly key:Uint8Array,private readonly fault?:TransactionFault) {
+ constructor(private readonly db:DatabaseSync,private readonly key:Uint8Array,private readonly fault?:TransactionFault,private readonly clock:()=>number=Date.now) {
   this.codec=new RecordCodec(key);this.suppression=new Suppression(db,key);this.ledger=new SourceLedger(db,key);this.facts=new FactRepository(db,key,fault);
   this.supports=new FactSupports(db,key);
  }
  /** Context worker reuses policy eligibility in its own transaction; no nested BEGIN. */
- eligibleFactsWithinTransaction(scope:string,actor:string):import("../../shared/memory-contracts").FactView[] {
-  if(!this.db.isTransaction)throw new Error("MEMORY_TRANSACTION_REQUIRED");
+ eligibleFactsWithinTransaction(scope:string,actor:string,now:number):import("../../shared/memory-contracts").FactView[] {
+  if(now!==transactionNow(this.db))throw new Error("MEMORY_TRANSACTION_CLOCK_INVALID");
   const owners=this.records(scope).filter(r=>r.actorKey===actor&&r.factId!==null);
-  return this.facts.current(scope).filter(f=>owners.some(r=>r.factId===f.factId)&&this.supports.audit(scope,actor,f.factId,f).status==="eligible");
+  return this.facts.current(scope).filter(f=>owners.some(r=>r.factId===f.factId)&&isFactEffectiveAt(f.time,now)&&this.supports.audit(scope,actor,f.factId,f).status==="eligible");
  }
  private records(scope:string):Candidate[] {
   return this.db.prepare("SELECT id,revision,payload FROM policy_records WHERE scope_key=? ORDER BY id").all(scope).map(row=>{
@@ -101,7 +103,7 @@ export class PolicyRepository {
  private active(scope:string,record:Candidate,reason:"policyAccepted"|"explicitUserConfirmed",event:SourceRef,support?:{sourceRef:BoundSourceRef;proof:ConfirmationProof},policyVersion=POLICY_VERSION):PolicyOutcome {
   if(record.extraction.kind!=="direct")throw new Error("MEMORY_POLICY_UNRESOLVED");
   const occurredAt=this.ledger.assertCurrent(scope,record.sourceRef)?.published?.occurredAt;
-  if(occurredAt!==undefined&&occurredAt>Date.now())throw new Error("MEMORY_POLICY_FUTURE");
+  if(occurredAt!==undefined&&occurredAt>transactionNow(this.db))throw new Error("MEMORY_POLICY_FUTURE");
   const result=this.facts.applyWithinTransaction(scope,"activateCandidate",{candidateId:record.id,authorization:{reason,sourceRef:event,policyVersion:reason==="policyAccepted"?policyVersion:null}});
   record.state="active";record.factId=result.id;record.revision++;this.save(scope,record);
   const view=this.facts.current(scope).find(f=>f.factId===result.id)!;
@@ -139,17 +141,16 @@ export class PolicyRepository {
   const owner=previous?this.records(scope).find(r=>r.actorKey===actor&&r.factId===previous.factId&&r.state==="active"):undefined;
   const candidate=(reason:string):PolicyOutcome=>{const record=this.insert(scope,actor,gen,ref,parsed,reason,claim.context,claim.cardinality,at);return {status:"candidate",candidateId:record.id,candidateRevision:1,reason}};
   if(!trusted)return candidate("untrusted-origin");
-  if(at!==null&&at>Date.now())return candidate("future-source");
+  if(at===null)return candidate("unknown-time");
+  if(at>transactionNow(this.db))return candidate("future-source");
   // Check even equivalent values: a queued old source must not support a later manual revision.
   if(previous&&!matchesBaseline(previous,baseline))return candidate("stale-base");
   if(claim.operation==="change"&&previous){
-   if(at===null)return candidate("unknown-time");
    if(previous.time.referenceTime===null)return candidate("unknown-prior-time");
    if(at<=previous.time.referenceTime)return candidate("out-of-order");
   }
   if(claim.operation==="deny"){
    if(!previous||!owner||owner.extraction.value!==claim.value)return candidate("denial-unmatched");
-   if(at===null)return candidate("unknown-time");
    if(previous.time.referenceTime===null)return candidate("unknown-prior-time");
    if(at<=previous.time.referenceTime)return candidate("out-of-order");
    this.supports.deny(scope,actor,previous,ref,randomUUID());return {status:"pending-review",factId:previous.factId,factRevision:previous.revision,reason:"explicit-denial"};
@@ -175,22 +176,22 @@ export class PolicyRepository {
   if(cmd.kind==="generation"){objectFields(input,["actorKey"]);return this.suppression.generation(scope);}
   if(cmd.kind==="baseline"){
    objectFields(input,["actorKey"]);this.db.exec("BEGIN");
-   try{
+   try{return withTransactionClock(this.db,this.clock,()=>{
     const ids=new Set(this.records(scope).filter(r=>r.actorKey===actor&&r.factId!==null).map(r=>r.factId));
     const result=this.facts.current(scope).filter(f=>ids.has(f.factId)).map(f=>({factId:f.factId,revision:f.revision,subjectKey:f.subjectKey}));
     this.db.exec("COMMIT");return result;
-   }catch(error){this.db.exec("ROLLBACK");throw error}
+   });}catch(error){this.db.exec("ROLLBACK");throw error}
   }
   if(cmd.kind==="recall"||cmd.kind==="audit"){
    objectFields(input,["actorKey",...(cmd.kind==="audit"?["factId"]:[])]);
    this.db.exec("BEGIN IMMEDIATE");
-   try{
+   try{return withTransactionClock(this.db,this.clock,()=>{
     const owners=this.records(scope).filter(r=>r.actorKey===actor&&r.factId!==null),facts=this.facts.current(scope);
     let result:unknown;
     if(cmd.kind==="audit"){const id=parseInternalId(input.factId);if(!owners.some(r=>r.factId===id))throw new Error("MEMORY_FACT_NOT_FOUND");result=this.supports.audit(scope,actor,id,facts.find(f=>f.factId===id));}
-    else result=this.eligibleFactsWithinTransaction(scope,actor);
+    else result=this.eligibleFactsWithinTransaction(scope,actor,transactionNow(this.db));
     this.db.exec("COMMIT");return result;
-   }catch(error){this.db.exec("ROLLBACK");throw error}
+   });}catch(error){this.db.exec("ROLLBACK");throw error}
   }
   if(cmd.kind==="candidates"){
    const body=objectFields(input,["actorKey","generation","limit","after"]),gen=this.currentGeneration(scope,body.generation);
@@ -206,7 +207,7 @@ export class PolicyRepository {
   // replay the durable receipt across Main restarts rather than attach old input to a new revision.
   const {baseline:ignoredBaseline,...intentBody}=input;
   const request=cmd.kind==="ingest"||cmd.kind==="integrate"?{...cmd,body:intentBody}:value;
-  return executeTransaction({db:this.db,key:this.key,scope,commandId,request,fault:this.fault,apply:()=>{
+  return executeTransaction({db:this.db,key:this.key,scope,commandId,request,fault:this.fault,clock:this.clock,apply:()=>{
    const gen=this.currentGeneration(scope,input.generation);
    if(cmd.kind==="reconcileSupports"){objectFields(input,["actorKey","generation"]);const ids=new Set(this.records(scope).filter(r=>r.actorKey===actor&&r.factId!==null).map(r=>r.factId));const facts=this.facts.current(scope).filter(f=>ids.has(f.factId));this.supports.reconcile(scope,actor,facts);return {reconciled:facts.length};}
    if(cmd.kind==="integrate")return this.integrate(scope,actor,gen,input);
@@ -222,7 +223,7 @@ export class PolicyRepository {
     const stale=previous&&!matchesBaseline(previous,baseline);
     const observed=this.ledger.assertCurrent(scope,ref)!.published!;
     const at=observed.occurredAt??null;
-    if(at!==null&&at>Date.now()){
+    if(at!==null&&at>transactionNow(this.db)){
      const record=this.insert(scope,actor,gen,ref,parsed,"future-source","default","one",at);
      return {status:"candidate",candidateId:record.id,candidateRevision:1,reason:"future-source"};
     }
@@ -237,7 +238,7 @@ export class PolicyRepository {
    if(kind==="confirm"||kind==="reject"||kind==="revise"){
     objectFields(input,["actorKey","generation","kind","nonce","candidateId","revision",...(kind==="confirm"?["sourceRef"]:[])],kind==="revise"?["sourceRef","extraction"]:[]);
     const record=this.candidate(scope,actor,input.candidateId,input.revision);
-    if(kind==="confirm"){if(record.fact.time.referenceTime!==null&&record.fact.time.referenceTime>Date.now())throw new Error("MEMORY_POLICY_FUTURE");const ref=this.source(scope,input.sourceRef);if(ref.sourceId===record.sourceRef.sourceId)throw new Error("MEMORY_CONFIRMATION_NOT_INDEPENDENT");return this.active(scope,record,"explicitUserConfirmed",this.eventSource(scope,commandId,"confirmation",{candidateId:record.id}),{sourceRef:ref,proof:{nonce,targetId:record.id,targetRevision:record.revision,action:"confirm"}});}
+    if(kind==="confirm"){if(record.fact.time.referenceTime!==null&&record.fact.time.referenceTime>transactionNow(this.db))throw new Error("MEMORY_POLICY_FUTURE");const ref=this.source(scope,input.sourceRef);if(ref.sourceId===record.sourceRef.sourceId)throw new Error("MEMORY_CONFIRMATION_NOT_INDEPENDENT");return this.active(scope,record,"explicitUserConfirmed",this.eventSource(scope,commandId,"confirmation",{candidateId:record.id}),{sourceRef:ref,proof:{nonce,targetId:record.id,targetRevision:record.revision,action:"confirm"}});}
     if(kind==="reject"){
      record.state="rejected";record.revision++;this.save(scope,record);this.db.prepare("UPDATE candidates SET state='invalidated',revision=? WHERE scope_key=? AND id=?").run(record.revision,scope,record.id);
      return {status:"rejected",candidateId:record.id,candidateRevision:record.revision};

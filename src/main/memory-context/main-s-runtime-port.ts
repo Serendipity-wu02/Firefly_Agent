@@ -1,6 +1,11 @@
 import type {ConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
 import {consumeSResponseStream} from "./s-response-stream";
-import {copyControlledStreamTarget,type ControlledStreamTarget} from "../orchestrator/controlled-responses";
+import {controlledSettlement,copyControlledStreamTarget,type ControlledStreamTarget} from "../orchestrator/controlled-responses";
+import {classifySAssistantSettlement} from "../orchestrator/conversation-transcript-settlement";
+import type {TranscriptEntry,SAssistantBinding} from "../orchestrator/conversation-transcript-types";
+import type {BoundSourceRef} from "../../shared/memory-contracts";
+import {requireCommittedUserSource,type createMainUserFactCoordinator} from "../memory-policy/main-user-fact-coordinator";
+import type {createMainFactSelector} from "../memory-recall/main-fact-selector";
 import {requireTranscriptSinkBinding} from "../orchestrator/transcript-sink";
 import type {ChatMessage,ChatRequest} from "../orchestrator/vendors/types";
 import type {MainActorAuthority} from "../memory-core/main-actor-authority";
@@ -16,8 +21,11 @@ interface PortOptions {
  enabled?:boolean;clock?:()=>number;
  registry:ReturnType<typeof createMainSourceRegistry>;transport:ContextTransport;actorAuthority:MainActorAuthority;actorToken:object;
  binding:NonNullable<ReturnType<typeof createMainResponsesBinding>>;
+ facts?:{currentUserSource:(binding:{userTurnId:string;userRevision:number})=>Promise<BoundSourceRef>;coordinator:ReturnType<typeof createMainUserFactCoordinator>;selector:ReturnType<typeof createMainFactSelector>;limits:{maxFacts:number}};
+ /** Trusted Main query returns genuine opaque evidence; no native reader or renderer grant. */
+ history?:{query:(capture:{userTurnId:string;userRevision:number;userText:string},signal?:AbortSignal)=>Promise<object[]>};
  /** Trusted Main adapter ownership; no renderer-provided transcript or source authority. */
- createTranscript:(context:ReturnType<typeof createMainContext>)=>{captureTurns():Promise<object[]>;captureRun?(runId?:string):Promise<{store:ConversationTranscriptStore;transcriptTokens:object[];throughSeq:number;userTurnId:string}>};
+ createTranscript:(context:ReturnType<typeof createMainContext>)=>{captureTurns():Promise<object[]>;captureRun?(runId?:string):Promise<{store:ConversationTranscriptStore;transcriptTokens:object[];throughSeq:number;userTurnId:string;userRevision:number;userText:string;mutationRevision:number}>;mutationState?():{revision:number;kind:string;entry?:TranscriptEntry;receipt?:object}};
 }
 /** Default-off controlled Main boundary. Caller owns lifecycle of injected adapter/Worker resources. */
 export function createMainSRuntimePort(options:PortOptions):MainSRuntimePort|null {
@@ -30,8 +38,8 @@ export function createMainSRuntimePort(options:PortOptions):MainSRuntimePort|nul
  let active:ChatRequest|undefined,tail:Promise<unknown>=Promise.resolve();
  function messages(units:ContextUnit[]):ChatMessage[]{return units.flatMap(unit=>unit.messages.map(m=>({role:m.role,content:m.text,...(m.toolCalls?{toolCalls:m.toolCalls}:{}),...(m.toolCallId!==undefined?{toolCallId:m.toolCallId}:{}),...(m.name!==undefined?{name:m.name}:{})})))}
  function fixed():ChatRequest{if(!active)contextFail("MEMORY_CONTEXT_RUNTIME_INACTIVE");return active}
- const context=createMainContext({clock:options.clock,registry:options.registry,transport:options.transport,actorAuthority:options.actorAuthority,counter:binding.counter,budget:binding.budget,
-  prepare:units=>binding.prepare({...fixed(),messages:[...fixed().messages,...messages(units)]}),
+ const context=createMainContext({includeFactSupportMetadata:true,clock:options.clock,registry:options.registry,transport:options.transport,actorAuthority:options.actorAuthority,counter:binding.counter,budget:binding.budget,
+  prepare:(units,facts)=>binding.prepare({...fixed(),messages:[...fixed().messages,...(facts.length?[{role:"system" as const,content:"User-stated memory with source and time metadata:\n"+JSON.stringify(facts.map(f=>({factId:f.factId,revision:f.revision,assertion:f.assertion,assertionKind:f.assertionKind,time:f.time,recordedAt:f.recordedAt,acceptedAt:f.acceptedAt,supportSourceRefs:f.supportSourceRefs})))}]:[]),...messages(units)]}),
   prepareS:units=>{const request=fixed();return binding.prepare({model:request.model,maxTokens:request.maxTokens,stream:false,messages:messages(units)})}
  });
  const transcript=options.createTranscript(context);
@@ -51,25 +59,74 @@ export function createMainSRuntimePort(options:PortOptions):MainSRuntimePort|nul
   binding.prepare(request);
   if(target)streamRuns.add(target.runId);
   // Own the lifetime of this one SDK stream even if durable send confirmation is uncertain.
-  const controller=target?new AbortController():undefined,cancel=()=>controller?.abort(originalSignal?.reason);
+  const gate=target?controlledSettlement(target.sink):undefined;
+  const controller=target?new AbortController():undefined,cancel=()=>{if(gate?.requestCancel())controller?.abort(originalSignal?.reason)};
   if(controller){if(originalSignal?.aborted)cancel();else originalSignal?.addEventListener("abort",cancel,{once:true})}
   const signal=controller?.signal??originalSignal;
   const pending=tail.then(async()=>{
    if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");if(target&&!target.isCurrent())contextFail("MEMORY_CONTEXT_RUN_STALE");active=request;
    try{
-    const capture=target?await transcript.captureRun!(target.runId):undefined,tokens=capture?.transcriptTokens??await transcript.captureTurns();
+    if((options.facts||options.history)&&!transcript.captureRun)contextFail("MEMORY_CONTEXT_STREAM_UNSUPPORTED");
+    const capture=target||options.facts||options.history?await transcript.captureRun!(target?.runId):undefined,tokens=capture?.transcriptTokens??await transcript.captureTurns();
     if(target)requireTranscriptSinkBinding(target.sink,target,capture!.store);
     if(target&&capture!.userTurnId!==target.userTurnId)contextFail("MEMORY_CONTEXT_STREAM_TURN_STALE");if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
     if(!tokens.length)contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
-    const snapshot=await context.assemble(options.actorToken,{sessionId:actor.sessionId,sourceRefs:[],transcriptTokens:tokens,signal});
+    let currentUserSourceRef:BoundSourceRef|undefined,factRefs:import("./context-contracts").FactDependency[]|undefined;
+    if(options.facts){
+     currentUserSourceRef=await options.facts.currentUserSource({userTurnId:capture!.userTurnId,userRevision:capture!.userRevision});
+     const verified=requireCommittedUserSource(options.actorAuthority,options.actorToken,currentUserSourceRef,"MEMORY_CONTEXT_TEMPORARY_UNSUPPORTED");
+     if(verified.sourceRef.binding.messageId!==capture!.userTurnId||await options.registry.readEvidence(actor.access,actor.adapter,verified.sourceRef)!==capture!.userText)contextFail("MEMORY_CONTEXT_STREAM_TURN_STALE");
+     await options.facts.coordinator.onCommittedUserSource(options.actorToken,currentUserSourceRef,signal);
+     factRefs=(await options.facts.selector.selectFactRefs(options.actorToken,currentUserSourceRef,options.facts.limits,signal)).map(({factId,revision})=>({factId,revision}));
+    }
+    const historyTokens=options.history?await options.history.query({userTurnId:capture!.userTurnId,userRevision:capture!.userRevision,userText:capture!.userText},signal):undefined;
+    const snapshot=await context.assemble(options.actorToken,{sessionId:actor.sessionId,sourceRefs:[],...(currentUserSourceRef?{currentUserSourceRef}:{}),...(factRefs?{factRefs}:{}),...(historyTokens?{historyTokens}:{}),transcriptTokens:tokens,signal});
     if(!snapshot.selectedIds.length)contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
     const permit=await context.validateForDispatch(options.actorToken,snapshot,signal);
     const check=()=>{binding.assertCurrent();if(target&&!target.isCurrent())contextFail("MEMORY_CONTEXT_RUN_STALE")};
     const sent=await binding.dispatch(context,options.actorToken,permit,signal,target?check:undefined);
     if(!target)return sent;if(sent.status!=="sent")contextFail("MEMORY_CONTEXT_SEND_UNKNOWN");
     const validate=async()=>{check();await context.validateResponse(options.actorToken,snapshot,signal);check()};
-    const result=await consumeSResponseStream({stream:sent.result,target,signal,validate,afterCommit:check,commit:async text=>{
-     await target.sink.appendAssistant({message:{role:"assistant",content:text},roundId:"s-response",guard:{throughSeq:capture!.throughSeq,validate,commit:write=>context.commitResponse(options.actorToken,snapshot,write,signal,check)}});
+    if(!transcript.mutationState||!Number.isSafeInteger(capture!.userRevision)||capture!.userRevision<1)contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
+    const owned:SAssistantBinding={runId:target.runId,assistantTurnId:target.assistantTurnId,userTurnId:target.userTurnId,userRevision:capture!.userRevision};
+    const assistantEntryId=`${target.runId}:assistant:s-response`,settlementBinding={...owned,assistantEntryId};
+    const prove=(seq:number,revision:number,kind:"assistant"|"assistant_settlement",text:string)=>{
+     const mutation=transcript.mutationState!(),entry=mutation.entry;
+     if(mutation.kind!=="append"||mutation.revision!==revision||!entry||entry.seq!==seq||entry.kind!==kind||entry.runId!==owned.runId||entry.turnId!==owned.assistantTurnId)contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_STALE");
+     if(entry.kind==="assistant"&&(entry.id!==assistantEntryId||entry.sSettlement?.version!==1||entry.sSettlement.userTurnId!==owned.userTurnId||entry.sSettlement.userRevision!==owned.userRevision||entry.payload.content!==text))contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_STALE");
+     if(entry.kind==="assistant_settlement"&&(entry.payload.result!=="success"||entry.payload.binding.assistantEntryId!==assistantEntryId||entry.payload.binding.userTurnId!==owned.userTurnId||entry.payload.binding.userRevision!==owned.userRevision))contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_STALE");
+     return mutation;
+    };
+    const bindProgress=(seq:number,revision:number,kind:"assistant"|"assistant_settlement",text:string)=>{
+     const mutation=prove(seq,revision,kind,text);if(!mutation.receipt)contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
+     context.bindResponseProgress(options.actorToken,snapshot,mutation.receipt,()=>{prove(seq,revision,kind,text)});
+    };
+    const result=await consumeSResponseStream({stream:sent.result,target,signal,validate,afterCommit:()=>{if(gate!.get()!=="success")contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN")},commit:async text=>{
+     let dispatched=false;
+     try{
+      await target.sink.appendSAssistant({message:{role:"assistant",content:text},binding:owned,guard:{throughSeq:capture!.throughSeq,validate,commit:write=>{
+       bindProgress(capture!.throughSeq+1,capture!.mutationRevision+1,"assistant",text);
+       return context.commitResponse(options.actorToken,snapshot,()=>{dispatched=true;return write()},signal,check);
+      }}});
+      await target.sink.settleSAssistant({binding:settlementBinding,result:"success",safeReason:"completed",guard:{throughSeq:capture!.throughSeq+1,validate,commit:write=>{
+       bindProgress(capture!.throughSeq+2,capture!.mutationRevision+2,"assistant_settlement",text);
+       return context.commitResponse(options.actorToken,snapshot,()=>{if(!gate!.reserve("success"))contextFail("MEMORY_CONTEXT_CANCELLED");return write()},signal,check);
+      }}});
+      if(!gate!.confirm("success"))contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN");
+     }catch(error){
+      // A reserved result may only be confirmed by its sink, never replaced by cancellation.
+      if(gate!.get()==="success_reserved"||gate!.get()==="unknown"){gate!.markUnknown();contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN")}
+      if(!dispatched)throw error;
+      const raw=await capture!.store.read(actor.sessionId).catch(()=>contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN")),matches=raw.entries.filter(e=>e.id===assistantEntryId);
+      if(matches.length===1){
+       const entry=matches[0];if(entry.kind!=="assistant"||entry.runId!==owned.runId||entry.turnId!==owned.assistantTurnId||entry.sSettlement?.userTurnId!==owned.userTurnId||entry.sSettlement?.userRevision!==owned.userRevision||entry.payload.content!==text||classifySAssistantSettlement(raw.entries,assistantEntryId)!=="pending")contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN");
+       try{
+        await target.sink.settleSAssistant({binding:settlementBinding,result:"interrupted",safeReason:signal?.aborted?"cancelled":"response_invalidated",guard:{throughSeq:raw.throughSeq,validate:async()=>{},commit:write=>{if(!gate!.reserve("interrupted"))contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN");return write()}}});
+        if(!gate!.confirm("interrupted"))contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN");
+       }catch{gate!.markUnknown();contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN")}
+      }else if(dispatched)contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN");
+      throw error;
+     }
     }});
     return {status:"sent" as const,requestDigest:sent.requestDigest,result};
    }finally{active=undefined}

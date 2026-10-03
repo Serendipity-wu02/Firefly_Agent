@@ -31,7 +31,7 @@ export class MemoryRepository {
  }
  jobCommand(command:unknown):unknown{this.assertOpen();return new JobRepository(this.db,this.key,this.clock,this.fault).execute(command)}
  historyCommand(command:unknown):any{this.assertOpen();return new HistoryRepository(this.db,this.key,this.fault,this.clock).execute(command)}
- policyCommand(command:unknown):unknown{this.assertOpen();return new PolicyRepository(this.db,this.key,this.fault).execute(command)}
+ policyCommand(command:unknown):unknown{this.assertOpen();return new PolicyRepository(this.db,this.key,this.fault,this.clock).execute(command)}
  contextCommand(command:unknown):unknown{this.assertOpen();return new ContextRepository(this.db,this.key,this.fault,this.clock).execute(command)}
  recallCommand(command:unknown):unknown{this.assertOpen();return new RecallRepository(this.db,this.key,this.clock,this.fault).execute(command)}
  sourceCommand(command:unknown):unknown{this.assertOpen();return new SourceLedger(this.db,this.key,this.fault).execute(command)}

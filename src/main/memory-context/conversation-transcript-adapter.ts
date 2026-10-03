@@ -2,7 +2,7 @@ import {createHash,randomUUID} from "node:crypto";
 import type {MainActorAuthority} from "../memory-core/main-actor-authority";
 import {materializeTranscript} from "../orchestrator/conversation-transcript-context";
 import type {ConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
-import type {TranscriptSnapshot} from "../orchestrator/conversation-transcript-types";
+import type {TranscriptSnapshot,TranscriptEntry} from "../orchestrator/conversation-transcript-types";
 import {extractMaintenance} from "../memory-policy/maintenance-extractor";
 import {canonicalJson} from "../memory-core/repository-types";
 import {contextFail,type ContextMessage} from "./context-contracts";
@@ -16,6 +16,8 @@ interface AdapterOptions {
  actorAuthority:MainActorAuthority;
  actorToken:object;
  context:Pick<ReturnType<typeof createMainContext>,"captureTranscript"|"prepareTranscriptChanges"|"transcriptGeneration">;
+ /** Main-owned fanout; an error aborts the canonical mutation before dispatch. */
+ beforeMutation?:(kind:"append"|"delete"|"repair",entry?:TranscriptEntry)=>Promise<void>;
 }
 const LOCATOR="conversation";
 
@@ -26,19 +28,24 @@ export function createConversationTranscriptAdapter(options:AdapterOptions) {
  if(actor.sessionMode==="temporary")contextFail("MEMORY_CONTEXT_TEMPORARY_UNSUPPORTED");
  let closed=false,incarnation=randomUUID(),revision=1;
  const published=new Map<string,object>(),eventEpochs=new Map<string,number>();
+ let mutation:{revision:number;kind:string;entry?:TranscriptEntry;receipt?:object}={revision,kind:"initial"};
+ let receipt:object|undefined;
  const hash=(value:unknown)=>createHash("sha256").update(canonicalJson(value)).digest("hex");
  const locator=(turnId:string)=>"turn-"+hash(turnId);
  const assertOpen=()=>{if(closed)contextFail("MEMORY_CONTEXT_TRANSCRIPT_ADAPTER_CLOSED")};
  const invalidate=async()=>{
-  if(published.size){await options.context.prepareTranscriptChanges(options.actorToken,[...published.values()]);published.clear()}
+  if(published.size){receipt=await options.context.prepareTranscriptChanges(options.actorToken,[...published.values()]);published.clear()}
  };
  const releaseObserver=options.store.observeMutations(actor.sessionId,async(kind,entry)=>{
   const epoch=entry?await options.context.transcriptGeneration(options.actorToken):0;
   await invalidate();
-  if(entry)eventEpochs.set(entry.id,epoch);
+  await options.beforeMutation?.(kind,entry);
+  // Observing a historical backfill write does not make its original event new.
+  if(entry&&!entry.id.startsWith("backfill:v1:"))eventEpochs.set(entry.id,epoch);
   if(revision===Number.MAX_SAFE_INTEGER)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   revision++;
   if(kind==="delete"){incarnation=randomUUID();revision=1;eventEpochs.clear()}
+  mutation={revision,kind,...(entry?{entry:structuredClone(entry)}:{}),...(receipt?{receipt}:{})};
  });
  let leased:CanonicalTranscript[]|null=null;
  const turns=(snapshot:TranscriptSnapshot)=>{
@@ -78,13 +85,14 @@ export function createConversationTranscriptAdapter(options:AdapterOptions) {
     assertOpen();const raw=await read();
     if(runId&&raw.entries.some(entry=>(entry.kind==="assistant"||entry.kind==="interruption")&&entry.runId===runId))contextFail("MEMORY_CONTEXT_STREAM_RUN_REUSED");
     if(!raw.entries.length)contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");const snapshots=turns(raw),caps:object[]=[];if(!snapshots.length||snapshots.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");leased=snapshots;
-    try{for(const snapshot of snapshots)caps.push(await options.context.captureTranscript(options.actorToken,provider,snapshot.unit.id));return {store:options.store,transcriptTokens:caps,throughSeq:raw.throughSeq,userTurnId:snapshots.at(-1)!.provenance![0].turnId!}}finally{leased=null}
+    try{for(const snapshot of snapshots)caps.push(await options.context.captureTranscript(options.actorToken,provider,snapshot.unit.id));const current=snapshots.at(-1)!,user=current.provenance![0];return {store:options.store,transcriptTokens:caps,throughSeq:raw.throughSeq,userTurnId:user.turnId!,userRevision:user.revision!,userText:current.unit.messages[0].text,mutationRevision:revision}}finally{leased=null}
    });
   }
  return {
   capture:async()=>{assertOpen();return options.context.captureTranscript(options.actorToken,provider,LOCATOR)},
   captureTurns:async()=>{return (await captureRun()).transcriptTokens},
   captureRun,
+  mutationState:()=>({...mutation,...(mutation.entry?{entry:structuredClone(mutation.entry)}:{})}),
   close:async()=>{
    if(closed)return;
    await options.store.withReadLease(actor.sessionId,async()=>{

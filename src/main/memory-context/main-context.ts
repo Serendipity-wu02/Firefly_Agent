@@ -11,17 +11,21 @@ import {policySubjectKey} from "../memory-policy/policy-repository";
 import {ContextError,contextFail,CONTEXT_CLAIM_WINDOW_MS,type ContextBudget,type TokenCounter,type ContextUnit,type PreparedRequest,type BudgetResult,type ContextTransport,type SourceDependency,type FactDependency,type TranscriptDependency,type StoredSummary,type SummaryReceipt,type SummarySegment} from "./context-contracts";
 import {selectBudget,requestDigest,freezeRequest,countPrepared} from "./token-budget";
 import {parseCanonicalTranscript,requireMainTranscriptProvider} from "./main-transcript-provider";
+import type {ContextFact} from "./context-contracts";
 
 interface ContextOptions {
  clock?:()=>number;
+ /** Set only when prepare serializes exact support provenance into the counted body. */
+ includeFactSupportMetadata?:boolean;
  registry:ReturnType<typeof createMainSourceRegistry>;transport:ContextTransport;actorAuthority:MainActorAuthority;counter:TokenCounter;budget:ContextBudget;
- prepare:(units:ContextUnit[],facts:FactView[])=>PreparedRequest;prepareS:(units:ContextUnit[])=>PreparedRequest;
+ prepare:(units:ContextUnit[],facts:ContextFact[])=>PreparedRequest;prepareS:(units:ContextUnit[])=>PreparedRequest;
  /** Trusted Main provenance resolver, never a renderer supplied ancestry declaration. */
  resolveDerivedRefs?:(ref:BoundSourceRef)=>BoundSourceRef[]|null;
 }
-interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];transcriptTokens?:object[];summaryIds?:string[];historyTokens?:object[];signal?:AbortSignal}
+interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];currentUserSourceRef?:BoundSourceRef;transcriptTokens?:object[];summaryIds?:string[];historyTokens?:object[];signal?:AbortSignal}
 interface Snapshot extends BudgetResult {snapshotId:string;generation:number;excluded:{sourceId:string;reason:string}[]}
-interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:FactView[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];historyTokens:object[];configuration:string}
+interface ResponseProgress {operationId:string;expectedRefs:TranscriptDependency[];check:()=>void}
+interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:ContextFact[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];historyTokens:object[];configuration:string;responseProgress?:ResponseProgress}
 interface PermitState {snapshot:SnapshotState;id:string;used:boolean}
 interface TranscriptState {actorToken:object;ref:TranscriptDependency;unit:ContextUnit;sourceRefs:BoundSourceRef[];adapter:object;locator:string;guardRefs:TranscriptDependency[];firstSeq?:number;lastSeq?:number}
 interface LeaseState {actorToken:object;id:string;summaryId:string;commandId:string;inputRefs:BoundSourceRef[];transcripts?:TranscriptState[];inputTranscriptRefs?:TranscriptDependency[];beforeUnits?:ContextUnit[]}
@@ -29,15 +33,26 @@ interface LeaseState {actorToken:object;id:string;summaryId:string;commandId:str
 export function createMainContext(options:ContextOptions){
  if(options.registry.coordinator!==options.actorAuthority.coordinate)contextFail("MEMORY_CONTEXT_COORDINATOR_REQUIRED");
  const bootId=randomUUID(),snapshots=new WeakMap<object,SnapshotState>(),permits=new WeakMap<object,PermitState>(),transcriptTokens=new WeakMap<object,TranscriptState>(),transcriptHeads=new Map<string,TranscriptState>(),leases=new WeakMap<object,LeaseState>();
+ const changeReceipts=new WeakMap<object,{actorToken:object;generation:number;operationId:string;refs:TranscriptDependency[]}>();
+ const includeFactSupportMetadata=options.includeFactSupportMetadata===true;
  function actor(token:object):MainActorContext {const a=options.actorAuthority.requireActor(token);if(a.sessionMode==="temporary")contextFail("MEMORY_CONTEXT_TEMPORARY_UNSUPPORTED");return a}
  function owner(a:MainActorContext){return {actorKey:a.actorKey,providerId:a.providerId,sessionId:a.sessionId,bootId}}
- function configuration(){return canonicalJson({budget:options.budget,counter:options.counter.capability})}
+ function configuration(){return canonicalJson({budget:options.budget,counter:options.counter.capability,includeFactSupportMetadata})}
  function command<T>(a:MainActorContext,kind:string,body:object,commandId?:string):Promise<T>{return options.transport.contextCommand({kind,scopeKey:a.scopeKey,...(commandId?{commandId}:{}),body:{...owner(a),...body}}) as Promise<T>}
  function checkedRef(a:MainActorContext,value:unknown):BoundSourceRef {
   const ref=parseSourceRef(value);if(!ref.binding||ref.span||ref.binding.providerId!==a.providerId||ref.binding.sessionId!==a.sessionId)contextFail("MEMORY_CONTEXT_ACCESS_DENIED");requireMainAccess(a.access).verifySource(ref);return ref as BoundSourceRef;
  }
  async function readSource(a:MainActorContext,ref:BoundSourceRef):Promise<string>{
   try{return await options.registry.readEvidence(a.access,a.adapter,ref)}catch(error){if(error instanceof Error&&/^MEMORY_[A-Z0-9_]{1,100}$/.test(error.message))throw error;contextFail("MEMORY_CONTEXT_SOURCE_READ_FAILED")}
+ }
+ async function readFactSupports(a:MainActorContext,facts:ContextFact[]):Promise<void>{
+  if(!includeFactSupportMetadata)return;
+  for(const ref of facts.flatMap(f=>f.supportSourceRefs)){
+   if(!ref.binding||ref.span||ref.binding.providerId!==a.providerId)contextFail("MEMORY_CONTEXT_ACCESS_DENIED");
+   const supportActor=options.actorAuthority.requireActor(options.actorAuthority.bindActor(a.access,a.adapter,{providerId:ref.binding.providerId,sessionId:ref.binding.sessionId,messageId:ref.binding.messageId}));
+   if(supportActor.actorKey!==a.actorKey||supportActor.scopeKey!==a.scopeKey)contextFail("MEMORY_ACTOR_DENIED");
+   await readSource(a,ref);
+  }
  }
  function snapshotState(token:object,value:object):SnapshotState {actor(token);const state=snapshots.get(value);if(!state||state.actorToken!==token)contextFail("MEMORY_CONTEXT_SNAPSHOT_DENIED");return state}
  function transcriptState(token:object,value:object):TranscriptState {actor(token);const state=transcriptTokens.get(value);if(!state||state.actorToken!==token)contextFail("MEMORY_CONTEXT_TRANSCRIPT_DENIED");return state}
@@ -143,12 +158,23 @@ export function createMainContext(options:ContextOptions){
   })}catch(error){if(error instanceof ContextError)throw error;contextFail("MEMORY_CONTEXT_TRANSCRIPT_READ_FAILED")}
  }
  async function transcriptGeneration(token:object):Promise<number>{const a=actor(token);return options.actorAuthority.coordinate(async()=>{const result=await command<{generation:number}>(a,"baseline",{sourceRefs:[],factRefs:[]});return result.generation})}
- async function prepareTranscriptChanges(token:object,values:object[]):Promise<void>{
+ async function prepareTranscriptChanges(token:object,values:object[]):Promise<object>{
   const a=actor(token),states=values.map(value=>transcriptState(token,value)),baseline=await command<{generation:number}>(a,"baseline",{sourceRefs:[],factRefs:[]});
   const refs=[...new Map(states.flatMap(state=>[state.ref,...state.guardRefs]).map(ref=>[ref.headId,ref])).values()];
-  if(refs.length)await options.actorAuthority.coordinate(()=>command(a,"transcriptReserveBatch",{generation:baseline.generation,operationId:randomUUID(),expectedRefs:refs},randomUUID()));
+  const operationId=randomUUID();
+  if(refs.length)await options.actorAuthority.coordinate(()=>command(a,"transcriptReserveBatch",{generation:baseline.generation,operationId,expectedRefs:refs},randomUUID()));
+  const receipt=Object.freeze({});changeReceipts.set(receipt,{actorToken:token,generation:baseline.generation,operationId,refs});return receipt;
  }
- async function prepareTranscriptChange(token:object,value:object):Promise<void>{return prepareTranscriptChanges(token,[value])}
+ async function prepareTranscriptChange(token:object,value:object):Promise<void>{await prepareTranscriptChanges(token,[value])}
+ /** Bind only the adapter's opaque invalidation receipt for this original snapshot. */
+ function bindResponseProgress(token:object,value:object,receipt:object,check:()=>void):void {
+  const state=snapshotState(token,value),change=changeReceipts.get(receipt);
+  if(!change||change.actorToken!==token||change.generation!==state.snapshot.generation)contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
+  const refs=[...new Map(state.transcripts.flatMap(s=>[s.ref,...s.guardRefs]).map(r=>[r.headId,r])).values()];
+  if(!refs.length||refs.some(ref=>!change.refs.some(r=>canonicalJson(r)===canonicalJson(ref))))contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
+  check();state.responseProgress={operationId:change.operationId,expectedRefs:refs,check};
+ }
+ function responseBody(state:SnapshotState){const progress=state.responseProgress;progress?.check();return {snapshotId:state.snapshot.snapshotId,...(progress?{responseProgress:{operationId:progress.operationId,expectedRefs:progress.expectedRefs}}:{})}}
  async function deleteTranscript(token:object,value:object):Promise<void>{
   const a=actor(token),state=transcriptState(token,value),baseline=await command<{generation:number}>(a,"baseline",{sourceRefs:[],factRefs:[]});
   await options.actorAuthority.coordinate(()=>command(a,"transcriptDelete",{generation:baseline.generation,expectedRef:state.ref},randomUUID()));
@@ -158,11 +184,14 @@ export function createMainContext(options:ContextOptions){
   await command(state.actor,"validateSnapshot",{snapshotId:state.snapshot.snapshotId});
   for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,state.actorToken,cap);
   for(const ref of state.sourceRefs)await readSource(state.actor,ref);
+  await readFactSupports(state.actor,state.facts);
   for(const old of state.transcripts){const fresh=await captureTranscript(state.actorToken,old.adapter,old.locator);if(canonicalJson(transcriptState(state.actorToken,fresh).ref)!==canonicalJson(old.ref))contextFail("MEMORY_CONTEXT_TRANSCRIPT_STALE")}
   const prepared=freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts)));
   if(requestDigest(prepared)!==state.snapshot.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
   const result=await selectBudget({counter:options.counter,budget:options.budget,units:state.units,prepare:u=>options.prepare(u,structuredClone(state.facts)),prepareS:options.prepareS,signal});
   for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,state.actorToken,cap);
+  for(const ref of state.sourceRefs)await readSource(state.actor,ref);
+  await readFactSupports(state.actor,state.facts);
   await command(state.actor,"validateSnapshot",{snapshotId:state.snapshot.snapshotId});
   if(result.requestDigest!==state.snapshot.requestDigest||result.promptTokens!==state.snapshot.promptTokens||result.inputLimit!==state.snapshot.inputLimit)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");return result;
  }
@@ -195,8 +224,9 @@ export function createMainContext(options:ContextOptions){
   toolStates=toolStates.filter(s=>!covered.has(s.ref.headId));toolRefs=toolStates.map(s=>s.ref);
   if(summaryStates.length){ordered([...summaryStates,...toolStates]);if(summaries.some(s=>!s.transcriptRefs?.length))contextFail("MEMORY_CONTEXT_ORDER_REQUIRED")}
   const dependencyStates=[...new Map([...summaryStates,...toolStates].map(s=>[s.ref.headId,s])).values()],dependencyRefs=dependencyStates.map(s=>s.ref),guardRefs=[...new Map(dependencyStates.flatMap(s=>s.guardRefs).map(ref=>[ref.headId,ref])).values()];
-  const allRefs=[...new Map([...refs,...dependencyStates.flatMap(s=>s.sourceRefs),...summaries.flatMap(s=>s.sourceDeps.map(d=>d.sourceRef))].map(r=>[r.sourceId,r])).values()];
-  const baseline=await command<{generation:number;facts:FactView[];recallDeps:import("../memory-recall/recall-contracts").RecallDependency[]}>(a,"baseline",{sourceRefs:allRefs,factRefs:selectedFacts,transcriptRefs:dependencyRefs,guardRefs,historyDeps});
+  const allRefs=[...new Map([...refs,...(input.currentUserSourceRef?[checkedRef(a,input.currentUserSourceRef)]:[]),...dependencyStates.flatMap(s=>s.sourceRefs),...summaries.flatMap(s=>s.sourceDeps.map(d=>d.sourceRef))].map(r=>[r.sourceId,r])).values()];
+  const baseline=await command<{generation:number;facts:ContextFact[];recallDeps:import("../memory-recall/recall-contracts").RecallDependency[]}>(a,"baseline",{sourceRefs:allRefs,factRefs:selectedFacts,transcriptRefs:dependencyRefs,guardRefs,historyDeps});
+  await readFactSupports(a,baseline.facts);
   const data=await corpus(a,allRefs),deps=data.deps,units:ContextUnit[]=[],unitSources=new Map<string,string[]>();
   units.push(...historical.filter(h=>h.dependencies.length).map(h=>h.unit));
   for(const summary of summaries)units.push({id:summary.id,kind:"summary",messages:summary.transcriptSegments?.length
@@ -207,13 +237,15 @@ export function createMainContext(options:ContextOptions){
   for(const ref of refs){const message=data.messages.get(ref.sourceId)!,last=recent.at(-1);if(message.role==="assistant"&&last?.messages[0].role==="user"){last.messages.push(message);unitSources.get(last.id)!.push(ref.sourceId)}else{recent.push({id:ref.sourceId,kind:"recent",messages:[message]});unitSources.set(ref.sourceId,[ref.sourceId])}}
   units.push(...recent);
   for(const state of toolStates)units.push(structuredClone(state.unit));
-  const inspected=await command<{generation:number;sourceStates:{sourceId:string;reason:string}[];facts:FactView[]}>(a,"inspect",{generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs,historyDeps});
+  const inspected=await command<{generation:number;sourceStates:{sourceId:string;reason:string}[];facts:ContextFact[]}>(a,"inspect",{generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:toolRefs,historyDeps});
+  if(input.currentUserSourceRef&&inspected.sourceStates.some(s=>s.sourceId===input.currentUserSourceRef!.sourceId&&s.reason!=="allowed"))contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE");
+  const supports=inspected.facts.map(f=>({factId:f.factId,revision:f.revision,sourceRefs:f.supportSourceRefs}));
   const excluded=[...summaryExcluded,...inspected.sourceStates.filter(s=>s.reason!=="allowed")],allowed=units.filter(u=>!excluded.some(e=>e.sourceId===u.id)&&!(unitSources.get(u.id)??[]).some(id=>excluded.some(e=>e.sourceId===id))&&!summaries.some(s=>s.id===u.id&&s.sourceDeps.some(d=>excluded.some(e=>e.sourceId===d.sourceRef.sourceId))));
   if(allowed.some(u=>unitSources.has(u.id)&&u.messages[0].role==="assistant"))contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
   const result=await selectBudget({counter:options.counter,budget:options.budget,units:allowed,prepare:u=>options.prepare(u,structuredClone(inspected.facts)),prepareS:options.prepareS,signal:input.signal});
   for(const [index,h] of historical.entries())if(result.selectedIds.includes(h.unit.id))await validateHistoryEvidence(options.actorAuthority,token,input.historyTokens![index]);
   const snapshotId=randomUUID();
-  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,recallDeps:baseline.recallDeps,transcriptRefs:dependencyRefs,guardRefs,historyDeps:historical.filter(h=>result.selectedIds.includes(h.unit.id)).flatMap(h=>h.dependencies),requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:result.selectedIds.flatMap(id=>unitSources.get(id)??[]),counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
+  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,...(includeFactSupportMetadata?{factSupportRefs:supports}:{}),recallDeps:baseline.recallDeps,transcriptRefs:dependencyRefs,guardRefs,historyDeps:historical.filter(h=>result.selectedIds.includes(h.unit.id)).flatMap(h=>h.dependencies),requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:[...result.selectedIds.flatMap(id=>unitSources.get(id)??[]),...(input.currentUserSourceRef?[input.currentUserSourceRef.sourceId]:[])],counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
   const snapshot=Object.freeze({...result,snapshotId,generation:baseline.generation,excluded:structuredClone(excluded)});
   snapshots.set(snapshot,{actorToken:token,actor:a,units:allowed.filter(u=>result.selectedIds.includes(u.id)),facts:inspected.facts,snapshot,sourceRefs:deps.map(d=>d.sourceRef),transcripts:dependencyStates,historyTokens:(input.historyTokens??[]).filter((_cap,index)=>result.selectedIds.includes(historical[index].unit.id)),configuration:configuration()});return snapshot;
  }
@@ -224,17 +256,21 @@ export function createMainContext(options:ContextOptions){
  }
  async function validateResponse(token:object,value:object,signal?:AbortSignal):Promise<void>{
   const state=snapshotState(token,value);if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
-  if(configuration()!==state.configuration)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");await command(state.actor,"validateResponse",{snapshotId:state.snapshot.snapshotId});
+  if(configuration()!==state.configuration)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
+  for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,token,cap);
+  for(const ref of state.sourceRefs)await readSource(state.actor,ref);
+  await readFactSupports(state.actor,state.facts);
+  await command(state.actor,"validateResponse",responseBody(state));state.responseProgress?.check();
   if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
  }
  /** Only the guarded canonical store may supply write, after its observer invalidation. */
  async function commitResponse<T>(token:object,value:object,write:()=>Promise<T>,signal:AbortSignal|undefined,check:()=>void):Promise<T>{
-  const state=snapshotState(token,value);if(state.sourceRefs.length||state.facts.length||state.historyTokens.length)contextFail("MEMORY_CONTEXT_RESPONSE_UNSUPPORTED");
+  const state=snapshotState(token,value);if(!state.responseProgress)contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
+  await validateResponse(token,value,signal);
   return options.actorAuthority.coordinate(async()=>{
-   const baseline=await command<{generation:number}>(state.actor,"baseline",{sourceRefs:[],factRefs:[]});
-   if(baseline.generation!==state.snapshot.generation)contextFail("MEMORY_CONTEXT_STALE");
+   await command(state.actor,"validateResponse",responseBody(state));
    if(configuration()!==state.configuration||requestDigest(freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts))))!==state.snapshot.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
-   check();if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+   state.responseProgress!.check();check();if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
    // Linearization is append dispatch: no await between final guards and file append.
    return write();
   });
@@ -266,5 +302,5 @@ export function createMainContext(options:ContextOptions){
   if(sent.result===null)return {status:"result-unknown",requestDigest:result.requestDigest};
   try{return {status:"sent",requestDigest:result.requestDigest,result:await sent.result}}catch{return {status:"result-unknown",requestDigest:result.requestDigest}};
  }
- return {assemble,validateForDispatch,validateResponse,commitResponse,dispatch,captureTranscript,prepareTranscriptChange,prepareTranscriptChanges,transcriptGeneration,deleteTranscript,prepareSummary,commitSummary,readSummaryInput};
+ return {assemble,validateForDispatch,validateResponse,commitResponse,bindResponseProgress,dispatch,captureTranscript,prepareTranscriptChange,prepareTranscriptChanges,transcriptGeneration,deleteTranscript,prepareSummary,commitSummary,readSummaryInput};
 }

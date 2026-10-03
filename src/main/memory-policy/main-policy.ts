@@ -32,8 +32,8 @@ export function createMainPolicy(options:{registry:ReturnType<typeof createMainS
   if(ref.span)throw new Error("MEMORY_POLICY_FULL_SOURCE_REQUIRED");
   requireMainAccess(actor.access).verifySource(ref);return ref as BoundSourceRef;
  }
- async function command<T>(actor:Actor,kind:string,body:unknown,commandId?:string):Promise<T> {
-  const execute=()=>options.transport.policyCommand({kind,scopeKey:actor.scopeKey,...(commandId?{commandId}:{}),body:{actorKey:actor.actorKey,...body as object}});
+ async function command<T>(actor:Actor,kind:string,body:unknown,commandId?:string,signal?:AbortSignal):Promise<T> {
+  const execute=()=>{if(signal?.aborted)throw new Error("MEMORY_POLICY_CANCELLED");return options.transport.policyCommand({kind,scopeKey:actor.scopeKey,...(commandId?{commandId}:{}),body:{actorKey:actor.actorKey,...body as object}});};
   return (options.actorAuthority?actorAuthority.coordinate(execute):execute()) as Promise<T>;
  }
  async function read(actor:Actor,ref:BoundSourceRef):Promise<string> {
@@ -46,13 +46,14 @@ export function createMainPolicy(options:{registry:ReturnType<typeof createMainS
   bindActor(access:object,adapter:object,value:SourceIdentity):object {
    return actorAuthority.bindActor(access,adapter,value);
   },
-  async integrate(token:object,value:BoundSourceRef):Promise<import("./policy-contracts").IntegrationResult> {
+  async integrate(token:object,value:BoundSourceRef,signal?:AbortSignal):Promise<import("./policy-contracts").IntegrationResult> {
    const actor=actorContext(token),ref=boundSource(actor,value);
+   const cancelled=()=>{if(signal?.aborted)throw new Error("MEMORY_POLICY_CANCELLED")};cancelled();
    const generation=await command<number>(actor,"generation",{});
    const baseline=await command<import("./policy-contracts").PolicyBaseline[]>(actor,"baseline",{});
-   const extraction=extractMaintenance(await read(actor,ref));
+   cancelled();const extraction=extractMaintenance(await read(actor,ref));cancelled();
    const intent={sourceRef:ref,generation,extraction,policyVersion:MAINTENANCE_VERSION};
-   return command(actor,"integrate",{...intent,baseline},"policy-integrate-"+digest({scope:actor.scopeKey,actor:actor.actorKey,...intent}));
+   return command(actor,"integrate",{...intent,baseline},"policy-integrate-"+digest({scope:actor.scopeKey,actor:actor.actorKey,...intent}),signal);
   },
   async ingest(token:unknown,value:SourceRef):Promise<PolicyOutcome> {
    const actor=actorContext(token),ref=boundSource(actor,value);

@@ -1,4 +1,4 @@
-import type { ChatMessageChannelSource, ChatSession, ConversationMode } from "../../../../../shared/chat-types";
+import type { ChatMessage, ChatMessageChannelSource, ChatSession, ConversationMode } from "../../../../../shared/chat-types";
 import type { ChatMessageItem } from "../components/ChatMessageList";
 import {
   describePermissionRequest,
@@ -150,8 +150,19 @@ export function toUiMessages(session: ChatSession): ChatMessageItem[] {
       workReadReport: message.workReadReport,
       runId: message.runSnapshot?.runId,
     };
-    return message.runSnapshot ? recoverInterruptedMessage(item, message.runSnapshot) : item;
+    const recovered=message.runSnapshot ? recoverInterruptedMessage(item, message.runSnapshot) : item;
+    return applySSettlementProjection(recovered,message.sSettlement);
   });
+}
+
+export function applySSettlementProjection(item:ChatMessageItem,projection:ChatMessage["sSettlement"]):ChatMessageItem {
+  if(!projection)return item;
+  const success=projection.state==="success";
+  return {...item,sSettlement:projection,content:success?projection.originalText:"",transientText:undefined,loading:false,waitingForFirstEvent:false,streaming:false,reasoningStreaming:false,responseStarted:success,runId:projection.runId,
+    sticker:success?item.sticker:undefined,ttsCacheKey:success?item.ttsCacheKey:undefined,ttsCacheVersion:success?item.ttsCacheVersion:undefined,
+    runStage:success?{kind:"completed"}:{kind:"failed"},
+    processMessages:(item.processMessages??[]).filter(message=>!message.interrupted||message.content!==projection.originalText),
+    runActivity:item.runActivity?{...item.runActivity,activeReasoningStartedAt:undefined,completedAt:item.runActivity.completedAt??item.runActivity.startedAt,keepExpanded:!success}:undefined};
 }
 
 export function getInitialMode(): ConversationMode {

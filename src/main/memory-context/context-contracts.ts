@@ -1,4 +1,6 @@
-import type {BoundSourceRef} from "../../shared/memory-contracts";
+import type {BoundSourceRef,FactView} from "../../shared/memory-contracts";
+export interface ContextFact extends FactView {supportSourceRefs:BoundSourceRef[]}
+export interface FactSupportDependency {factId:string;revision:number;sourceRefs:BoundSourceRef[]}
 export type JsonValue=null|boolean|number|string|JsonValue[]|{[key:string]:JsonValue};
 export interface RequestIdentity {providerId:string;model:string;transport:string;framingVersion:string}
 /** Prepared provider input, without credentials/headers. Never a renderer DTO. */

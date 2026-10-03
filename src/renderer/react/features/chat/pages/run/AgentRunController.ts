@@ -27,7 +27,7 @@ import { applyAgentRoundBoundary, createRoundProcessMessage } from "../../compon
 import { applyTaskDelegationEvent, normalizeTaskDelegationEvent } from "../../components/task-delegations";
 import { t } from "../../../../i18n";
 import type { AguiApi, AguiEvent, CandidateTextEventValue, ChatStoreApi } from "../chat-page-bridge";
-import { normalizeWeatherData, parseSessionRunActiveError, stageForStep } from "../chat-page-normalizers";
+import { normalizeWeatherData, parseSessionRunActiveError, stageForStep, toUiMessages } from "../chat-page-normalizers";
 import { RunEventGate } from "../run-event-gate";
 import {
   SMOOTH_REVEAL_TICK_MS,
@@ -210,6 +210,7 @@ export class AgentRunController {
   private readonly activeReasoningStarts = new Map<string, number>();
   private currentReasoningId: string | undefined;
   private earlyTtsQueue: EarlyTtsPlaybackQueue | undefined;
+  private controlledSResponse=false;
   private resolveTerminal!: (error?: Error) => void;
   private readonly terminal: Promise<Error | undefined>;
 
@@ -392,9 +393,11 @@ export class AgentRunController {
         toolExecutions: this.toolExecutions,
       });
       const savedAssistant = await this.checkpointRun("terminal", true);
+      const canonical=await this.refreshCanonicalSettlement();
       this.reportRunPersisted();
-      if (savedAssistant && formalAnswerCommitted && this.earlyTtsQueue) {
-        this.deps.host.earlyTts.finish(this.earlyTtsQueue, finalContent);
+      if (savedAssistant && formalAnswerCommitted && (!this.controlledSResponse||canonical?.state==="success") && this.earlyTtsQueue) {
+        if(this.controlledSResponse)this.earlyTtsQueue=this.deps.host.earlyTts.start(this.input.targetMode,this.input.sessionId,this.input.assistantId);
+        this.deps.host.earlyTts.finish(this.earlyTtsQueue, canonical?.originalText??finalContent);
       } else this.earlyTtsQueue?.cancel();
     } catch (error) {
       this.earlyTtsQueue?.cancel();
@@ -462,6 +465,7 @@ export class AgentRunController {
       });
       this.persistedFinalContent = "";
       await this.checkpointRun("terminal", true);
+      await this.refreshCanonicalSettlement();
       // 错误终态的快照也已落盘：上报落盘确认（runId 未知时静默跳过）
       this.reportRunPersisted();
     } finally {
@@ -497,6 +501,17 @@ export class AgentRunController {
   private reportRunPersisted(): void {
     const runId = this.deps.registries.activeRuns.current[this.input.sessionId]?.runId;
     if (runId) this.deps.api?.reportRunPersisted?.({ runId, finalMessageId: this.input.assistantId });
+  }
+
+  /** Fetch read-only Main authority after the cache checkpoint; never persist the projection back. */
+  private async refreshCanonicalSettlement():Promise<ChatMessage["sSettlement"]> {
+    const store=this.deps.store;if(typeof store?.get!=="function")return;
+    try{
+      const session=await store.get(this.input.sessionId),message=session?.messages.find(m=>m.id===this.input.assistantId),projection=message?.sSettlement;
+      const active=this.deps.registries.activeRuns.current[this.input.sessionId];
+      if(!session||!projection||active?.assistantId!==this.input.assistantId||projection.runId!==active.runId)return;
+      this.deps.host.patchMessage(this.input.sessionId,this.input.assistantId,toUiMessages({...session,messages:[message!]})[0]);return projection;
+    }catch{if(this.controlledSResponse)this.earlyTtsQueue?.cancel()}
   }
 
   /** 构建落盘检查点消息（含 runSnapshot 状态与累积的过程数据）。 */
@@ -818,6 +833,9 @@ export class AgentRunController {
   /** AG-UI 事件归约：流式内容、推理、工具、交互卡与终态全部在此处理。 */
   private handleEvent(event: AguiEvent) {
     if (this.terminalReceived) return;
+    if(event.type==="CUSTOM"&&event.name==="firefly.sResponse"){
+      this.controlledSResponse=true;this.earlyTtsQueue?.cancel();return;
+    }
     if (event.type === "CUSTOM" && event.name === "firefly.round") {
       const value = event.value as { action?: unknown; roundId?: unknown } | null | undefined;
       if ((value?.action === "start" || value?.action === "end") && typeof value.roundId === "string") {
@@ -981,7 +999,7 @@ export class AgentRunController {
       } else {
         this.enqueuePublicTextReveal(event.delta, (chunk) => {
           this.streamContent += chunk;
-          this.earlyTtsQueue?.append(chunk);
+          if(!this.controlledSResponse)this.earlyTtsQueue?.append(chunk);
           this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, {
             content: this.streamContent,
             loading: false,

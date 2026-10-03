@@ -3,6 +3,15 @@ import type { ChatSession } from "../../../../../shared/chat-types";
 import { getInitialMode, LAST_MODE_STORAGE_KEY, normalizeWeatherData, stageForStep, toUiMessages } from "./chat-page-normalizers";
 
 describe("chat page normalizers", () => {
+  it.each(["success","pending","unknown","interrupted"] as const)("canonical %s wins over conflicting recovered cache",state=>{
+    const session={id:"synthetic",messages:[{id:"a",role:"model",content:"CACHE",at:1,ttsCacheKey:"cache",runSnapshot:{runId:"r",status:"running",updatedAt:2},sSettlement:{state,runId:"r",assistantEntryId:"entry",originalText:"RAW"}}]} as ChatSession;
+    const before=JSON.stringify(session),view=toUiMessages(session)[0];
+    expect(view.content).toBe(state==="success"?"RAW":"");expect(view.streaming).toBe(false);
+    expect(view.sSettlement?.originalText).toBe("RAW");
+    expect(view.runStage?.kind).toBe(state==="success"?"completed":"failed");
+    if(state!=="success")expect(view.ttsCacheKey).toBeUndefined();
+    expect(JSON.stringify(session)).toBe(before);
+  });
   it("ignores a removed mode in stored navigation state", () => {
     vi.stubGlobal("localStorage", { getItem: () => "learn" });
     expect(getInitialMode()).toBe("chat");

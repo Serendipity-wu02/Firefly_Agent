@@ -5,6 +5,7 @@ import {RecordCodec} from "../memory-core/record-codec";
 import {SourceLedger} from "../memory-core/source-ledger";
 import {Suppression} from "../memory-core/suppression";
 import {canonicalJson} from "../memory-core/repository-types";
+import {transactionNow} from "../memory-core/transaction-clock";
 export interface ConfirmationProof {nonce:string;targetId:string;targetRevision:number;action:"confirm"|"confirmFact"|"correct"|"remember"}
 interface Support {id:string;actorKey:string;factId:string;factRevision:number;subjectKey:string;sourceRef:BoundSourceRef;kind:"automatic"|"explicitUserConfirmed";proof:ConfirmationProof|null;state:"supported"|"suppressed";generation:number;checkedValidity?:string}
 interface Review {actorKey:string;factId:string;factRevision:number;sourceRef:BoundSourceRef;nonce:string;generation:number;state:"recorded"|"suppressed"}
@@ -18,12 +19,12 @@ export class FactSupports {
  private save(scope:string,r:Support){this.transaction();this.db.prepare("INSERT INTO fact_supports(id,scope_key,fact_id,fact_revision,payload) VALUES(?,?,?,?,?) ON CONFLICT(id,scope_key) DO UPDATE SET payload=excluded.payload").run(r.id,scope,r.factId,r.factRevision,this.codec.seal("fact-support",scope,r.id,r))}
  private validity(scope:string,r:Support):string {
   if(r.state==="suppressed"||this.suppression.sourceBlocked(scope,r.sourceRef))return "suppressed";
-  try{const head=this.ledger.assertCurrent(scope,r.sourceRef);if(!head?.published||head.published.role!=="user"||head.published.trust!=="direct-user-event")return "untrusted";if(head.published.occurredAt!==undefined&&head.published.occurredAt>Date.now())return "future";return "valid"}catch(error){const code=error instanceof Error?error.message:"";if(code==="MEMORY_SOURCE_PENDING")return "pending";if(code==="MEMORY_SOURCE_DELETED")return "deleted";if(code==="MEMORY_SOURCE_STALE")return "stale";throw error}
+  try{const head=this.ledger.assertCurrent(scope,r.sourceRef);if(!head?.published||head.published.role!=="user"||head.published.trust!=="direct-user-event")return "untrusted";if(head.published.occurredAt!==undefined&&head.published.occurredAt>transactionNow(this.db))return "future";return "valid"}catch(error){const code=error instanceof Error?error.message:"";if(code==="MEMORY_SOURCE_PENDING")return "pending";if(code==="MEMORY_SOURCE_DELETED")return "deleted";if(code==="MEMORY_SOURCE_STALE")return "stale";throw error}
  }
  add(scope:string,actorKey:string,fact:FactView,sourceRef:BoundSourceRef,kind:Support["kind"],proof:ConfirmationProof|null=null):void {
   this.transaction();const head=this.ledger.assertCurrent(scope,sourceRef);
   if(!head?.published||head.published.role!=="user"||head.published.trust!=="direct-user-event"||this.suppression.sourceBlocked(scope,sourceRef))throw new Error("MEMORY_EVENT_DENIED");
-  if(head.published.occurredAt!==undefined&&head.published.occurredAt>Date.now())throw new Error("MEMORY_POLICY_FUTURE");
+  if(head.published.occurredAt!==undefined&&head.published.occurredAt>transactionNow(this.db))throw new Error("MEMORY_POLICY_FUTURE");
   if((kind==="explicitUserConfirmed")!==(proof!==null))throw new Error("MEMORY_EVENT_DENIED");
   const records=this.read(scope,fact.factId);
   if(kind==="explicitUserConfirmed"&&["confirm","confirmFact"].includes(proof!.action)&&records.some(r=>r.actorKey===actorKey&&r.kind==="automatic"&&r.sourceRef.sourceId===sourceRef.sourceId))throw new Error("MEMORY_CONFIRMATION_NOT_INDEPENDENT");
@@ -40,7 +41,7 @@ export class FactSupports {
  deny(scope:string,actorKey:string,fact:FactView,sourceRef:BoundSourceRef,nonce:string):void {
   this.transaction();const head=this.ledger.assertCurrent(scope,sourceRef);
   if(!head?.published||head.published.role!=="user"||head.published.trust!=="direct-user-event"||this.suppression.sourceBlocked(scope,sourceRef))throw new Error("MEMORY_EVENT_DENIED");
-  if(head.published.occurredAt!==undefined&&head.published.occurredAt>Date.now())throw new Error("MEMORY_POLICY_FUTURE");
+  if(head.published.occurredAt!==undefined&&head.published.occurredAt>transactionNow(this.db))throw new Error("MEMORY_POLICY_FUTURE");
   const id=createHash("sha256").update(canonicalJson({actorKey,factId:fact.factId,revision:fact.revision,sourceRef,nonce})).digest("hex");
   const value:Review={actorKey,factId:fact.factId,factRevision:fact.revision,sourceRef,nonce,generation:this.suppression.generation(scope),state:"recorded"};
   this.db.prepare("INSERT INTO fact_reviews(id,scope_key,fact_id,payload) VALUES(?,?,?,?)").run(id,scope,fact.factId,this.codec.seal("fact-review",scope,id,value));

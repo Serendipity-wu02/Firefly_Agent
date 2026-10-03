@@ -126,6 +126,8 @@ export interface ChatMessageChannelSource {
 }
 
 export interface ChatMessage {
+  /** Read-only Main projection from canonical audit; never write authority. */
+  sSettlement?: {state:"pending"|"unknown"|"success"|"interrupted";runId:string;assistantEntryId:string;originalText:string};
   id: string;
   role: ChatRole;
   content: string;

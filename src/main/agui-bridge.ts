@@ -41,7 +41,8 @@ import { prepareTranscriptDispatch, type TranscriptRewindRequest } from "./orche
 import { isWorkReadScopeCurrent } from "./chats/work-read-scope";
 import { evaluateWorkFileEvidence } from "./chats/work-file-evidence";
 import { getConversationTranscriptStore } from "./orchestrator/conversation-transcript-store";
-import { createTranscriptSink } from "./orchestrator/transcript-sink";
+import { createTranscriptSink, type TranscriptSink } from "./orchestrator/transcript-sink";
+import { controlledSettlement } from "./orchestrator/controlled-responses";
 import {
   requestUserClarification,
   cancelPendingChoicesForRun,
@@ -134,11 +135,14 @@ export interface AguiRunInput {
 }
 
 /** 调用方（index.ts）注入：把输入转成 agent 需要的 options（含 system prompt 拼接）。 */
-export type BuildOptionsFn = (input: AguiRunInput) => Promise<{
+export type BuildOptionsFn = ((input: AguiRunInput) => Promise<{
   options: FireflyRunOptions;
   /** 跑完后副作用需要的信息。 */
   latestUserText: string;
-}>;
+}>) & {
+  /** Private Main lifecycle; provision the opt-in observer before canonical commits. */
+  prepareTranscript?: (input: AguiRunInput) => Promise<void>;
+};
 
 /** 轨迹上下文源开关：显式 "renderer" 才回退渲染端消息（仅一个版本周期的逃生舱）。 */
 export function resolveTranscriptContextSource(
@@ -183,6 +187,7 @@ const activeRuns = new Map<string, {
   subscription: Subscription;
   endLifecycle: () => void;
   abortController: AbortController;
+  cancel: () => void;
 }>();
 
 /**
@@ -407,6 +412,7 @@ export function registerAgUiIpc(
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const turnStartedAt = Date.now();
 
+    let controlledRun=false;
     const send = (baseEvent: unknown): void => {
       // FireflyAgent 的 RUN_STARTED / RUN_FINISHED 自带 runId，但 ChatLoop 等内部
       // AgentLoopEvent 经 toAguiEvent 转换后没有。渲染端用 runId 隔离并发会话，
@@ -422,6 +428,7 @@ export function registerAgUiIpc(
       }
       for (const t of targets) {
         try {
+          if(controlledRun&&(baseEvent as {type?:string})?.type==="TEXT_MESSAGE_START")t.send(IPC.AGUI_EVENT,{type:"CUSTOM",name:"firefly.sResponse",value:{pending:true},runId});
           t.send(IPC.AGUI_EVENT, eventWithRunId);
         } catch (err) {
           console.error("[AgUiBridge] send 失败:", (err instanceof Error ? err.message : String(err)), "事件类型=", (baseEvent as { type?: string })?.type);
@@ -458,6 +465,8 @@ export function registerAgUiIpc(
     // 早于下方 buildOptions（async，存在竞态窗口，F5 后立即发消息即命中）。
     // 渲染端 busy 队列不参与正确性论证：无论 IPC 时序如何，这里都是最终边界。
     const runAbortController = new AbortController();
+    let controlledSink:TranscriptSink|undefined;
+    const cancelRun=()=>{if(!controlledSink||controlledSettlement(controlledSink).requestCancel())runAbortController.abort()};
     let releaseSessionGuard: (() => void) | null = null;
     for (let takeovers = 0; ; takeovers++) {
       const existing = sessionActiveRuns.get(sessionId);
@@ -467,7 +476,7 @@ export function registerAgUiIpc(
         // 并发 takeover 中只有一个能走到这里（await 醒来后必须回顶部重新竞争）
         sessionActiveRuns.set(sessionId, {
           runId,
-          abort: () => runAbortController.abort(),
+          abort: cancelRun,
           settled,
         });
         releaseSessionGuard = () => releaseSessionGuardEntry(sessionId, runId, resolveSettled);
@@ -508,10 +517,12 @@ export function registerAgUiIpc(
     const transcriptSource = resolveTranscriptContextSource();
     if (input.userTurnId) {
       try {
+        await buildOptionsFn.prepareTranscript?.({...input,mode,executionMode:mode,modelProfileId:session.modelProfileId});
         await prepareTranscriptDispatch({
           store: getConversationTranscriptStore(app.getPath("userData")),
           session,
           userTurnId: input.userTurnId,
+          assistantTurnId: input.assistantTurnId,
           runId,
           rewind: input.transcriptRewind,
         });
@@ -571,6 +582,7 @@ export function registerAgUiIpc(
     // 一路传到 Agent / Harness adapter / ToolContext / 所有 AG-UI 事件。
     // ack.runId 与 RUN_STARTED.runId 必须一致。
     options.runId = runId;
+    controlledRun=Boolean(options.controlledResponses);
     if(options.controlledResponses)options.isControlledRunCurrent=()=>sessionActiveRuns.get(sessionId)?.runId===runId;
     options.workReadScopes = requiredWorkReads;
     // 轨迹写入总开关（CTA）：桌面 dispatch 带 userTurnId 才写轨迹——
@@ -587,6 +599,7 @@ export function registerAgUiIpc(
       runId,
       ...(input.assistantTurnId ? { assistantTurnId: input.assistantTurnId } : {}),
     }) : undefined;
+    if(options.controlledResponses&&options.transcriptSink)controlledSink=options.transcriptSink;
     // AbortController 已在会话守卫注册前创建（守卫的 abort 需要引用它）。
     // signal 一路传到 Agent / harness；AGUI_CANCEL / takeover 调用 abort()，
     // 触发 harness 返回 cancelled，FireflyAgent 发出 RUN_FINISHED(result.status="cancelled")，
@@ -746,7 +759,12 @@ export function registerAgUiIpc(
           textStartForwarded = false;
           // 通过 settlement gate 保证 only-once terminal。
           // 如果 upstream 已经发过 RUN_FINISHED / RUN_ERROR（gate 已结算），丢弃后续重复事件。
-          const terminal = extractTerminalFromRunFinished(baseEvent);
+          let terminal = extractTerminalFromRunFinished(baseEvent);
+          if(options.controlledResponses){
+            const state=controlledSink?controlledSettlement(controlledSink).get():"unknown";
+            if(state==="success")terminal={status:"success",externalEffectsMayContinue:false};
+            if(terminal.status==="success"&&state!=="success"||state==="unknown"||state==="success_reserved"||state==="interrupted_reserved")terminal={status:"runtime_error",reason:"MEMORY_CONTEXT_SETTLEMENT_UNKNOWN",externalEffectsMayContinue:false};
+          }
           if (!settlementGate.trySettle(terminal)) {
             return;
           }
@@ -758,7 +776,7 @@ export function registerAgUiIpc(
             pendingRunFinishedEvent = null;
             return;
           }
-          pendingRunFinishedEvent = baseEvent;
+          pendingRunFinishedEvent = options.controlledResponses?{...(baseEvent as object),result:terminal}:baseEvent;
           return;
         }
 
@@ -876,11 +894,12 @@ export function registerAgUiIpc(
         // 否则 renderer 收到零个终态事件，exactly-once 退化为 at-most-once。
         // 若已被 error 路径或 runtime_error RUN_FINISHED 结算，则保持该终态，不再补发。
         if (!settlementGate.isSettled()) {
-          const synthesizedTerminal: FireflyRunTerminalResult = {
-            status: "success",
-            externalEffectsMayContinue: false,
-          };
+          const unknown=Boolean(options.controlledResponses)&&(!controlledSink||controlledSettlement(controlledSink).get()!=="success");
+          const synthesizedTerminal: FireflyRunTerminalResult = unknown
+            ?{status:"runtime_error",reason:"MEMORY_CONTEXT_SETTLEMENT_UNKNOWN",externalEffectsMayContinue:false}
+            :{status:"success",externalEffectsMayContinue:false};
           settlementGate.trySettle(synthesizedTerminal);
+          if(unknown)send({type:"RUN_ERROR",message:"MEMORY_CONTEXT_SETTLEMENT_UNKNOWN",code:"MEMORY_CONTEXT_SETTLEMENT_UNKNOWN",threadId,runId});
           pendingRunFinishedEvent = {
             type: "RUN_FINISHED",
             threadId,
@@ -990,7 +1009,7 @@ export function registerAgUiIpc(
     // 若此时再无条件 set，会把已结算的 run 重新加入 map，留下幽灵 active run。
     // 仅在未结算（async、仍在运行）时才登记，供 cancel 取消用。
     if (!settlementGate.isSettled()) {
-      activeRuns.set(runId, { subscription: sub, endLifecycle, abortController: runAbortController });
+      activeRuns.set(runId, { subscription: sub, endLifecycle, abortController: runAbortController,cancel:cancelRun });
     }
 
     // invoke 立刻返回 ack，不等 Observable 结束。
@@ -1008,7 +1027,7 @@ export function registerAgUiIpc(
     const abortRun = (id: string): void => {
       const run = activeRuns.get(id);
       if (run && !run.abortController.signal.aborted) {
-        run.abortController.abort();
+        run.cancel();
       }
       // 清理该 run 关联的 pending permission / ask_user / pop_quiz 卡片。
       // 渲染端通过 RUN_FINISHED(result.status="cancelled") 自然收到卡片关闭信号。
