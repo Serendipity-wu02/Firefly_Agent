@@ -2,7 +2,6 @@ import { BrowserWindow, screen, type NativeImage } from "electron";
 import { IPC } from "../../shared/ipc-channels";
 import { createPetWindow, PET_WINDOW_BASE_HEIGHT, PET_WINDOW_BASE_WIDTH, type PetWindowSettingsSlice } from "../startup/create-pet-window";
 import {
-  createCallWindow,
   createReactChatWindowShell,
   createSettingsWindow,
   createSidebarWindow,
@@ -33,7 +32,6 @@ export interface WindowManager {
   createSettingsWindow(section?: string): void;
   createTasksWindow(): void;
   createStickerManagerWindow(): void;
-  createCallWindow(): void;
 
   showPetWindow(): void;
   hidePetWindow(): void;
@@ -166,7 +164,6 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
     createSettingsWindow,
     createTasksWindow,
     createStickerManagerWindow,
-    createCallWindow,
 
     showPetWindow(): void {
       const win = getUsablePetWindow();

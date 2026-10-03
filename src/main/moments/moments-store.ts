@@ -11,8 +11,6 @@
 // - 删除 post 级联删除 comments / reactions / 图片副本。
 
 import { app } from "electron";
-import { normalizeStoredMoment } from "../../shared/legacy-firefly-contracts";
-import { writeMigratedJson } from "../migration/firefly-data";
 import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
@@ -139,11 +137,10 @@ function loadFromDisk(): MomentsStoreData {
     const normalized: MomentsStoreData = {
       ...parsed,
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      posts: parsed.posts.map(normalizeStoredMoment),
-      comments: parsed.comments.map(normalizeStoredMoment),
-      reactions: (parsed.reactions ?? []).map(normalizeStoredMoment),
+      posts: parsed.posts,
+      comments: parsed.comments,
+      reactions: parsed.reactions ?? [],
     };
-    writeMigratedJson(storePath, parsed, normalized);
     return normalized;
   } catch {
     throw new Error("MOMENTS_READ_FAILED: 原文件已保留，停止写入");

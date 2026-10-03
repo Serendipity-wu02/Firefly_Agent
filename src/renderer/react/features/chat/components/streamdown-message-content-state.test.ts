@@ -72,6 +72,5 @@ describe("MarkdownContent Streamdown lifecycle", () => {
     const source = readFileSync(resolve(__dirname, "ChatMessageList.tsx"), "utf8");
 
     expect(source).not.toContain("@ant-design/x-markdown");
-    expect(source).not.toContain("__cyreneChatPerfMarkdownRenderer");
   });
 });

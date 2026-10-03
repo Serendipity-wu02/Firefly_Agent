@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ExternalContentPaths } from "./external-content-paths";
+import { AtomicJsonStore } from "./atomic-json-store";
 
 /**
  * 升级迁移：NSIS 安装脚本（installer.nsh）在升级时会把安装目录里的 prompts/skills
@@ -16,7 +16,7 @@ import type { ExternalContentPaths } from "./external-content-paths";
  */
 
 const STAGING_DIR_NAME = ".Firefly.content-preserve";
-const MANIFEST_FILE = "content-manifest.json";
+
 
 interface ContentManifest {
   prompts: Record<string, string>;
@@ -25,6 +25,8 @@ interface ContentManifest {
 
 export interface StagedContentMigrationInput {
   isPackaged: boolean;
+  manifestFile: string;
+  allowStagedMigration?: boolean;
   installRoot: string;
   promptDirectories: string[];
   userSkillDirectories: string[];
@@ -35,7 +37,7 @@ export function migrateStagedExternalContent(input: StagedContentMigrationInput)
   if (!input.isPackaged) return;
   try {
     const stagingDir = path.join(input.installRoot, "..", STAGING_DIR_NAME);
-    if (fs.existsSync(stagingDir)) {
+    if (input.allowStagedMigration !== false && fs.existsSync(stagingDir)) {
       mergeStaging(stagingDir, input);
     }
     writeManifest(input);
@@ -98,7 +100,7 @@ function mergeTree(
 
 /** userData 下 manifest 的位置（与用户内容同目录）。 */
 function manifestPath(input: StagedContentMigrationInput): string {
-  return path.join(path.dirname(input.promptDirectories[0]), MANIFEST_FILE);
+  return input.manifestFile;
 }
 
 function readManifest(input: StagedContentMigrationInput): ContentManifest | null {
@@ -123,8 +125,7 @@ function writeManifest(input: StagedContentMigrationInput): void {
     skills: hashTree(path.join(input.installRoot, "skills")),
   };
   const file = manifestPath(input);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(manifest), "utf8");
+  new AtomicJsonStore<ContentManifest>(file, validManifest).write(manifest);
 }
 
 /** 内置 prompts 目录 = promptDirectories 中位于安装目录下的那一项。 */
@@ -158,4 +159,10 @@ function hashTree(root: string): Record<string, string> {
 
 function sha1File(file: string): string {
   return crypto.createHash("sha1").update(fs.readFileSync(file)).digest("hex");
+}
+
+function validManifest(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const manifest = value as Partial<ContentManifest>;
+  return [manifest.prompts, manifest.skills].every((tree) => tree === undefined || (tree && typeof tree === "object" && !Array.isArray(tree) && Object.values(tree).every((hash) => typeof hash === "string")));
 }

@@ -18,7 +18,7 @@
 //     snapshot.json              # 最终 ReviewSnapshot（finalizeReview 原子写）
 
 import * as fs from "fs";
-import { ensureFireflyDataDirectory } from "../../migration/firefly-data";
+import { fireflyDataDirectory } from "../../firefly-data-paths";
 import * as path from "path";
 import { createHash } from "node:crypto";
 import { logger, LogTag } from "../../logger";
@@ -144,7 +144,7 @@ export class RunReviewTracker {
   private readonly reviewsRoot: string;
 
   constructor(userDataRoot: string) {
-    this.reviewsRoot = path.join(ensureFireflyDataDirectory(userDataRoot, "runs"), "reviews");
+    this.reviewsRoot = path.join(fireflyDataDirectory(userDataRoot, "runs"), "reviews");
     // 首次创建即清理过期/超量 Review 目录（30 天 / 200 目录 / 500MB，最旧优先）；
     // 清理失败不影响 tracker 可用性
     try {

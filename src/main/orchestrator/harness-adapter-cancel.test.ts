@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll,beforeAll,beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const paths=vi.hoisted(()=>({userData:""}));
+beforeAll(()=>{paths.userData=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-harness-cancel-"))});
+afterAll(()=>{fs.rmSync(paths.userData,{recursive:true,force:true})});
 
 const { runHarness, permissionCheck, getById } = vi.hoisted(() => ({
   runHarness: vi.fn(),
@@ -27,7 +34,7 @@ vi.mock("../prompts/prompt-loader", () => ({
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn(() => "C:\\firefly-test-user-data") },
+  app: { getPath: vi.fn(() => {if(!paths.userData)throw new Error("test userData not ready");return paths.userData}) },
 }));
 
 import { runHarnessWithAdapter } from "./harness-adapter";

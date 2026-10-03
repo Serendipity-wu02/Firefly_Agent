@@ -1,3 +1,4 @@
+import { getStorageContext } from "../storage-context";
 /**
  * 默认应用依赖装配（真正的组合根胶水层）：
  * 持有全部业务子系统的导入与工厂闭包，把它们按窄依赖喂给各启动阶段。
@@ -31,7 +32,7 @@ import {
   settingsWindow,
   tasksWindow,
 } from "../windows/window-state";
-import { loadModelSettings, saveModelSettings } from "../settings/model-settings";
+import { getCachedSavedModelProfile, listCachedSavedModelProfileIds, loadModelSettings, saveModelSettings } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
 import {
   applyGeneralSettings,
@@ -98,7 +99,6 @@ import { loadUserProfile } from "../settings-store";
 import { getAppIconPath } from "../app-icon";
 import { hasActiveConversationRun, registerAgUiIpc } from "../agui-bridge";
 import { updateLocaleContext } from "../locale-context";
-import { registerCallIpc } from "../call/call-manager";
 import { initSkills, skillRegistry } from "../skills";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
 import { createChannelsSubsystem } from "../channels/bootstrap";
@@ -116,6 +116,8 @@ import { registerCodeGitIpc } from "../code-git/code-git-ipc";
 import { installSingleInstanceGuard } from "../single-instance";
 import { createWindowManager } from "../windows/window-manager";
 import { createTray } from "../tray";
+import { ADMISSION_ROOT } from "../memory-online-once/runner";
+import { createMainProbeEntry } from "../memory-online-once/main-entry";
 import { createSplashWindow } from "../startup/create-splash-window";
 import { revealStartupWindows } from "../startup/startup-window-reveal";
 import { bootstrapMusicService } from "../music/bootstrap";
@@ -167,6 +169,13 @@ async function reconcileUserMemoryIndex(): Promise<void> {
 }
 
 export function createDefaultApplicationDependencies(): ApplicationDependencies {
+  // Explicit diagnostic launch only. Switch enables UI, never creates/rearms a budget.
+  // Boot binding touches only fixed E: non-secret admission; profile lookup stays cache-only.
+  const memoryOnlineEntry = createMainProbeEntry(app.commandLine?.hasSwitch("firefly-memory-online-once")===true, {
+    root:ADMISSION_ROOT,resolveProfile:getCachedSavedModelProfile,listProfileIds:listCachedSavedModelProfileIds,
+    fetch:(...args)=>globalThis.fetch(...args),now:Date.now,show:options=>dialog.showMessageBox(options),
+  });
+  app.once("will-quit",()=>memoryOnlineEntry?.cancel());
   // Agent Runtime 早于插件管理器构造；通过窄闭包在运行期转发宿主事件，避免反转启动顺序。
   let pluginManager: PluginManager | undefined;
   // 生命周期事件发布器：插件系统就绪前发布的事件没有监听器，直接丢弃
@@ -231,6 +240,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         logger.info(LogTag.Runtime, "starting Firefly_Agent");
       },
       createIpcScope: () => createIpcScope(),
+      onWillQuit: (callback) => { app.once("will-quit", callback); },
       createSplashWindow: (options) => createSplashWindow({ isDev, onShown: options.onShown }),
       createWindowManager: () => createWindowManager({
         getCurrentAppIconPath,
@@ -249,6 +259,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         togglePetWindow: input.togglePetWindow,
         requestActivation: input.requestActivation,
         quit: () => app.quit(),
+        memoryOnlineOnce: memoryOnlineEntry ? {run:()=>{void memoryOnlineEntry.run();},cancel:()=>memoryOnlineEntry.cancel()} : undefined,
       }),
       flushTokenUsage,
     }),
@@ -264,6 +275,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       // 升级迁移：NSIS 暂存的安装目录用户内容合并进 userData，
       // 必须在任何 prompts/skills 读取（initSkills、prompt 加载）之前执行
       migrateStagedExternalContent: () => migrateStagedExternalContent({
+        manifestFile: getStorageContext().files.contentManifest,
+        allowStagedMigration: getStorageContext().profile.kind === "production",
         isPackaged: app.isPackaged,
         ...getExternalContentPaths(),
       }),
@@ -561,7 +574,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         // pop_quiz 抽查工具：IPC（提交/跳过）与工具注册（learn 模式可见）
         registerPopQuizIpc(ipc);
         registerPopQuizTool();
-        registerCallIpc(ipc);
       },
 
       loadGeneralSettings,

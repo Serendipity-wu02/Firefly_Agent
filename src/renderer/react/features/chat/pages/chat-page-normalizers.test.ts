@@ -3,6 +3,20 @@ import type { ChatSession } from "../../../../../shared/chat-types";
 import { getInitialMode, LAST_MODE_STORAGE_KEY, normalizeWeatherData, stageForStep, toUiMessages } from "./chat-page-normalizers";
 
 describe("chat page normalizers", () => {
+  it.each(["success","pending","unknown","interrupted"] as const)("canonical %s wins over conflicting recovered cache",state=>{
+    const session={id:"synthetic",messages:[{id:"a",role:"model",content:"CACHE",at:1,ttsCacheKey:"cache",runSnapshot:{runId:"r",status:"running",updatedAt:2},sSettlement:{state,runId:"r",assistantEntryId:"entry",originalText:"RAW"}}]} as ChatSession;
+    const before=JSON.stringify(session),view=toUiMessages(session)[0];
+    expect(view.content).toBe(state==="success"?"RAW":"");expect(view.streaming).toBe(false);
+    expect(view.sSettlement?.originalText).toBe("RAW");
+    expect(view.runStage?.kind).toBe(state==="success"?"completed":"failed");
+    if(state!=="success")expect(view.ttsCacheKey).toBeUndefined();
+    expect(JSON.stringify(session)).toBe(before);
+  });
+  it("ignores a removed mode in stored navigation state", () => {
+    vi.stubGlobal("localStorage", { getItem: () => "learn" });
+    expect(getInitialMode()).toBe("chat");
+    vi.unstubAllGlobals();
+  });
   it.each(["completed", "failed", "cancelled"] as const)("preserves %s task portraits when reopening history", (status) => {
     const session: ChatSession = {
       id: "task-conversation",
@@ -141,7 +155,7 @@ describe("getInitialMode", () => {
     try {
       // ChatPage 的写入方与 getInitialMode 的读取方必须共用同一个键
       localStorage.setItem(LAST_MODE_STORAGE_KEY, "learn");
-      expect(getInitialMode()).toBe("learn");
+      expect(getInitialMode()).toBe("chat");
       storage.clear();
       localStorage.setItem("firefly-react-last-mode", "work");
       expect(getInitialMode()).toBe("work");

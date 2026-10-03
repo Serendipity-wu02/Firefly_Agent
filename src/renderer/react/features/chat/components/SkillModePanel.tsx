@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "../../../i18n";
 import "./SkillModePanel.css";
 
-type SkillMode = "work" | "code" | "learn";
+type SkillMode = "work" | "code";
 type TabKey = SkillMode;
 type SkillSource = "builtin" | "user";
 
@@ -22,7 +22,6 @@ type Overrides = Record<string, Partial<Record<SkillMode, boolean>>>;
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "work", label: "Work" },
   { key: "code", label: "Code" },
-  { key: "learn", label: "Learn" },
 ];
 
 const SOURCE_OPTIONS: Array<{ key: "all" | SkillSource; labelKey: string }> = [

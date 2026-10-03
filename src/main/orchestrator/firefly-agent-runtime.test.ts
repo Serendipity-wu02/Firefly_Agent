@@ -5,12 +5,12 @@ import type { FireflyRunOptions } from "./firefly-agent";
 import type { BaseEvent } from "@ag-ui/core";
 
 describe("resolveExecutionMode", () => {
-  it("uses Work by default and migrates legacy execution mode names", () => {
+  it("uses current Chat and Work modes without accepting removed aliases", () => {
     expect(resolveExecutionMode(undefined)).toBe("work");
     expect(resolveExecutionMode("work")).toBe("work");
     expect(resolveExecutionMode("chat")).toBe("chat");
     expect(resolveExecutionMode("collaboration")).toBe("work");
-    expect(resolveExecutionMode("soul-only")).toBe("chat");
+    expect(resolveExecutionMode("soul-only")).toBe("work");
   });
 });
 

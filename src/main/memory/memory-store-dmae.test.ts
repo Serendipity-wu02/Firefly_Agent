@@ -67,36 +67,4 @@ describe("memoryStore DMAE", () => {
     expect(state!.state).toBe("active")
   })
 
-  it("repairMigrations adds missing keywords and l2DmaeStates", async () => {
-    const file = path.join(electronMock.userDataDir, "memory.json")
-    fs.mkdirSync(electronMock.userDataDir, { recursive: true })
-    fs.writeFileSync(file, JSON.stringify({
-      schemaVersion: 4,
-      version: 4,
-      l0: {},
-      l1: {},
-      l2: [{
-        id: "l2_legacy",
-        content: "用户喜欢下雨天",
-        triggerText: "我喜欢下雨天",
-        sourceConversationId: "test",
-        createdAt: Date.now(),
-        lastAccessedAt: Date.now(),
-        accessCount: 0,
-        weight: 0,
-        isPinned: false,
-        status: "active",
-      }],
-    }))
-
-    const { memoryStore } = await import("./memory-store")
-    await memoryStore.getAllL2()
-
-    const persisted = JSON.parse(fs.readFileSync(file, "utf8"))
-    expect(persisted.l2[0].keywords).toBeDefined()
-    expect(persisted.l2[0].keywords.length).toBeGreaterThan(0)
-    expect(persisted.l2DmaeStates).toBeDefined()
-    expect(persisted.l2DmaeStates).toHaveLength(1)
-    expect(persisted.l2DmaeStates[0].l2Id).toBe("l2_legacy")
-  })
 })

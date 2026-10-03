@@ -33,7 +33,7 @@ describe("render", () => {
   });
 
   it("renderBanner contains the supported modes", () => {
-    expect(renderBanner({ width: 64 })).toContain("Chat · Work · Learn · Code");
+    expect(renderBanner({ width: 64 })).toContain("Chat · Work · Code");
   });
 
   it("renderBanner contains all three BANNER_LINES", () => {

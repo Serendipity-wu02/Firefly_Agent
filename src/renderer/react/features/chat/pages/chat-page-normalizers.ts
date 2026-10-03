@@ -1,4 +1,4 @@
-import type { ChatMessageChannelSource, ChatSession, ConversationMode } from "../../../../../shared/chat-types";
+import type { ChatMessage, ChatMessageChannelSource, ChatSession, ConversationMode } from "../../../../../shared/chat-types";
 import type { ChatMessageItem } from "../components/ChatMessageList";
 import {
   describePermissionRequest,
@@ -9,11 +9,10 @@ import type { WeatherData } from "../components/weather/weather-types";
 import type { PermissionApprovalRequest } from "./chat-page-bridge";
 import { recoverInterruptedMessage } from "./session-runtime-state";
 
-const CONVERSATION_MODES: readonly ConversationMode[] = ["chat", "work", "code", "learn"];
+const CONVERSATION_MODES: readonly ConversationMode[] = ["chat", "work", "code"];
 const CHAT_MESSAGE_CHANNELS = new Set<ChatMessageChannelSource["channel"]>(["wechat", "feishu", "qq", "qqbot"]);
 /** 最后停留模式的 localStorage 键：写入方（ChatPage）与读取方（getInitialMode）共用同一常量。 */
 export const LAST_MODE_STORAGE_KEY = "firefly-react-last-mode";
-import { LEGACY_LAST_MODE_STORAGE_KEY } from "../../../../../shared/legacy-firefly-contracts";
 
 export function isConversationMode(value: string): value is ConversationMode {
   return CONVERSATION_MODES.includes(value as ConversationMode);
@@ -151,13 +150,24 @@ export function toUiMessages(session: ChatSession): ChatMessageItem[] {
       workReadReport: message.workReadReport,
       runId: message.runSnapshot?.runId,
     };
-    return message.runSnapshot ? recoverInterruptedMessage(item, message.runSnapshot) : item;
+    const recovered=message.runSnapshot ? recoverInterruptedMessage(item, message.runSnapshot) : item;
+    return applySSettlementProjection(recovered,message.sSettlement);
   });
+}
+
+export function applySSettlementProjection(item:ChatMessageItem,projection:ChatMessage["sSettlement"]):ChatMessageItem {
+  if(!projection)return item;
+  const success=projection.state==="success";
+  return {...item,sSettlement:projection,content:success?projection.originalText:"",transientText:undefined,loading:false,waitingForFirstEvent:false,streaming:false,reasoningStreaming:false,responseStarted:success,runId:projection.runId,
+    sticker:success?item.sticker:undefined,ttsCacheKey:success?item.ttsCacheKey:undefined,ttsCacheVersion:success?item.ttsCacheVersion:undefined,
+    runStage:success?{kind:"completed"}:{kind:"failed"},
+    processMessages:(item.processMessages??[]).filter(message=>!message.interrupted||message.content!==projection.originalText),
+    runActivity:item.runActivity?{...item.runActivity,activeReasoningStartedAt:undefined,completedAt:item.runActivity.completedAt??item.runActivity.startedAt,keepExpanded:!success}:undefined};
 }
 
 export function getInitialMode(): ConversationMode {
   try {
-    const saved = localStorage.getItem(LAST_MODE_STORAGE_KEY) ?? localStorage.getItem(LEGACY_LAST_MODE_STORAGE_KEY);
+    const saved = localStorage.getItem(LAST_MODE_STORAGE_KEY);
     if (saved && isConversationMode(saved)) return saved;
   } catch {
     // localStorage 不可用或数据异常时回退到默认值

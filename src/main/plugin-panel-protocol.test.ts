@@ -47,8 +47,8 @@ beforeAll(() => {
   writeFileSync(path.join(pluginDir, "style.css"), "p{}", "utf8");
   writeFileSync(path.join(pluginDir, "pic.svg"), "<svg/>", "utf8");
   writeFileSync(path.join(pluginDir, "data.bin"), "binary", "utf8");
-  mkdirSync(path.join(pluginDir, ".cyrene"), { recursive: true });
-  writeFileSync(path.join(pluginDir, ".cyrene", "panel-bridge.js"), "PLUGIN-OWNED", "utf8");
+  mkdirSync(path.join(pluginDir, "plugin-assets"), { recursive: true });
+  writeFileSync(path.join(pluginDir, "plugin-assets", "panel-bridge.js"), "PLUGIN-OWNED", "utf8");
   writeFileSync(path.join(tmp, "plugins", "ghost", "ui.html"), "ghost-panel", "utf8");
   writeFileSync(path.join(assetsDir, "panel-bridge.js"), "HOST-ASSET", "utf8");
   query = (id) => (id === "demo" ? pluginDir : undefined);
@@ -67,14 +67,11 @@ function panelUrl(rawUrl: string): Promise<ReturnType<typeof resolvePluginPanelR
 }
 
 describe("resolvePluginPanelRequest：静态资源路由", () => {
-  it("rejects the retired scheme and treats the old directory as ordinary plugin content", async () => {
-    expect((await panelUrl("cyrene-plugin://demo/ui.html")).status).toBe(404);
-    expect((await panelUrl("cyrene-plugin://ghost/ui.html")).status).toBe(404);
-    expect((await panelUrl("cyrene-plugin://demo/..%5csecret")).status).toBe(404);
-    const response = await panelUrl("firefly-plugin://demo/.cyrene/panel-bridge.js");
+  it("serves plugin-owned nested assets without confusing them with host assets", async () => {
+    const response = await panelUrl("firefly-plugin://demo/plugin-assets/panel-bridge.js");
     expect(response.status).toBe(200);
     if (response.status === 200) expect(response.body.toString()).toBe("PLUGIN-OWNED");
-    expect((await panelUrl("firefly-plugin://ghost/.cyrene/panel-bridge.js")).status).toBe(404);
+    expect((await panelUrl("firefly-plugin://ghost/plugin-assets/panel-bridge.js")).status).toBe(404);
   });
   it("合法面板 HTML 与白名单资源正常返回并带正确内容类型", async () => {
     const html = await panelUrl("firefly-plugin://demo/ui.html");

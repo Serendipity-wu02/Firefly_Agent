@@ -339,7 +339,7 @@ function printSummary(report, outPath) {
 // ── 主流程 ──
 
 async function main() {
-  const outPath = resolve(ROOT, outOverride ?? "docs/internal-issue/perf/baseline-report.json");
+  const outPath = resolve(ROOT, outOverride ?? "output/perf/baseline-report.json");
   if (recordVideoDir) mkdirSync(recordVideoDir, { recursive: true });
   console.log(
     `[perf] 模式: ${smoke ? "冒烟" : "完整基线"}，${headed ? "可见窗口" : "headless"}，seed=${SEED}，流式时长 ${DURATION_MS}ms`,

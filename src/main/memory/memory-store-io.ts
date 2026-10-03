@@ -16,14 +16,6 @@ export function memoryFileExists(filePath: string): boolean {
   return fs.existsSync(filePath)
 }
 
-export function backupMemoryFile(filePath: string): void {
-  if (!fs.existsSync(filePath)) return
-  const dir = path.dirname(filePath)
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
-  const backupPath = path.join(dir, `memory.backup.${timestamp}.json`)
-  fs.copyFileSync(filePath, backupPath)
-}
-
 export function readMemoryFile(filePath: string): Partial<MemoryStore> {
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as Partial<MemoryStore>
 }

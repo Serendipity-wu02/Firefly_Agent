@@ -24,17 +24,7 @@ describe("resolveTransport（用户显式协议）", () => {
     ).toBe("openai");
   });
 
-  it("旧 auto 值不再根据 Base URL 推断，回退到厂商默认协议", () => {
-    expect(
-      resolveTransport({
-        baseUrl: "https://api.anthropic.com/v1",
-        explicitTransport: "auto",
-        provider: "Claude（Anthropic）",
-      }),
-    ).toBe("anthropic");
-  });
-
-  it("旧配置未保存协议时回退到厂商默认协议", () => {
+  it("未选择协议时回退到厂商默认协议", () => {
     expect(
       resolveTransport({
         baseUrl: "https://api.deepseek.com",
@@ -71,8 +61,7 @@ describe("resolveTransport（用户显式协议）", () => {
     ).toBe("responses");
   });
 
-  it("显式 responses 与 auto 在同一档案下往返不丢值", () => {
-    // "auto" 仍只作为旧配置兼容输入回退厂商默认；responses 必须原样透传
+  it("显式 responses 保持原样", () => {
     expect(
       resolveTransport({
         baseUrl: "https://api.openai.com/v1",

@@ -23,11 +23,13 @@ import * as fs from "fs";
 import * as path from "path";
 import { createWorkMarkdownSnapshot } from "./work-markdown-export";
 import { inspectWorkReadFile, isWorkReadScopeCurrent, WORK_READ_PAGE_LINES } from "./work-read-scope";
-import { ensureVaultStructure, isEmptyDirectory } from "../learn/obsidian/vault-init";
+import { ensureVaultStructure } from "../knowledge/obsidian/vault-init";
 import { getDefaultModelProfile, loadModelSettings, resolveModelSettingsProfile } from "../settings/model-settings";
 import { FileToolOutputStore } from "../orchestrator/harness/tool-output/file-tool-output-store";
 import { getHarnessRunStore } from "../orchestrator/harness/run-store";
 import { getConversationTranscriptStore } from "../orchestrator/conversation-transcript-store";
+import { projectSSettlementMessages } from "../orchestrator/conversation-transcript-context";
+import { getStorageContext } from "../storage-context";
 import { getRunReviewTracker } from "../orchestrator/review/run-review-tracker";
 import { getAdapterForConfig } from "../orchestrator/vendors";
 import { activeChatTargetRegistry } from "../plugin-host/active-chat-target";
@@ -63,6 +65,7 @@ const compactingSessions = new Set<string>();
 function visibleUserText(content: string): string {
   return content.replace(/\[sticker:[^\]]+\]/gi, "").trim();
 }
+function stripSProjection(message:ChatMessage):ChatMessage {const {sSettlement:_projection,...stored}=message;return stored}
 
 export function registerChatsIpc(
   ipcOption?: IpcScope,
@@ -93,7 +96,12 @@ export function registerChatsIpc(
     (_event, options?: { mode?: ConversationMode }) => chatsStore.listSessions(options),
   );
 
-  ipc.handle(IPC.CHATS_GET, (_event, id: string) => chatsStore.getSession(id));
+  const project=async<T extends {messages:ChatMessage[]}>(id:string,value:T|null):Promise<T|null>=>{
+    if(!value)return value;
+    const store=getConversationTranscriptStore(getStorageContext().dataRoot);
+    return store.withReadLease(id,async read=>({...value,messages:projectSSettlementMessages(value.messages,(await read()).entries)}));
+  };
+  ipc.handle(IPC.CHATS_GET, (_event, id: string) => project(id,chatsStore.getSession(id)));
   ipc.handle(IPC.CHATS_EXPORT_WORK_MARKDOWN, async (event, id: unknown) => {
     if (typeof id !== "string" || !id) return { ok: false, error: "invalid-session" };
     const session = chatsStore.getSession(id);
@@ -113,7 +121,7 @@ export function registerChatsIpc(
   });
   ipc.handle(IPC.CHATS_GET_PAGE, (_event, payload: { id: string; before?: number | null; limit?: number }) => {
     if (!payload?.id) return null;
-    return chatsStore.getSessionPage(payload.id, payload.before ?? null, payload.limit ?? 80);
+    return project(payload.id,chatsStore.getSessionPage(payload.id, payload.before ?? null, payload.limit ?? 80));
   });
 
   ipc.handle(
@@ -137,7 +145,7 @@ export function registerChatsIpc(
     IPC.CHATS_APPEND,
     (event, payload: { id: string; message: ChatMessage }) => {
       if (!payload || !payload.id || !payload.message) return null;
-      const session = chatsStore.appendMessage(payload.id, payload.message);
+      const session = chatsStore.appendMessage(payload.id, stripSProjection(payload.message));
       if (session) {
         broadcastChanged(event.sender);
         if (payload.message.role === "user") {
@@ -156,7 +164,7 @@ export function registerChatsIpc(
     IPC.CHATS_UPSERT,
     (event, payload: { id: string; message: ChatMessage } | null | undefined) => {
       if (!payload?.id || !payload.message) return null;
-      const session = chatsStore.upsertMessage(payload.id, payload.message);
+      const session = chatsStore.upsertMessage(payload.id, stripSProjection(payload.message));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -181,7 +189,7 @@ export function registerChatsIpc(
     IPC.CHATS_REPLACE_MESSAGES,
     (event, payload: { id: string; messages: ChatMessage[] }) => {
       if (!payload || !payload.id || !Array.isArray(payload.messages)) return null;
-      const session = chatsStore.replaceMessages(payload.id, payload.messages);
+      const session = chatsStore.replaceMessages(payload.id, payload.messages.map(stripSProjection));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -190,7 +198,7 @@ export function registerChatsIpc(
     IPC.CHATS_REPLACE_TAIL,
     (event, payload: { id: string; startIndex: number; messages: ChatMessage[] }) => {
       if (!payload?.id || !Array.isArray(payload.messages)) return null;
-      const session = chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages);
+      const session = chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages.map(stripSProjection));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -517,15 +525,6 @@ export function registerChatsIpc(
     }
   });
 
-  ipc.handle(
-    IPC.CHATS_MIGRATE_LEGACY,
-    (event, messages: ChatMessage[]) => {
-      const session = chatsStore.migrateLegacyMessages(messages);
-      if (session) broadcastChanged(event.sender);
-      return session;
-    },
-  );
-
   // ── 对话工作区绑定 ──────────────────────────────────────
 
   ipc.handle(
@@ -536,7 +535,7 @@ export function registerChatsIpc(
       }
       const existing = chatsStore.getSession(payload.sessionId);
       if (!existing) return { ok: false, error: "session not found" };
-      if (existing.mode !== "work" && existing.mode !== "code" && existing.mode !== "learn") {
+      if (existing.mode !== "work" && existing.mode !== "code") {
         return { ok: false, error: `${existing.mode ?? "unknown"} mode does not support workspace binding` };
       }
       // 路径验证：目录存在 + realpath 解析
@@ -563,9 +562,7 @@ export function registerChatsIpc(
             });
           } catch { /* ignore */ }
         }
-        // Learn 模式：检测目录是否为空，让 renderer 决定是否初始化结构
-        const empty = existing.mode === "learn" ? await isEmptyDirectory(resolved) : false;
-        return { ok: true, binding, isEmpty: empty };
+        return { ok: true, binding };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return { ok: false, error: msg };
@@ -574,14 +571,14 @@ export function registerChatsIpc(
   );
 
   ipc.handle(
-    IPC.CHATS_INIT_LEARN_WORKSPACE,
+    IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE,
     async (_event, sessionId: string) => {
       if (!sessionId) return { ok: false, error: "missing sessionId" };
       const binding = chatsStore.getWorkspaceBinding(sessionId);
       if (!binding) return { ok: false, error: "no workspace binding" };
       const session = chatsStore.getSession(sessionId);
-      if (!session || session.mode !== "learn") {
-        return { ok: false, error: "session is not in learn mode" };
+      if (!session || session.mode !== "work") {
+        return { ok: false, error: "session is not in work mode" };
       }
       const result = await ensureVaultStructure(binding.workspaceRoot);
       if (result.error) return { ok: false, error: result.error };

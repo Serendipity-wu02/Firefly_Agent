@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, firefly-mini-v1.1.x]
   pull_request:
-    branches: [main]
+    branches: [main, chore/project-structure-finalize, firefly-mini-v1.1.x]
 
 permissions:
   contents: read

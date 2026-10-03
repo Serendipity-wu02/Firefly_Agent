@@ -23,8 +23,6 @@ function keepRecentCount(mode: string): number {
     case "work":
     case "code":
       return 6;
-    case "learn":
-      return 10;
     case "chat":
       return 20;
     default:

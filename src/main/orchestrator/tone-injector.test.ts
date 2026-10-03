@@ -16,6 +16,7 @@ describe("Firefly tone injection", () => {
     expect(rules).toContain("共同经历只能依据当前对话或有效用户记忆");
     expect(rules).toContain("可以分点、解释和总结");
     expect(rules).toContain("用户明确设置的称呼优先");
+    expect(rules).not.toContain("Learn");
   });
 
   it("loads the prompt from the existing resolver without another persona parser", () => {

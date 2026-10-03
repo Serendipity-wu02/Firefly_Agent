@@ -256,7 +256,7 @@ describe("loadCharacterPersonas", () => {
   it("目录里立绘池之外的角色卡记跳过日志，不入注册表", () => {
     const root = writePersonasDir({
       "万敌.md": "---\ncomment: 低\nlike: 低\n---\n# 卡",
-      "昔涟.md": "---\ncomment: 高\nlike: 高\n---\n# 行为卡",
+      "未登记角色.md": "---\ncomment: 高\nlike: 高\n---\n# 行为卡",
       "_header.md": "## 注入头\n\n规则",
     });
     const logs: Array<[string, unknown]> = [];
@@ -264,8 +264,8 @@ describe("loadCharacterPersonas", () => {
       promptDirectories: [root],
       log: (event, detail) => logs.push([event, detail]),
     });
-    expect(registry.has("昔涟")).toBe(false);
-    expect(logs).toContainEqual(["character_persona_skipped_no_asset", { nickname: "昔涟" }]);
+    expect(registry.has("未登记角色")).toBe(false);
+    expect(logs).toContainEqual(["character_persona_skipped_no_asset", { nickname: "未登记角色" }]);
   });
 
   it("没有 _header.md 时 headerText 为空串，角色仍可注册", () => {

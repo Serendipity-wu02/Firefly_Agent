@@ -11,15 +11,14 @@
 //   1. safeStorage（OS 钥匙串：Windows DPAPI / macOS Keychain / Linux libsecret）
 //      → 存储前缀 `enc:<base64>`
 //   2. safeStorage 不可用时（headless / 沙盒 / libsecret 没装）：用机器指纹 XOR 混淆
-//      → 存储前缀 `obf:<base64>` —— 不是真加密，但能挡住 cat / grep 这种偷窥
+//      → 存储前缀 `obf2:<base64>` —— 不是真加密，但能挡住 cat / grep 这种偷窥
 //
 // 为什么这样：
 //   - 单纯回退到明文会让"重启后 secret 丢失"成为静默 bug（用户根本不知道）
 //   - 混淆虽然不抗逆向，但保证 secret 至少能 round-trip（重启后能恢复）
 //   - 如果将来发现 safeStorage 不可用且用户在意安全，加一个设置项让他们输口令加密
 import * as fs from "fs";
-import { writeMigratedJson } from "../migration/firefly-data";
-import { decryptLegacyChannelSecret } from "../migration/channel-credentials";
+import { randomUUID } from "node:crypto";
 import * as path from "path";
 import { app, safeStorage } from "electron";
 import type { ChannelId } from "./types";
@@ -29,8 +28,6 @@ import { normalizeQqListenMode, type QqListenMode } from "../../shared/qq-listen
 const ENC_PREFIX = "enc:";
 /** base64 混淆前缀（safeStorage 不可用时的兜底，可 round-trip 但不抗逆向） */
 const OBF_PREFIX = "obf2:";
-/** 明文兜底标记（旧版数据迁移用） */
-const PLAIN_PREFIX = "plain:";
 
 /** 检测当前环境 safeStorage 是否可用。Linux 无 DISPLAY 时不可用。 */
 let safeStorageAvailable: boolean | null = null;
@@ -72,7 +69,6 @@ function obfuscate(plain: string): string {
 
 /** XOR 解混淆（必须和 obfuscate 用同一台机器 —— key 派生自 userData 路径）。 */
 function deobfuscate(stored: string): string {
-  if (stored.startsWith("obf:")) return decryptLegacyChannelSecret(stored, app.getPath("userData"), app.getName());
   const key = getMachineKey();
   const b64 = stored.slice(OBF_PREFIX.length);
   const buf = Buffer.from(b64, "base64");
@@ -98,7 +94,7 @@ function encryptField(plain: string): string {
   return obfuscate(plain);
 }
 
-/** 解密一个字符串。识别 enc:/obf:/plain: 前缀。空字符串返回空。 */
+/** 解密当前 Firefly 凭据格式；未知格式不作为明文返回。 */
 function decryptField(stored: string): string {
   if (!stored) return "";
   if (stored.startsWith(ENC_PREFIX)) {
@@ -115,18 +111,14 @@ function decryptField(stored: string): string {
       throw new Error("CHANNEL_SECRET_DECRYPT_FAILED");
     }
   }
-  if (stored.startsWith(OBF_PREFIX) || stored.startsWith("obf:")) {
+  if (stored.startsWith(OBF_PREFIX)) {
     try {
       return deobfuscate(stored);
     } catch (err) {
       throw new Error("CHANNEL_SECRET_DECRYPT_FAILED");
     }
   }
-  if (stored.startsWith(PLAIN_PREFIX)) {
-    return stored.slice(PLAIN_PREFIX.length);
-  }
-  // 旧数据 / 兜底：当作明文
-  return stored;
+  throw new Error("CHANNEL_SECRET_FORMAT_INVALID");
 }
 
 export interface ChannelRuntimeConfig {
@@ -375,23 +367,23 @@ export function saveChannelsSettings(patch: Partial<ChannelsSettings>): Channels
   if (patch.qqbot) merged.qqbot = { ...existing.qqbot, ...patch.qqbot };
 
   // 私密字段加密边界：UI 传来的是明文，写盘前要 wrap
-  // 避开"密文回传"场景：检测 enc:/obf:/plain: 前缀，避免重复加密。
+  // 避开当前格式密文回传造成的重复加密。
   if (typeof merged.feishu?.appSecret === "string" && merged.feishu.appSecret) {
     const v = merged.feishu.appSecret;
     if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX)) {
-      merged.feishu.appSecret = encryptField(decryptField(v));
+      merged.feishu.appSecret = encryptField(v);
     }
   }
   if (typeof merged.qq?.accessToken === "string" && merged.qq.accessToken) {
     const v = merged.qq.accessToken;
     if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX)) {
-      merged.qq.accessToken = encryptField(decryptField(v));
+      merged.qq.accessToken = encryptField(v);
     }
   }
   if (typeof merged.qqbot?.appSecret === "string" && merged.qqbot.appSecret) {
     const v = merged.qqbot.appSecret;
     if (!v.startsWith(ENC_PREFIX) && !v.startsWith(OBF_PREFIX)) {
-      merged.qqbot.appSecret = encryptField(decryptField(v));
+      merged.qqbot.appSecret = encryptField(v);
     }
   }
 
@@ -399,10 +391,13 @@ export function saveChannelsSettings(patch: Partial<ChannelsSettings>): Channels
   // 写盘时 final.appSecret / final.encryptKey 已经是密文形态（带 enc: 前缀）
   // load 时解密，运行时给上层看到明文。
   fs.mkdirSync(path.dirname(filePath()), { recursive: true });
-  if (fs.existsSync(filePath())) {
-    writeMigratedJson(filePath(), JSON.parse(fs.readFileSync(filePath(), "utf8")), final);
-  } else {
-    fs.writeFileSync(filePath(), JSON.stringify(final, null, 2), { encoding: "utf8", flag: "wx" });
+  const output = filePath();
+  const temporary = `${output}.update-${randomUUID()}`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(final, null, 2), { encoding: "utf8", flag: "wx" });
+    fs.renameSync(temporary, output);
+  } finally {
+    fs.rmSync(temporary, { force: true });
   }
 
   // 返回给上层时再解密一次，让 API 用户拿到明文

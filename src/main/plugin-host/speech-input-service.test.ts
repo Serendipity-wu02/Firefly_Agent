@@ -8,7 +8,6 @@ import {
   type FrozenSpeechInputTarget,
   type SpeechInputLeaseOwner,
 } from "./speech-input-service";
-import { pluginHostError } from "./errors";
 import { createPluginResourceTracker } from "../../plugins/resources";
 
 /** 模拟聊天窗口的 webContents：EventEmitter 提供 on/once/removeListener/isDestroyed。 */
@@ -36,61 +35,10 @@ function setup() {
       commits.push({ target: { ...target }, text });
     }),
   };
-  // 内存通话状态：模拟通话管理器的接管/提交/释放/结束语义
-  const call = {
-    generation: 0,
-    active: false,
-    claimed: false,
-    busy: false,
-    submitted: [] as Array<{ callGeneration: number; text: string }>,
-    releases: [] as number[],
-    listeners: new Set<(generation: number) => void>(),
-    start(): void {
-      call.active = true;
-      call.generation += 1;
-      call.claimed = false;
-    },
-    end(): void {
-      call.active = false;
-      call.claimed = false;
-      const ended = call.generation;
-      for (const listener of [...call.listeners]) listener(ended);
-    },
-  };
-  const callController = {
-    claimExternalInput: () => {
-      if (!call.active) return null;
-      call.claimed = true;
-      return { callGeneration: call.generation };
-    },
-    commitExternalText(callGeneration: number, text: string): void {
-      if (!call.active || callGeneration !== call.generation) {
-        throw pluginHostError("E_NOT_FOUND", "通话已结束");
-      }
-      if (!call.claimed) {
-        throw pluginHostError("E_INTERNAL", "通话输入未被外部租约接管");
-      }
-      if (call.busy) {
-        throw pluginHostError("E_SPEECH_INPUT_BUSY", "通话正在思考或播报中");
-      }
-      call.submitted.push({ callGeneration, text });
-    },
-    releaseExternalInput(callGeneration: number): void {
-      call.releases.push(callGeneration);
-      call.claimed = false;
-    },
-    onCallEnded(listener: (generation: number) => void): () => void {
-      call.listeners.add(listener);
-      return () => {
-        call.listeners.delete(listener);
-      };
-    },
-  };
   const service = createSpeechInputService({
     registry,
     sessionStore: { getSession: (id: string) => (sessions.has(id) ? { id } : null) },
     commitBridge: bridge,
-    callController,
   });
 
   function register(sessionId: string, rendererTargetId = "rt-1"): void {
@@ -104,7 +52,7 @@ function setup() {
     return { owner, controller, tracker };
   }
 
-  return { registry, wc, sessions, bridge, commits, call, service, register, makeOwner };
+  return { registry, wc, sessions, bridge, commits, service, register, makeOwner };
 }
 
 function expectHostError(promise: Promise<unknown>, code: string): Promise<void> {
@@ -112,6 +60,33 @@ function expectHostError(promise: Promise<unknown>, code: string): Promise<void>
 }
 
 describe("createSpeechInputService.acquire", () => {
+  it("拒绝 active-call 且不登记资源、不占用聊天租约", async () => {
+    const ctx = setup();
+    ctx.register("s1");
+    const owner = ctx.makeOwner("plugin-a");
+    const track = vi.spyOn(owner.tracker, "track");
+    await expect(ctx.service.acquireForPlugin(owner.owner, { target: "active-call" as never }))
+      .rejects.toMatchObject({ code: "E_INVALID_ARGUMENT", message: expect.stringContaining("active-call") });
+    expect(track).not.toHaveBeenCalled();
+    const lease = await ctx.service.acquireForPlugin(owner.owner, { target: "active-chat" });
+    await lease.commit("聊天保留");
+    expect(ctx.commits[0].text).toBe("聊天保留");
+  });
+
+  it("已有聊天租约时仍明确拒绝 active-call，聊天租约保持有效", async () => {
+    const ctx = setup();
+    ctx.register("s1");
+    const owner = ctx.makeOwner("plugin-a");
+    const lease = await ctx.service.acquireForPlugin(owner.owner, { target: "active-chat" });
+    await expectHostError(
+      ctx.service.acquireForPlugin(owner.owner, { target: "active-call" as never }),
+      "E_INVALID_ARGUMENT",
+    );
+    expect(lease.signal.aborted).toBe(false);
+    await lease.commit("继续聊天");
+    expect(ctx.commits).toHaveLength(1);
+  });
+
   it("两个插件争抢租约只有一个成功，第二个收到 E_SPEECH_INPUT_BUSY", async () => {
     const ctx = setup();
     ctx.register("s1");
@@ -133,13 +108,13 @@ describe("createSpeechInputService.acquire", () => {
     );
   });
 
-  it("active-call 目标无进行中通话返回 E_NO_ACTIVE_INPUT_TARGET，非法目标返回 E_INVALID_ARGUMENT", async () => {
+  it("active-call 和非法目标返回 E_INVALID_ARGUMENT", async () => {
     const ctx = setup();
     ctx.register("s1");
     const a = ctx.makeOwner("plugin-a");
     await expectHostError(
-      ctx.service.acquireForPlugin(a.owner, { target: "active-call" }),
-      "E_NO_ACTIVE_INPUT_TARGET",
+      ctx.service.acquireForPlugin(a.owner, { target: "active-call" as never }),
+      "E_INVALID_ARGUMENT",
     );
     await expectHostError(
       ctx.service.acquireForPlugin(a.owner, { target: "nowhere" as never }),
@@ -279,6 +254,24 @@ describe("createSpeechInputService.release 与插件停止", () => {
 });
 
 describe("createSpeechInputService.commit", () => {
+  it("release 取消排队提交，旧租约不能写入随后取得的新目标", async () => {
+    const ctx = setup();
+    ctx.register("s1");
+    const owner = ctx.makeOwner("plugin-a");
+    const lease = await ctx.service.acquireForPlugin(owner.owner, { target: "active-chat" });
+    const pending = lease.commit("旧消息");
+    const rejected = expectHostError(pending, "E_NOT_FOUND");
+    await lease.release();
+    ctx.register("s2", "rt-2");
+    const nextLease = await ctx.service.acquireForPlugin(owner.owner, { target: "active-chat" });
+    await rejected;
+    await expectHostError(lease.commit("迟到消息"), "E_NOT_FOUND");
+    await nextLease.commit("新消息");
+    expect(ctx.commits).toEqual([
+      { target: { sessionId: "s2", mode: "chat", rendererTargetId: "rt-2", webContentsId: 7 }, text: "新消息" },
+    ]);
+  });
+
   it("空文本返回 E_INVALID_ARGUMENT", async () => {
     const ctx = setup();
     ctx.register("s1");
@@ -326,142 +319,5 @@ describe("createSpeechInputService.commit", () => {
     shouldFail = false;
     await lease.commit("成功");
     expect(order).toEqual(["成功"]);
-  });
-});
-
-describe("createSpeechInputService active-call 租约", () => {
-  it("取得 active-call 租约会接管通话输入，第二个插件收到 E_SPEECH_INPUT_BUSY", async () => {
-    const ctx = setup();
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const b = ctx.makeOwner("plugin-b");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    expect(ctx.call.claimed).toBe(true);
-    expect(lease.signal.aborted).toBe(false);
-    await expectHostError(
-      ctx.service.acquireForPlugin(b.owner, { target: "active-call" }),
-      "E_SPEECH_INPUT_BUSY",
-    );
-  });
-
-  it("active-call 租约与 active-chat 租约互斥：占用中互相拒绝", async () => {
-    const ctx = setup();
-    ctx.register("s1");
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    await ctx.service.acquireForPlugin(a.owner, { target: "active-chat" });
-    await expectHostError(
-      ctx.service.acquireForPlugin(a.owner, { target: "active-call" }),
-      "E_SPEECH_INPUT_BUSY",
-    );
-  });
-
-  it("commit 走通话控制器且不经过聊天提交桥", async () => {
-    const ctx = setup();
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    await lease.commit("通话文本");
-    expect(ctx.call.submitted).toEqual([{ callGeneration: ctx.call.generation, text: "通话文本" }]);
-    expect(ctx.commits).toHaveLength(0);
-  });
-
-  it("commit 轮次进行中透传控制器的 E_SPEECH_INPUT_BUSY", async () => {
-    const ctx = setup();
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    ctx.call.busy = true;
-    await expectHostError(lease.commit("你好"), "E_SPEECH_INPUT_BUSY");
-  });
-
-  it("通话结束立即中止租约并归还通话输入", async () => {
-    const ctx = setup();
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    ctx.call.end();
-    expect(lease.signal.aborted).toBe(true);
-    expect(ctx.call.releases).toEqual([ctx.call.generation]);
-    await expectHostError(lease.commit("你好"), "E_NOT_FOUND");
-    // 租约中止后全局占用腾出
-    ctx.call.start();
-    const b = ctx.makeOwner("plugin-b");
-    await expect(
-      ctx.service.acquireForPlugin(b.owner, { target: "active-call" }),
-    ).resolves.toBeTruthy();
-  });
-
-  it("新通话代次不同：旧租约已被通话结束中止，不得提交到新通话", async () => {
-    const ctx = setup();
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    const frozenGeneration = ctx.call.generation;
-    ctx.call.end();
-    ctx.call.start();
-    expect(ctx.call.generation).not.toBe(frozenGeneration);
-    await expectHostError(lease.commit("旧代次文本"), "E_NOT_FOUND");
-  });
-
-  it("active-call 租约不受聊天目标失效与会话删除影响", async () => {
-    const ctx = setup();
-    ctx.register("s1");
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    emitNavigation(ctx.wc, true);
-    ctx.sessions.delete("s1");
-    ctx.registry.notifySessionDeleted("s1");
-    expect(lease.signal.aborted).toBe(false);
-    await lease.commit("通话不受聊天侧影响");
-    expect(ctx.call.submitted).toHaveLength(1);
-  });
-
-  it("active-chat 租约不受通话结束影响", async () => {
-    const ctx = setup();
-    ctx.register("s1");
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-chat" });
-    ctx.call.end();
-    expect(lease.signal.aborted).toBe(false);
-    await lease.commit("聊天文本");
-    expect(ctx.commits).toHaveLength(1);
-  });
-
-  it("手动 release 归还通话输入并腾出全局占用", async () => {
-    const ctx = setup();
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    await lease.release();
-    expect(ctx.call.releases).toEqual([ctx.call.generation]);
-    const b = ctx.makeOwner("plugin-b");
-    await expect(
-      ctx.service.acquireForPlugin(b.owner, { target: "active-call" }),
-    ).resolves.toBeTruthy();
-  });
-
-  it("插件停止时释放 active-call 租约并归还通话输入", async () => {
-    const ctx = setup();
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    a.controller.abort();
-    expect(lease.signal.aborted).toBe(true);
-    expect(ctx.call.releases).toEqual([ctx.call.generation]);
-  });
-
-  it("service.dispose 释放 active-call 租约并退订通话结束监听", async () => {
-    const ctx = setup();
-    ctx.call.start();
-    const a = ctx.makeOwner("plugin-a");
-    const lease = await ctx.service.acquireForPlugin(a.owner, { target: "active-call" });
-    ctx.service.dispose();
-    expect(lease.signal.aborted).toBe(true);
-    expect(ctx.call.releases).toEqual([ctx.call.generation]);
-    // dispose 后通话结束不再触发监听（退订验证：无异常即可）
-    ctx.call.end();
   });
 });

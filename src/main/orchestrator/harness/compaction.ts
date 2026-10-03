@@ -10,7 +10,6 @@
  */
 
 import type { ChatMessage } from "../vendors/types";
-import { LEGACY_COMPACTION_CHECKPOINT_OPEN } from "../../../shared/legacy-firefly-contracts";
 import { estimateTokens, estimateMessageTokens } from "../context-manager";
 
 // ── Token 预算计算 ────────────────────────────────────────
@@ -174,8 +173,7 @@ export function isCompactionCheckpointMessage(
 ): boolean {
   return message.role === "system"
     && typeof message.content === "string"
-    && (message.content.includes(COMPACTION_CHECKPOINT_OPEN)
-      || message.content.includes(LEGACY_COMPACTION_CHECKPOINT_OPEN));
+    && message.content.includes(COMPACTION_CHECKPOINT_OPEN);
 }
 
 /** 将已验证的摘要包装为可持久化、可识别的 transcript 检查点。 */

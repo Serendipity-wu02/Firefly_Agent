@@ -29,6 +29,19 @@ it("exposes only current Window and SDK contracts", () => {
   expect(JSON.parse(read("examples/system-status/manifest.json")).author).toBe("Playa");
 });
 
+it("separates current contributors and model terms from upstream provenance", () => {
+  const contributors = read("docs/CONTRIBUTORS.md");
+  expect(contributors).toContain("# Firefly_Agent Contributors");
+  expect(contributors).toContain("Serendipity-wu02");
+  expect(contributors).not.toMatch(/lll69|Unknownuserfrommars|Asuna404|Tobi1chi|boring9720|liyi3068238601|LZhWi|lucifergzsz414|Modusensus|是依七哒/);
+  expect(read("MODEL_LICENSE.md")).toContain("src/renderer/public/models/firefly/");
+  expect(read("MODEL_LICENSE.md")).not.toContain("unrestricted permission");
+  expect(read("THIRD_PARTY_NOTICES.md")).toContain("https://github.com/Playa-0v0/Cyrene-Agent");
+  expect(read("THIRD_PARTY_NOTICES.md")).not.toContain("Existing upstream contributions are recorded");
+  expect(read("LICENSE")).toContain("Copyright (c) 2026 Playa");
+  expect(read("LICENSE")).toContain("Copyright (c) 2026 Serendipity-wu02 (Firefly)");
+});
+
 it("has valid file targets in current navigation", () => {
   for (const file of ["README.md", "docs/README.md", "docs/archive/README.md", "docs/reference/persona/README.md", "docs/architecture/firefly-runtime.md"]) {
     for (const match of read(file).matchAll(/\]\(([^)]+)\)/g)) {
@@ -37,4 +50,21 @@ it("has valid file targets in current navigation", () => {
       expect(fs.existsSync(path.resolve(root, path.dirname(file), decodeURIComponent(link))), `${file}: ${link}`).toBe(true);
     }
   }
+});
+
+it("keeps maintenance tools at their current paths and excludes unused installer artwork", () => {
+  expect(fs.existsSync(path.join(root, "build/installer/installer.nsh"))).toBe(true);
+  expect(fs.existsSync(path.join(root, "build/installer/installer-sidebar.bmp"))).toBe(false);
+  expect(read("electron-builder.yml")).toContain("include: build/installer/installer.nsh");
+  expect(read("electron-builder.yml")).not.toContain("installerSidebar");
+  for (const file of ["loading.png", "icons/mimi.png", "icons/sticker-picker.png", "context-usage/alert.png", "feeling/开心.png"]) {
+    expect(fs.existsSync(path.join(root, "src/renderer/public", file)), file).toBe(false);
+  }
+  for (const file of ["scripts/packaging/upstream-skills/fetch_skills.py", "scripts/packaging/upstream-skills/sources.json", "scripts/verify/sandbox-runtime/check-status.mjs"]) {
+    expect(fs.existsSync(path.join(root, file)), file).toBe(true);
+  }
+  for (const file of ["README.md", "README.en.md", "DEVELOPMENT.md", "scripts/README.md", "resources/README.md", "examples/README.md", "docs/architecture/firefly-runtime.md"]) {
+    expect(read(file), file).not.toMatch(/docs\/refactor\/|docs\/migration\/|docs\/internal-issue\/|poc\/srt|tools\/firefly-upstream-fetch/);
+  }
+  expect(read("scripts/perf/chat-renderer-baseline.mjs")).toContain("output/perf/baseline-report.json");
 });

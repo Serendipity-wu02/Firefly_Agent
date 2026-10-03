@@ -99,7 +99,7 @@ export interface PluginToolContext {
   runId?: string;
   signal?: AbortSignal;
   resolvedWorkspaceRoot?: string;
-  mode?: "chat" | "learn" | "code" | "work";
+  mode?: "chat" | "code" | "work";
   permissionMode?: "normal" | "allow_all";
   metadata?: Record<string, unknown>;
 }
@@ -113,7 +113,7 @@ export interface PluginTool {
   capability?: string;
   enabled: boolean;
   risk?: "safe" | "fs-read" | "fs-write" | "shell" | "network" | "input-control";
-  modes?: Array<"learn" | "code" | "work">;
+  modes?: Array<"code" | "work">;
   inputSchema: {
     type: "object";
     properties: Record<string, PluginJsonSchema>;
@@ -520,8 +520,8 @@ export interface PluginScheduledTaskHistory {
   summary?: string;
 }
 
-/** 语音输入目标：普通聊天窗口或活动通话，二选一。 */
-export type PluginSpeechInputTarget = "active-chat" | "active-call";
+/** 语音输入目标：普通聊天窗口。 */
+export type PluginSpeechInputTarget = "active-chat";
 
 export interface PluginSpeechInputAcquireOptions {
   target: PluginSpeechInputTarget;
@@ -559,7 +559,7 @@ export interface PluginDeps {
 
 export type PluginCleanup = () => void | Promise<void>;
 
-export type PluginPromptMode = "chat" | "work" | "learn" | "code";
+export type PluginPromptMode = "chat" | "work" | "code";
 
 /**
  * 提示词 Provider 的场景来源。新增场景默认不收录既有 Provider，

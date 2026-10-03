@@ -4,7 +4,7 @@
 import type { ToolEffectKind } from "../orchestrator/tools/registry/tool-registry";
 
 /** Skill 可用的会话模式。chat 模式不暴露 skill。 */
-export type SkillMode = "work" | "code" | "learn";
+export type SkillMode = "work" | "code";
 
 /** 一个 skill 的完整内存表示。 */
 export interface SkillEntry {
@@ -19,10 +19,10 @@ export interface SkillEntry {
   enabled: boolean;      // 运行时状态，持久化到 settings.json
   source: "builtin" | "user";  // 来源
   manifest?: SkillManifest;
-  /** Skill 声明的工具效果类型。未声明时 invoke_skill 会被 ExecutionPolicyGuard 拒绝。 */
+  /** Skill 指令加载的效果元数据；未声明解析为 unknown，不授予实际工具权限。 */
   effectKind?: ToolEffectKind;
-  /** Skill 默认可用的会话模式白名单。未设置 = 全模式通用（向后兼容）。
-   *  仅 work/code/learn 参与过滤；可被 SkillModeOverrides 覆盖。 */
+  /** Skill 默认可用的会话模式白名单。未设置 = Work/Code 通用。
+   *  仅 work/code 参与过滤；可被 SkillModeOverrides 覆盖。 */
   modes?: SkillMode[];
   /** 不在 UI 设置面板展示（如角色语气校准等系统级 skill）。 */
   hiddenFromUi?: boolean;

@@ -1,5 +1,5 @@
 import * as fs from "fs";
-import { ensureFireflyExportManifest } from "../migration/firefly-data";
+import { fireflyExportManifest } from "../firefly-data-paths";
 import * as path from "path";
 import { memoryStore } from "./memory-store";
 import { entityGraph } from "./entity-graph";
@@ -437,7 +437,7 @@ export async function exportMemoryToObsidianVault(outputDir: string): Promise<Ex
     const conflictDir = path.join(outputDir, CONFLICT_DIR);
 
     // 2. 读旧 manifest，删除上次导出的文件（用户自己加的 md 不动）
-    const manifestPath = ensureFireflyExportManifest(outputDir);
+    const manifestPath = fireflyExportManifest(outputDir);
     const writtenFiles: string[] = [];
     if (fs.existsSync(manifestPath)) {
       try {

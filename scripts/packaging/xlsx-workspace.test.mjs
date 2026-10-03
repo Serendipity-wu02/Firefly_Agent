@@ -14,9 +14,8 @@ const relationshipType = "http://schemas.openxmlformats.org/officeDocument/2006/
 async function runFindLabel(target, options = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "firefly-xlsx-test-"));
   try {
-    const archive = await JSZip.loadAsync(await fs.readFile(path.join(root, "vendor/firefly-skills/skills-snapshot.zip")));
     const script = path.join(directory, "xlsx_workspace.py");
-    await fs.writeFile(script, await archive.file("xlsx/scripts/xlsx_workspace.py").async("nodebuffer"));
+    await fs.copyFile(path.join(root, "vendor/firefly-skills/skills/xlsx/scripts/xlsx_workspace.py"), script);
     const workbook = new JSZip();
     const sheetName = options.sheetName ?? "Public Sheet";
     workbook.file("xl/workbook.xml", `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${sheetName}" sheetId="1" r:id="rId1"/></sheets></workbook>`);

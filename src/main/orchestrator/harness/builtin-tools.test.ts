@@ -6,8 +6,8 @@ import {
   formatAskUserPreview,
   updateTodoToolSpec,
   executeUpdateTodo,
-  taskToolSpec,
-  executeTask,
+  delegateAgentToolSpec,
+  executeDelegateAgent,
   getHarnessBuiltinToolSpecs,
 } from "./builtin-tools";
 import type { AgentState } from "./types";
@@ -28,32 +28,32 @@ function currentState(): AgentState {
 describe("Harness user-wait builtins", () => {
   it("omits interactive builtins when the channel cannot render Ask", () => {
     expect(getHarnessBuiltinToolSpecs({ includeInteractive: false }).map((tool) => tool.name))
-      .toEqual(["update_todo", "task", "read_tool_result"]);
+      .toEqual(["update_todo", "read_tool_result"]);
   });
 
   it("omits task when the run has no task executor", () => {
-    expect(getHarnessBuiltinToolSpecs({ includeInteractive: false, includeTask: false }).map((tool) => tool.name))
+    expect(getHarnessBuiltinToolSpecs({ includeInteractive: false, includeAgent: false }).map((tool) => tool.name))
       .toEqual(["update_todo", "read_tool_result"]);
   });
 
   it("validates and delegates a foreground task without exposing its prompt", async () => {
-    const executor = vi.fn(async () => ({ taskId: "task-1", status: "completed" as const, text: "已检查。" }));
-    const result = await executeTask({ id: "task-call", name: "task", arguments: JSON.stringify({
-      description: "检查取消链路", prompt: "检查取消传播并给出证据", subagent_type: "general",
+    const executor = vi.fn(async () => ({ agentId: "review", sessionId: "session-1", status: "completed" as const, text: "已检查。" }));
+    const result = await executeDelegateAgent({ id: "delegate-call", name: "delegate_agent", arguments: JSON.stringify({
+      agent_id: "review", prompt: "检查取消传播并给出证据",
     }) }, executor);
 
-    expect(taskToolSpec.name).toBe("task");
-    expect(JSON.stringify(taskToolSpec.parameters)).toContain("companion_id");
-    expect((taskToolSpec.parameters as { required: string[] }).required).not.toContain("companion_id");
-    expect(taskToolSpec.description).not.toContain("黄金裔");
-    expect(executor).toHaveBeenCalledWith({ description: "检查取消链路", prompt: "检查取消传播并给出证据", subagentType: "general", companionId: "", taskId: undefined });
-    expect(result.output).toContain("task-1");
+    expect(delegateAgentToolSpec.name).toBe("delegate_agent");
+    expect(Object.keys(delegateAgentToolSpec.parameters.properties)).toEqual(["agent_id", "prompt"]);
+    expect(delegateAgentToolSpec.parameters.required).not.toContain("companion_id");
+    expect(delegateAgentToolSpec.description).not.toContain("黄金裔");
+    expect(executor).toHaveBeenCalledWith({ agentId: "review", prompt: "检查取消传播并给出证据" });
+    expect(result.output).toContain("session-1");
     expect(result.message).not.toContain("检查取消传播");
   });
   it("rejects unknown display characters before creating a child task", async () => {
     const executor = vi.fn();
-    const result = await executeTask({ id: "task-call", name: "task", arguments: JSON.stringify({
-      description: "检查取消链路", prompt: "检查取消传播", subagent_type: "general", companion_id: "风堇",
+    const result = await executeDelegateAgent({ id: "delegate-call", name: "delegate_agent", arguments: JSON.stringify({
+      agent_id: "review", prompt: "检查取消传播", companion_id: "风堇",
     }) }, executor);
 
     expect(result).toMatchObject({ outcome: "failure", category: "invalid_arguments" });
@@ -61,8 +61,8 @@ describe("Harness user-wait builtins", () => {
   });
   it("requires a non-empty task prompt", async () => {
     const executor = vi.fn();
-    const result = await executeTask({ id: "task-call", name: "task", arguments: JSON.stringify({
-      description: "检查取消链路", prompt: "", subagent_type: "general",
+    const result = await executeDelegateAgent({ id: "delegate-call", name: "delegate_agent", arguments: JSON.stringify({
+      agent_id: "review", prompt: "",
     }) }, executor);
 
     expect(result).toMatchObject({ outcome: "failure", category: "invalid_arguments" });

@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { ensureFireflyDataDirectory } from "../../migration/firefly-data";
+import { fireflyDataDirectory } from "../../firefly-data-paths";
 import path from "node:path";
 import type { ChatMessage } from "../vendors/types";
 import { INITIAL_HARNESS_CACHE_STATE, type AgentState, type HarnessCacheState, type SideEffectKind } from "./types";
@@ -138,7 +138,7 @@ export class HarnessRunStore {
   private checkpointCount = 0;
 
   constructor(userDataRoot: string, options: HarnessRunStoreOptions = {}) {
-    this.root = ensureFireflyDataDirectory(userDataRoot, "runs");
+    this.root = fireflyDataDirectory(userDataRoot, "runs");
     this.sessionsDir = path.join(this.root, SESSIONS_DIR_NAME);
     this.indexPath = path.join(this.root, INDEX_FILE_NAME);
     this.now = options.now ?? Date.now;

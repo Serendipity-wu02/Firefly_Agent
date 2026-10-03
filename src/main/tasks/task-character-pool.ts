@@ -1,4 +1,5 @@
 import { TASK_CHARACTERS } from "../../shared/task-characters";
+import { SPECIALIST_AGENTS } from "../../shared/specialist-agents";
 
 export { TASK_CHARACTERS } from "../../shared/task-characters";
 
@@ -6,14 +7,15 @@ export function getTaskCompanionNames(): readonly string[] {
   return TASK_CHARACTERS.map((character) => character.nickname);
 }
 
-export function buildTaskCompanionPrompt(): string {
-  const names = getTaskCompanionNames();
+export function buildTaskCompanionPrompt(mode: "work" | "code" = "work"): string {
+  const names = SPECIALIST_AGENTS.filter(agent => agent.supportedModes.includes(mode))
+    .map(agent => `${agent.id}（${agent.nickname}）：${agent.role}`);
   return names.length === 0
     ? ""
     : [
-      `可选的子任务展示角色：${names.join("、")}。`,
-      "task 的 subagent_type 决定执行职责与工具范围；companion_id 只选择展示角色，不改变权限、任务路由或子任务人设。",
-      "未指定展示角色时可以省略 companion_id；不要为这些角色编造专属经历或能力。",
+      `当前模式的专业 Agent：${names.join("；")}。`,
+      "仅在工具可用时由主 Agent 调用 delegate_agent，参数只有 agent_id 和 prompt。角色不授予权限，工具与 Skills 必须在父运行授权范围内。",
+      "子 Agent 不得再次委派、询问用户或确认父级副作用；不要编造角色与当前用户的共同经历。",
     ].join("\n");
 }
 

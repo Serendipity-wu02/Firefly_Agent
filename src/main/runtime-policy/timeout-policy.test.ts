@@ -15,7 +15,6 @@ describe("resolveTimeoutPolicy", () => {
       ["asr-mossland", 30_000],
       ["external-http", 30_000],
       ["vision-caption", 30_000],
-      ["call-management", 30_000],
     ];
     for (const [stage, expectedMs] of cases) {
       const policy = resolveTimeoutPolicy({ stage });

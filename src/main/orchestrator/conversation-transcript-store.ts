@@ -23,10 +23,22 @@ import {
   type TranscriptSnapshot,
 } from "./conversation-transcript-types";
 
+import { assertSAssistantAppend, assertSAssistantSettlement, classifySAssistantSettlement } from "./conversation-transcript-settlement";
+
+export class TranscriptPersistenceError extends Error {
+  constructor(cause: unknown) {
+    super("TRANSCRIPT_S_PERSISTENCE_UNKNOWN", {cause});
+  }
+}
 const ROOT_DIR_NAME = "transcripts";
 const JSONL_FILE_NAME = "transcript.jsonl";
 const SNAPSHOT_FILE_NAME = "snapshot.json";
 const SCHEMA_VERSION = 1;
+
+export type TranscriptMutation = "append" | "delete" | "repair";
+
+/** Optional trusted Main append gate; no IPC/caller JSON callbacks. */
+export interface TranscriptAppendGuard {throughSeq:number;validate:()=>Promise<void>;commit:(write:()=>Promise<TranscriptEntry>)=>Promise<TranscriptEntry>}
 
 export interface ConversationTranscriptStoreOptions {
   now?: () => number;
@@ -80,44 +92,109 @@ export class ConversationTranscriptStore {
   private readonly now: () => number;
   /** 每会话写队列尾（settled promise），串行化所有文件操作。 */
   private readonly queues = new Map<string, Promise<void>>();
+  private readonly mutationObservers = new Map<string, (kind: TranscriptMutation, entry?: TranscriptEntry) => Promise<void>>();
 
   constructor(userDataRoot: string, options?: ConversationTranscriptStoreOptions) {
     this.root = path.join(userDataRoot, ROOT_DIR_NAME);
     this.now = options?.now ?? (() => Date.now());
   }
 
-  append(conversationId: string, input: TranscriptAppendInput): Promise<TranscriptEntry> {
+  append(conversationId: string, input: TranscriptAppendInput, guard?: TranscriptAppendGuard): Promise<TranscriptEntry> {
     // 入队前先做协议校验，非法草稿快速失败且不占队列
     assertValidTranscriptDraft(input);
+    const sWrite = input.kind === "assistant_settlement" || input.kind === "assistant" && Object.hasOwn(input, "sSettlement");
+    if (sWrite)
+      input = structuredClone(input);
     return this.enqueue(conversationId, async () => {
       const state = await this.loadState(conversationId);
-
+      if (guard) {
+        if (state.maxSeq !== guard.throughSeq)
+          throw Error("MEMORY_CONTEXT_TRANSCRIPT_STALE");
+        await guard.validate();
+      }
       // 幂等主键：entryId 已存在，first-write-wins，返回原条目
       const existingById = state.entries.find((entry) => entry.id === input.id);
       if (existingById) {
-        if (existingById.kind !== input.kind) throw new Error("TRANSCRIPT_IDEMPOTENCY_CONFLICT");
+        if (guard)
+          throw Error("MEMORY_CONTEXT_STREAM_RUN_REUSED");
+        if (existingById.kind !== input.kind)
+          throw new Error("TRANSCRIPT_IDEMPOTENCY_CONFLICT");
+        if (input.kind === "assistant_settlement" && existingById.kind === "assistant_settlement") {
+          const { safeReason: _a, ...expected } = input.payload, { safeReason: _b, ...persisted } = existingById.payload;
+          if (!deepEqual(expected, persisted) || classifySAssistantSettlement(state.entries, input.payload.binding.assistantEntryId) !== input.payload.result)
+            throw Error("TRANSCRIPT_S_SETTLEMENT_CONFLICT");
+          try { await this.syncJsonl(conversationId); }
+          catch (error) { throw new TranscriptPersistenceError(error); }
+        }
+        else if (sWrite && !sameSemanticContent(input, existingById))
+          throw Error("TRANSCRIPT_S_BINDING_INVALID");
         return existingById;
       }
-
       // user 次级键 (turnId, revision)：同键语义等价吸收返回持有者，内容不同抛冲突
       if (input.kind === "user" && input.turnId && input.revision) {
-        const holder = state.entries.find(
-          (entry) =>
-            entry.kind === "user" && entry.turnId === input.turnId && entry.revision === input.revision,
-        );
+        const holder = state.entries.find((entry) => entry.kind === "user" && entry.turnId === input.turnId && entry.revision === input.revision);
         if (holder) {
-          if (sameSemanticContent(input, holder)) return holder;
+          if (sameSemanticContent(input, holder))
+            return holder;
           throw new Error("TRANSCRIPT_IDEMPOTENCY_CONFLICT");
         }
       }
-
+      if (input.kind === "assistant_settlement")
+        assertSAssistantSettlement(state.entries, input);
+      else if (input.kind === "assistant" && input.sSettlement)
+        assertSAssistantAppend(state.entries, {
+          runId: input.runId!, assistantTurnId: input.turnId!, userTurnId: input.sSettlement.userTurnId, userRevision: input.sSettlement.userRevision,
+        });
       // seq 只在队列内分配：现有最大 seq + 1（快照基线 + 已重放增量）
       const entry = { ...input, seq: state.maxSeq + 1, at: input.at ?? this.now() } as TranscriptEntry;
+      await this.beforeMutation(conversationId, "append", structuredClone(entry));
       const dir = this.conversationDir(conversationId);
       await fs.promises.mkdir(dir, { recursive: true });
-      await fs.promises.appendFile(path.join(dir, JSONL_FILE_NAME), `${JSON.stringify(entry)}\n`, "utf8");
-      return entry;
+      // The final Main gate calls this write directly while holding its coordinator.
+      let dispatched = false;
+      const write = async () => {
+        dispatched = true;
+        await fs.promises.appendFile(path.join(dir, JSONL_FILE_NAME), `${JSON.stringify(entry)}\n`, "utf8");
+        if (sWrite)
+          await this.syncJsonl(conversationId);
+        return entry;
+      };
+      try {
+        return guard ? await guard.commit(write) : await write();
+      }
+      catch (error) {
+        if (sWrite && dispatched)
+          throw new TranscriptPersistenceError(error);
+        throw error;
+      }
     });
+  }
+
+  /** Re-read and sync a complete exact marker after uncertain append acknowledgement; never retries a write. */
+  confirmSAssistantSettlement(conversationId: string, draft: Extract<TranscriptAppendInput, {kind: "assistant_settlement"}>): Promise<boolean> {
+    assertValidTranscriptDraft(draft);
+    const expected = structuredClone(draft);
+    return this.enqueue(conversationId, async () => {
+      const state = await this.loadState(conversationId), found = state.entries.find(entry => entry.id === expected.id);
+      if (!found || found.kind !== "assistant_settlement")
+        return false;
+      const { safeReason: _a, ...a } = found.payload, { safeReason: _b, ...b } = expected.payload;
+      if (!deepEqual(a, b) || found.runId !== expected.runId || found.turnId !== expected.turnId
+        || classifySAssistantSettlement(state.entries, expected.payload.binding.assistantEntryId) !== expected.payload.result)
+        return false;
+      await this.syncJsonl(conversationId);
+      return true;
+    });
+  }
+
+  private async syncJsonl(conversationId: string): Promise<void> {
+    const handle = await fs.promises.open(path.join(this.conversationDir(conversationId), JSONL_FILE_NAME), "r+");
+    try {
+      await handle.sync();
+    }
+    finally {
+      await handle.close();
+    }
   }
 
   read(conversationId: string): Promise<TranscriptSnapshot> {
@@ -160,8 +237,54 @@ export class ConversationTranscriptStore {
 
   deleteConversation(conversationId: string): Promise<void> {
     return this.enqueue(conversationId, async () => {
+      await this.beforeMutation(conversationId, "delete");
       await fs.promises.rm(this.conversationDir(conversationId), { recursive: true, force: true });
     });
+  }
+
+
+  /** A single trusted Main observer; inactive by default for ordinary stores. */
+  observeMutations(conversationId: string, before: (kind: TranscriptMutation, entry?: TranscriptEntry) => Promise<void>): () => void {
+    this.conversationDir(conversationId);
+    if (this.mutationObservers.has(conversationId)) throw new Error("TRANSCRIPT_OBSERVER_EXISTS");
+    this.mutationObservers.set(conversationId, before);
+    return () => {
+      if (this.mutationObservers.get(conversationId) === before) this.mutationObservers.delete(conversationId);
+    };
+  }
+
+  /** Hold the existing queue through the consumer's read/validate/publish operation. */
+  withReadLease<T>(conversationId: string, operation: (read: () => Promise<TranscriptSnapshot>) => Promise<T>): Promise<T> {
+    this.conversationDir(conversationId);
+    return this.enqueue(conversationId, async () => {
+      let active = true;
+      let pending: Promise<LoadedConversationState> | undefined;
+      const read = async (): Promise<TranscriptSnapshot> => {
+        if (!active) throw new Error("TRANSCRIPT_LEASE_EXPIRED");
+        if (!pending) {
+          pending = this.loadState(conversationId);
+          void pending.catch(() => undefined);
+        }
+        const state = await pending;
+        return structuredClone({
+          schemaVersion: SCHEMA_VERSION,
+          throughSeq: state.maxSeq,
+          entries: state.entries,
+          seenEntryIds: [...state.seenEntryIds],
+          seenUserRevisions: [...state.seenUserRevisions],
+        });
+      };
+      try { return await operation(read); }
+      finally {
+        active = false;
+        // Even a consumer that forgot to await its read cannot release the queue early.
+        await pending?.then(() => undefined, () => undefined);
+      }
+    });
+  }
+
+  private async beforeMutation(conversationId: string, kind: TranscriptMutation, entry?: TranscriptEntry): Promise<void> {
+    await this.mutationObservers.get(conversationId)?.(kind, entry);
   }
 
   /** 会话目录（含路径穿越校验）。 */
@@ -198,6 +321,7 @@ export class ConversationTranscriptStore {
     // 尾行容错：只修剪非空的未终止或不可解析的尾行，保留此前所有合法条目
     const { kept, lines } = repairTruncatedTail(text);
     if (kept !== text) {
+      await this.beforeMutation(conversationId, "repair");
       await fs.promises.mkdir(dir, { recursive: true });
       await fs.promises.truncate(jsonlFile, Buffer.byteLength(kept, "utf8"));
     }

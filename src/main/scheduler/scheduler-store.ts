@@ -74,7 +74,7 @@ function normalizeToolMode(value: unknown): SchedulerToolMode {
 }
 
 function normalizeMode(value: unknown): PluginPromptMode | undefined {
-  return value === "chat" || value === "work" || value === "learn" || value === "code" ? value : undefined;
+  return value === "chat" || value === "work" || value === "code" ? value : undefined;
 }
 
 function normalizeLoadedTask(raw: unknown): ScheduledTask | null {
@@ -104,7 +104,7 @@ function normalizeLoadedTask(raw: unknown): ScheduledTask | null {
     ...(ownerPluginId ? {
       ownerPluginId,
       pluginUserEnabled: task.pluginUserEnabled === true,
-      mode: normalizeMode(task.mode),
+      mode: (task.mode as unknown) === "learn" ? "work" : normalizeMode(task.mode),
       approvalFingerprint: typeof task.approvalFingerprint === "string" ? task.approvalFingerprint : "",
     } : {}),
   };

@@ -119,6 +119,7 @@ vi.mock("./user-choice", () => ({
 vi.mock("./permission", () => ({
   cancelPendingApprovalsForRun: vi.fn(),
   checkPermission: vi.fn(),
+  getCurrentLevel: () => "read-only",
 }));
 
 describe("agui-bridge sticker event ordering", () => {
@@ -184,7 +185,7 @@ describe("agui-bridge sticker event ordering", () => {
     mocks.getSession.mockReturnValue({
       id: "chat-pending",
       mode: "chat",
-      messages: [{ id: "msg-user-1", role: "user", content: "你好", at: 1 }],
+      messages: [{ id: "msg-user-1", role: "user", content: "你好", at: 1 },{id:"msg-assistant-1",role:"model",content:"",at:2,answersUserMessageId:"msg-user-1"}],
     });
     const { registerAgUiIpc } = await import("./agui-bridge");
     const { createPendingTurnLifecycle } = await import("./plugin-host/pending-turn-lifecycle");
@@ -572,7 +573,7 @@ describe("agui-bridge sticker event ordering", () => {
     if (!handler) throw new Error("AGUI_RUN handler was not registered");
     await handler(
       { sender },
-      { messages: [{ role: "user", content: "累了" }], sessionId: "chat-sticker", style: "01_default.md" },
+      { messages: [{ role: "user", content: "累了" }], sessionId: "chat-sticker", styleId: "default" },
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -1251,6 +1252,12 @@ describe("agui-bridge sticker event ordering", () => {
 // 同一会话同一时刻最多一个 active run；不同会话允许并发。
 // 渲染端 busy 队列只是 UX 优化，主进程守卫才是跨进程最终一致性边界。
 describe("agui-bridge session run guard", () => {
+  it("rejects a supplied retired mode before starting an agent", async () => {
+    mocks.getSession.mockReturnValue({ id: "work", mode: "work", messages: [] });
+    const { runHandler } = await setupBridge();
+    await expect(runHandler({ sender: makeSender() }, { sessionId: "work", mode: "learn" })).rejects.toThrow("INVALID_CONVERSATION_MODE");
+    expect(mocks.runFireflyAgent).not.toHaveBeenCalled();
+  });
   const defaultBuildOptions = async () => ({
     options: {
       settings: { provider: "test", baseUrl: "", model: "", apiKey: "", contextWindowTokens: 256000 },
@@ -1285,6 +1292,41 @@ describe("agui-bridge session run guard", () => {
     if (!runHandler) throw new Error("AGUI_RUN handler was not registered");
     return { bridge, runHandler };
   }
+
+  it("hands the controlled stream a real sink and an active guard bound to its own run", async () => {
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),"bridge-controlled-"));mocks.userDataRoot=root;
+    mocks.getSession.mockReturnValue({id:"guard-controlled",mode:"chat",messages:[{id:"u1",role:"user",content:"synthetic",at:1},{id:"a1",role:"model",content:"",at:2,answersUserMessageId:"u1"}]});
+    mocks.skipDefaultRunFinished=true;mocks.neverComplete=true;mocks.completeOnAbort=true;
+    try{
+      const {bridge,runHandler}=await setupBridge(async()=>{
+        const built=await defaultBuildOptions();return {...built,options:{...built.options,conversationId:"guard-controlled",controlledResponses:vi.fn()}};
+      });
+      const sender=makeSender(),input={messages:[{role:"user",content:"synthetic"}],sessionId:"guard-controlled",userTurnId:"u1",assistantTurnId:"a1"};
+      const first=await runHandler({sender},input) as {runId:string};
+      const options1=mocks.runFireflyAgent.mock.calls[0][0] as any;
+      const {requireTranscriptSinkBinding}=await import("./orchestrator/transcript-sink");
+      requireTranscriptSinkBinding(options1.transcriptSink,{conversationId:"guard-controlled",runId:first.runId,assistantTurnId:"a1"});
+      expect(options1.isControlledRunCurrent()).toBe(true);
+      const second=await runHandler({sender},{...input,takeoverFromRunId:first.runId}) as {runId:string};
+      const options2=mocks.runFireflyAgent.mock.calls[1][0] as any;
+      expect(options1.isControlledRunCurrent()).toBe(false);expect(options2.isControlledRunCurrent()).toBe(true);
+      expect(options1.signal.aborted).toBe(true);expect(options2.runId).toBe(second.runId);
+      await mocks.handlers.get(IPC.AGUI_CANCEL)!({},second.runId);
+      await vi.waitFor(()=>expect(bridge.__getSessionActiveRunForTest("guard-controlled")).toBeUndefined());
+      expect(options2.isControlledRunCurrent()).toBe(false);
+    }finally{mocks.userDataRoot="";fs.rmSync(root,{recursive:true,force:true})}
+  });
+  it("controlled bare completion without durable S confirmation emits runtime error and skips success effects",async()=>{
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),"bridge-s-unconfirmed-"));mocks.userDataRoot=root;
+    mocks.getSession.mockReturnValue({id:"unconfirmed",mode:"chat",messages:[{id:"u",role:"user",content:"synthetic",at:1},{id:"a",role:"model",content:"",at:2,answersUserMessageId:"u"}]});mocks.skipDefaultRunFinished=true;
+    try{
+      vi.resetModules();mocks.handlers.clear();const bridge=await import("./agui-bridge"),effects=vi.fn(async()=>({}));
+      bridge.registerAgUiIpc(async()=>{const built=await defaultBuildOptions();return {...built,options:{...built.options,conversationId:"unconfirmed",controlledResponses:vi.fn()}}},effects,()=>null);
+      const sender={...makeSender(),send:vi.fn()};await mocks.handlers.get(IPC.AGUI_RUN)!({sender},{messages:[],sessionId:"unconfirmed",userTurnId:"u",assistantTurnId:"a"});
+      await vi.waitFor(()=>expect(sender.send).toHaveBeenCalledWith(IPC.AGUI_EVENT,expect.objectContaining({type:"RUN_ERROR",code:"MEMORY_CONTEXT_SETTLEMENT_UNKNOWN"})));
+      expect(effects).not.toHaveBeenCalled();expect(sender.send.mock.calls.some(call=>(call[1] as any)?.type==="RUN_FINISHED")).toBe(false);
+    }finally{mocks.userDataRoot="";fs.rmSync(root,{recursive:true,force:true})}
+  });
 
   it("rejects a second same-session run with SESSION_RUN_ACTIVE while the first is unsettled", async () => {
     mocks.getSession.mockReturnValue({ id: "guard-1", mode: "chat" });
@@ -1855,7 +1897,7 @@ describe("agui-bridge transcript dispatch", () => {
   });
 
   // ── 四模式连续性验收：下一轮模型请求由权威轨迹物化（CTA Phase 1）──
-  it.each(["chat", "work", "code", "learn"] as const)(
+  it.each(["chat", "work", "code"] as const)(
     "%s 模式下一轮模型请求使用权威轨迹上下文",
     async (mode) => {
       const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-modes-"));
@@ -2073,4 +2115,15 @@ describe("resolveTranscriptContextSource", () => {
     const { resolveTranscriptContextSource } = await import("./agui-bridge");
     expect(resolveTranscriptContextSource("bogus")).toBe("transcript");
   });
+});
+
+it("provisions the private controlled observer before the actual canonical user commit",async()=>{
+ vi.resetModules();mocks.handlers.clear();mocks.agentEvents=[];mocks.neverComplete=false;mocks.skipDefaultRunFinished=false;mocks.runFinishedResult=undefined;
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-early-observer-"));mocks.userDataRoot=root;
+ mocks.getSession.mockReturnValue({id:"early-session",mode:"chat",messages:[{id:"fresh-user",role:"user",content:"fresh ordinary question",at:1000},{id:"fresh-assistant",role:"model",content:"",at:1001,answersUserMessageId:"fresh-user"}]});
+ const {registerAgUiIpc}=await import("./agui-bridge"),{getConversationTranscriptStore}=await import("./orchestrator/conversation-transcript-store");
+ const store=getConversationTranscriptStore(root),observed:string[]=[];let close:(()=>void)|undefined;
+ const build=Object.assign(async()=>({options:{settings:{provider:"test",baseUrl:"",model:"",apiKey:""},messages:[],timeoutMs:0,toolSystemContent:"",soulSystemBaseContent:""},latestUserText:"fresh ordinary question"}),{prepareTranscript:async()=>{close=store.observeMutations("early-session",async(kind,entry)=>{if(kind==="append"&&entry?.kind==="user")observed.push(entry.payload.text)})}});
+ registerAgUiIpc(build,async()=>({}),()=>null);
+ try{await mocks.handlers.get(IPC.AGUI_RUN)!({sender:{isDestroyed:()=>false,send:()=>{}}},{sessionId:"early-session",userTurnId:"fresh-user",assistantTurnId:"fresh-assistant",messages:[]});expect(observed).toEqual(["fresh ordinary question"])}finally{close?.();mocks.userDataRoot="";fs.rmSync(root,{recursive:true,force:true})}
 });

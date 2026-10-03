@@ -9,7 +9,3 @@ export const asrAliyunAccessKeySecretInput = document.getElementById("asr-aliyun
 export const asrMosslandConfig = document.getElementById("asr-mossland-config");
 export const asrMosslandKeyInput = document.getElementById("asr-mossland-key") as HTMLInputElement | null;
 export const asrLanguageSelect = document.getElementById("asr-language") as HTMLSelectElement | null;
-export const asrVadSilenceInput = document.getElementById("asr-vad-silence") as HTMLInputElement | null;
-export const asrVadThresholdInput = document.getElementById("asr-vad-threshold") as HTMLInputElement | null;
-export const asrVadThresholdValue = document.getElementById("asr-vad-threshold-value");
-export const asrShowTranscriptCheckbox = document.getElementById("asr-show-transcript") as HTMLInputElement | null;

@@ -83,7 +83,7 @@ export interface AgentLoopSettings {
   baseUrl: string;
   model: string;
   apiKey: string;
-  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+  explicitTransport?: "openai" | "anthropic" | "responses";
   reasoning?: import("../../shared/reasoning").ReasoningPreference;
   /** 用户设置的模型上下文窗口（Token）。用于非 code 模式的对话压缩触发阈值。 */
   contextWindowTokens: number;
@@ -93,6 +93,9 @@ export type AgentExecutionMode = "work" | "chat";
 
 /** FireflyAgent.run() 需要的输入——桥层构造好后塞进 input.state 或 forwardedProps。 */
 export interface FireflyRunOptions {
+  /** Main-only default-absent S stream injection; never rebuilds through legacy loops. */
+  controlledResponses?:import("./controlled-responses").ControlledResponsesRun;
+  isControlledRunCurrent?:()=>boolean;
   settings: AgentLoopSettings;
   /** 本 Run 快照的 Harness 安全工具并发上限。 */
   maxParallelToolCalls?: number;
@@ -119,7 +122,7 @@ export interface FireflyRunOptions {
   trustedRefs?: string[];
   /** Chat 跳过 CITA/Native FC；默认 Work。 */
   executionMode?: AgentExecutionMode;
-  /** 原始 UI 模式（work / learn / chat / code），供工具做模式隔离。 */
+  /** 原始 UI 模式（work / chat / code），供工具做模式隔离。 */
   conversationMode?: ConversationMode;
   workReadScopes?: import("../../shared/chat-types").WorkReadScope[];
   timeoutMs: number;
@@ -142,7 +145,7 @@ export interface FireflyRunOptions {
   soulSystemBaseContent: string;
   /** 每次请求才附加给 Soul 的可变运行时上下文；不参与稳定缓存前缀。 */
   soulRuntimeContext?: string;
-  /** Plan Mode 时注入的 firefly-plan-mode skill 正文；可变，不参与稳定缓存前缀，
+  /** Plan Mode 时注入的计划协议正文；可变，不参与稳定缓存前缀，
    *  在 harness runtimeParts 里拼，避免进/出 plan mode 打断 stablePrefix 缓存。 */
   planSkillContext?: string;
   /** 只应用到 Soul 最终自然语言回复，禁止影响 CITA 与 Native FC。 */
@@ -257,8 +260,7 @@ function terminalFromCompletionReason(
 }
 
 export function resolveExecutionMode(mode: unknown): AgentExecutionMode {
-  // 兼容尚未重启的旧 renderer 与历史内部调用。
-  return mode === "chat" || mode === "soul-only" ? "chat" : "work";
+  return mode === "chat" ? "chat" : "work";
 }
 
 /**
@@ -459,7 +461,9 @@ export class FireflyAgent extends AbstractAgent {
           flowLog(`2. 理解用户请求：${executionMode === "chat" ? "Chat 模式无需工具上下文" : `完成，可信引用 ${(options.trustedRefs ?? []).length} 个`}`);
 
           let result: AgentLoopResult;
-          if (executionMode === "chat" && !chatWithTools) {
+          if(runOptions.controlledResponses){
+            result=await runOptions.controlledResponses(runOptions,abortController.signal,onEvent);
+          }else if (executionMode === "chat" && !chatWithTools) {
             flowLog("3. Chat 模式：生成回复");
             result = await perf.track("chat_loop", () => runChatLoop({
               settings: options.settings,

@@ -3,9 +3,28 @@ import * as path from "node:path";
 import chokidar, { type ChokidarOptions } from "chokidar";
 
 export interface WorkspaceFsWatcher {
-  on(event: "add" | "change" | "unlink" | "addDir" | "unlinkDir" | "error", listener: (value?: unknown) => void): WorkspaceFsWatcher;
+  on(event: "add" | "change" | "unlink" | "addDir" | "unlinkDir" | "error", listener: (value?: unknown, evidence?: NativeEventEvidence) => void): WorkspaceFsWatcher;
   close(): Promise<unknown>;
 }
+
+export interface NativeEventEvidence {
+  sequence: number;
+  timestamp: number;
+  phase: string;
+  eventType: string;
+  filename: string | null;
+  filenameType: "string" | "buffer" | "null";
+  classification: "IGNORED" | "MEANINGFUL" | "UNCLASSIFIED";
+  candidate: string | null;
+  ignored: boolean | null;
+  watchRoot: string;
+  stage: "native" | "schedule" | "fire";
+  scheduleId?: number;
+  fireId?: number;
+  recordedAt: number;
+}
+
+type NativeEventRecorder = (eventType: string, filename: string | Buffer | null, resolvedPath: string | null, ignored: boolean | null, watchRoot: string) => NativeEventEvidence;
 
 export interface GitWorkspaceSubscription {
   sessionId: string;
@@ -20,10 +39,11 @@ export interface GitWorkspaceWatcher {
 }
 
 export interface GitWorkspaceWatcherDeps {
-  createWatcher?: (paths: string[], options: ChokidarOptions) => WorkspaceFsWatcher;
+  createWatcher?: (paths: string[], options: ChokidarOptions, record?: NativeEventRecorder) => WorkspaceFsWatcher;
   onWorkspaceChanged(sessionIds: readonly string[]): void;
   onError(error: unknown, workspaceRoot: string): void;
   debounceMs?: number;
+  diagnostics?: { phase(): string; record(evidence: NativeEventEvidence): void };
 }
 
 interface WatchedWorkspace {
@@ -37,6 +57,22 @@ export function createGitWorkspaceWatcher(deps: GitWorkspaceWatcherDeps): GitWor
   const sessions = new Map<string, { key: string; references: number }>();
   const debounceMs = deps.debounceMs ?? 300;
   const createWatcher = deps.createWatcher ?? createPlatformWatcher;
+  const diagnostics = deps.diagnostics ?? (process.env.FIREFLY_VITEST_DIAGNOSTICS === "1" ? {
+    phase: () => "runtime",
+    record: (evidence: NativeEventEvidence) => console.info("[watch-evidence]", evidence),
+  } : undefined);
+  let sequence = 0;
+  const recordNative: NativeEventRecorder | undefined = diagnostics ? (eventType, filename, resolvedPath, ignored, watchRoot) => {
+    const evidence: NativeEventEvidence = {
+      sequence: ++sequence, timestamp: Date.now(), recordedAt: Date.now(), phase: diagnostics.phase(),
+      eventType, filename: filename === null ? null : String(filename),
+      filenameType: filename === null ? "null" : Buffer.isBuffer(filename) ? "buffer" : "string",
+      classification: ignored === null ? "UNCLASSIFIED" : ignored ? "IGNORED" : "MEANINGFUL",
+      candidate: resolvedPath, ignored, watchRoot, stage: "native",
+    };
+    diagnostics.record(evidence);
+    return evidence;
+  } : undefined;
 
   const release = async (sessionId: string): Promise<void> => {
     const subscription = sessions.get(sessionId);
@@ -66,12 +102,28 @@ export function createGitWorkspaceWatcher(deps: GitWorkspaceWatcherDeps): GitWor
       await release(input.sessionId);
       let entry = watched.get(key);
       if (!entry) {
-        const schedule = () => {
+        let scheduleCount = 0;
+        let fireCount = 0;
+        let pendingEvidence: NativeEventEvidence[] | undefined = diagnostics ? [] : undefined;
+        const schedule = (value?: unknown, nativeEvidence?: NativeEventEvidence) => {
           const current = watched.get(key);
           if (!current) return;
+          if (diagnostics && recordNative) {
+            scheduleCount += 1;
+            const event = nativeEvidence ?? recordNative("adapter", typeof value === "string" ? value : null, null, null, input.workspaceRoot);
+            const evidence: NativeEventEvidence = { ...event, stage: "schedule", scheduleId: scheduleCount, recordedAt: Date.now() };
+            pendingEvidence!.push(evidence);
+            diagnostics.record(evidence);
+          }
           if (current.timer) clearTimeout(current.timer);
           current.timer = setTimeout(() => {
             current.timer = undefined;
+            if (diagnostics) {
+              fireCount += 1;
+              const chain = pendingEvidence!;
+              pendingEvidence = [];
+              for (const event of chain) diagnostics.record({ ...event, stage: "fire", fireId: fireCount, recordedAt: Date.now() });
+            }
             deps.onWorkspaceChanged([...current.sessionIds]);
           }, debounceMs);
         };
@@ -85,7 +137,7 @@ export function createGitWorkspaceWatcher(deps: GitWorkspaceWatcherDeps): GitWor
           atomic: true,
           awaitWriteFinish: { stabilityThreshold: 250, pollInterval: 50 },
           ignored: createCodeGitIgnoredPredicate(input),
-        });
+        }, recordNative);
         entry = { watcher, sessionIds: new Set() };
         watched.set(key, entry);
         for (const event of ["add", "change", "unlink", "addDir", "unlinkDir"] as const) watcher.on(event, schedule);
@@ -128,10 +180,10 @@ export function createCodeGitIgnoredPredicate({ workspaceRoot, gitDir }: { works
 // 平台默认监视器工厂：Windows/macOS 用内核递归监视——根目录单个句柄覆盖整棵树，
 // 挂载瞬时完成；chokidar 则需要递归扫描仓库并逐目录建立监视器，大仓库会把主进程冻结数秒。
 // Linux 的 fs.watch 递归支持不成熟，保留 chokidar 方案；原生句柄创建失败时同样回落 chokidar。
-function createPlatformWatcher(paths: string[], options: ChokidarOptions): WorkspaceFsWatcher {
+function createPlatformWatcher(paths: string[], options: ChokidarOptions, record?: NativeEventRecorder): WorkspaceFsWatcher {
   if (process.platform === "win32" || process.platform === "darwin") {
     try {
-      return createNativeRecursiveWatcher(paths, options);
+      return createNativeRecursiveWatcher(paths, options, record);
     } catch {
       return chokidar.watch(paths, options) as WorkspaceFsWatcher;
     }
@@ -142,25 +194,27 @@ function createPlatformWatcher(paths: string[], options: ChokidarOptions): Works
 // 原生递归监视适配器：把 fs.watch 的内核事件转成 WorkspaceFsWatcher 接口。
 // 事件在回调里按忽略谓词过滤（含 .git 元数据规则与忽略目录名单），被忽略的路径不产生通知；
 // filename 为 null/Buffer（平台差异或编码异常）时无法判别路径，保守当作有变化，交给防抖合并。
-function createNativeRecursiveWatcher(paths: string[], options: ChokidarOptions): WorkspaceFsWatcher {
+export function createNativeRecursiveWatcher(paths: string[], options: ChokidarOptions, record?: NativeEventRecorder): WorkspaceFsWatcher {
   const ignored = typeof options.ignored === "function" ? (options.ignored as (candidate: string) => boolean) : undefined;
-  const listeners = new Map<string, Set<(value?: unknown) => void>>();
+  const listeners = new Map<string, Set<(value?: unknown, evidence?: NativeEventEvidence) => void>>();
   const handles: fs.FSWatcher[] = [];
-
-  const emit = (event: string, value?: unknown): void => {
-    for (const listener of listeners.get(event) ?? []) listener(value);
+  const emit = (event: string, value?: unknown, evidence?: NativeEventEvidence): void => {
+    for (const listener of listeners.get(event) ?? []) listener(value, evidence);
   };
 
   const attach = (watchRoot: string): void => {
     const nativeRoot = process.platform === "win32" ? fs.realpathSync.native(watchRoot) : watchRoot;
-    const handle = fs.watch(nativeRoot, { recursive: true, persistent: true }, (_eventType, filename) => {
+    const handle = fs.watch(nativeRoot, { recursive: true, persistent: true }, (eventType, filename) => {
       if (typeof filename !== "string") {
-        emit("change");
+        const evidence = record?.(eventType, filename, null, null, watchRoot);
+        emit("change", undefined, evidence);
         return;
       }
       const candidate = path.resolve(watchRoot, filename);
-      if (ignored?.(candidate)) return;
-      emit("change", candidate);
+      const isIgnored = ignored?.(candidate) ?? false;
+      const evidence = record?.(eventType, filename, candidate, isIgnored, watchRoot);
+      if (isIgnored) return;
+      emit("change", candidate, evidence);
     });
     handle.once("error", (error) => emit("error", error));
     handles.push(handle);

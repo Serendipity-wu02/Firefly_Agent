@@ -23,6 +23,7 @@ export interface ResolveRunCapabilitiesInput {
 }
 
 export function resolveRunCapabilities(input: ResolveRunCapabilitiesInput): RunCapabilities {
+  if (input.mode !== "chat" && input.mode !== "work" && input.mode !== "code") throw new Error("INVALID_CONVERSATION_MODE");
   if (input.mode === "chat") {
     // Chat 工具增强：总开关开启时仅放行 Chat tab 显式勾选（override.chat===true）
     // 的工具——严格 opt-in，不走"未声明 modes 即全可见"的默认规则，

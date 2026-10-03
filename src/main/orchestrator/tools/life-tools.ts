@@ -227,10 +227,10 @@ function registerExchangeRateTool(): void {
 // ══════════════════════════════════════════════════════════
 
 // 翻译需要调主模型，注入由 index.ts 完成
-let modelSettingsGetter: (() => { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses" | "auto" } | null) | null = null;
+let modelSettingsGetter: (() => { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses" } | null) | null = null;
 
 /** index.ts 启动时注入模型设置读取器。 */
-export function setTranslateConfig(getter: () => { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses" | "auto" } | null): void {
+export function setTranslateConfig(getter: () => { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses" } | null): void {
   modelSettingsGetter = getter;
 }
 
@@ -323,7 +323,7 @@ function registerStrReplaceTool(): void {
       "何时用：\n" +
       "- 修改现有文件中的一处或多处特定片段（多处用 edits 一次调用完成）\n" +
       "- 用户要「把 X 改成 Y」「把第 N 行的 A 替换成 B」\n" +
-      "- 修正笔记 / 文档的局部内容（learn 模式可用）\n" +
+      "- 修正当前工作区笔记 / 文档的局部内容\n" +
       "- 填充空文件：文件存在但内容为空时，old_string 传空字符串，new_string 传完整内容，即可整体写入\n\n" +
       "不要用于：\n" +
       "- 多文件批量修改（用 apply_patch 补丁格式）\n" +
@@ -335,7 +335,7 @@ function registerStrReplaceTool(): void {
       "缩进/空白略有出入时会自动做归一化匹配，命中后按文件真实缩进写入。",
     enabled: true,
     risk: "fs-write",
-    modes: ["code", "work", "learn"],
+    modes: ["code", "work"],
     effectKind: "mutation" as const,
     verificationPolicy: "code" as const,
     inputSchema: {

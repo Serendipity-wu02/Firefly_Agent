@@ -1,6 +1,4 @@
 import * as fs from "fs"
-import { normalizeFireflyFields } from "../../shared/legacy-firefly-contracts"
-import { writeMigratedJson } from "../migration/firefly-data"
 import * as path from "path"
 import { app } from "electron"
 import type { ChannelId } from "../channels/types"
@@ -124,12 +122,7 @@ function readData(filePath: string): RelationshipLogData {
     if (!fs.existsSync(filePath)) return { ...EMPTY_DATA, entries: [], dailySummaries: [] }
     const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as Partial<RelationshipLogData>
     if (!Array.isArray(parsed.entries) || !Array.isArray(parsed.dailySummaries)) throw new Error("Invalid relationship data")
-    const normalized = {
-      entries: parsed.entries.map(normalizeFireflyFields),
-      dailySummaries: parsed.dailySummaries,
-    }
-    writeMigratedJson(filePath, parsed, normalized)
-    return normalized
+    return { entries: parsed.entries, dailySummaries: parsed.dailySummaries }
   } catch {
     throw new Error("RELATIONSHIP_READ_FAILED: 原文件已保留，停止写入")
   }

@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { normalizeFireflyEvent } from "../shared/legacy-firefly-contracts";
 import { IPC } from "../shared/ipc-channels";
 import type { QqListenAuthRequirement } from "../shared/qq-listen";
 import type { ApprovalRequest, ApprovalSettledPayload } from "../shared/permission-approval";
@@ -150,7 +149,7 @@ const aguiApi = {
   onEvent: (callback: (event: unknown) => void) => {
     const listener = (_e: unknown, event: unknown) => {
       try {
-        callback(normalizeFireflyEvent(event));
+        callback(event);
       } catch (err) {
         console.error("[Preload] listener抛错:", err);
       }
@@ -211,7 +210,6 @@ const sidebarApi = {
   toggleAlwaysOnTop: () => ipcRenderer.invoke(IPC.SIDEBAR_TOGGLE_ALWAYS_ON_TOP),
   openTasks: () => ipcRenderer.send(IPC.SIDEBAR_OPEN_TASKS),
   openSettings: (section?: string) => ipcRenderer.send(IPC.SIDEBAR_OPEN_SETTINGS, section),
-  openCall: () => ipcRenderer.send(IPC.SIDEBAR_OPEN_CALL),
 };
 
 const tasksApi = {
@@ -264,35 +262,6 @@ const momentsApi: import("../shared/moments-types").MomentsApi = {
 };
 contextBridge.exposeInMainWorld("moments", momentsApi);
 
-// 通话窗口 API
-const callApi = {
-  start: () => ipcRenderer.send(IPC.CALL_START),
-  sendAudioFrame: (frame: ArrayBuffer) => ipcRenderer.send(IPC.CALL_AUDIO_FRAME, frame),
-  turnEnd: () => ipcRenderer.send(IPC.CALL_TURN_END),
-  ttsDone: () => ipcRenderer.send(IPC.CALL_TTS_DONE),
-  stop: () => ipcRenderer.send(IPC.CALL_STOP),
-  onState: (callback: (state: string) => void) => {
-    const handler = (_event: unknown, data: { state: string }) => callback(data.state);
-    ipcRenderer.on(IPC.CALL_STATE, handler);
-    return () => ipcRenderer.removeListener(IPC.CALL_STATE, handler);
-  },
-  onAsrResult: (callback: (data: { partial?: string; final?: string }) => void) => {
-    const handler = (_event: unknown, data: { partial?: string; final?: string }) => callback(data);
-    ipcRenderer.on(IPC.CALL_ASR_RESULT, handler);
-    return () => ipcRenderer.removeListener(IPC.CALL_ASR_RESULT, handler);
-  },
-  onTtsAudio: (callback: (data: { base64: string }) => void) => {
-    const handler = (_event: unknown, data: { base64: string }) => callback(data);
-    ipcRenderer.on(IPC.CALL_TTS_AUDIO, handler);
-    return () => ipcRenderer.removeListener(IPC.CALL_TTS_AUDIO, handler);
-  },
-  onError: (callback: (data: { message: string }) => void) => {
-    const handler = (_event: unknown, data: { message: string }) => callback(data);
-    ipcRenderer.on(IPC.CALL_ERROR, handler);
-    return () => ipcRenderer.removeListener(IPC.CALL_ERROR, handler);
-  },
-};
-contextBridge.exposeInMainWorld("call", callApi);
 
 const fireflyThemeApi = {
   get: () => ipcRenderer.invoke(IPC.UI_THEME_GET) as Promise<UiTheme>,
@@ -358,6 +327,8 @@ const settingsApi = {
   getConfig: () => ipcRenderer.invoke(IPC.SETTINGS_GET_CONFIG),
   saveConfig: (config: unknown) => ipcRenderer.invoke(IPC.SETTINGS_SAVE_CONFIG, config),
   listModelProfiles: () => ipcRenderer.invoke(IPC.SETTINGS_MODEL_PROFILES_LIST),
+  getAgentRouting: () => ipcRenderer.invoke(IPC.SETTINGS_AGENT_ROUTING_GET),
+  updateAgentRouting: (input: unknown) => ipcRenderer.invoke(IPC.SETTINGS_AGENT_ROUTING_UPDATE, input),
   saveModelProfile: (profile: unknown) => ipcRenderer.invoke(IPC.SETTINGS_MODEL_PROFILE_SAVE, profile),
   deleteModelProfile: (id: string) => ipcRenderer.invoke(IPC.SETTINGS_MODEL_PROFILE_DELETE, id),
   setDefaultModelProfile: (id: string) => ipcRenderer.invoke(IPC.SETTINGS_MODEL_PROFILE_SET_DEFAULT, id),
@@ -676,12 +647,12 @@ contextBridge.exposeInMainWorld("live2dDiagnostics", live2dDiagnosticsApi);
 
 // 聊天会话存储（多对话历史）
 const chatStoreApi = {
-  list: (options?: { mode?: "chat" | "work" | "code" | "learn" }) => ipcRenderer.invoke(IPC.CHATS_LIST, options),
+  list: (options?: { mode?: "chat" | "work" | "code" }) => ipcRenderer.invoke(IPC.CHATS_LIST, options),
   get: (id: string) => ipcRenderer.invoke(IPC.CHATS_GET, id),
   exportWorkMarkdown: (id: string) => ipcRenderer.invoke(IPC.CHATS_EXPORT_WORK_MARKDOWN, id),
   getPage: (id: string, before: number | null, limit: number) =>
     ipcRenderer.invoke(IPC.CHATS_GET_PAGE, { id, before, limit }),
-  create: (payload?: { title?: string; identityId?: string | null; mode?: "chat" | "work" | "code" | "learn" }) =>
+  create: (payload?: { title?: string; identityId?: string | null; mode?: "chat" | "work" | "code" }) =>
     ipcRenderer.invoke(IPC.CHATS_CREATE, payload ?? {}),
   append: (id: string, message: unknown) =>
     ipcRenderer.invoke(IPC.CHATS_APPEND, { id, message }),
@@ -737,8 +708,6 @@ const chatStoreApi = {
   openFolder: () => ipcRenderer.invoke(IPC.CHATS_OPEN_FOLDER),
   openWorkspace: (workspaceRoot: string) =>
     ipcRenderer.invoke(IPC.CHATS_OPEN_WORKSPACE, workspaceRoot),
-  migrateLegacy: (messages: unknown[]) =>
-    ipcRenderer.invoke(IPC.CHATS_MIGRATE_LEGACY, messages),
   // 聊天窗口加载 / 切换 session 时上报；附带本页面的渲染目标标识与会话模式，
   // 主进程据此维护语音输入租约冻结的活动目标；其他窗口可查询/订阅
   setActiveSession: (sessionId: string | null, mode?: ConversationMode) =>
@@ -767,8 +736,8 @@ const chatStoreApi = {
     ipcRenderer.invoke(IPC.CHATS_CLEAR_WORKSPACE, sessionId),
   pickWorkspaceFolder: () =>
     ipcRenderer.invoke(IPC.CHATS_PICK_WORKSPACE_FOLDER),
-  initLearnWorkspace: (sessionId: string) =>
-    ipcRenderer.invoke(IPC.CHATS_INIT_LEARN_WORKSPACE, sessionId),
+  initKnowledgeWorkspace: (sessionId: string) =>
+    ipcRenderer.invoke(IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE, sessionId),
   onWorkspaceChanged: (callback: (payload: { sessionId: string; binding: unknown }) => void) => {
     const listener = (_e: Electron.IpcRendererEvent, payload: { sessionId: string; binding: unknown }) =>
       callback(payload);

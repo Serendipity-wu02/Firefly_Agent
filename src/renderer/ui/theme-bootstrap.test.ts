@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 const rendererRoot = fileURLToPath(new URL("../", import.meta.url));
 const windowEntries = [
   "index.html",
-  "call/index.html",
   "sidebar/index.html",
   "tasks/index.html",
   "sticker-manager/index.html",
@@ -14,6 +13,9 @@ const windowEntries = [
 ];
 
 describe("renderer theme bootstrap", () => {
+  it("does not retain the retired Call renderer entry", () => {
+    expect(fs.existsSync(`${rendererRoot}/call/index.html`)).toBe(false);
+  });
   it.each(windowEntries)("boots %s directly into the white theme", (entry) => {
     const html = fs.readFileSync(`${rendererRoot}/${entry}`, "utf8");
     expect(html).toMatch(/<html\b[^>]*\bdata-ui-theme="pearl-white"/);

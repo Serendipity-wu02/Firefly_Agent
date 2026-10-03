@@ -1,6 +1,3 @@
-import { resolveSkillSettings } from "../skills/skill-id-aliases";
-import { normalizeFireflyFields } from "../../shared/legacy-firefly-contracts";
-import { writeMigratedJson } from "../migration/firefly-data";
 import * as fs from "fs";
 import * as path from "path";
 import { logger, LogTag } from "../logger";
@@ -122,9 +119,6 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   asrAliyunAccessKeyId: "",
   asrAliyunAccessKeySecret: "",
   asrLanguage: "zh",
-  asrVadSilenceMs: 1000,
-  asrVadThreshold: 0.01,
-  asrShowTranscript: false,
   screenshotHotkey: "Alt+Shift+S",
   chatLineHeight: 1.75,
   toolModeOverrides: {},
@@ -164,7 +158,6 @@ function notifyGeneralSettingsChanged(before: GeneralSettings, after: GeneralSet
 export function normalizeGeneralSettings(
   input: Partial<GeneralSettings> | null | undefined,
 ): GeneralSettings {
-  input = input ? normalizeFireflyFields(input) : input;
   const windowVisibility = normalizeWindowVisibilitySettings(input);
   const cita = normalizeCitaSettings({
     enabled: input?.citaEnabled,
@@ -213,7 +206,7 @@ export function normalizeGeneralSettings(
     momentsCharacterReactionsEnabled: input?.momentsCharacterReactionsEnabled === undefined
       ? DEFAULT_GENERAL_SETTINGS.momentsCharacterReactionsEnabled
       : Boolean(input.momentsCharacterReactionsEnabled),
-    // 热闹程度只认三个合法档位，非法值回落默认档（旧配置无此字段也走默认）
+    // 热闹程度只认三个合法档位，非法值回落默认档。
     momentsLiveliness: ["quiet", "natural", "lively"].includes(input?.momentsLiveliness as string)
       ? (input?.momentsLiveliness as GeneralSettings["momentsLiveliness"])
       : DEFAULT_GENERAL_SETTINGS.momentsLiveliness,
@@ -309,13 +302,6 @@ export function normalizeGeneralSettings(
     asrLanguage: ["zh", "en", "auto"].includes(String(input?.asrLanguage))
       ? (input!.asrLanguage as "zh" | "en" | "auto")
       : "zh",
-    asrVadSilenceMs: typeof input?.asrVadSilenceMs === "number"
-      ? Math.max(300, Math.min(30000, Math.round(input.asrVadSilenceMs)))
-      : DEFAULT_GENERAL_SETTINGS.asrVadSilenceMs,
-    asrVadThreshold: typeof input?.asrVadThreshold === "number"
-      ? Math.max(0.001, Math.min(0.5, Number(input.asrVadThreshold)))
-      : DEFAULT_GENERAL_SETTINGS.asrVadThreshold,
-    asrShowTranscript: Boolean(input?.asrShowTranscript),
     screenshotHotkey: typeof input?.screenshotHotkey === "string" && input.screenshotHotkey.trim()
       ? input.screenshotHotkey.trim()
       : DEFAULT_GENERAL_SETTINGS.screenshotHotkey,
@@ -365,7 +351,7 @@ function normalizeToolModeOverrides(
     if (!modeMap || typeof modeMap !== "object") continue;
     const filtered: Partial<Record<ConversationMode, boolean>> = {};
     for (const [mode, value] of Object.entries(modeMap as Record<string, unknown>)) {
-      if (mode !== "chat" && mode !== "work" && mode !== "code" && mode !== "learn") continue;
+      if (mode !== "chat" && mode !== "work" && mode !== "code") continue;
       if (typeof value === "boolean") {
         filtered[mode as ConversationMode] = value;
       }
@@ -377,23 +363,23 @@ function normalizeToolModeOverrides(
   return result;
 }
 
-const SKILL_MODES = new Set(["work", "code", "learn"] as const);
+const SKILL_MODES = new Set(["work", "code"] as const);
 
-/** 规范化 Skill-模式覆盖层：仅保留合法的 { skillId: { work|code|learn: boolean } } 结构。
+/** 规范化 Skill-模式覆盖层：仅保留合法的 { skillId: { work|code: boolean } } 结构。
  *  非法值被丢弃，空对象兜底。 */
 function normalizeSkillModeOverrides(
   input: unknown,
 ): SkillModeOverrides {
   if (!input || typeof input !== "object") return {};
   const result: SkillModeOverrides = {};
-  const raw = resolveSkillSettings(input as Record<string, unknown>);
+  const raw = input as Record<string, unknown>;
   for (const [skillId, modeMap] of Object.entries(raw)) {
     if (!modeMap || typeof modeMap !== "object") continue;
-    const filtered: Partial<Record<"work" | "code" | "learn", boolean>> = {};
+    const filtered: Partial<Record<"work" | "code", boolean>> = {};
     for (const [mode, value] of Object.entries(modeMap as Record<string, unknown>)) {
-      if (!SKILL_MODES.has(mode as "work" | "code" | "learn")) continue;
+      if (!SKILL_MODES.has(mode as "work" | "code")) continue;
       if (typeof value === "boolean") {
-        filtered[mode as "work" | "code" | "learn"] = value;
+        filtered[mode as "work" | "code"] = value;
       }
     }
     if (Object.keys(filtered).length > 0) {
@@ -419,12 +405,7 @@ function loadGeneralSettings0(): GeneralSettings {
       path.join(path.dirname(filePath), "installer-options.json"),
       fs,
     );
-    const canonical = normalizeFireflyFields(existing);
-    if (canonical.skillModeOverrides && typeof canonical.skillModeOverrides === "object") {
-      canonical.skillModeOverrides = resolveSkillSettings(canonical.skillModeOverrides);
-    }
-    if (present) writeMigratedJson(filePath, existing, canonical);
-    const withInstallerSelection = applyInstallerLaunchAtLoginSelection(canonical, installerSelection);
+    const withInstallerSelection = applyInstallerLaunchAtLoginSelection(existing, installerSelection);
     if (installerSelection !== null) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(normalizeGeneralSettings(withInstallerSelection), null, 2));

@@ -7,29 +7,28 @@ import {
   findPromptPath,
   findSkillPath,
   resolveExternalContentPaths,
-  resolveSkillsSnapshotArchivePath,
+  resolvePackagedSkillDirectory,
   resolveSkillScanSources,
 } from "./external-content-paths";
 
 const temporaryDirectories: string[] = [];
 
-describe("skills snapshot location", () => {
-  it("resolves the Firefly archive in development and packaged resources", () => {
+describe("managed Skill directory location", () => {
+  it("resolves canonical directories in development and packaged resources", () => {
     const root = temporaryDirectory();
     const resources = path.join(root, "resources");
-    const archiveName = "skills-snapshot.zip";
-    const devArchive = path.join(root, "vendor", "firefly-skills", archiveName);
-    const packagedArchive = path.join(resources, "firefly-skills", archiveName);
+    const devSource = path.join(root, "vendor", "firefly-skills", "skills");
+    const packagedSource = path.join(resources, "firefly-skills", "skills");
 
-    expect(resolveSkillsSnapshotArchivePath({ installRoot: root }, {
+    expect(resolvePackagedSkillDirectory({ installRoot: root }, {
       isPackaged: false,
-      existsSync: (candidate) => candidate === devArchive,
-    })).toBe(devArchive);
-    expect(resolveSkillsSnapshotArchivePath({ installRoot: root }, {
+      existsSync: (directory) => directory === devSource,
+    })).toBe(devSource);
+    expect(resolvePackagedSkillDirectory({ installRoot: root }, {
       isPackaged: true,
       resourcesPath: resources,
-      existsSync: (candidate) => candidate === packagedArchive,
-    })).toBe(packagedArchive);
+      existsSync: (directory) => directory === packagedSource,
+    })).toBe(packagedSource);
   });
 });
 
@@ -46,18 +45,18 @@ afterEach(() => {
 });
 
 describe("resolveExternalContentPaths", () => {
-  it("keeps legacy user prompt and Skill overrides ahead of renamed bundled content", () => {
+  it("prefers current user prompts and keeps Skill identities exact", () => {
     const root = temporaryDirectory();
     const user = path.join(root, "user");
     const bundled = path.join(root, "bundled");
-    fs.mkdirSync(path.join(user, "cyrene-plan-mode"), { recursive: true });
-    fs.mkdirSync(path.join(bundled, "firefly-plan-mode"), { recursive: true });
-    fs.writeFileSync(path.join(user, "cyrene_harness.md"), "user");
+    fs.mkdirSync(path.join(user, "user-skill"), { recursive: true });
+    fs.mkdirSync(path.join(bundled, "diagram"), { recursive: true });
     fs.writeFileSync(path.join(bundled, "firefly_harness.md"), "bundled");
-    fs.writeFileSync(path.join(user, "cyrene-plan-mode", "SKILL.md"), "user");
-    fs.writeFileSync(path.join(bundled, "firefly-plan-mode", "SKILL.md"), "bundled");
-    expect(findPromptPath("firefly_harness.md", [user, bundled])).toBe(path.join(user, "cyrene_harness.md"));
-    expect(findSkillPath("firefly-plan-mode", "SKILL.md", { builtinSkillDirectory: bundled, userSkillDirectories: [user] })).toBe(path.join(user, "cyrene-plan-mode", "SKILL.md"));
+    fs.writeFileSync(path.join(user, "user-skill", "SKILL.md"), "user");
+    fs.writeFileSync(path.join(bundled, "diagram", "SKILL.md"), "bundled");
+    expect(findPromptPath("firefly_harness.md", [user, bundled])).toBe(path.join(bundled, "firefly_harness.md"));
+    expect(findSkillPath("diagram", "SKILL.md", { builtinSkillDirectory: bundled, userSkillDirectories: [user] })).toBe(path.join(bundled, "diagram", "SKILL.md"));
+    expect(findSkillPath("user-skill", "SKILL.md", { builtinSkillDirectory: bundled, userSkillDirectories: [user] })).toBe(path.join(user, "user-skill", "SKILL.md"));
     fs.writeFileSync(path.join(user, "firefly_harness.md"), "current user");
     expect(findPromptPath("firefly_harness.md", [user, bundled])).toBe(path.join(user, "firefly_harness.md"));
   });
@@ -92,8 +91,7 @@ describe("resolveExternalContentPaths", () => {
       path.join(userData, "prompts"),
       path.join(installRoot, "prompts"),
     ]);
-    expect(result.builtinSkillDirectory).toBe(path.join(installRoot, "defaults", "skills"));
-    expect(result.installSkillDirectory).toBe(path.join(installRoot, "skills"));
+    expect(result.builtinSkillDirectory).toBe(path.join(installRoot, "skills"));
     expect(result.userSkillDirectories).toEqual([path.join(userData, "skills")]);
   });
 });
@@ -135,18 +133,31 @@ describe("external content lookup", () => {
     })).toBe(path.join(userDataSkills, "xlsx", relativeAsset));
   });
 
-  it("treats the legacy packaged skills folder as builtin when defaults are absent", () => {
+  it("resolves only the requested Skill identity", () => {
     const root = temporaryDirectory();
-    const legacySkills = path.join(root, "skills");
+    const user = path.join(root, "user");
+    const builtin = path.join(root, "builtin");
+    fs.mkdirSync(path.join(user, "user-skill"), { recursive: true });
+    fs.mkdirSync(path.join(builtin, "diagram"), { recursive: true });
+    fs.writeFileSync(path.join(user, "user-skill", "SKILL.md"), "user");
+    fs.writeFileSync(path.join(builtin, "diagram", "SKILL.md"), "builtin");
+    const paths = { builtinSkillDirectory: builtin, userSkillDirectories: [user] };
+    expect(findSkillPath("diagram", "SKILL.md", paths)).toBe(path.join(builtin, "diagram", "SKILL.md"));
+    expect(findSkillPath("user-skill", "SKILL.md", paths)).toBe(path.join(user, "user-skill", "SKILL.md"));
+    expect(findSkillPath("missing-skill", "SKILL.md", paths)).toBeNull();
+  });
+
+  it("scans the packaged project Skills and user Skills once each", () => {
+    const root = temporaryDirectory();
+    const builtinSkills = path.join(root, "skills");
     const userDataSkills = path.join(root, "user-data", "skills");
-    fs.mkdirSync(legacySkills, { recursive: true });
+    fs.mkdirSync(builtinSkills, { recursive: true });
 
     expect(resolveSkillScanSources({
-      builtinSkillDirectory: path.join(root, "defaults", "skills"),
-      installSkillDirectory: legacySkills,
-      userSkillDirectories: [legacySkills, userDataSkills],
+      builtinSkillDirectory: builtinSkills,
+      userSkillDirectories: [builtinSkills, userDataSkills],
     })).toEqual([
-      { directory: legacySkills, source: "builtin" },
+      { directory: builtinSkills, source: "builtin" },
       { directory: userDataSkills, source: "user" },
     ]);
   });

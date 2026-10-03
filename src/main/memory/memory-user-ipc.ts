@@ -315,7 +315,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   ipc.handle(IPC.TOOL_SET_MODE_OVERRIDE, (_event, payload: unknown) => {
     const p = payload as { toolId?: string; mode?: string; enabled?: boolean };
     if (!p.toolId || !p.mode) return { ok: false, error: "missing toolId or mode" };
-    const validModes = ["chat", "work", "code", "learn"];
+    const validModes = ["chat", "work", "code"];
     if (!validModes.includes(p.mode)) return { ok: false, error: "invalid mode" };
     const mode = p.mode as ConversationMode;
     const before = loadGeneralSettings().toolModeOverrides;
@@ -333,7 +333,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
     const next = { ...before };
     if (p.mode) {
       // 清除单个模式：删除该 mode 键，若工具已无任何覆盖则整个删除
-      const validModes = ["chat", "work", "code", "learn"];
+      const validModes = ["chat", "work", "code"];
       if (!validModes.includes(p.mode)) return { ok: false, error: "invalid mode" };
       const mode = p.mode as ConversationMode;
       if (next[p.toolId]) {
@@ -397,7 +397,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   ipc.handle(IPC.SKILL_SET_MODE_OVERRIDE, (_event, payload: unknown) => {
     const p = payload as { skillId?: string; mode?: string; enabled?: boolean };
     if (!p.skillId || !p.mode) return { ok: false, error: "missing skillId or mode" };
-    const validModes = ["work", "code", "learn"];
+    const validModes = ["work", "code"];
     if (!validModes.includes(p.mode)) return { ok: false, error: "invalid mode" };
     const mode = p.mode as SkillMode;
     const before = loadGeneralSettings().skillModeOverrides;
@@ -414,7 +414,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
     const before = loadGeneralSettings().skillModeOverrides;
     const next = { ...before };
     if (p.mode) {
-      const validModes = ["work", "code", "learn"];
+      const validModes = ["work", "code"];
       if (!validModes.includes(p.mode)) return { ok: false, error: "invalid mode" };
       const mode = p.mode as SkillMode;
       if (next[p.skillId]) {

@@ -219,23 +219,23 @@ describe("dispatchToolCall truthful execution", () => {
   });
 
   it("persists a task final observation but not ordinary Harness control builtins", async () => {
-    const output = JSON.stringify({ taskId: "task-1", status: "completed", text: "子代理完整报告" });
+    const output = JSON.stringify({ agentId: "review", sessionId: "session-1", status: "completed", text: "子代理完整报告" });
     const put = vi.fn(async () => ({
       recordId: "d".repeat(64), resultRef: `tool-result://v1/${"d".repeat(64)}`,
-      runId: "run-1", toolCallId: "task-call", toolName: "task",
+      runId: "run-1", toolCallId: "delegate-call", toolName: "delegate_agent",
       bytes: Buffer.byteLength(output), codePoints: Array.from(output).length, truncatedForModel: false, createdAt: 1,
     }));
     const store: ToolOutputStore = { put, read: vi.fn(), find: vi.fn(), deleteConversation: vi.fn() };
 
-    const result = await dispatchToolCall({ id: "task-call", name: "task", arguments: JSON.stringify({
-      description: "检查子任务", prompt: "给出完整报告", subagent_type: "general", companion_id: "丹恒",
+    const result = await dispatchToolCall({ id: "delegate-call", name: "delegate_agent", arguments: JSON.stringify({
+      agent_id: "review", prompt: "给出完整报告",
     }) }, {
       state: state(), tools: [], toolOutputStore: store,
       toolContext: { userQuery: "", conversationId: "conversation-1", runId: "run-1" },
-      taskExecutor: async () => ({ taskId: "task-1", status: "completed", text: "子代理完整报告" }),
+      agentExecutor: async () => ({ agentId: "review", sessionId: "session-1", status: "completed", text: "子代理完整报告" }),
     });
 
-    expect(put).toHaveBeenCalledWith(expect.objectContaining({ toolName: "task", output }));
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ toolName: "delegate_agent", output }));
     expect(result.fullOutputRef).toBe(`tool-result://v1/${"d".repeat(64)}`);
   });
 });

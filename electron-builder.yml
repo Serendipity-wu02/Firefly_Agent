@@ -42,9 +42,17 @@ extraResources:
     to: music/qqmusic_gsmtc.ps1
   - from: resources/mingit
     to: mingit
-  # 第三方 skills 快照归档：首启解压到 userData/skills（见 src/main/skills/snapshot-install.ts）
-  - from: vendor/firefly-skills
-    to: firefly-skills
+  # 仅分发 canonical Skills、ID manifest 与必要来源/许可材料。
+  - from: vendor/firefly-skills/skills
+    to: firefly-skills/skills
+  - from: vendor/firefly-skills/skills-manifest.json
+    to: firefly-skills/skills-manifest.json
+  - from: vendor/firefly-skills/LICENSE-NOTICES.md
+    to: firefly-skills/LICENSE-NOTICES.md
+  - from: vendor/firefly-skills/license-provenance.json
+    to: firefly-skills/license-provenance.json
+  - from: vendor/firefly-skills/licenses
+    to: firefly-skills/licenses
 win:
   icon: assets/icon-presets/firefly.png
   target:

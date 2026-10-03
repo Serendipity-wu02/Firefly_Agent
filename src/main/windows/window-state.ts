@@ -18,7 +18,6 @@ export let sidebarWindow: BrowserWindow | null = null;
 export let tasksWindow: BrowserWindow | null = null;
 export let settingsWindow: BrowserWindow | null = null;
 export let stickerManagerWindow: BrowserWindow | null = null;
-export let callWindow: BrowserWindow | null = null;
 export let toastWindow: BrowserWindow | null = null;
 
 export function setReactChatWindow(win: BrowserWindow | null): void {
@@ -43,10 +42,6 @@ export function setSettingsWindow(win: BrowserWindow | null): void {
 
 export function setStickerManagerWindow(win: BrowserWindow | null): void {
   stickerManagerWindow = win;
-}
-
-export function setCallWindowLocal(win: BrowserWindow | null): void {
-  callWindow = win;
 }
 
 // 启动阶段控制：在 app startup 完成前，新创建的辅助窗口先不 show，

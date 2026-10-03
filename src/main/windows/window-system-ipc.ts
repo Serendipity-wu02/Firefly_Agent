@@ -83,10 +83,6 @@ export function registerWindowSystemIpc(deps: WindowSystemIpcDependencies): void
     deps.windowManager?.createSettingsWindow(section);
   });
 
-  ipc.on(IPC.SIDEBAR_OPEN_CALL, () => {
-    deps.windowManager?.createCallWindow();
-  });
-
   ipc.on(IPC.TASKS_MINIMIZE, () => {
     tasksWindow?.minimize();
   });

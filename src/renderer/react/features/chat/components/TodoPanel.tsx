@@ -6,7 +6,7 @@ import "./TodoPanel.css";
 
 export interface TodoPanelProps {
   state: TodoState | null;
-  mode: "work" | "learn";
+  mode: "work";
 }
 
 const DEFAULT_WIDTH = 240;
@@ -14,7 +14,6 @@ const DEFAULT_WIDTH = 240;
 // 只存 i18n key（t() 不能出现在模块顶层常量里），展示文案在组件内求值。
 const MODE_LABEL_KEYS: Record<TodoPanelProps["mode"], string> = {
   work: "todo.modeWork",
-  learn: "todo.modeLearn",
 };
 
 function EmptyCircleIcon() {

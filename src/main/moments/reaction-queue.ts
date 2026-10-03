@@ -12,8 +12,6 @@
 //   标志防重入——store 幂等挡得住重复写入，但重复执行会把模型的钱烧两遍。
 
 import { randomUUID } from "node:crypto";
-import { normalizeStoredMoment } from "../../shared/legacy-firefly-contracts";
-import { writeMigratedJson } from "../migration/firefly-data";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -319,9 +317,7 @@ export function createReactionQueue(deps: ReactionQueueDeps): ReactionQueue {
     try {
       const parsed = JSON.parse(raw) as { tasks?: unknown };
       if (!Array.isArray(parsed.tasks) || !parsed.tasks.every(isValidTask)) throw new Error("Invalid reaction queue");
-      const normalized = { ...parsed, tasks: parsed.tasks.map((task) => normalizeStoredMoment(task as ReactionTask)) };
-      writeMigratedJson(filePath(), parsed, normalized);
-      tasks = normalized.tasks;
+      tasks = parsed.tasks as ReactionTask[];
     } catch {
       log("reaction_queue_load_failed");
       throw new Error("REACTION_QUEUE_READ_FAILED: 原文件已保留，停止写入");

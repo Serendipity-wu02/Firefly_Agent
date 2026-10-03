@@ -16,7 +16,7 @@ export type ImageSource = "attachment" | "tool" | "channel" | "moments";
 export interface ImageRouteSettings {
   /** 主模型是否多模态。undefined 按 true 处理（与旧逻辑一致）。 */
   multimodal?: boolean;
-  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+  explicitTransport?: "openai" | "anthropic" | "responses";
   baseUrl: string;
   apiKey: string;
   model: string;

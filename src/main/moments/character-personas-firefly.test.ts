@@ -30,10 +30,9 @@ describe("Firefly Moments personas", () => {
     const taskNames = new Set(TASK_CHARACTERS.map((character) => character.nickname));
 
     expect([...registry.keys()].every((nickname) => taskNames.has(nickname))).toBe(true);
-    expect(registry.has("昔涟")).toBe(false);
     expect(registry.size).toBe(TASK_CHARACTERS.length);
     for (const persona of registry.values()) {
-      expect(persona.personaText).not.toMatch(/黄金裔|翁法罗斯|昔涟/);
+      expect(persona.personaText).not.toMatch(/黄金裔|翁法罗斯/);
       expect(persona.headerText).toContain("没有记录时不要补造亲密关系或共同经历");
     }
   });

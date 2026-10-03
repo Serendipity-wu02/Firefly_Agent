@@ -6,6 +6,7 @@ import { IPC } from "../../shared/ipc-channels";
 
 const mocks = vi.hoisted(() => ({
   userDataDir: "",
+  userDataLookupDenied: false,
   handlers: new Map<string, (...args: any[]) => unknown>(),
   openPath: vi.fn(async () => ""),
   saveDialog: vi.fn(),
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("electron", () => ({
   app: {
-    getPath: () => mocks.userDataDir,
+    getPath: () => {if(mocks.userDataLookupDenied)throw Error("DIRECT_USERDATA_FORBIDDEN");return mocks.userDataDir},
   },
   shell: {
     openPath: mocks.openPath,
@@ -36,6 +37,46 @@ vi.mock("electron", () => ({
 }));
 
 describe("chats IPC mode filtering", () => {
+  it("GET and paged recovery use canonical settlement without rewriting either cache or transcript",async()=>{
+    const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store"),{getConversationTranscriptStore}=await import("../orchestrator/conversation-transcript-store"),{createTranscriptSink}=await import("../orchestrator/transcript-sink");
+    registerChatsIpc();const session=cache.createSession({mode:"chat"}),store=getConversationTranscriptStore(mocks.userDataDir);
+    cache.appendMessage(session.id,{id:"u",role:"user",content:"synthetic",at:1});
+    cache.appendMessage(session.id,{id:"a",role:"model",content:"CACHE",answersUserMessageId:"u",at:2,ttsCacheKey:"old",runSnapshot:{runId:"stale-cache-run",status:"terminal",terminalStatus:"success",updatedAt:2}});
+    await store.append(session.id,{kind:"user",id:"u",turnId:"u",revision:1,at:1,payload:{text:"synthetic"}});
+    const sink=createTranscriptSink({store,conversationId:session.id,runId:"r",assistantTurnId:"a"}),binding={runId:"r",assistantTurnId:"a",userTurnId:"u",userRevision:1};
+    const assistantEntryId=await sink.appendSAssistant({message:{role:"assistant",content:"RAW"},binding});
+    const before=JSON.stringify((await store.read(session.id)).entries),cacheBefore=JSON.stringify(cache.getSession(session.id));
+    mocks.userDataLookupDenied=true;
+    const get=mocks.handlers.get(IPC.CHATS_GET)!,page=mocks.handlers.get(IPC.CHATS_GET_PAGE)!;
+    const pending=await get({},session.id) as any,paged=await page({},{id:session.id,limit:1}) as any;
+    expect(pending.messages.find((m:any)=>m.id==="a")).toMatchObject({content:"",sSettlement:{state:"pending",originalText:"RAW"}});
+    expect(paged.messages[0]).toMatchObject({id:"a",content:"",sSettlement:{state:"pending",originalText:"RAW"}});
+    expect(JSON.stringify((await store.read(session.id)).entries)).toBe(before);expect(JSON.stringify(cache.getSession(session.id))).toBe(cacheBefore);
+    await sink.settleSAssistant({binding:{...binding,assistantEntryId},result:"success",safeReason:"synthetic"});
+    const success=await get({},session.id) as any;expect(success.messages.find((m:any)=>m.id==="a")).toMatchObject({content:"RAW",sSettlement:{state:"success"},runSnapshot:{status:"terminal",terminalStatus:"success"}});
+    expect(JSON.stringify(cache.getSession(session.id))).toBe(cacheBefore);
+    expect((await page({},{id:session.id,limit:1}) as any).messages[0]).toMatchObject({id:"a",content:"RAW",sSettlement:{state:"success",runId:"r"},runSnapshot:{runId:"r",terminalStatus:"success"}});
+    // A fresh disk-backed cache read and repeated opening must recover the canonical run.
+    expect(cache.getSession(session.id)!.messages.find(m=>m.id==="a")!.runSnapshot!.runId).toBe("stale-cache-run");
+    expect((await get({},session.id) as any).messages.find((m:any)=>m.id==="a")).toMatchObject({content:"RAW",sSettlement:{state:"success"},runSnapshot:{runId:"r"}});
+    const copy={...success.messages.find((m:any)=>m.id==="a"),content:"still cache"};
+    await mocks.handlers.get(IPC.CHATS_UPSERT)!({sender:{}},{id:session.id,message:copy});
+    expect(cache.getSession(session.id)!.messages.find(m=>m.id==="a")!.sSettlement).toBeUndefined();
+    expect((await get({},session.id) as any).messages.find((m:any)=>m.id==="a").content).toBe("RAW");
+  });
+  it("initializes a bound Work knowledge workspace only through its explicit entry", async () => {
+    const { registerChatsIpc } = await import("./chats-ipc");
+    registerChatsIpc();
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "knowledge-ipc-"));
+    const event = { sender: {} };
+    const session = await mocks.handlers.get(IPC.CHATS_CREATE)!(event, { mode: "work" }) as { id: string };
+    await mocks.handlers.get(IPC.CHATS_SET_WORKSPACE)!(event, { sessionId: session.id, workspaceRoot: root });
+    expect(fs.existsSync(path.join(root, "learn/progress.md"))).toBe(false);
+    expect(mocks.handlers.has("chats:init-learn-workspace")).toBe(false);
+    await expect(Promise.resolve(mocks.handlers.get(IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE)!(event, session.id))).resolves.toMatchObject({ ok: true });
+    expect(fs.existsSync(path.join(root, "learn/progress.md"))).toBe(true);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
   it("propagates history read failures instead of reporting empty Chat and Work lists", async () => {
     const directory = path.join(mocks.userDataDir, "firefly-chats");
     fs.mkdirSync(directory, { recursive: true });
@@ -50,13 +91,18 @@ describe("chats IPC mode filtering", () => {
     expect(fs.readFileSync(file, "utf8")).toBe("{broken");
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     mocks.handlers.clear();
     mocks.openPath.mockClear();
     mocks.saveDialog.mockReset();
     mocks.messageBox.mockReset();
-    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-chats-ipc-"));
+    mocks.userDataLookupDenied=false;
+    const root=fs.mkdtempSync(path.join(os.tmpdir(), "firefly-chats-ipc-")),isolation=path.join(root,"isolation"),production=path.join(root,"synthetic-production");
+    fs.mkdirSync(isolation);fs.mkdirSync(production);
+    const {resolveRuntimeProfile}=await import("../runtime-profile"),{initializeStorageContext}=await import("../storage-context");
+    const profile=resolveRuntimeProfile({argv:["--firefly-profile=test","--firefly-isolation-root="+isolation],env:{},isPackaged:false,productionAppData:production});
+    mocks.userDataDir=initializeStorageContext(profile).dataRoot;
   });
 
   it("returns only Code sessions for CHATS_LIST({ mode: \"code\" })", async () => {
@@ -188,7 +234,7 @@ describe("chats IPC mode filtering", () => {
     if (!create || !enqueue || !claim) throw new Error("title generation IPC handlers were not registered");
     const event = { sender: {} };
 
-    for (const mode of ["chat", "work", "code", "learn"] as const) {
+    for (const mode of ["chat", "work", "code"] as const) {
       const created = await create(event, { mode }) as { id: string };
       await enqueue(event, {
         sessionId: created.id,
@@ -207,7 +253,6 @@ describe("chats IPC mode filtering", () => {
       expect.objectContaining({ userMessageId: "first-chat", text: "处理chat问题" }),
       expect.objectContaining({ userMessageId: "first-work", text: "处理work问题" }),
       expect.objectContaining({ userMessageId: "first-code", text: "处理code问题" }),
-      expect.objectContaining({ userMessageId: "first-learn", text: "处理learn问题" }),
     ]);
   });
 

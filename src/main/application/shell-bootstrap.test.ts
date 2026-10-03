@@ -28,6 +28,7 @@ function makeShellDeps(overrides: Partial<ShellDependencies> = {}): ShellDepende
   const chatWindow = createFakeBrowserWindow();
   const windowManager = {
     createPetWindow: vi.fn(),
+    dispose: vi.fn(),
     openReactChatWindow: vi.fn(async () => chatWindow),
   };
   let trayChatRequest: ((request: { kind: string }) => void) | null = null;
@@ -53,6 +54,7 @@ function makeShellDeps(overrides: Partial<ShellDependencies> = {}): ShellDepende
     })),
     registerProtocolHandlers: vi.fn(),
     registerShellIpc: vi.fn(),
+    onWillQuit: vi.fn(),
     createTray: vi.fn((input) => {
       trayChatRequest = input.requestActivation;
       return { isDestroyed: () => false, destroy: vi.fn() } as never;
@@ -149,5 +151,20 @@ describe("startShell", () => {
     expect(deps.flushTokenUsage).toHaveBeenCalledTimes(1);
     deps.shutdown.emergencyFlush();
     expect(deps.flushTokenUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps shell IPC active through controlled shutdown until Electron will-quit", async () => {
+    const deps = makeShellDeps();
+    const shell = await startShell(deps);
+    const finalAction = vi.fn();
+
+    await deps.shutdown.requestControlledShutdown({ reason: "test", finalAction });
+
+    expect(finalAction).toHaveBeenCalledOnce();
+    expect(shell.ipc.dispose).not.toHaveBeenCalled();
+    const onWillQuit = vi.mocked(deps.onWillQuit).mock.calls[0]?.[0];
+    expect(onWillQuit).toBeTypeOf("function");
+    onWillQuit?.();
+    expect(shell.ipc.dispose).toHaveBeenCalledOnce();
   });
 });

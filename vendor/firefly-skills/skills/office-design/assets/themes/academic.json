@@ -1,0 +1,43 @@
+{
+  "id": "academic",
+  "colors": {
+    "primary": "#302E56",
+    "secondary": "#4C486B",
+    "accent": "#524693",
+    "background": "#FFFCF5",
+    "surface": "#F1EEE5",
+    "foreground": "#292735",
+    "muted": "#5D5965",
+    "border": "#C8C3D0"
+  },
+  "fonts": {
+    "cjk": [
+      "SimSun",
+      "Microsoft YaHei"
+    ],
+    "latin": [
+      "Times New Roman",
+      "Arial"
+    ],
+    "fallback": [
+      "Times-Roman",
+      "Helvetica"
+    ]
+  },
+  "spacing": {
+    "base": 6
+  },
+  "roles": {
+    "table_header": "primary",
+    "input": "#0000FF",
+    "formula": "#000000",
+    "warning": "#875000",
+    "success": "#246140"
+  },
+  "chart_colors": [
+    "#524693",
+    "#176D79",
+    "#935D29",
+    "#744C63"
+  ]
+}

@@ -191,6 +191,19 @@ afterEach(() => {
 });
 
 describe("AgentRunController", () => {
+  it("refreshes current S from Main after cache persistence and withholds provisional TTS",async()=>{
+    const api=createFakeApi({success:true,runId:"run-1"}),store=createFakeStore(),{host,earlyTtsQueue}=createRecordingHost(),registries=createRegistries();
+    store.get=vi.fn(async()=>({id:"session-1",messages:[{id:"assistant-1",role:"model",at:1,content:"CACHE",sSettlement:{state:"unknown",runId:"run-1",assistantEntryId:"entry",originalText:"RAW"}}]} as ChatSession));
+    const {promise}=launch(createInput(),{api,store,host,registries});await flush();api.emit(RUN_STARTED_EVENT);
+    api.emit({type:"CUSTOM",name:"firefly.sResponse",runId:"run-1",value:{pending:true}});
+    api.emit({type:"TEXT_MESSAGE_START",messageId:"assistant-1",runId:"run-1"});
+    api.emit({type:"TEXT_MESSAGE_CONTENT",messageId:"assistant-1",delta:"provisional",runId:"run-1"});
+    api.emit({type:"TEXT_MESSAGE_END",messageId:"assistant-1",runId:"run-1"});
+    api.emit({type:"RUN_FINISHED",runId:"run-1",result:{status:"success"}});await promise;
+    expect(earlyTtsQueue.append).not.toHaveBeenCalled();expect(host.earlyTts.finish).not.toHaveBeenCalled();
+    expect(host.patchMessage).toHaveBeenLastCalledWith("session-1","assistant-1",expect.objectContaining({content:"",sSettlement:{state:"unknown",runId:"run-1",assistantEntryId:"entry",originalText:"RAW"}}));
+    expect(store.upsert.mock.calls.every(call=>call[1].sSettlement===undefined)).toBe(true);
+  });
   it("uses hidden channel model context when continuing a bound conversation from desktop", async () => {
     const api = createFakeApi({ success: true, runId: "run-1" });
     const store = createFakeStore();

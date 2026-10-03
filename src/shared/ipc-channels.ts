@@ -15,7 +15,7 @@ export interface SpeechInputCommitRequest {
   /** 租约冻结的渲染目标标识；页面据此识别过期请求。 */
   rendererTargetId: string;
   sessionId: string;
-  mode: "chat" | "work" | "learn" | "code";
+  mode: "chat" | "work" | "code";
   text: string;
 }
 
@@ -100,7 +100,6 @@ export const IPC = {
   SIDEBAR_TOGGLE_ALWAYS_ON_TOP: "sidebar:toggle-always-on-top",
   SIDEBAR_OPEN_SETTINGS: "sidebar:open-settings",
   SIDEBAR_OPEN_TASKS: "sidebar:open-tasks",
-  SIDEBAR_OPEN_CALL: "sidebar:open-call",
 
   // tasks window (read-only display, no per-element interactions)
   TASKS_CLOSE: "tasks:close",
@@ -128,6 +127,8 @@ export const IPC = {
   SETTINGS_MODEL_PROFILE_SAVE: "settings:model-profiles:save",
   SETTINGS_MODEL_PROFILE_DELETE: "settings:model-profiles:delete",
   SETTINGS_MODEL_PROFILE_SET_DEFAULT: "settings:model-profiles:set-default",
+  SETTINGS_AGENT_ROUTING_GET: "settings:agent-routing:get",
+  SETTINGS_AGENT_ROUTING_UPDATE: "settings:agent-routing:update",
   SETTINGS_TEST_CONNECTION: "settings:test-connection",
   SETTINGS_TEST_VISION: "settings:test-vision",
   SETTINGS_GET_GENERAL: "settings:get-general",
@@ -191,7 +192,6 @@ export const IPC = {
   CHATS_SET_MODEL_PROFILE: "chats:set-model-profile",
   CHATS_OPEN_FOLDER: "chats:open-folder",
   CHATS_OPEN_WORKSPACE: "chats:open-workspace",
-  CHATS_MIGRATE_LEGACY: "chats:migrate-legacy",
   // 任意会话变动后 main → 所有渲染窗口 broadcast，触发列表/标题刷新
   CHATS_CHANGED: "chats:changed",
   // 状态栏 → main：要求打开/复用 reactChatWindow 并加载指定 sessionId
@@ -222,8 +222,8 @@ export const IPC = {
   CHATS_CLEAR_WORKSPACE: "chats:clear-workspace",
   // renderer → main：打开文件夹选择器
   CHATS_PICK_WORKSPACE_FOLDER: "chats:pick-workspace-folder",
-  // renderer → main：为 Learn 模式初始化工作区结构（只创建缺失文件）
-  CHATS_INIT_LEARN_WORKSPACE: "chats:init-learn-workspace",
+  // renderer → main：显式初始化知识工作区结构（只创建缺失文件）
+  CHATS_INIT_KNOWLEDGE_WORKSPACE: "chats:init-knowledge-workspace",
   // main → 所有窗口：工作区绑定变更广播
   CHATS_WORKSPACE_CHANGED: "chats:workspace-changed",
 
@@ -399,17 +399,6 @@ export const IPC = {
   // main → renderer：结算广播（提交/跳过/run 取消），渲染端据此清卡
   POP_QUIZ_SETTLED: "pop-quiz:settled",
 
-  // call window (voice call)
-  CALL_OPEN: "call:open",                 // sidebar → main：打开通话窗口
-  CALL_START: "call:start",               // renderer → main：开始通话（初始化 ASR）
-  CALL_AUDIO_FRAME: "call:audio-frame",    // renderer → main：PCM 音频帧
-  CALL_ASR_RESULT: "call:asr-result",     // main → renderer：ASR 识别结果
-  CALL_TURN_END: "call:turn-end",         // renderer → main：VAD 静默，结束本轮
-  CALL_TTS_AUDIO: "call:tts-audio",       // main → renderer：TTS 音频
-  CALL_TTS_DONE: "call:tts-done",         // renderer → main：TTS 播放完毕
-  CALL_STATE: "call:state",               // main → renderer：状态变更
-  CALL_ERROR: "call:error",               // main → renderer：错误
-  CALL_STOP: "call:stop",                 // renderer → main：挂断
 
   // 多渠道（微信/飞书/QQ/QQ 机器人）
   CHANNELS_GET_CONFIG: "channels:get-config",

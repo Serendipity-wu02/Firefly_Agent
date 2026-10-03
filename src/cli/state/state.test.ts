@@ -47,14 +47,6 @@ describe("statePath", () => {
 });
 
 describe("readState", () => {
-  it("reads the legacy state without overwriting it", () => {
-    const legacyPath = path.join(tmpHome, ".cyrene", "state.json");
-    mkdirSync(path.dirname(legacyPath), { recursive: true });
-    writeFileSync(legacyPath, JSON.stringify({ firstLaunch: sample }), "utf8");
-    expect(readState()).toEqual({ kind: "present", record: sample });
-    expect(statePath()).toBe(path.join(tmpHome, ".firefly", "state.json"));
-  });
-
   it("returns missing when the file does not exist", () => {
     expect(readState()).toEqual({ kind: "missing" });
   });

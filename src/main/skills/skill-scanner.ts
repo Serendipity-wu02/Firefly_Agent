@@ -5,7 +5,6 @@
 import * as fs from "fs";
 import * as path from "path";
 import matter from "gray-matter";
-import { resolveSkillId } from "./skill-id-aliases";
 import type { ParsedSkill, SkillEntry, SkillManifest, SkillMode } from "./types";
 import { logger } from "../../shared/logger";
 import { LogTag } from "../../shared/logger-tags";
@@ -29,14 +28,14 @@ interface MatterResult {
   content: string;
 }
 
-const VALID_SKILL_MODES = new Set<SkillMode>(["work", "code", "learn"]);
+const VALID_SKILL_MODES = new Set<SkillMode>(["work", "code"]);
 
 function normalizeSkillModes(raw: unknown): SkillMode[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const modes = raw
-    .map((m) => (typeof m === "string" ? m.trim().toLowerCase() : undefined))
+    .map((mode) => typeof mode === "string" ? mode.trim().toLowerCase() : undefined)
     .filter((m): m is SkillMode => !!m && VALID_SKILL_MODES.has(m as SkillMode));
-  return modes.length > 0 ? modes : undefined;
+  return [...new Set(modes)];
 }
 
 /**
@@ -126,8 +125,8 @@ export function scanSkills(dir: string, source: "builtin" | "user"): SkillEntry[
     }
     const manifest = readManifest(skillDir, id);
     result.push({
-      id: resolveSkillId(id),
-      name: resolveSkillId(parsed.name),
+      id,
+      name: parsed.name,
       description: parsed.description,
       tools: parsed.tools ?? manifest?.dependencies,
       version: parsed.version ?? manifest?.version,

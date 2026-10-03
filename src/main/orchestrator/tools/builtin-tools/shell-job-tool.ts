@@ -39,7 +39,7 @@ export const shellJobTool: ToolDefinition = {
     "wait_ms（可选，仅 status：阻塞等待毫秒数 0–60000，超范围自动钳制，默认 0 立即返回）。",
   enabled: true,
   risk: "safe",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   effectKind: "unknown" as const,
   ledgerPolicy: "bypass" as const,
   needsContext: true,

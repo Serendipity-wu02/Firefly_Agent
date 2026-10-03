@@ -30,7 +30,7 @@ npm run test:plugin-examples
 
 ## 当前源码限制
 
-以下为 2026-09-26 静态阅读结果。本次仅文档校正，本轮不修改示例业务逻辑。文档子范围未单独执行测试或构建，不重复运行集中测试；汇总验证见 `docs/refactor/2026-09-26-documentation-dependency-closeout.md`（仓库根目录相对路径）。
+示例验证入口为 `npm run test:plugin-examples`。Mock 验证不代表真实外部服务或 GUI 通过；当前边界见 [可靠性说明](../docs/architecture/firefly-reliability-boundaries.md)。
 
 - `system-status`：CPU/网络差分首次没有基准；GPU 依赖本机命令，Windows 采集依赖 PowerShell。`diskUsage()` 未传盘符时固定查询 `C`，不是枚举全部磁盘，也不是动态发现系统盘。
 - `weather-tool`：`secrets.get()` 抛错会使注册失败；只有缺少密钥或 OpenWeather 请求失败才进入免密钥路径。`unregister()` 先清空 `lastCity`，宿主随后执行的 `onDispose` 再尝试保存该值，不能宣称停止后城市缓存可靠保存。

@@ -21,9 +21,10 @@ export async function runFireflyRun(): Promise<RunResult> {
   }
   const electron = resolveElectron(projectRoot);
   const isWindowsCmd = process.platform === "win32" && electron.endsWith(".cmd");
+  const electronArguments = [".", "--firefly-profile=development"];
   const child = isWindowsCmd
-    ? spawn("cmd", ["/c", electron, "."], { stdio: "inherit", cwd: projectRoot })
-    : spawn(electron, ["."], { stdio: "inherit", cwd: projectRoot });
+    ? spawn("cmd", ["/c", electron, ...electronArguments], { stdio: "inherit", cwd: projectRoot })
+    : spawn(electron, electronArguments, { stdio: "inherit", cwd: projectRoot });
   return new Promise((resolve) => {
     child.on("exit", (code, signal) => {
       if (signal) resolve({ kind: "ok", code: 1 });

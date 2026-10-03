@@ -62,7 +62,7 @@ export function parseActiveTargetPayload(
   if (!payload || typeof payload !== "object") return null;
   const p = payload as { sessionId?: unknown; mode?: unknown; rendererTargetId?: unknown };
   if (typeof p.sessionId !== "string" || !p.sessionId) return null;
-  if (typeof p.mode !== "string" || !["chat", "work", "learn", "code"].includes(p.mode)) return null;
+  if (typeof p.mode !== "string" || !["chat", "work", "code"].includes(p.mode)) return null;
   if (typeof p.rendererTargetId !== "string" || !p.rendererTargetId) return null;
   return {
     sessionId: p.sessionId,

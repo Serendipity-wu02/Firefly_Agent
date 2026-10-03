@@ -193,7 +193,7 @@ export function installFakeBridges(options: FakeBridgeOptions): FakeBridgeRuntim
     setModelProfile: async () => cloneSession(session),
     pickWorkspaceFolder: async () => ({ ok: false }),
     setWorkspace: async () => ({ ok: true }),
-    initLearnWorkspace: async () => ({ ok: true }),
+    initKnowledgeWorkspace: async () => ({ ok: true }),
     openWorkspace: async () => ({ ok: true }),
     setActiveSession: async () => null,
     onChanged: () => () => {},

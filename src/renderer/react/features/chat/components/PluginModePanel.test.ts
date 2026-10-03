@@ -82,7 +82,7 @@ function plugin(overrides: Partial<PluginListEntry> = {}): PluginListEntry {
     name: "系统状态",
     version: "0.1.0",
     description: "查询本机系统状态",
-    author: "Playa",
+    author: "Test Author",
     entry: "index.cjs",
     apiVersion: 1,
     source: "user",
@@ -104,7 +104,7 @@ function marketEntry(overrides: Partial<MarketPluginEntry> = {}): MarketPluginEn
     name: "市场演示",
     version: "1.2.0",
     description: "市场里的演示插件",
-    author: "Playa",
+    author: "Test Author",
     downloads: 12,
     ...overrides,
   };
@@ -163,7 +163,7 @@ describe("PluginModePanel", () => {
 
     expect(container.textContent).toContain("系统状态");
     expect(container.textContent).toContain("查询本机系统状态");
-    expect(container.textContent).toContain("开发者：Playa");
+    expect(container.textContent).toContain("开发者：Test Author");
     expect(container.querySelector<HTMLImageElement>(".plugin-card-ui__icon img")?.src).toContain("data:image/png");
     const cardButtons = [...container.querySelectorAll<HTMLButtonElement>(".plugin-card-ui__actions button")];
     expect(cardButtons.map((button) => button.textContent)).toEqual(["打开", "停用", "删除"]);

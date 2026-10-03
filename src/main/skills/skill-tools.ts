@@ -6,7 +6,6 @@
 
 import { toolRegistry, type ToolEffectKind } from "../orchestrator/tools/registry/tool-registry";
 import { skillRegistry } from "./skill-registry";
-import { resolveSkillId } from "./skill-id-aliases";
 import { logger, LogTag } from "../logger";
 import type { ToolContext } from "../orchestrator/tools/registry/tool-context";
 
@@ -20,7 +19,7 @@ const SKILL_BODY_MAX_CHARS = 6000;
 const SKILL_REF_MAX_CHARS = 8000;
 
 export function isSkillAllowedForRun(id: string, allowedSkillIds?: ReadonlySet<string>): boolean {
-  return allowedSkillIds ? Array.from(allowedSkillIds).some(allowed => resolveSkillId(allowed) === resolveSkillId(id)) : true;
+  return allowedSkillIds ? allowedSkillIds.has(id) : true;
 }
 
 /** 截断文本到 maxChars，超长时末尾附提示。保留前部（任务路由表/关键规则通常在前）。 */
@@ -34,11 +33,13 @@ function truncateForContext(text: string, maxChars: number, hint: string): strin
  * 每轮对话的 reference 已读记录（skill_id + ref → true）。
  * FC 循环开始时调 resetReadRefs() 清空。防止模型在同一轮任务里重复读同一文件。
  */
-const readRefs = new Set<string>();
+const fallbackReadRefs = new Set<string>();
+let contextReadRefs = new WeakMap<ToolContext, Set<string>>();
 
 /** 每轮 FC 循环开始前调，清空已读记录。由 firefly-agent.ts 在循环入口调。 */
 export function resetReadRefs(): void {
-  readRefs.clear();
+  fallbackReadRefs.clear();
+  contextReadRefs = new WeakMap();
 }
 
 /**
@@ -73,10 +74,10 @@ export function registerSkillTools(): void {
     risk: "safe",
     effectKind: "read" as const, // 默认值，effectResolver 会根据实际 skill 覆盖
     effectResolver: (args: Record<string, unknown>): ToolEffectKind => {
-      const id = resolveSkillId(String(args.skill_id || ""));
+      const id = String(args.skill_id || "");
       const skill = skillRegistry.getById(id);
       if (!skill) return "unknown";
-      // skill 未声明 effectKind → unknown（会被 ExecutionPolicyGuard 拒绝）
+      // 未声明只产生 unknown 元数据；实际工具仍独立经过权限检查。
       return skill.effectKind ?? "unknown";
     },
     inputSchema: {
@@ -88,7 +89,7 @@ export function registerSkillTools(): void {
     },
     needsContext: true,
     execute: async (args, ctx?: ToolContext) => {
-      const id = resolveSkillId(String(args.skill_id || ""));
+      const id = String(args.skill_id || "");
       if (!isSkillAllowedForRun(id, ctx?.allowedSkillIds)) {
         return `[invoke_skill] E_SKILL_UNAVAILABLE_IN_MODE: ${id}`;
       }
@@ -127,7 +128,7 @@ export function registerSkillTools(): void {
     effectKind: "read" as const,
     effectResolver: (args: Record<string, unknown>): ToolEffectKind => {
       if (args.source !== "body") return "read";
-      const id = resolveSkillId(String(args.skill_id || ""));
+      const id = String(args.skill_id || "");
       return skillRegistry.getById(id)?.effectKind ?? "unknown";
     },
     verificationPolicy: "none" as const,
@@ -143,7 +144,7 @@ export function registerSkillTools(): void {
     },
     needsContext: true,
     execute: async (args, ctx?: ToolContext) => {
-      const id = resolveSkillId(String(args.skill_id || ""));
+      const id = String(args.skill_id || "");
       const ref = String(args.ref || "");
       if (!isSkillAllowedForRun(id, ctx?.allowedSkillIds)) {
         return `[read_skill_reference] E_SKILL_UNAVAILABLE_IN_MODE: ${id}`;
@@ -157,6 +158,8 @@ export function registerSkillTools(): void {
       if ((source !== "reference" && source !== "body") || typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0
         || source === "body" && ref !== "SKILL.md") return "[read_skill_reference] E_SKILL_READ_ARGUMENT";
       // 去重：同一轮内同一 reference 不重复返回（内容已在对话历史里，再读浪费轮数+token）
+      const readRefs = ctx ? contextReadRefs.get(ctx) ?? new Set<string>() : fallbackReadRefs;
+      if (ctx) contextReadRefs.set(ctx, readRefs);
       const readKey = `${id}/${source}/${ref}/${offset}`;
       if (readRefs.has(readKey)) {
         return `[read_skill_reference] "${ref}" 已在本轮读过，内容已在对话中，不要重复读取。` +

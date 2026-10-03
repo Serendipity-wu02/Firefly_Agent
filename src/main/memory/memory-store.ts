@@ -7,16 +7,12 @@ import {
   createDefaultMemoryStore,
   extractMemoryKeywords,
 } from "./memory-store-defaults"
-import { repairMigrations } from "./memory-store-migrations"
 import {
-  backupMemoryFile,
   memoryFileExists,
   readMemoryFile,
   resolveMemoryPath,
   writeMemoryFile,
 } from "./memory-store-io"
-
-export { repairMigrations }
 
 const QUOTE_SNIPPET_MAX = 300
 const RESOLVER_PRIORITY_RANK: Record<string, number> = {
@@ -26,69 +22,72 @@ const RESOLVER_PRIORITY_RANK: Record<string, number> = {
   none: 0,
 }
 
+function isCurrentMemoryStore(value: unknown): value is MemoryStore {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const store = value as Partial<MemoryStore>
+  if (store.schemaVersion !== CURRENT_MEMORY_SCHEMA_VERSION || typeof store.version !== "number") return false
+  if (!store.l0 || typeof store.l0 !== "object" || Array.isArray(store.l0)) return false
+  if (!store.l1 || typeof store.l1 !== "object" || Array.isArray(store.l1)) return false
+  const { nickname, preferredName, occupation, longTermInterests, language, permanentNote, isPinned, updatedAt } = store.l0
+  if ([nickname, preferredName, occupation, longTermInterests, language, permanentNote]
+    .some((value) => typeof value !== "string")) return false
+  if (typeof isPinned !== "boolean" || typeof updatedAt !== "number") return false
+  const { recentGoals, recentPreferences, currentProject, generatedAt, roundCount } = store.l1
+  if ([recentGoals, recentPreferences, currentProject]
+    .some((value) => typeof value !== "string")) return false
+  if (typeof generatedAt !== "number" || typeof roundCount !== "number") return false
+  if (!Array.isArray(store.l2)) return false
+  if (store.l2.some((memory) => !memory || typeof memory.id !== "string" || typeof memory.content !== "string")) return false
+  return [store.evidence, store.reflectionLogs, store.conflictLogs, store.l2DmaeStates]
+    .every((entries) => entries === undefined || Array.isArray(entries))
+}
+
 export type L0WritableField = Exclude<keyof L0Profile, "updatedAt">
 export type L1WritableField = keyof L1Profile
 export type L2Input = Omit<L2Memory, "id" | "createdAt" | "lastAccessedAt" | "accessCount" | "weight" | "status" | "keywords">
 
 class MemoryStoreManager {
   private cache: MemoryStore | null = null
+  private readFailed = false
 
   async load(): Promise<MemoryStore> {
+    if (this.readFailed) throw new Error("MEMORY_STORE_READ_FAILED: 记忆读取失败，原文件已保留")
     if (this.cache) return this.cache
     const filePath = resolveMemoryPath()
     if (!filePath) {
       this.cache = createDefaultMemoryStore()
       return this.cache
     }
-    try {
-      if (memoryFileExists(filePath)) {
-        const parsed = readMemoryFile(filePath)
-        const needsMigration = parsed.schemaVersion !== CURRENT_MEMORY_SCHEMA_VERSION
-        this.cache = repairMigrations(parsed)
-        if (needsMigration) {
-          backupMemoryFile(filePath)
-          await this.save(this.cache)
-          appendMemoryTrace({
-            op: "migration.upgrade",
-            layer: "migration",
-            status: "ok",
-            details: { schemaVersion: CURRENT_MEMORY_SCHEMA_VERSION },
-          })
-        }
-      } else {
-        this.cache = createDefaultMemoryStore()
-        await this.save(this.cache)
-        appendMemoryTrace({
-          op: "store.init",
-          layer: "store",
-          status: "ok",
-          details: { schemaVersion: CURRENT_MEMORY_SCHEMA_VERSION },
-        })
-      }
-    } catch (err) {
-      try {
-        backupMemoryFile(filePath)
-      } catch {
-        // 如果连备份也失败，仍然生成干净默认文件，避免主流程被记忆文件阻塞。
-      }
+    if (!memoryFileExists(filePath)) {
       this.cache = createDefaultMemoryStore()
       await this.save(this.cache)
       appendMemoryTrace({
-        op: "migration.recoverDefault",
-        layer: "migration",
-        status: "error",
-        error: err instanceof Error ? err.message : String(err),
+        op: "store.init",
+        layer: "store",
+        status: "ok",
+        details: { schemaVersion: CURRENT_MEMORY_SCHEMA_VERSION },
       })
+      return this.cache
+    }
+    try {
+      const parsed = readMemoryFile(filePath)
+      if (!isCurrentMemoryStore(parsed)) throw new Error("Unsupported memory format")
+      this.cache = parsed
+    } catch {
+      this.readFailed = true
+      throw new Error("MEMORY_STORE_READ_FAILED: 记忆读取失败，原文件已保留")
     }
     return this.cache
   }
 
   async save(store: MemoryStore): Promise<void> {
+    if (this.readFailed) throw new Error("MEMORY_STORE_READ_FAILED: 记忆读取失败，原文件已保留")
     const filePath = resolveMemoryPath()
     if (!filePath) {
       this.cache = store
       return
     }
+    if (!this.cache && memoryFileExists(filePath)) await this.load()
     writeMemoryFile(filePath, store)
     this.cache = store
     // 通知 Obsidian vault 绑定：记忆已变更，防抖触发自动同步

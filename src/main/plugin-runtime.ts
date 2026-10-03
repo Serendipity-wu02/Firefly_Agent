@@ -14,7 +14,6 @@ import type { PluginSchedulerStore } from "./plugin-host/scheduler-service";
 import { activeChatTargetRegistry } from "./plugin-host/active-chat-target";
 import { createSpeechInputService } from "./plugin-host/speech-input-service";
 import { createSpeechInputCommitBridge } from "./plugin-host/speech-input-commit-bridge";
-import { createSpeechInputCallController } from "./plugin-host/speech-input-call-controller";
 import { installPluginPanelProtocol } from "./plugin-panel-protocol";
 import { createPluginIpcRouter } from "../plugins/ipc-router";
 import { PluginManager } from "../plugins/manager";
@@ -62,7 +61,6 @@ export async function startPluginRuntime(deps: PluginRuntimeDeps): Promise<Plugi
     registry: activeChatTargetRegistry,
     sessionStore: { getSession: (id) => chatsStore.getSession(id) ?? null },
     commitBridge: createSpeechInputCommitBridge(deps.ipc),
-    callController: createSpeechInputCallController(),
   });
   const manager = new PluginManager({
     scanRoots: [

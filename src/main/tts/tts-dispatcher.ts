@@ -1,4 +1,4 @@
-// 主进程内的 TTS 引擎分发。仅 call-manager 调用（不经 IPC）。
+// 主进程共享的 TTS 引擎分发，供聊天和渠道语音合成使用。
 // chat/main.ts 走两个独立 IPC 通道，不用这个 dispatcher。
 
 import { synthesize as minimaxSynthesize } from "./minimax-engine";

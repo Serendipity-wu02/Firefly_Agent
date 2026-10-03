@@ -1,5 +1,4 @@
 import { parseSlashCommand, skillRegistry } from "./index";
-import { resolveSkillSettings } from "./skill-id-aliases";
 import type { SkillMode, SkillModeOverrides } from "./types";
 
 /**
@@ -31,7 +30,7 @@ export function resolveSlashActivation<T extends { role: string; content: string
   const isEnabledForMode = (s: typeof skill): boolean => {
     if (!s) return false;
     if (mode === undefined) return true;
-    const override = overrides ? resolveSkillSettings(overrides)[s.id]?.[mode] : undefined;
+    const override = overrides ? overrides[s.id]?.[mode] : undefined;
     if (override !== undefined) return override;
     return !s.modes || s.modes.includes(mode);
   };

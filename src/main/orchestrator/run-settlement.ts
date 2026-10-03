@@ -44,3 +44,47 @@ export class RunSettlementGate {
     return this.settlement !== null;
   }
 }
+
+
+export type SRunSettlementState = "open" | "cancel_requested" | "success_reserved" | "interrupted_reserved" | "success" | "interrupted" | "unknown";
+type SResult = "success" | "interrupted";
+/** Main-only dispatch reservation; durable confirmation comes exclusively from the S sink. */
+export class SRunSettlementGate {
+  private candidate: SResult | null = null;
+  private phase: "open" | "reserved" | "confirmed" | "unknown" = "open";
+  private cancelRequested = false;
+  requestCancel(): boolean {
+    if (this.phase !== "open")
+      return false;
+    this.cancelRequested = true;
+    return true;
+  }
+  reserve(result: SResult): boolean {
+    if (this.phase !== "open" || result !== "success" && result !== "interrupted" || result === "success" && this.cancelRequested)
+      return false;
+    this.candidate = result;
+    this.phase = "reserved";
+    return true;
+  }
+  confirm(result: SResult): boolean {
+    if (this.phase !== "reserved" && this.phase !== "unknown" || this.candidate !== result)
+      return false;
+    this.phase = "confirmed";
+    return true;
+  }
+  markUnknown(): boolean {
+    if (this.phase !== "reserved")
+      return false;
+    this.phase = "unknown";
+    return true;
+  }
+  get(): SRunSettlementState {
+    if (this.phase === "open")
+      return this.cancelRequested ? "cancel_requested" : "open";
+    if (this.phase === "unknown")
+      return "unknown";
+    if (this.phase === "reserved")
+      return this.candidate === "success" ? "success_reserved" : "interrupted_reserved";
+    return this.candidate!;
+  }
+}

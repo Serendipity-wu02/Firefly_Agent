@@ -22,6 +22,8 @@
 // 这些全部塞到 BuildOptionsDeps 里。dispatcher / agent-runtime 通过
 // buildBuildOptionsDeps()（agent-runtime.ts）注入同一份 deps，保证口径一致。
 import { existsSync } from "fs";
+import { loadPromptFile } from "../prompts/prompt-loader";
+import { openKnowledgeWorkspace, canUpdateLearningProgress } from "../knowledge/knowledge-workspace";
 import { basename } from "path";
 import {
   resolveExecutionMode,
@@ -82,7 +84,6 @@ export interface BuildOptionsDeps {
     getEnabled(): ReadonlyArray<unknown>;
     /** 按会话模式 + 用户覆盖层过滤的启用 skill 列表（三模适配层入口）。 */
     getEnabledForMode(mode: import("../skills/types").SkillMode, overrides?: SkillModeOverrides): ReadonlyArray<unknown>;
-    /** 懒加载某 skill 的 SKILL.md 正文（去 frontmatter）。用于 plan mode 条件注入 firefly-plan-mode body。 */
     getBody(id: string): string | null;
   };
   resolveSlashActivation: (
@@ -208,7 +209,7 @@ export interface ModelSettingsLite {
   baseUrl: string;
   model: string;
   apiKey: string;
-  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+  explicitTransport?: "openai" | "anthropic" | "responses";
   /** 顶层 reasoning 镜像（来自 perProvider[currentProvider].reasoning）。adapter 直接读。 */
   reasoning?: import("../../shared/reasoning").ReasoningPreference;
   runtimeSync?: string;
@@ -432,22 +433,8 @@ function isStyleId(value: unknown): value is StyleId {
   return typeof value === "string" && (STYLE_IDS as readonly string[]).includes(value);
 }
 
-function styleIdFromLegacyFile(value: unknown): StyleId | undefined {
-  if (typeof value !== "string") return undefined;
-  const legacy: Record<string, StyleId> = {
-    "01_default.md": "default",
-    "02_lively.md": "lively",
-    "03_healing.md": "healing",
-    "04_focused.md": "focused",
-    "05_sweet.md": "sweet",
-  };
-  return legacy[value];
-}
-
 function resolveRunStyleId(input: AguiRunInput, saved: StyleSettingsLite): StyleId {
   if (isStyleId(input.styleId)) return input.styleId;
-  const legacyStyleId = styleIdFromLegacyFile(input.style);
-  if (legacyStyleId) return legacyStyleId;
   if (isStyleId(saved.currentStyleId)) return saved.currentStyleId;
   return normalizeStyleId(undefined);
 }
@@ -527,9 +514,7 @@ export async function buildAgentRunOptions(
   // slim view for downstream helpers that only need { role, content }
   const slimMessages = messages as unknown as Array<{ role: string; content?: string }>;
   const latestUserText = contentToText(messages.filter((m) => m.role === "user").at(-1)?.content) ?? "";
-  const executionMode = resolveExecutionMode(
-    input.executionMode ?? ((input.style || "").startsWith("talk") ? "chat" : "work"),
-  );
+  const executionMode = resolveExecutionMode(input.executionMode);
   const isChatMode = executionMode === "chat";
   const conversationId = input.sessionId || "default";
 
@@ -690,6 +675,7 @@ export async function buildAgentRunOptions(
 
   // 优先使用 AguiBridge 注入的真实会话模式，fallback 到执行模式（兼容旧调用方）。
   const resolvedMode: ConversationMode = input.mode ?? (isChatMode ? "chat" : "work");
+  if (resolvedMode !== "chat" && resolvedMode !== "work" && resolvedMode !== "code") throw new Error("INVALID_CONVERSATION_MODE");
   const basePromptMode = resolvedMode;
 
   let pluginPromptContext = "";
@@ -746,18 +732,19 @@ export async function buildAgentRunOptions(
   let autoInjectedSkillContext = deps.buildAutoInjectedSkillContext(enabledSkills);
   let autoInjectedSoulContext = deps.buildAutoInjectedSoulContext?.(enabledSkills) ?? "";
 
-  // Plan Mode 条件注入：firefly-plan-mode skill 的 SKILL.md 正文只在
-  // PLAN_DISCUSSING / PLAN_REVIEW 时注入。不拼进 stablePrefix（autoInjectedSkillContext
-  // 会进 toolSystemContent → stablePrefix，进/出 plan mode 会打断缓存），改为单独字段
-  // planSkillContext 传给 harness，在 runtimeParts（可变部分）拼，保证缓存前缀稳定。
   const planStateForInject = resolvedMode === "code" || resolvedMode === "chat"
     ? getPlanState(conversationIdForPlan)
     : "NORMAL";
   let planSkillContext: string | undefined;
   if (planStateForInject === "PLAN_DISCUSSING" || planStateForInject === "PLAN_REVIEW") {
-    const planSkillBody = deps.skillRegistry.getBody("firefly-plan-mode");
+    const planSkillBody = loadPromptFile("workflow-support/plan-mode.md");
     if (planSkillBody) {
-      planSkillContext = `## Plan Mode 指令（自动激活，无需 invoke_skill）\n\n${planSkillBody}`;
+      const references = ["coverage-check.md", "plan-templates.md", "execution-handoff.md"]
+        .map(file => {
+          const body = loadPromptFile(`workflow-support/references/${file}`);
+          return body ? `### 已附参考：references/${file}\n\n${body}` : "";
+        }).filter(Boolean);
+      planSkillContext = ["## Plan Mode 指令（自动激活，无需 invoke_skill）", planSkillBody, ...references].join("\n\n");
     }
   }
 
@@ -823,13 +810,18 @@ export async function buildAgentRunOptions(
       ? { defaultExecutionMode: (s.manifest as Record<string, unknown>).defaultExecutionMode as "direct" | "plan" }
       : {}),
   })).filter((s) => s.id);
-  const runTools = capabilities.tools;
+  const knowledgeWorkspace = openKnowledgeWorkspace(resolvedMode, resolvedWorkspaceRoot);
+  const knowledgeToolIds = new Set(["obsidian_list_files", "obsidian_search", "obsidian_read_file", "obsidian_read_section", "obsidian_edit", "obsidian_open_note"]);
+  const runTools = capabilities.tools.filter((tool) => !knowledgeToolIds.has(tool.id) || knowledgeWorkspace !== undefined);
   const searchToolIds = filteredBySearch
     .filter((t) => t.id === "web_search" || t.id.startsWith("minimax-web-search-"))
     .map((t) => t.id);
   console.log(`[Firefly] 搜索后端=${activeSearchBackend} 暴露搜索工具=[${searchToolIds.join(", ") || "无"}]`);
-  const baseSoulSystemPrompt = deps.buildModePrompt?.(resolvedMode)
+  const modePrompt = deps.buildModePrompt?.(resolvedMode)
     ?? deps.buildSoulSystemBasePrompt(basePromptMode);
+  const baseSoulSystemPrompt = knowledgeWorkspace && await canUpdateLearningProgress(knowledgeWorkspace)
+    ? [modePrompt, loadPromptFile("knowledge_workflow.md")].filter(Boolean).join("\n\n")
+    : modePrompt;
   // Chat 工具增强开启且有勾选工具时，chat 也注入工具目录 prompt
   //（buildToolSystemPrompt 忽略 mode，只按工具列表生成目录，chat 复用安全）。
   const baseToolSystemPrompt = resolvedMode === "chat"
@@ -970,7 +962,7 @@ export async function buildAgentRunOptions(
       ...(transcriptRecoveryContext ? { recoveryContext: transcriptRecoveryContext } : {}),
       ...(imageCaptionFallback ? { imageCaptionFallback } : {}),
       tools: [...runTools],
-      capabilities,
+      capabilities: { ...capabilities, tools: runTools, toolIds: new Set(runTools.map((tool) => tool.id)) },
       ...(availableSkills.length > 0 ? { availableSkills } : {}),
       resolvedWorkspaceRoot,
     },

@@ -9,7 +9,7 @@ function read(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
 
-describe("Firefly character migration", () => {
+describe("Firefly character assets", () => {
   it("loads the copied Firefly model and every referenced asset exists", () => {
     const modelDir = path.join(root, "src", "renderer", "public", "models", "firefly");
     const manifestPath = path.join(modelDir, "Firefly.model3.json");
@@ -48,23 +48,19 @@ describe("Firefly character migration", () => {
       "prompts/soul.md",
       "prompts/chat_system.md",
       "prompts/work_system.md",
-      "prompts/learn_system.md",
+      "prompts/knowledge_workflow.md",
       "prompts/code_system.md",
       "prompts/firefly_harness.md",
       "prompts/chat_identity.md",
       "prompts/work_identity.md",
       "prompts/code_identity.md",
-      "prompts/learn_identity.md",
       "prompts/plan_identity.md",
       "prompts/canon_quotes.md",
       "prompts/canon_quotes_lite.md",
-      "prompts/phone_identity.md",
-      "prompts/phone_system.md",
     ];
     for (const file of promptFiles) {
       const content = read(file);
       expect(content, file).toContain("流萤");
-      expect(content, file).not.toMatch(/昔涟|Cyrene/);
     }
     expect(read("prompts/soul.md")).toMatch(/^# 流萤 · 人格核心/);
     expect(read("prompts/soul.md")).not.toMatch(/^character:|^daily_mode:|^work_mode:/m);
@@ -76,15 +72,17 @@ describe("Firefly character migration", () => {
       expect(quotes).not.toContain("火萤V型战略强袭装甲");
       expect(quotes).not.toContain("分享·心愿：");
     }
-    expect(read("prompts/phone_style.md")).not.toMatch(/昔涟|Cyrene/);
+    for (const file of ["prompts/phone_identity.md", "prompts/phone_system.md", "prompts/phone_style.md"]) {
+      expect(fs.existsSync(path.join(root, file)), file).toBe(false);
+    }
     for (const style of ["01_default.md", "02_lively.md", "03_healing.md", "04_focused.md", "05_sweet.md"]) {
-      expect(read(`prompts/styles/${style}`), style).not.toMatch(/昔涟|Cyrene|人家|♪/);
+      expect(read(`prompts/styles/${style}`), style).not.toMatch(/人家|♪/);
     }
 
     const worldbookDir = path.join(root, "prompts", "worldbook");
     for (const file of fs.readdirSync(worldbookDir).filter((name) => name.endsWith(".md"))) {
       const content = fs.readFileSync(path.join(worldbookDir, file), "utf8");
-      expect(content, file).not.toMatch(/昔涟|Cyrene|翁法罗斯|德谬歌/);
+      expect(content, file).not.toMatch(/翁法罗斯|德谬歌/);
     }
   });
 
@@ -92,7 +90,6 @@ describe("Firefly character migration", () => {
     expect(fs.existsSync(path.join(root, "src", "renderer", "public", "avatars", "firefly-avatar.png"))).toBe(true);
     expect(read("src/renderer/react/features/chat/components/ChatMessageList.tsx"))
       .toContain('resolveAsset("avatars/firefly-avatar.png")');
-    expect(read("src/renderer/react/i18n/zh-CN.json")).not.toMatch(/昔涟/);
     expect(read("src/renderer/react/index.html")).toContain("流萤");
   });
 
@@ -118,7 +115,7 @@ describe("Firefly character migration", () => {
       "src/renderer/toast/toast.ts",
     ];
     for (const file of activeFiles) {
-      expect(read(file), file).not.toMatch(/status-moods\/|status-float\/|assets\/welcome\/|assets\/(?:model|new|plugin|tools|moments|compressing)\.png|icons\/(?:sticker-picker|mimi)\.png|toast-avatar\.png|cyrene-avatar\.png/);
+      expect(read(file), file).not.toMatch(/status-moods\/|status-float\/|assets\/welcome\/|assets\/(?:model|new|plugin|tools|moments|compressing)\.png|icons\/(?:sticker-picker|mimi)\.png|toast-avatar\.png/);
     }
   });
 });

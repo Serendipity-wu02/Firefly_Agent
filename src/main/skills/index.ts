@@ -9,11 +9,8 @@ import { skillRegistry } from "./skill-registry";
 import { registerSkillTools } from "./skill-tools";
 import type { SkillEntry } from "./types";
 import { logger, LogTag } from "../logger";
-import { getExternalContentPaths, resolveSkillScanSources, resolveSkillsSnapshotArchivePath } from "../external-content-paths";
-import { installSkillsSnapshot } from "./snapshot-install";
-import { resolveSkillId, resolveSkillSettings } from "./skill-id-aliases";
-import { writeMigratedJson } from "../migration/firefly-data";
-import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
+import { getExternalContentPaths, resolveSkillScanSources, resolvePackagedSkillDirectory } from "../external-content-paths";
+import { synchronizeManagedSkillDirectories, validateManagedSourceDirectory } from "./directory-install";
 
 const LOG_PREFIX = "[Skills]";
 
@@ -27,33 +24,37 @@ function loadEnabledState(): Record<string, boolean> {
   try {
     const p = enabledStatePath();
     if (!fs.existsSync(p)) return {};
-    const raw = JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, boolean>;
+    const raw: unknown = JSON.parse(fs.readFileSync(p, "utf8"));
     if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.values(raw).some((value) => typeof value !== "boolean")) throw new Error("SKILL_SETTINGS_READ_FAILED");
-    const normalized = resolveSkillSettings(raw);
-    writeMigratedJson(p, raw, normalized);
-    return normalized;
+    return raw as Record<string, boolean>;
   } catch {
     throw new Error("SKILL_SETTINGS_READ_FAILED");
   }
 }
 
 /**
- * 启动入口：首启把第三方 skills 快照解压到 user 区（哨兵保证只装一次），
+ * 启动入口：将受校验的第三方 Skills 目录同步到 user 区，
  * 再扫描双源 skills → 灌入 registry（user 目录级覆盖 builtin + 合并 enabled 状态）→ 注册 meta-tool。
  * 必须在 app.whenReady 之后调用（依赖 app.getPath）。
  */
 export async function initSkills(): Promise<void> {
   const paths = getExternalContentPaths();
 
-  // 快照安装必须在扫描之前完成，否则首启扫不到归档里的第三方 skill。
-  const archivePath = resolveSkillsSnapshotArchivePath(paths);
+  const sourceDirectory = resolvePackagedSkillDirectory(paths);
   const userSkillsDir = paths.userSkillDirectories[0];
-  await installSkillsSnapshot({ archivePath, userSkillsDir });
   try {
-    await migrateInstalledSkillSnapshot(userSkillsDir, archivePath);
+    if (sourceDirectory) {
+      const manifestPath = path.join(path.dirname(sourceDirectory), "skills-manifest.json");
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { skills: string[]; files: Record<string, string> };
+      if (!Array.isArray(manifest.skills) || !manifest.files || typeof manifest.files !== "object"
+        || Array.isArray(manifest.files)) throw new Error("SKILL_DIRECTORY_MANIFEST_INVALID");
+      validateManagedSourceDirectory(sourceDirectory, manifest.skills, manifest.files);
+      synchronizeManagedSkillDirectories({ sourceDirectory, userSkillsDir, expectedIds: manifest.skills,
+        expectedFileHashes: manifest.files });
+    }
   } catch (error) {
-    const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_MIGRATION_FAILED";
-    logger.warn(LogTag.Skills, "managed migration failed; scanning existing files without replacing them", { reason });
+    const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_DIRECTORY_SYNC_FAILED";
+    logger.warn(LogTag.Skills, "managed directory sync failed; scanning existing files without replacing them", { reason });
   }
 
   const sources = resolveSkillScanSources(paths);
@@ -78,7 +79,6 @@ export async function initSkills(): Promise<void> {
 
 /** 持久化某 skill 的 enabled 状态。 */
 export function setSkillEnabled(id: string, enabled: boolean): void {
-  id = resolveSkillId(id);
   try {
     const saved = loadEnabledState();
     saved[id] = enabled;
@@ -113,7 +113,8 @@ export function listSkillsForUi() {
  * 返回扫描后 registry 中 skill 总数。
  */
 export function rescanSkills(): number {
-  const sources = resolveSkillScanSources(getExternalContentPaths());
+  const paths = getExternalContentPaths();
+  const sources = resolveSkillScanSources(paths);
 
   const map = new Map<string, SkillEntry>();
   for (const source of sources) {

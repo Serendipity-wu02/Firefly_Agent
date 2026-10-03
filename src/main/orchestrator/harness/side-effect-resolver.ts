@@ -14,17 +14,17 @@ const EFFECT_KIND_MAP: Record<string, SideEffectKind> = {
   verification: "read_only",
   mutation: "idempotent_mutation",
   external_side_effect: "non_idempotent_side_effect",
-  unknown: "read_only", // 保守默认
+  unknown: "non_idempotent_side_effect",
 };
 
 /**
  * 解析工具调用的副作用分类。
- * 优先使用 tool.effectResolver（动态），其次 tool.effectKind（静态），默认 read_only。
+ * 优先使用 tool.effectResolver（动态），其次 tool.effectKind（静态），默认 non_idempotent_side_effect。
  */
 export function resolveSideEffect(
   tool: ToolDefinition | undefined,
   args: Record<string, unknown>,
 ): SideEffectKind {
   const effectKind = resolveEffectKind(tool, args);
-  return EFFECT_KIND_MAP[effectKind] ?? "read_only";
+  return EFFECT_KIND_MAP[effectKind] ?? "non_idempotent_side_effect";
 }

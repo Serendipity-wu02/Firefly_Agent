@@ -1,4 +1,3 @@
-import { normalizeStoredPortraitFileName } from "../../shared/legacy-firefly-contracts";
 import elioUrl from "../assets/task-portraits/艾利欧.png";
 import hertaUrl from "../assets/task-portraits/大黑塔.png";
 import danhengUrl from "../assets/task-portraits/丹恒.png";
@@ -28,5 +27,5 @@ const portraitByAssetFileName: Readonly<Record<string, string>> = {
 };
 
 export function getCharacterPortraitByAssetFileName(assetFileName: string): string | null {
-  return portraitByAssetFileName[normalizeStoredPortraitFileName(assetFileName)] ?? null;
+  return portraitByAssetFileName[assetFileName] ?? null;
 }

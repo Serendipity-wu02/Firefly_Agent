@@ -746,6 +746,11 @@ async function reloadProfiles(): Promise<void> {
     apiState.defaultProfileId = catalog.defaultModelProfileId;
     apiState.profilesLoadState = "ready";
     renderProfileList();
+    const routingPanel = document.getElementById("agent-routing-panel");
+    if (routingPanel && window.settings) {
+      const { loadAgentRoutingPanel } = await import("./api/agent-routing");
+      await loadAgentRoutingPanel(routingPanel, window.settings);
+    }
   } catch (error) {
     apiState.profilesLoadState = "error";
     renderProfileList();
@@ -821,7 +826,6 @@ function fillVisionModelOptions(preset: ModelPreset): void {
 }
 
 const LOCAL_ENDPOINT_AUTH_FALLBACK = "__FIREFLY_LOCAL_NO_AUTH__";
-import { LEGACY_LOCAL_ENDPOINT_AUTH_FALLBACK } from "../../shared/legacy-firefly-contracts";
 
 function getApiKeyForRequest(): string {
   const value = apiKeyInput.value.trim();
@@ -943,7 +947,7 @@ export function applyPreset(
   // apiKey：优先用缓存；否则**显式清空**——避免上一家厂商的 key 残留在输入框里被用户误点保存。
   // 这是 v1 切厂商行为里的关键不变量：apiKey 永远只跟当前厂商绑定。
   const customMode = getCustomEndpointMode(preset.providerName);
-  apiKeyInput.value = customMode === "local" && (preferredApiKey === LOCAL_ENDPOINT_AUTH_FALLBACK || preferredApiKey === LEGACY_LOCAL_ENDPOINT_AUTH_FALLBACK)
+  apiKeyInput.value = customMode === "local" && preferredApiKey === LOCAL_ENDPOINT_AUTH_FALLBACK
     ? ""
     : (preferredApiKey ?? "");
 

@@ -58,6 +58,8 @@ import {
   normalizeSessionMode,
   openSessionByIdWithDeps,
   type OpenSessionArgs,
+  type OpenSessionResult,
+  type SessionSelectionResult,
   type ReactSessionMode,
 } from "./openSessionByDeps";
 import { useComposerAttachments } from "../hooks/useComposerAttachments";
@@ -140,7 +142,7 @@ function sessionMetaListEqual(a: ChatSessionMeta[], b: ChatSessionMeta[]): boole
 /** 导航动作函数的最小签名（供 navActionsRef 转发，见组件内注释） */
 interface NavActions {
   createNewTask: () => Promise<void>;
-  selectSession: (sessionId: string, targetMode?: ConversationMode) => Promise<void>;
+  selectSession: (sessionId: string, targetMode?: ConversationMode) => Promise<SessionSelectionResult>;
   handleRenameSession: (sessionId: string, newTitle: string) => Promise<void>;
   handleDeleteSession: (sessionId: string) => Promise<void>;
   handleTogglePinSession: (sessionId: string, pinned: boolean) => Promise<void>;
@@ -220,7 +222,7 @@ export function ChatPage() {
   const observedModeRef = useRef(mode);
   // 长期持有的刷新操作 ref：供 IPC 回调读取当前实现
   const refreshSessionsRef = useRef<
-    (targetMode: ConversationMode, selectCurrent: boolean) => Promise<void>
+    (targetMode: ConversationMode, selectCurrent: boolean, expectedGeneration?: number) => Promise<void>
   >(async () => {});
   // IPC 切换串行链：保证 Ready 后连续切换按顺序完成
   const reactSessionSwitchChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -507,17 +509,19 @@ export function ChatPage() {
 
     const unsubscribe = store.onReactSwitchSession((sessionId) => {
       if (!sessionId) return;
+      const generation = ++sessionSelectionGeneration.current;
       reactSessionSwitchChainRef.current = reactSessionSwitchChainRef.current
         .then(async () => {
-          const opened = await openSessionById(sessionId);
-          if (!opened) {
-            await refreshSessionsRef.current(activeModeRef.current, true);
+          const opened = await openSessionById(sessionId, generation);
+          if (opened.status === "unavailable" && generation === sessionSelectionGeneration.current) {
+            await refreshSessionsRef.current(activeModeRef.current, true, generation);
           }
         })
         .catch(async (error) => {
+          if (generation !== sessionSelectionGeneration.current) return;
           console.error("[ChatPage] Failed to switch React session:", error);
           try {
-            await refreshSessionsRef.current(activeModeRef.current, true);
+            await refreshSessionsRef.current(activeModeRef.current, true, generation);
           } catch (fallbackError) {
             console.error("[ChatPage] Switch fallback failed:", fallbackError);
           }
@@ -719,7 +723,7 @@ export function ChatPage() {
           conversationId: sessionId,
           messageId,
           text: segment,
-          speechMode: targetMode === "learn" ? "learn" : "default",
+          speechMode: "default",
           preferredAddress,
           automatic: true,
         });
@@ -741,12 +745,14 @@ export function ChatPage() {
     });
   }
 
-  async function selectSession(sessionId: string, targetMode: ConversationMode = mode) {
+  async function selectSession(sessionId: string, targetMode: ConversationMode = mode, expectedGeneration?: number): Promise<SessionSelectionResult> {
+    const generation = expectedGeneration ?? ++sessionSelectionGeneration.current;
+    if (generation !== sessionSelectionGeneration.current) return "stale";
     const store = chatStore();
-    if (!store) return;
-    const generation = ++sessionSelectionGeneration.current;
+    if (!store) return "unavailable";
     const session = await store.get(sessionId);
-    if (!session || generation !== sessionSelectionGeneration.current) return;
+    if (generation !== sessionSelectionGeneration.current) return "stale";
+    if (!session) return "unavailable";
     setActiveSession(session);
     // 环形图快照初始化：session 级（压缩后写入）与消息级（最近 run 留下）取最新。
     setSessionContextUsageBySession((current) => {
@@ -788,26 +794,29 @@ export function ChatPage() {
     // （页面刷新、进程重启后队列消费的恢复入口；会话忙或队列空时内部直接返回）
     void queueFlow.syncProjection(sessionId);
     void queueFlow.consume(targetMode, sessionId);
+    return "selected";
   }
 
   /**
    * 通过 ref 暴露给 IPC 切换链和初始化 effect；成功切换后同步写回 URL，
    * 不触发页面重新加载。
    */
-  async function openSessionById(sessionId: string): Promise<boolean> {
+  async function openSessionById(sessionId: string, generation = ++sessionSelectionGeneration.current): Promise<OpenSessionResult> {
+    const isCurrent = () => generation === sessionSelectionGeneration.current;
     const opened = await openSessionByIdWithDeps({
       sessionId,
+      isCurrent,
       getSession: async (id) => {
         const store = chatStore();
         if (!store) return null;
         const result = await store.get(id);
         return (result ?? null) as { mode?: string } | null;
       },
-      selectSession: async (id, targetMode) => {
-        await selectSession(id, targetMode as ConversationMode);
-      },
+      selectSession: (id, targetMode) => selectSession(id, targetMode, generation),
     });
-    if (opened && typeof window !== "undefined") {
+    if (!isCurrent()) return { status: "stale" };
+    if (opened.status === "opened") setMode(opened.mode);
+    if (opened.status === "opened" && typeof window !== "undefined") {
       try {
         const url = new URL(window.location.href);
         url.searchParams.set("sessionId", sessionId);
@@ -823,10 +832,11 @@ export function ChatPage() {
     return opened;
   }
 
-  async function refreshSessions(targetMode: ConversationMode, selectCurrent: boolean) {
+  async function refreshSessions(targetMode: ConversationMode, selectCurrent: boolean, expectedGeneration?: number) {
     const store = chatStore();
     if (!store) throw new Error("Chat store bridge unavailable");
     const listed = await store.list({ mode: targetMode });
+    if (expectedGeneration !== undefined && expectedGeneration !== sessionSelectionGeneration.current) return;
     setSessionListErrors((current) => current[targetMode] ? { ...current, [targetMode]: false } : current);
     // 内容未变时返回原引用：React 对同引用 state 会 bailout，导航/侧栏 memo 不再被重复刷新穿透
     setSessionsByMode((current) => {
@@ -838,7 +848,7 @@ export function ChatPage() {
     const currentId = activeSessionIdsRef.current[targetMode];
     const nextId = listed.some((session) => session.id === currentId) ? currentId : listed[0]?.id;
     if (nextId) {
-      await selectSession(nextId, targetMode);
+      await selectSession(nextId, targetMode, expectedGeneration);
       return;
     }
     setActiveSessionIds((current) => {
@@ -1063,17 +1073,17 @@ export function ChatPage() {
 
 
 
-  async function initVaultStructure(sessionId: string, options?: { confirm?: boolean }) {
+  async function initVaultStructure(sessionId: string) {
     const store = chatStore();
     if (!store) return;
     // 结构学习会在工作区写入文件：覆盖性选择，需确认后执行
-    const confirmed = options?.confirm === false || await feedback.confirm({
+    const confirmed = await feedback.confirm({
       title: t("chatPage.learnStructureConfirmTitle"),
       message: t("chatPage.learnStructureConfirm"),
       confirmText: t("common.confirm"),
     });
     if (!confirmed) return;
-    const result = await store.initLearnWorkspace(sessionId);
+    const result = await store.initKnowledgeWorkspace(sessionId);
     if (!result.ok) {
       // 长操作失败：错误详情需阅读，用单按钮错误弹窗
       await feedback.alert({
@@ -1116,17 +1126,6 @@ export function ChatPage() {
           message: t("chatPage.setWorkspaceFailed", { error: result.error ?? t("chatPage.unknownError") }),
         });
         return;
-      }
-      // Learn 模式：空目录询问是否初始化通用学习结构
-      if (targetMode === "learn" && result.isEmpty) {
-        const confirmed = await feedback.confirm({
-          title: t("chatPage.learnStructureConfirmTitle"),
-          message: t("chatPage.emptyDirLearnStructureConfirm"),
-          confirmText: t("common.confirm"),
-        });
-        if (confirmed) {
-          await initVaultStructure(activeId, { confirm: false });
-        }
       }
       await refreshSessions(targetMode, false);
     } else {
@@ -1231,16 +1230,6 @@ export function ChatPage() {
           targetMode,
           pendingWorkspace.displayName ?? t("chatPage.defaultWorkspaceName"),
         ));
-      }
-      if (workspaceResult?.ok && targetMode === "learn" && workspaceResult.isEmpty) {
-        const confirmed = await feedback.confirm({
-          title: t("chatPage.learnStructureConfirmTitle"),
-          message: t("chatPage.emptyDirLearnStructureConfirm"),
-          confirmText: t("common.confirm"),
-        });
-        if (confirmed) {
-          await initVaultStructure(sessionId, { confirm: false });
-        }
       }
       setPendingWorkspaceByMode((current) => {
         const next = { ...current };
@@ -1522,7 +1511,7 @@ export function ChatPage() {
   // 外层回调引用恒定，配合 React.memo 让导航/侧栏子树在流式期间保持命中。
   const navActionsRef = useRef<NavActions>({
     createNewTask: () => Promise.resolve(),
-    selectSession: () => Promise.resolve(),
+    selectSession: () => Promise.resolve("unavailable"),
     handleRenameSession: () => Promise.resolve(),
     handleDeleteSession: () => Promise.resolve(),
     handleTogglePinSession: () => Promise.resolve(),
@@ -1545,7 +1534,10 @@ export function ChatPage() {
 
   const navToggleCollapsed = useCallback(() => setCollapsed((value) => !value), []);
   const navModeChange = useCallback((nextMode: string) => {
-    if (isConversationMode(nextMode)) setMode(nextMode);
+    if (isConversationMode(nextMode)) {
+      sessionSelectionGeneration.current++;
+      setMode(nextMode);
+    }
   }, []);
   const navNewTask = useCallback(() => {
     void navActionsRef.current.createNewTask();
@@ -1643,7 +1635,7 @@ export function ChatPage() {
           <ChatPagePanelHost panel={activePanel} />
         ) : (
         <>
-        {(mode === "work" || mode === "learn") && (
+        {(mode === "work") && (
           <TodoPanel
             state={activeSessionId ? todoStateBySession[activeSessionId] : null}
             mode={mode}
@@ -1731,6 +1723,7 @@ export function ChatPage() {
               ? queueFlow.adjustMessage(activeSessionId, id)
               : Promise.resolve(false)}
             onChooseWorkspace={() => void chooseWorkspace()}
+            onInitializeKnowledge={() => { if (activeSessionId) void initVaultStructure(activeSessionId); }}
             onChooseFiles={(files) => void chooseFiles(files)}
             onRemoveAttachment={removeAttachment}
             onScreenshot={() => void handleScreenshot()}
