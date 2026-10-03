@@ -74,16 +74,20 @@ export function createMainContext(options:ContextOptions){
  }
  async function captureTranscript(token:object,adapter:object,value:string):Promise<object>{
   const a=actor(token),provider=requireMainTranscriptProvider(adapter,a.scopeKey,a.sessionId),id=parseInternalId(value);
-  const headId="transcript-"+createHash("sha256").update(canonicalJson({scope:a.scopeKey,actor:a.actorKey,provider:provider.providerId,session:a.sessionId,id})).digest("hex"),operationId=randomUUID();
-  const baseline=await command<{generation:number}>(a,"baseline",{sourceRefs:[],factRefs:[]});
-  await options.actorAuthority.coordinate(()=>command(a,"transcriptReserve",{generation:baseline.generation,headId,operationId,expectedRef:null},randomUUID()));
-  let snapshot;
-  try{snapshot=await provider.withLease(id,async read=>{const first=parseCanonicalTranscript(await read()),second=parseCanonicalTranscript(await read());if(canonicalJson(first)!==canonicalJson(second))contextFail("MEMORY_CONTEXT_TRANSCRIPT_CHANGED");return second})}
-  catch(error){if(error instanceof ContextError)throw error;contextFail("MEMORY_CONTEXT_TRANSCRIPT_READ_FAILED")}
-  if(snapshot.unit.messages.some(message=>extractMaintenance(message.text).kind==="rejected"))contextFail("MEMORY_CONTEXT_TRANSCRIPT_SECRET");
-  const refs=snapshot.sourceRefs.map(ref=>checkedRef(a,ref)),digest=createHash("sha256").update(canonicalJson(snapshot)).digest("hex");
-  const ref=await options.actorAuthority.coordinate(()=>command<TranscriptDependency>(a,"transcriptPublish",{generation:baseline.generation,headId,operationId,incarnation:snapshot.incarnation,contentRevision:snapshot.revision,throughSeq:snapshot.throughSeq,digest,sourceRefs:refs},randomUUID()));
-  const cap=Object.freeze({});transcriptTokens.set(cap,{actorToken:token,ref,unit:{...snapshot.unit,id:headId},sourceRefs:refs,adapter,locator:id});return cap;
+  const headId="transcript-"+createHash("sha256").update(canonicalJson({scope:a.scopeKey,actor:a.actorKey,provider:provider.providerId,session:a.sessionId,id})).digest("hex");
+  try{return await provider.withLease(id,async read=>{
+   const operationId=randomUUID(),baseline=await command<{generation:number}>(a,"baseline",{sourceRefs:[],factRefs:[]});
+   await options.actorAuthority.coordinate(()=>command(a,"transcriptReserve",{generation:baseline.generation,headId,operationId,expectedRef:null},randomUUID()));
+   const first=parseCanonicalTranscript(await read()),snapshot=parseCanonicalTranscript(await read());
+   if(canonicalJson(first)!==canonicalJson(snapshot))contextFail("MEMORY_CONTEXT_TRANSCRIPT_CHANGED");
+   const strings=snapshot.unit.messages.flatMap(message=>[message.text,message.name??"",...(message.toolCalls??[]).flatMap(call=>[call.name,call.arguments])]);
+   if(strings.some(text=>extractMaintenance(text).kind==="rejected"))contextFail("MEMORY_CONTEXT_TRANSCRIPT_SECRET");
+   const refs=snapshot.sourceRefs.map(ref=>checkedRef(a,ref)),digest=createHash("sha256").update(canonicalJson(snapshot)).digest("hex");
+   const ref=await options.actorAuthority.coordinate(()=>command<TranscriptDependency>(a,"transcriptPublish",{generation:baseline.generation,headId,operationId,incarnation:snapshot.incarnation,contentRevision:snapshot.revision,throughSeq:snapshot.throughSeq,digest,sourceRefs:refs},randomUUID()));
+   const cap=Object.freeze({});transcriptTokens.set(cap,{actorToken:token,ref,unit:{...snapshot.unit,id:headId},sourceRefs:refs,adapter,locator:id});
+   provider.onCaptured?.(cap);
+   return cap;
+  })}catch(error){if(error instanceof ContextError)throw error;contextFail("MEMORY_CONTEXT_TRANSCRIPT_READ_FAILED")}
  }
  async function prepareTranscriptChange(token:object,value:object):Promise<void>{
   const a=actor(token),state=transcriptState(token,value),baseline=await command<{generation:number}>(a,"baseline",{sourceRefs:[],factRefs:[]});

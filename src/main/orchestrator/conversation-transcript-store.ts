@@ -28,6 +28,8 @@ const JSONL_FILE_NAME = "transcript.jsonl";
 const SNAPSHOT_FILE_NAME = "snapshot.json";
 const SCHEMA_VERSION = 1;
 
+export type TranscriptMutation = "append" | "delete" | "repair";
+
 export interface ConversationTranscriptStoreOptions {
   now?: () => number;
 }
@@ -80,6 +82,7 @@ export class ConversationTranscriptStore {
   private readonly now: () => number;
   /** 每会话写队列尾（settled promise），串行化所有文件操作。 */
   private readonly queues = new Map<string, Promise<void>>();
+  private readonly mutationObservers = new Map<string, (kind: TranscriptMutation) => Promise<void>>();
 
   constructor(userDataRoot: string, options?: ConversationTranscriptStoreOptions) {
     this.root = path.join(userDataRoot, ROOT_DIR_NAME);
@@ -112,6 +115,7 @@ export class ConversationTranscriptStore {
       }
 
       // seq 只在队列内分配：现有最大 seq + 1（快照基线 + 已重放增量）
+      await this.beforeMutation(conversationId, "append");
       const entry = { ...input, seq: state.maxSeq + 1, at: input.at ?? this.now() } as TranscriptEntry;
       const dir = this.conversationDir(conversationId);
       await fs.promises.mkdir(dir, { recursive: true });
@@ -160,8 +164,54 @@ export class ConversationTranscriptStore {
 
   deleteConversation(conversationId: string): Promise<void> {
     return this.enqueue(conversationId, async () => {
+      await this.beforeMutation(conversationId, "delete");
       await fs.promises.rm(this.conversationDir(conversationId), { recursive: true, force: true });
     });
+  }
+
+
+  /** A single trusted Main observer; inactive by default for ordinary stores. */
+  observeMutations(conversationId: string, before: (kind: TranscriptMutation) => Promise<void>): () => void {
+    this.conversationDir(conversationId);
+    if (this.mutationObservers.has(conversationId)) throw new Error("TRANSCRIPT_OBSERVER_EXISTS");
+    this.mutationObservers.set(conversationId, before);
+    return () => {
+      if (this.mutationObservers.get(conversationId) === before) this.mutationObservers.delete(conversationId);
+    };
+  }
+
+  /** Hold the existing queue through the consumer's read/validate/publish operation. */
+  withReadLease<T>(conversationId: string, operation: (read: () => Promise<TranscriptSnapshot>) => Promise<T>): Promise<T> {
+    this.conversationDir(conversationId);
+    return this.enqueue(conversationId, async () => {
+      let active = true;
+      let pending: Promise<LoadedConversationState> | undefined;
+      const read = async (): Promise<TranscriptSnapshot> => {
+        if (!active) throw new Error("TRANSCRIPT_LEASE_EXPIRED");
+        if (!pending) {
+          pending = this.loadState(conversationId);
+          void pending.catch(() => undefined);
+        }
+        const state = await pending;
+        return structuredClone({
+          schemaVersion: SCHEMA_VERSION,
+          throughSeq: state.maxSeq,
+          entries: state.entries,
+          seenEntryIds: [...state.seenEntryIds],
+          seenUserRevisions: [...state.seenUserRevisions],
+        });
+      };
+      try { return await operation(read); }
+      finally {
+        active = false;
+        // Even a consumer that forgot to await its read cannot release the queue early.
+        await pending?.then(() => undefined, () => undefined);
+      }
+    });
+  }
+
+  private async beforeMutation(conversationId: string, kind: TranscriptMutation): Promise<void> {
+    await this.mutationObservers.get(conversationId)?.(kind);
   }
 
   /** 会话目录（含路径穿越校验）。 */
@@ -198,6 +248,7 @@ export class ConversationTranscriptStore {
     // 尾行容错：只修剪非空的未终止或不可解析的尾行，保留此前所有合法条目
     const { kept, lines } = repairTruncatedTail(text);
     if (kept !== text) {
+      await this.beforeMutation(conversationId, "repair");
       await fs.promises.mkdir(dir, { recursive: true });
       await fs.promises.truncate(jsonlFile, Buffer.byteLength(kept, "utf8"));
     }

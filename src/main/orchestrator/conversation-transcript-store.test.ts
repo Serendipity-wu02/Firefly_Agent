@@ -85,3 +85,33 @@ describe("ConversationTranscriptStore", () => {
     expect((await store.read("c2")).entries).toHaveLength(1);
   });
 });
+
+it("keeps a read lease stable until release and rejects an escaped reader",async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-transcript-"));roots.push(root);
+ const store=new ConversationTranscriptStore(root);
+ await store.append("c1",userDraft("e1","u1",1,"first"));
+ let release!:()=>void,ready!:()=>void,escaped!:()=>Promise<import("./conversation-transcript-types").TranscriptSnapshot>;
+ const gate=new Promise<void>(r=>release=r),started=new Promise<void>(r=>ready=r);
+ const lease=store.withReadLease("c1",async read=>{
+  escaped=read;const first=await read();first.entries[0].id="changed-copy";
+  ready();await gate;expect((await read()).entries[0].id).toBe("e1");
+ });
+ await started;let appended=false;
+ const append=store.append("c1",userDraft("e2","u2",1,"second")).then(()=>{appended=true});
+ await Promise.resolve();expect(appended).toBe(false);release();await lease;await append;
+ await expect(escaped()).rejects.toThrow("TRANSCRIPT_LEASE_EXPIRED");
+ expect((await store.read("c1")).entries).toHaveLength(2);
+});
+it("refuses a mutation before changing transcript bytes when its observer fails",async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-transcript-"));roots.push(root);
+ const store=new ConversationTranscriptStore(root);
+ await store.append("c1",userDraft("e1","u1",1,"first"));
+ const file=path.join(root,"transcripts","c1","transcript.jsonl"),before=fs.readFileSync(file);
+ const release=store.observeMutations("c1",async()=>{throw new Error("S_INVALIDATION_REFUSED")});
+ await expect(store.append("c1",userDraft("e2","u2",1,"second"))).rejects.toThrow("S_INVALIDATION_REFUSED");
+ expect(fs.readFileSync(file)).toEqual(before);
+ await expect(store.deleteConversation("c1")).rejects.toThrow("S_INVALIDATION_REFUSED");
+ expect(fs.readFileSync(file)).toEqual(before);release();
+ await store.append("c1",userDraft("e2","u2",1,"second"));
+ expect((await store.read("c1")).entries).toHaveLength(2);
+});

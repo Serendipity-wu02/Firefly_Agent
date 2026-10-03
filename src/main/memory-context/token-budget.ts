@@ -40,11 +40,27 @@ async function count(counter:TokenCounter,request:PreparedRequest,signal?:AbortS
 export function countPrepared(counter:TokenCounter,request:PreparedRequest):Promise<number>{return count(counter,freezeRequest(request))}
 export function validateUnit(unit:ContextUnit):void {
  if(!unit||typeof unit.id!=="string"||!unit.id||!["recent","summary"].includes(unit.kind)||!Array.isArray(unit.messages)||!unit.messages.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
- const pending=new Set<string>(),seen=new Set<string>();
+ const pending=new Set<string>(),seen=new Set<string>(),callNames=new Map<string,string>();
  for(const message of unit.messages){
   if(!message||!["user","assistant","system","tool"].includes(message.role)||typeof message.text!=="string")contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+
+  if(message.toolCalls!==undefined){
+   if(message.role!=="assistant"||!Array.isArray(message.toolCalls)||!message.toolCalls.length||!message.toolCallIds
+    ||message.toolCalls.length!==message.toolCallIds.length)contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID");
+   for(let index=0;index<message.toolCalls.length;index++){
+    const call=message.toolCalls[index];
+    if(!call||typeof call!=="object"||Array.isArray(call)||Object.keys(call).length!==3
+     ||Object.keys(call).some(key=>!["id","name","arguments"].includes(key))
+     ||call.id!==message.toolCallIds[index]||typeof call.name!=="string"||!call.name||typeof call.arguments!=="string")contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID");
+    callNames.set(call.id,call.name);
+   }
+  }
+  if(message.name!==undefined&&(message.role!=="tool"||typeof message.name!=="string"||!message.name))contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID");
   if(message.toolCallIds!==undefined){if(message.role!=="assistant"||!Array.isArray(message.toolCallIds)||!message.toolCallIds.length)contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID");for(const id of message.toolCallIds){if(typeof id!=="string"||!id||seen.has(id))contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID");pending.add(id);seen.add(id)}}
-  if(message.role==="tool"){if(!message.toolCallId||!pending.delete(message.toolCallId))contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID")}
+  if(message.role==="tool"){
+   if(!message.toolCallId||!pending.delete(message.toolCallId)
+    ||(message.name!==undefined&&callNames.has(message.toolCallId)&&message.name!==callNames.get(message.toolCallId)))contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID");
+  }
   else if(pending.size&&message.role!=="assistant")contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID");
  }
  if(pending.size)contextFail("MEMORY_CONTEXT_TOOL_PAIR_INVALID");

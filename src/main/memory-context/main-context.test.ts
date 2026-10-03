@@ -253,3 +253,32 @@ it("older extractive summaries precede newer recent turns",async()=>{
 it("mixing raw refs and canonical units without an ordered transcript is refused",async()=>{
  const f=await contextFixture(),recent=await f.source("LATER_USER"),{createMainTranscriptProvider}=await import("./main-transcript-provider"),provider=createMainTranscriptProvider({scopeKey:"scope-a",providerId:"canonical",sessionId:"session-a",withLease:async(_id,run)=>run(async()=>({incarnation:"v1",revision:1,throughSeq:1,sourceRefs:[],unit:{id:"turn",kind:"recent",messages:[{role:"user",text:"EARLIER_USER"}]}}))}),token=await f.context.captureTranscript(f.actor,provider,"turn");await expect(f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[recent.ref],transcriptTokens:[token]})).rejects.toThrow("MEMORY_CONTEXT_ORDER_REQUIRED");
 });
+
+it("publishes the canonical dependency while its provider lease is still held",async()=>{
+ const f=await contextFixture(),{createMainTranscriptProvider}=await import("./main-transcript-provider");
+ let leased=false;const publicationStates:boolean[]=[];
+ const original=f.transport.contextCommand;
+ f.transport.contextCommand=async(command:any)=>{
+  if(command.kind==="transcriptPublish")publicationStates.push(leased);
+  return original(command);
+ };
+ const state={incarnation:"lease-v1",revision:1,throughSeq:1,sourceRefs:[],unit:{id:"turn",kind:"recent",messages:[{role:"user",text:"synthetic lease"}]}};
+ const provider=createMainTranscriptProvider({scopeKey:"scope-a",providerId:"canonical",sessionId:"session-a",
+  withLease:async(_id,run)=>{leased=true;try{return await run(async()=>structuredClone(state))}finally{leased=false}}
+ });
+ await f.context.captureTranscript(f.actor,provider,"turn");
+ expect(publicationStates).toEqual([true]);
+ expect(leased).toBe(false);
+});
+
+it("notifies Main of the latest captured capability before releasing its lease",async()=>{
+ const f=await contextFixture(),{createMainTranscriptProvider}=await import("./main-transcript-provider");
+ let leased=false,observed:object|undefined;
+ const state={incarnation:"notify-v1",revision:1,throughSeq:1,sourceRefs:[],unit:{id:"turn",kind:"recent",messages:[{role:"user",text:"synthetic notification"}]}};
+ const provider=createMainTranscriptProvider({scopeKey:"scope-a",providerId:"canonical",sessionId:"session-a",
+  onCaptured:cap=>{expect(leased).toBe(true);observed=cap},
+  withLease:async(_id,run)=>{leased=true;try{return await run(async()=>structuredClone(state))}finally{leased=false}}
+ });
+ const captured=await f.context.captureTranscript(f.actor,provider,"turn");
+ expect(observed).toBe(captured);expect(leased).toBe(false);
+});

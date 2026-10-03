@@ -5,7 +5,8 @@ export interface RequestIdentity {providerId:string;model:string;transport:strin
 export interface PreparedRequest extends RequestIdentity {body:{[key:string]:JsonValue};inputTypes:string[];maxOutputTokens?:number}
 export interface TokenCounter {capability:RequestIdentity&{mode:"exact"|"estimate";inputTypes:string[]};count(request:Readonly<PreparedRequest>):Promise<number>}
 export interface ContextBudget {maxContextTokens:number;maxInputTokens?:number;reservedOutputTokens:number;safetyMarginTokens:number;maxSTokens:number;minRecentCompleteTurns:number}
-export interface ContextMessage {role:"user"|"assistant"|"system"|"tool";text:string;toolCallIds?:string[];toolCallId?:string}
+export interface ContextToolCall {id:string;name:string;arguments:string}
+export interface ContextMessage {role:"user"|"assistant"|"system"|"tool";text:string;toolCallIds?:string[];toolCallId?:string;toolCalls?:ContextToolCall[];name?:string}
 export interface ContextUnit {id:string;kind:"recent"|"summary";messages:ContextMessage[]}
 export interface BudgetInput {counter:TokenCounter;budget:ContextBudget;units:ContextUnit[];prepare:(units:ContextUnit[])=>PreparedRequest;prepareS:(units:ContextUnit[])=>PreparedRequest;signal?:AbortSignal}
 export interface BudgetResult {request:PreparedRequest;requestDigest:string;selectedIds:string[];promptTokens:number;sTokens:number;inputLimit:number;counterIdentity:RequestIdentity}

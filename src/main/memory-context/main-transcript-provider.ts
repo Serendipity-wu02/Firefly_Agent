@@ -5,6 +5,8 @@ import {validateUnit} from "./token-budget";
 export interface CanonicalTranscript {incarnation:string;revision:number;throughSeq:number;sourceRefs:BoundSourceRef[];unit:ContextUnit}
 interface TranscriptProvider {
  scopeKey:string;providerId:string;sessionId:string;
+ /** Main-only lifecycle notification, invoked while the provider lease is held. */
+ onCaptured?:(capability:object)=>void;
  withLease<T>(id:string,run:(read:()=>Promise<CanonicalTranscript>)=>Promise<T>):Promise<T>;
 }
 const providers=new WeakMap<object,TranscriptProvider>();
