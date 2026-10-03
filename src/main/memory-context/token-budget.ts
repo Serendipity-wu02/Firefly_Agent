@@ -33,7 +33,7 @@ async function count(counter:TokenCounter,request:PreparedRequest,signal?:AbortS
  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
  if(!counter?.capability||identityKeys.some(k=>counter.capability[k]!==request[k])||!Array.isArray(counter.capability.inputTypes)||request.inputTypes.some(t=>!counter.capability.inputTypes.includes(t)))contextFail("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
  if(counter.capability.mode!=="exact")contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
- let result:number;try{result=await counter.count(request)}catch{contextFail("MEMORY_CONTEXT_COUNT_FAILED")}
+ let result:number;try{result=await counter.count(request,...(signal?[{signal}]:[]))}catch{if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");contextFail("MEMORY_CONTEXT_COUNT_FAILED")}
  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");if(!Number.isSafeInteger(result)||result<0)contextFail("MEMORY_CONTEXT_COUNT_FAILED");return result;
 }
 /** Exact whole-input measurement without selection or an assumed additive token model. */

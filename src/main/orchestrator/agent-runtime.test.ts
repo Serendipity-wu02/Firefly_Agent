@@ -614,3 +614,54 @@ describe("AgentRuntime 轨迹上下文注入（CTA Phase 1）", () => {
     }
   });
 });
+
+describe("AgentRuntime default-disabled Main S entry", () => {
+  it("does not provision or read S dependencies on construction or disabled calls", async () => {
+    const deps = createDeps(vi.fn());
+    const createPort = vi.fn(() => { throw Error("PROVISION_FORBIDDEN"); });
+    deps.sContext = { createPort };
+    const request = new Proxy({}, { get: () => { throw Error("REQUEST_READ_FORBIDDEN"); } });
+    const runtime = createAgentRuntime(deps);
+    expect(createPort).not.toHaveBeenCalled();
+    await expect(runtime.runSContext(request as any)).rejects.toThrow("MEMORY_CONTEXT_RUNTIME_DISABLED");
+    expect(createPort).not.toHaveBeenCalled();
+  });
+  it("lazily provisions exactly once and directly returns the injected Main result", async () => {
+    const run = vi.fn(async (_input: unknown) => ({ status: "sent" as const, requestDigest: "synthetic", result: "synthetic-response" }));
+    const createPort = vi.fn(async () => ({ run }));
+    const deps = createDeps(vi.fn()); deps.sContext = { enabled: true, createPort };
+    const runtime = createAgentRuntime(deps);
+    expect(createPort).not.toHaveBeenCalled();
+    const input = { request: { model: "fixture-model", messages: [], maxTokens: 128, stream: false } };
+    await Promise.all([runtime.runSContext(input), runtime.runSContext(input)]);
+    expect(createPort).toHaveBeenCalledTimes(1); expect(run).toHaveBeenCalledTimes(2);
+    expect(run.mock.calls[0][0]).toBe(input);
+  });
+  it("does not provision an already aborted run or invoke after provisioning abort", async () => {
+    const abort = new AbortController(), run = vi.fn();
+    const createPort = vi.fn(async () => { abort.abort(); return { run }; });
+    const deps = createDeps(vi.fn()); deps.sContext = { enabled: true, createPort };
+    const runtime = createAgentRuntime(deps);
+    await expect(runtime.runSContext({ signal: abort.signal } as any)).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
+    expect(run).not.toHaveBeenCalled(); expect(createPort).toHaveBeenCalledTimes(1);
+    await expect(runtime.runSContext({ signal: abort.signal } as any)).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
+    expect(createPort).toHaveBeenCalledTimes(1);
+  });
+  it("propagates provisioning/send errors without invoking legacy model dependencies", async () => {
+    const fallback = vi.fn(() => { throw Error("LEGACY_FORBIDDEN"); });
+    const deps = createDeps(vi.fn()); deps.loadModelSettings = fallback; deps.llmClient = { chat: fallback } as any;
+    const createPort = vi.fn(async () => { throw Error("SYNTHETIC_PROVISION_FAILURE"); });
+    deps.sContext = { enabled: true, createPort };
+    const runtime = createAgentRuntime(deps);
+    await expect(runtime.runSContext({} as any)).rejects.toThrow("SYNTHETIC_PROVISION_FAILURE");
+    await expect(runtime.runSContext({} as any)).rejects.toThrow("SYNTHETIC_PROVISION_FAILURE");
+    expect(createPort).toHaveBeenCalledTimes(1); expect(fallback).not.toHaveBeenCalled();
+  });
+});
+
+it("AgentRuntime already-aborted first S run never provisions",async()=>{
+  const abort=new AbortController();abort.abort();const createPort=vi.fn();
+  const deps=createDeps(vi.fn());deps.sContext={enabled:true,createPort};
+  await expect(createAgentRuntime(deps).runSContext({signal:abort.signal} as any)).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
+  expect(createPort).not.toHaveBeenCalled();
+});

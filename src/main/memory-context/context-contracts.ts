@@ -3,7 +3,7 @@ export type JsonValue=null|boolean|number|string|JsonValue[]|{[key:string]:JsonV
 export interface RequestIdentity {providerId:string;model:string;transport:string;framingVersion:string}
 /** Prepared provider input, without credentials/headers. Never a renderer DTO. */
 export interface PreparedRequest extends RequestIdentity {body:{[key:string]:JsonValue};inputTypes:string[];maxOutputTokens?:number}
-export interface TokenCounter {capability:RequestIdentity&{mode:"exact"|"estimate";inputTypes:string[]};count(request:Readonly<PreparedRequest>):Promise<number>}
+export interface TokenCounter {capability:RequestIdentity&{mode:"exact"|"estimate";inputTypes:string[]};count(request:Readonly<PreparedRequest>,options?:{signal?:AbortSignal}):Promise<number>}
 export interface ContextBudget {maxContextTokens:number;maxInputTokens?:number;reservedOutputTokens:number;safetyMarginTokens:number;maxSTokens:number;minRecentCompleteTurns:number}
 export interface ContextToolCall {id:string;name:string;arguments:string}
 export interface ContextMessage {role:"user"|"assistant"|"system"|"tool";text:string;toolCallIds?:string[];toolCallId?:string;toolCalls?:ContextToolCall[];name?:string}

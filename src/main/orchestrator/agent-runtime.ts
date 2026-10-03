@@ -1,4 +1,5 @@
 import { app } from "electron";
+import type {MainSRuntimePort,MainSRuntimeInput,MainSRuntimeResult} from "../memory-context/main-s-runtime-port";
 import { loadPromptFile } from "../prompts/prompt-loader";
 import type { AguiRunInput } from "../agui-bridge";
 import type { ScheduledTask } from "../scheduler/types";
@@ -72,6 +73,8 @@ type EnqueueLLMTask = <T>(
 ) => Promise<T>;
 
 export interface AgentRuntimeDeps {
+  /** Main-only opt-in injection. No product registration or initialization by default. */
+  sContext?: {enabled?:boolean;createPort:()=>MainSRuntimePort|Promise<MainSRuntimePort>};
   runtimeStateService: RuntimeStateService;
   llmClient: LlmClient;
   enqueueLLMTask: EnqueueLLMTask;
@@ -108,6 +111,8 @@ export interface AgentRunFinishedContext {
 }
 
 export interface AgentRuntime {
+  /** Separate controlled Responses entry; legacy chat/harness/UI do not call it. */
+  runSContext(input:MainSRuntimeInput):Promise<MainSRuntimeResult>;
   buildOptions(input: AguiRunInput): Promise<{ options: FireflyRunOptions; latestUserText: string }>;
   onRunFinished(result: FireflyRunResult, latestUserText: string, context: AgentRunFinishedContext): Promise<{ sticker: string | null }>;
   buildSchedulerOptions(task: ScheduledTask): Promise<SchedulerRunOptions>;
@@ -115,6 +120,17 @@ export interface AgentRuntime {
 
 export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
   const runtimeStateService = rawDeps.runtimeStateService;
+  let sPort:Promise<MainSRuntimePort>|undefined;
+  async function runSContext(input:MainSRuntimeInput):Promise<MainSRuntimeResult>{
+    const injection=rawDeps.sContext;
+    if(injection?.enabled!==true)throw Error("MEMORY_CONTEXT_RUNTIME_DISABLED");
+    if(input.signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
+    // Store the promise before provisioning, including a failure; never silently retry/fallback.
+    sPort??=Promise.resolve().then(()=>injection.createPort());
+    const port=await sPort;
+    if(input.signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
+    return port.run(input);
+  }
 
   async function observeRuntimeState(
     settings: ModelSettingsLite,
@@ -291,6 +307,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     : undefined;
 
   return {
+    runSContext,
     buildOptions: async (input) => {
       const buildOptionsDeps = buildBuildOptionsDeps();
       const { options, latestUserText } = await buildAgentRunOptions(input, buildOptionsDeps);

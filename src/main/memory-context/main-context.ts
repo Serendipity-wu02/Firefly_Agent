@@ -153,14 +153,15 @@ export function createMainContext(options:ContextOptions){
   const a=actor(token),state=transcriptState(token,value),baseline=await command<{generation:number}>(a,"baseline",{sourceRefs:[],factRefs:[]});
   await options.actorAuthority.coordinate(()=>command(a,"transcriptDelete",{generation:baseline.generation,expectedRef:state.ref},randomUUID()));
  }
- async function recount(state:SnapshotState):Promise<BudgetResult>{
+ async function recount(state:SnapshotState,signal?:AbortSignal):Promise<BudgetResult>{
+  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
   await command(state.actor,"validateSnapshot",{snapshotId:state.snapshot.snapshotId});
   for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,state.actorToken,cap);
   for(const ref of state.sourceRefs)await readSource(state.actor,ref);
   for(const old of state.transcripts){const fresh=await captureTranscript(state.actorToken,old.adapter,old.locator);if(canonicalJson(transcriptState(state.actorToken,fresh).ref)!==canonicalJson(old.ref))contextFail("MEMORY_CONTEXT_TRANSCRIPT_STALE")}
   const prepared=freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts)));
   if(requestDigest(prepared)!==state.snapshot.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
-  const result=await selectBudget({counter:options.counter,budget:options.budget,units:state.units,prepare:u=>options.prepare(u,structuredClone(state.facts)),prepareS:options.prepareS});
+  const result=await selectBudget({counter:options.counter,budget:options.budget,units:state.units,prepare:u=>options.prepare(u,structuredClone(state.facts)),prepareS:options.prepareS,signal});
   for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,state.actorToken,cap);
   await command(state.actor,"validateSnapshot",{snapshotId:state.snapshot.snapshotId});
   if(result.requestDigest!==state.snapshot.requestDigest||result.promptTokens!==state.snapshot.promptTokens||result.inputLimit!==state.snapshot.inputLimit)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");return result;
@@ -216,23 +217,26 @@ export function createMainContext(options:ContextOptions){
   const snapshot=Object.freeze({...result,snapshotId,generation:baseline.generation,excluded:structuredClone(excluded)});
   snapshots.set(snapshot,{actorToken:token,actor:a,units:allowed.filter(u=>result.selectedIds.includes(u.id)),facts:inspected.facts,snapshot,sourceRefs:deps.map(d=>d.sourceRef),transcripts:dependencyStates,historyTokens:(input.historyTokens??[]).filter((_cap,index)=>result.selectedIds.includes(historical[index].unit.id)),configuration:configuration()});return snapshot;
  }
- async function validateForDispatch(token:object,value:object):Promise<object>{
-  const state=snapshotState(token,value),result=await recount(state),id=randomUUID();
-  await options.actorAuthority.coordinate(()=>command(state.actor,"permit",{snapshotId:state.snapshot.snapshotId,permitId:id,requestDigest:result.requestDigest},randomUUID()));
+ async function validateForDispatch(token:object,value:object,signal?:AbortSignal):Promise<object>{
+  const state=snapshotState(token,value),result=await recount(state,signal),id=randomUUID();
+  await options.actorAuthority.coordinate(()=>{if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");return command(state.actor,"permit",{snapshotId:state.snapshot.snapshotId,permitId:id,requestDigest:result.requestDigest},randomUUID())});
   const permit=Object.freeze({});permits.set(permit,{snapshot:state,id,used:false});return permit;
  }
  // "sent" means the local sender callback completed successfully; neither this
  // result nor the durable invocation ticket proves remote delivery.
- async function dispatch<T>(token:object,value:object,send:(request:PreparedRequest)=>Promise<T>|T):Promise<{status:"sent";requestDigest:string;result:T}|{status:"result-unknown";requestDigest:string}>{
+ async function dispatch<T>(token:object,value:object,send:(request:PreparedRequest)=>Promise<T>|T,signal?:AbortSignal):Promise<{status:"sent";requestDigest:string;result:T}|{status:"result-unknown";requestDigest:string}>{
   actor(token);const permit=permits.get(value);if(!permit||permit.snapshot.actorToken!==token)contextFail("MEMORY_CONTEXT_PERMIT_DENIED");if(permit.used)contextFail("MEMORY_CONTEXT_PERMIT_USED");
-  const state=permit.snapshot,result=await recount(state);
+  const state=permit.snapshot,result=await recount(state,signal);
   const sent=await options.actorAuthority.coordinate(async()=>{
+   if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
    if(configuration()!==state.configuration||requestDigest(freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts))))!==result.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
    if(permit.used)contextFail("MEMORY_CONTEXT_PERMIT_USED");const attemptAt=(options.clock??Date.now)();if(!Number.isSafeInteger(attemptAt)||attemptAt<0)contextFail("MEMORY_RECALL_CLOCK_INVALID");permit.used=true;
    const useTicketId="use-"+randomUUID(),processBootId=options.actorAuthority.bootId;
    const claim=await command<{claimedAt:number}>(state.actor,"claim",{snapshotId:state.snapshot.snapshotId,permitId:permit.id,requestDigest:result.requestDigest,useTicketId,processBootId,attemptAt},randomUUID());
+   if(signal?.aborted){await command(state.actor,"useUnknown",{useTicketId,processBootId},"unknown-"+useTicketId).catch(()=>{});contextFail("MEMORY_CONTEXT_CANCELLED")}
    // Invocation is the application linearization point. No await/dump between claim and send.
    const invokedAt=(options.clock??Date.now)();if(!Number.isSafeInteger(invokedAt)||!Number.isSafeInteger(claim.claimedAt)||invokedAt<claim.claimedAt||invokedAt-claim.claimedAt>CONTEXT_CLAIM_WINDOW_MS){await command(state.actor,"useUnknown",{useTicketId,processBootId},"unknown-"+useTicketId).catch(()=>{});contextFail("MEMORY_RECALL_CLOCK_INVALID")}
+   if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
    let response:Promise<T>|null;
    try{response=Promise.resolve(send(result.request));void response.catch(()=>{})}catch{response=null}
    try{await command(state.actor,"confirmUse",{useTicketId,processBootId,invokedAt},"confirm-"+useTicketId)}catch{

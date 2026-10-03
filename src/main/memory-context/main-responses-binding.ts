@@ -68,6 +68,8 @@ function copyJson(value:unknown,depth=0,omitUndefined:UndefinedOmission=false,pa
 function jsonCopy<T>(value:T,omitUndefined:UndefinedOmission=false):T {
  try{const json=canonicalJson(copyJson(value,0,omitUndefined));if(Buffer.byteLength(json)>8*1024*1024)unsupported();return JSON.parse(json) as T}catch{return unsupported()}
 }
+/** Descriptor-checked copy; no accessors or caller-owned serialization hooks run. */
+export function copyMainResponsesRequest(request:ChatRequest):ChatRequest{return jsonCopy(request,omitRequestOptional)}
 /** Validates an explicit caller contract; does not discover/verify actual production model limits. */
 export function createMainResponsesLimits(input:ResponsesLimitsInput):object {
  keys(input,["model","limitsSource","modelMaxOutputTokens","budget"]);text(input.model);text(input.limitsSource);integer(input.modelMaxOutputTokens,1);
@@ -166,7 +168,7 @@ export function createMainResponsesBinding(options:BindingOptions){
   if(!issued.has(hash))contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");return hash;
  }
  function prepare(request:ChatRequest):PreparedRequest {
-  unchanged();const input=jsonCopy(request,omitRequestOptional);validateChat(input,profile.model,profile.budget.reservedOutputTokens);
+  unchanged();const input=copyMainResponsesRequest(request);validateChat(input,profile.model,profile.budget.reservedOutputTokens);
   const wire=adapter.buildRequest(input,{...initial.config,apiKey:""});
   if(wire.url!==ENDPOINT)unsupported();
   const body=JSON.parse(wire.body);
@@ -179,25 +181,27 @@ export function createMainResponsesBinding(options:BindingOptions){
   issued.add(requestDigest(frame));return frame;
  }
  const counter:TokenCounter=Object.freeze({capability:Object.freeze({...identity,mode:"exact" as const,inputTypes:Object.freeze(["text","function-tools"]) as unknown as string[]}),
-  async count(request:PreparedRequest){
+  async count(request:PreparedRequest,options?:{signal?:AbortSignal}){
+   const signal=options?.signal;if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
    const hash=checked(request);pinTransport();
    // Official counting API and installed 7.5 types: project input-affecting fields from this body only.
    // https://developers.openai.com/api/docs/guides/token-counting
    const projection:Record<string,unknown>={};
    for(const key of ["model","input","instructions","tools","tool_choice","reasoning"] as const)if(request.body[key]!==undefined)projection[key]=request.body[key];
-   let result;try{result=await countMethod.call(inputTokens,Object.freeze(projection) as InputTokenCountParams,{maxRetries:0})}catch{return contextFail("MEMORY_CONTEXT_COUNT_FAILED")}
-   unchanged();
+   let result;try{result=await countMethod.call(inputTokens,Object.freeze(projection) as InputTokenCountParams,{maxRetries:0,...(signal?{signal}:{})})}catch{if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");return contextFail("MEMORY_CONTEXT_COUNT_FAILED")}
+   if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");unchanged();
    if(result?.object!=="response.input_tokens"||!Number.isSafeInteger(result.input_tokens)||result.input_tokens<0)contextFail("MEMORY_CONTEXT_COUNT_FAILED");
    receipts.set(hash,result.input_tokens);return result.input_tokens;
   }
  });
- async function dispatch(context:ReturnType<typeof createMainContext>,actor:object,permit:object){
-  unchanged();
+ async function dispatch(context:ReturnType<typeof createMainContext>,actor:object,permit:object,signal?:AbortSignal){
+  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");unchanged();
   return context.dispatch(actor,permit,request=>{
    const hash=checked(request);pinTransport();if(!receipts.has(hash))contextFail("MEMORY_CONTEXT_COUNT_FAILED");
+   if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
    // Consume the already frozen final body. The existing Main permit owns one-use semantics.
-   return sendMethod.call(responses,request.body as unknown as ResponseCreateParams,{maxRetries:0});
-  });
+   return sendMethod.call(responses,request.body as unknown as ResponseCreateParams,{maxRetries:0,...(signal?{signal}:{})});
+  },signal);
  }
  const budget=Object.freeze(jsonCopy(profile.budget));
  return Object.freeze({prepare,counter,budget,dispatch});
