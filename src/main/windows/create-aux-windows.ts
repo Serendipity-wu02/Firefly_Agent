@@ -68,8 +68,10 @@ export function createReactChatWindowShell(): BrowserWindow {
   });
   setReactChatWindow(window);
 
-  window.webContents.on("did-start-loading", () => {
-    reactChatSession.markLoading();
+  // Same-document navigation keeps the mounted renderer and its ready listener.
+  // https://www.electronjs.org/docs/latest/api/web-contents#event-did-start-navigation
+  window.webContents.on("did-start-navigation", (details) => {
+    if (details.isMainFrame && !details.isSameDocument) reactChatSession.markLoading();
   });
 
   window.on("closed", () => {

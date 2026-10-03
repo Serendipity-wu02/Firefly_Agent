@@ -2,13 +2,14 @@ import fs from "node:fs";
 import os from "node:os";
 import {DatabaseSync} from "node:sqlite";
 import path from "node:path";
-import {randomBytes,randomUUID} from "node:crypto";
+import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {afterEach,it,expect} from "vitest";
 import {openMemoryRepository} from "../memory-core/repository";
 import {MemoryService} from "../memory-core/memory-service";
 import {createMainSourceRegistry} from "../memory-sources/source-registry";
 import {SyntheticSourceProvider} from "../../../scripts/verify/memory-sources/synthetic-provider";
 import {createMainPolicy} from "./main-policy";
+import {createMainActorAuthority} from "../memory-core/main-actor-authority";
 const roots:string[]=[],repos:ReturnType<typeof openMemoryRepository>[]=[];
 afterEach(()=>{for(const r of repos.splice(0))r.close();for(const root of roots.splice(0))fs.rmSync(root,{recursive:true,force:true})});
 function fixture(fault?:(stage:"after-record"|"before-receipt")=>void){
@@ -322,4 +323,25 @@ it("future manual correction and remember roll back revisions and suppression ad
 
 it("revise cannot erase future source time then activate through live confirmation",async()=>{
  const f=fixture(),s=await f.source("I prefer bash","direct-user-event","user","session-a",Date.now()+86400000),candidate=await f.policy.ingest(f.actor,s.ref);const revised=await f.policy.act(f.actor,await f.event("revise",{candidateId:candidate.candidateId,revision:1,sourceRef:s.ref})),proof=await f.source("I confirm this preference");expect(revised.candidateRevision).toBe(2);await expect(f.policy.act(f.actor,await f.event("confirm",{candidateId:candidate.candidateId,revision:2,sourceRef:proof.ref}))).rejects.toThrow("MEMORY_POLICY_FUTURE");expect(f.repo.current("scope-a")).toEqual([]);
+});
+
+it.each(["ingest","integrate"] as const)("temporary Main actor cannot %s into persistent policy or leave side effects",async method=>{
+ const f=fixture(),source=await f.source("I prefer bash");
+ const actorAuthority=createMainActorAuthority({resolveActor:()=>"opaque-human-a"});
+ const policy=createMainPolicy({registry:f.registry,transport:f.transport,resolveActor:()=>"opaque-human-a",actorAuthority});
+ const actor=actorAuthority.bindActor(f.access,f.provider.adapter,source.id,{sessionMode:"temporary"});
+ const commands:unknown[]=[];f.setHook(async command=>{commands.push(command)});
+ const files=fs.readdirSync(f.root).filter(name=>name.startsWith("memory.sqlite"));
+ const snapshot=()=>files.map(name=>({name,digest:createHash("sha256").update(fs.readFileSync(path.join(f.root,name))).digest("hex")}));
+ const before=snapshot();
+ let evidenceReads=0;f.provider.afterNextRead=()=>{evidenceReads++};
+ const result=await policy[method](actor,source.ref).then(value=>({value}),error=>({error:error.message}));
+ expect(result).toEqual({error:"MEMORY_POLICY_TEMPORARY_UNSUPPORTED"});
+ expect(commands).toEqual([]);
+ expect(snapshot()).toEqual(before);
+ expect(evidenceReads).toBe(0);
+ expect(f.repo.current("scope-a")).toEqual([]);
+ expect(f.repo.readRows("evidence","scope-a")).toEqual([]);
+ expect(f.repo.readRows("candidates","scope-a")).toEqual([]);
+ f.reopen();expect(f.repo.current("scope-a")).toEqual([]);
 });

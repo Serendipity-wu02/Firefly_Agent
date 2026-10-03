@@ -24,7 +24,7 @@ export function createMainPolicy(options:{registry:ReturnType<typeof createMainS
  const actorAuthority=options.actorAuthority??createMainActorAuthority({resolveActor:options.resolveActor});
  const events=new WeakMap<object,Event>(),cursors=new WeakMap<object,Cursor>();
  function actorContext(value:unknown):Actor {
-  return actorAuthority.requireActor(value);
+  const actor=actorAuthority.requireActor(value);if(actor.sessionMode==="temporary")throw new Error("MEMORY_POLICY_TEMPORARY_UNSUPPORTED");return actor;
  }
  function boundSource(actor:Actor,value:unknown):BoundSourceRef {
   const ref=parseSourceRef(value);

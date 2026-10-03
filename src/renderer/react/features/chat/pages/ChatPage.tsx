@@ -805,6 +805,7 @@ export function ChatPage() {
       },
       selectSession: async (id, targetMode) => {
         await selectSession(id, targetMode as ConversationMode);
+        setMode(targetMode);
       },
     });
     if (opened && typeof window !== "undefined") {
