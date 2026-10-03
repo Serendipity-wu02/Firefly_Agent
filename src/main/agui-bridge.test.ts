@@ -1293,6 +1293,30 @@ describe("agui-bridge session run guard", () => {
     return { bridge, runHandler };
   }
 
+  it("hands the controlled stream a real sink and an active guard bound to its own run", async () => {
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),"bridge-controlled-"));mocks.userDataRoot=root;
+    mocks.getSession.mockReturnValue({id:"guard-controlled",mode:"chat",messages:[{id:"u1",role:"user",content:"synthetic",at:1}]});
+    mocks.skipDefaultRunFinished=true;mocks.neverComplete=true;mocks.completeOnAbort=true;
+    try{
+      const {bridge,runHandler}=await setupBridge(async()=>{
+        const built=await defaultBuildOptions();return {...built,options:{...built.options,conversationId:"guard-controlled",controlledResponses:vi.fn()}};
+      });
+      const sender=makeSender(),input={messages:[{role:"user",content:"synthetic"}],sessionId:"guard-controlled",userTurnId:"u1",assistantTurnId:"a1"};
+      const first=await runHandler({sender},input) as {runId:string};
+      const options1=mocks.runFireflyAgent.mock.calls[0][0] as any;
+      const {requireTranscriptSinkBinding}=await import("./orchestrator/transcript-sink");
+      requireTranscriptSinkBinding(options1.transcriptSink,{conversationId:"guard-controlled",runId:first.runId,assistantTurnId:"a1"});
+      expect(options1.isControlledRunCurrent()).toBe(true);
+      const second=await runHandler({sender},{...input,takeoverFromRunId:first.runId}) as {runId:string};
+      const options2=mocks.runFireflyAgent.mock.calls[1][0] as any;
+      expect(options1.isControlledRunCurrent()).toBe(false);expect(options2.isControlledRunCurrent()).toBe(true);
+      expect(options1.signal.aborted).toBe(true);expect(options2.runId).toBe(second.runId);
+      await mocks.handlers.get(IPC.AGUI_CANCEL)!({},second.runId);
+      await vi.waitFor(()=>expect(bridge.__getSessionActiveRunForTest("guard-controlled")).toBeUndefined());
+      expect(options2.isControlledRunCurrent()).toBe(false);
+    }finally{mocks.userDataRoot="";fs.rmSync(root,{recursive:true,force:true})}
+  });
+
   it("rejects a second same-session run with SESSION_RUN_ACTIVE while the first is unsettled", async () => {
     mocks.getSession.mockReturnValue({ id: "guard-1", mode: "chat" });
     mocks.skipDefaultRunFinished = true;

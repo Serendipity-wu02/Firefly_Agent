@@ -222,6 +222,23 @@ export function createMainContext(options:ContextOptions){
   await options.actorAuthority.coordinate(()=>{if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");return command(state.actor,"permit",{snapshotId:state.snapshot.snapshotId,permitId:id,requestDigest:result.requestDigest},randomUUID())});
   const permit=Object.freeze({});permits.set(permit,{snapshot:state,id,used:false});return permit;
  }
+ async function validateResponse(token:object,value:object,signal?:AbortSignal):Promise<void>{
+  const state=snapshotState(token,value);if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+  if(configuration()!==state.configuration)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");await command(state.actor,"validateResponse",{snapshotId:state.snapshot.snapshotId});
+  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+ }
+ /** Only the guarded canonical store may supply write, after its observer invalidation. */
+ async function commitResponse<T>(token:object,value:object,write:()=>Promise<T>,signal:AbortSignal|undefined,check:()=>void):Promise<T>{
+  const state=snapshotState(token,value);if(state.sourceRefs.length||state.facts.length||state.historyTokens.length)contextFail("MEMORY_CONTEXT_RESPONSE_UNSUPPORTED");
+  return options.actorAuthority.coordinate(async()=>{
+   const baseline=await command<{generation:number}>(state.actor,"baseline",{sourceRefs:[],factRefs:[]});
+   if(baseline.generation!==state.snapshot.generation)contextFail("MEMORY_CONTEXT_STALE");
+   if(configuration()!==state.configuration||requestDigest(freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts))))!==state.snapshot.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
+   check();if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+   // Linearization is append dispatch: no await between final guards and file append.
+   return write();
+  });
+ }
  // "sent" means the local sender callback completed successfully; neither this
  // result nor the durable invocation ticket proves remote delivery.
  async function dispatch<T>(token:object,value:object,send:(request:PreparedRequest)=>Promise<T>|T,signal?:AbortSignal):Promise<{status:"sent";requestDigest:string;result:T}|{status:"result-unknown";requestDigest:string}>{
@@ -249,5 +266,5 @@ export function createMainContext(options:ContextOptions){
   if(sent.result===null)return {status:"result-unknown",requestDigest:result.requestDigest};
   try{return {status:"sent",requestDigest:result.requestDigest,result:await sent.result}}catch{return {status:"result-unknown",requestDigest:result.requestDigest}};
  }
- return {assemble,validateForDispatch,dispatch,captureTranscript,prepareTranscriptChange,prepareTranscriptChanges,transcriptGeneration,deleteTranscript,prepareSummary,commitSummary,readSummaryInput};
+ return {assemble,validateForDispatch,validateResponse,commitResponse,dispatch,captureTranscript,prepareTranscriptChange,prepareTranscriptChanges,transcriptGeneration,deleteTranscript,prepareSummary,commitSummary,readSummaryInput};
 }

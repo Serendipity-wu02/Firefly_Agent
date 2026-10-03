@@ -153,6 +153,9 @@ export class ContextRepository {
     objectFields(body,[...identity,"useTicketId","processBootId",...(command.kind==="confirmUse"?["invokedAt"]:[])]);const useOwner={...owner,bootId:parseInternalId(body.processBootId)},recall=new RecallRepository(this.db,this.key,this.clock,this.fault),id=parseInternalId(body.useTicketId);
     return command.kind==="confirmUse"?recall.confirmUseWithinTransaction(scope,useOwner,id,natural(body.invokedAt)):recall.unknownUseWithinTransaction(scope,useOwner,id);
    }
+   if(command.kind==="validateResponse"){
+    objectFields(body,[...identity,"snapshotId"]);const snapshot=this.read<StoredSnapshot>(scope,parseInternalId(body.snapshotId),"snapshot",owner);this.checkSnapshot(scope,owner,snapshot);if(snapshot.state!=="claimed")contextFail("MEMORY_CONTEXT_RESPONSE_UNSENT");return {valid:true};
+   }
    if(command.kind==="validateSnapshot"){
     objectFields(body,[...identity,"snapshotId"]);const snapshot=this.read<StoredSnapshot>(scope,parseInternalId(body.snapshotId),"snapshot",owner);this.checkSnapshot(scope,owner,snapshot);if(snapshot.state!=="ready")contextFail("MEMORY_CONTEXT_PERMIT_USED");return {valid:true};
    }
@@ -207,7 +210,7 @@ export class ContextRepository {
    }
    contextFail("MEMORY_CONTEXT_COMMAND_INVALID");
   };
-  if(["baseline","inspect","validateSnapshot","summaryGet","summaryLeaseState","summaryLeaseRead"].includes(command.kind as string)){
+  if(["baseline","inspect","validateSnapshot","validateResponse","summaryGet","summaryLeaseState","summaryLeaseRead"].includes(command.kind as string)){
    if(command.commandId!==undefined)contextFail("MEMORY_CONTEXT_INPUT_INVALID");this.db.exec("BEGIN IMMEDIATE");try{const result=apply();this.db.exec("COMMIT");return result}catch(error){this.db.exec("ROLLBACK");throw error}
   }
   return executeTransaction({db:this.db,key:this.key,scope,commandId:parseInternalId(command.commandId),request:value,fault:this.fault,apply});

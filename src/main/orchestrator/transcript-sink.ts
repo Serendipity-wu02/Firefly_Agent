@@ -12,6 +12,7 @@
  * 本文件只含类型与实现逻辑，无任何运行时依赖（store 由调用方注入）。
  */
 
+import type {TranscriptAppendGuard} from "./conversation-transcript-store";
 import type { ConversationTranscriptStore } from "./conversation-transcript-store";
 import type { HarnessRunSession } from "./harness/run-store";
 import type { ToolCallOutcome } from "./harness/types";
@@ -31,7 +32,7 @@ export class TranscriptWriteError extends Error {
 /** Run 绑定的轨迹提交端：一个 run 一个实例，entryId 全程确定性。 */
 export interface TranscriptSink {
   /** 落盘一条 canonical assistant 消息，返回其 entryId（工具结果提交的锚点）。 */
-  appendAssistant(input: { message: ChatMessage; roundId?: string }): Promise<string>;
+  appendAssistant(input: { message: ChatMessage; roundId?: string;guard?:TranscriptAppendGuard }): Promise<string>;
   /** 落盘一条 canonical 工具结果消息（挂在所属 assistant 条目上）。 */
   appendToolResult(input: {
     assistantEntryId: string;
@@ -50,6 +51,11 @@ export interface TranscriptSink {
   checkpoint(): Promise<void>;
 }
 
+const bindings=new WeakMap<object,{store:ConversationTranscriptStore;conversationId:string;runId:string;assistantTurnId?:string}>();
+export function requireTranscriptSinkBinding(sink:TranscriptSink,target:{conversationId:string;runId:string;assistantTurnId:string},store?:ConversationTranscriptStore):void {
+ const binding=bindings.get(sink);if(!binding||(store!==undefined&&binding.store!==store)||binding.conversationId!==target.conversationId||binding.runId!==target.runId||binding.assistantTurnId!==target.assistantTurnId)throw Error("MEMORY_CONTEXT_STREAM_SINK_DENIED");
+}
+
 export function createTranscriptSink(input: {
   store: ConversationTranscriptStore;
   conversationId: string;
@@ -62,8 +68,8 @@ export function createTranscriptSink(input: {
   // 无 roundId 的 assistant 追加序号（ChatLoop 单轮路径）
   let assistantCounter = 0;
 
-  return {
-    async appendAssistant({ message, roundId }) {
+  const sink:TranscriptSink={
+    async appendAssistant({ message, roundId,guard }) {
       const entryId = `${runId}:assistant:${roundId ?? `n${assistantCounter++}`}`;
       for (const call of message.toolCalls ?? []) {
         assistantEntryOfCall.set(call.id, entryId);
@@ -76,7 +82,7 @@ export function createTranscriptSink(input: {
         ...(assistantTurnId ? { turnId: assistantTurnId } : {}),
         ...(roundId ? { roundId } : {}),
         payload: message,
-      });
+      },guard);
       return entry.id;
     },
 
@@ -156,4 +162,5 @@ export function createTranscriptSink(input: {
       await store.checkpoint(conversationId);
     },
   };
+  bindings.set(sink,{store,conversationId,runId,assistantTurnId});return Object.freeze(sink);
 }

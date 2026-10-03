@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {randomUUID} from "node:crypto";
-import {it,expect} from "vitest";
+import {it,expect,vi} from "vitest";
 import {createMainSourceRegistry} from "../memory-sources/source-registry";
 import {createMainPolicy} from "../memory-policy/main-policy";
 import {contextFixture} from "../../../scripts/verify/memory-context/context-fixture";
@@ -251,4 +251,14 @@ it("notifies Main of the latest captured capability before releasing its lease",
  });
  const captured=await f.context.captureTranscript(f.actor,provider,"turn");
  expect(observed).toBe(captured);expect(leased).toBe(false);
+});
+
+it("response validation requires claimed dispatch and never restores a one-use permit",async()=>{
+ const f=await contextFixture(),source=await f.source("synthetic response input"),snapshot=await f.assemble([source.ref]);
+ await expect(f.context.validateResponse(f.actor,snapshot)).rejects.toThrow("MEMORY_CONTEXT_RESPONSE_UNSENT");
+ const permit=await f.context.validateForDispatch(f.actor,snapshot),send=vi.fn(()=>"synthetic response");
+ await f.context.dispatch(f.actor,permit,send);await f.context.validateResponse(f.actor,snapshot);
+ await expect(f.context.dispatch(f.actor,permit,send)).rejects.toThrow("MEMORY_CONTEXT_PERMIT_USED");expect(send).toHaveBeenCalledTimes(1);
+ await f.registry.prepareChange(f.access,f.provider.adapter,source.ref);
+ await expect(f.context.validateResponse(f.actor,snapshot)).rejects.toThrow();
 });

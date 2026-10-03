@@ -73,14 +73,18 @@ export function createConversationTranscriptAdapter(options:AdapterOptions) {
    });
   }
  });
+ async function captureRun(runId?:string){
+   assertOpen();return options.store.withReadLease(actor.sessionId,async read=>{
+    assertOpen();const raw=await read();
+    if(runId&&raw.entries.some(entry=>(entry.kind==="assistant"||entry.kind==="interruption")&&entry.runId===runId))contextFail("MEMORY_CONTEXT_STREAM_RUN_REUSED");
+    if(!raw.entries.length)contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");const snapshots=turns(raw),caps:object[]=[];if(!snapshots.length||snapshots.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");leased=snapshots;
+    try{for(const snapshot of snapshots)caps.push(await options.context.captureTranscript(options.actorToken,provider,snapshot.unit.id));return {store:options.store,transcriptTokens:caps,throughSeq:raw.throughSeq,userTurnId:snapshots.at(-1)!.provenance![0].turnId!}}finally{leased=null}
+   });
+  }
  return {
   capture:async()=>{assertOpen();return options.context.captureTranscript(options.actorToken,provider,LOCATOR)},
-  captureTurns:async()=>{
-   assertOpen();return options.store.withReadLease(actor.sessionId,async read=>{
-    assertOpen();const raw=await read();if(!raw.entries.length)contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");const snapshots=turns(raw),caps:object[]=[];if(!snapshots.length||snapshots.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");leased=snapshots;
-    try{for(const snapshot of snapshots)caps.push(await options.context.captureTranscript(options.actorToken,provider,snapshot.unit.id));return caps}finally{leased=null}
-   });
-  },
+  captureTurns:async()=>{return (await captureRun()).transcriptTokens},
+  captureRun,
   close:async()=>{
    if(closed)return;
    await options.store.withReadLease(actor.sessionId,async()=>{

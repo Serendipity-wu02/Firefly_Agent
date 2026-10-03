@@ -1,4 +1,7 @@
 import { app } from "electron";
+import {copyControlledStreamTarget} from "./controlled-responses";
+import type {ChatRequest} from "./vendors/types";
+import type {AgentLoopResult} from "./firefly-agent";
 import {copyMainResponsesRequest} from "./vendors/response-request-snapshot";
 import type {MainSRuntimePort,MainSRuntimeInput,MainSRuntimeResult} from "../memory-context/main-s-runtime-port";
 import { loadPromptFile } from "../prompts/prompt-loader";
@@ -75,7 +78,7 @@ type EnqueueLLMTask = <T>(
 
 export interface AgentRuntimeDeps {
   /** Main-only opt-in injection. No product registration or initialization by default. */
-  sContext?: {enabled?:boolean;createPort:()=>MainSRuntimePort|Promise<MainSRuntimePort>};
+  sContext?: {enabled?:boolean;createPort:()=>MainSRuntimePort|Promise<MainSRuntimePort>;streamRequest?:(options:FireflyRunOptions)=>ChatRequest};
   runtimeStateService: RuntimeStateService;
   llmClient: LlmClient;
   enqueueLLMTask: EnqueueLLMTask;
@@ -112,7 +115,7 @@ export interface AgentRunFinishedContext {
 }
 
 export interface AgentRuntime {
-  /** Separate controlled Responses entry; legacy chat/harness/UI do not call it. */
+  /** Default-disabled controlled Main entry; production wiring does not provision it. */
   runSContext(input:MainSRuntimeInput):Promise<MainSRuntimeResult>;
   buildOptions(input: AguiRunInput): Promise<{ options: FireflyRunOptions; latestUserText: string }>;
   onRunFinished(result: FireflyRunResult, latestUserText: string, context: AgentRunFinishedContext): Promise<{ sticker: string | null }>;
@@ -131,7 +134,9 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     if(signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
     const requestField=Object.getOwnPropertyDescriptor(input,"request");
     if(!requestField||!("value" in requestField))throw Error("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
-    const snapshot:MainSRuntimeInput={request:copyMainResponsesRequest(requestField.value),signal};
+    const streamField=Object.getOwnPropertyDescriptor(input,"stream");
+    if(streamField&&!("value" in streamField))throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+    const snapshot:MainSRuntimeInput={request:copyMainResponsesRequest(requestField.value),signal,...(streamField?.value!==undefined?{stream:copyControlledStreamTarget(streamField.value)}:{})};
     // Store the promise before provisioning, including a failure; never silently retry/fallback.
     sPort??=Promise.resolve().then(()=>injection.createPort());
     const port=await sPort;
@@ -316,9 +321,35 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
   return {
     runSContext,
     buildOptions: async (input) => {
+      // Capture the controlled Main scope and builder before the existing asynchronous options build.
+      const injection=rawDeps.sContext;
+      let controlled:{scope:{conversationId?:string;userTurnId?:string;assistantTurnId?:string};buildRequest:(options:FireflyRunOptions)=>ChatRequest}|undefined;
+      if(injection?.enabled===true){
+        const builder=Object.getOwnPropertyDescriptor(injection,"streamRequest");
+        if(builder&&!("value" in builder))throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+        if(builder?.value!==undefined){
+          if(typeof builder.value!=="function")throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+          const field=(key:"sessionId"|"userTurnId"|"assistantTurnId"):string|undefined=>{
+            const descriptor=Object.getOwnPropertyDescriptor(input,key);
+            if(descriptor&&!("value" in descriptor)||descriptor?.value!==undefined&&typeof descriptor.value!=="string")throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+            return descriptor?.value;
+          };
+          controlled={scope:Object.freeze({conversationId:field("sessionId"),userTurnId:field("userTurnId"),assistantTurnId:field("assistantTurnId")}),buildRequest:builder.value};
+        }
+      }
       const buildOptionsDeps = buildBuildOptionsDeps();
       const { options, latestUserText } = await buildAgentRunOptions(input, buildOptionsDeps);
-      return { options: { ...options, onToolFinished }, latestUserText };
+      const next:FireflyRunOptions={...options,onToolFinished};
+      if(controlled){
+        const {scope,buildRequest}=controlled;
+        next.controlledResponses=async(current,signal,onEvent)=>{
+          if(current.executionMode!=="chat"||current.tools?.length)throw Error("MEMORY_CONTEXT_STREAM_MODE_UNSUPPORTED");
+          if(!scope.conversationId||!scope.userTurnId||!scope.assistantTurnId||!current.runId||!current.transcriptSink||!current.isControlledRunCurrent||current.conversationId!==scope.conversationId)throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+          const sent=await runSContext({request:buildRequest(current),signal,stream:{...scope,conversationId:scope.conversationId,userTurnId:scope.userTurnId,assistantTurnId:scope.assistantTurnId,runId:current.runId,sink:current.transcriptSink,isCurrent:current.isControlledRunCurrent,onEvent}});
+          if(sent.status!=="sent")throw Error("MEMORY_CONTEXT_SEND_UNKNOWN");return sent.result as AgentLoopResult;
+        };
+      }
+      return { options:next, latestUserText };
     },
 
     onRunFinished: async (result, latestUserText, context) => {

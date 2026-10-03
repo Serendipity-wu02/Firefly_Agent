@@ -571,6 +571,7 @@ export function registerAgUiIpc(
     // 一路传到 Agent / Harness adapter / ToolContext / 所有 AG-UI 事件。
     // ack.runId 与 RUN_STARTED.runId 必须一致。
     options.runId = runId;
+    if(options.controlledResponses)options.isControlledRunCurrent=()=>sessionActiveRuns.get(sessionId)?.runId===runId;
     options.workReadScopes = requiredWorkReads;
     // 轨迹写入总开关（CTA）：桌面 dispatch 带 userTurnId 才写轨迹——
     // 缺 userTurnId 的兼容调用按渲染端消息走，sink 与插话轨迹端口都不注入，

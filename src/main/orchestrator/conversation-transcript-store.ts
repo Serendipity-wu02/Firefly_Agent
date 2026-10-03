@@ -30,6 +30,9 @@ const SCHEMA_VERSION = 1;
 
 export type TranscriptMutation = "append" | "delete" | "repair";
 
+/** Optional trusted Main append gate; no IPC/caller JSON callbacks. */
+export interface TranscriptAppendGuard {throughSeq:number;validate:()=>Promise<void>;commit:(write:()=>Promise<TranscriptEntry>)=>Promise<TranscriptEntry>}
+
 export interface ConversationTranscriptStoreOptions {
   now?: () => number;
 }
@@ -89,15 +92,17 @@ export class ConversationTranscriptStore {
     this.now = options?.now ?? (() => Date.now());
   }
 
-  append(conversationId: string, input: TranscriptAppendInput): Promise<TranscriptEntry> {
+  append(conversationId: string, input: TranscriptAppendInput, guard?:TranscriptAppendGuard): Promise<TranscriptEntry> {
     // 入队前先做协议校验，非法草稿快速失败且不占队列
     assertValidTranscriptDraft(input);
     return this.enqueue(conversationId, async () => {
       const state = await this.loadState(conversationId);
+      if(guard){if(state.maxSeq!==guard.throughSeq)throw Error("MEMORY_CONTEXT_TRANSCRIPT_STALE");await guard.validate()}
 
       // 幂等主键：entryId 已存在，first-write-wins，返回原条目
       const existingById = state.entries.find((entry) => entry.id === input.id);
       if (existingById) {
+        if(guard)throw Error("MEMORY_CONTEXT_STREAM_RUN_REUSED");
         if (existingById.kind !== input.kind) throw new Error("TRANSCRIPT_IDEMPOTENCY_CONFLICT");
         return existingById;
       }
@@ -119,8 +124,9 @@ export class ConversationTranscriptStore {
       await this.beforeMutation(conversationId, "append", structuredClone(entry));
       const dir = this.conversationDir(conversationId);
       await fs.promises.mkdir(dir, { recursive: true });
-      await fs.promises.appendFile(path.join(dir, JSONL_FILE_NAME), `${JSON.stringify(entry)}\n`, "utf8");
-      return entry;
+      // The final Main gate calls this write directly while holding its coordinator.
+      const write=async()=>{await fs.promises.appendFile(path.join(dir, JSONL_FILE_NAME), `${JSON.stringify(entry)}\n`, "utf8");return entry};
+      return guard?guard.commit(write):write();
     });
   }
 

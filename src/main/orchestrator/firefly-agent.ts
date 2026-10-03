@@ -93,6 +93,9 @@ export type AgentExecutionMode = "work" | "chat";
 
 /** FireflyAgent.run() 需要的输入——桥层构造好后塞进 input.state 或 forwardedProps。 */
 export interface FireflyRunOptions {
+  /** Main-only default-absent S stream injection; never rebuilds through legacy loops. */
+  controlledResponses?:import("./controlled-responses").ControlledResponsesRun;
+  isControlledRunCurrent?:()=>boolean;
   settings: AgentLoopSettings;
   /** 本 Run 快照的 Harness 安全工具并发上限。 */
   maxParallelToolCalls?: number;
@@ -458,7 +461,9 @@ export class FireflyAgent extends AbstractAgent {
           flowLog(`2. 理解用户请求：${executionMode === "chat" ? "Chat 模式无需工具上下文" : `完成，可信引用 ${(options.trustedRefs ?? []).length} 个`}`);
 
           let result: AgentLoopResult;
-          if (executionMode === "chat" && !chatWithTools) {
+          if(runOptions.controlledResponses){
+            result=await runOptions.controlledResponses(runOptions,abortController.signal,onEvent);
+          }else if (executionMode === "chat" && !chatWithTools) {
             flowLog("3. Chat 模式：生成回复");
             result = await perf.track("chat_loop", () => runChatLoop({
               settings: options.settings,

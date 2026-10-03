@@ -5,12 +5,17 @@ import {validateUnit} from "./token-budget";
 export interface TranscriptEventSource {entryId:string;turnId?:string;revision?:number;seq:number;occurredAt:number;suppressionGeneration?:number;role:ContextUnit["messages"][number]["role"]}
 export interface TranscriptView {id:string;incarnation:string;revision:number;throughSeq:number;digest:string}
 export interface CanonicalTranscript {incarnation:string;revision:number;throughSeq:number;sourceRefs:BoundSourceRef[];unit:ContextUnit;provenance?:TranscriptEventSource[];view?:TranscriptView}
+// Real transcript event IDs are metadata, not memory-record IDs or filesystem keys.
+function eventId(value:unknown):string {
+ if(typeof value!=="string"||!value||value.length>1024||/[\u0000-\u001f\u007f]/.test(value))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+ return value;
+}
 export function parseTranscriptProvenance(value:unknown):TranscriptEventSource[] {
  if(!Array.isArray(value)||!value.length||value.length>10000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
  return value.map(raw=>{const e=objectFields(raw,["entryId","seq","occurredAt","role"],["turnId","revision","suppressionGeneration"]);
   if(!Number.isSafeInteger(e.seq)||(e.seq as number)<1||!Number.isSafeInteger(e.occurredAt)||(e.occurredAt as number)<0||!["user","assistant","system","tool"].includes(e.role as string))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   if(e.suppressionGeneration!==undefined&&(!Number.isSafeInteger(e.suppressionGeneration)||(e.suppressionGeneration as number)<0))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
-  return {...(e.suppressionGeneration===undefined?{}:{suppressionGeneration:e.suppressionGeneration as number}),entryId:parseInternalId(e.entryId),seq:e.seq as number,occurredAt:e.occurredAt as number,role:e.role as TranscriptEventSource["role"],...(e.turnId===undefined?{}:{turnId:parseInternalId(e.turnId)}),...(e.revision===undefined?{}:{revision:positiveRevision(e.revision)})};
+  return {...(e.suppressionGeneration===undefined?{}:{suppressionGeneration:e.suppressionGeneration as number}),entryId:eventId(e.entryId),seq:e.seq as number,occurredAt:e.occurredAt as number,role:e.role as TranscriptEventSource["role"],...(e.turnId===undefined?{}:{turnId:eventId(e.turnId)}),...(e.revision===undefined?{}:{revision:positiveRevision(e.revision)})};
  });
 }
 interface TranscriptProvider {

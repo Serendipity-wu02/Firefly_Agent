@@ -160,3 +160,18 @@ it("executes trusted fact commands on the worker and preserves Main scope bounda
  await expect(service.current(JSON.parse(JSON.stringify(access)))).rejects.toThrow("MEMORY_ACCESS_DENIED");
  expect(await service.history(access,active.id)).toHaveLength(1);
 });
+
+it("validates a streamed claimed context through the real Worker without reusing its permit",async()=>{
+ const {createMainSourceRegistry}=await import("../memory-sources/source-registry"),{SyntheticSourceProvider}=await import("../../../scripts/verify/memory-sources/synthetic-provider");
+ const {createMainActorAuthority}=await import("./main-actor-authority"),{createMainContext}=await import("../memory-context/main-context");
+ const f=fixture(),client=await openClient(f),authority=createMainActorAuthority({resolveActor:()=>"worker-human"});
+ const registry=createMainSourceRegistry(client,{coordinate:authority.coordinate}),access=registry.authority.access("scope-a"),provider=new SyntheticSourceProvider(path.join(f.storage.memory.dataRoot,"stream-context.json"),"scope-a");
+ const identity={providerId:"synthetic",sessionId:"worker-stream-session",messageId:"u1"};provider.write(identity,{text:"synthetic controlled stream",role:"user",trust:"direct-user-event"});
+ const actor=authority.bindActor(access,provider.adapter,identity),ref=await registry.capture(access,provider.adapter,identity),requestIdentity={providerId:"synthetic",model:"synthetic",transport:"synthetic",framingVersion:"v1"};
+ const prepare=(units:any[])=>({...requestIdentity,inputTypes:["text"],body:{messages:units.flatMap(u=>u.messages)}});
+ const context=createMainContext({registry,transport:client,actorAuthority:authority,prepare,prepareS:prepare,counter:{capability:{...requestIdentity,mode:"exact",inputTypes:["text"]},count:async()=>40},budget:{maxContextTokens:20000,reservedOutputTokens:64,safetyMarginTokens:16,maxSTokens:4000,minRecentCompleteTurns:1}});
+ const snapshot=await context.assemble(actor,{sessionId:identity.sessionId,sourceRefs:[ref]});await expect(context.validateResponse(actor,snapshot)).rejects.toThrow("MEMORY_CONTEXT_RESPONSE_UNSENT");
+ const permit=await context.validateForDispatch(actor,snapshot),send=vi.fn(()=>"synthetic handle");await context.dispatch(actor,permit,send);await context.validateResponse(actor,snapshot);
+ await expect(context.dispatch(actor,permit,send)).rejects.toThrow("MEMORY_CONTEXT_PERMIT_USED");expect(send).toHaveBeenCalledTimes(1);
+ await registry.prepareChange(access,provider.adapter,ref);await expect(context.validateResponse(actor,snapshot)).rejects.toThrow();
+});

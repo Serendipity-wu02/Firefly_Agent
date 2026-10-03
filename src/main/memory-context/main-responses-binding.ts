@@ -165,15 +165,16 @@ export function createMainResponsesBinding(options:BindingOptions){
    receipts.set(hash,result.input_tokens);return result.input_tokens;
   }
  });
- async function dispatch(context:ReturnType<typeof createMainContext>,actor:object,permit:object,signal?:AbortSignal){
+ async function dispatch(context:ReturnType<typeof createMainContext>,actor:object,permit:object,signal?:AbortSignal,beforeSend?:()=>void){
   if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");unchanged();
   return context.dispatch(actor,permit,request=>{
    const hash=checked(request);pinTransport();if(!receipts.has(hash))contextFail("MEMORY_CONTEXT_COUNT_FAILED");
    if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+   beforeSend?.();unchanged();if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
    // Consume the already frozen final body. The existing Main permit owns one-use semantics.
    return sendMethod.call(responses,request.body as unknown as ResponseCreateParams,{maxRetries:0,...(signal?{signal}:{})});
   },signal);
  }
  const budget=Object.freeze(jsonCopy(profile.budget));
- return Object.freeze({prepare,counter,budget,dispatch});
+ return Object.freeze({prepare,counter,budget,dispatch,assertCurrent:unchanged});
 }
