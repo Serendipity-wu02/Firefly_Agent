@@ -1,9 +1,10 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {expect,it} from "vitest";
 import {createSmhFixture} from "./smh-fixture.test-support";
 
-const base=path.resolve("E:/Codex/2026-10-03/task-10/smh-stage0/fixtures");
+const base=path.resolve(os.tmpdir(),"firefly-smh-fixtures");
 function fixture(clock?:()=>number){fs.mkdirSync(base,{recursive:true});return createSmhFixture(fs.mkdtempSync(path.join(base,"contract-")),{clock})}
 function dispose(f:ReturnType<typeof fixture>){f.close();if(path.dirname(f.root)!==base)throw new Error("SMH_CLEANUP_DENIED");fs.rmSync(f.root,{recursive:true,force:true})}
 

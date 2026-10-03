@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {afterEach,expect,it,vi} from "vitest";
 import {createSmhFixture} from "./smh-fixture.test-support";
@@ -19,7 +20,7 @@ vi.mock("electron",()=>({app:{getPath:()=>{throw Error("PRODUCT_DATA_FORBIDDEN")
 const roots:string[]=[],fixtures:ReturnType<typeof createSmhFixture>[]=[];
 afterEach(()=>{vi.restoreAllMocks();for(const f of fixtures.splice(0))f.close();for(const root of roots.splice(0))fs.rmSync(root,{recursive:true,force:true});setVendorRuntimeSettingsGetter(()=>({}))});
 async function fixture(options:{queryText?:string;unknownTime?:boolean;trust?:"history"|"imported"|"model";history?:"source"|"tool"}={}){
- const root=fs.mkdtempSync("E:/Codex/2026-10-03/task-10/smh-stage0/sm-integrate-");roots.push(root);let now=1700000000000;
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-smh-integrate-"));roots.push(root);let now=1700000000000;
  const f=createSmhFixture(root,{clock:()=>now});fixtures.push(f);setVendorRuntimeSettingsGetter(()=>({}));
  const coordinator=createMainUserFactCoordinator({actorAuthority:f.actorAuthority,registry:f.registry,policy:f.policy}),selector=createMainFactSelector({actorAuthority:f.actorAuthority,registry:f.registry,policy:f.policy,recall:f.recall});
  const prior=await f.source("I prefer PowerShell",{sessionId:"session-b",occurredAt:now}),actorB=f.actorAuthority.bindActor(f.access,f.adapter,prior.id);

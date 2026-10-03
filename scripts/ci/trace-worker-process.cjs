@@ -36,3 +36,81 @@ ChildProcess.prototype.kill = function (signal) {
   return originalKill.call(this, signal);
 };
 syncBuiltinESMExports();
+
+// Sample only the failing fixture-heavy files. Durability calls still run unchanged;
+// records contain phase labels/timings, never file contents, SQL, or key material.
+const phaseFiles = new Set([
+  "canonical-summary.test.ts", "main-s-runtime-port.test.ts",
+  "history-migration.test.ts", "main-fact-selector.test.ts",
+  "current-skills-compatibility.test.ts",
+]);
+let phaseProbeEnabled = false;
+let flushPhase = () => {};
+const originalSend = process.send;
+process.send = function (message, ...args) {
+  if (message?.__vitest_worker_response__ && message.type === "testfileFinished") flushPhase();
+  return originalSend.call(this, message, ...args);
+};
+process.on("message", message => {
+  if (phaseProbeEnabled || !message?.__vitest_worker_request__ || message.type !== "run") return;
+  const files = message.context.files.map(file => path.basename(file.filepath));
+  if (!files.some(file => phaseFiles.has(file))) return;
+  phaseProbeEnabled = true;
+  installPhaseProbe(files);
+});
+function installPhaseProbe(files) {
+  const fs = require("node:fs");
+  const { performance } = require("node:perf_hooks");
+  const { DatabaseSync } = require("node:sqlite");
+  const databases = new WeakMap();
+  let sample = { number: 0, started: performance.now(), phases: {} };
+  const flush = boundary => write("phase-sample", {
+    files, sample: sample.number, boundary, elapsedMs: performance.now() - sample.started,
+    phases: sample.phases,
+  });
+  const measured = (label, run) => {
+    const target = sample, started = performance.now(), cpu = process.cpuUsage();
+    try { return run(); }
+    finally {
+      const wallMs = performance.now() - started, used = process.cpuUsage(cpu);
+      const phase = target.phases[label] ??= { calls: 0, wallMs: 0, cpuMs: 0, maxMs: 0 };
+      phase.calls++; phase.wallMs += wallMs; phase.cpuMs += (used.user + used.system) / 1000;
+      phase.maxMs = Math.max(phase.maxMs, wallMs);
+    }
+  };
+  const mkdtemp = fs.mkdtempSync;
+  fs.mkdtempSync = function (...args) {
+    if (sample.number) flush("next-fixture");
+    sample = { number: sample.number + 1, started: performance.now(), phases: {} };
+    return measured("fixture.directory", () => mkdtemp.apply(this, args));
+  };
+  for (const method of ["fsyncSync", "cpSync", "readFileSync", "writeFileSync", "rmSync"]) {
+    const original = fs[method];
+    let depth = 0;
+    fs[method] = function (...args) {
+      if (depth) return original.apply(this, args);
+      depth++;
+      try { return measured("fs." + method, () => original.apply(this, args)); }
+      finally { depth--; if (method === "rmSync" && !depth) flush("cleanup"); }
+    };
+  }
+  const exec = DatabaseSync.prototype.exec, close = DatabaseSync.prototype.close;
+  DatabaseSync.prototype.exec = function (sql) {
+    const state = databases.get(this) ?? { configured: false };
+    databases.set(this, state);
+    const configure = /journal_mode/i.test(sql);
+    const label = configure ? "sqlite.WAL_FULL" : /\bCOMMIT\b/i.test(sql)
+      ? (state.configured ? "transaction.commit" : "schema.commit")
+      : /\bROLLBACK\b/i.test(sql) ? "sqlite.rollback" : "sqlite.other";
+    const result = measured(label, () => exec.call(this, sql));
+    if (configure) { state.configured = true; flush("database-ready"); }
+    return result;
+  };
+  DatabaseSync.prototype.close = function () {
+    try { return measured("database.close", () => close.call(this)); }
+    finally { flush("database-close"); }
+  };
+  flushPhase = () => flush("file-finished");
+  syncBuiltinESMExports();
+  write("phase-probe-start", { files });
+}
