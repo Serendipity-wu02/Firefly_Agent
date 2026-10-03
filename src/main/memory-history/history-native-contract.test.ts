@@ -5,6 +5,7 @@ import {createSmhFixture} from '../memory-context/smh-fixture.test-support';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {performance} from 'node:perf_hooks';
 const tools=[{id:'call:original',name:'read_file',arguments:'{"path":"咖啡.txt","exact":"  keep  "}'}];
 it('preserves complete tool call names, raw argument strings and result in encrypted H quotation',async()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'h-quote-')),f=createSmhFixture(root);
@@ -25,12 +26,26 @@ it('preserves complete tool call names, raw argument strings and result in encry
  }finally{f.close();fs.rmSync(root,{recursive:true,force:true})}
 });
 it('history direct read transactions sample and validate their injected clock once',()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'h-clock-'));let calls=0;
- const f=createSmhFixture(root,{clock:()=>{calls++;return -1}});
+ const phases:Record<string,{wallMs:number;cpuMs:number}>={};let calls=0;
+ function phase<T>(name:string,run:()=>T):T{
+  const start=performance.now(),cpu=process.cpuUsage();
+  try{return run()}finally{const used=process.cpuUsage(cpu);phases[name]={wallMs:performance.now()-start,cpuMs:(used.user+used.system)/1000}}
+ }
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'h-clock-'));let f:ReturnType<typeof createSmhFixture>|undefined;
  try{
-  expect(()=>f.repo.historyCommand({kind:'baseline',scopeKey:'scope-a',body:{actorKey:'actor-a',providerId:'synthetic',sessionId:'session-a'}})).toThrow('MEMORY_TRANSACTION_CLOCK_INVALID');
-  expect(calls).toBe(1);
- }finally{f.close();fs.rmSync(root,{recursive:true,force:true})}
+  const fixture=f=phase('fixture',()=>createSmhFixture(root,{clock:()=>{calls++;return -1}}));
+  phase('command',()=>{
+   expect(()=>fixture.repo.historyCommand({kind:'baseline',scopeKey:'scope-a',body:{actorKey:'actor-a',providerId:'synthetic',sessionId:'session-a'}})).toThrow('MEMORY_TRANSACTION_CLOCK_INVALID');
+   expect(calls).toBe(1);
+  });
+ }finally{
+  try{if(f)phase('close',()=>f!.close())}finally{
+   phase('cleanup',()=>fs.rmSync(root,{recursive:true,force:true}));
+   const output=process.env.FIREFLY_VITEST_DIAGNOSTICS;
+   // CI-only metadata; no source content, paths, SQL or key material.
+   if(output)fs.appendFileSync(path.join(output,`process-${process.pid}.jsonl`),JSON.stringify({time:new Date().toISOString(),event:'h-clock-phases',pid:process.pid,ppid:process.ppid,clockCalls:calls,phases})+'\n');
+  }
+ }
 });
 
 it('rejects oversized full tool envelopes rather than budgeting only visible text',()=>{

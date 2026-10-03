@@ -42,6 +42,7 @@ syncBuiltinESMExports();
 const phaseFiles = new Set([
   "canonical-summary.test.ts", "main-s-runtime-port.test.ts",
   "history-migration.test.ts", "main-fact-selector.test.ts",
+  "history-native-contract.test.ts",
   "current-skills-compatibility.test.ts",
 ]);
 let phaseProbeEnabled = false;
