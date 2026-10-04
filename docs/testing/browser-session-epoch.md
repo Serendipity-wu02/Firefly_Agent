@@ -47,3 +47,9 @@ SW安装完成后的importScripts只能读取已存在script resource map；未�
 **生产gate仍HOLD。** 可信Chromium已有TLS隧道上的POST正负例、公网默认numeric dial（198.18 DNS环境限制仍在）、SW安装/更新/导航预加载、完整frame/redirect/多平台特殊目标、QUIC/WebRTC/WebTransport、证书/mTLS全部路径、生产Main owner/准备取消/清理失败/ShutdownCoordinator接线均未完整验证。缓存继承只证明本机43.1.0特定有限顺序，不能保证换版本、cache失效或所有worker路径；无法可信归属的新挑战必须拒绝。NodeTLS反例不能补齐Chromium方法覆盖，不能未经这些验收开启真实浏览。
 
 DeepSeek Main lease仅设计参考，未移植代码或runtime，其workspace partition复用/存储保留政策没有采用；MIT来源声明见正式设计。官方源码/文档为语义依据，本文逐项原生记录才是实测证据。
+
+## 续接：TLS与DNS限制分离（2026-10-04）
+
+本小步基于`9e7c6a3cc51d598c7ab8ae8f986405cb9e5d661c`，[诊断脚本/原始记录及哈希](fixtures/browser-session-epoch/continuation/diagnosis-manifest.json)于12:01:29 UTC执行：系统`dns.lookup(example.com,{all:true})`返回198.18.1.171，未改产品`isPublicNetworkAddress`判false，TCP尝试0；未硬编码公网地址进行实际联网。现有测试leaf当前日期有效、自签名验证true，issuer=subject=CN=example.com；前步原生Chromium仍报ERR_CERT_AUTHORITY_INVALID。这是信任缺口，与公网DNS限制独立，不是证书过期，不用Node局部CA补称Chromium允许路径。无根证书安装、系统网络改动、验证override或权限绕过。
+
+用户已授权继续当前环境可做的SW安装/更新与退出生命周期隔离验证。下一步固定内存scheme供应SW主脚本，观察安装/更新期间的HTTPS import和fetch是否进入Session handler、proxy及TLS拒绝路径；脚本加载与安装事件fetch分别记录。实际app.quit/before-quit/will-quit验证同步域撤销、忽略不可信beforeunload等待和await清理，仅是候选夹具，不替代生产ShutdownCoordinator接线。可信Chromium TLS允许路径仍需一个系统原有信任且正常DNS通过公网策略的受控HTTPS目标；当前不能通过安装测试根或绕过198.18补齐。
