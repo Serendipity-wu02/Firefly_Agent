@@ -1,4 +1,40 @@
 /* Category navigation and bounded forms; individual controls retain their styles. */
+/* Saved model configurations are rows; only explicit add/edit actions open the form. */
+#model-profile-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+.provider-list__tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.provider-row { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--rb-border-soft); }
+.provider-row.is-active { border-bottom-color: var(--rb-pink-500); }
+.provider-row__copy { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; gap: 4px; }
+.provider-row__copy strong { font-size: 13px; color: var(--rb-text-strong); overflow-wrap: anywhere; }
+.provider-row__copy > span { font-size: 12px; color: var(--rb-text-muted); overflow-wrap: anywhere; }
+.provider-row__state { font-size: 11px; color: var(--rb-text-muted); }
+.provider-row__actions { display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
+.provider-row__action { padding: 6px 10px; border: 1px solid var(--rb-border-soft); border-radius: 6px; background: transparent; color: var(--rb-text-default); font: inherit; font-size: 12px; cursor: pointer; }
+.provider-row__action:hover { background: var(--rb-border-faint); }
+.provider-row__action[data-profile-action="delete"] { color: #c42b1c; }
+.provider-details { margin: 20px 0; border-top: 1px solid var(--rb-border-soft); border-bottom: 1px solid var(--rb-border-soft); }
+.provider-details > summary { padding: 16px 0; font-size: 13px; color: var(--rb-text-strong); font-weight: 600; cursor: pointer; }
+.provider-details > summary:focus-visible { outline: 2px solid var(--rb-pink-500); outline-offset: 3px; }
+.provider-details > :not(summary) { margin-block: 12px; }
+.provider-editor { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rb-border-soft); }
+.provider-editor[hidden], #provider-preset-page[hidden] { display: none; }
+.provider-editor__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.provider-tabs { display: flex; align-items: center; gap: 4px; }
+.provider-tabs[hidden] { display: none; }
+.provider-tabs > button { padding: 9px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--rb-text-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.provider-tabs > button[aria-selected="true"] { color: var(--rb-pink-500); background: var(--rb-border-faint); font-weight: 600; }
+#preset-cards { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+#agent-routing-panel { display: grid; gap: 12px; }
+#agent-routing-panel .field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 42%); gap: 12px; align-items: center; font-size: 12px; }
+#agent-routing-panel .field > span { overflow-wrap: anywhere; }
+#agent-routing-panel select { min-width: 0; width: 100%; }
+@media (max-width: 780px) {
+  .provider-row { flex-wrap: wrap; gap: 10px; }
+  .provider-row__copy { flex-basis: 100%; }
+  .provider-row__actions { margin-left: auto; }
+  #agent-routing-panel .field { grid-template-columns: minmax(0, 1fr); }
+  .provider-editor__toolbar { flex-wrap: wrap; }
+}
 .settings-shell {
   box-sizing: border-box;
   grid-template-columns: 208px minmax(0, 1fr);

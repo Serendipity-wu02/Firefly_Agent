@@ -7,13 +7,15 @@ import { ModeSwitch } from "../../../components/ui/ModeSwitch";
 import { ModelModeButton } from "../../../components/ui/ModelModeButton";
 import { NewTaskButton } from "../../../components/ui/NewTaskButton";
 import { PluginModeButton } from "../../../components/ui/PluginModeButton";
-import { SettingsButton } from "../../../components/ui/SettingsButton";
+import { resolveAsset } from "../../../../../shared/renderer-base";
 import { SidebarToggle } from "../../../components/ui/SidebarToggle";
 import { SkillModeButton } from "../../../components/ui/SkillModeButton";
 import { ToolModeButton } from "../../../components/ui/ToolModeButton";
 import { WindowControls } from "../../../components/ui/WindowControls";
 import { AppUpdateEntry } from "./AppUpdateEntry";
 import { ConversationSidebar } from "./ConversationSidebar";
+import { RailUserMenu } from "./RailUserMenu";
+import { ModelConnectionIndicator } from "./ModelConnectionIndicator";
 import { reportChatPerfRender } from "./chat-perf-probe";
 
 export type ChatPagePanel = "tool" | "skill" | "model" | "plugin";
@@ -25,6 +27,7 @@ export interface ChatPageNavigationProps {
   sessions: ChatSessionMeta[];
   sessionListStatus: "loading" | "error" | "ready";
   activeSessionId?: string;
+  activeModelProfileId?: string;
   onToggleCollapsed: () => void;
   onModeChange: (mode: string) => void;
   onNewTask: () => void;
@@ -39,6 +42,7 @@ export interface ChatPageNavigationProps {
   onMaximize: () => void;
   onCloseWindow: () => void;
   onOpenSettings: () => void;
+  onOpenApiSettings?: () => void;
 }
 
 // 阶段 1A：memo 隔离——ChatPage 流式重渲染时，只要 props 引用稳定（sessions/回调由父级保证），
@@ -50,6 +54,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   sessions,
   sessionListStatus,
   activeSessionId,
+  activeModelProfileId,
   onToggleCollapsed,
   onModeChange,
   onNewTask,
@@ -64,6 +69,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   onMaximize,
   onCloseWindow,
   onOpenSettings,
+  onOpenApiSettings,
 }: ChatPageNavigationProps) {
   // 性能探针：perf harness 注册后统计导航子树执行次数（阶段 1A 验收：流式期间应为 0）
   reportChatPerfRender("navigationRenders");
@@ -86,6 +92,10 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
         <WindowControls onMinimize={onMinimize} onMaximize={onMaximize} onClose={onCloseWindow} />
       </div>
       <nav className="cy-page-rail" aria-label={t("ui.navigation")}>
+        <div className="cy-page-role">
+          <img className="cy-page-role-avatar" src={resolveAsset("avatars/firefly-avatar.png")} alt="Firefly" draggable={false} />
+          <ModelConnectionIndicator activeProfileId={activeModelProfileId} onOpenSettings={onOpenApiSettings ?? onOpenSettings} />
+        </div>
         <button type="button" className={`cy-rail-button ${!hasOpenPanel ? "is-active" : ""}`}
           title={t("ui.workbench")} aria-label={t("ui.workbench")} aria-pressed={!hasOpenPanel}
           onClick={() => {
@@ -112,7 +122,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
             <Ellipsis size={20} aria-hidden="true" />
           </button>
         </Popover>
-        <div className="cy-page-rail-bottom"><SettingsButton onClick={onOpenSettings} /></div>
+        <div className="cy-page-rail-bottom"><RailUserMenu onOpenSettings={onOpenSettings} /></div>
       </nav>
       <aside id="firefly-context-sidebar" className="cy-page-sidebar" inert={collapsed} aria-hidden={collapsed} aria-label={t("ui.contextSidebar")}>
         <div className="cy-page-context-header">Firefly</div>

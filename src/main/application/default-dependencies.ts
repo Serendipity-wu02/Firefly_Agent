@@ -478,7 +478,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           }),
         );
 
-        registerSettingsIpc({
+        const disposeSettingsConnections = registerSettingsIpc({
           ipc,
           windowManager: shell.windowManager,
           getGeneralSettings: loadGeneralSettings,
@@ -492,6 +492,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           syncVolcanoSearchMcp,
           syncPlaywrightMcp,
         });
+        shutdown.register({ id: "model-connection-listener", phase: "quiesce", dispose: disposeSettingsConnections });
 
         registerMemoryUserToolIpc({
           ipc,

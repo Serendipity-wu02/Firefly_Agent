@@ -686,6 +686,18 @@
     "workbench": "工作台",
     "more": "更多",
     "navigation": "主导航",
+    "connectionStatus": "API：{{state}}",
+    "connectionUnverified": "未验证",
+    "connectionChecking": "正在检查",
+    "connectionConnected": "最近测试通过",
+    "connectionFailed": "最近测试失败",
+    "connectionLastTestNote": "显示最近一次手动连接测试结果",
+    "connectionCheckedAt": "最近测试：{{time}}",
+    "connectionTestFailed": "连接测试失败",
+    "connectionTestError": "连接测试遇到错误",
+    "connectionOpenSettings": "打开 API 设置",
+    "userMenu": "本地用户菜单",
+    "localUser": "本地用户",
     "contextSidebar": "会话与项目"
   }
 }

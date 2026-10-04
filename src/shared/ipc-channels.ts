@@ -246,6 +246,8 @@ export const IPC = {
 
   // public model config updates (no API key)
   MODEL_CONFIG_GET: "model-config:get",
+  MODEL_CONNECTION_GET: "model-connection:get",
+  MODEL_CONNECTION_CHANGED: "model-connection:changed",
   MODEL_CONFIG_CHANGED: "model-config:changed",
 
   // runtime state updates (status / feeling / expression)

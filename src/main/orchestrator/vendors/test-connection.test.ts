@@ -24,3 +24,13 @@ describe("testVendorConnection", () => {
     expect(testConnection).toHaveBeenCalledWith(cfg);
   });
 });
+
+test("never logs model credentials or upstream output", async () => {
+  const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  try {
+    const cfg: VendorConfig = { provider: "fixture-secret", model: "fixture-secret", baseUrl: "https://fixture-secret.invalid", apiKey: "fixture-secret" };
+    const adapter = { transport: "openai", testConnection: async () => ({ ok: false, latency: 1, error: "fixture-secret private response", sample: "fixture-secret sample" }) } as unknown as ChatVendorAdapter;
+    await testVendorConnection(cfg, () => adapter);
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/fixture-secret|private response|sample/);
+  } finally { log.mockRestore(); }
+});

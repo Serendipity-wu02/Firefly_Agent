@@ -26,7 +26,7 @@ beforeEach(() => {
   globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
   host = document.createElement("div"); document.body.appendChild(host); root = createRoot(host);
 });
-afterEach(() => { act(() => root.unmount()); host.remove(); });
+afterEach(() => { act(() => root.unmount()); host.remove(); delete (window as unknown as { user?: unknown }).user; });
 function render(changes: Partial<ChatPageNavigationProps> = {}) {
   act(() => root.render(React.createElement(ChatPageNavigation, { ...props, ...changes })));
 }
@@ -41,9 +41,68 @@ describe("workspace navigation layout", () => {
     expect(host.querySelector(".cy-page-sidebar")?.hasAttribute("inert")).toBe(true);
     expect(host.textContent).toContain("legacy-session-fixture");
     expect(host.querySelector(".cy-page-rail")?.hasAttribute("inert")).toBe(false);
+    act(() => button(t("ui.userMenu")).click());
     act(() => button(t("ui.settings")).click());
     expect(props.onOpenSettings).toHaveBeenCalledOnce();
     expect(button(t("ui.toggleSidebar")).getAttribute("aria-expanded")).toBe("false");
+  });
+  it("keeps the Firefly portrait visible outside the collapsed context", () => {
+    render({ collapsed: true });
+    const portrait = host.querySelector<HTMLImageElement>(".cy-page-rail img.cy-page-role-avatar")!;
+    expect(portrait).toBeTruthy();
+    expect(portrait.src).toMatch(/\/avatars\/firefly-avatar\.png$/);
+    expect(host.querySelector(".cy-page-sidebar")?.contains(portrait)).toBe(false);
+  });
+  it("closes the local user menu on Escape and restores focus", () => {
+    render();
+    const trigger = button(t("ui.userMenu"));
+    act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+    const settings = button(t("ui.settings"));
+    expect(document.activeElement).toBe(settings);
+    act(() => settings.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(trigger);
+  });
+  it("dismisses the user menu when focus leaves without trapping Tab", () => {
+    render();
+    const trigger = button(t("ui.userMenu"));
+    act(() => trigger.click());
+    const outside = button(t("ui.workbench"));
+    act(() => outside.focus());
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(outside);
+  });
+  it("refreshes the local portrait and nickname through the existing profile events", async () => {
+    let changedAvatar: (() => void) | undefined;
+    let changedProfile: ((profile: { nickname: string }) => void) | undefined;
+    let avatar = "data:image/png;base64,fixture-one";
+    Object.assign(window, { user: {
+      getAvatar: async () => avatar,
+      onAvatarChanged(callback: () => void) { changedAvatar = callback; return () => { changedAvatar = undefined; }; },
+      getProfile: async () => ({ nickname: "Existing local nickname" }),
+      onProfileChanged(callback: (profile: { nickname: string }) => void) { changedProfile = callback; return () => { changedProfile = undefined; }; },
+    } });
+    await act(async () => render());
+    const trigger = button(t("ui.userMenu"));
+    expect(trigger.title).toBe("Existing local nickname");
+    expect(trigger.querySelector("img")?.getAttribute("src")).toBe("data:image/png;base64,fixture-one");
+    avatar = "data:image/png;base64,fixture-two";
+    await act(async () => { changedAvatar!(); changedProfile!({ nickname: "Updated local nickname" }); });
+    act(() => trigger.click());
+    expect(document.querySelector(".cy-rail-user__name")?.textContent).toBe("Updated local nickname");
+    expect(trigger.querySelector("img")?.getAttribute("src")).toBe("data:image/png;base64,fixture-two");
+    act(() => root.unmount());
+    expect(changedAvatar).toBeUndefined();
+    expect(changedProfile).toBeUndefined();
+  });
+  it.each(["Tab", "Shift+Tab"])("dismisses the local menu on %s without cancelling native traversal", key => {
+    render();
+    const trigger = button(t("ui.userMenu"));
+    act(() => trigger.click());
+    const event = new KeyboardEvent("keydown", { key: "Tab", shiftKey: key === "Shift+Tab", bubbles: true, cancelable: true });
+    act(() => button(t("ui.settings")).dispatchEvent(event));
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(event.defaultPrevented).toBe(false);
   });
   it("returns to the workbench and expands context from an open panel", () => {
     render({ collapsed: true, activePanel: "plugin" });

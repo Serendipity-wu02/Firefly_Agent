@@ -404,6 +404,87 @@ html, body {
 .cy-rail-button.is-active,
 .cy-page-rail .cy-side-action.is-active { background: var(--cy-bg-active); color: var(--cy-accent); }
 .cy-page-rail-bottom { margin-top: auto; }
+.cy-page-role {
+  position: absolute;
+  top: 8px;
+  width: 32px;
+  height: 32px;
+}
+.cy-page-role-avatar {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.cy-model-connection {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.cy-model-connection__dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--cy-bg-page);
+  border-radius: 50%;
+  background: #8a8f98;
+}
+.cy-model-connection[data-state="connected"] .cy-model-connection__dot { background: #238636; }
+.cy-model-connection[data-state="failed"] .cy-model-connection__dot { background: #c42b1c; }
+.cy-model-connection__text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.cy-rail-user { position: relative; }
+.cy-rail-user__menu {
+  position: absolute;
+  bottom: 0;
+  left: 44px;
+  z-index: 60;
+  box-sizing: border-box;
+  width: 240px;
+  max-width: calc(100vw - 64px);
+  padding: 8px;
+  border: 1px solid var(--cy-border);
+  border-radius: 10px;
+  background: var(--cy-bg-page);
+  box-shadow: var(--cy-shadow-control-hover);
+}
+.cy-rail-user__name {
+  padding: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--cy-text);
+}
+.cy-rail-user__menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cy-text);
+  cursor: pointer;
+}
+.cy-rail-user__menu button:hover { background: var(--cy-bg-active); }
 .cy-page-context-header {
   padding: 8px 10px 16px;
   font: 650 20px/1.2 var(--rb-font-sans, sans-serif);

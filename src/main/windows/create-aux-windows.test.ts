@@ -48,3 +48,15 @@ describe("chat renderer readiness during navigation", () => {
     expect(reactChatSession.queueOrTake("chat-session")).toBe("chat-session");
   });
 });
+
+it("does not create or activate the retired standalone status window", async () => {
+  const { createSidebarWindow } = await import("./create-aux-windows");
+  const { sidebarWindow, setSidebarWindow } = await import("./window-state");
+  const show = vi.fn(); const focus = vi.fn();
+  setSidebarWindow({ isDestroyed: () => false, show, focus } as never);
+  createSidebarWindow();
+  expect(show).not.toHaveBeenCalled(); expect(focus).not.toHaveBeenCalled();
+  setSidebarWindow(null);
+  expect(() => createSidebarWindow()).not.toThrow();
+  expect(sidebarWindow).toBeNull();
+});

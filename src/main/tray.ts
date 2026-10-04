@@ -19,14 +19,6 @@ export function buildTrayMenuTemplate(deps: CreateTrayDependencies): MenuItemCon
       click: () => { deps.requestActivation({ kind: "chat" }); },
     },
     {
-      label: "打开状态面板",
-      click: () => { deps.requestActivation({ kind: "sidebar" }); },
-    },
-    {
-      label: "QQ Music 状态",
-      click: () => { deps.requestActivation({ kind: "music" }); },
-    },
-    {
       label: "设置",
       click: () => { deps.requestActivation({ kind: "settings" }); },
     },

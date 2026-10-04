@@ -1,3 +1,4 @@
+import type { ModelConfigApi } from "../shared/model-connection-types";
 // Global type augmentations for renderer
 
 import type { ReviewSnapshot, ReviewRestoreOutcome } from "../shared/review-types";
@@ -67,6 +68,7 @@ interface SettingsWindowApi {
 
 declare global {
   interface Window {
+    modelConfig?: ModelConfigApi;
     system?: SystemApi;
     review?: ReviewApi;
     workspaceFiles?: WorkspaceFilesApi;

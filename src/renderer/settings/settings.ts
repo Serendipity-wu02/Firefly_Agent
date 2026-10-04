@@ -1,3 +1,5 @@
+import { renderProviderRows } from "./api/provider-rows";
+import { applyProviderEditorLayout } from "./api/provider-editor";
 import { bindSettingsNavigation, resolveSettingsSection, updateSettingsNavigation } from "./shared/navigation";
 /* 标记！AI写的超大技术债，延期重构*/
 import "../ui/base.css";
@@ -68,7 +70,7 @@ import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
-import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
+import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
 import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, fireflyPanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, fireflySaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
 import { pluginAddBtn, permissionBlocksWrap, permissionNote } from "./plugins/dom";
@@ -124,7 +126,7 @@ import "./rag/panel";  // 副作用导入：RAG 模型切换 + Reranker 模式
 import "./preferences/panel";  // 副作用导入：截图热键捕获 + 表情包列表/添加/删除
 import "./mcp/panel";  // 副作用导入：MCP Server 添加/删除/启停 + 自定义端点接入说明
 import "./tokens/panel";  // 副作用导入：Token 用量图表 + 时间范围切换
-import { t } from "./i18n";
+import { t, subscribeLocaleChanged } from "./i18n";
 
 // Inline modal (to avoid Vite tree-shaking)
 
@@ -568,7 +570,7 @@ function fillPresetOptions(): void {
   if (!presetCards) return;
   presetCards.replaceChildren();
   for (const preset of MODEL_PRESETS) {
-    if (preset.hiddenInPresetList) continue;
+    if (preset.hiddenInPresetList || preset.customEndpointMode) continue;
     const card = document.createElement("button");
     card.type = "button";
     card.className = "preset-card";
@@ -657,7 +659,7 @@ function restoreVisionInputs(snapshot: { baseUrl: string; apiKey: string; model:
   visionModelInput.value = snapshot.model;
 }
 
-/** 档案列表渲染：卡片 = 昵称 + 厂商 + 模型 + 徽标（默认/上下文/多模态）。 */
+/** 已配置模型列表：紧凑行与独立编辑/删除操作。 */
 function renderProfileList(): void {
   if (!profileList) return;
   profileList.replaceChildren();
@@ -676,43 +678,7 @@ function renderProfileList(): void {
     return;
   }
 
-  for (const profile of apiState.profiles) {
-    const isDefault = profile.id === apiState.defaultProfileId;
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "profile-card" + (profile.id === apiState.editingProfileId ? " is-active" : "");
-    card.dataset.profileId = profile.id;
-
-    const name = document.createElement("span");
-    name.className = "profile-card__name";
-    name.textContent = profile.displayName || profile.provider;
-    card.appendChild(name);
-
-    const meta = document.createElement("span");
-    meta.className = "profile-card__meta";
-    const metaParts: string[] = [findPreset(profile.provider).shortName, profile.model];
-    if (profile.contextWindowTokens) metaParts.push(`${Math.round(profile.contextWindowTokens / 1000)}k`);
-    meta.textContent = metaParts.join(" · ");
-    card.appendChild(meta);
-
-    const badges = document.createElement("span");
-    badges.className = "profile-card__badges";
-    if (isDefault) {
-      const badge = document.createElement("span");
-      badge.className = "profile-card__badge";
-      badge.textContent = t("settings.profile.badge.default");
-      badges.appendChild(badge);
-    }
-    if (profile.multimodal === true) {
-      const badge = document.createElement("span");
-      badge.className = "profile-card__badge profile-card__badge--vision";
-      badge.textContent = t("settings.profile.badge.vision");
-      badges.appendChild(badge);
-    }
-    card.appendChild(badges);
-
-    profileList.appendChild(card);
-  }
+  renderProviderRows(profileList, apiState.profiles, apiState.defaultProfileId, apiState.editingProfileId);
 }
 
 /** 从 main 拉取档案列表并渲染。 */
@@ -742,11 +708,15 @@ async function reloadProfiles(): Promise<void> {
 function applyEditingStateUI(): void {
   profileEditorTitle.textContent = apiState.editingProfileId ? t("settings.profile.editorTitle.edit") : t("settings.profile.editorTitle.new");
   deleteProfileBtn.hidden = !apiState.editingProfileId;
+  document.getElementById("profile-editor")!.hidden = !apiState.editorOpen;
+  document.querySelector<HTMLElement>(".provider-tabs")!.hidden = Boolean(apiState.editingProfileId);
+  applyProviderEditorLayout(apiForm, getCustomEndpointMode(apiState.activeProvider) ? "custom" : "preset");
 }
 
 /** 载入档案到编辑表单。 */
-function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void {
+function editProfile(profile: SavedProfileLite, globalMultimodal: boolean, focusEditor = true): void {
   const visionSnapshot = snapshotVisionInputs();
+  apiState.editorOpen = true;
   apiState.editingProfileId = profile.id;
   apiState.editingReasoning = profile.reasoning;
   applyPreset(
@@ -765,11 +735,13 @@ function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void
   applyEditingStateUI();
   renderProfileList();
   setSaveStatus(t("settings.profile.editing", { name: profile.displayName || profile.model }));
+  if (focusEditor) (getCustomEndpointMode(profile.provider) ? displayNameInput : apiKeyInput).focus();
 }
 
 /** 开始新建草稿：preset 预填 URL/模型/协议，清空 Key 与昵称。 */
 function startNewDraft(providerName: string): void {
   const visionSnapshot = snapshotVisionInputs();
+  apiState.editorOpen = true;
   apiState.editingProfileId = undefined;
   apiState.editingReasoning = undefined;
   applyPreset(providerName);
@@ -964,6 +936,7 @@ export function applyPreset(
   }
 
   apiState.activeProvider = preset.providerName;
+  applyProviderEditorLayout(apiForm, customMode ? "custom" : "preset");
   applyMultimodalUI();
 }
 
@@ -1002,17 +975,18 @@ async function loadConfig(): Promise<void> {
     toggleDisableThinking.checked = cfg.thinkingOverride === -1;
     toggleDisableMaxToken.checked = !!cfg.disableMaxToken;
 
-    // 档案列表加载 + 默认进入默认档案的编辑态；
-    // 无档案时保持上方 applyPreset 的顶层镜像作为"新建草稿"起点。
+    // 载入默认配置但保持编辑器收起；只有添加/编辑操作会展开。
     await reloadProfiles();
     const defaultProfile = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
     if (defaultProfile) {
-      editProfile(defaultProfile, cfg.multimodal);
+      editProfile(defaultProfile, cfg.multimodal, false);
     } else {
       contextWindowInput.value = String(cfg.contextWindowTokens ?? 256000);
       applyEditingStateUI();
     }
 
+    apiState.editorOpen = false;
+    applyEditingStateUI();
     setSaveStatus(t("settings.status.waiting"));
     setFireflySaveStatus(t("settings.status.waiting"));
   } catch {
@@ -1050,7 +1024,6 @@ async function loadGeneralSettings(): Promise<void> {
     chatParaSpacingVal.textContent = (cfg.chatParaSpacing ?? 0.5).toFixed(2) + "em";
     document.documentElement.style.setProperty("--rb-chat-para-spacing", (cfg.chatParaSpacing ?? 0.5) + "em");
     disableGpuInput.checked = cfg.disableGpuElectron ?? false;
-    sidebarVisibleInput.checked = cfg.sidebarVisible ?? true;
     tasksVisibleInput.checked = cfg.tasksVisible ?? true;
     launchAtLoginInput.checked = cfg.launchAtLogin;
     renderUiFont(normalizeUiFont(cfg.uiFont));
@@ -1125,11 +1098,6 @@ disableGpuInput.addEventListener("change", () => {
   void window.settings?.saveGeneral({ disableGpuElectron: disableGpuInput.checked });
 });
 
-sidebarVisibleInput.addEventListener("change", () => {
-  if (sidebarVisibleInput.checked) window.settings?.openSidebar();
-  else window.settings?.closeSidebar();
-  void window.settings?.saveGeneral({ sidebarVisible: sidebarVisibleInput.checked });
-});
 
 tasksVisibleInput.addEventListener("change", () => {
   if (tasksVisibleInput.checked) window.settings?.openTasks();
@@ -1469,7 +1437,6 @@ generalForm.addEventListener("submit", async (e) => {
   try {
     await window.settings!.saveGeneral({
       disableGpuElectron: disableGpuInput.checked,
-      sidebarVisible: sidebarVisibleInput.checked,
       tasksVisible: tasksVisibleInput.checked,
       toastSoundEnabled: toastSoundEnabledInput.checked,
       launchAtLogin: launchAtLoginInput.checked,
@@ -1836,34 +1803,90 @@ customEndpointControls?.addEventListener("click", (e) => {
 
 // ── 档案列表：点击档案载入编辑 ────────────────────────────────
 profileList?.addEventListener("click", (e) => {
-  const card = (e.target as HTMLElement).closest(".profile-card") as HTMLElement | null;
-  if (!card) return;
-  const profileId = card.dataset.profileId;
-  const profile = apiState.profiles.find((p) => p.id === profileId);
+  const button = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-profile-action]");
+  const row = button?.closest<HTMLElement>(".provider-row");
+  const profile = apiState.profiles.find(p => p.id === row?.dataset.profileId);
   if (!profile) return;
-  editProfile(profile, multimodalToggle.checked);
+  if (button?.dataset.profileAction === "delete") void deleteProfile(profile.id);
+  else editProfile(profile, multimodalToggle.checked);
 });
 
 // ── 删除当前编辑的档案 ────────────────────────────────────────
-deleteProfileBtn?.addEventListener("click", async () => {
-  if (!apiState.editingProfileId) return;
-  const profile = apiState.profiles.find((p) => p.id === apiState.editingProfileId);
+async function deleteProfile(profileId: string): Promise<void> {
+  const rowIndex = apiState.profiles.findIndex(profile => profile.id === profileId);
+  const profile = apiState.profiles.find((p) => p.id === profileId);
   const name = profile?.displayName || profile?.model || t("settings.profile.fallbackName");
   try {
-    await window.settings?.deleteModelProfile?.(apiState.editingProfileId);
+    await window.settings?.deleteModelProfile?.(profileId);
     setSaveStatus(t("settings.profile.deleted", { name }), "is-ok");
     await reloadProfiles();
-    // 删除后切到剩余的默认档案；没有档案则回到草稿态
-    const next = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
-    if (next) {
-      editProfile(next, multimodalToggle.checked);
-    } else {
-      startNewDraft(apiState.activeProvider || t("settings.default.provider"));
+    // 仅删除当前编辑项时更新编辑表单，其余草稿保留。
+    if (apiState.editingProfileId === profileId) {
+      const next = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
+      if (next && apiState.editorOpen) {
+        editProfile(next, multimodalToggle.checked, false);
+      } else {
+        apiState.editingProfileId = undefined;
+        apiState.editingReasoning = undefined;
+        apiState.editorOpen = false;
+        applyEditingStateUI();
+      }
     }
+    const editButtons = Array.from(profileList.querySelectorAll<HTMLButtonElement>('[data-profile-action="edit"]'));
+    (editButtons[Math.min(Math.max(rowIndex, 0), editButtons.length - 1)] ?? document.getElementById("add-profile-btn"))?.focus();
   } catch {
     setSaveStatus(t("settings.profile.deleteFailed"), "is-error");
   }
+}
+
+deleteProfileBtn?.addEventListener("click", () => {
+  if (apiState.editingProfileId) void deleteProfile(apiState.editingProfileId);
 });
+
+document.getElementById("add-profile-btn")?.addEventListener("click", () => {
+  startNewDraft(MODEL_PRESETS.find(preset => !preset.disabled && !preset.customEndpointMode)!.providerName);
+  apiKeyInput.focus();
+});
+document.getElementById("close-profile-editor")?.addEventListener("click", () => {
+  apiState.editorOpen = false;
+  applyEditingStateUI();
+  document.getElementById("add-profile-btn")?.focus();
+});
+const providerTabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-provider-tab]"));
+function selectProviderTab(button: HTMLButtonElement): void {
+  const custom = button.dataset.providerTab === "custom";
+  if (custom === Boolean(getCustomEndpointMode(apiState.activeProvider))) return;
+  startNewDraft(custom
+    ? getCustomEndpointProvider(apiState.customEndpointMode)
+    : MODEL_PRESETS.find(preset => !preset.disabled && !preset.customEndpointMode)!.providerName);
+}
+providerTabs.forEach((button, index) => {
+  button.addEventListener("click", () => selectProviderTab(button));
+  button.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? providerTabs[0]
+      : event.key === "End" ? providerTabs.at(-1)!
+      : providerTabs[(index + 1) % providerTabs.length];
+    selectProviderTab(next);
+    next.focus();
+  });
+});
+
+function translateProviderUi(): void {
+  document.querySelectorAll<HTMLElement>('[data-i18n^="settings.providerUi."]').forEach(element => {
+    element.textContent = t(element.dataset.i18n!);
+  });
+  const tabList = document.querySelector<HTMLElement>(".provider-tabs");
+  tabList?.setAttribute("aria-label", t("settings.providerUi.addTitle"));
+}
+translateProviderUi();
+subscribeLocaleChanged(() => {
+  translateProviderUi();
+  renderProfileList();
+  applyEditingStateUI();
+});
+
 
 // ── 偏好设置：聊天社交上下文 / 自定义风格 / 表单提交 ─────────
 chatSocialContextEnabledInput.addEventListener("change", () => {

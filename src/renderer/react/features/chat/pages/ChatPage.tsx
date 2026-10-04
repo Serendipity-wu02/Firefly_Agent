@@ -1575,6 +1575,9 @@ export function ChatPage() {
   const navMaximize = useCallback(() => window.chat?.toggleMaximize(), []);
   const navCloseWindow = useCallback(() => window.chat?.close(), []);
   const navOpenSettings = useCallback(() => sidebarApi()?.openSettings("general"), []);
+  const navOpenApiSettings = useCallback(() => sidebarApi()?.openSettings("api"), []);
+  const selectedModelProfileId = activeSession?.id === activeSessionId && activeSession
+    ? activeSession.modelProfileId : pendingModelProfileByMode[mode];
 
   return (
     <div className={`cy-page ${collapsed ? "is-collapsed" : ""}`}>
@@ -1585,6 +1588,7 @@ export function ChatPage() {
         sessions={sessions}
         sessionListStatus={sessionListErrors[mode] ? "error" : sessionsByMode[mode] === undefined ? "loading" : "ready"}
         activeSessionId={activeSessionId}
+        activeModelProfileId={selectedModelProfileId}
         onToggleCollapsed={navToggleCollapsed}
         onModeChange={navModeChange}
         onNewTask={navNewTask}
@@ -1599,6 +1603,7 @@ export function ChatPage() {
         onMaximize={navMaximize}
         onCloseWindow={navCloseWindow}
         onOpenSettings={navOpenSettings}
+        onOpenApiSettings={navOpenApiSettings}
       />
       {/* 右栏可拖宽布局：聊天区 Panel 常驻（保证内容不重挂载），右侧面板按需挂载 */}
       <Group
@@ -1738,11 +1743,7 @@ export function ChatPage() {
               const separator = draft && !draft.endsWith(" ") ? " " : "";
               setDrafts((current) => ({ ...current, [scopeKey]: `${draft}${separator}[sticker:${id}]` }));
             }}
-            activeModelProfileId={
-              activeSession?.id === activeSessionId && activeSession
-                ? activeSession.modelProfileId
-                : pendingModelProfileByMode[mode]
-            }
+            activeModelProfileId={selectedModelProfileId}
             contextUsage={latestContextUsage}
             onSelectModelProfile={(modelProfileId) => {
               // 欢迎页（无会话）：暂存选择，ensureSession 建会话后落地；不再静默丢弃。

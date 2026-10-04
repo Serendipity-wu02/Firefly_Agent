@@ -1,5 +1,6 @@
 {
   "settings": {
+    "providerUi": {"listTitle": "已配置模型提供商", "listSubtitle": "每条配置使用一个模型；状态仅反映已保存的配置。", "addTitle": "添加模型提供商", "presetTab": "预设提供商", "customTab": "自定义 API", "close": "收起", "advanced": "高级设置", "routingTitle": "角色模型覆盖", "edit": "编辑", "delete": "删除", "incomplete": "配置不完整", "missingKey": "缺少 API Key", "configured": "已配置 · 未验证连接"},
     "nav": {
       "ariaLabel": "设置导航",
       "brand": "流萤",
@@ -43,8 +44,8 @@
         "heading": "API 设置",
         "subheading": "先配置一个模型服务，后面流萤会用它进行聊天和状态判断。",
         "profileList": {
-          "title": "已保存档案",
-          "subtitle": "点击档案载入编辑；在聊天窗口的模型面板里切换使用。"
+          "title": "已配置模型提供商",
+          "subtitle": "每项保存一个模型。配置状态仅反映已保存字段；在聊天窗口切换使用。"
         },
         "presetRow": {
           "label": "新建档案 · 选择厂商预设"
@@ -92,8 +93,8 @@
           },
           "transport": {
             "label": "API 协议",
-            "openai": "chat/completion",
-            "anthropic": "anthropic",
+            "openai": "Chat Completions",
+            "anthropic": "Anthropic Messages",
             "responses": "Responses",
             "hint": "请按服务商实际提供的接口类型选择（chat/completion / anthropic / Responses）；程序不会自动识别协议。"
           },

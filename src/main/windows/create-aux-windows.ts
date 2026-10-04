@@ -9,12 +9,10 @@ import {
   reactChatWindow,
   setReactChatWindow,
   setSettingsWindow,
-  setSidebarWindow,
   setStickerManagerWindow,
   setTasksWindow,
   settingsWindow,
   showWindowWhenStartupReady,
-  sidebarWindow,
   stickerManagerWindow,
   tasksWindow,
 } from "./window-state";
@@ -122,52 +120,7 @@ export function dispatchOrQueueReactSession(sessionId: string): void {
  * 创建/复用侧边状态面板窗口。
  */
 export function createSidebarWindow(): void {
-  if (sidebarWindow && !sidebarWindow.isDestroyed()) {
-    sidebarWindow.show();
-    sidebarWindow.focus();
-    return;
-  }
-
-  const layout = computeLayout();
-  const window = new BrowserWindow({
-    x: layout.sidebar.x,
-    y: layout.sidebar.y,
-    width: 320,
-    height: 760,
-    minWidth: 56,
-    minHeight: 540,
-    title: "流萤 · 状态",
-    icon: getCurrentAppIconPath(),
-    backgroundColor: "#00000000",
-    autoHideMenuBar: true,
-    show: false,
-    frame: false,
-    transparent: true,
-    resizable: true,
-    webPreferences: {
-      preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-  setSidebarWindow(window);
-
-  if (isDev) {
-    window.loadURL("http://localhost:5173/sidebar/");
-  } else {
-    window.loadFile(
-      path.join(app.getAppPath(), "dist", "renderer", "sidebar", "index.html")
-    );
-  }
-
-  window.once("ready-to-show", () => {
-    showWindowWhenStartupReady(window);
-  });
-
-  window.on("closed", () => {
-    setSidebarWindow(null);
-  });
+  // Compatibility stub: the standalone status window has been retired.
 }
 
 /**

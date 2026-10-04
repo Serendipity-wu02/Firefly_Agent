@@ -686,6 +686,18 @@
     "workbench": "Workbench",
     "more": "More",
     "navigation": "Main navigation",
+    "connectionStatus": "API: {{state}}",
+    "connectionUnverified": "Not verified",
+    "connectionChecking": "Checking",
+    "connectionConnected": "Last test passed",
+    "connectionFailed": "Last test failed",
+    "connectionLastTestNote": "Shows the last manual connection test result",
+    "connectionCheckedAt": "Last test: {{time}}",
+    "connectionTestFailed": "The connection test failed",
+    "connectionTestError": "The connection test encountered an error",
+    "connectionOpenSettings": "Open API settings",
+    "userMenu": "Local user menu",
+    "localUser": "Local user",
     "contextSidebar": "Conversations and projects"
   }
 }

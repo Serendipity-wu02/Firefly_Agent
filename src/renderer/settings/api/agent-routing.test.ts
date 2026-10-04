@@ -27,6 +27,7 @@ it("renders twelve agents and saves only one selected identity through the bridg
   const updateAgentRouting = vi.fn(async () => view);
   await loadAgentRoutingPanel(root, { getAgentRouting: async () => view, updateAgentRouting });
   expect(root.querySelectorAll('[data-routing-kind="agent"]')).toHaveLength(12);
+  expect(root.querySelectorAll('[data-routing-kind="route"]')).toHaveLength(0);
   expect(root.textContent).toContain("AGENT_MODEL_ROUTE_UNCONFIGURED");
   const select = root.querySelector<HTMLSelectElement>('[data-routing-id="review"]')!;
   select.value = "fixture-model";

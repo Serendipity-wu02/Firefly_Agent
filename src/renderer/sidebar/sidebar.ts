@@ -12,10 +12,6 @@ interface ModelConfig {
   runtimeSync: "off" | "local" | "llm";
 }
 
-interface ModelConfigApi {
-  get: () => Promise<ModelConfig>;
-  onChanged: (callback: (config: ModelConfig) => void) => () => void;
-}
 
 type RuntimeStatus = "陪伴中" | "思考中" | "工作中" | "聆听中" | "提醒中" | "离线";
 type RuntimeFeeling = "平静" | "开心" | "温柔" | "激动" | "撒娇" | "担心" | "难过" | "感动" | "害羞";
@@ -42,7 +38,6 @@ interface SidebarApi {
 declare global {
   interface Window {
     sidebar?: SidebarApi;
-    modelConfig?: ModelConfigApi;
     runtimeState?: RuntimeStateApi;
   }
 }
