@@ -222,3 +222,10 @@ describe("startCore", () => {
     expect(calls.indexOf("plugins-stop")).toBeLessThan(calls.indexOf("channels-stop"));
   });
 });
+
+it("ignores a retired sidebar preference while retaining the schedule window", async () => {
+  const deps = makeCoreDeps([], { loadGeneralSettings: () => ({ petVisible: true, sidebarVisible: true, tasksVisible: true }) as never });
+  await startCore(deps);
+  expect(deps.shell.windowManager.createSidebarWindow).not.toHaveBeenCalled();
+  expect(deps.shell.windowManager.createTasksWindow).toHaveBeenCalledOnce();
+});

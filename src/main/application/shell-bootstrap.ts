@@ -95,7 +95,7 @@ export async function startShell(deps: ShellDependencies): Promise<ShellResult> 
           await windowManager.openReactChatWindow(request.sessionId);
           break;
         case "sidebar":
-          windowManager.createSidebarWindow();
+          // Retired status-window activation.
           break;
         case "settings":
           windowManager.createSettingsWindow(request.section);

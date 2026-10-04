@@ -82,7 +82,7 @@ describe("model catalog", () => {
     expect(updateModelProfile(base, { id: "missing", provider: "GLM（智谱）", baseUrl: "", apiKey: "", model: "" })).toBeNull();
   });
 
-  it("marks the public status connected when a saved model exists even if the current mirror is empty", () => {
+  it("keeps saved credentials unverified before an explicit connection test", () => {
     const settings = normalizeModelSettings({
       provider: "ChatGPT（OpenAI）",
       apiKey: "",
@@ -96,7 +96,7 @@ describe("model catalog", () => {
         baseUrl: "https://api.openai.com/v1",
       }],
     });
-    expect(getPublicModelConfig(settings).connected).toBe(true);
+    expect(getPublicModelConfig(settings).connected).toBe(false);
   });
 
   it("does not manufacture a saved profile from a top-level view", () => {

@@ -1,4 +1,7 @@
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, shell, type IpcMainInvokeEvent } from "electron";
+import { pathToFileURL } from "node:url";
+import { isDev } from "../env";
+import { getModelConnectionSnapshot, onModelConnectionChanged, testModelConnection } from "./model-settings";
 import * as fs from "fs";
 import * as path from "path";
 import { randomUUID } from "crypto";
@@ -59,7 +62,7 @@ function getCustomFontDisplayName(filePath: string): string {
 const VISION_TEST_IMAGE_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAJ0lEQVR42u3NsQkAAAjAsP7/tF7hIASyp6lTCQQCgUAgEAgEgi/BAjLD/C5w/SM9AAAAAElFTkSuQmCC";
 
-export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
+export function registerSettingsIpc(deps: SettingsIpcDependencies): () => void {
   const ipc = deps.ipc ?? createIpcScope();
   const {
     getGeneralSettings,
@@ -237,7 +240,7 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
   });
 
   ipc.on(IPC.SETTINGS_OPEN_SIDEBAR, () => {
-    deps.windowManager?.createSidebarWindow();
+    // Retired standalone status window: legacy messages are harmless.
   });
 
   ipc.on(IPC.SETTINGS_CLOSE_SIDEBAR, async () => {
@@ -279,7 +282,25 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     return saved;
   });
 
-  ipc.handle(IPC.SETTINGS_TEST_CONNECTION, async (_event, cfg: VendorConfig) => testVendorConnection(cfg));
+  const unsubscribeConnections = onModelConnectionChanged((snapshot) => {
+    broadcastToAuxWindows(IPC.MODEL_CONNECTION_CHANGED, snapshot);
+    broadcastModelConfigChanged();
+  });
+  ipc.handle(IPC.MODEL_CONNECTION_GET, () => {
+    assertModelSettingsReadable();
+    return getModelConnectionSnapshot();
+  });
+  ipc.handle(IPC.SETTINGS_TEST_CONNECTION, async (event: IpcMainInvokeEvent, cfg: VendorConfig) => {
+    const win = settingsWindow;
+    if (!win || win.isDestroyed() || win.webContents.isDestroyed() || event.sender !== win.webContents || !event.senderFrame || event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("MODEL_CONNECTION_FORBIDDEN");
+    }
+    const expected = isDev ? "http://localhost:5173/settings/" : pathToFileURL(path.join(app.getAppPath(), "dist", "renderer", "settings", "index.html")).href;
+    let actual: string;
+    try { const url = new URL(event.senderFrame.url); url.hash = ""; actual = url.href; } catch { throw new Error("MODEL_CONNECTION_FORBIDDEN"); }
+    if (actual !== expected) throw new Error("MODEL_CONNECTION_FORBIDDEN");
+    return testModelConnection(cfg, testVendorConnection);
+  });
 
   /**
    * 测试视觉模型连通性。
@@ -365,4 +386,5 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     });
     broadcastModelConfigChanged(preview);
   });
+  return unsubscribeConnections;
 }

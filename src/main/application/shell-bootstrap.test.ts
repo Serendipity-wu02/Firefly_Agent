@@ -168,3 +168,13 @@ describe("startShell", () => {
     expect(shell.ipc.dispose).toHaveBeenCalledOnce();
   });
 });
+
+it("ignores retired sidebar activation and preserves token flush", async () => {
+  const createSidebarWindow = vi.fn();
+  const deps = makeShellDeps({ createWindowManager: () => ({ createSidebarWindow, dispose: vi.fn() }) as never });
+  await startShell(deps);
+  deps.activation.request({ kind: "sidebar" });
+  await deps.activation.markReady();
+  expect(createSidebarWindow).not.toHaveBeenCalled();
+  expect(deps.flushTokenUsage).not.toHaveBeenCalled();
+});

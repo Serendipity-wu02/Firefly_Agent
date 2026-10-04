@@ -1,4 +1,7 @@
 import fs from "node:fs";
+import { createModelConnectionState, normalizeConnectionConfig } from "./model-connection-state";
+import type { ModelConnectionSnapshot } from "../../shared/model-connection-types";
+import type { TestConnectionResult, VendorConfig } from "../orchestrator/vendors/types";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { RuntimeProfile } from "../runtime-profile";
@@ -15,19 +18,8 @@ import { normalizeAgentModelProfiles } from "./agent-model-routing";
  * 统一模型配置入口：所有模块（包括 Code 模式）必须通过此函数读取。
  * 禁止在 Code 模块本地复制读取 JSON 逻辑。
  */
-export interface PublicModelConfig {
-  mode: "auto" | "manual";
-  provider: string;
-  // 用户自定义昵称；留空时状态栏用 shortName
-  displayName?: string;
-  // 厂商短名（去括号后缀），状态栏"正在喂养"的兜底显示
-  shortName: string;
-  model: string;
-  connected: boolean;
-  runtimeSync: "off" | "local" | "llm";
-  stickerSize: StickerSize;
-  rerankerMode: "standard" | "none";
-}
+export type { PublicModelConfig } from "../../shared/model-connection-types";
+import type { PublicModelConfig } from "../../shared/model-connection-types";
 
 // 单个厂商的可缓存配置：用户切到别的厂商再切回来，这三个字段从这里恢复。
 export interface ProviderProfile {
@@ -117,6 +109,21 @@ export interface VisionModelConfig {
 
 /** 当前配置文件 schema 版本。 */
 const MODEL_SETTINGS_SCHEMA_VERSION = 2;
+const modelConnections = createModelConnectionState();
+
+function refreshModelConnections(settings: ModelSettings): void {
+  modelConnections.refresh(listSavedModelProfiles(settings), getDefaultModelProfile(settings)?.id);
+}
+export function getModelConnectionSnapshot(): ModelConnectionSnapshot {
+  refreshModelConnections(loadModelSettings());
+  return modelConnections.snapshot();
+}
+export const onModelConnectionChanged = modelConnections.subscribe;
+export function testModelConnection(input: unknown, driver: (config: VendorConfig) => Promise<TestConnectionResult>): Promise<TestConnectionResult> {
+  const config = normalizeConnectionConfig(input);
+  refreshModelConnections(loadModelSettings());
+  return modelConnections.test(config, driver);
+}
 
 const DEFAULT_MODEL_SETTINGS: ModelSettings = {
   mode: "auto",
@@ -481,6 +488,7 @@ export function saveModelSettings(settings: Partial<ModelSettings>): ModelSettin
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(final, null, 2), "utf8");
   Object.assign(existing, final);
+  refreshModelConnections(final);
   return final;
 }
 
@@ -498,18 +506,13 @@ const PROVIDER_SHORT_NAMES: Record<string, string> = {
 };
 
 export function getPublicModelConfig(settings = loadModelSettings()): PublicModelConfig {
-  // 状态面板表达“是否已有可用的已保存模型”，不能只看顶层默认镜像。
-  // 打包版首次启动时镜像可能未回填，但 modelProfiles 已经持久化。
-  const hasSavedModel = listSavedModelProfiles(settings).some((profile) => (
-    Boolean(profile.model?.trim()) && Boolean(profile.apiKey?.trim())
-  ));
   return {
     mode: settings.mode,
     provider: settings.provider,
     displayName: settings.displayName,
     shortName: PROVIDER_SHORT_NAMES[settings.provider] ?? settings.provider,
     model: settings.model,
-    connected: hasSavedModel,
+    connected: modelConnections.isConnected(getDefaultModelProfile(settings)),
     runtimeSync: settings.runtimeSync,
     stickerSize: settings.stickerSize,
     rerankerMode: settings.rerankerMode,

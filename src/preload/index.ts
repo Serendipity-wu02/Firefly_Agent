@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC } from "../shared/ipc-channels";
+import type { ModelConnectionSnapshot } from "../shared/model-connection-types";
 import type { QqListenAuthRequirement } from "../shared/qq-listen";
 import type { ApprovalRequest, ApprovalSettledPayload } from "../shared/permission-approval";
 import type { StartTtsRequest, TtsSessionEvent, TtsStartResult } from "../shared/tts-session";
@@ -314,7 +315,7 @@ const settingsApi = {
   saveModelProfile: (profile: unknown) => ipcRenderer.invoke(IPC.SETTINGS_MODEL_PROFILE_SAVE, profile),
   deleteModelProfile: (id: string) => ipcRenderer.invoke(IPC.SETTINGS_MODEL_PROFILE_DELETE, id),
   setDefaultModelProfile: (id: string) => ipcRenderer.invoke(IPC.SETTINGS_MODEL_PROFILE_SET_DEFAULT, id),
-  testConnection: (config: { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic"; reasoning?: ReasoningPreference }) => ipcRenderer.invoke(IPC.SETTINGS_TEST_CONNECTION, config),
+  testConnection: (config: { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic" | "responses"; reasoning?: ReasoningPreference }) => ipcRenderer.invoke(IPC.SETTINGS_TEST_CONNECTION, config),
   testVision: (config: { baseUrl: string; apiKey: string; model: string }) => ipcRenderer.invoke(IPC.SETTINGS_TEST_VISION, config),
   // main → settings：要求切到指定标签（窗口已打开时由 main 发这个事件）
   onSwitchSection: (callback: (section: string) => void) => {
@@ -536,6 +537,12 @@ const stickerManagerApi = {
 contextBridge.exposeInMainWorld("stickerManager", stickerManagerApi);
 
 const modelConfigApi = {
+  getConnectionSnapshot: (): Promise<ModelConnectionSnapshot> => ipcRenderer.invoke(IPC.MODEL_CONNECTION_GET),
+  onConnectionChanged: (callback: (snapshot: ModelConnectionSnapshot) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, snapshot: ModelConnectionSnapshot) => callback(snapshot);
+    ipcRenderer.on(IPC.MODEL_CONNECTION_CHANGED, listener);
+    return () => ipcRenderer.removeListener(IPC.MODEL_CONNECTION_CHANGED, listener);
+  },
   get: () => ipcRenderer.invoke(IPC.MODEL_CONFIG_GET),
   getModelInstallStatus: () => ipcRenderer.invoke(IPC.MODEL_GET_INSTALL_STATUS),
   onChanged: (callback: (config: unknown) => void) => {
