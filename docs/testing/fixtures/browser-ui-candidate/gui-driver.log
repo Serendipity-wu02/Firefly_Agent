@@ -1,0 +1,12 @@
+passed paths
+passed baseline
+passed browser
+passed blocked-navigation
+passed close
+passed session
+passed late-status
+passed file-preview
+passed compact
+unverified settings
+passed anonymous-local-fixture
+{"checks":12,"failed":0,"errors":0,"screenshots":6,"foregroundUnchanged":true}

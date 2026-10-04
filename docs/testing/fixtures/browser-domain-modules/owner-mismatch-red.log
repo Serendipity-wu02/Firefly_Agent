@@ -1,0 +1,32 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+ 鉂?src/main/browser/browser-network-binding.test.ts (19 tests | 1 failed | 18 skipped) 9ms
+     脳 preserves owner_mismatch when the proxy adapter detects a stale owner after await 8ms
+
+鈳幆鈳幆鈳幆鈳?Failed Tests 1 鈳幆鈳幆鈳幆鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > preserves owner_mismatch when the proxy adapter detects a stale owner after await
+AssertionError: expected { ok: false, 鈥?1) } to deeply equal { ok: false, code: 'owner_mismatch' }
+
+- Expected
++ Received
+
+  {
+-   "code": "owner_mismatch",
++   "code": "network_unavailable",
+    "ok": false,
+  }
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:158:29
+    156|     const preparing = test.controller.prepare(test.context);
+    157|     test.stale(); wait.resolve(test.raw);
+    158|     expect(await preparing).toEqual({ ok: false, code: "owner_mismatch鈥?       |                             ^
+    159|     expect(test.port.setProxy).not.toHaveBeenCalled(); expect(test.raw鈥?    160|   });
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[1/1]鈳?
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  21:17:15
+   Duration  248ms (transform 50ms, setup 0ms, import 85ms, tests 9ms, environment 0ms)
+

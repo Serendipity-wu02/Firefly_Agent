@@ -6,6 +6,7 @@ import { FileTreePanel, FilePreviewContent } from "./FileTreePanel";
 import { PlanContent, planTabDotClass, planTabLabel, type PlanReviewPhase } from "./PlanReviewPanel";
 import { ReviewDiffContent } from "./ReviewInspector";
 import { RightInspector, type InspectorTab } from "./RightInspector";
+import { OfflineBrowserTab } from "../workspace/OfflineBrowserTab";
 
 /** 从路径取文件名做标签标题（兼容 / 与 \ 分隔） */
 function fileBaseName(filePath: string): string {
@@ -36,6 +37,7 @@ export interface ChatPageInspectorProps {
   filesTabOpen: boolean;
   /** 文件树标签被钉住（面板里还有其它标签时不可关） */
   filesTabPinned: boolean;
+  browserTabOpen?: boolean;
   fileTabs: ChatPageInspectorFileTab[];
   diffTabs: ChatPageInspectorDiffTab[];
   activePlan: { content: string; phase: PlanReviewPhase } | null;
@@ -54,6 +56,7 @@ export function ChatPageInspector({
   workspaceRoot,
   filesTabOpen,
   filesTabPinned,
+  browserTabOpen = false,
   fileTabs,
   diffTabs,
   activePlan,
@@ -104,6 +107,13 @@ export function ChatPageInspector({
       label: planTabLabel(activePlan.phase),
       dotClass: planTabDotClass(activePlan.phase),
       content: <PlanContent content={activePlan.content} phase={activePlan.phase} />,
+    });
+  }
+  if (browserTabOpen && sessionId) {
+    tabs.push({
+      id: "browser",
+      label: t("browserWorkspace.title"),
+      content: <OfflineBrowserTab key={sessionId} sessionId={sessionId} onClose={() => onCloseTab("browser")} />,
     });
   }
   if (tabs.length === 0) return null;

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC } from "../shared/ipc-channels";
+import type { BrowserAvailabilityApi } from "../shared/browser-availability";
 import type { ModelConnectionSnapshot } from "../shared/model-connection-types";
 import type { QqListenAuthRequirement } from "../shared/qq-listen";
 import type { ApprovalRequest, ApprovalSettledPayload } from "../shared/permission-approval";
@@ -553,6 +554,8 @@ const modelConfigApi = {
 };
 
 contextBridge.exposeInMainWorld("modelConfig", modelConfigApi);
+const manualBrowser: BrowserAvailabilityApi = { getAvailability: () => ipcRenderer.invoke(IPC.BROWSER_AVAILABILITY) };
+contextBridge.exposeInMainWorld("manualBrowser", manualBrowser);
 const runtimeStateApi = {
   get: () => ipcRenderer.invoke(IPC.RUNTIME_STATE_GET),
   onChanged: (callback: (state: unknown) => void) => {

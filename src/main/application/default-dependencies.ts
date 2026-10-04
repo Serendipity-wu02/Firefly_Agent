@@ -83,6 +83,7 @@ import { memoryStore } from "../memory/memory-store";
 import { backupMemoryRagFiles, reconcileMemoryRag } from "../memory/memory-rag-reconciliation";
 import { registerChatsIpc } from "../chats/chats-ipc";
 import { registerWorkspaceFilesIpc } from "../chats/workspace-files-ipc";
+import { registerBrowserAvailabilityIpc } from "../browser/browser-availability-ipc";
 import { registerOpenInAppIpc } from "../chats/open-in-app";
 import { registerChatUiIpc, getActiveChatSessionId } from "../chats/chat-ui-ipc";
 import { createToastWindowController } from "../toast/toast-window";
@@ -467,6 +468,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       }),
 
       registerCoreIpc: ({ ipc, runtime, services }) => {
+        registerBrowserAvailabilityIpc(ipc);
         // 设置变更反应：窗口/托盘/截图热键/主动服务联动
         onGeneralSettingsChanged((before, after) =>
           handleGeneralSettingsChanged(before, after, {

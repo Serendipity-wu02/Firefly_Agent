@@ -1,0 +1,671 @@
+{
+  "run": "fault-cleanup-r1",
+  "baseline": "787265c895b1d09bd20b79530c1c8391b25906f8",
+  "pid": 34036,
+  "versions": {
+    "node": "24.18.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "148",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.0.245.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "43.1.0",
+    "chrome": "150.0.7871.47"
+  },
+  "cases": [
+    {
+      "name": "owned A Session seeded without a network request",
+      "actual": {
+        "seeded": {
+          "before": null,
+          "owner": "A",
+          "shared": {
+            "instance": "dd745a28-0292-4f37-aa0b-377a8d9549bd",
+            "ready": true
+          },
+          "service": {
+            "instance": "de0c7217-82d3-4855-878d-97d50b40d39a",
+            "count": 0
+          },
+          "dedicated": {
+            "instance": "5678d1f9-ffeb-416e-b39a-b010e325cd1b",
+            "ready": true
+          },
+          "registrations": 1
+        },
+        "cookies": 1,
+        "runningWorkers": {
+          "0": {
+            "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+            "scope": "ff-epoch-fixture://fixture/",
+            "renderProcessId": 4
+          }
+        }
+      }
+    },
+    {
+      "name": "owned B Session seeded without a network request",
+      "actual": {
+        "seeded": {
+          "before": null,
+          "owner": "B",
+          "shared": {
+            "instance": "385e2012-d18f-42d9-a8f1-f5679fb8f39b",
+            "ready": true
+          },
+          "service": {
+            "instance": "4121cd96-25e1-4a59-9060-77107de38642",
+            "count": 0
+          },
+          "dedicated": {
+            "instance": "d4b5f81d-3d99-4052-99a2-c7d18ebd1ae3",
+            "ready": true
+          },
+          "registrations": 1
+        },
+        "cookies": 1,
+        "runningWorkers": {
+          "0": {
+            "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+            "scope": "ff-epoch-fixture://fixture/",
+            "renderProcessId": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup attempts complete; aggregate failures retain deny",
+      "actual": {
+        "lifecycle": {
+          "beforeQuit": 2,
+          "cleanupRuns": 1,
+          "willQuit": 0,
+          "quit": 0,
+          "reentryBlocked": 1,
+          "phases": [
+            {
+              "phase": "all domains revoked synchronously",
+              "domains": [
+                {
+                  "label": "A",
+                  "ready": false,
+                  "revoked": true,
+                  "aborted": true,
+                  "initialWorkers": {
+                    "0": {
+                      "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+                      "scope": "ff-epoch-fixture://fixture/",
+                      "renderProcessId": 4
+                    }
+                  }
+                },
+                {
+                  "label": "B",
+                  "ready": false,
+                  "revoked": true,
+                  "aborted": true,
+                  "initialWorkers": {
+                    "0": {
+                      "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+                      "scope": "ff-epoch-fixture://fixture/",
+                      "renderProcessId": 5
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "phase": "all views destroyed before first await",
+              "destroyed": [
+                true,
+                true
+              ]
+            }
+          ],
+          "operations": [
+            {
+              "domain": "A",
+              "name": "closeAllConnections",
+              "ok": true,
+              "resolvedAt": 1791116932409
+            },
+            {
+              "domain": "A",
+              "name": "clearStorageData",
+              "ok": false,
+              "resolvedAt": 1791116932409
+            },
+            {
+              "domain": "A",
+              "name": "clearCache",
+              "ok": true,
+              "resolvedAt": 1791116932409
+            },
+            {
+              "domain": "A",
+              "name": "clearAuthCache",
+              "ok": true,
+              "resolvedAt": 1791116932410
+            },
+            {
+              "domain": "A",
+              "name": "clearHostResolverCache",
+              "ok": true,
+              "resolvedAt": 1791116932410
+            },
+            {
+              "domain": "A",
+              "name": "immediate running snapshot after all own clears",
+              "time": 1791116932410,
+              "workers": {
+                "0": {
+                  "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+                  "scope": "ff-epoch-fixture://fixture/",
+                  "renderProcessId": 4
+                }
+              },
+              "cookies": 1
+            },
+            {
+              "domain": "B",
+              "name": "closeAllConnections",
+              "ok": true,
+              "resolvedAt": 1791116932410
+            },
+            {
+              "domain": "B",
+              "name": "clearStorageData",
+              "ok": true,
+              "resolvedAt": 1791116932412
+            },
+            {
+              "domain": "B",
+              "name": "clearCache",
+              "ok": true,
+              "resolvedAt": 1791116932412
+            },
+            {
+              "domain": "B",
+              "name": "clearAuthCache",
+              "ok": true,
+              "resolvedAt": 1791116932412
+            },
+            {
+              "domain": "B",
+              "name": "clearHostResolverCache",
+              "ok": true,
+              "resolvedAt": 1791116932412
+            },
+            {
+              "domain": "B",
+              "name": "immediate running snapshot after all own clears",
+              "time": 1791116932412,
+              "workers": {
+                "0": {
+                  "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+                  "scope": "ff-epoch-fixture://fixture/",
+                  "renderProcessId": 5
+                }
+              },
+              "cookies": 0
+            },
+            {
+              "domain": "A",
+              "name": "worker quiescence failed",
+              "remaining": {
+                "0": {
+                  "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+                  "scope": "ff-epoch-fixture://fixture/",
+                  "renderProcessId": 4
+                }
+              },
+              "workerStatuses": [
+                {
+                  "versionId": 0,
+                  "runningStatus": "starting",
+                  "time": 1791116932307
+                },
+                {
+                  "versionId": 0,
+                  "runningStatus": "running",
+                  "time": 1791116932310
+                }
+              ]
+            },
+            {
+              "domain": "B",
+              "name": "observed remaining state",
+              "time": 1791116935429,
+              "waitedMs": 1,
+              "workerStatuses": [
+                {
+                  "versionId": 0,
+                  "runningStatus": "starting",
+                  "time": 1791116932398
+                },
+                {
+                  "versionId": 0,
+                  "runningStatus": "running",
+                  "time": 1791116932399
+                },
+                {
+                  "versionId": 0,
+                  "runningStatus": "stopping",
+                  "time": 1791116932411
+                },
+                {
+                  "versionId": 0,
+                  "runningStatus": "stopped",
+                  "time": 1791116932416
+                }
+              ],
+              "cookies": 0,
+              "runningWorkers": {}
+            }
+          ],
+          "beforeUnloadEvents": 0
+        },
+        "nodeTunnelDestroyed": null,
+        "remainingOwnedPeers": 0
+      }
+    },
+    {
+      "name": "first-domain failure preserves failure result and does not skip native B cleanup",
+      "actual": {
+        "faultChecks": {
+          "injectionCount": 1,
+          "marker": "FF_FIXTURE_FIRST_DOMAIN_CLEAR_STORAGE_FAILED",
+          "checks": [
+            {
+              "domain": "A",
+              "revoked": true,
+              "aborted": true,
+              "viewDestroyed": true,
+              "policyDenied": true,
+              "credentialDenied": true,
+              "cookies": 1,
+              "runningWorkers": {
+                "0": {
+                  "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+                  "scope": "ff-epoch-fixture://fixture/",
+                  "renderProcessId": 4
+                }
+              }
+            },
+            {
+              "domain": "B",
+              "revoked": true,
+              "aborted": true,
+              "viewDestroyed": true,
+              "policyDenied": true,
+              "credentialDenied": true,
+              "cookies": 0,
+              "runningWorkers": {}
+            }
+          ],
+          "bOperations": [
+            {
+              "domain": "B",
+              "name": "closeAllConnections",
+              "ok": true,
+              "resolvedAt": 1791116932410
+            },
+            {
+              "domain": "B",
+              "name": "clearStorageData",
+              "ok": true,
+              "resolvedAt": 1791116932412
+            },
+            {
+              "domain": "B",
+              "name": "clearCache",
+              "ok": true,
+              "resolvedAt": 1791116932412
+            },
+            {
+              "domain": "B",
+              "name": "clearAuthCache",
+              "ok": true,
+              "resolvedAt": 1791116932412
+            },
+            {
+              "domain": "B",
+              "name": "clearHostResolverCache",
+              "ok": true,
+              "resolvedAt": 1791116932412
+            }
+          ],
+          "allAssertionsPassed": true
+        },
+        "cleanupResult": {
+          "ok": false,
+          "code": "cleanup_failed"
+        }
+      }
+    }
+  ],
+  "unavailable": [
+    "No DNS/HTTPS/TLS service or certificate read. Expected abnormal exit1 validates cleanup failure handling, not normal quit or production ShutdownCoordinator. Synthetic challenge proves module capability revocation, not real login provenance."
+  ],
+  "errors": [
+    "cleanup A/clearStorageData: Error: FF_FIXTURE_FIRST_DOMAIN_CLEAR_STORAGE_FAILED",
+    "observe cleanup A: Error: timeout: all A workers actually stopped after storage cleanup",
+    "Error: cleanup errors; normal quit GREEN forbidden\n    at E:\\Codex\\2026-10-04\\task-4\\network-modules-native\\cleanup-fault.cjs:120:37",
+    "native quit lifecycle mismatch"
+  ],
+  "faultChecks": {
+    "injectionCount": 1,
+    "marker": "FF_FIXTURE_FIRST_DOMAIN_CLEAR_STORAGE_FAILED",
+    "checks": [
+      {
+        "domain": "A",
+        "revoked": true,
+        "aborted": true,
+        "viewDestroyed": true,
+        "policyDenied": true,
+        "credentialDenied": true,
+        "cookies": 1,
+        "runningWorkers": {
+          "0": {
+            "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+            "scope": "ff-epoch-fixture://fixture/",
+            "renderProcessId": 4
+          }
+        }
+      },
+      {
+        "domain": "B",
+        "revoked": true,
+        "aborted": true,
+        "viewDestroyed": true,
+        "policyDenied": true,
+        "credentialDenied": true,
+        "cookies": 0,
+        "runningWorkers": {}
+      }
+    ],
+    "bOperations": [
+      {
+        "domain": "B",
+        "name": "closeAllConnections",
+        "ok": true,
+        "resolvedAt": 1791116932410
+      },
+      {
+        "domain": "B",
+        "name": "clearStorageData",
+        "ok": true,
+        "resolvedAt": 1791116932412
+      },
+      {
+        "domain": "B",
+        "name": "clearCache",
+        "ok": true,
+        "resolvedAt": 1791116932412
+      },
+      {
+        "domain": "B",
+        "name": "clearAuthCache",
+        "ok": true,
+        "resolvedAt": 1791116932412
+      },
+      {
+        "domain": "B",
+        "name": "clearHostResolverCache",
+        "ok": true,
+        "resolvedAt": 1791116932412
+      }
+    ],
+    "allAssertionsPassed": true
+  },
+  "cleanupResult": {
+    "ok": false,
+    "code": "cleanup_failed"
+  },
+  "diagnostics": {
+    "requests": [
+      {
+        "domain": "A",
+        "url": "ff-epoch-fixture://fixture/",
+        "method": "GET",
+        "resourceType": "mainFrame",
+        "id": 1,
+        "framePresent": true,
+        "allowed": false,
+        "fixtureOnly": true
+      },
+      {
+        "domain": "B",
+        "url": "ff-epoch-fixture://fixture/",
+        "method": "GET",
+        "resourceType": "mainFrame",
+        "id": 2,
+        "framePresent": true,
+        "allowed": false,
+        "fixtureOnly": true
+      }
+    ],
+    "challenges": [],
+    "certificates": [],
+    "pins": [],
+    "resolves": [],
+    "http": [],
+    "remainingOwnedPeers": 0
+  },
+  "lifecycle": {
+    "beforeQuit": 2,
+    "cleanupRuns": 1,
+    "willQuit": 0,
+    "quit": 1,
+    "reentryBlocked": 1,
+    "phases": [
+      {
+        "phase": "all domains revoked synchronously",
+        "domains": [
+          {
+            "label": "A",
+            "ready": false,
+            "revoked": true,
+            "aborted": true,
+            "initialWorkers": {
+              "0": {
+                "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+                "scope": "ff-epoch-fixture://fixture/",
+                "renderProcessId": 4
+              }
+            }
+          },
+          {
+            "label": "B",
+            "ready": false,
+            "revoked": true,
+            "aborted": true,
+            "initialWorkers": {
+              "0": {
+                "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+                "scope": "ff-epoch-fixture://fixture/",
+                "renderProcessId": 5
+              }
+            }
+          }
+        ]
+      },
+      {
+        "phase": "all views destroyed before first await",
+        "destroyed": [
+          true,
+          true
+        ]
+      },
+      {
+        "phase": "quit",
+        "exitCode": 1
+      }
+    ],
+    "operations": [
+      {
+        "domain": "A",
+        "name": "closeAllConnections",
+        "ok": true,
+        "resolvedAt": 1791116932409
+      },
+      {
+        "domain": "A",
+        "name": "clearStorageData",
+        "ok": false,
+        "resolvedAt": 1791116932409
+      },
+      {
+        "domain": "A",
+        "name": "clearCache",
+        "ok": true,
+        "resolvedAt": 1791116932409
+      },
+      {
+        "domain": "A",
+        "name": "clearAuthCache",
+        "ok": true,
+        "resolvedAt": 1791116932410
+      },
+      {
+        "domain": "A",
+        "name": "clearHostResolverCache",
+        "ok": true,
+        "resolvedAt": 1791116932410
+      },
+      {
+        "domain": "A",
+        "name": "immediate running snapshot after all own clears",
+        "time": 1791116932410,
+        "workers": {
+          "0": {
+            "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+            "scope": "ff-epoch-fixture://fixture/",
+            "renderProcessId": 4
+          }
+        },
+        "cookies": 1
+      },
+      {
+        "domain": "B",
+        "name": "closeAllConnections",
+        "ok": true,
+        "resolvedAt": 1791116932410
+      },
+      {
+        "domain": "B",
+        "name": "clearStorageData",
+        "ok": true,
+        "resolvedAt": 1791116932412
+      },
+      {
+        "domain": "B",
+        "name": "clearCache",
+        "ok": true,
+        "resolvedAt": 1791116932412
+      },
+      {
+        "domain": "B",
+        "name": "clearAuthCache",
+        "ok": true,
+        "resolvedAt": 1791116932412
+      },
+      {
+        "domain": "B",
+        "name": "clearHostResolverCache",
+        "ok": true,
+        "resolvedAt": 1791116932412
+      },
+      {
+        "domain": "B",
+        "name": "immediate running snapshot after all own clears",
+        "time": 1791116932412,
+        "workers": {
+          "0": {
+            "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+            "scope": "ff-epoch-fixture://fixture/",
+            "renderProcessId": 5
+          }
+        },
+        "cookies": 0
+      },
+      {
+        "domain": "A",
+        "name": "worker quiescence failed",
+        "remaining": {
+          "0": {
+            "scriptUrl": "ff-epoch-fixture://fixture/sw.js",
+            "scope": "ff-epoch-fixture://fixture/",
+            "renderProcessId": 4
+          }
+        },
+        "workerStatuses": [
+          {
+            "versionId": 0,
+            "runningStatus": "starting",
+            "time": 1791116932307
+          },
+          {
+            "versionId": 0,
+            "runningStatus": "running",
+            "time": 1791116932310
+          }
+        ]
+      },
+      {
+        "domain": "B",
+        "name": "observed remaining state",
+        "time": 1791116935429,
+        "waitedMs": 1,
+        "workerStatuses": [
+          {
+            "versionId": 0,
+            "runningStatus": "starting",
+            "time": 1791116932398
+          },
+          {
+            "versionId": 0,
+            "runningStatus": "running",
+            "time": 1791116932399
+          },
+          {
+            "versionId": 0,
+            "runningStatus": "stopping",
+            "time": 1791116932411
+          },
+          {
+            "versionId": 0,
+            "runningStatus": "stopped",
+            "time": 1791116932416
+          }
+        ],
+        "cookies": 0,
+        "runningWorkers": {}
+      }
+    ],
+    "beforeUnloadEvents": 0
+  }
+}

@@ -1,0 +1,196 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+ 鉂?src/main/browser/browser-network-binding.test.ts (15 tests | 14 failed) 20ms
+     脳 installs deny/permissions before hidden view, activates only after proxy and connection closure 5ms
+     脳 rejects persistent/reused Session without changing or cleaning its resources 2ms
+     脳 reserves the owner/browser before the first await; concurrent prepare cannot start 1ms
+     脳 cancellation across proxy await prevents activation and later preparation effects 1ms
+     脳 cancellation across setProxy await prevents activation and later preparation effects 1ms
+     脳 cancellation across connections await prevents activation and later preparation effects 1ms
+     脳 rechecks after synchronous factories too, and snapshots caller policy before them 1ms
+     脳 stale generation after an await permanently denies the binding 1ms
+     脳 attempts all cleanup despite destroy/storage failures, keeps failure sticky 1ms
+     脳 revokeAll cancels pending preparation; a late proxy is reclaimed 1ms
+     脳 times out unknown late resources without claiming successful dispose; late proxy still closes 3ms
+     脳 bounds each cleanup promise and worker quiescence, still attempts other operations 0ms
+     脳 observes worker termination after clear rather than treating clear resolution as zero workers 0ms
+     脳 disposeAll synchronously revokes all domains and attempts B even when A fails 0ms
+
+鈳幆鈳幆鈳幆 Failed Tests 14 鈳幆鈳幆鈳幆鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > installs deny/permissions before hidden view, activates only after proxy and connection closure
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:47:23
+     45|   it("installs deny/permissions before hidden view, activates only aft鈥?     46|     const test = fixture(), result = await test.controller.prepare(tes鈥?     47|     expect(result.ok).toBe(true);
+       |                       ^
+     48|     if (!result.ok) throw new Error("binding missing");
+     49|     expect(test.events).toEqual(["session", "deny", "permissions", "vi鈥?
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆1/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > rejects persistent/reused Session without changing or cleaning its resources
+AssertionError: expected [] to deeply equal [ 'session' ]
+
+- Expected
++ Received
+
+- [
+-   "session",
+- ]
++ []
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:63:31
+     61|     persistent.port.persistent = true;
+     62|     expect((await persistent.controller.prepare(persistent.context)).o鈥?     63|     expect(persistent.events).toEqual(["session"]);
+       |                               ^
+     64|     const reused = fixture(), first = await reused.controller.prepare(鈥?     65|     if (!first.ok) throw new Error("binding missing");
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆2/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > reserves the owner/browser before the first await; concurrent prepare cannot start
+AssertionError: expected { Object (ok, code) } to deeply equal { ok: false, code: 'closed' }
+
+- Expected
++ Received
+
+  {
+-   "code": "closed",
++   "code": "permission_denied",
+    "ok": false,
+  }
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:74:57
+     72|     test.dependencies.proxyFactory.mockImplementation(() => wait.promi鈥?     73|     const preparing = test.controller.prepare(test.context);
+     74|     expect(await test.controller.prepare(test.context)).toEqual({ ok: 鈥?       |                                                         ^
+     75|     expect(test.dependencies.createSession).toHaveBeenCalledTimes(1);
+     76|     wait.resolve(test.raw); const ready = await preparing;
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆3/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > cancellation across proxy await prevents activation and later preparation effects
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > cancellation across setProxy await prevents activation and later preparation effects
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > cancellation across connections await prevents activation and later preparation effects
+AssertionError: expected { Object (ok, code) } to deeply equal { ok: false, code: 'cancelled' }
+
+- Expected
++ Received
+
+  {
+-   "code": "cancelled",
++   "code": "permission_denied",
+    "ok": false,
+  }
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:88:20
+     86|     test.abort.abort(); proxyWait.resolve(test.raw); wait.resolve();
+     87|     const result = await preparing;
+     88|     expect(result).toEqual({ ok: false, code: "cancelled" });
+       |                    ^
+     89|     expect(test.allowed()).toBe(false); expect(test.view.destroy).toHa鈥?     90|     expect(test.raw.revoke).toHaveBeenCalledTimes(1);
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆4/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > rechecks after synchronous factories too, and snapshots caller policy before them
+AssertionError: expected { Object (ok, code) } to deeply equal { ok: false, code: 'cancelled' }
+
+- Expected
++ Received
+
+  {
+-   "code": "cancelled",
++   "code": "permission_denied",
+    "ok": false,
+  }
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:96:57
+     94|   it("rechecks after synchronous factories too, and snapshots caller p鈥?     95|     const test = fixture(); test.dependencies.createSession.mockImplem鈥?     96|     expect(await test.controller.prepare(test.context)).toEqual({ ok: 鈥?       |                                                         ^
+     97|     expect(test.dependencies.createView).not.toHaveBeenCalled();
+     98|     expect(test.port.clearStorageData).toHaveBeenCalledTimes(1);
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆5/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > stale generation after an await permanently denies the binding
+AssertionError: expected { Object (ok, code) } to deeply equal { ok: false, code: 'owner_mismatch' }
+
+- Expected
++ Received
+
+  {
+-   "code": "owner_mismatch",
++   "code": "permission_denied",
+    "ok": false,
+  }
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:111:29
+    109|     for (let i = 0; i < 8; i++) await Promise.resolve();
+    110|     test.stale(); wait.resolve();
+    111|     expect(await preparing).toEqual({ ok: false, code: "owner_mismatch鈥?       |                             ^
+    112|     expect(test.allowed()).toBe(false);
+    113|   });
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆6/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > attempts all cleanup despite destroy/storage failures, keeps failure sticky
+Error: binding missing
+ 鉂?src/main/browser/browser-network-binding.test.ts:116:26
+    114|   it("attempts all cleanup despite destroy/storage failures, keeps fai鈥?    115|     const test = fixture(), ready = await test.controller.prepare(test鈥?    116|     if (!ready.ok) throw new Error("binding missing");
+       |                          ^
+    117|     test.view.destroy.mockImplementationOnce(() => { throw new Error("鈥?    118|     vi.mocked(test.port.clearStorageData).mockRejectedValueOnce(new Er鈥?
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆7/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > revokeAll cancels pending preparation; a late proxy is reclaimed
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ 鉂?src/main/browser/browser-network-binding.test.ts:129:60
+    127|     test.dependencies.proxyFactory.mockImplementationOnce(() => wait.p鈥?    128|     const pending = test.controller.prepare(test.context);
+    129|     test.controller.revokeAll(); expect(test.view.destroy).toHaveBeenC鈥?       |                                                            ^
+    130|     wait.resolve(test.raw);
+    131|     expect(await pending).toEqual({ ok: false, code: "closed" });
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆8/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > times out unknown late resources without claiming successful dispose; late proxy still closes
+AssertionError: expected { ok: true, value: undefined } to deeply equal { ok: false, code: 'cleanup_failed' }
+
+- Expected
++ Received
+
+  {
+-   "code": "cleanup_failed",
+-   "ok": false,
++   "ok": true,
++   "value": undefined,
+  }
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:139:27
+    137|     const pending = test.controller.prepare(test.context), cleanup = t鈥?    138|     await vi.advanceTimersByTimeAsync(101);
+    139|     expect(await cleanup).toEqual({ ok: false, code: "cleanup_failed" 鈥?       |                           ^
+    140|     expect(test.port.clearStorageData).toHaveBeenCalledTimes(1);
+    141|     wait.resolve(test.raw); expect(await pending).toEqual({ ok: false,鈥?
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆9/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > bounds each cleanup promise and worker quiescence, still attempts other operations
+Error: binding missing
+ 鉂?src/main/browser/browser-network-binding.test.ts:146:26
+    144|   it("bounds each cleanup promise and worker quiescence, still attempt鈥?    145|     vi.useFakeTimers(); const test = fixture(), ready = await test.con鈥?    146|     if (!ready.ok) throw new Error("binding missing");
+       |                          ^
+    147|     vi.mocked(test.port.clearStorageData).mockImplementationOnce(() =>鈥?    148|     vi.mocked(test.port.runningWorkerCount).mockReturnValue(1);
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[10/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > observes worker termination after clear rather than treating clear resolution as zero workers
+Error: binding missing
+ 鉂?src/main/browser/browser-network-binding.test.ts:155:26
+    153|   it("observes worker termination after clear rather than treating cle鈥?    154|     vi.useFakeTimers(); const test = fixture(), ready = await test.con鈥?    155|     if (!ready.ok) throw new Error("binding missing");
+       |                          ^
+    156|     vi.mocked(test.port.runningWorkerCount).mockReturnValueOnce(1).moc鈥?    157|     const cleanup = ready.value.dispose(); await vi.advanceTimersByTim鈥?
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[11/14]鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > disposeAll synchronously revokes all domains and attempts B even when A fails
+Error: bindings missing
+ 鉂?src/main/browser/browser-network-binding.test.ts:166:31
+    164|     test.dependencies.createView.mockReturnValueOnce(test.view).mockRe鈥?    165|     const a = await test.controller.prepare(test.context), b = await t鈥?    166|     if (!a.ok || !b.ok) throw new Error("bindings missing");
+       |                               ^
+    167|     vi.mocked(test.port.clearStorageData).mockRejectedValueOnce(new Er鈥?    168|     const cleanup = test.controller.disposeAll();
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[12/14]鈳?
+
+ Test Files  1 failed (1)
+      Tests  14 failed | 1 passed (15)
+   Start at  21:08:46
+   Duration  232ms (transform 33ms, setup 0ms, import 49ms, tests 20ms, environment 0ms)
+

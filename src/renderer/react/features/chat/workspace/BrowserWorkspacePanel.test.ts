@@ -50,6 +50,16 @@ afterEach(() => {
 });
 
 describe("manual BrowserWorkspacePanel with injected callbacks", () => {
+  it("keeps all navigation blocked when the production consumer marks it unavailable", () => {
+    address = "https://example.com";
+    page = { ...page, url: address, canGoBack: true, canGoForward: true };
+    act(() => root.render(createElement(BrowserWorkspacePanel, { page, address, labels, onAddressChange, onNavigate, onCommand, onClose, navigationAvailable: false })));
+    for (const label of [labels.go, labels.back, labels.forward, labels.reload]) expect(findButton(label).disabled).toBe(true);
+    const form = host.querySelector("form");
+    act(() => form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(onNavigate).not.toHaveBeenCalled(); expect(onCommand).not.toHaveBeenCalled();
+    expect(findButton(labels.close).disabled).toBe(false);
+  });
   it("has labelled controls and disables unavailable history and reload", () => {
     renderPanel();
     expect(host.querySelector("input")?.getAttribute("aria-label")).toBe(labels.address);

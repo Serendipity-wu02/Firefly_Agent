@@ -1,0 +1,11 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+WARN  BuiltinTools     [shell_job] status unknown job: job-nope
+WARN  BuiltinTools     [shell_job] stop unknown job: job-nope
+
+ Test Files  3 passed (3)
+      Tests  18 passed (18)
+   Start at  21:28:50
+   Duration  7.72s (transform 358ms, setup 0ms, import 298ms, tests 6.94s, environment 0ms)
+

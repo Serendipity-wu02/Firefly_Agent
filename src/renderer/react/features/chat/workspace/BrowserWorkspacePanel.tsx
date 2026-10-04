@@ -29,26 +29,27 @@ export interface BrowserWorkspacePanelProps {
   onClose: () => void;
   viewportRef?: Ref<HTMLDivElement>;
   children?: ReactNode;
+  navigationAvailable?: boolean;
 }
 
 /** Controlled view: no bridge, navigation API, authority, or asynchronous work. */
 export function BrowserWorkspacePanel({
-  page, address, labels, onAddressChange, onNavigate, onCommand, onClose, viewportRef, children,
+  page, address, labels, onAddressChange, onNavigate, onCommand, onClose, viewportRef, children, navigationAvailable = true,
 }: BrowserWorkspacePanelProps) {
-  const canSubmit = !page.closed && address.trim().length > 0;
+  const canSubmit = navigationAvailable && !page.closed && address.trim().length > 0;
   return (
     <section className="cy-browser-workspace" aria-label={labels.panel}>
       <div className="cy-browser-workspace__toolbar">
         <button type="button" aria-label={labels.back} title={labels.back}
-          disabled={page.closed || !page.canGoBack} onClick={() => onCommand("back")}>
+          disabled={!navigationAvailable || page.closed || !page.canGoBack} onClick={() => onCommand("back")}>
           <ArrowLeft size={16} aria-hidden="true" />
         </button>
         <button type="button" aria-label={labels.forward} title={labels.forward}
-          disabled={page.closed || !page.canGoForward} onClick={() => onCommand("forward")}>
+          disabled={!navigationAvailable || page.closed || !page.canGoForward} onClick={() => onCommand("forward")}>
           <ArrowRight size={16} aria-hidden="true" />
         </button>
         <button type="button" aria-label={labels.reload} title={labels.reload}
-          disabled={page.closed || !page.url} onClick={() => onCommand("reload")}>
+          disabled={!navigationAvailable || page.closed || !page.url} onClick={() => onCommand("reload")}>
           <RotateCw size={16} aria-hidden="true" />
         </button>
         <form className="cy-browser-workspace__address" onSubmit={(event) => {

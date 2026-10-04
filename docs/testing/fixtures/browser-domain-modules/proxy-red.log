@@ -1,0 +1,43 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+stderr | src/main/browser/browser-domain-proxy.test.ts > domain proxy adapter > reclaims a proxy which resolves after cancellation
+Promise returned by `expect(actual).rejects.toThrow()` was not awaited. Vitest currently auto-awaits hanging assertions at the end of the test, but this will cause the test to fail in the next Vitest major. Please remember to await the assertion.
+    at E:/Codex/2026-10-04/task-4/audit-r3-r4/src/main/browser/browser-domain-proxy.test.ts:48:36
+
+ 鉂?src/main/browser/browser-domain-proxy.test.ts (4 tests | 3 failed) 8ms
+     脳 starts with registered native identity and denies credentials before activation 3ms
+     脳 reclaims a proxy which resolves after cancellation 2ms
+     脳 executes the real proxy challenge checks through the adapter without DNS/dial 0ms
+
+鈳幆鈳幆鈳幆鈳?Failed Tests 3 鈳幆鈳幆鈳幆鈳?
+ FAIL  src/main/browser/browser-domain-proxy.test.ts > domain proxy adapter > starts with registered native identity and denies credentials before activation
+Error: not implemented
+ 鉂?startBrowserDomainProxy src/main/browser/browser-domain-proxy.ts:10:9
+
+ 鉂?src/main/browser/browser-domain-proxy.test.ts:20:26
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[1/3]鈳?
+ FAIL  src/main/browser/browser-domain-proxy.test.ts > domain proxy adapter > reclaims a proxy which resolves after cancellation
+TypeError: resolve is not a function
+ 鉂?src/main/browser/browser-domain-proxy.test.ts:49:20
+     47|     const pending = startBrowserDomainProxy(domain, contents, () => ne鈥?     48|     const rejected = expect(pending).rejects.toThrow();
+     49|     abort.abort(); resolve(raw); await rejected;
+       |                    ^
+     50|     expect(raw.revoke).toHaveBeenCalledTimes(1);
+     51|   });
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[2/3]鈳?
+ FAIL  src/main/browser/browser-domain-proxy.test.ts > domain proxy adapter > executes the real proxy challenge checks through the adapter without DNS/dial
+Error: not implemented
+ 鉂?startBrowserDomainProxy src/main/browser/browser-domain-proxy.ts:10:9
+
+ 鉂?src/main/browser/browser-domain-proxy.test.ts:54:26
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[3/3]鈳?
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed (4)
+   Start at  21:05:41
+   Duration  255ms (transform 43ms, setup 0ms, import 76ms, tests 8ms, environment 0ms)
+

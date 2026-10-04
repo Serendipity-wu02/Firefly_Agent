@@ -1,0 +1,8 @@
+{
+  "userData": "E:\\Codex\\2026-10-04\\task-4\\network-modules-native\\cleanup-fault-fault-cleanup-r2",
+  "pid": 3436,
+  "expectedNativeExitCode": 1,
+  "temp": "E:\\Codex\\2026-10-04\\task-4\\network-modules-native\\cleanup-fault-temp-fault-cleanup-r2",
+  "exitCode": 1,
+  "run": "fault-cleanup-r2"
+}
