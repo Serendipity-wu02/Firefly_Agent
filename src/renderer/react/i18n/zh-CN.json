@@ -666,6 +666,11 @@
     "noReadableContent": "这条消息没有可朗读的内容"
   },
   "ui": {
+    "modeSelector": "切换模式，当前：{{mode}}",
+    "modeMenu": "会话模式",
+    "modeChatDescription": "交流与陪伴",
+    "modeWorkDescription": "知识与任务",
+    "modeCodeDescription": "项目与代码",
     "toggleSidebar": "切换侧栏",
     "minimize": "最小化",
     "maximizeOrRestore": "最大化或还原",

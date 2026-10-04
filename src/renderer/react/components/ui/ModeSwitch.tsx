@@ -1,3 +1,6 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "../../i18n";
+
 interface ModeSwitchProps {
   value: string;
   onChange: (mode: string) => void;
@@ -27,26 +30,103 @@ const CodeIcon = (
 
 
 const modes = [
-  { key: "chat", label: "Chat", icon: ChatIcon },
-  { key: "work", label: "Work", icon: WorkIcon },
-  { key: "code", label: "Code", icon: CodeIcon },
+  { key: "chat", label: "Chat", icon: ChatIcon, description: "ui.modeChatDescription" },
+  { key: "work", label: "Work", icon: WorkIcon, description: "ui.modeWorkDescription" },
+  { key: "code", label: "Code", icon: CodeIcon, description: "ui.modeCodeDescription" },
 ];
 
 export function ModeSwitch({ value, onChange }: ModeSwitchProps) {
+  const { t } = useTranslation();
+  const selectedIndex = Math.max(0, modes.findIndex(mode => mode.key === value));
+  const current = modes[selectedIndex];
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(selectedIndex);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    itemRefs.current[activeIndex]?.focus();
+  }, [open, activeIndex]);
+
+  useEffect(() => {
+    if (!open) return;
+    const dismissOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !containerRef.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", dismissOutside, true);
+    return () => document.removeEventListener("pointerdown", dismissOutside, true);
+  }, [open]);
+
+  function openMenu() {
+    setActiveIndex(selectedIndex);
+    setOpen(true);
+  }
+  function closeMenu() {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+  function selectMode(index: number) {
+    closeMenu();
+    onChange(modes[index].key);
+  }
+
   return (
-    <div className="cy-segmented">
-      {modes.map((mode) => (
-        <button
-          key={mode.key}
-          type="button"
-          aria-pressed={mode.key === value}
-          className={`cy-segment ${mode.key === value ? "is-active" : ""}`}
-          onClick={() => onChange(mode.key)}
-        >
-          <span className="cy-segment-icon">{mode.icon}</span>
-          <span className="cy-segment-label">{mode.label}</span>
-        </button>
-      ))}
+    <div ref={containerRef} className="cy-mode-picker" onBlur={event => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+    }}>
+      <button ref={triggerRef} type="button" className="cy-mode-picker__trigger"
+        aria-label={t("ui.modeSelector", { mode: current.label })}
+        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
+        onClick={() => open ? closeMenu() : openMenu()}
+        onKeyDown={event => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault(); openMenu();
+          } else if (event.key === "Escape" && open) {
+            event.preventDefault(); closeMenu();
+          }
+        }}>
+        <span className="cy-mode-picker__icon" aria-hidden="true">{current.icon}</span>
+        <span>{current.label}</span>
+        <svg className="cy-mode-picker__chevron" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div id={menuId} role="menu" aria-label={t("ui.modeMenu")} className="cy-mode-picker__menu"
+          onKeyDown={event => {
+            switch (event.key) {
+              case "ArrowDown": setActiveIndex(index => (index + 1) % modes.length); break;
+              case "ArrowUp": setActiveIndex(index => (index + modes.length - 1) % modes.length); break;
+              case "Home": setActiveIndex(0); break;
+              case "End": setActiveIndex(modes.length - 1); break;
+              case "Enter": case " ": selectMode(activeIndex); break;
+              case "Escape": closeMenu(); break;
+              case "Tab": setOpen(false); return;
+              default: return;
+            }
+            event.preventDefault(); event.stopPropagation();
+          }}>
+          {modes.map((mode, index) => (
+            <button key={mode.key} ref={node => { itemRefs.current[index] = node; }} type="button"
+              role="menuitemradio" aria-checked={mode.key === value} tabIndex={index === activeIndex ? 0 : -1}
+              className="cy-mode-picker__item" onClick={() => selectMode(index)} onFocus={() => setActiveIndex(index)}>
+              <span className="cy-mode-picker__icon" aria-hidden="true">{mode.icon}</span>
+              <span className="cy-mode-picker__copy">
+                <span className="cy-mode-picker__label">{mode.label}</span>
+                <span className="cy-mode-picker__description">{t(mode.description)}</span>
+              </span>
+              {mode.key === value && (
+                <svg className="cy-mode-picker__check" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -409,8 +409,7 @@ html, body {
   font: 650 20px/1.2 var(--rb-font-sans, sans-serif);
   color: var(--cy-text);
 }
-.cy-page-sidebar .cy-segmented { align-self: stretch; margin: 0 4px; }
-.cy-page-sidebar .cy-segment { flex: 1; min-width: 0; gap: 4px; padding-inline: 4px; }
+.cy-page-sidebar .cy-mode-picker { align-self: stretch; margin: 0 4px; }
 .cy-page-more { display: grid; min-width: 168px; gap: 4px; }
 .cy-page-more .cy-side-action { width: 100%; }
 .cy-page button:focus-visible,

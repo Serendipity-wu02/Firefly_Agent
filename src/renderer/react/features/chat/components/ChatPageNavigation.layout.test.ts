@@ -51,11 +51,19 @@ describe("workspace navigation layout", () => {
     expect(props.onTogglePanel).toHaveBeenCalledWith("plugin");
     expect(props.onToggleCollapsed).toHaveBeenCalledOnce();
   });
-  it("keeps modes in context while plugins are open", () => {
+  it("keeps the current mode dropdown in context while plugins are open", () => {
     render({ activePanel: "plugin" });
-    const modeButton = [...host.querySelectorAll("button")].find(node => node.textContent === "Chat");
-    expect(modeButton?.getAttribute("aria-pressed")).toBe("true");
-    expect(host.querySelector(".cy-page-sidebar")?.contains(modeButton!)).toBe(true);
+    const modeButton = host.querySelector<HTMLButtonElement>(".cy-mode-picker__trigger")!;
+    expect(modeButton.textContent).toContain("Chat");
+    expect(modeButton.getAttribute("aria-haspopup")).toBe("menu");
+    expect(host.querySelector(".cy-page-sidebar")?.contains(modeButton)).toBe(true);
+    act(() => modeButton.click());
+    const codeChoice = [...host.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
+      .find(node => node.querySelector(".cy-mode-picker__label")?.textContent === "Code")!;
+    act(() => codeChoice.click());
+    expect(props.onModeChange).toHaveBeenCalledExactlyOnceWith("code");
+    expect(props.onTogglePanel).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(modeButton);
   });
   it("opens tools through More and returns keyboard focus on Escape", async () => {
     render();

@@ -666,6 +666,11 @@
     "noReadableContent": "This message has nothing to read aloud"
   },
   "ui": {
+    "modeSelector": "Switch mode, current: {{mode}}",
+    "modeMenu": "Conversation mode",
+    "modeChatDescription": "Conversation and companionship",
+    "modeWorkDescription": "Knowledge and tasks",
+    "modeCodeDescription": "Projects and code",
     "toggleSidebar": "Toggle sidebar",
     "minimize": "Minimize",
     "maximizeOrRestore": "Maximize or restore",
