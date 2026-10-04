@@ -27,6 +27,7 @@ vi.mock("./tools/registry/tool-registry", () => ({
 
 vi.mock("../permission", () => ({
   checkPermission: permissionCheck,
+  getCurrentLevel: () => "read-only",
 }));
 
 vi.mock("../prompts/prompt-loader", () => ({

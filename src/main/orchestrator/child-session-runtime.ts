@@ -40,6 +40,7 @@ export async function runChildSession(input: {
     ownerSessionId: session.id,
     signal: parent.signal, resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot, mode: parent.mode,
     allowedSkillIds: parent.capabilities?.skillIds, permissionMode: parent.permissionMode,
+    fileAccessLevel: parent.fileAccessLevel,
     workReadScopes: parent.workReadScopes,
   };
   const presentation = lease ? {

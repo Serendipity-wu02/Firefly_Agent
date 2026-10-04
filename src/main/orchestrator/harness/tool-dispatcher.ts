@@ -25,6 +25,8 @@ import type { ToolExecutionOutcome } from "../types";
 import { executeToolDefinition } from "../tools/registry/tool-executor";
 import type { ToolOutputStore } from "./tool-output/tool-output-store";
 import { ToolOutputPersistenceError } from "./tool-output/file-tool-output-store";
+import { getCurrentLevel } from "../../permission";
+import { policyFor } from "../../permission-policy";
 
 // ── 工具输出截断 ─────────────────────────────────────────
 
@@ -148,7 +150,14 @@ export async function dispatchToolCall(
   }
 
   // 权限检查
+  let approvalRequired = false;
   if (ctx.checkPermission) {
+    const currentLevel = getCurrentLevel();
+    const risk = tool.risk ?? "safe";
+    // Capture before the await: an old allow decision cannot authorize a newly required approval.
+    approvalRequired = ctx.toolContext?.permissionMode !== "allow_all"
+      && (policyFor(currentLevel, risk) === "ask"
+        || policyFor(ctx.toolContext?.fileAccessLevel ?? currentLevel, risk) === "ask");
     const allowed = await ctx.checkPermission(tool.id, args);
     if (!allowed) {
       return {
@@ -176,7 +185,11 @@ export async function dispatchToolCall(
     : args.url !== undefined ? [String(args.url)]
     : [];
 
-  const run = async (): Promise<ToolExecutionOutcome> => executeToolDefinition(tool, args, ctx.toolContext);
+  const invocationContext = ctx.toolContext ? {
+    ...ctx.toolContext,
+    authorizedToolCall: ctx.checkPermission ? { toolId: tool.id, args, approvalRequired } : undefined,
+  } : undefined;
+  const run = async (): Promise<ToolExecutionOutcome> => executeToolDefinition(tool, args, invocationContext);
   if (ctx.executionLedger) {
     const ledgerResult = await ctx.executionLedger.execute(
       { logicalInvocationId: `${ctx.toolContext?.runId ?? "unknown"}:${call.id}`, capability: tool.id, targetRefs, args },

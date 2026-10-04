@@ -2,7 +2,7 @@ import { app } from "electron";
 import type { BaseEvent } from "@ag-ui/core";
 import type { ToolDefinition } from "../../tools/registry/tool-registry";
 import { toolRegistry } from "../../tools/registry/tool-registry";
-import { checkPermission, type ToolRiskLevel } from "../../../permission";
+import { checkPermission, getCurrentLevel, type ToolRiskLevel } from "../../../permission";
 import { policyFor } from "../../../permission-policy";
 import { isPlanReadOnly } from "../../plan-mode";
 import { contextRefRegistry, extractLastUserQuery, type ToolContext } from "../../tools/registry/tool-context";
@@ -36,27 +36,25 @@ export function prepareToolRuntime(input: {
 }): PreparedToolRuntime {
   const { options, signal, prepared } = input;
   const { threadId, runId, systemPrompt, vendorConfig, tools } = prepared;
+  // 会话权限由可信设置捕获一次；随后全局档位只能进一步限制，不能扩大该快照。
+  const fileAccessLevel = options.permissionMode === "allow_all" ? "full" : getCurrentLevel();
   const permissionCheck: NonNullable<HarnessInput["checkPermission"]> = async (
     toolId: string,
     args: Record<string, unknown>,
   ): Promise<boolean> => {
-    // allow_all 是显式总开关，会跳过后续权限检查；普通权限模式下才先执行计划只读拦截。
-    if (options.permissionMode === "allow_all") return true;
-    if (
-      (options.conversationMode === "code" || options.conversationMode === "chat")
-      && isPlanReadOnly(threadId)
-    ) {
-      const planTool = toolRegistry.getById(toolId) as (ToolDefinition & { risk?: ToolRiskLevel }) | undefined;
-      const planRisk: ToolRiskLevel = planTool?.risk ?? "safe";
-      if (policyFor("read-only", planRisk) !== "allow") {
-        console.log(`[HarnessAdapter] [Plan] read-only enforcement blocked tool=${toolId} risk=${planRisk}`);
-        return false;
-      }
-    }
     const tool = toolRegistry.getById(toolId);
     if (!tool) return false;
     const risk: ToolRiskLevel = (tool as ToolDefinition & { risk?: ToolRiskLevel }).risk ?? "safe";
-    return (await checkPermission({
+    const blockedByPlan = (): boolean => isPlanReadOnly(threadId)
+      && (risk === "shell" || policyFor("read-only", risk) !== "allow");
+    // 计划限制先于显式免审批授权，并使用父会话实时状态，覆盖会话中途进入计划模式。
+    if (blockedByPlan()) {
+      console.log(`[HarnessAdapter] [Plan] read-only enforcement blocked tool=${toolId} risk=${risk}`);
+      return false;
+    }
+    if (policyFor(fileAccessLevel, risk) === "deny") return false;
+    if (options.permissionMode === "allow_all") return true;
+    const decision = await checkPermission({
       toolId,
       toolName: tool.name,
       toolDescription: tool.description,
@@ -64,7 +62,10 @@ export function prepareToolRuntime(input: {
       risk,
       runId,
       signal,
-    })).allowed;
+      level: fileAccessLevel,
+    });
+    // 等待用户审批期间也可能进入计划讨论，批准单次工具不能解除计划限制。
+    return decision.allowed && !blockedByPlan();
   };
 
   const toolContext: ToolContext = {
@@ -78,6 +79,7 @@ export function prepareToolRuntime(input: {
     workReadScopes: options.workReadScopes,
     allowedSkillIds: options.capabilities?.skillIds,
     permissionMode: options.permissionMode,
+    fileAccessLevel,
   };
   const toolOutputStore = new FileToolOutputStore(app.getPath("userData"));
   // 只有 work/code 模式允许派生任务；chat 模式不创建 TaskSession，避免出现不可见的后台执行。
@@ -99,6 +101,7 @@ export function prepareToolRuntime(input: {
         checkPermission: permissionCheck,
         includeInteractiveTools: options.harnessInteractiveTools,
         permissionMode: options.permissionMode,
+        fileAccessLevel,
         toolOutputStore,
         workReadScopes: options.workReadScopes,
       },

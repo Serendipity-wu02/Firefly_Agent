@@ -6,6 +6,7 @@ import type { ChatMessage } from "../../vendors";
 import { ContextRefRegistry } from "../../context-ref-registry";
 import type { ConversationMode } from "../../../../shared/chat-types";
 import type { WorkReadScope } from "../../../../shared/chat-types";
+import type { AgentFileAccessLevel } from "../../../permission-policy";
 
 export const contextRefRegistry = new ContextRefRegistry();
 
@@ -42,6 +43,10 @@ export interface ToolContext {
   allowedSkillIds?: ReadonlySet<string>;
   /** 本轮工具执行权限策略；allow_all 仅用于用户显式开启的无审批渠道。 */
   permissionMode?: "normal" | "allow_all";
+  /** Main-owned session permission snapshot, inherited by child runs. */
+  fileAccessLevel?: AgentFileAccessLevel;
+  /** Main dispatcher-owned permission decision, bound to this exact parsed call. */
+  authorizedToolCall?: { toolId: string; args: Record<string, unknown>; approvalRequired: boolean };
   /** 未来扩展兜底；当前为空对象，不预设字段。遵循"地基通用，上层克制"。 */
   metadata?: Record<string, unknown>;
 }

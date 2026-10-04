@@ -79,6 +79,13 @@ describe("harness tool runtime", () => {
     expect(await runtime.checkPermission("run_shell", {})).toBe(false);
   });
 
+  it("honors an existing parent plan state even when a child runtime reports Work mode", async () => {
+    enterPlanDiscussing("plan-runtime");
+    const runtime = prepareRuntime("work", "allow_all");
+    getById.mockReturnValue({ id: "run_shell", risk: "shell" });
+    expect(await runtime.checkPermission("run_shell", {})).toBe(false);
+  });
+
   it("keeps dedicated reads subject to the current permission decision during planning", async () => {
     enterPlanDiscussing("plan-runtime");
     const runtime = prepareRuntime();

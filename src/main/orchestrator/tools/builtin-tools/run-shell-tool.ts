@@ -12,6 +12,10 @@ import { spawn } from "child_process";
 import type { ToolDefinition } from "../registry/tool-registry";
 import { wrapWithSandbox, type SandboxWrapOutcome } from "../../sandbox/sandbox-exec";
 import { getCurrentLevel } from "../../../permission";
+import { policyFor, type AgentFileAccessLevel } from "../../../permission-policy";
+import { isPlanReadOnly } from "../../plan-mode";
+import type { ToolContext } from "../registry/tool-context";
+import { ToolExecutionError } from "../registry/tool-execution-error";
 import { classifyShellEffect, isCatastrophicCommand, type ShellEffect } from "../../shell-execution-policy";
 import { logger, LogTag } from "../../../logger";
 import {
@@ -157,17 +161,14 @@ type ExecutablePlan = Exclude<ExecutionPlan, { kind: "rejected" }>;
  *
  * 分流规则（按失败原因区分）：
  * - wrap 成功 → sandboxed
- * - wrap 失败 + reason "disabled"（用户显式无沙箱：FIREFLY_SRT=0 / 非 Windows）+ read 类命令
- *   → direct（graceful degradation，保留开发环境可用性）
- * - wrap 失败（not_ready / wrap_failed），或 disabled + 写副作用命令，或 wrap 意外抛错
- *   → rejected（fail-closed，无论 read/write 都不执行）
+ * - 非 full 权限下，wrap 失败一律 rejected；提示型分类器不能证明 Shell 无写入。
  */
 async function resolveExecutionPlan(
   command: string,
   cwd: string | undefined,
   requestedShell: ShellKind,
   resolvedShell: ResolvedShellExecutable,
-  requiresSandbox: boolean,
+  level: AgentFileAccessLevel,
 ): Promise<ExecutionPlan> {
   const base = { command, cwd, requestedShell };
   let outcome: SandboxWrapOutcome;
@@ -176,6 +177,7 @@ async function resolveExecutionPlan(
       command,
       cwd,
       requestedShell === "bash" ? resolvedShell.executable : undefined,
+      level,
     );
   } catch (err) {
     // 契约上 wrapWithSandbox 永不抛错；此处兜底防止 API 破约重新打开 fail-open 缺口
@@ -188,18 +190,12 @@ async function resolveExecutionPlan(
     return { ...base, kind: "sandboxed", argv: outcome.argv, env: outcome.env };
   }
 
-  // 用户显式无沙箱 + 只读命令 → 允许降级直跑
-  if (outcome.reason === "disabled" && !requiresSandbox) {
-    logger.warn(LogTag.BuiltinTools, `[run_shell] sandbox disabled, read-effect fallback to direct ${requestedShell}`);
-    return { ...base, kind: "direct" };
-  }
-
   const REJECT_REASON: Record<"disabled" | "not_ready" | "wrap_failed", string> = {
     disabled: "沙箱未启用，该命令可能修改工作区，已终止",
-    not_ready: "沙箱不可用（初始化失败），该命令已终止。请在设置中安装沙箱或提升权限档位。",
+    not_ready: "沙箱不可用（初始化失败），该命令已终止。请在设置中安装沙箱后重试。",
     wrap_failed: "沙箱包装失败，该命令已终止（未执行）",
   };
-  logger.warn(LogTag.BuiltinTools, `[run_shell] fail-closed before spawn: reason=${outcome.reason} detail=${outcome.detail ?? "(none)"} effect=${requiresSandbox ? "write/unknown" : "read"} command="${command.slice(0, 200)}"`);
+  logger.warn(LogTag.BuiltinTools, `[run_shell] fail-closed before spawn: reason=${outcome.reason} detail=${outcome.detail ?? "(none)"} level=${level} command="${command.slice(0, 200)}"`);
   return { ...base, kind: "rejected", reason: REJECT_REASON[outcome.reason] };
 }
 
@@ -242,8 +238,9 @@ function executePlan(
   resolvedShell: ResolvedShellExecutable,
   signal?: AbortSignal,
   timeoutPolicy: ShellTimeoutPolicy = DEFAULT_TIMEOUT_POLICY,
+  assertAllowed?: () => void,
 ): Promise<ShellResult> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     (async () => {
       const requestedShell = plan.requestedShell;
       const command = plan.command;
@@ -251,6 +248,7 @@ function executePlan(
       const spec = buildSpawnSpec(plan, resolvedShell);
       const ranViaSandbox = spec.ranViaSandbox;
 
+      assertAllowed?.();
       const child = spawn(spec.command, spec.args, {
         cwd: spec.cwd || undefined,
         shell: false,
@@ -380,6 +378,10 @@ function executePlan(
         finish(buildResult(code));
       });
     })().catch((err) => {
+      if (err instanceof ToolExecutionError || (err instanceof Error && err.name === "AbortError")) {
+        reject(err);
+        return;
+      }
       // async wrapper 异常兜底（理论上不会走到，wrapWithSandbox 内部已 try/catch，
       // 且安全决策在 resolveExecutionPlan 已完成，此处只影响单次执行的错误上报）
       const msg = err instanceof Error ? err.message : String(err);
@@ -396,7 +398,30 @@ function executePlan(
   });
 }
 
-async function executeRunShell(args: Record<string, unknown>, context?: import("../registry/tool-context").ToolContext): Promise<string> {
+function resolveShellAccess(context: ToolContext | undefined, args: Record<string, unknown>): AgentFileAccessLevel {
+  if (context?.conversationId && isPlanReadOnly(context.conversationId)) {
+    throw new ToolExecutionError("E_PLAN_READ_ONLY", "计划讨论与审阅期间不能执行 Shell 命令。", "permission_denied");
+  }
+  if (context?.signal?.aborted) {
+    const error = new Error("Operation aborted");
+    error.name = "AbortError";
+    throw error;
+  }
+  if (context?.permissionMode === "allow_all") return "full";
+  const current = getCurrentLevel();
+  const levels = [context?.fileAccessLevel ?? current, current];
+  if (levels.some(level => policyFor(level, "shell") === "ask")
+    && (context?.authorizedToolCall?.toolId !== "run_shell" || context.authorizedToolCall.args !== args
+      || !context.authorizedToolCall.approvalRequired)) {
+    throw new ToolExecutionError("E_PERMISSION_APPROVAL_REQUIRED", "此命令需要当前调用的审批授权。", "permission_denied");
+  }
+  for (const level of ["project-read-only", "read-only", "scoped", "per-action", "full"] as const) {
+    if (levels.includes(level)) return level;
+  }
+  throw new ToolExecutionError("E_PERMISSION_INVALID", "无效的文件权限档位。", "permission_denied");
+}
+
+async function executeRunShell(args: Record<string, unknown>, context?: ToolContext): Promise<string> {
   const command = String(args.command || "").trim();
   const cwd = args.cwd ? String(args.cwd) : undefined;
   // timeout_ms 显式 deadline：钳制 + 禁用 idle 检测（解析规则见 resolveTimeoutPolicy）
@@ -417,6 +442,13 @@ async function executeRunShell(args: Record<string, unknown>, context?: import("
       stderr: "[SHELL_UNSUPPORTED] shell 仅支持 cmd 或 bash", stdout: "",
     });
   }
+  if (context?.signal?.aborted) {
+    return JSON.stringify({
+      success: false, command, cwd, shell: requestedShell, errorCode: "E_ABORTED",
+      exitCode: null, timedOut: true, captureTruncated: false, effect: "unknown", sandboxed: false,
+      stderr: "所在任务已被用户取消", stdout: "",
+    });
+  }
 
   // 灾难命令守卫：无论档位都拒绝（format/shutdown/dd 等明显灾难操作）
   if (isCatastrophicCommand(command)) {
@@ -428,12 +460,18 @@ async function executeRunShell(args: Record<string, unknown>, context?: import("
     });
   }
 
-  const level = context?.permissionMode === "allow_all" ? "full" : getCurrentLevel();
+  const level = resolveShellAccess(context, args);
+  const assertAllowed = (): void => {
+    if (resolveShellAccess(context, args) !== level) {
+      throw new ToolExecutionError("E_PERMISSION_CHANGED", "命令准备期间权限已变化，请重新授权此次调用。", "permission_denied");
+    }
+  };
   const effect: ShellEffect = classifyShellEffect(command);
   logger.info(LogTag.BuiltinTools, `[run_shell] entry: command="${command}" cwd=${cwd || "(undefined)"} effect=${effect} level=${level}`);
 
   // 解释器前置解析：直跑和沙箱包装都需要（bash 不可用在此提前返回，不进入执行计划）
   const resolvedShell = await resolveShellExecutable(requestedShell);
+  assertAllowed();
   if (!resolvedShell) {
     return JSON.stringify({
       command, cwd, shell: requestedShell, errorCode: "BASH_UNAVAILABLE",
@@ -442,24 +480,25 @@ async function executeRunShell(args: Record<string, unknown>, context?: import("
     });
   }
 
-  const requiresSandbox = effect !== "read";
-
   // 后台执行：spawn 后立即返回 jobId，输出流式写日志文件（状态机与护栏见 shell-job-manager）。
   // 后台任务不做"无输出判卡死"检测，执行上限沿用 timeout_ms（未传则 30 分钟）；
   // 与本轮 agent 调用解耦——取消本轮不杀后台任务，由用户 stop / 执行上限 / 应用退出控制。
   if (args.run_in_background === true || args.run_in_background === "true") {
     const plan: ExecutionPlan = level === "full"
       ? { kind: "direct", command, cwd, requestedShell }
-      : await resolveExecutionPlan(command, cwd, requestedShell, resolvedShell, requiresSandbox);
+      : await resolveExecutionPlan(command, cwd, requestedShell, resolvedShell, level);
+    assertAllowed();
     if (plan.kind === "rejected") {
       // 与前台一致的拒绝协议：spawn 从未被调用，stdout 必然为空
       return JSON.stringify({
+        success: false,
         command, cwd, shell: requestedShell,
         exitCode: -1, timedOut: false, captureTruncated: false, effect, sandboxed: false,
         stderr: `[拒绝] ${plan.reason}`, stdout: "",
       });
     }
     const spec = buildSpawnSpec(plan, resolvedShell);
+    assertAllowed();
     const { jobId, logFile } = startShellJob({
       spec, command, shell: requestedShell, totalMs: timeoutPolicy.totalMs,
     });
@@ -479,7 +518,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: import("
   // full 档位：直接 spawn，不走沙箱（用户已选择完全信任）
   if (level === "full") {
     logger.info(LogTag.BuiltinTools, `[run_shell] full level → direct ${requestedShell} (no sandbox)`);
-    const result = await executePlan({ kind: "direct", command, cwd, requestedShell }, resolvedShell, context?.signal, timeoutPolicy);
+    const result = await executePlan({ kind: "direct", command, cwd, requestedShell }, resolvedShell, context?.signal, timeoutPolicy, assertAllowed);
     logger.info(LogTag.BuiltinTools, `[run_shell] [full] done: exitCode=${result.exitCode} timedOut=${result.timedOut} stdout.len=${result.stdout.length} stderr.len=${result.stderr.length}`);
     // 字段顺序契约：stdout 排最后（command/cwd 等短字段之后），保证下游截断的
     // 尾窗始终覆盖 stdout 末尾——测试/构建命令的汇总行（Test Files/Tests passed）就在那里。
@@ -496,21 +535,21 @@ async function executeRunShell(args: Record<string, unknown>, context?: import("
   }
 
   // 非 full 档位：spawn 前通过 ExecutionPlan 完成全部安全决策
-  // - read  → 仅当"用户显式无沙箱"（reason: disabled）时允许 direct 降级
-  // - write/unknown → 必须 wrap 成功，否则 rejected（fail-closed，不执行）
-  // （requiresSandbox 已在后台分支前声明，此处复用）
-  const plan = await resolveExecutionPlan(command, cwd, requestedShell, resolvedShell, requiresSandbox);
+  // 任意 Shell 字符串均需 wrap 成功；effect 仅用于遥测，不作为直跑授权。
+  const plan = await resolveExecutionPlan(command, cwd, requestedShell, resolvedShell, level);
+  assertAllowed();
 
   if (plan.kind === "rejected") {
     // 到达这里时 spawn 从未被调用——命令没有执行过，stdout 必然为空
     return JSON.stringify({
+      success: false,
       command, cwd, shell: requestedShell,
       exitCode: -1, timedOut: false, captureTruncated: false, effect, sandboxed: false,
       stderr: `[拒绝] ${plan.reason}`, stdout: "",
     });
   }
 
-  const result = await executePlan(plan, resolvedShell, context?.signal, timeoutPolicy);
+  const result = await executePlan(plan, resolvedShell, context?.signal, timeoutPolicy, assertAllowed);
   logger.info(LogTag.BuiltinTools, `[run_shell] [${level}] done: exitCode=${result.exitCode} timedOut=${result.timedOut} stdout.len=${result.stdout.length} stderr.len=${result.stderr.length} sandboxed=${result.ranViaSandbox}`);
   // 字段顺序契约同 full 档位：stdout 置尾，保证尾窗覆盖汇总行
   return JSON.stringify({

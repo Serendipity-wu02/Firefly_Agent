@@ -32,6 +32,25 @@ function call(id: string, args: Record<string, unknown> = { to: "a@example.com" 
 }
 
 describe("dispatchToolCall truthful execution", () => {
+  it("binds successful permission to this invocation without mutating the shared context", async () => {
+    const context = { userQuery: "synthetic" };
+    let observed: unknown;
+    let observedArgs: unknown;
+    const execute = vi.fn(async (args, received) => { observed = received; observedArgs = args; return "ok"; });
+    const permission = vi.fn(async () => true);
+    await dispatchToolCall(call("approved"), { state: state(), tools: [tool(execute)], checkPermission: permission, toolContext: context });
+    expect(permission).toHaveBeenCalledTimes(1);
+    expect(observed).toMatchObject({ authorizedToolCall: { toolId: "send_email", args: observedArgs } });
+    expect(observed).not.toBe(context);
+    expect(context).not.toHaveProperty("authorizedToolCall");
+  });
+
+  it("does not mint an approval when no permission gate ran", async () => {
+    const execute = vi.fn(async (_args, received) => { expect(received?.authorizedToolCall).toBeUndefined(); return "ok"; });
+    await dispatchToolCall(call("ungated"), { state: state(), tools: [tool(execute)], toolContext: { userQuery: "synthetic" } });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves both the head and tail when pruning output above 30000 characters", () => {
     const output = [
       "HEAD_MARKER",

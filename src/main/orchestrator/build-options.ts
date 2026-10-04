@@ -63,7 +63,7 @@ import { filterToolsBySearchBackend, type SearchBackend } from "./search-backend
 import type { RunCapabilities } from "./run-capabilities";
 import { buildStickerEmbeddingQuery } from "../sticker-query";
 import { isPlanReadOnly, getPlanState } from "./plan-mode";
-import { policyFor, type ToolRiskLevel } from "../permission-policy";
+import { policyFor } from "../permission-policy";
 import { resolveTranscriptRetainTokens, type MaterializedTranscript } from "./conversation-transcript-context";
 import type { UncertainEffect } from "./harness/types";
 
@@ -713,10 +713,13 @@ export async function buildAgentRunOptions(
   const conversationIdForPlan = conversationId;
   const planReadOnly = (resolvedMode === "code" || resolvedMode === "chat")
     && isPlanReadOnly(conversationIdForPlan);
+  // 任意 Shell 字符串不能由提示型 effect 分类器证明只读；计划阶段保留专用读取工具。
+  const allowedDuringPlan = (tool: ToolDefinition): boolean => {
+    const risk = tool.risk ?? "safe";
+    return risk !== "shell" && policyFor("read-only", risk) === "allow";
+  };
   const enabledTools = planReadOnly
-    ? (modeEnabledTools as readonly ToolDefinition[]).filter(
-      (t) => policyFor("read-only", (t as ToolDefinition & { risk?: ToolRiskLevel }).risk ?? "safe") === "allow",
-    )
+    ? (modeEnabledTools as readonly ToolDefinition[]).filter(allowedDuringPlan)
     : modeEnabledTools;
 
   // 三模适配层：skill 按 resolvedMode 过滤，chat 模式不暴露 skill。
@@ -773,7 +776,7 @@ export async function buildAgentRunOptions(
   // 严格 opt-in——不走"未声明 modes 即全可见"的默认规则，防止 fs/git 等
   // 未声明 modes 的工具意外漏进闲聊会话。
   const chatOptInTools = (isChatMode && styleSettings.chatToolsEnabled === true)
-    ? (modeEnabledTools as readonly ToolDefinition[]).filter(
+    ? (enabledTools as readonly ToolDefinition[]).filter(
       (t) => styleSettings.toolModeOverrides?.[t.id]?.chat === true,
     )
     : [];
@@ -812,7 +815,11 @@ export async function buildAgentRunOptions(
   })).filter((s) => s.id);
   const knowledgeWorkspace = openKnowledgeWorkspace(resolvedMode, resolvedWorkspaceRoot);
   const knowledgeToolIds = new Set(["obsidian_list_files", "obsidian_search", "obsidian_read_file", "obsidian_read_section", "obsidian_edit", "obsidian_open_note"]);
-  const runTools = capabilities.tools.filter((tool) => !knowledgeToolIds.has(tool.id) || knowledgeWorkspace !== undefined);
+  // 权威 capabilities 与兼容入口均需经过最终计划约束，resolver 不得重新引入写入能力。
+  const runTools = capabilities.tools.filter((tool) =>
+    (!planReadOnly || allowedDuringPlan(tool))
+    && (!knowledgeToolIds.has(tool.id) || knowledgeWorkspace !== undefined),
+  );
   const searchToolIds = filteredBySearch
     .filter((t) => t.id === "web_search" || t.id.startsWith("minimax-web-search-"))
     .map((t) => t.id);

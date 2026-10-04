@@ -231,13 +231,18 @@ export async function checkPermission(input: {
   toolDescription: string;
   args: Record<string, unknown>;
   risk: ToolRiskLevel;
+  /** Trusted session snapshot; it can narrow current permissions, never widen them. */
+  level?: AgentFileAccessLevel;
   /** 可选 runId，用于 cancel 时按 run 清理 pending 审批。 */
   runId?: string;
   signal?: AbortSignal;
 }): Promise<{ allowed: boolean; reason?: string }> {
   if (input.signal?.aborted) throw createAbortError();
   const level = currentLevel;
-  const policy = policyFor(level, input.risk);
+  const currentPolicy = policyFor(level, input.risk);
+  const sessionPolicy = policyFor(input.level ?? level, input.risk);
+  const policy = currentPolicy === "deny" || sessionPolicy === "deny" ? "deny"
+    : currentPolicy === "ask" || sessionPolicy === "ask" ? "ask" : "allow";
   console.log(LOG_PREFIX, "checkPermission:", input.toolId, "risk=" + input.risk, "level=" + level, "→", policy);
 
   if (policy === "allow") return { allowed: true };
@@ -256,7 +261,15 @@ export async function checkPermission(input: {
     risk: input.risk,
     runId: input.runId,
   });
-  if (approved) return { allowed: true };
+  if (input.signal?.aborted) throw createAbortError();
+  if (approved) {
+    // A pending approval does not preserve permissions that were revoked while waiting.
+    if (policyFor(currentLevel, input.risk) === "deny"
+      || policyFor(input.level ?? currentLevel, input.risk) === "deny") {
+      return { allowed: false, reason: "等待审批期间权限已收紧，此次操作未执行。" };
+    }
+    return { allowed: true };
+  }
   return { allowed: false, reason: "用户拒绝了此次操作。" };
 }
 

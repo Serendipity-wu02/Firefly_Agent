@@ -106,9 +106,9 @@ function detectProjectRoot(cwd: string): string {
  */
 function buildFilesystemConfigForLevel(
   cwd: string,
+  level: AgentFileAccessLevel,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): { filesystem: any } | null {
-  const level = getCurrentLevel();
   logger.info(LogTag.Runtime, `[Sandbox] buildFilesystemConfigForLevel: level=${level} cwd=${cwd}`);
 
   switch (level) {
@@ -261,12 +261,11 @@ export function isSandboxReady(): boolean {
  *
  * UAC 取消不算错误（用户可能只是这次不想装），下次还会再试。
  */
-export async function ensureSandboxReady(cwd: string = process.cwd()): Promise<boolean> {
+export async function ensureSandboxReady(cwd: string = process.cwd(), level: AgentFileAccessLevel = getCurrentLevel()): Promise<boolean> {
   if (sandboxDisabled || !isWindows()) {
     logger.info(LogTag.Runtime, `[Sandbox] ensureSandboxReady: skip (sandboxDisabled=${sandboxDisabled} isWindows=${isWindows()})`);
     return false;
   }
-  const level = getCurrentLevel();
   const workspaceRoot = level === "project-read-only" ? detectProjectRoot(cwd) : path.resolve(cwd);
   const desiredSessionKey = JSON.stringify({ level, workspaceRoot });
   if (sandboxReady && sandboxSessionKey === desiredSessionKey) {
@@ -357,8 +356,8 @@ export async function wrapWithSandbox(
   command: string,
   cwd?: string,
   binShell?: string,
+  level: AgentFileAccessLevel = getCurrentLevel(),
 ): Promise<SandboxWrapOutcome> {
-  const level = getCurrentLevel();
   logger.info(LogTag.Runtime, `[Sandbox] wrapWithSandbox: command="${command}" cwd=${cwd || "(undefined)"} level=${level}`);
 
   if (sandboxDisabled || !isWindows()) {
@@ -373,7 +372,7 @@ export async function wrapWithSandbox(
   }
 
   const resolvedCwd = cwd || process.cwd();
-  const ready = await ensureSandboxReady(resolvedCwd);
+  const ready = await ensureSandboxReady(resolvedCwd, level);
   if (!ready || !srtModule) {
     logger.info(LogTag.Runtime, `[Sandbox] wrapWithSandbox: sandbox not ready (ready=${ready} srtModule=${!!srtModule}), returning not_ready`);
     return { ok: false, reason: "not_ready", detail: `ready=${ready} srtModule=${!!srtModule}` };
@@ -390,7 +389,7 @@ export async function wrapWithSandbox(
     }
 
     // per-call customConfig：按当前权限档位选 fs 配置
-    const customConfig = buildFilesystemConfigForLevel(resolvedCwd);
+    const customConfig = buildFilesystemConfigForLevel(resolvedCwd, level);
     if (!customConfig) {
       logger.info(LogTag.Runtime, "[Sandbox] wrapWithSandbox: customConfig is null (full level fallback), returning not_ready");
       return { ok: false, reason: "not_ready", detail: "customConfig is null" };

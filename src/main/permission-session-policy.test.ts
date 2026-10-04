@@ -41,4 +41,23 @@ describe("session permission intersection", () => {
     await expect(checkPermission(request("full"))).resolves.toMatchObject({ allowed: true });
     expect(send).not.toHaveBeenCalled();
   });
+  it("rechecks tightening while one approval is pending", async () => {
+    send.mockImplementation((channel: string, payload: { id: string }) => {
+      if (channel !== IPC.PERMISSION_APPROVAL_REQUEST) return;
+      setCurrentLevel("read-only");
+      handles.get(IPC.PERMISSION_APPROVAL_RESOLVE)!(undefined, { id: payload.id, allowed: true });
+    });
+    await expect(checkPermission(request("per-action"))).resolves.toMatchObject({ allowed: false });
+    expect(send.mock.calls.filter(call => call[0] === IPC.PERMISSION_APPROVAL_REQUEST)).toHaveLength(1);
+  });
+  it("rechecks cancellation after an approval has been accepted", async () => {
+    const controller = new AbortController();
+    send.mockImplementation((channel: string, payload: { id: string }) => {
+      if (channel !== IPC.PERMISSION_APPROVAL_REQUEST) return;
+      handles.get(IPC.PERMISSION_APPROVAL_RESOLVE)!(undefined, { id: payload.id, allowed: true });
+      controller.abort();
+    });
+    await expect(checkPermission({ ...request("per-action"), signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    expect(send.mock.calls.filter(call => call[0] === IPC.PERMISSION_APPROVAL_REQUEST)).toHaveLength(1);
+  });
 });

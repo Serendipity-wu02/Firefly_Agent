@@ -24,6 +24,7 @@ export interface ChildSessionParent {
   checkPermission?: HarnessInput["checkPermission"];
   includeInteractiveTools?: boolean;
   permissionMode?: import("./firefly-agent").FireflyRunOptions["permissionMode"];
+  fileAccessLevel?: import("../permission-policy").AgentFileAccessLevel;
   toolOutputStore?: ToolOutputStore;
   workReadScopes?: import("../../shared/chat-types").WorkReadScope[];
 }
