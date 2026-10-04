@@ -86,6 +86,9 @@ closeBrowserPage(state: BrowserPageState): BrowserPageState;
 
 父已放行本任务的独立子集：`BrowserWorkspacePanel.tsx` + `.css` + `.test.ts`，`browser-workspace-reducer.ts` + `.test.ts`，以及纯展示 `WorkspaceSourcesPanel.tsx` + `.test.ts`。Panel 是受控组件，消费 page/address/labels 与 onAddressChange/onNavigate/onCommand/onClose 注入回调；不引用 window bridge。Reducer 只组合已冻结五函数及地址编辑，不启动异步任务。来源展示 DTO 仅为展示提案，所有候选来源显示“来源待确认”，不宣称 canonical 持久提交，不新增超链接或文件打开。
 
+- [x] 完成独立 toolbar/reducer/候选来源组件，49/49 工作区测试；region/ref 补测实际 RED/GREEN、两轮独立审查无 blocking/important。受测代码提交 `cc000b5c78578dde238922db115dc28cfe8d4244`。
+- [x] 本阶段 renderer/schema/新模块严格类型与完整 build 退出0；正式全量615 files、6059 pass / 0 fail / 2 skip，首轮环境失败仍归档。未将这些结果视为 BrowserService/shared 接线或网络 gate 完成。
+
 组件文案通过 required labels prop 注入，实际 i18n key 清单交父/UI owner；不修改共享翻译。请求完成更新已提交地址，但用户正在编辑的草稿不被覆盖；identity 不匹配/旧响应沿用原对象；切换会话须由父重新建状态，不把旧实例改成新身份。
 
 - [ ] RED：新标签与文件/Diff/计划共存；同会话去重、切换不串页、Modal 隐藏 view、旧回调不更新新页、关闭最后标签回退；文件行号、错误及 rename/pin 保留；没有第二步代理按钮。

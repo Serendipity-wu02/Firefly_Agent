@@ -61,8 +61,16 @@
 | 全部新模块及测试独立严格类型（含 TSX/CSS types） | exit 0 | right-workspace-module-types-final.log |
 | npm run build | exit 0；storage boundary、Main/preload/CLI/renderer均完成，既有 >500kB chunk 警告保留 | right-workspace-full-build.log |
 | 正式 native 权限复验既有 shell-job 真实进程 | exit 0，13/13；未改测试/产品源码 | right-workspace-shell-job-native-recheck.log |
+| 首轮受限全量 | exit 1，612 files pass / 3 fail；6048 pass / 11 fail / 2 skip，共6061 | right-workspace-full-tests.log |
+| 正式全量复验（现有 runner + 已核验 Git Bash fixture） | exit 0，615 files pass；6059 pass / 0 fail / 2 skip，共6061，383.35s | right-workspace-full-tests-native-final.log |
 
-全量测试结果待本轮命令完成后填入，不以父其它整合分支的通过结果代替。受限运行中 shell-job 的 Windows taskkill 清理用例报进程仍存活；正式审批后的同测试 13/13 通过，且此前报告的 fixture PID 已不在。该执行环境差异须保留，不把失败记录删除或说成初次全量通过。没有调整测试超时或门禁。
+首轮失败分类：8 个 shell-job 的 Windows taskkill 清理用例报进程仍存活；另3个真实 Bash 集成用例因未设置仓库要求的 `FIREFLY_TEST_BASH`。正式审批后的 shell-job 同测试13/13通过，且此前报告的 fixture PID 已不在。通过 `Get-Command git` 的实际 `E:\Git\cmd\git.exe` 定位并核验 `E:\Git\bin\bash.exe`（Bash5.3.15），复验仅补现有环境变量与正式进程权限，不改产品/测试。该首轮记录保留，不说成初次全量通过，不调整超时或门禁，不用父其它整合分支结果代替。正式完整复验已退出0，6059 pass / 0 fail / 2 skip。
+
+本轮受测代码提交为 `cc000b5c78578dde238922db115dc28cfe8d4244`。复验命令为设置上述 `TEMP/TMP/RUNNER_TEMP/FIREFLY_TEST_BASH` 后执行 `& .\scripts\ci\run-vitest.ps1`；没有 TestFiles 参数或排除用例。两次 runner 写回既有 snapshot 的 LF/CRLF 表示，`git diff` 内容为空；确认由本轮生成后仅恢复该文件，不纳入交付。后续提交仅补此验证记录，不变更代码，不需据文档修改重复全套测试。
+
+两项 skip 保留实际限制：runtime-profile 的真实 Windows8.3 alias 用例因当前临时路径不含短名而按既有条件跳过；plugin-panel-protocol 的文件 symlink 逃逸用例因 native 创建明确返回 ERROR_PRIVILEGE_NOT_HELD(1314) 跳过。未替换成 mock/junction，未改变这些测试或相关目录边界实现。
+
+失败尝试计数：纯组件补测首轮2项失败，真实 region 缺陷和 ref 测试期望分别一次修正后通过；同问题连续修复失败0。全量首轮1次失败，环境原因已定位；不对共享 shell-job 作猜测修复。网络探针r1/r2/r3均退出0，r2修正记录数组快照，r3收紧专用TEMP；均不算生产网络修复或gate验收。
 
 ## 网络门槛及未完成事项
 
