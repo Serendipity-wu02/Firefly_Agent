@@ -44,7 +44,9 @@ function legacyFailure(output: string): ToolExecutionOutcome | undefined {
   try {
     const parsed = JSON.parse(output) as Record<string, unknown> | null;
     if (!parsed || typeof parsed !== "object") return undefined;
-    if (parsed.timedOut === true) {
+    // Explicit failure facts distinguish cancellation before launch from a started
+    // command timeout. Keep the old timeout fallback for tools without those facts.
+    if (parsed.timedOut === true && parsed.success !== false) {
       return {
         status: "failed",
         output,
@@ -57,7 +59,7 @@ function legacyFailure(output: string): ToolExecutionOutcome | undefined {
     if (parsed.success !== false) return undefined;
     const message = typeof parsed.error === "string"
       ? parsed.error
-      : parsed.error === undefined ? "工具执行失败" : JSON.stringify(parsed.error);
+      : parsed.error === undefined ? output : JSON.stringify(parsed.error);
     return {
       status: "failed",
       output: message,

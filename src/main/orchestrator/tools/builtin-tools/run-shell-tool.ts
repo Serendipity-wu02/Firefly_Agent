@@ -15,7 +15,7 @@ import { getCurrentLevel } from "../../../permission";
 import { policyFor, type AgentFileAccessLevel } from "../../../permission-policy";
 import { isPlanReadOnly } from "../../plan-mode";
 import type { ToolContext } from "../registry/tool-context";
-import { ToolExecutionError } from "../registry/tool-execution-error";
+import { ToolExecutionError, type ToolErrorCategory, type ToolEffectState } from "../registry/tool-execution-error";
 import { classifyShellEffect, isCatastrophicCommand, type ShellEffect } from "../../shell-execution-policy";
 import { logger, LogTag } from "../../../logger";
 import {
@@ -129,9 +129,13 @@ function formatTimeoutMs(ms: number): string {
 }
 
 interface ShellResult {
+  success: boolean;
   shell: ShellKind;
   shellExecutable?: string;
-  errorCode?: "BASH_UNAVAILABLE";
+  errorCode?: string;
+  category?: ToolErrorCategory;
+  effectState?: ToolEffectState;
+  retryable?: false;
   exitCode: number | null;
   stdout: string;
   stderr: string;
@@ -141,6 +145,10 @@ interface ShellResult {
   ranViaSandbox: boolean;
   /** 因 idle/total 超时或外部取消而被强制终止 */
   timedOut: boolean;
+}
+
+function shellFailure(errorCode: string, category: ToolErrorCategory, effectState: ToolEffectState = "not_applied") {
+  return { success: false, errorCode, category, effectState, retryable: false as const };
 }
 
 // ── 执行计划：安全决策与副作用执行分离 ─────────────────────
@@ -317,6 +325,13 @@ function executePlan(
       let stuckReason: StuckReason | null = null;
       // 统一结果构造：被强制终止时 exitCode 置 null、stderr 追加终止原因与引导
       const buildResult = (exitCode: number | null, spawnError?: string): ShellResult => ({
+        ...(stuckReason !== null
+          ? shellFailure(stuckReason === "cancelled" ? "E_ABORTED" : "E_TOOL_TIMEOUT", stuckReason === "cancelled" ? "runtime_safety" : "timeout", "unknown")
+          : spawnError
+            ? shellFailure("E_SHELL_SPAWN", "semantic_failure")
+            : exitCode === 0
+              ? { success: true }
+              : shellFailure("E_SHELL_EXIT", "semantic_failure", "unknown")),
         shell: requestedShell,
         shellExecutable: resolvedShell.executable,
         exitCode: stuckReason !== null ? null : exitCode,
@@ -392,6 +407,7 @@ function executePlan(
       // 且安全决策在 resolveExecutionPlan 已完成，此处只影响单次执行的错误上报）
       const msg = err instanceof Error ? err.message : String(err);
       resolve({
+        ...shellFailure("E_SHELL_SETUP", "semantic_failure"),
         shell: plan.requestedShell,
         exitCode: -1,
         stderr: "[executePlan internal error] " + msg,
@@ -443,14 +459,15 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
   if (!command) return "[错误] command 不能为空";
   if (!requestedShell) {
     return JSON.stringify({
-      command, cwd, shell: String(args.shell), errorCode: "SHELL_UNSUPPORTED",
+      ...shellFailure("SHELL_UNSUPPORTED", "invalid_arguments"),
+      command, cwd, shell: String(args.shell),
       exitCode: -1, timedOut: false, captureTruncated: false, effect: "unknown", sandboxed: false,
       stderr: "[SHELL_UNSUPPORTED] shell 仅支持 cmd 或 bash", stdout: "",
     });
   }
   if (context?.signal?.aborted) {
     return JSON.stringify({
-      success: false, command, cwd, shell: requestedShell, errorCode: "E_ABORTED",
+      ...shellFailure("E_ABORTED", "runtime_safety"), command, cwd, shell: requestedShell,
       exitCode: null, timedOut: true, captureTruncated: false, effect: "unknown", sandboxed: false,
       stderr: "所在任务已被用户取消", stdout: "",
     });
@@ -460,6 +477,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
   if (isCatastrophicCommand(command)) {
     logger.info(LogTag.BuiltinTools, `[run_shell] rejected: catastrophic command="${command}"`);
     return JSON.stringify({
+      ...shellFailure("E_SHELL_REJECTED", "permission_denied"),
       command, cwd, shell: requestedShell,
       exitCode: -1, timedOut: false, captureTruncated: false, effect: "unknown", sandboxed: false,
       stderr: "[拒绝] 该命令被系统禁止执行", stdout: "",
@@ -480,7 +498,8 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
   assertAllowed();
   if (!resolvedShell) {
     return JSON.stringify({
-      command, cwd, shell: requestedShell, errorCode: "BASH_UNAVAILABLE",
+      ...shellFailure("BASH_UNAVAILABLE", "not_found"),
+      command, cwd, shell: requestedShell,
       exitCode: -1, timedOut: false, captureTruncated: false, effect, sandboxed: false,
       stderr: "[BASH_UNAVAILABLE] 未找到可用的 Bash。请安装 Git Bash，并确保 bash.exe 可执行。", stdout: "",
     });
@@ -497,7 +516,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
     if (plan.kind === "rejected") {
       // 与前台一致的拒绝协议：spawn 从未被调用，stdout 必然为空
       return JSON.stringify({
-        success: false,
+        ...shellFailure("E_SHELL_REJECTED", "permission_denied"),
         command, cwd, shell: requestedShell,
         exitCode: -1, timedOut: false, captureTruncated: false, effect, sandboxed: false,
         stderr: `[拒绝] ${plan.reason}`, stdout: "",
@@ -510,6 +529,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
     });
     logger.info(LogTag.BuiltinTools, `[run_shell] background ${jobId} started: command="${command}" totalMs=${timeoutPolicy.totalMs}`);
     return JSON.stringify({
+      success: true,
       command, cwd, shell: requestedShell,
       ranInBackground: true,
       jobId,
@@ -529,6 +549,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
     // 字段顺序契约：stdout 排最后（command/cwd 等短字段之后），保证下游截断的
     // 尾窗始终覆盖 stdout 末尾——测试/构建命令的汇总行（Test Files/Tests passed）就在那里。
     return JSON.stringify({
+      success: result.success, category: result.category, effectState: result.effectState, retryable: result.retryable,
       command, cwd, shell: result.shell, shellExecutable: result.shellExecutable, errorCode: result.errorCode,
       exitCode: result.exitCode,
       timedOut: result.timedOut,
@@ -548,7 +569,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
   if (plan.kind === "rejected") {
     // 到达这里时 spawn 从未被调用——命令没有执行过，stdout 必然为空
     return JSON.stringify({
-      success: false,
+      ...shellFailure("E_SHELL_REJECTED", "permission_denied"),
       command, cwd, shell: requestedShell,
       exitCode: -1, timedOut: false, captureTruncated: false, effect, sandboxed: false,
       stderr: `[拒绝] ${plan.reason}`, stdout: "",
@@ -559,6 +580,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
   logger.info(LogTag.BuiltinTools, `[run_shell] [${level}] done: exitCode=${result.exitCode} timedOut=${result.timedOut} stdout.len=${result.stdout.length} stderr.len=${result.stderr.length} sandboxed=${result.ranViaSandbox}`);
   // 字段顺序契约同 full 档位：stdout 置尾，保证尾窗覆盖汇总行
   return JSON.stringify({
+    success: result.success, category: result.category, effectState: result.effectState, retryable: result.retryable,
     command, cwd, shell: result.shell, shellExecutable: result.shellExecutable, errorCode: result.errorCode,
     exitCode: result.exitCode,
     timedOut: result.timedOut,
