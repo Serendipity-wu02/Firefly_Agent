@@ -1,5 +1,7 @@
 # 独立匿名浏览器网络模块验证
 
+> 后续真实 Electron worker/iframe/TLS 验证见 [第二阶段证据](browser-network-phase2.md)：dedicated worker GET 可被报为宿主 xhr 并接受，worker 全面默认拒绝尚未成立；生产gate持续关闭。本页保留首阶段历史结果。
+
 2026-10-04，基线 `ed144ee99cff80dfadb1bc2b591aa690440160b9`，复用 `E:\Codex\2026-10-04\task-4\audit-r3-r4` / `feat/right-agent-workspace`。用户直接授权独立模块TDD，未授权共享接线或生产gate放行。新增六个 `src/main/browser/*.ts` 源码/测试与本阶段文档，无IPC/preload/Bootstrap/BrowserService/旧UI/R1/目录backend/CI变更。
 
 ## 交付与契约
