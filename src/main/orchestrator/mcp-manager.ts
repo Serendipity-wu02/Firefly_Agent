@@ -5,6 +5,17 @@ import { connectMcpServer, disconnectMcpServer, getMcpServerStates, McpServerCon
 import { logger, LogTag } from "../logger";
 
 const LOG_PREFIX = "[MCP Manager]";
+
+// The adapter serializes per server; this queue owns the shared config document.
+// Hold it through connection/disconnection and commit so removals cannot be undone
+// by an older add snapshot. A rejected operation must not poison later callers.
+let managerOperation: Promise<void> = Promise.resolve();
+function queueManagerOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = managerOperation.then(operation);
+  managerOperation = result.then(() => {}, () => {});
+  return result;
+}
+
 function record(value: unknown): value is Record<string, unknown> { return !!value && typeof value === "object" && !Array.isArray(value); }
 function validConfigs(value: unknown): boolean {
   if (!Array.isArray(value)) return false;
@@ -42,7 +53,11 @@ function saveConfigs(configs: McpServerConfig[]): void {
  * 只删除传入的固定 id，不会误删用户自定义 MCP。
  * 返回被实际移除的 id 列表（用于日志）。
  */
-export async function pruneMcpServersByIds(serverIds: string[]): Promise<string[]> {
+export function pruneMcpServersByIds(serverIds: string[]): Promise<string[]> {
+  const ids = [...serverIds];
+  return queueManagerOperation(() => pruneMcpServersByIdsNow(ids));
+}
+async function pruneMcpServersByIdsNow(serverIds: string[]): Promise<string[]> {
   const configs = loadConfigs();
   const removed: string[] = [];
   const kept = configs.filter((c) => {
@@ -72,8 +87,11 @@ export async function pruneMcpServersByIds(serverIds: string[]): Promise<string[
  * 未开始的连接不再启动；单个连接完成后若信号已中止，立即断开该连接，
  * 保证迟到的连接不残留为无所有者资源。
  */
-export async function initMcpManager(options: { signal?: AbortSignal } = {}): Promise<void> {
+export function initMcpManager(options: { signal?: AbortSignal } = {}): Promise<void> {
   const signal = options.signal;
+  return queueManagerOperation(() => initMcpManagerNow(signal));
+}
+async function initMcpManagerNow(signal?: AbortSignal): Promise<void> {
   logger.info(LogTag.MCP, "initializing MCP Manager...");
   const configs = loadConfigs();
 
@@ -114,7 +132,20 @@ export async function initMcpManager(options: { signal?: AbortSignal } = {}): Pr
 /**
  * 添加一个新的 MCP server 配置，连接并持久化。
  */
-export async function addMcpServer(config: McpServerConfig): Promise<{
+export function addMcpServer(config: McpServerConfig): Promise<{
+  ok: boolean;
+  toolIds?: string[];
+  error?: string;
+}> {
+  const snapshot: McpServerConfig = {
+    ...config,
+    args: config.args === undefined ? undefined : [...config.args],
+    env: config.env === undefined ? undefined : { ...config.env },
+    effectKindOverrides: config.effectKindOverrides === undefined ? undefined : { ...config.effectKindOverrides },
+  };
+  return queueManagerOperation(() => addMcpServerNow(snapshot));
+}
+async function addMcpServerNow(config: McpServerConfig): Promise<{
   ok: boolean;
   toolIds?: string[];
   error?: string;
@@ -152,7 +183,10 @@ export async function addMcpServer(config: McpServerConfig): Promise<{
  * 失败而跳过配置清理，残留配置会导致后续 addMcpServer 报"已存在相同 ID"
  * 且永远无法修复。
  */
-export async function removeMcpServer(serverId: string): Promise<{ ok: boolean; error?: string }> {
+export function removeMcpServer(serverId: string): Promise<{ ok: boolean; error?: string }> {
+  return queueManagerOperation(() => removeMcpServerNow(serverId));
+}
+async function removeMcpServerNow(serverId: string): Promise<{ ok: boolean; error?: string }> {
   console.log(LOG_PREFIX, "移除 MCP server:", serverId);
 
   await disconnectMcpServer(serverId);
