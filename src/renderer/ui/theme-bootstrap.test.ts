@@ -20,6 +20,13 @@ describe("renderer theme bootstrap", () => {
     const html = fs.readFileSync(`${rendererRoot}/${entry}`, "utf8");
     expect(html).toMatch(/<html\b[^>]*\bdata-ui-theme="pearl-white"/);
     const stylesheets = [...html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g)];
-    expect(stylesheets.at(-1)?.[1]).toMatch(/ui\/theme\.css$/);
+    if (entry === "settings/index.html") {
+      expect(stylesheets.slice(-2).map(match => match[1])).toEqual([
+        "../ui/theme.css",
+        "./settings-layout.css",
+      ]);
+    } else {
+      expect(stylesheets.at(-1)?.[1]).toMatch(/ui\/theme\.css$/);
+    }
   });
 });
