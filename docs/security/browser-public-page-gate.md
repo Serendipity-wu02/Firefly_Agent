@@ -4,6 +4,8 @@
 
 **结论：网络门槛尚未闭合。** 单独 `setProxy`、地址栏校验、renderer 状态机或内存 Session 都不能证明“只访问公网”。已有最小真实 Electron 实验证实隐式直连与 Session 残留；候选控制在特定合成案例有效。未完成的代理鉴权、IP 固定、跨协议流量、并发撤销等验收必须完成并由父集成者作安全决定后，才可让真实网页走 `loadURL`。失败保持浏览入口受阻并给真实错误；不得跳过网络准备或回退系统浏览器。
 
+后续直接授权记录：用户在纯UI/DTO两提交交付后，明确要求继续独立匿名安全模块TDD，优先代理鉴权/IP固定/请求覆盖/撤销，不空等父、不碰共享接线。已新增Main-only策略与CONNECT模块、实际TCP回归、专用Electron消费证据；详见[本阶段验证](../testing/browser-network-modules.md)及[执行计划](../architecture/browser-network-modules-plan.md)。以下最初门槛/历史probe仍保留，不能将新模块授权解释为生产gate放行。
+
 ## 已核验事实与来源
 
 实际安装 `node_modules/electron/package.json`、`dist/version` 和运行进程均为 Electron **43.1.0**；运行进程 Chromium **150.0.7871.47**、Node **24.18.0**。`node_modules` 是指向当前 Firefly E 盘依赖的 junction，没有复制、安装或读取其它产品基线。下列 Electron 文档均固定到 `v43.1.0`。
