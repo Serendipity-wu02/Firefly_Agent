@@ -139,6 +139,17 @@ describe.runIf(process.platform === "win32")("actual run_shell plan and workspac
     expect(mocks.spawn).toHaveBeenCalledTimes(1); expect(mocks.wrap.mock.calls[0][3]).toBe("per-action");
     expect(fs.readFileSync(path.join(rootA, "marker.txt"), "utf8").trim()).toBe("APPROVED_OK");
   });
+  it("preserves an actually approved per-action call when the sandbox is explicitly disabled", async () => {
+    mocks.level = "per-action";
+    const permission = vi.fn(async () => true);
+    const outcome = await dispatchToolCall({ id: "approved-disabled-shell", name: "run_shell", arguments: JSON.stringify({ command: "echo APPROVED_DISABLED_OK> marker.txt", shell: "cmd", cwd: rootA }) }, {
+      state: { todoItems: [], uncertainEffects: [] }, tools: [runShellTool], checkPermission: permission,
+      toolContext: { userQuery: "synthetic", conversationId: id, resolvedWorkspaceRoot: rootA, fileAccessLevel: "per-action" },
+    });
+    expect(outcome.outcome).toBe("success"); expect(permission).toHaveBeenCalledTimes(1);
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    expect(fs.readFileSync(path.join(rootA, "marker.txt"), "utf8").trim()).toBe("APPROVED_DISABLED_OK");
+  });
   for (const phase of ["permission", "resolve", "wrap"] as const) {
     it(`does not reuse an unapproved permission decision when a new approval is required during ${phase}`, async () => {
       mocks.level = "full";

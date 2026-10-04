@@ -161,7 +161,8 @@ type ExecutablePlan = Exclude<ExecutionPlan, { kind: "rejected" }>;
  *
  * 分流规则（按失败原因区分）：
  * - wrap 成功 → sandboxed
- * - 非 full 权限下，wrap 失败一律 rejected；提示型分类器不能证明 Shell 无写入。
+ * - 显式禁用沙箱时，仅已批准的 per-action 可直接执行；提示型分类器不提供授权。
+ * - 其他 wrap 失败均 rejected。
  */
 async function resolveExecutionPlan(
   command: string,
@@ -188,6 +189,11 @@ async function resolveExecutionPlan(
 
   if (outcome.ok) {
     return { ...base, kind: "sandboxed", argv: outcome.argv, env: outcome.env };
+  }
+  // The caller verifies an exact approved call before and after this await.
+  // A restrictive session intersection (read-only/project-read-only/scoped) never reaches this exception.
+  if (outcome.reason === "disabled" && level === "per-action") {
+    return { ...base, kind: "direct" };
   }
 
   const REJECT_REASON: Record<"disabled" | "not_ready" | "wrap_failed", string> = {
