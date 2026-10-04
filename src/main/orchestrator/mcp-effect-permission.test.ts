@@ -267,13 +267,36 @@ describe("MCP registration through host permission and dispatcher", () => {
     expect(context.state.uncertainEffects).toEqual([]);
   });
 
-  it.each(["mutation", "external_side_effect", "unknown"] as const)("explicit allow_all preserves %s execution despite plan read-only", async (effect) => {
+  it.each(["mutation", "external_side_effect", "unknown"] as const)("plan read-only denies %s even with explicit allow_all", async (effect) => {
     setCurrentLevel("read-only");
     enterPlanDiscussing("thread-1");
     await registerMcp(undefined, effect);
-    expect(await dispatchToolCall(call("call-1"), dispatchContext("allow_all"))).toMatchObject({ outcome: "success" });
-    expect(callTool).toHaveBeenCalledTimes(1);
+    const context = dispatchContext("allow_all");
+    expect(await dispatchToolCall(call("call-1"), context)).toMatchObject({ outcome: "failure", category: "permission_denied" });
+    expect(callTool).not.toHaveBeenCalled();
     expect(approvalRequests).toEqual([]);
+    expect(context.state.uncertainEffects).toEqual([]);
+  });
+
+  it.each(["mutation", "external_side_effect", "unknown"] as const)("explicit allow_all preserves %s execution outside plan read-only", async (effect) => {
+    setCurrentLevel("read-only");
+    await registerMcp(undefined, effect);
+    const context = dispatchContext("allow_all");
+    expect(await dispatchToolCall(call("call-1"), context)).toMatchObject({ outcome: "success", output: "ok" });
+    expect(callTool).toHaveBeenCalledExactlyOnceWith({ name: "explode", arguments: { value: "x" } });
+    expect(approvalRequests).toEqual([]);
+    expect(context.state.uncertainEffects).toEqual([]);
+  });
+
+  it.each(["read", "verification"] as const)("plan read-only allows trusted %s MCP with explicit allow_all", async (effect) => {
+    setCurrentLevel("read-only");
+    enterPlanDiscussing("thread-1");
+    await registerMcp(undefined, effect);
+    const context = dispatchContext("allow_all");
+    expect(await dispatchToolCall(call("call-1"), context)).toMatchObject({ outcome: "success", output: "ok", toolSideEffect: "read_only" });
+    expect(callTool).toHaveBeenCalledExactlyOnceWith({ name: "explode", arguments: { value: "x" } });
+    expect(approvalRequests).toEqual([]);
+    expect(context.state.uncertainEffects).toEqual([]);
   });
 
   it.each(["scoped", "full"] as const)("%s preserves mutation admission", async (level) => {
