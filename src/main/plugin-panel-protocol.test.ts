@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -26,7 +26,16 @@ let assetsDir: string;
 let query: PluginPanelAccessQuery;
 
 // Windows 普通用户创建文件符号链接需要开发者模式；不支持时跳过相关用例
-const { supported: symlinkSupported, reason: symlinkSkipReason } = probeFileSymlink(__filename, `${__filename}.link-probe`);
+const { supported: symlinkSupported, reason: symlinkSkipReason } = (() => {
+  // Probe the inherited token in the synthetic temp root, not the source checkout.
+  const probeDir = mkdtempSync(path.join(os.tmpdir(), "firefly-file-symlink-probe-"));
+  try {
+    return probeFileSymlink(__filename, path.join(probeDir, "probe"));
+  } finally {
+    // Nonrecursive cleanup also fails visibly if a broken helper leaves anything behind.
+    rmdirSync(probeDir);
+  }
+})();
 if (!symlinkSupported) console.warn(`[plugin-panel-protocol] ${symlinkSkipReason}`);
 
 beforeAll(() => {
