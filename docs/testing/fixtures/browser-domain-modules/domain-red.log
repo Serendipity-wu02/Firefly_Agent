@@ -1,0 +1,206 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+ 鉂?src/main/browser/browser-authorization-domain.test.ts (39 tests | 32 failed) 11ms
+     脳 checks actual Main owner/profile context, not equal-looking owner DTOs 4ms
+     脳 copies and freezes policy/context; caller mutations cannot widen an epoch 0ms
+     脳 denies until native primary contents are registered and preparation activates 0ms
+     脳 inherits Session policy for missing worker ID without granting unknown contents authority 0ms
+     脳 keeps method POST denied 0ms
+     脳 keeps method PUT denied 0ms
+     脳 keeps method DELETE denied 0ms
+     脳 keeps method OPTIONS denied 0ms
+     脳 keeps method CONNECT denied 0ms
+     脳 keeps method get denied 0ms
+     脳 keeps method  denied 0ms
+     脳 retains HEAD and the existing allowed resource types 0ms
+     脳 retains target refusal http://example.com 0ms
+     脳 retains target refusal wss://example.com 0ms
+     脳 retains target refusal file:///tmp/x 0ms
+     脳 retains target refusal data:text/plain,x 0ms
+     脳 retains target refusal https://user:secret@example.com 0ms
+     脳 retains target refusal https://example.com:8443 0ms
+     脳 retains target refusal https://127.0.0.1 0ms
+     脳 retains target refusal https://198.18.1.171 0ms
+     脳 retains target refusal https://[::ffff:8.8.8.8]/ 0ms
+     脳 retains target refusal not a URL 0ms
+     脳 denies unproven resource webSocket 0ms
+     脳 denies unproven resource ping 0ms
+     脳 denies unproven resource cspReport 0ms
+     脳 denies unproven resource other 0ms
+     脳 denies unproven resource serviceWorker 0ms
+     脳 denies unproven resource  0ms
+     脳 never reuses a native Session even after its old domain is revoked 0ms
+     脳 does not replace the registered native contents with equal-looking or foreign contents 0ms
+     脳 permanently denies after owner change, abort, or explicit revoke 0ms
+     脳 revokeAll makes all independently registered same-origin domains inactive 0ms
+
+鈳幆鈳幆鈳幆 Failed Tests 32 鈳幆鈳幆鈳幆鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > checks actual Main owner/profile context, not equal-looking owner DTOs
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:37:52
+     35|   it("checks actual Main owner/profile context, not equal-looking owne鈥?     36|     const test = setup();
+     37|     expect(test.registry.canPrepare(test.context)).toBe(true);
+       |                                                    ^
+     38|     expect(test.registry.canPrepare({ ...test.context, owner: {} })).t鈥?     39|     expect(test.registry.canPrepare({ ...test.context, profile: {} }))鈥?
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆1/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > copies and freezes policy/context; caller mutations cannot widen an epoch
+AssertionError: expected null not to be null
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:46:24
+     44|     const test = setup(), hosts = ["example.com"];
+     45|     const domain = test.registry.create(test.context, test.session, { 鈥?     46|     expect(domain).not.toBeNull();
+       |                        ^
+     47|     if (!domain) throw new Error("domain missing");
+     48|     domain.registerContents(test.contents); domain.activate();
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆2/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > denies until native primary contents are registered and preparation activates
+AssertionError: expected null not to be null
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:62:24
+     60|   it("denies until native primary contents are registered and preparat鈥?     61|     const test = setup(), domain = test.registry.create(test.context, 鈥?     62|     expect(domain).not.toBeNull();
+       |                        ^
+     63|     if (!domain) throw new Error("domain missing");
+     64|     expect(domain.isCurrent()).toBe(true);
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆3/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > inherits Session policy for missing worker ID without granting unknown contents authority
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:75:34
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆4/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > keeps method POST denied
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > keeps method PUT denied
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > keeps method DELETE denied
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > keeps method OPTIONS denied
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > keeps method CONNECT denied
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > keeps method get denied
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > keeps method  denied
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:85:116
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆5/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains HEAD and the existing allowed resource types
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:87:24
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆6/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal http://example.com
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal wss://example.com
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal file:///tmp/x
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal data:text/plain,x
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal https://user:secret@example.com
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal https://example.com:8443
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal https://127.0.0.1
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal https://198.18.1.171
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal https://[::ffff:8.8.8.8]/
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > retains target refusal not a URL
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:92:289
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆7/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > denies unproven resource webSocket
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > denies unproven resource ping
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > denies unproven resource cspReport
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > denies unproven resource other
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > denies unproven resource serviceWorker
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > denies unproven resource 
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:93:133
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆8/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > never reuses a native Session even after its old domain is revoked
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:95:52
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳痆9/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > does not replace the registered native contents with equal-looking or foreign contents
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:102:34
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[10/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > permanently denies after owner change, abort, or explicit revoke
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:113:20
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[11/32]鈳?
+ FAIL  src/main/browser/browser-authorization-domain.test.ts > Main Session authorization domain > revokeAll makes all independently registered same-origin domains inactive
+AssertionError: expected null not to be null
+ 鉂?domainReady src/main/browser/browser-authorization-domain.test.ts:16:22
+     14|   const test = setup();
+     15|   const domain = test.registry.create(test.context, test.session);
+     16|   expect(domain).not.toBeNull();
+       |                      ^
+     17|   if (!domain) throw new Error("fresh registered domain missing");
+     18|   expect(domain.registerContents(test.contents)).toBe(true);
+ 鉂?src/main/browser/browser-authorization-domain.test.ts:123:18
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[12/32]鈳?
+
+ Test Files  1 failed (1)
+      Tests  32 failed | 7 passed (39)
+   Start at  20:58:40
+   Duration  305ms (transform 30ms, setup 0ms, import 43ms, tests 11ms, environment 0ms)
+
