@@ -47,6 +47,24 @@ R1 目录边界模块及相关原生 backend、目录迁移、朋友圈、新记
 
 浏览器首版属于基础手动查看，公共页面中依赖登录或被限制的交互显示受阻；不宣称对所有站点兼容。已读取原仓库 `docs/superpowers/plans/2026-10-03-visible-browser-plan.md`：记录用户选方案 B、登录状态“保持”、首批 GitHub/ChatGPT。本设计不撤销该产品选择；按父确认的两步收缩，当前先公开匿名验证。持久登录仍受原计划的跨工具凭据保护、真实行动审批等安全前置条件约束，本主线不创建持久 profile 或真实凭据。父统一原三阶段与本次两步计划。
 
+### 2026-10-04 会话授权域验证契约
+
+用户明确选择“综合看看这个方向解决吧”：本轮授权更新设计、独立安全review及隔离原型，优先独立Session/BrowserContext、不可变policyEpoch和统一出口，不默认禁Worker。授权不等于生产网络gate放行；仍是匿名公共HTTPS GET/HEAD，不增加站点登录、POST、持久凭据、无限网络访问或代理工具。
+
+policyEpoch是本轮候选Main私有对象，绑定已注册owner/profile/conversation/browser、全新非persist Session对象、冻结目标与方法政策、专用代理及abort状态；不是renderer可传入的数字或DTO。冻结政策内容及闭包，不只冻结包含可变Set/对象的外壳。网页、子框架、dedicated/shared/service worker继承同一域。Session回调的可信来源是Main注册的对象与闭包，不从请求的resourceType、可选WebContentsId/frame反推授权；缺字段既不直接授予权限，也不独立证明来自外域。协议/资源拒绝仍保留，字段不充当worker身份证。
+
+独立安全review允许受限原型，要求新Session先安装默认deny的唯一handler及权限/鉴权绑定，准备未完成不导航；每次准备await后、setProxy结束后及首文档副作用前复验注册对象/owner/abort/epoch，失败持续deny。缓存继承的验收必须同时覆盖同源第二Session误配旧proxy拨号0、clearAuthCache+closeAllConnections后无归属挑战取消、旧域存量tunnel终止，不能只数policyAllows=true。review不批准生产放行。
+
+这改变后续网络模块中的“缺WebContentsId/未知worker直接拒绝”分支，改为“未注册、已撤销或Session对象不匹配的域拒绝”；不改变公网IP固定、方法限制、匿名性和撤销要求。本机43.1.0下dedicated worker GET/xhr及importScripts/script关联祖先frame与页面ID，SharedWorker/SW缺ID/frame，与[Chromium150固定源码](https://raw.githubusercontent.com/chromium/chromium/150.0.7871.47/content/public/browser/content_browser_client.h)及[Electron43固定源码](https://raw.githubusercontent.com/electron/electron/v43.1.0/shell/browser/api/electron_api_web_request.cc)语义一致；先前“冒用宿主”措辞不代表已证认证/IP绕过。历史RED保留，用来证明字段不足以分类worker。
+
+每个授权域唯一新Session、partition及代理capability；绝不把workspace/profile级Session共享给多个tab或复用旧域。政策不可原地扩大，任何owner/会话/目标或方法权限变化先同步撤销旧域、持续deny、关闭代理存量隧道和Session连接，再创建新域。跨站只有在目标政策/授权发生变化时构成跨域，不擅自新增“同站点白名单”；同源两个域也必须隔离。旧worker不得看到新政策、凭据或存储。清理失败不得报告成功或恢复旧域。
+
+鉴权候选只向当前Main注册且原生`contents.session === epoch.session`的页面、精确代理端点/realm/scheme发专用凭据，复验owner/abort/epoch；目标站点鉴权及无可信Session来源的挑战均取消。原型调查Chromium是否在该Session内缓存已由页面认证的代理capability，供缺ID/frame的workers使用；缓存继承不是向未知挑战发放凭据。未预认证或清auth cache后的无归属挑战继续拒绝，若worker功能因此受阻如实记录，不用endpoint、pid、URL或猜测的owner补授权。缓存跨域、旧代可复用或无字段challenge无法安全归属时该路线未通过，不能绕过。
+
+代理不解密TLS，仍不能证明方法限制、worker身份或全协议出口；Session统一`onBeforeRequest`负责每个可观察请求的HTTPS GET/HEAD与目标政策。N1–N10继续适用，SW安装/更新/importScripts及已有TLS隧道上的POST均须独立验收；QUIC/WebRTC/WebTransport旁路未证明前生产gate保持HOLD。Node TLS夹具的显式测试CA仅是局部验证目标证书，不安装系统CA、不改变Chromium验证，不冒充Chromium可信HTTPS正例。
+
+参考[DeepSeek browser-guests](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/src/browser-guests.ts)的Main owner/opaque lease、先注册再附着及无beforeunload等待回收思路；该实现实际按workspace复用process-lifetime partition，release保留workspace存储，并非本方案的新域策略或网络安全证明。只作结构参考，无代码移植，来源MIT，Copyright (c) 2026 DeepSeek，保留[许可链接](https://github.com/deepseek-ai/deepseek-harness/blob/master/LICENSE)；如后续复制实质代码须完整保留许可声明。未更换Firefly runtime/renderer布局。
+
 ## 控制与退出清理
 
 首版只有用户控制，不创建 agent lease，也不注册代理浏览器工具。独立状态模块按 conversationId/browserId 和导航 requestId 隔离：较旧、其它会话或已关闭页面的异步响应不能覆盖当前页面；失败保留上次已提交地址并显示真实错误。

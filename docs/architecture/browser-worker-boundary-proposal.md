@@ -1,5 +1,7 @@
 # dedicated worker 边界：可行性证据与待决方案
 
+> 后续方向：用户已授权优先验证专用Session及不可变policyEpoch，默认不禁Worker。当前契约见[right-agent-workspace](right-agent-workspace.md#2026-10-04-会话授权域验证契约)，原型与剩余HOLD门槛见[会话证据](../testing/browser-session-epoch.md)。本文保留历史RED和CSP可行性调查，不作为已选择的生产禁用方案。
+
 2026-10-04，产品基线 `ff65b1152daf44011df232527ad626b3ee2844d0`。用户要求先RED与最小方案，worker禁用及兼容取舍必须交父审阅，不能将review建议当产品决定。本阶段只保留一次性验证夹具、原始证据位置和候选方案，**没有修改任何产品源码/共享接线/GUI/R1/CI，生产gate继续HOLD**。DNS Important 已由父独立复核确认 CLOSED，范围限单一Main模块实例，报告 `E:\Codex\2026-10-03\task-10\dns-worker-review-20261004\dns-worker-review.md`；worker仍OPEN。
 
 ## 更精确的原生 RED
