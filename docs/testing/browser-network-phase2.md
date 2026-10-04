@@ -53,6 +53,12 @@ node -e "require('node:dns').lookup('example.com',{all:true,verbatim:true},(erro
 
 重现：将审查快照放回固定隔离目录后 `node --check storage.cjs`、`& .\run-storage.ps1 -Run memory-r1`。快照/原始JSON见 [storage夹具](fixtures/browser-network-phase2/storage.cjs)。依 [Electron43 protocol文档](https://github.com/electron/electron/blob/v43.1.0/docs/api/protocol.md)注册的仅是此一次性进程scheme；未使用系统CA/全局ignore-certificate-errors或证书allow回调。
 
+## 新建 dedicated worker 的后续 RED 与候选方案
+
+后续在首个文档之前安装严格策略，再由文档创建全新 worker，仍实测 GET 被标为宿主 xhr 并拨号；同 worker 的 importScripts GET 又经 script 类别拨号。预先创建 worker 不是唯一原因，resourceType/frame/ID 组合不足以区分。见 [worker 边界证据与待决方案](../architecture/browser-worker-boundary-proposal.md) 和 [原始证据 manifest](fixtures/browser-worker-boundary/manifest.json)。
+
+追加 CSP `worker-src 'none'` 的一次性原型最后复跑 csp-r3 exit0，10条观察/errors=[]，worker新增拨号0，常规页面JS仍运行；这是候选可行性验证，产品源码未变，worker OPEN/gate HOLD。禁用 Worker/SharedWorker/ServiceWorker 会影响依赖它们的网页，须由父明确接受能力取舍后才能实施。当前198.18公网DNS限制不因此解除。
+
 ## 剩余条件及权限
 
 - 可信 HTTPS + 默认 OS numeric dial 在当前 DNS 环境未证实；不要允许198.18/15来冒充公网验证。需要符合策略的公开 DNS/网络环境，可交集成者在获准环境执行同一只读探针。
