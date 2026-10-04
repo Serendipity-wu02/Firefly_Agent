@@ -19,6 +19,8 @@
 
 续接结果：正式契约已更新，原型最终19记录/errors=[]，独立review两项Required关闭，无新增Critical/Required；定向3文件/131通过。完整RED、失败保留、输入版本/哈希及未验证门槛见[Session/epoch证据](../testing/browser-session-epoch.md)。只提交文档与一次性夹具，生产接线未开始，gate保持HOLD。
 
+后续受控验证：[SW/退出证据](../testing/browser-sw-lifecycle.md)补内存主脚本v1/v2真实激活、安装/更新HTTPS import hook观测与失败v3保留v2，正常原生退出最终7记录/errors=[]。保留首轮失败，清理后即时running快照不保证为空；候选保持deny并有界观察后复验，不把clearStorageData resolve当成同步worker停止。独立复审无新增Critical/Required，仍缺可信Chromium TLS、HTTPS主SW脚本成功及生产ShutdownCoordinator，继续HOLD。
+
 ## 历史模块文件与可验证任务
 
 1. 新建 `src/main/browser/public-network-target.ts/.test.ts`：`isPublicNetworkAddress(address)` 与 `parseConnectAuthority(authority)`；Node BlockList保守特殊网段规则，IPv4/IPv6/映射/zone/非法authority/443限制的RED→GREEN。拒绝范围有意覆盖部分全球可达特殊用途地址，不能保证所有网站可用。
