@@ -45,15 +45,16 @@ function legacyFailure(output: string): ToolExecutionOutcome | undefined {
     const parsed = JSON.parse(output) as Record<string, unknown> | null;
     if (!parsed || typeof parsed !== "object") return undefined;
     // Explicit failure facts distinguish cancellation before launch from a started
-    // command timeout. Keep the old timeout fallback for tools without those facts.
-    if (parsed.timedOut === true && parsed.success !== false) {
+    // command timeout. Keep the old timeout defaults for tools without those facts.
+    if (parsed.timedOut === true) {
+      const explicitFailure = parsed.success === false;
       return {
         status: "failed",
         output,
-        errorCode: "E_TOOL_TIMEOUT",
-        category: "timeout",
+        errorCode: explicitFailure && typeof parsed.errorCode === "string" ? parsed.errorCode : "E_TOOL_TIMEOUT",
+        category: explicitFailure && isCategory(parsed.category) ? parsed.category : "timeout",
         retryable: false,
-        effectState: "unknown",
+        effectState: explicitFailure && parsed.effectState === "not_applied" ? "not_applied" : "unknown",
       };
     }
     if (parsed.success !== false) return undefined;

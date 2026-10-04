@@ -324,14 +324,16 @@ function executePlan(
       // 此时也必须如实上报 timedOut=true + 终止原因，而不是伪装成正常退出（exitCode=1、原因文案丢失）
       let stuckReason: StuckReason | null = null;
       // 统一结果构造：被强制终止时 exitCode 置 null、stderr 追加终止原因与引导
+      const resultFacts = (exitCode: number | null, spawnError?: string) => {
+        if (stuckReason === "cancelled") return shellFailure("E_ABORTED", "runtime_safety", "unknown");
+        if (stuckReason !== null) return shellFailure("E_TOOL_TIMEOUT", "timeout", "unknown");
+        if (spawnError) return shellFailure("E_SHELL_SPAWN", "semantic_failure");
+        if (exitCode === 0) return { success: true };
+        // A command can apply effects before returning nonzero (or exiting by signal).
+        return shellFailure("E_SHELL_EXIT", "semantic_failure", "unknown");
+      };
       const buildResult = (exitCode: number | null, spawnError?: string): ShellResult => ({
-        ...(stuckReason !== null
-          ? shellFailure(stuckReason === "cancelled" ? "E_ABORTED" : "E_TOOL_TIMEOUT", stuckReason === "cancelled" ? "runtime_safety" : "timeout", "unknown")
-          : spawnError
-            ? shellFailure("E_SHELL_SPAWN", "semantic_failure")
-            : exitCode === 0
-              ? { success: true }
-              : shellFailure("E_SHELL_EXIT", "semantic_failure", "unknown")),
+        ...resultFacts(exitCode, spawnError),
         shell: requestedShell,
         shellExecutable: resolvedShell.executable,
         exitCode: stuckReason !== null ? null : exitCode,
