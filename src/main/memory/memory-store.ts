@@ -5,6 +5,7 @@ import {
   CURRENT_MEMORY_SCHEMA_VERSION,
   boundMemorySnippet,
   createDefaultMemoryStore,
+  isCurrentMemoryStore,
   extractMemoryKeywords,
 } from "./memory-store-defaults"
 import {
@@ -22,25 +23,6 @@ const RESOLVER_PRIORITY_RANK: Record<string, number> = {
   none: 0,
 }
 
-function isCurrentMemoryStore(value: unknown): value is MemoryStore {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false
-  const store = value as Partial<MemoryStore>
-  if (store.schemaVersion !== CURRENT_MEMORY_SCHEMA_VERSION || typeof store.version !== "number") return false
-  if (!store.l0 || typeof store.l0 !== "object" || Array.isArray(store.l0)) return false
-  if (!store.l1 || typeof store.l1 !== "object" || Array.isArray(store.l1)) return false
-  const { nickname, preferredName, occupation, longTermInterests, language, permanentNote, isPinned, updatedAt } = store.l0
-  if ([nickname, preferredName, occupation, longTermInterests, language, permanentNote]
-    .some((value) => typeof value !== "string")) return false
-  if (typeof isPinned !== "boolean" || typeof updatedAt !== "number") return false
-  const { recentGoals, recentPreferences, currentProject, generatedAt, roundCount } = store.l1
-  if ([recentGoals, recentPreferences, currentProject]
-    .some((value) => typeof value !== "string")) return false
-  if (typeof generatedAt !== "number" || typeof roundCount !== "number") return false
-  if (!Array.isArray(store.l2)) return false
-  if (store.l2.some((memory) => !memory || typeof memory.id !== "string" || typeof memory.content !== "string")) return false
-  return [store.evidence, store.reflectionLogs, store.conflictLogs, store.l2DmaeStates]
-    .every((entries) => entries === undefined || Array.isArray(entries))
-}
 
 export type L0WritableField = Exclude<keyof L0Profile, "updatedAt">
 export type L1WritableField = keyof L1Profile

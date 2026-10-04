@@ -2,6 +2,8 @@ import * as fs from "fs"
 import * as path from "path"
 import { app } from "electron"
 import { MemoryStore } from "./memory-types"
+import { AtomicJsonStore } from "../atomic-json-store"
+import { isCurrentMemoryStore } from "./memory-store-defaults"
 
 export function resolveMemoryPath(): string | null {
   // Electron 主进程外（如单测环境）app 可能不存在，直接放弃持久化
@@ -21,7 +23,8 @@ export function readMemoryFile(filePath: string): Partial<MemoryStore> {
 }
 
 export function writeMemoryFile(filePath: string, store: MemoryStore): void {
-  const dir = path.dirname(filePath)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(filePath, JSON.stringify(store, null, 2), "utf8")
+  // Keep the PMRS schema and read-failure guard. The previous valid bytes are
+  // retained in memory.json.bak; recovery is explicit and never replaces a
+  // damaged source with defaults or a backup during load.
+  new AtomicJsonStore<MemoryStore>(filePath, isCurrentMemoryStore).write(store)
 }
