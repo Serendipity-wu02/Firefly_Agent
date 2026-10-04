@@ -7,6 +7,35 @@ const cleanups: Array<() => Promise<unknown>> = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); });
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((done) => { resolve = done; }); return { promise, resolve }; }
 const publicAnswer = [{ address: "93.184.216.34", family: 4 as const }];
+function unresolvedLookups() {
+  const entries: Array<{ resolve: () => void; reject: () => void; settled: boolean }> = [];
+  let peak = 0;
+  const pending = () => entries.filter((entry) => !entry.settled).length;
+  const resolve = (_host: string) => {
+    let done!: (answers: typeof publicAnswer) => void; let fail!: (error: Error) => void;
+    const promise = new Promise<typeof publicAnswer>((yes, no) => { done = yes; fail = no; });
+    const entry = { settled: false, resolve: () => { entry.settled = true; done(publicAnswer); }, reject: () => { entry.settled = true; fail(new Error("synthetic lookup rejection")); } };
+    entries.push(entry); peak = Math.max(peak, pending()); return promise;
+  };
+  cleanups.push(async () => { entries.filter((entry) => !entry.settled).forEach((entry) => entry.resolve()); await new Promise<void>((done) => setImmediate(done)); });
+  return { resolve, entries, pending, peak: () => peak };
+}
+
+async function cancelledLookups(proxy: ConnectProxy, lookups: ReturnType<typeof unresolvedLookups>, attempts: number) {
+  const auth = authorization(proxy); let rejected = 0;
+  for (let i = 0; i < attempts; i++) {
+    const started = lookups.entries.length; let reply: string | undefined;
+    const r = await request(proxy, { auth });
+    const response = r.response.then((text) => { reply = text; return text; }, () => "closed");
+    await vi.waitFor(() => expect(lookups.entries.length > started || reply !== undefined).toBe(true));
+    if (reply) { expect(reply).toContain("503"); rejected++; }
+    r.socket.resetAndDestroy(); await response; // Force actual server-side close, not only a peer FIN.
+    // Real TCP round trip lets the server consume the close/cancellation before
+    // the next CONNECT; no mock of server admission or DNS completion.
+    const barrier = await request(proxy); expect(await barrier.response).toContain("407"); barrier.socket.destroy();
+  }
+  return rejected;
+}
 
 async function fixture(resolve: ProxyDependencies["resolve"] = vi.fn(async (_host: string) => publicAnswer), transport: { connect?: ProxyDependencies["connect"]; remoteAddress?: string } = {}) {
   let hits = 0; const peers = new Set<Socket>(); const bytes: Buffer[] = [];
@@ -115,6 +144,56 @@ describe("authenticated CONNECT proxy: actual local TCP + injected public pin", 
     await entered.promise; await f.proxy.revoke(); lookup.resolve(publicAnswer);
     await response; await Promise.resolve();
     expect(f.dial).not.toHaveBeenCalled(); expect(f.hits()).toBe(0); expect(f.proxy.credentialsFor(challenge(f.proxy))).toBeNull();
+  });
+  it("keeps actual unresolved DNS bounded after 100 authenticated CONNECT cancellations", async () => {
+    const lookups = unresolvedLookups(); const f = await fixture(lookups.resolve);
+    const rejected = await cancelledLookups(f.proxy, lookups, 100);
+    expect(lookups.pending()).toBe(32); expect(lookups.peak()).toBe(32); expect(rejected).toBe(68);
+    expect(f.targets).toHaveLength(0); expect(f.hits()).toBe(0);
+    await f.proxy.revoke(); expect(lookups.pending()).toBe(32); // revoke is not OS DNS cancellation.
+    lookups.entries.forEach((entry) => entry.resolve()); await new Promise<void>((done) => setImmediate(done));
+    expect(lookups.pending()).toBe(0); expect(f.targets).toHaveLength(0); expect(f.hits()).toBe(0);
+  }, 20000);
+  it("preserves unresolved DNS admission across revoked and recreated bindings until settlement", async () => {
+    const lookups = unresolvedLookups(); const first = await fixture(lookups.resolve);
+    await cancelledLookups(first.proxy, lookups, 32); await first.proxy.revoke();
+    const next = await fixture(lookups.resolve);
+    const denied = await request(next.proxy, { auth: authorization(next.proxy) });
+    const response = denied.response.catch(() => "closed");
+    const observed = await Promise.race([response, new Promise<string>((done) => setTimeout(() => done("no rejection"), 200))]);
+    denied.socket.destroy(); await response;
+    expect(observed).toContain("503"); expect(lookups.pending()).toBe(32);
+    lookups.entries[0].reject(); await new Promise<void>((done) => setImmediate(done));
+    const resumed = await request(next.proxy, { auth: authorization(next.proxy) }); const resumedResponse = resumed.response.catch(() => "closed");
+    await vi.waitFor(() => expect(lookups.entries).toHaveLength(33));
+    lookups.entries[32].resolve(); expect(await resumedResponse).toContain("200"); expect(next.hits()).toBe(1);
+    lookups.entries.slice(1, 32).forEach((entry) => entry.resolve()); await new Promise<void>((done) => setImmediate(done));
+    expect(first.targets).toHaveLength(0); expect(next.targets).toHaveLength(1); expect(lookups.pending()).toBe(0);
+  }, 15000);
+  it("holds the DNS budget through the actual 10-second preparation timeout", async () => {
+    const lookups = unresolvedLookups(); const f = await fixture(lookups.resolve);
+    await cancelledLookups(f.proxy, lookups, 31);
+    const timed = await request(f.proxy, { auth: authorization(f.proxy) });
+    await vi.waitFor(() => expect(lookups.pending()).toBe(32));
+    const started = Date.now(); expect(await timed.response).toContain("403");
+    expect(Date.now() - started).toBeGreaterThanOrEqual(9000);
+    const denied = await request(f.proxy, { auth: authorization(f.proxy) });
+    const response = denied.response.catch(() => "closed");
+    const observed = await Promise.race([response, new Promise<string>((done) => setTimeout(() => done("no rejection"), 200))]);
+    denied.socket.destroy(); await response;
+    expect(observed).toContain("503"); expect(lookups.pending()).toBe(32); expect(f.targets).toHaveLength(0);
+  }, 20000);
+  it.each(["synchronous", "promise"])("returns DNS capacity on %s resolver failure", async (failure) => {
+    const failing = await fixture(() => {
+      if (failure === "synchronous") throw new Error("synthetic sync error");
+      return Promise.reject(new Error("synthetic async error"));
+    });
+    for (let i = 0; i < 40; i++) {
+      const r = await request(failing.proxy, { auth: authorization(failing.proxy) });
+      expect(await r.response).toContain("403"); r.socket.destroy();
+    }
+    const healthy = await fixture(); const r = await request(healthy.proxy, { auth: authorization(healthy.proxy) });
+    expect(await r.response).toContain("200"); expect(healthy.hits()).toBe(1); expect(failing.hits()).toBe(0);
   });
   it("owner abort tears down an already established tunnel and prevents credentials reuse", async () => {
     const f = await fixture(); const r = await request(f.proxy, { auth: authorization(f.proxy) });

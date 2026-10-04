@@ -8,6 +8,8 @@ export interface ProxyChallenge { isProxy: boolean; host: string; port: number; 
 export interface ConnectProxy {
   endpoint: { host: "127.0.0.1"; port: number; realm: string };
   credentialsFor(challenge: ProxyChallenge): { username: string; password: string } | null;
+  /** Closes listener/tunnels and disables credentials. OS lookup may outlive
+   * revocation; it retains this Main module's DNS budget until actual settlement. */
   revoke(): Promise<void>;
 }
 export interface ProxyDependencies {
@@ -20,6 +22,18 @@ const defaults: ProxyDependencies = {
   // https://nodejs.org/download/release/v24.19.0/docs/api/net.html#netcreateconnectionoptions-connectlistener
   connect: (target, signal) => connect({ host: target.address, port: target.port, family: target.family, signal }),
 };
+// dns.lookup has no AbortSignal. Cancelled waiters must not return this capacity
+// while OS DNS is still running, including when the Main binding is recreated.
+// Saturation fails closed; never-settling lookups keep at most 32 slots occupied
+// for this Main module instance until they settle or the process exits.
+let pendingLookups = 0;
+function resolveWithinBudget(dependencies: ProxyDependencies, host: string): ReturnType<ProxyDependencies["resolve"]> | null {
+  if (pendingLookups >= 32) return null;
+  pendingLookups++;
+  try {
+    return Promise.resolve(dependencies.resolve(host)).finally(() => { pendingLookups--; });
+  } catch (error) { pendingLookups--; throw error; }
+}
 const digest = (text: string) => createHash("sha256").update(text).digest();
 
 function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -87,7 +101,13 @@ export async function startAuthenticatedConnectProxy(ownerInput: { webContentsId
       let upstream: Socket | undefined;
       try {
         const literalFamily = isIP(target.host);
-        const answers = literalFamily ? [{ address: target.host, family: literalFamily }] : await abortable(dependencies.resolve(target.host), scope.signal);
+        let answers: Awaited<ReturnType<ProxyDependencies["resolve"]>>;
+        if (literalFamily) answers = [{ address: target.host, family: literalFamily }];
+        else {
+          const resolving = resolveWithinBudget(dependencies, target.host);
+          if (!resolving) { reject(client, 503); return; }
+          answers = await abortable(resolving, scope.signal);
+        }
         if (!active || owner.signal.aborted || scope.signal.aborted || client.destroyed) return;
         if (!answers.length || answers.length > 64 || answers.some((answer) => !isPublicNetworkAddress(answer.address) || isIP(answer.address) !== answer.family)) { reject(client, 403); return; }
         const pin: PinnedTarget = { address: answers[0].address, family: answers[0].family as 4 | 6, port: 443 };
