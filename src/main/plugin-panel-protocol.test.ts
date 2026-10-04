@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { probeFileSymlink } from "../../scripts/verify/file-symlink-probe";
 
 vi.mock("electron", () => ({
   protocol: {
@@ -25,15 +26,8 @@ let assetsDir: string;
 let query: PluginPanelAccessQuery;
 
 // Windows 普通用户创建文件符号链接需要开发者模式；不支持时跳过相关用例
-let symlinkSupported = false;
-try {
-  const probe = `${__filename}.link-probe`;
-  symlinkSync(__filename, probe);
-  rmSync(probe);
-  symlinkSupported = true;
-} catch {
-  symlinkSupported = false;
-}
+const { supported: symlinkSupported, reason: symlinkSkipReason } = probeFileSymlink(__filename, `${__filename}.link-probe`);
+if (!symlinkSupported) console.warn(`[plugin-panel-protocol] ${symlinkSkipReason}`);
 
 beforeAll(() => {
   tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-panel-protocol-test-"));
