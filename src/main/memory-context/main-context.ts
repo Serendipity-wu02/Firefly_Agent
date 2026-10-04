@@ -10,7 +10,7 @@ import {extractMaintenance} from "../memory-policy/maintenance-extractor";
 import {policySubjectKey} from "../memory-policy/policy-repository";
 import {ContextError,contextFail,CONTEXT_CLAIM_WINDOW_MS,type ContextBudget,type TokenCounter,type ContextUnit,type PreparedRequest,type BudgetResult,type ContextTransport,type SourceDependency,type FactDependency,type TranscriptDependency,type StoredSummary,type SummaryReceipt,type SummarySegment} from "./context-contracts";
 import {selectBudget,requestDigest,freezeRequest,countPrepared} from "./token-budget";
-import {parseCanonicalTranscript,requireMainTranscriptProvider} from "./main-transcript-provider";
+import {parseCanonicalTranscript,requireMainTranscriptProvider,type TranscriptEventSource} from "./main-transcript-provider";
 import type {ContextFact} from "./context-contracts";
 
 interface ContextOptions {
@@ -22,12 +22,12 @@ interface ContextOptions {
  /** Trusted Main provenance resolver, never a renderer supplied ancestry declaration. */
  resolveDerivedRefs?:(ref:BoundSourceRef)=>BoundSourceRef[]|null;
 }
-interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];currentUserSourceRef?:BoundSourceRef;transcriptTokens?:object[];summaryIds?:string[];historyTokens?:object[];signal?:AbortSignal}
+interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];currentUserSourceRef?:BoundSourceRef;transcriptTokens?:object[];currentTranscript?:{token:object;user?:{turnId:string;revision:number}};summaryIds?:string[];historyTokens?:object[];signal?:AbortSignal}
 interface Snapshot extends BudgetResult {snapshotId:string;generation:number;excluded:{sourceId:string;reason:string}[]}
 interface ResponseProgress {operationId:string;expectedRefs:TranscriptDependency[];check:()=>void}
 interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:ContextFact[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];historyTokens:object[];configuration:string;responseProgress?:ResponseProgress}
 interface PermitState {snapshot:SnapshotState;id:string;used:boolean}
-interface TranscriptState {actorToken:object;ref:TranscriptDependency;unit:ContextUnit;sourceRefs:BoundSourceRef[];adapter:object;locator:string;guardRefs:TranscriptDependency[];firstSeq?:number;lastSeq?:number}
+interface TranscriptState {actorToken:object;ref:TranscriptDependency;unit:ContextUnit;sourceRefs:BoundSourceRef[];adapter:object;locator:string;guardRefs:TranscriptDependency[];provenance?:TranscriptEventSource[];firstSeq?:number;lastSeq?:number}
 interface LeaseState {actorToken:object;id:string;summaryId:string;commandId:string;inputRefs:BoundSourceRef[];transcripts?:TranscriptState[];inputTranscriptRefs?:TranscriptDependency[];beforeUnits?:ContextUnit[]}
 /** Isolated Main seam; no IPC, product caller, account request or prompt dump. */
 export function createMainContext(options:ContextOptions){
@@ -151,7 +151,7 @@ export function createMainContext(options:ContextOptions){
     guardRefs.push(await options.actorAuthority.coordinate(()=>command<TranscriptDependency>(a,"transcriptPublish",{generation:baseline.generation,headId:guardId,operationId:guardOperation,incarnation:view.incarnation,contentRevision:view.revision,throughSeq:view.throughSeq,digest:view.digest,sourceRefs:[]},randomUUID())));
    }
    const ref=await options.actorAuthority.coordinate(()=>command<TranscriptDependency>(a,"transcriptPublish",{generation:baseline.generation,headId,operationId,incarnation:snapshot.incarnation,contentRevision:snapshot.revision,throughSeq:snapshot.throughSeq,digest,sourceRefs:refs,...(snapshot.provenance?{provenance:snapshot.provenance.map((source,index)=>{const parsed=extractMaintenance(snapshot.unit.messages[index].text);return {...source,subjectKeys:source.role==="user"&&parsed.kind==="claims"?parsed.claims.map(c=>policySubjectKey(a.actorKey,c.attribute,c.context,c.cardinality,c.value)):null}})}:{})},randomUUID()));
-   const cap=Object.freeze({});transcriptTokens.set(cap,{actorToken:token,ref,unit:{...snapshot.unit,id:headId},sourceRefs:refs,adapter,locator:id,guardRefs,...(snapshot.provenance?{firstSeq:Math.min(...snapshot.provenance.map(e=>e.seq)),lastSeq:Math.max(...snapshot.provenance.map(e=>e.seq))}:{})});
+   const cap=Object.freeze({});transcriptTokens.set(cap,{actorToken:token,ref,unit:{...snapshot.unit,id:headId},sourceRefs:refs,adapter,locator:id,guardRefs,...(snapshot.provenance?{provenance:snapshot.provenance,firstSeq:Math.min(...snapshot.provenance.map(e=>e.seq)),lastSeq:Math.max(...snapshot.provenance.map(e=>e.seq))}:{})});
    transcriptHeads.set(ref.headId,transcriptTokens.get(cap)!);
    provider.onCaptured?.(cap,id);
    return cap;
@@ -205,6 +205,13 @@ export function createMainContext(options:ContextOptions){
   const historical=(input.historyTokens??[]).map(cap=>readHistoryEvidence(options.actorAuthority,token,cap)),historyDeps=historical.flatMap(h=>h.dependencies);
   if(input.transcriptTokens!==undefined&&(!Array.isArray(input.transcriptTokens)||input.transcriptTokens.length>1000))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const suppliedStates=(input.transcriptTokens??[]).map(v=>transcriptState(token,v)),suppliedRefs=suppliedStates.map(s=>s.ref);
+  // Current user identity comes from an opaque canonical capability, independently of M facts.
+  const current=input.currentTranscript?transcriptState(token,input.currentTranscript.token):undefined;
+  if(current){
+   const user=current.provenance?.[0],expected=input.currentTranscript!.user;
+   if(current!==suppliedStates.at(-1)||user?.role!=="user"||!user.turnId||!user.revision)contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
+   if(expected&&(user.turnId!==expected.turnId||user.revision!==expected.revision))contextFail("MEMORY_CONTEXT_STREAM_TURN_STALE");
+  }
   if(suppliedStates.some(s=>s.firstSeq!==undefined))ordered(suppliedStates);
   if(new Set(suppliedRefs.map(r=>r.headId)).size!==suppliedRefs.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   let toolStates=suppliedStates,toolRefs=suppliedRefs;
@@ -241,8 +248,10 @@ export function createMainContext(options:ContextOptions){
   if(input.currentUserSourceRef&&inspected.sourceStates.some(s=>s.sourceId===input.currentUserSourceRef!.sourceId&&s.reason!=="allowed"))contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE");
   const supports=inspected.facts.map(f=>({factId:f.factId,revision:f.revision,sourceRefs:f.supportSourceRefs}));
   const excluded=[...summaryExcluded,...inspected.sourceStates.filter(s=>s.reason!=="allowed")],allowed=units.filter(u=>!excluded.some(e=>e.sourceId===u.id)&&!(unitSources.get(u.id)??[]).some(id=>excluded.some(e=>e.sourceId===id))&&!summaries.some(s=>s.id===u.id&&s.sourceDeps.some(d=>excluded.some(e=>e.sourceId===d.sourceRef.sourceId))));
+  if(current&&!allowed.some(u=>u.id===current.ref.headId))contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE");
   if(allowed.some(u=>unitSources.has(u.id)&&u.messages[0].role==="assistant"))contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
   const result=await selectBudget({counter:options.counter,budget:options.budget,units:allowed,prepare:u=>options.prepare(u,structuredClone(inspected.facts)),prepareS:options.prepareS,signal:input.signal});
+  if(current&&!result.selectedIds.includes(current.ref.headId))contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
   for(const [index,h] of historical.entries())if(result.selectedIds.includes(h.unit.id))await validateHistoryEvidence(options.actorAuthority,token,input.historyTokens![index]);
   const snapshotId=randomUUID();
   await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,...(includeFactSupportMetadata?{factSupportRefs:supports}:{}),recallDeps:baseline.recallDeps,transcriptRefs:dependencyRefs,guardRefs,historyDeps:historical.filter(h=>result.selectedIds.includes(h.unit.id)).flatMap(h=>h.dependencies),requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:[...result.selectedIds.flatMap(id=>unitSources.get(id)??[]),...(input.currentUserSourceRef?[input.currentUserSourceRef.sourceId]:[])],counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));

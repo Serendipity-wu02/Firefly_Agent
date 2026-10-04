@@ -67,7 +67,7 @@ export function createMainSRuntimePort(options:PortOptions):MainSRuntimePort|nul
    if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");if(target&&!target.isCurrent())contextFail("MEMORY_CONTEXT_RUN_STALE");active=request;
    try{
     if((options.facts||options.history)&&!transcript.captureRun)contextFail("MEMORY_CONTEXT_STREAM_UNSUPPORTED");
-    const capture=target||options.facts||options.history?await transcript.captureRun!(target?.runId):undefined,tokens=capture?.transcriptTokens??await transcript.captureTurns();
+    const capture=transcript.captureRun?await transcript.captureRun(target?.runId):undefined,tokens=capture?.transcriptTokens??await transcript.captureTurns();
     if(target)requireTranscriptSinkBinding(target.sink,target,capture!.store);
     if(target&&capture!.userTurnId!==target.userTurnId)contextFail("MEMORY_CONTEXT_STREAM_TURN_STALE");if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
     if(!tokens.length)contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
@@ -80,7 +80,7 @@ export function createMainSRuntimePort(options:PortOptions):MainSRuntimePort|nul
      factRefs=(await options.facts.selector.selectFactRefs(options.actorToken,currentUserSourceRef,options.facts.limits,signal)).map(({factId,revision})=>({factId,revision}));
     }
     const historyTokens=options.history?await options.history.query({userTurnId:capture!.userTurnId,userRevision:capture!.userRevision,userText:capture!.userText},signal):undefined;
-    const snapshot=await context.assemble(options.actorToken,{sessionId:actor.sessionId,sourceRefs:[],...(currentUserSourceRef?{currentUserSourceRef}:{}),...(factRefs?{factRefs}:{}),...(historyTokens?{historyTokens}:{}),transcriptTokens:tokens,signal});
+    const snapshot=await context.assemble(options.actorToken,{sessionId:actor.sessionId,sourceRefs:[],...(currentUserSourceRef?{currentUserSourceRef}:{}),...(factRefs?{factRefs}:{}),...(historyTokens?{historyTokens}:{}),transcriptTokens:tokens,currentTranscript:{token:tokens.at(-1)!,...(capture?{user:{turnId:capture.userTurnId,revision:capture.userRevision}}:{})},signal});
     if(!snapshot.selectedIds.length)contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
     const permit=await context.validateForDispatch(options.actorToken,snapshot,signal);
     const check=()=>{binding.assertCurrent();if(target&&!target.isCurrent())contextFail("MEMORY_CONTEXT_RUN_STALE")};
