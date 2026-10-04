@@ -11,7 +11,8 @@ import {
 } from "./build-options"
 import type { SocialAtom } from "../social-context/types"
 import type { ConversationMode } from "../../shared/chat-types"
-import { enterPlanDiscussing, resetPlanSessionsForTest } from "./plan-mode"
+import { approvePlan, enterPlanDiscussing, markPlanWritten, moveToReview, resetPlanSessionsForTest } from "./plan-mode"
+import type { ToolDefinition } from "./tools/registry/tool-registry"
 import * as promptLoader from "../prompts/prompt-loader"
 
 function createBuildDeps(): BuildOptionsDeps {
@@ -57,6 +58,57 @@ function createBuildDeps(): BuildOptionsDeps {
 }
 
 describe("build-options", () => {
+  const planCases = (["code", "chat"] as const).flatMap(mode =>
+    (["PLAN_DISCUSSING", "PLAN_REVIEW"] as const).flatMap(state =>
+      [false, true].map(authoritative => ({ mode, state, authoritative })),
+    ),
+  );
+  it.each(planCases)("keeps shell and writes out of $mode $state capabilities (authoritative=$authoritative)", async ({ mode, state, authoritative }) => {
+    const conversationId = `plan-filter-${mode}-${state}-${authoritative}`;
+    const tools: ToolDefinition[] = [
+      { id: "read_file", risk: "fs-read" },
+      { id: "run_shell", risk: "shell" },
+      { id: "write_file", risk: "fs-write" },
+    ].map(tool => ({ ...tool, name: tool.id, description: "Synthetic tool", enabled: true,
+      inputSchema: { type: "object" }, execute: vi.fn(async () => "fixture") }));
+    const deps = createBuildDeps();
+    deps.toolRegistry.getEnabledToolsForMode = () => tools;
+    deps.loadGeneralSettings = () => ({ ...createBuildDeps().loadGeneralSettings(),
+      chatToolsEnabled: true,
+      toolModeOverrides: Object.fromEntries(tools.map(tool => [tool.id, { chat: true }])),
+    });
+    if (authoritative) deps.resolveRunCapabilities = () => ({ mode, tools,
+      toolIds: new Set(tools.map(tool => tool.id)), skills: [], skillIds: new Set() });
+    enterPlanDiscussing(conversationId);
+    if (state === "PLAN_REVIEW") {
+      markPlanWritten(conversationId);
+      expect(moveToReview(conversationId)).toBe(true);
+    }
+    try {
+      const result = await buildAgentRunOptions({ sessionId: conversationId, mode,
+        messages: [{ role: "user", content: "Inspect synthetic plan" }] }, deps);
+      expect(result.options.tools?.map(tool => tool.id)).toEqual(["read_file"]);
+      expect(result.options.capabilities?.tools.map(tool => tool.id)).toEqual(["read_file"]);
+      expect([...result.options.capabilities!.toolIds]).toEqual(["read_file"]);
+      expect(tools.map(tool => tool.id)).toEqual(["read_file", "run_shell", "write_file"]);
+    } finally { resetPlanSessionsForTest(); }
+  });
+  it("restores shell and writes after the synthetic plan is approved for execution", async () => {
+    const conversationId = "plan-filter-executing";
+    const tools = [{ id: "run_shell", risk: "shell" }, { id: "write_file", risk: "fs-write" }];
+    const deps = createBuildDeps();
+    deps.toolRegistry.getEnabledToolsForMode = () => tools;
+    enterPlanDiscussing(conversationId);
+    markPlanWritten(conversationId);
+    expect(moveToReview(conversationId)).toBe(true);
+    expect(approvePlan(conversationId)).toBe(true);
+    try {
+      const result = await buildAgentRunOptions({ sessionId: conversationId, mode: "code",
+        messages: [{ role: "user", content: "Execute synthetic plan" }] }, deps);
+      expect(result.options.tools?.map(tool => tool.id)).toEqual(["run_shell", "write_file"]);
+      expect([...result.options.capabilities!.toolIds]).toEqual(["run_shell", "write_file"]);
+    } finally { resetPlanSessionsForTest(); }
+  });
   it.each([false, true])("injects teaching only for an opted-in progress workspace: %s", async enabled => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "work-teaching-scope-"));
     const loader = vi.spyOn(promptLoader, "loadPromptFile").mockReturnValue("FIXTURE_TEACHING_PROTOCOL");
