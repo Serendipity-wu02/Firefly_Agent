@@ -79,6 +79,17 @@ describe("executeToolDefinition", () => {
     expect(ordinary.status).toBe("succeeded");
   });
 
+  it("retains timeout defaults for success:false tools without explicit failure facts", async () => {
+    const output = JSON.stringify({ success: false, timedOut: true, exitCode: null, stdout: "partial" });
+    const outcome = await executeToolDefinition(fakeTool(async () => output), {});
+    expect(outcome).toMatchObject({ status: "failed", output, errorCode: "E_TOOL_TIMEOUT", category: "timeout", effectState: "unknown", retryable: false });
+  });
+
+  it("preserves structured evidence when explicit failure has no error message", async () => {
+    const output = JSON.stringify({ success: false, errorCode: "E_EXIT", category: "semantic_failure", effectState: "unknown", exitCode: 7, stdout: "partial" });
+    expect(await executeToolDefinition(fakeTool(async () => output), {})).toMatchObject({ status: "failed", output, errorCode: "E_EXIT", effectState: "unknown" });
+  });
+
   it("rethrows AbortError instead of converting cancellation to a tool failure", async () => {
     const error = new Error("cancelled");
     error.name = "AbortError";
