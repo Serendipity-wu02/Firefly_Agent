@@ -12,7 +12,7 @@ interface ToolCatalogItem {
   description: string;
   enabled: boolean;
   modes: Array<"chat" | "work" | "code"> | null;
-  /** chat 模式内置人格工具（如朋友圈三件套）：默认对 chat 可见，不依赖总开关 */
+  /** chat 模式内置人格工具：默认对 chat 可见，不依赖总开关 */
   chatBuiltin?: boolean;
   deprecated: string | null;
 }

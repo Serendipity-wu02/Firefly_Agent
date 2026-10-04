@@ -1,6 +1,6 @@
 .cy-message-list {
-  /* Leave room for the floating Todo/Git card on wide desktop windows. */
-  --cy-message-reading-width: min(100%, clamp(640px, calc(100vw - 560px), 1120px));
+  /* All run content shares the centered, bounded reading column below. */
+  --cy-message-reading-width: 100%;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -9,6 +9,8 @@
 
 .cy-message-list .ant-bubble-list {
   min-height: 100%;
+  max-width: 770px;
+  margin-inline: auto;
 }
 
 .cy-message-list__channel-context {

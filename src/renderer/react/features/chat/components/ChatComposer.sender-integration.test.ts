@@ -354,3 +354,22 @@ describe("ChatComposer 队列与附件展示", () => {
     expect(uploadButton.disabled).toBe(false);
   });
 });
+
+describe("layout stream transition", () => {
+  it("preserves the long draft and keyboard access to Stop when a Work run starts", async () => {
+    const setBusy = await mountComposer({ mode: "work", workspaceName: "legacy-project" });
+    const originalInput = textarea();
+    const draft = "next message\n".repeat(12);
+    input(draft);
+    await setBusy(true);
+    expect(textarea()).toBe(originalInput);
+    expect(textarea().value).toBe(draft);
+    const stop = buttonByLabel(t("composer.stopRun"));
+    expect(stop.disabled).toBe(false);
+    stop.focus();
+    expect(document.activeElement).toBe(stop);
+    act(() => stop.click());
+    expect(handlers.onCancel).toHaveBeenCalledTimes(1);
+    expect(handlers.onSubmit).not.toHaveBeenCalled();
+  });
+});

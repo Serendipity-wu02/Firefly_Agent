@@ -27,8 +27,8 @@ const CodeIcon = (
 
 
 const modes = [
-  { key: "work", label: "Work", icon: WorkIcon },
   { key: "chat", label: "Chat", icon: ChatIcon },
+  { key: "work", label: "Work", icon: WorkIcon },
   { key: "code", label: "Code", icon: CodeIcon },
 ];
 
@@ -38,6 +38,8 @@ export function ModeSwitch({ value, onChange }: ModeSwitchProps) {
       {modes.map((mode) => (
         <button
           key={mode.key}
+          type="button"
+          aria-pressed={mode.key === value}
           className={`cy-segment ${mode.key === value ? "is-active" : ""}`}
           onClick={() => onChange(mode.key)}
         >

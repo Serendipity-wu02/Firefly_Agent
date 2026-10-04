@@ -1,3 +1,4 @@
+import { bindSettingsNavigation, resolveSettingsSection, updateSettingsNavigation } from "./shared/navigation";
 /* 标记！AI写的超大技术债，延期重构*/
 import "../ui/base.css";
 import "./settings.css";
@@ -68,7 +69,7 @@ import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
 import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
-import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, momentsEnabledInput, fireflyMomentsPostingEnabledInput, fireflyMomentsReactionsEnabledInput, momentsCharacterReactionsEnabledInput, momentsLivelinessSelect, momentsPostingRow, momentsReactionsRow, momentsCharacterRow, momentsLivelinessRow, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
+import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, fireflyPanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, fireflySaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
 import { pluginAddBtn, permissionBlocksWrap, permissionNote } from "./plugins/dom";
 import { preferencesState } from "./preferences/state";
@@ -204,12 +205,6 @@ if (!window.settings) {
       proactiveChatMode: "off",
       proactiveDeliveryTarget: "local",
       chatSocialContextEnabled: false,
-      momentsEnabled: true,
-      chatMomentsContextEnabled: true,
-      fireflyMomentsPostingEnabled: false,
-      fireflyMomentsReactionsEnabled: true,
-      momentsCharacterReactionsEnabled: true,
-      momentsLiveliness: "quiet",
       screenshotHotkey: "Alt+Shift+S",
     }),
     saveGeneral: (c) => Promise.resolve(c as GeneralSettings),
@@ -421,15 +416,7 @@ function getProactiveChatValue(): ProactiveChatMode {
   return normalizeProactiveChatMode(getOptionGroupValue(proactiveChatSelect, "off"));
 }
 
-// 朋友圈热闹程度：非法值回落冷清档（与主进程归一化逻辑一致）
-function applyMomentsLivelinessSelection(liveliness: string): void {
-  applyOptionGroupValue(momentsLivelinessSelect, liveliness === "natural" || liveliness === "lively" ? liveliness : "quiet");
-}
 
-function getMomentsLivelinessValue(): "quiet" | "natural" | "lively" {
-  const value = getOptionGroupValue(momentsLivelinessSelect, "quiet");
-  return value === "natural" || value === "lively" ? value : "quiet";
-}
 
 function applyProactiveDeliverySelection(target: ProactiveDeliveryTarget): void {
   applyOptionGroupValue(proactiveDeliverySelect, target);
@@ -559,13 +546,6 @@ function renderProactiveDeliveryVisibility(): void {
   proactiveDeliveryRow.hidden = getProactiveChatValue() !== "on";
 }
 
-// 朋友圈动态总开关关闭时隐藏流萤行为子开关（与主动消息投递行的显隐模式一致）
-function renderMomentsSubRowsVisibility(): void {
-  momentsPostingRow.hidden = !momentsEnabledInput.checked;
-  momentsReactionsRow.hidden = !momentsEnabledInput.checked;
-  momentsCharacterRow.hidden = !momentsEnabledInput.checked;
-  momentsLivelinessRow.hidden = !momentsEnabledInput.checked;
-}
 
 
 function renderUiFont(font: UiFont): void {
@@ -1050,12 +1030,6 @@ async function loadGeneralSettings(): Promise<void> {
     const cita = getCitaUiState({ enabled: cfg.citaEnabled, semanticEngine: cfg.citaSemanticEngine });
     citaEnabledInput.checked = cita.enabled;
     chatSocialContextEnabledInput.checked = normalizeChatSocialContextEnabled(cfg.chatSocialContextEnabled);
-    momentsEnabledInput.checked = cfg.momentsEnabled ?? true;
-    fireflyMomentsPostingEnabledInput.checked = cfg.fireflyMomentsPostingEnabled ?? false;
-    fireflyMomentsReactionsEnabledInput.checked = cfg.fireflyMomentsReactionsEnabled ?? true;
-    momentsCharacterReactionsEnabledInput.checked = cfg.momentsCharacterReactionsEnabled ?? true;
-    applyMomentsLivelinessSelection(cfg.momentsLiveliness ?? "quiet");
-    renderMomentsSubRowsVisibility();
     citaEngineSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
       const selected = button.dataset.value === cita.selectedEngine;
       button.classList.toggle("is-active", selected);
@@ -1286,12 +1260,6 @@ proactiveChatSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach
   });
 });
 
-momentsLivelinessSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
-  button.addEventListener("click", () => {
-    applyMomentsLivelinessSelection(button.dataset.value ?? "quiet");
-    setPreferencesSaveStatus(t("settings.status.dirty"));
-  });
-});
 
 proactiveDeliverySelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
   button.addEventListener("click", () => {
@@ -1605,7 +1573,11 @@ apiForm.addEventListener("submit", async (e) => {
 
 
 
-function switchSection(section: string): void {
+const navigationButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".nav-item"));
+const panelSections = Array.from(document.querySelectorAll<HTMLElement>("[data-panel]"), panel => panel.dataset.panel!);
+
+function switchSection(requestedSection: string): void {
+  const section = resolveSettingsSection(requestedSection, navigationButtons, panelSections);
   const label = NAV_LABELS[section] ?? NAV_LABELS.api;
   sectionTitle.textContent = label.title;
   sectionHint.textContent = label.hint;
@@ -1675,28 +1647,18 @@ function switchSection(section: string): void {
     !isChannels &&
     !isTts &&
     !isAsr &&
-    !isMusic &&
-    !isFeaturePlugins
+    !isMusic
   ) {
 	    placeholderIcon.innerHTML = label.emoji;
     placeholderTitle.textContent = label.title;
     placeholderCopy.textContent = t("settings.placeholder.copy");
   }
 
-  document.querySelectorAll(".nav-item").forEach((el) => {
-    const isMatch = (el as HTMLElement).dataset.section === section;
-    el.classList.toggle("is-active", isMatch);
-  });
-  const activeNav = document.querySelector(".nav-item.is-active");
-  console.log("[Settings/Trace] switchSection section=", section, "activeNav=", activeNav ? (activeNav as HTMLElement).dataset.section : null);
+  updateSettingsNavigation(navigationButtons, section === "music" ? "plugins" : section);
+  document.querySelector(".settings-content")?.scrollTo?.({ top: 0 });
 }
 
-document.querySelectorAll(".nav-item").forEach((el) => {
-  el.addEventListener("click", () => {
-    const section = (el as HTMLElement).dataset.section;
-    if (section) switchSection(section);
-  });
-});
+bindSettingsNavigation(navigationButtons, switchSection);
 
 schedulerNewBtn?.addEventListener("click", () => void openSchedulerEditor());
 schedulerEditorClose?.addEventListener("click", closeSchedulerEditor);
@@ -1907,19 +1869,6 @@ deleteProfileBtn?.addEventListener("click", async () => {
 chatSocialContextEnabledInput.addEventListener("change", () => {
   setPreferencesSaveStatus(t("settings.status.dirty"));
 });
-momentsEnabledInput.addEventListener("change", () => {
-  renderMomentsSubRowsVisibility();
-  setPreferencesSaveStatus(t("settings.status.dirty"));
-});
-fireflyMomentsPostingEnabledInput.addEventListener("change", () => {
-  setPreferencesSaveStatus(t("settings.status.dirty"));
-});
-fireflyMomentsReactionsEnabledInput.addEventListener("change", () => {
-  setPreferencesSaveStatus(t("settings.status.dirty"));
-});
-momentsCharacterReactionsEnabledInput.addEventListener("change", () => {
-  setPreferencesSaveStatus(t("settings.status.dirty"));
-});
 
 customStyleSamplingBtn?.addEventListener("click", () => {
   openCustomStyleModal();
@@ -1946,11 +1895,6 @@ preferencesForm.addEventListener("submit", async (e) => {
       citaEnabled: citaEnabledInput.checked,
       citaSemanticEngine: "remote",
       chatSocialContextEnabled: chatSocialContextEnabledInput.checked,
-      momentsEnabled: momentsEnabledInput.checked,
-      fireflyMomentsPostingEnabled: fireflyMomentsPostingEnabledInput.checked,
-      fireflyMomentsReactionsEnabled: fireflyMomentsReactionsEnabledInput.checked,
-      momentsCharacterReactionsEnabled: momentsCharacterReactionsEnabledInput.checked,
-      momentsLiveliness: getMomentsLivelinessValue(),
       defaultChatMode: "chat",
       segmentedOutputMode: "off",
       mobileMessageSegmentation: getMobileMessageSegmentationValue(),

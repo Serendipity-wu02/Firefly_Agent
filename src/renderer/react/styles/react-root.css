@@ -46,10 +46,10 @@ html, body {
   width: 100vw;
   background: var(--cy-bg-page);
   box-sizing: border-box;
-  padding: 50px 10px 10px 10px;
+  padding: 44px 8px 8px 56px;
   position: relative;
   display: flex;
-  gap: 10px;
+  gap: 8px;
   transition: padding 0.25s ease;
   border: 1px solid var(--cy-border);
   border-radius: var(--cy-window-radius, 24px);
@@ -90,13 +90,13 @@ html, body {
 }
 
 .cy-page.is-collapsed {
-  padding-left: 10px;
+  padding-left: 56px;
 }
 
 .cy-page-toggle {
   position: absolute;
-  top: 10px;
-  left: 8px;
+  top: 6px;
+  left: 56px;
 }
 
 .cy-page-top-center {
@@ -122,7 +122,7 @@ html, body {
 .cy-page-sidebar {
   display: flex;
   flex-direction: column;
-  width: 192px;
+  width: 240px;
   flex-shrink: 0;
   min-height: 0;
   transition: width 0.25s ease, opacity 0.2s ease;
@@ -133,6 +133,7 @@ html, body {
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
+  visibility: hidden;
 }
 
 .cy-page-main {
@@ -286,6 +287,7 @@ html, body {
   box-sizing: border-box;
   justify-content: center;
   padding: 22px 28px;
+  flex-shrink: 0;
   transition: padding 240ms ease;
 }
 
@@ -367,3 +369,89 @@ html, body {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
 }
+
+/* Fixed application rail and collapsible conversation context. */
+.cy-page-rail {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 48px;
+  box-sizing: border-box;
+  padding: 48px 4px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-right: 1px solid var(--cy-border);
+  background: var(--cy-bg-page);
+  app-region: no-drag;
+}
+.cy-rail-button,
+.cy-page-rail .cy-side-action,
+.cy-page-rail .cy-settings-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cy-text-muted);
+  cursor: pointer;
+}
+.cy-page-rail .cy-side-action-label { display: none; }
+.cy-rail-button:hover,
+.cy-rail-button.is-active,
+.cy-page-rail .cy-side-action.is-active { background: var(--cy-bg-active); color: var(--cy-accent); }
+.cy-page-rail-bottom { margin-top: auto; }
+.cy-page-context-header {
+  padding: 8px 10px 16px;
+  font: 650 20px/1.2 var(--rb-font-sans, sans-serif);
+  color: var(--cy-text);
+}
+.cy-page-sidebar .cy-segmented { align-self: stretch; margin: 0 4px; }
+.cy-page-sidebar .cy-segment { flex: 1; min-width: 0; gap: 4px; padding-inline: 4px; }
+.cy-page-more { display: grid; min-width: 168px; gap: 4px; }
+.cy-page-more .cy-side-action { width: 100%; }
+.cy-page button:focus-visible,
+.cy-page-more button:focus-visible {
+  outline: 2px solid var(--cy-accent);
+  outline-offset: 2px;
+}
+.cy-page-dock.is-compact .cy-dock-separator { height: 8px; width: 100%; }
+.cy-page-dock.is-compact .cy-dock-separator::after {
+  inset: 50% 0 auto;
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+.cy-dock-separator:focus-visible::after { background: var(--cy-accent); }
+
+@media (max-width: 900px) {
+  .cy-page-sidebar {
+    position: absolute;
+    top: 44px;
+    bottom: 8px;
+    left: 56px;
+    z-index: 40;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid var(--cy-border);
+    border-radius: 10px;
+    background: var(--cy-bg-page);
+    box-shadow: var(--cy-shadow-control-hover);
+    app-region: no-drag;
+  }
+  .cy-workspace-composer,
+  .cy-workspace.has-messages .cy-workspace-composer { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cy-page, .cy-page-sidebar { transition: none; }
+}
+
+.cy-page-dock.is-compact .cy-workspace-composer { padding: 12px; }
+.cy-page-dock.is-compact textarea.ant-sender-input { max-height: min(120px, 12vh) !important; overflow-y: auto !important; }
+.cy-page-dock.is-compact .cy-message-list { padding: 12px; }
+.cy-workspace { overflow-y: auto; }
+
+.cy-workspace, .cy-right-inspector { box-sizing: border-box; }

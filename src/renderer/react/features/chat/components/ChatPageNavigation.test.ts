@@ -38,7 +38,7 @@ vi.mock("./ConversationSidebar", () => ({
 import { ChatPageNavigation } from "./ChatPageNavigation";
 
 describe("ChatPageNavigation", () => {
-  it("hides the mode switch while a tool panel is open", () => {
+  it("keeps context modes while a tool panel is open", () => {
     const html = renderToStaticMarkup(createElement(ChatPageNavigation, {
       collapsed: false,
       activePanel: "tool",
@@ -61,12 +61,12 @@ describe("ChatPageNavigation", () => {
       onOpenSettings: () => undefined,
     }));
 
-    expect(html).not.toContain("mode-switch");
-    expect(html).toContain("tool-button:true");
+    expect(html).toContain("mode-switch");
+    expect(html).toContain("更多");
     expect(html).toContain("conversation-sidebar:loading");
   });
 
-  it("places the plugin entry after the model entry and marks it active", () => {
+  it("places the plugin entry in the rail and marks it active", () => {
     const html = renderToStaticMarkup(createElement(ChatPageNavigation, {
       collapsed: false,
       activePanel: "plugin",
@@ -89,8 +89,9 @@ describe("ChatPageNavigation", () => {
       onOpenSettings: () => undefined,
     }));
 
-    expect(html.indexOf("model-button")).toBeLessThan(html.indexOf("plugin-button:true"));
-    expect(html).not.toContain("mode-switch");
+    expect(html).toContain("plugin-button:true");
+    expect(html).toContain("cy-page-rail");
+    expect(html).toContain("mode-switch");
     expect(html).toContain("conversation-sidebar:error");
   });
 });

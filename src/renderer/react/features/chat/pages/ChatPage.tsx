@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../../i18n";
 import { DownOutlined } from "@ant-design/icons";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
+import { useCompactDock } from "./useCompactDock";
 import { ChatComposer, parseComposerMessage } from "../components/ChatComposer";
 import { ComposerSlot } from "../components/ComposerSlot";
 import { TodoPanel } from "../components/TodoPanel";
@@ -155,6 +156,8 @@ export function ChatPage() {
   const feedback = useFeedback();
   const preferredAddress = useUserCallPreference();
   const [collapsed, setCollapsed] = useState(false);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const compactDock = useCompactDock(dockRef);
   const [activePanel, setActivePanel] = useState<ChatPagePanel | null>(null);
   /** 右侧面板已打开的 diff 标签，ID 规范 diff:<runId>:<文件路径>，同 ID 只激活不重开 */
   const [diffTabs, setDiffTabs] = useState<
@@ -1571,7 +1574,7 @@ export function ChatPage() {
   const navMinimize = useCallback(() => window.chat?.minimize(), []);
   const navMaximize = useCallback(() => window.chat?.toggleMaximize(), []);
   const navCloseWindow = useCallback(() => window.chat?.close(), []);
-  const navOpenSettings = useCallback(() => sidebarApi()?.openSettings("appearance"), []);
+  const navOpenSettings = useCallback(() => sidebarApi()?.openSettings("general"), []);
 
   return (
     <div className={`cy-page ${collapsed ? "is-collapsed" : ""}`}>
@@ -1599,14 +1602,15 @@ export function ChatPage() {
       />
       {/* 右栏可拖宽布局：聊天区 Panel 常驻（保证内容不重挂载），右侧面板按需挂载 */}
       <Group
-        orientation="horizontal"
-        className="cy-page-dock"
-        defaultLayout={defaultLayout}
-        onLayoutChanged={onLayoutChanged}
+        elementRef={dockRef}
+        orientation={compactDock ? "vertical" : "horizontal"}
+        className={`cy-page-dock ${compactDock ? "is-compact" : ""}`}
+        defaultLayout={compactDock ? undefined : defaultLayout}
+        onLayoutChanged={compactDock ? undefined : onLayoutChanged}
         // 拖动条命中区外溢到两侧（视觉条只有 12px，命中区鼠标 24px / 触屏 33px）
         resizeTargetMinimumSize={{ coarse: 33, fine: 24 }}
       >
-        <Panel id="chat" minSize={480} className="cy-dock-body">
+        <Panel id="chat" minSize={compactDock ? "60%" : 360} className="cy-dock-body">
       <main
         className={`cy-page-main cy-workspace ${hasMessages ? "has-messages" : "is-empty"} ${isDraggingFiles ? "is-dragging-files" : ""}`}
         onDragEnter={dragHandlers.onDragEnter}
@@ -1637,12 +1641,14 @@ export function ChatPage() {
         <>
         {(mode === "work") && (
           <TodoPanel
+            docked
             state={activeSessionId ? todoStateBySession[activeSessionId] : null}
             mode={mode}
           />
         )}
         {mode === "code" && activeSessionId && (
           <CodeGitPanel
+            docked
             sessionId={activeSessionId}
             projectName={workspaceNames.code}
             todoState={todoStateBySession[activeSessionId] ?? null}
@@ -1816,7 +1822,7 @@ export function ChatPage() {
         {inspectorTabIds.length > 0 && (
           <>
             <Separator className="cy-dock-separator" />
-            <Panel id="inspector" defaultSize="45" minSize={320} maxSize="70%" className="cy-dock-body">
+            <Panel id="inspector" defaultSize={compactDock ? "30%" : "40%"} minSize={compactDock ? "15%" : 320} maxSize={compactDock ? "40%" : "70%"} className="cy-dock-body">
               <ChatPageInspector
                 sessionId={activeSessionId}
                 workspaceRoot={activeSession?.workspaceBinding?.workspaceRoot}

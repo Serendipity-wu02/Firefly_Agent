@@ -109,13 +109,6 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   citaEnabled: boolean;
   citaSemanticEngine: "remote" | "local";
   chatSocialContextEnabled: boolean;
-  momentsEnabled: boolean;
-  chatMomentsContextEnabled: boolean;
-  fireflyMomentsPostingEnabled: boolean;
-  fireflyMomentsReactionsEnabled: boolean;
-  momentsCharacterReactionsEnabled: boolean;
-  /** 朋友圈热闹程度：抽签人数分布与角色日调用上限联动档位 */
-  momentsLiveliness: "quiet" | "natural" | "lively";
   petAlwaysOnTop: boolean;
   petVisible: boolean;
   petZoom: number;

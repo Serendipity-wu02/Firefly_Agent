@@ -294,3 +294,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.cy-todo.cy-todo--docked { position: relative; z-index: 1; width: 100%; height: auto; min-height: 0; flex: 0 0 auto; border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--cy-border); }
+.cy-todo--docked .cy-todo__dragbar { justify-content: flex-start; cursor: pointer; color: var(--cy-text-secondary); }
+.cy-todo__dock-label { font-size: 12px; padding-right: 28px; }
+.cy-todo--docked:not(.cy-todo--collapsed) .cy-todo__body { max-height: 160px; overflow-y: auto; flex: none; }
+.cy-todo--docked .cy-todo__todos { flex: none; }

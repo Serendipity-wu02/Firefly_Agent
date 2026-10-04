@@ -143,7 +143,7 @@ export const ConversationSidebar = memo(function ConversationSidebar({
     }
     return result;
   }, [sessions]);
-  const projectKeys = useMemo(() => [...projects.keys()], [projects]);
+  const projectKeys = useMemo(() => ["pinned", "recent", ...projects.keys()], [projects]);
   const [expandedKeys, setExpandedKeys] = useState<string[]>(projectKeys);
 
   useEffect(() => {
@@ -217,12 +217,12 @@ export const ConversationSidebar = memo(function ConversationSidebar({
             />
           ) : (
             <span className="cy-session-label">
-              <span className="cy-session-label__title">{session.title || t("sidebar.defaultSessionTitle")}</span>
+              <span className="cy-session-label__title" title={session.title || t("sidebar.defaultSessionTitle")}>{session.title || t("sidebar.defaultSessionTitle")}</span>
               {session.pinned && <PushpinOutlined className="cy-session-label__pin" />}
             </span>
           ),
         icon: <ConversationIcon />,
-        ...(supportsProjects ? { group: session.workspaceRoot ?? `unbound:${session.id}` } : {}),
+        group: supportsProjects ? session.workspaceRoot ?? `unbound:${session.id}` : session.pinned ? "pinned" : "recent",
       })),
     [sortedSessions, editing, t, supportsProjects, onRename],
   );
@@ -318,7 +318,7 @@ export const ConversationSidebar = memo(function ConversationSidebar({
               onActiveChange={(key) => {
                 onSelect(String(key));
               }}
-              groupable={supportsProjects ? {
+              groupable={{
                 collapsible: true,
                 expandedKeys,
                 // @ant-design/x 2.9.0 在 setState updater 内部调用 onExpand（use-collapsible.js），
@@ -329,6 +329,8 @@ export const ConversationSidebar = memo(function ConversationSidebar({
                   queueMicrotask(() => setExpandedKeys(keys));
                 },
                 label: (group) => {
+                  if (group === "pinned") return t("sidebar.pinnedTitle");
+                  if (group === "recent") return t("sidebar.recentTitle");
                   const project = projects.get(group);
                   if (!project) return null;
                   return (
@@ -352,7 +354,7 @@ export const ConversationSidebar = memo(function ConversationSidebar({
                     </Popover>
                   );
                 },
-              } : false}
+              }}
             />
           </div>
           {contextMenu.open && (

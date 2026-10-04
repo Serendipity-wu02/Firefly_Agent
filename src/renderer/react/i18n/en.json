@@ -645,7 +645,9 @@
     "exportMarkdown": "Export Markdown",
     "exportFailed": "Export failed: task is unfinished or cannot be saved",
     "unpin": "Unpin",
-    "pin": "Pin"
+    "pin": "Pin",
+    "pinnedTitle": "Pinned",
+    "recentTitle": "Recent"
   },
   "workRead": {
     "complete": "Complete read verified",
@@ -672,63 +674,13 @@
     "tools": "Tools",
     "skills": "Skills",
     "plugins": "Plugins",
-    "moments": "Moments",
     "modelNotConnected": "No model connected",
     "userAlt": "You",
     "settings": "Settings",
-    "newButton": "New"
-  },
-  "moments": {
-    "title": "Moments",
-    "subtitle": "Capture little moments with Firefly",
-    "postCount": "{{count}} posts",
-    "composerTitlePlaceholder": "Title (optional)",
-    "composerPlaceholder": "Share a moment…",
-    "addImages": "Add images",
-    "imagesCount": "{{count}}/9",
-    "publish": "Post",
-    "publishing": "Posting…",
-    "publishFailed": "Couldn't post — please try again later",
-    "empty": "No moments yet — post the first one",
-    "loadFailed": "Couldn't load moments",
-    "apiUnavailable": "The moments service is unavailable right now",
-    "fireflyName": "Firefly",
-    "userFallbackName": "Me",
-    "like": "Like",
-    "comment": "Comment",
-    "commentPlaceholder": "Comment…",
-    "replyPlaceholder": "Reply to {{name}}…",
-    "send": "Send",
-    "cancel": "Cancel",
-    "delete": "Delete",
-    "confirmDelete": "Delete this post? Its comments and likes will go too.",
-    "replyPrefix": "Reply",
-    "mention": {
-      "pickerEmpty": "No matching names",
-      "fireflyOptionLabel": "Firefly"
-    },
-    "notice": {
-      "title": "Notifications",
-      "bellTitle": "Activity notifications",
-      "empty": "No activity yet",
-      "actionLike": " liked your post",
-      "actionComment": " commented on your post",
-      "actionReply": " replied to you"
-    },
-    "time": {
-      "justNow": "Just now",
-      "minutesAgo": "{{count}} min ago",
-      "yesterday": "Yesterday"
-    },
-    "error": {
-      "invalid_input": "Content is empty or too long",
-      "too_many_images": "You can add up to 9 images",
-      "image_too_large": "Image is too large or empty (max 15MB each)",
-      "unsupported_mime": "Only PNG / JPEG / WebP images are supported",
-      "post_not_found": "This post no longer exists",
-      "reply_to_not_found": "The comment you replied to no longer exists",
-      "reaction_exists": "You already liked this",
-      "moments_disabled": "Moments are turned off"
-    }
+    "newButton": "New",
+    "workbench": "Workbench",
+    "more": "More",
+    "navigation": "Main navigation",
+    "contextSidebar": "Conversations and projects"
   }
 }

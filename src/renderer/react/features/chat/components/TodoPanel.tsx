@@ -5,6 +5,7 @@ import { useFloatingCard } from "./floating-card";
 import "./TodoPanel.css";
 
 export interface TodoPanelProps {
+  docked?: boolean;
   state: TodoState | null;
   mode: "work";
 }
@@ -61,9 +62,9 @@ function ModeCapsule({ mode }: { mode: TodoPanelProps["mode"] }) {
   );
 }
 
-export function TodoPanel({ state, mode }: TodoPanelProps) {
+export function TodoPanel({ state, mode, docked = false }: TodoPanelProps) {
   const { t } = useTranslation();
-  const floating = useFloatingCard({ width: DEFAULT_WIDTH });
+  const floating = useFloatingCard({ width: DEFAULT_WIDTH, defaultCollapsed: docked });
 
   const todos = state?.todos ?? [];
   const total = todos.length;
@@ -72,20 +73,20 @@ export function TodoPanel({ state, mode }: TodoPanelProps) {
 
   return (
     <div
-      className={`cy-todo ${floating.collapsed ? "cy-todo--collapsed" : ""}`}
-      style={{ left: floating.position.x, top: floating.position.y }}
+      className={`cy-todo ${docked ? "cy-todo--docked" : ""} ${floating.collapsed ? "cy-todo--collapsed" : ""}`}
+      style={docked ? undefined : { left: floating.position.x, top: floating.position.y }}
       role="region"
       aria-label={t("todo.panelAria")}
     >
       <button
         type="button"
         className="cy-todo__dragbar"
-        onMouseDown={floating.onHeaderMouseDown}
+        onMouseDown={docked ? undefined : floating.onHeaderMouseDown}
         onClick={floating.onHeaderClick}
         aria-expanded={!floating.collapsed}
-        title={t("todo.drag")}
+        title={t(docked ? "todo.panelAria" : "todo.drag")}
       >
-        <span className="cy-todo__dragline" />
+        {docked ? <span className="cy-todo__dock-label">{t("todo.panelAria")}</span> : <span className="cy-todo__dragline" />}
         <span
           className="cy-todo__toggle"
           data-floating-toggle
@@ -98,7 +99,7 @@ export function TodoPanel({ state, mode }: TodoPanelProps) {
         </span>
       </button>
 
-      <div className="cy-todo__body">
+      <div className="cy-todo__body" inert={floating.collapsed} aria-hidden={floating.collapsed}>
         <div className="cy-todo__capsule-row">
           <ModeCapsule mode={mode} />
         </div>

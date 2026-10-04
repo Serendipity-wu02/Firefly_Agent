@@ -55,7 +55,7 @@ export function RightInspector({
               {tab.dotClass && (
                 <span className={`cy-right-inspector__dot ${tab.dotClass}`} aria-hidden="true" />
               )}
-              {tab.label}
+              <span title={tab.label}>{tab.label}</span>
             </>
           ),
           children: tab.content,

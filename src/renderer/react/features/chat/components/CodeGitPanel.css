@@ -46,3 +46,9 @@
 .cy-code-git-modal__branch-list button { min-height:34px; border:0; border-radius:8px; background:#fff; color:#183628; text-align:left; cursor:pointer; }.cy-code-git-modal__branch-list button:hover:not(:disabled) { background:#e9f6ef; }.cy-code-git-modal__branch-list button:disabled { color:#6f8e7b; cursor:default; }
 .cy-code-git-modal__new-branch { display:flex; gap:8px; margin-top:14px; }.cy-code-git-modal__new-branch button,.cy-code-git-modal__commit-section > button { border:0; border-radius:8px; background:#2d7a5f; color:#fff; cursor:pointer; font-weight:600; }.cy-code-git-modal__new-branch button { flex:0 0 auto; padding:0 12px; }.cy-code-git-modal__new-branch button:disabled,.cy-code-git-modal__commit-section > button:disabled { background:#a5c9b2; cursor:default; }
 .cy-code-git-modal__commit-section { display:flex; flex-direction:column; gap:10px; }.cy-code-git-modal__commit-section + .cy-code-git-modal__commit-section { margin-top:18px; padding-top:18px; border-top:1px solid #e9f6ef; }.cy-code-git-modal__commit-section > button { min-height:36px; padding:0 14px; }
+
+.cy-code-git.cy-code-git--docked { position: relative; z-index: 1; width: 100%; height: auto; min-height: 0; flex: 0 0 auto; border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--cy-border); }
+.cy-code-git--docked .cy-code-git__dragbar { justify-content: flex-start; cursor: pointer; color: var(--cy-text-secondary); }
+.cy-code-git__dock-label { font-size: 12px; padding-right: 28px; }
+.cy-code-git--docked:not(.cy-code-git--collapsed) .cy-code-git__body { max-height: 160px; overflow-y: auto; flex: none; }
+.cy-code-git--docked .cy-code-git__todos { flex: none; }

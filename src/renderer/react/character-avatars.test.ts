@@ -3,7 +3,7 @@ import { TASK_CHARACTERS } from "../../shared/task-characters";
 import { getCharacterPortraitByAssetFileName } from "./character-portraits";
 import { getCharacterAvatar } from "./character-avatars";
 
-describe("Moments character avatars", () => {
+describe("Shared character avatars", () => {
   it("resolves only the current Kafka portrait filename", () => {
     expect(getCharacterPortraitByAssetFileName("卡夫卡.png")).toBeNull();
     expect(getCharacterPortraitByAssetFileName("卡芙卡.png")).toBeTruthy();

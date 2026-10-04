@@ -4,7 +4,6 @@ import type { ReviewSnapshot, ReviewRestoreOutcome } from "../shared/review-type
 import type { AppUpdateApi } from "../shared/app-update";
 import type { StickerManagerApi } from "../shared/sticker-types";
 import type { PluginManagementApi, PluginPanelApi } from "../shared/plugin-management";
-import type { MomentsApi } from "../shared/moments-types";
 import type { WorkspaceListResult, WorkspaceReadResult } from "../shared/workspace-files-types";
 import type { OpenInAppListResult, OpenInAppOpenResult } from "../shared/open-in-app-types";
 
@@ -75,7 +74,6 @@ declare global {
     appUpdate?: AppUpdateApi;
     plugins?: PluginManagementApi;
     pluginPanel?: PluginPanelApi;
-    moments?: MomentsApi;
     toast?: ToastRendererApi;
     chat?: ChatWindowApi;
     stickerManager?: StickerManagerApi;

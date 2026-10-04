@@ -43,4 +43,14 @@ describe("CodeGitPanel", () => {
     expect(html.slice(planStatusStart)).not.toContain("cy-plan-control");
     expect(html).not.toContain(">审阅<");
   });
+  it("docks the collapsed Git controls without hiding focusable actions offscreen", () => {
+    const html = renderToStaticMarkup(React.createElement(CodeGitPanel, {
+      sessionId: "s1", todoState: null, docked: true,
+    }));
+    expect(html).toContain("cy-code-git--docked");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('inert=""');
+    expect(html).not.toContain('style="left:');
+  });
+
 });
