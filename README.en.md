@@ -68,6 +68,14 @@ Create a model profile in application settings, supply the protocol, address, mo
 
 ## Checks and local packaging
 
+Windows batch files follow the same development isolation contract. `setup.bat` prepares the build without persisting a profile root. After creating the directory and building as above, a new PowerShell session can supply the existing root explicitly:
+
+```powershell
+.\start.bat (Resolve-Path -LiteralPath ".\output\development-profile").Path
+```
+
+`start.bat` uses this checkout's built CLI and sets the supplied isolation root for that invocation only. With no argument, it inherits FIREFLY_ISOLATION_ROOT (or the legacy explicit smoke root) while still selecting development. A missing root prints usage and exits 1; Main continues to reject invalid paths and production overlap, and child failure codes are preserved. Double-clicking requires an inherited explicit root: temporary variables set in another terminal are not inherited. The script does not create a directory automatically.
+
 These commands come from the current [package.json](./package.json):
 
 ```powershell

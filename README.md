@@ -66,6 +66,14 @@ npm start
 
 在应用设置中创建模型档案，填写服务实际支持的协议、地址、模型和自己的凭据，再选择档案。仓库不附带密钥或可直接使用的模型配置。发送给模型的对话、所选资料和工具结果可能离开本机，取决于你选择的服务与操作。
 
+Windows 批处理遵循同一开发隔离规则：`setup.bat` 只准备构建产物，不持久化隔离目录。已按上面的步骤创建目录并构建后，新 PowerShell 会话可显式传入目录，无需重新设置环境变量：
+
+```powershell
+.\start.bat (Resolve-Path -LiteralPath ".\output\development-profile").Path
+```
+
+`start.bat` 使用本仓库的构建 CLI；参数只在这次启动中设置隔离根。无参数时沿用当前进程的 `FIREFLY_ISOLATION_ROOT`（或旧显式 smoke 隔离根），仍选择 `development`。缺少隔离根时会提示用法并以错误码 1 退出；无效路径或正式目录重叠仍由 Main 拒绝，应用失败码会保留。双击启动不会继承另一终端里临时设置的变量，需要已继承的显式隔离根；脚本不会自动创建目录。
+
 ## 检查与本地打包
 
 以下命令来自当前 [package.json](./package.json)：
