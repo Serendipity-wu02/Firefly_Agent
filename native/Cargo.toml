@@ -22,3 +22,8 @@ history-read = ["windows/Wdk_Foundation", "windows/Wdk_Storage_FileSystem", "win
 name = "firefly-history-read"
 path = "src/bin/firefly-history-read.rs"
 required-features = ["history-read"]
+
+[[bin]]
+name = "firefly-history-presence"
+path = "src/bin/firefly-history-presence.rs"
+required-features = ["history-read"]

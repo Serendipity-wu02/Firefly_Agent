@@ -203,6 +203,18 @@ export function initialize(): void {
   initialized = true;
 }
 
+export type CachedCoverageSessions =
+  | { state: "not-ready" | "read-failed" | "budget-exhausted"; ids: null }
+  | { state: "ready"; rootDir: string; ids: readonly string[] };
+
+/** Main-only census of the current index cache; never initializes or touches disk. */
+export function getCachedSessionIdsForCoverage(): CachedCoverageSessions {
+  if (!initialized) return { state: "not-ready", ids: null };
+  if (indexReadFailed) return { state: "read-failed", ids: null };
+  if (indexCache.length > 10_000) return { state: "budget-exhausted", ids: null };
+  return { state: "ready", rootDir, ids: Object.freeze(indexCache.map((session) => session.id)) };
+}
+
 export function getRootDir(): string {
   return rootDir;
 }

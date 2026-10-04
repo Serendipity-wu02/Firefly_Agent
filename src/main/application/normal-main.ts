@@ -13,7 +13,7 @@ import { createApplication } from "./application";
 import { createDefaultApplicationDependencies } from "./default-dependencies";
 import { registerPluginPanelScheme } from "../plugin-panel-protocol";
 import { installGlobalNavigationGuard } from "../windows/external-link";
-import { initializeMainFileLogging } from "../logger";
+import { initializeMainFileLogging, logger, LogTag } from "../logger";
 
 // 打包版双击启动时 stdout/stderr 管道可能不存在或中途关闭，
 // 此时任何 console.log 写入都会抛异步 EPIPE 并升级成 uncaughtException 弹错误框
@@ -35,6 +35,27 @@ registerPluginPanelScheme();
 // http(s) 外链转交系统浏览器。必须在任何窗口创建之前注册。
 installGlobalNavigationGuard();
 
+// Host/Main launch configuration only; no renderer IPC or periodic execution.
+const presenceOnceRequested = process.env.FIREFLY_HISTORY_PRESENCE_ONCE === "1";
+const presenceHelper = process.env.FIREFLY_HISTORY_PRESENCE_HELPER;
+async function runHistoryPresenceOnce(): Promise<void> {
+  if (!presenceHelper) {
+    logger.warn(LogTag.Runtime, "history presence once", { status: "not-measured", reason: "helper-not-configured" });
+    return;
+  }
+  const controller = new AbortController();
+  const cancel = (): void => controller.abort();
+  app.once("before-quit", cancel);
+  try {
+    const { selectCachedHistoryCoverage, measureHistoryPresence } = await import("../memory-sources/native-history-coverage");
+    const { createNativeHistoryPresenceEndpoint } = await import("../memory-sources/native-history-presence-process");
+    const result = await measureHistoryPresence(selectCachedHistoryCoverage(), createNativeHistoryPresenceEndpoint(presenceHelper), { signal: controller.signal });
+    logger.warn(LogTag.Runtime, "history presence once", result);
+  } catch {
+    logger.warn(LogTag.Runtime, "history presence once", { status: "not-measured", reason: "measurement-failed" });
+  } finally { app.removeListener("before-quit", cancel); }
+}
+
 const application = createApplication(createDefaultApplicationDependencies());
 
 application.installLifecycleHandlers();
@@ -42,6 +63,9 @@ application.prepareBeforeReady();
 
 if (application.isPrimaryProcess()) {
   void app.whenReady()
-    .then(() => application.start())
+    .then(async () => {
+      await application.start();
+      if (presenceOnceRequested) await runHistoryPresenceOnce();
+    })
     .catch((error) => application.handleFatalStartup(error));
 }

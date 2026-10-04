@@ -73,6 +73,19 @@ impl HistoryReadError {
         }
     }
 }
+/// Point-in-time metadata observation, never a content/evidence lease.
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum SnapshotPresence {
+    Present,
+    Missing { component: &'static str },
+    UnknownDenied { reason: &'static str },
+}
+fn precise_absence(error: &HistoryReadError) -> bool {
+    // STATUS_NO_SUCH_FILE / STATUS_OBJECT_NAME_NOT_FOUND only. PATH_NOT_FOUND
+    // is ambiguous and must not be silently promoted to absence.
+    matches!(error, HistoryReadError::OpenFailed(code) if [0xc000000fu32 as i32, 0xc0000034u32 as i32].contains(code))
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileIdentity {
@@ -143,6 +156,70 @@ impl AuthorizedHistoryRoot {
     }
     pub fn identity(&self) -> FileIdentity {
         self.identity
+    }
+    /// Fixed transcripts/session/snapshot metadata only. Retains every validated
+    /// ancestor until the leaf observation ends, then closes all acquired handles.
+    pub fn probe_snapshot_presence(&self, session_id: &str) -> SnapshotPresence {
+        self.probe_presence(session_id)
+            .unwrap_or_else(|error| SnapshotPresence::UnknownDenied {
+                reason: error.code(),
+            })
+    }
+    fn probe_presence(&self, session_id: &str) -> Result<SnapshotPresence, HistoryReadError> {
+        if !valid_component(session_id) {
+            return Err(HistoryReadError::InvalidPath);
+        }
+        let root_metadata = inspect(self.handle.as_ref())?;
+        validate_type(root_metadata, true)?;
+        if root_metadata.identity != self.identity {
+            return Err(HistoryReadError::Changed);
+        }
+        let mut directories = vec![Arc::clone(&self.handle)];
+        for (name, component, directory) in [
+            ("transcripts", "transcripts", true),
+            (session_id, "session", true),
+            ("snapshot.json", "snapshot", false),
+        ] {
+            let parent = directories.last().unwrap().as_ref();
+            let opened = if directory {
+                open_native(Some(parent), name, true)
+            } else {
+                open_native_with_access(
+                    Some(parent),
+                    name,
+                    false,
+                    FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                )
+            };
+            let handle = match opened {
+                Ok(handle) => handle,
+                Err(error) if precise_absence(&error) => {
+                    return Ok(SnapshotPresence::Missing { component });
+                }
+                Err(error) => return Err(error),
+            };
+            let metadata = inspect(&handle)?;
+            validate_type(metadata, directory)?;
+            if metadata.identity.volume_serial != self.identity.volume_serial {
+                return Err(HistoryReadError::UnsupportedFilesystem);
+            }
+            if !directory && metadata.links != 1 {
+                return Err(HistoryReadError::MultipleLinks);
+            }
+            #[cfg(test)]
+            testing::hook(
+                if directory {
+                    testing::Stage::Ancestor
+                } else {
+                    testing::Stage::Leaf
+                },
+                &handle,
+            );
+            if directory {
+                directories.push(Arc::new(handle));
+            }
+        }
+        Ok(SnapshotPresence::Present)
     }
     pub fn open_snapshot(
         &self,
@@ -250,6 +327,20 @@ fn open_native(
     name: &str,
     directory: bool,
 ) -> Result<OwnedHandle, HistoryReadError> {
+    let access = if directory {
+        FILE_LIST_DIRECTORY
+    } else {
+        FILE_READ_DATA
+    } | FILE_READ_ATTRIBUTES
+        | SYNCHRONIZE;
+    open_native_with_access(parent, name, directory, access)
+}
+fn open_native_with_access(
+    parent: Option<&OwnedHandle>,
+    name: &str,
+    directory: bool,
+    access: FILE_ACCESS_RIGHTS,
+) -> Result<OwnedHandle, HistoryReadError> {
     let mut wide: Vec<u16> = name.encode_utf16().collect();
     let byte_length = wide
         .len()
@@ -268,12 +359,6 @@ fn open_native(
         Attributes: OBJ_CASE_INSENSITIVE | OBJ_DONT_REPARSE,
         ..Default::default()
     };
-    let access: FILE_ACCESS_RIGHTS = if directory {
-        FILE_LIST_DIRECTORY
-    } else {
-        FILE_READ_DATA
-    } | FILE_READ_ATTRIBUTES
-        | SYNCHRONIZE;
     let options = if directory {
         FILE_DIRECTORY_FILE
     } else {
@@ -282,6 +367,8 @@ fn open_native(
     let mut output = HANDLE::default();
     let mut status = IO_STATUS_BLOCK::default();
     // FILE_OPEN only. Neither creation, repair nor privilege/ACL mutation occurs here.
+    #[cfg(test)]
+    testing::ACCESSES.with(|a| a.borrow_mut().push((directory, access.0)));
     let result = unsafe {
         NtCreateFile(
             &mut output,
@@ -392,6 +479,7 @@ mod testing {
         Leaf,
     }
     type Hook = Box<dyn FnMut(Stage, FileIdentity)>;
+    thread_local! { pub(super) static ACCESSES: RefCell<Vec<(bool, u32)>> = const { RefCell::new(Vec::new()) }; }
     thread_local! { pub(super) static HOOK: RefCell<Option<Hook>> = RefCell::new(None); pub(super) static READS: RefCell<Vec<FileIdentity>> = const { RefCell::new(Vec::new()) }; }
     pub(super) fn hook(stage: Stage, handle: &OwnedHandle) {
         HOOK.with(|h| {
@@ -449,6 +537,44 @@ mod observed_contract_tests {
                     && resolved.file_name() == self.0.file_name()
             );
             fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+    #[test]
+    fn presence_requests_attributes_only_without_content_reads_or_write_rights() {
+        let f = Fixture::new();
+        fs::create_dir_all(f.0.join("transcripts/session")).unwrap();
+        fs::write(
+            f.0.join("transcripts/session/snapshot.json"),
+            b"synthetic invalid JSON",
+        )
+        .unwrap();
+        let root = AuthorizedHistoryRoot::open(&f.0).unwrap();
+        testing::ACCESSES.with(|a| a.borrow_mut().clear());
+        assert_eq!(
+            root.probe_snapshot_presence("session"),
+            SnapshotPresence::Present
+        );
+        assert!(reads().is_empty());
+        testing::ACCESSES.with(|a| {
+            let access = a.borrow();
+            assert_eq!(access.len(), 3);
+            assert_eq!(access[2], (false, (FILE_READ_ATTRIBUTES | SYNCHRONIZE).0));
+            // No WRITE_DATA/APPEND/WRITE_EA/WRITE_ATTRIBUTES/DELETE/WRITE_DAC/OWNER.
+            for (_, rights) in access.iter() {
+                assert_eq!(rights & 0x000d0116, 0);
+            }
+        });
+    }
+    #[test]
+    fn ambiguous_native_failure_is_not_absence() {
+        assert!(precise_absence(&HistoryReadError::OpenFailed(
+            0xc0000034u32 as i32
+        )));
+        assert!(precise_absence(&HistoryReadError::OpenFailed(
+            0xc000000fu32 as i32
+        )));
+        for code in [0xc000003au32, 0xc0000022, 0xc0000043, 0xc000050b] {
+            assert!(!precise_absence(&HistoryReadError::OpenFailed(code as i32)));
         }
     }
     fn junction(link: &Path, target: &Path) {

@@ -250,3 +250,57 @@ describe("chats store", () => {
     expect(store.getSession(changed.id)?.title).toBe("修改后的问题");
   });
 });
+
+
+describe("coverage cache", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    electronMock.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "coverage-cache-"));
+  });
+
+  it("does not turn an uninitialized cache into an empty population", async () => {
+    const store = await import("./chats-store");
+    const read = vi.spyOn(fs, "readFileSync");
+    const write = vi.spyOn(fs, "writeFileSync");
+    const mkdir = vi.spyOn(fs, "mkdirSync");
+    const enumerate = vi.spyOn(fs, "readdirSync");
+    try {
+      expect(store.getCachedSessionIdsForCoverage()).toEqual({ state: "not-ready", ids: null });
+      for (const spy of [read, write, mkdir, enumerate]) expect(spy).not.toHaveBeenCalled();
+    } finally { vi.restoreAllMocks(); }
+  });
+
+  it("returns only detached IDs and root from an already readable cache without I/O", async () => {
+    const store = await import("./chats-store");
+    store.initialize();
+    const session = store.createSession({ mode: "chat" });
+    const spies = ["readFileSync", "writeFileSync", "mkdirSync", "readdirSync", "statSync", "existsSync"]
+      .map((name) => vi.spyOn(fs, name as "readFileSync"));
+    try {
+      const result = store.getCachedSessionIdsForCoverage();
+      expect(result).toEqual({ state: "ready", rootDir: path.join(electronMock.userDataDir, "firefly-chats"), ids: [session.id] });
+      if (result.state === "ready") expect(Object.isFrozen(result.ids)).toBe(true);
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally { vi.restoreAllMocks(); }
+  });
+
+  it("keeps an unreadable initialized cache unavailable", async () => {
+    const root = path.join(electronMock.userDataDir, "firefly-chats");
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, "index.json"), "invalid");
+    const store = await import("./chats-store");
+    store.initialize();
+    expect(store.getCachedSessionIdsForCoverage()).toEqual({ state: "read-failed", ids: null });
+  });
+
+  it("bounds cached candidates before making the ID copy", async () => {
+    const root = path.join(electronMock.userDataDir, "firefly-chats");
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, "index.json"), JSON.stringify(Array.from({ length: 10001 }, (_, i) => ({
+      id: String(i), title: "synthetic", createdAt: 1, updatedAt: 1, messageCount: 0, mode: "chat",
+    }))));
+    const store = await import("./chats-store");
+    store.initialize();
+    expect(store.getCachedSessionIdsForCoverage()).toEqual({ state: "budget-exhausted", ids: null });
+  });
+});
