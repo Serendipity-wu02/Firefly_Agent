@@ -1,6 +1,6 @@
 # 网络模块第二阶段原生验证
 
-2026-10-04，基线 `3b28f54eeb358de75563b6ec3ea4a9f01e72bec0`。用户授权在原隔离树补 TLS 拒绝、Session 清理、关闭撤销及 worker/iframe 验证。没有修改产品源码、共享接线、CI、系统网络、系统证书或真实用户数据。**生产 gate 继续关闭，发现尚未解决的 worker 归属缺口。**
+2026-10-04，基线 `3b28f54eeb358de75563b6ec3ea4a9f01e72bec0`。用户授权在原隔离树补 TLS 拒绝、Session 清理、关闭撤销及 worker/iframe 验证。本页探针不修改产品源码；后续DNS源码修复独立记录在[预算修复](browser-dns-budget.md)。没有修改共享接线、CI、系统网络、系统证书或真实用户数据。**生产 gate 继续关闭，发现尚未解决的 worker 归属缺口。**
 
 ## 已执行及明确发现
 
@@ -38,10 +38,25 @@ node -e "require('node:dns').lookup('example.com',{all:true,verbatim:true},(erro
 
 本阶段没有产品修复，因此不伪造 RED→GREEN：local-r1 是 gate 假设的反例，local-r2 保留同一 finding。技术修复尝试0，同问题连续两次修复失败0，权限拒绝0。所有自有进程已确认退出；未操作真实用户进程。前阶段126单测/全量6185通过是历史基线，不称为这次原生门槛全通过。
 
+## DNS预算修复独立复核后的实际存储/worker补证
+
+按后续优先指令先完成 [DNS预算TDD与独立review](browser-dns-budget.md)，再补存储。`storage.cjs` / `run-storage.ps1 -Run memory-r1` PID33532 exit0，12条记录，errors=[]/safetyFindings=[]，进程已确认退出。新构建模块由专用测试进程消费；不用未可信的HTTPS证书放行来伪造正例。
+
+修复后 `local-r3` PID6600 exit0，8条记录、errors=[]、safetyFindings=1，与local-r2相同：dedicated worker GET仍被报为宿主xhr并接受（保持HOLD），默认自签证书拒绝/worker及frame POST拒绝/销毁后撤销均复验。原始JSON和launcher exit证据已存入fixtures；未重试public-r1，不改变198.18/15拒绝规则。
+
+该进程只注册自身 `ff-network-fixture` secure/standard 内存协议，在专用非persist Session 为固定host/path返回合成HTML和worker脚本，没有文件/目录路径路由、系统协议注册、OS网络/信任修改、preload/Node/产品Main接线。fixture按Electron43官方支持设置secure/allowServiceWorkers/supportFetchAPI，不绕过CSP。测试页及workers在安装严格HTTPS策略前准备好，不在产品策略添加scheme例外。只有随后发出的 `https://example.com/*` GET/POST进入原策略；fixture resolver/dialer明确无外部DNS/TCP能力。这是实际Chromium存储及worker生命周期夹具，不是HTTPS/TLS或生产worker启动策略证明。
+
+- 已真实seed：cookie1、localStorage/sessionStorage均synthetic、IndexedDB probe库及items内记录、CacheStorage probe缓存及合成Response、SW注册1/运行1、shared worker ready，Session.storagePath=null。CacheStorage.put没有网络fetch。HTTP cache0未产生正例，不能称验证过非空HTTP磁盘缓存清空。
+- shared worker 与service worker各GET/POST均由webRequest记录xhr、ID缺失/frame=false、allowed=false，DNS0/dial0。revoke后已运行SW的晚到GET仍拒绝，DNS0/dial0；不得把这项结果覆盖dedicated worker GET的已知缺口。
+- await closeAllConnections / clearStorageData / clearCache / clearAuthCache / clearHostResolverCache后，从真实页面读取：localStorage=null、sessionStorage=null、IndexedDB=[]、CacheStorage=[]、SW注册0/运行0、cookie0、HTTP cache0；随后destroy页面/共享worker宿主。当前fixture明确观察到sessionStorage也清空，未用文档假设代替实测。仍未验证所有实际HTTPS页面、auth缓存状态、已持有DB事务/worker持续写回或clear失败竞态。
+- 专用进程在资源dispose完成后实际app.quit，日志捕捉before-quit→will-quit→quit(code0)，owner已abort/窗口已destroy。测试适配器在quit之前主动cleanup；不是生产before-quit/shutdown handler验收。
+
+重现：将审查快照放回固定隔离目录后 `node --check storage.cjs`、`& .\run-storage.ps1 -Run memory-r1`。快照/原始JSON见 [storage夹具](fixtures/browser-network-phase2/storage.cjs)。依 [Electron43 protocol文档](https://github.com/electron/electron/blob/v43.1.0/docs/api/protocol.md)注册的仅是此一次性进程scheme；未使用系统CA/全局ignore-certificate-errors或证书allow回调。
+
 ## 剩余条件及权限
 
 - 可信 HTTPS + 默认 OS numeric dial 在当前 DNS 环境未证实；不要允许198.18/15来冒充公网验证。需要符合策略的公开 DNS/网络环境，可交集成者在获准环境执行同一只读探针。
-- localStorage/IndexedDB/CacheStorage、已启动 service/shared worker 清理尚待专用内存协议夹具验证；这种夹具不能证明真实 TLS/公网/SW启动策略。
+- 非空cookie/localStorage/sessionStorage/IndexedDB/CacheStorage和运行SW已补内存协议fixture验收；真实HTTPS站点、HTTP非空cache/auth状态、多Session缓存隔离、持续写回和cleanup失败竞态尚未证实，内存协议夹具不能证明TLS/公网/production SW启动策略。
 - QUIC/WebRTC没有抓包或全进程出口证据。本任务不安装驱动、不启用管理员 pktmon、不改系统网络/安全设置；目的端本地sink计数也不能证明不存在其他出口。需已有获准捕获环境或外部受控出口观察能力。
 - mTLS未尝试：需可信服务端TLS且可控客户端证书夹具；不读取/选择OS真实客户端证书，不安装CA。不能以自签名服务端先被拒绝替代mTLS不选证书验收。
 - 产品 Main shutdown顺序、cleanup失败处理、未知worker拒绝与全部入口仍需集成后验收，gate继续关闭。
