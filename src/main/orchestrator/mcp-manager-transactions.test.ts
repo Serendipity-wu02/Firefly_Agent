@@ -36,12 +36,14 @@ async function fixture() {
   const manager = await import("./mcp-manager");
   const a = deferred();
   const b = deferred();
+  const aStarted = deferred();
   adapter.connect.mockImplementation(async (server: McpServerConfig) => {
+    if (server.id === "a") aStarted.resolve();
     await (server.id === "a" ? a : b).promise;
     adapter.states.add(server.id);
     return [`tool-${server.id}`];
   });
-  return { ...location, manager, a, b };
+  return { ...location, manager, a, b, aStarted };
 }
 async function coldConfigs(location: Awaited<ReturnType<typeof storageAt>>) {
   vi.resetModules();
@@ -62,8 +64,14 @@ describe("MCP manager configuration transactions", () => {
   it("retains overlapping adds when the second connection is released first, including after restart", async () => {
     const f = await fixture();
     const first = f.manager.addMcpServer(config("a"));
+    await f.aStarted.promise;
     const second = f.manager.addMcpServer(config("b"));
-    f.b.resolve(); f.a.resolve();
+    let firstSettled = false;
+    void first.then(() => { firstSettled = true; });
+    f.b.resolve();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(firstSettled).toBe(false);
+    f.a.resolve();
     expect(await Promise.all([first, second])).toEqual([{ ok: true, toolIds: ["tool-a"] }, { ok: true, toolIds: ["tool-b"] }]);
     expect(await coldConfigs(f)).toEqual([config("a"), config("b")]);
   });
@@ -71,6 +79,7 @@ describe("MCP manager configuration transactions", () => {
     const f = await fixture(); f.b.resolve();
     expect((await f.manager.addMcpServer(config("b"))).ok).toBe(true);
     const addition = f.manager.addMcpServer(config("a"));
+    await f.aStarted.promise;
     const removal = f.manager.removeMcpServer("b");
     // Let removal reach its disk write on the old implementation before add completes.
     await new Promise<void>(resolve => setImmediate(resolve));
@@ -83,6 +92,7 @@ describe("MCP manager configuration transactions", () => {
   it("removes the same ID requested while its add is still connecting", async () => {
     const f = await fixture();
     const addition = f.manager.addMcpServer(config("a"));
+    await f.aStarted.promise;
     const removal = f.manager.removeMcpServer("a");
     await new Promise<void>(resolve => setImmediate(resolve));
     f.a.resolve();
@@ -95,6 +105,7 @@ describe("MCP manager configuration transactions", () => {
     const f = await fixture(); f.b.resolve();
     await f.manager.addMcpServer(config("b"));
     const addition = f.manager.addMcpServer(config("a"));
+    await f.aStarted.promise;
     const pruning = f.manager.pruneMcpServersByIds(["b"]);
     await new Promise<void>(resolve => setImmediate(resolve));
     f.a.resolve();
@@ -105,6 +116,7 @@ describe("MCP manager configuration transactions", () => {
   it("rejects an overlapping duplicate ID without replacing its persisted config", async () => {
     const f = await fixture();
     const original = f.manager.addMcpServer(config("a"));
+    await f.aStarted.promise;
     const duplicate = f.manager.addMcpServer({ ...config("a"), command: "other-command" });
     f.a.resolve();
     expect((await original).ok).toBe(true);
@@ -115,6 +127,7 @@ describe("MCP manager configuration transactions", () => {
     const f = await fixture();
     const submitted = { ...config("a"), args: ["original"], env: { KEY: "original" } };
     const addition = f.manager.addMcpServer(submitted);
+    await f.aStarted.promise;
     submitted.command = "mutated"; submitted.args[0] = "mutated"; submitted.env.KEY = "mutated";
     f.a.resolve();
     expect((await addition).ok).toBe(true);
