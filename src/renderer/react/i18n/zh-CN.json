@@ -699,5 +699,20 @@
     "userMenu": "本地用户菜单",
     "localUser": "本地用户",
     "contextSidebar": "会话与项目"
+  },
+  "browserWorkspace": {
+    "title": "浏览器",
+    "open": "打开浏览器",
+    "address": "网页地址",
+    "go": "前往",
+    "back": "后退",
+    "forward": "前进",
+    "reload": "刷新",
+    "close": "关闭浏览器",
+    "checking": "正在检查浏览器状态…",
+    "unavailable": "浏览器暂不可用：网络安全验证尚未完成。",
+    "closed": "浏览器已关闭。",
+    "viewport": "网页预览",
+    "empty": "网页加载暂不可用。"
   }
 }

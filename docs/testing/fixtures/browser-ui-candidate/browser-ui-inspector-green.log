@@ -1,0 +1,9 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+
+ Test Files  4 passed (4)
+      Tests  22 passed (22)
+   Start at  22:47:59
+   Duration  4.22s (transform 255ms, setup 0ms, import 1.94s, tests 146ms, environment 1.48s)
+

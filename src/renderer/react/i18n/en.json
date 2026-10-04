@@ -699,5 +699,20 @@
     "userMenu": "Local user menu",
     "localUser": "Local user",
     "contextSidebar": "Conversations and projects"
+  },
+  "browserWorkspace": {
+    "title": "Browser",
+    "open": "Open browser",
+    "address": "Page address",
+    "go": "Go",
+    "back": "Back",
+    "forward": "Forward",
+    "reload": "Reload",
+    "close": "Close browser",
+    "checking": "Checking browser availability…",
+    "unavailable": "Browser unavailable: network safety verification is incomplete.",
+    "closed": "Browser closed.",
+    "viewport": "Page preview",
+    "empty": "Page loading is currently unavailable."
   }
 }

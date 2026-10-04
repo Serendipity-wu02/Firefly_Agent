@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../../i18n";
-import { DownOutlined } from "@ant-design/icons";
+import { DownOutlined, GlobalOutlined } from "@ant-design/icons";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { useCompactDock } from "./useCompactDock";
 import { ChatComposer, parseComposerMessage } from "../components/ChatComposer";
@@ -167,6 +167,7 @@ export function ChatPage() {
   const [fileTabs, setFileTabs] = useState<{ id: string; relPath: string; line?: number; lineSeq?: number }[]>([]);
   /** 工作区文件树标签是否打开（ID 固定为 files） */
   const [filesTabOpen, setFilesTabOpen] = useState(false);
+  const [browserTabSessionId, setBrowserTabSessionId] = useState<string | null>(null);
   /** 右侧面板当前激活的标签 ID（files / file:... / diff:... / plan:...），null 时面板取第一个标签 */
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   // 右栏拖宽布局：聊天区 + 右侧面板套 Group/Panel，宽度持久化到 localStorage。
@@ -377,6 +378,8 @@ export function ChatPage() {
   } | null>(null);
 
   const activeSessionId = activeSessionIds[mode];
+  const browserTabOpen = !!activeSessionId && browserTabSessionId === activeSessionId;
+  useEffect(() => { setBrowserTabSessionId(null); }, [activeSessionId]);
   const scopeKey = activeSessionId ?? `mode:${mode}`;
   const draft = drafts[scopeKey] ?? "";
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : [];
@@ -1434,6 +1437,7 @@ export function ChatPage() {
 
   /** 收起右侧面板：关闭全部标签（再次点击开关可重新展开文件树） */
   const collapseInspector = () => {
+    setBrowserTabSessionId(null);
     setFilesTabOpen(false);
     setFileTabs([]);
     setDiffTabs([]);
@@ -1474,6 +1478,7 @@ export function ChatPage() {
     ...fileTabs.map((tab) => tab.id),
     ...diffTabs.map((tab) => tab.id),
     ...((activePlan !== null && planDrawerOpen) ? [planTabId] : []),
+    ...(browserTabOpen ? ["browser"] : []),
   ];
 
   /**
@@ -1482,7 +1487,7 @@ export function ChatPage() {
    * 只剩它一个时恢复可关——关掉即收起整个面板。
    */
   const filesTabPinned = filesTabOpen
-    && (fileTabs.length > 0 || diffTabs.length > 0 || (activePlan !== null && planDrawerOpen));
+    && (browserTabOpen || fileTabs.length > 0 || diffTabs.length > 0 || (activePlan !== null && planDrawerOpen));
 
   /** 关闭右侧面板标签：活动标签关闭后回退到相邻标签（优先左侧） */
   const closeInspectorTab = (id: string) => {
@@ -1494,7 +1499,9 @@ export function ChatPage() {
       return;
     }
     const remaining = inspectorTabIds.filter((tabId) => tabId !== id);
-    if (id === "files") {
+    if (id === "browser") {
+      setBrowserTabSessionId(null);
+    } else if (id === "files") {
       setFilesTabOpen(false);
     } else if (id.startsWith("file:")) {
       setFileTabs((tabs) => tabs.filter((tab) => tab.id !== id));
@@ -1626,7 +1633,7 @@ export function ChatPage() {
         <FileDropOverlay visible={isDraggingFiles} />
         {/* 白色工作区右上角：打开菜单 + 分割线 + 右侧面板展开/收起开关（左上角 SidebarToggle 的镜像同款动画）。
             仅在会话对话视图显示：产生过消息、且当前不在插件/工具/技能/模型/动态等面板页时才挂载 */}
-        {(hasMessages && !activePanel && (activeSession?.workspaceBinding || inspectorTabIds.length > 0)) && (
+        {(hasMessages && !activePanel && activeSessionId) && (
           <span className="cy-inspector-toggle-float">
             {activeSession?.workspaceBinding && activeSessionId && (
               <>
@@ -1634,9 +1641,18 @@ export function ChatPage() {
                 <span className="cy-inspector-toggle-divider" aria-hidden="true" />
               </>
             )}
+            <button type="button" className="cy-inspector-toggle" aria-label={t("browserWorkspace.open")}
+              title={t("browserWorkspace.open")} aria-expanded={browserTabOpen}
+              onClick={() => { setBrowserTabSessionId(activeSessionId); setActiveTabId("browser"); }}>
+              <GlobalOutlined aria-hidden="true" />
+            </button>
             <InspectorToggle
               open={inspectorTabIds.length > 0}
-              onToggle={() => (inspectorTabIds.length > 0 ? collapseInspector() : openFilesTab())}
+              onToggle={() => {
+                if (inspectorTabIds.length > 0) collapseInspector();
+                else if (activeSession?.workspaceBinding) openFilesTab();
+                else { setBrowserTabSessionId(activeSessionId); setActiveTabId("browser"); }
+              }}
             />
           </span>
         )}
@@ -1829,6 +1845,7 @@ export function ChatPage() {
                 workspaceRoot={activeSession?.workspaceBinding?.workspaceRoot}
                 filesTabOpen={filesTabOpen}
                 filesTabPinned={filesTabPinned}
+                browserTabOpen={browserTabOpen}
                 fileTabs={fileTabs}
                 diffTabs={diffTabs}
                 activePlan={activePlan}
