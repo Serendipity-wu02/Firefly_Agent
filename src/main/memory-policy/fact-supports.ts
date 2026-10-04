@@ -55,6 +55,18 @@ export class FactSupports {
   return {factId,revision:current?.revision??null,status:!current?"forgotten":denied||!valid?"pending-review":"eligible",reason:!current?"forgotten":denied?"explicit-denial":valid?"valid-support":"no-valid-support",
    supports:records.map(r=>({sourceRef:r.sourceRef,kind:r.kind,factRevision:r.factRevision,validity:this.validity(scope,r),proof:r.proof})),reviews:reviews.map(r=>({sourceRef:r.sourceRef,factRevision:r.factRevision}))};
  }
+ /** Ordering witnesses are live source events, not the immutable declaration's clocks. */
+ orderingTime(scope:string,actorKey:string,fact:FactView):number|null {
+  this.transaction();this.bootstrap(scope,actorKey,fact);let latest:number|null=null;
+  for(const support of this.read(scope,fact.factId)){
+   if(support.actorKey!==actorKey||support.factRevision!==fact.revision||this.validity(scope,support)!=="valid")continue;
+   // A generic confirmation authorizes the declaration; its own time does not date it.
+   const at=support.kind==="explicitUserConfirmed"&&["confirm","confirmFact"].includes(support.proof!.action)
+    ?fact.time.referenceTime:this.ledger.assertCurrent(scope,support.sourceRef)!.published!.occurredAt??null;
+   if(at!==null)latest=latest===null?at:Math.max(latest,at);
+  }
+  return latest;
+ }
  reconcile(scope:string,actorKey:string,facts:FactView[]):void {this.transaction();for(const f of facts){this.bootstrap(scope,actorKey,f);for(const r of this.read(scope,f.factId).filter(r=>r.actorKey===actorKey)){r.checkedValidity=this.validity(scope,r);this.save(scope,r)}}}
  forget(scope:string,actorKey:string,factId:string):SourceRef[]{
   this.transaction();const refs:SourceRef[]=[];

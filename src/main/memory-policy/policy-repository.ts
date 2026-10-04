@@ -146,13 +146,16 @@ export class PolicyRepository {
   // Check even equivalent values: a queued old source must not support a later manual revision.
   if(previous&&!matchesBaseline(previous,baseline))return candidate("stale-base");
   if(claim.operation==="change"&&previous){
-   if(previous.time.referenceTime===null)return candidate("unknown-prior-time");
-   if(at<=previous.time.referenceTime)return candidate("out-of-order");
+   if(this.supports.audit(scope,actor,previous.factId,previous).reason==="no-valid-support")return candidate("prior-needs-review");
+   const priorTime=this.supports.orderingTime(scope,actor,previous);
+   if(priorTime===null)return candidate("unknown-prior-time");
+   if(at<=priorTime)return candidate("out-of-order");
   }
   if(claim.operation==="deny"){
    if(!previous||!owner||owner.extraction.value!==claim.value)return candidate("denial-unmatched");
-   if(previous.time.referenceTime===null)return candidate("unknown-prior-time");
-   if(at<=previous.time.referenceTime)return candidate("out-of-order");
+   const priorTime=this.supports.orderingTime(scope,actor,previous);
+   if(priorTime===null)return candidate("unknown-prior-time");
+   if(at<=priorTime)return candidate("out-of-order");
    this.supports.deny(scope,actor,previous,ref,randomUUID());return {status:"pending-review",factId:previous.factId,factRevision:previous.revision,reason:"explicit-denial"};
   }
   if(previous&&owner?.extraction.value===claim.value){this.supports.add(scope,actor,previous,ref,"automatic");return {status:"active",factId:previous.factId,factRevision:previous.revision,reason:"duplicate-support"};}
