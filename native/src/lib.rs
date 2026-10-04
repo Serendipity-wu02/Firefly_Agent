@@ -10,3 +10,6 @@ pub mod win;
 
 pub const WM_APP_COMMAND: u32 = windows::Win32::UI::WindowsAndMessaging::WM_APP + 1;
 pub const WM_APP_SHUTDOWN: u32 = windows::Win32::UI::WindowsAndMessaging::WM_APP + 2;
+
+#[cfg(feature = "history-read")]
+pub mod history_read;

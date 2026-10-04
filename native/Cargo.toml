@@ -13,3 +13,12 @@ windows-numerics = "0.3.1"
 
 [dev-dependencies]
 serial_test = "3.5.0"
+
+[features]
+# Dormant: neither screenshot builds nor production Main activate history-read.
+history-read = ["windows/Wdk_Foundation", "windows/Wdk_Storage_FileSystem", "windows/Wdk_System_SystemServices", "windows/Win32_Security", "windows/Win32_System_IO"]
+
+[[bin]]
+name = "firefly-history-read"
+path = "src/bin/firefly-history-read.rs"
+required-features = ["history-read"]
