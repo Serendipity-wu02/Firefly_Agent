@@ -151,8 +151,6 @@ export interface BuildOptionsDeps {
     contextBlock: string;
     retrievedAtoms: SocialAtom[];
   }>;
-  /** 构建朋友圈 Chat 背景块（只读本地 moments 数据，同步）；返回空串表示无内容。 */
-  buildMomentsContext?: (query: string) => string;
   /**
    * 获取对话的工作区绑定（来自 Conversation Workspace Binding）。
    * 返回 undefined 表示当前对话未绑定工作区。
@@ -200,8 +198,6 @@ export interface OnRunFinishedDeps {
     reply: string,
   ) => Promise<void>;
   recordRelationshipTurn: (input: RelationshipTurnInput) => Promise<unknown> | unknown;
-  /** run 成功收尾时调度流萤朋友圈主动发帖评估（缺省不启用）。 */
-  scheduleMomentsTurn?: (input: import("../moments/moments-service").MomentsTurnInput) => void;
 }
 
 export interface ModelSettingsLite {
@@ -229,9 +225,6 @@ export interface StyleSettingsLite {
   currentStyleId?: unknown;
   customStyle?: unknown;
   chatSocialContextEnabled?: unknown;
-  /** 朋友圈总开关与 Chat 背景注入开关（moments-awareness 门控用）。 */
-  momentsEnabled?: unknown;
-  chatMomentsContextEnabled?: unknown;
   /** 工具-模式覆盖层（三模适配层）。未提供时按 modes 字段或全可见过滤。 */
   toolModeOverrides?: ToolModeOverrides;
   /** Chat 模式工具增强总开关。未提供时视为关闭（chat 无工具，现状行为）。 */
@@ -539,11 +532,6 @@ export async function buildAgentRunOptions(
   const socialContextEnabled = isChatMode
     && styleSettings.chatSocialContextEnabled === true
     && Boolean(deps.buildChatSocialContext);
-  // 朋友圈 Chat 背景：总开关与子开关都开启才注入（momentsEnabled && chatMomentsContextEnabled）
-  const momentsContextEnabled = isChatMode
-    && styleSettings.chatMomentsContextEnabled === true
-    && styleSettings.momentsEnabled === true
-    && Boolean(deps.buildMomentsContext);
   const profile = deps.loadUserProfile();
   const { cleanMessages: cleanLlm, timestampedMessages: llmMessages, timeContext: conversationTimeContext } = buildConversationTimeContext(
     messages as unknown as ChatContextMessage[],
@@ -585,15 +573,6 @@ export async function buildAgentRunOptions(
   envTimer.end();
 
   const channelSystem = buildChannelSystem(input.channel);
-
-  let momentsContextBlock = "";
-  if (momentsContextEnabled) {
-    try {
-      momentsContextBlock = deps.buildMomentsContext!(latestUserText);
-    } catch (err) {
-      console.warn("[Firefly] moments context build failed:", err);
-    }
-  }
 
   let chatSocialContextBlock = "";
   let retrievedSocialAtoms: SocialAtom[] = [];
@@ -869,7 +848,6 @@ export async function buildAgentRunOptions(
     environmentContext,
     conversationTimeContext,
     chatSocialContextBlock,
-    momentsContextBlock,
     stylePromptBlock,
     autoInjectedSoulContext,
     skillActivation,
@@ -993,7 +971,6 @@ export async function onAgentRunFinished(
   deps: OnRunFinishedDeps,
   channel?: ChannelId,
   conversationId?: string,
-  finishedContext?: { runId?: string; source?: "desktop" | "channel"; mode?: string },
 ): Promise<{ sticker: string | null }> {
   const chatContent = result.reply;
   const sideEffectUserText = stripTurnModelContextForSideEffects(latestUserText);
@@ -1020,18 +997,6 @@ export async function onAgentRunFinished(
   } else {
     deps.scheduleMemoryWrite(sideEffectUserText, chatContent, conversationId);
   }
-
-  // 朋友圈主动发帖评估：输入是事件产生时冻结的快照（runId/source/mode 由 agent-runtime 透传）
-  deps.scheduleMomentsTurn?.({
-    conversationId: conversationId ?? "default",
-    runId: finishedContext?.runId,
-    source: finishedContext?.source ?? "desktop",
-    mode: finishedContext?.mode ?? "chat",
-    channel,
-    userText: sideEffectUserText,
-    assistantReply: chatContent,
-    finishedAt: Date.now(),
-  });
 
   const settings = deps.loadModelSettings();
   const inferredStatus = deps.inferRuntimeState(sideEffectUserText, chatContent, false);

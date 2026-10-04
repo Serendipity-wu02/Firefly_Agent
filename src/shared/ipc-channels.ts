@@ -105,17 +105,6 @@ export const IPC = {
   TASKS_CLOSE: "tasks:close",
   TASKS_MINIMIZE: "tasks:minimize",
 
-  // Moments（动态 / 朋友圈）
-  MOMENTS_LIST: "moments:list",
-  MOMENTS_GET_POST: "moments:get-post",
-  MOMENTS_CREATE_POST: "moments:create-post",
-  MOMENTS_DELETE_POST: "moments:delete-post",
-  MOMENTS_CREATE_COMMENT: "moments:create-comment",
-  MOMENTS_TOGGLE_LIKE: "moments:toggle-like",
-  MOMENTS_CHANGED: "moments:changed",
-  // 点名名单：@ 选择框数据源（流萤 + 全部入驻角色）
-  MOMENTS_LIST_CHARACTERS: "moments:list-characters",
-
   // settings window
   SETTINGS_MINIMIZE: "settings:minimize",
   SETTINGS_CLOSE: "settings:close",
@@ -306,7 +295,7 @@ export const IPC = {
   // tool (plugin) toggle
   TOOL_SET_ENABLED: "tool:set-enabled",
   TOOL_GET_ENABLED: "tool:get-enabled",
-  // tool-mode override (三模适配层：用户自定义工具在 learn/code/work 模式下的可见性)
+  // tool-mode override (三模适配层：用户自定义工具在 chat/work/code 模式下的可见性)
   TOOL_GET_MODE_OVERRIDES: "tool:get-mode-overrides",
   TOOL_SET_MODE_OVERRIDE: "tool:set-mode-override",
   TOOL_CLEAR_MODE_OVERRIDE: "tool:clear-mode-override",
@@ -316,7 +305,7 @@ export const IPC = {
   // skill toggle
   SKILL_LIST: "skill:list",
   SKILL_SET_ENABLED: "skill:set-enabled",
-  // skill-mode override（三模适配层：用户自定义 skill 在 work/code/learn 模式下的可见性）
+  // skill-mode override（用户自定义 skill 在 work/code 模式下的可见性）
   SKILL_GET_MODE_OVERRIDES: "skill:get-mode-overrides",
   SKILL_SET_MODE_OVERRIDE: "skill:set-mode-override",
   SKILL_CLEAR_MODE_OVERRIDE: "skill:clear-mode-override",
@@ -388,7 +377,7 @@ export const IPC = {
   // renderer → main：回传用户选择
   CHOICE_RESOLVE: "choice:resolve",
 
-  // pop_quiz 抽查测试（learn 模式）
+  // pop_quiz 抽查测试（Work 模式）
   // 与审批流同构：不设超时、10s 幂等重播、结算统一广播
   // main → renderer：推送抽查卡片（重复推送同 id 覆盖，用于渲染端恢复）
   POP_QUIZ_REQUEST: "pop-quiz:request",

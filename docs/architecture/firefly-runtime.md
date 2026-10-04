@@ -38,7 +38,7 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 |---|---|---|---|
 | `src/main` | 运/构/编译/测 | `index.ts` → `application/` → 业务服务；Electron、IPC、模型和持久化的宿主 | Firefly 维护的既有运行架构，不另设启动链 |
 | `src/preload` | 运/构/编译/测 | `index.ts` 使用 `contextBridge` 暴露受限 API → `shared/ipc-channels.ts` → Main handlers；`music.ts` 是其中的音乐桥 | 不是 Renderer 的 Node 文件访问入口 |
-| `src/renderer/react` | 运/构/编译/测 | `main.tsx` → `App.tsx`、`app/providers`、`features/chat`、`features/settings`、`features/moments`；通过 preload 调用 Main | Chat / Work / Code 三模式共用工作台 |
+| `src/renderer/react` | 运/构/编译/测 | `main.tsx` → `App.tsx`、`app/providers`、`features/chat`、`features/settings`；通过 preload 调用 Main | Chat / Work / Code 三模式共用工作台 |
 | `src/renderer/live2d`、`assets`、`public` | 运/构/包/测 | 桌宠控制与动作解析；`assets/task-portraits` 由角色映射 import；public 由 Vite 复制模型、贴图及浏览器运行资源 | 图像/模型和 Cubism 等保留各自许可；不是应用用户数据 |
 | `src/renderer/settings`、`sidebar`、`sticker-manager`、`tasks`、`toast` | 运/构/编译/测 | `vite.config.ts` 的各 HTML entry → 对应窗口；共用 `ui`、`shared`、`lib`、`types`、`i18n-runtime` | 多窗口视图，不以名称相近判定为可删除的重复实现 |
 | `src/renderer/react-perf` | 专用构/测 | `scripts/perf/chat-renderer-baseline.mjs` 和 `FIREFLY_PERF_HARNESS` 选择专用入口 | 性能夹具，不是普通 build 的页面入口 |
@@ -47,7 +47,7 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `src/cli` | 构/编译/测 | `index.ts` → `app.ts` → `commands`；`scripts/build/cli.mjs` 生成 `dist/cli/index.js` | `firefly run` 从调用者当前项目启动 Electron，不读取原项目 |
 | `packages/plugin-sdk` | 构/测；插件使用 | `scripts/plugin-sdk/build-sdk.mjs` 构建本地 `@firefly/plugin-sdk`；示例用本地产物编译 | 未发布 npm；许可保留；不伪造线上下载服务 |
 | `skills` | 运/包/测 | `diagram`、`assessment`、`tutoring`、`knowledge-workspace`、`plugin-development` 五项能力正文/附件，经 `external-content-paths.ts` → scanner/registry | 产品内置；不是 Codex 开发插件 |
-| `prompts` | 运/包/测 | `prompts/prompt-loader.ts` 解析根提示词；`styles`、`worldbook`、`moments_personas` 分别供风格、触发知识、朋友圈角色 | 静态角色资料不改变子任务权限或制造用户共同经历 |
+| `prompts` | 运/包/测 | `prompts/prompt-loader.ts` 解析根提示词；`styles`、`worldbook` 分别供风格、触发知识 | 静态角色资料不改变子任务权限或制造用户共同经历 |
 | `scripts/build` | 构/测 | CLI esbuild、Rust 截图助手 Cargo 构建 | 产物去 dist/resources，不从原项目复制 |
 | `scripts/packaging` | 构/包准备/测 | Skills 目录校验、MinGit 和可选 mpv 准备；读取当前 vendor 清单，共享 ZIP 层仅用于其他归档 | 历史适配源码不进入正式 Skill 分发；不运行下载的上游安装脚本 |
 | `scripts/plugin-sdk` | 构/测 | SDK/schema生成、包验证、示例编译/Mock | 不执行 npm publish |
@@ -90,7 +90,7 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `cita`、`runtime-policy` | cita上下文结构/语义引擎；统一token/timeout政策供运行层消费 | 领域逻辑与服务配置分开 |
 | `channels`、`scheduler` | 各自bootstrap构造适配器/定时任务 → 同一AgentRuntime；由background显式start | 不自动启用渠道、发消息或补跑任务 |
 | `plugin-host`、`plugin-panel` | 宿主服务/生命周期；面板桥脚本；根级plugin-runtime衔接src/plugins | 同一插件运行时的宿主侧与嵌入页，不建立第二套加载器 |
-| `proactive`、`moments`、`social-context`、`relationship` | proactive-lifecycle、moments-service/store、上下文提取/检索、relationship-log | 各类上下文来源；默认开关和用户偏好不在结构整理中变更 |
+| `proactive`、`social-context`、`relationship` | proactive-lifecycle、上下文提取/检索、relationship-log | 各类上下文来源；默认开关和用户偏好不在结构整理中变更 |
 | `tts`、`asr`、`mossland` | TTS session、ASR dispatcher、Mossland api-client；Call 专用窗口与循环已退役 | 外部服务适配保留真实协议/供应者名，不伪造服务配置 |
 | `music`、`audio` | music/bootstrap与QQ GSMTC；audio/mpv-binary供飞书audio-transcode探测 | mpv是通用转码依赖，不是被删除的网易云播放器 |
 | `screenshot`、`protocols`、`toast` | 截图lifecycle/原生helper，协议bootstrap，toast-service/window | 各自资源按application受控退出，不新增全局循环 |
@@ -170,13 +170,13 @@ P2 后续事项：`skills/skill-tools.ts` 的 `readRefs` 是进程级 Set，当�
 
 历史列表由 `chats/chats-store.ts` 管理，运行和子任务分别由 `harness/run-store.ts`、`tasks/task-session-store.ts` 管理。读取失败不是首次使用或空列表；失败状态不得触发空数据写回。当前数据路径由 `firefly-data-paths.ts` 决定；本次清理不访问真实用户目录。
 
-## 插件与朋友圈边界
+## 插件与已退役入口边界
 
 当前插件开发入口为 [插件开发指南](../plugins/plugin-dev-guide.md) 和 [接口规范](../plugins/plugin-authoring.md)，不再使用旧市场施工方案。SDK 为本地构建产物，不宣称存在已发布的新 npm 包或官方市场。插件注册、停用和资源清理由现有 `src/plugins/`、`src/main/plugin-host/` 与 `src/main/plugin-runtime.ts` 负责；更名不开放权限决策或替换运行循环。
 
 面板使用 `firefly-plugin`、`firefly-panel/1` 与 `FireflyPanel`。来源窗口、origin、版本、启用状态和资源真实路径校验继续有效；已移除旧面板协议、scheme 与桥别名；不双发事件。
 
-朋友圈通过 `moments-policy.ts`、`moments-service.ts`、`moments-store.ts`、`character-personas.ts` 及现有 Renderer 面板运行。角色资料与任务执行职责分开。当前默认开关以 `settings-facade.ts` 为准；迁移不得因字段更名改变用户已经保存的开关。用户发帖身份由 Main 决定，不能由 Renderer 提交角色身份来冒充角色。旧角色社交示例和旧名单不再作为当前实现依据。
+朋友圈的 Main/preload/shared、媒体协议、后台反应扫描和提示词来源已退役。读取应用设置时忽略废弃键，不因升级改写已有配置；历史动态、媒体和会话数据不删除、不迁移。共享 social context、贴图与 embedding、RAG/Worldbook、渠道、ASR/TTS、Work 学习进度及调度事件 threadId 继续保留。Renderer 的入口与面板由独立 UI 批次清理，联动前不得发布。
 
 ## 文档替代范围
 

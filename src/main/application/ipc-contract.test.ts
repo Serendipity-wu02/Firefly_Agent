@@ -30,6 +30,12 @@ import {
 
 const repoRoot = process.cwd();
 
+it("does not expose retired Moments channels or preload bridges", () => {
+  expect(Object.values(IPC).filter(channel => channel.startsWith("moments:"))).toEqual([]);
+  const preload = fs.readFileSync(path.join(repoRoot, "src/preload/index.ts"), "utf8");
+  expect(preload).not.toContain('exposeInMainWorld("moments"');
+});
+
 it("does not expose retired Call channels or preload bridges", () => {
   expect(Object.values(IPC).filter(channel => channel.startsWith("call:") || channel === "sidebar:open-call")).toEqual([]);
   const preload = fs.readFileSync(path.join(repoRoot, "src/preload/index.ts"), "utf8");

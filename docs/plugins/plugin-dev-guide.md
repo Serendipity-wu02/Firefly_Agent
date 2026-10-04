@@ -318,14 +318,10 @@ ctx.registerPromptProvider({
 
 这些内容只进入每轮动态上下文，不会改写核心提示词文件，也不会进入稳定提示词缓存前缀。
 
-`sources` 声明 Provider 参与的场景，可选值为 `"conversation"`（用户会话）/ `"scheduler"`（定时任务）/ `"moments-post"`（动态发帖决策）/ `"plugin-agent"`（插件无头目标循环）：
+`sources` 声明 Provider 参与的场景，可选值为 `"conversation"`（用户会话）/ `"scheduler"`（定时任务）/ `"plugin-agent"`（插件无头目标循环）：
 
 - 未声明时默认只参与会话与定时任务两类场景（与旧版行为一致，既有插件无需改动）
 - `plugin-agent` 必须显式声明；该来源仍携带 `mode` 并参与 `modes` 过滤
-- 参与动态发帖（流萤结合最近对话主动发朋友圈的决策）必须显式声明 `"moments-post"`；
-  该场景没有会话 `mode`，Provider 是否生效仅由 `sources` 决定
-- `moments-post` 调用会附带触发发帖的 `conversationId` / `channel`，按会话隔离记忆的插件可以用它过滤
-- `moments-post` 的 `userText` 是最近对话摘录快照（不是用户当前这条消息），插件应按「这段对话讲了什么」的语义使用
 
 ---
 

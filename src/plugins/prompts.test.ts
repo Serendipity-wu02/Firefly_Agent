@@ -7,6 +7,13 @@ import {
 } from "./prompts";
 import type { PluginPromptSource } from "./types";
 
+it("rejects the retired Moments prompt source at registration", () => {
+  const registry = createPluginPromptRegistry();
+  expect(() => registry.register("retired", {
+    id: "context", sources: ["moments-post"] as never, provide: () => "unused",
+  }, new AbortController().signal)).toThrow(/sources/);
+});
+
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -121,175 +128,49 @@ describe("PluginPromptRegistry", () => {
   });
 });
 
-describe("场景作用域（sources）", () => {
-  it("无 Provider 参与时 moments-post 构建返回空串（mode 缺省合法）", async () => {
+describe("prompt source selection", () => {
+  it("defaults legacy providers to conversation and scheduler", async () => {
     const registry = createPluginPromptRegistry();
-
-    expect(await registry.build({ source: "moments-post", userText: "x" })).toBe("");
+    registry.register("legacy", { id: "context", provide: () => "LEGACY" }, new AbortController().signal);
+    expect(await registry.build({ source: "plugin-agent", mode: "work", userText: "hi" })).toBe("");
+    for (const source of ["conversation", "scheduler"] as const) {
+      expect(await registry.build({ source, mode: "chat", userText: "hi" }))
+        .toBe("[插件上下文：plugin:legacy:context]\nLEGACY");
+    }
   });
 
-  it("未声明 sources 的 Provider 只参与既有场景（向后兼容）", async () => {
+  it("selects explicitly declared sources and applies modes to plugin-agent", async () => {
     const registry = createPluginPromptRegistry();
     const signal = new AbortController().signal;
-    registry.register("legacy", { id: "context", provide: () => "LEGACY" }, signal);
-
-    expect(await registry.build({ source: "moments-post", userText: "hi" })).toBe("");
+    registry.register("agent", { id: "context", sources: ["plugin-agent"], modes: ["work"],
+      provide: ({ source, mode, userText }) => `${source}|${mode}|${userText}` }, signal);
+    registry.register("chat", { id: "context", sources: ["conversation"], provide: () => "CHAT" }, signal);
+    expect(await registry.build({ source: "plugin-agent", mode: "work", userText: "hi" }))
+      .toBe("[插件上下文：plugin:agent:context]\nplugin-agent|work|hi");
+    expect(await registry.build({ source: "plugin-agent", mode: "code", userText: "hi" })).toBe("");
     expect(await registry.build({ source: "conversation", mode: "chat", userText: "hi" }))
-      .toBe("[插件上下文：plugin:legacy:context]\nLEGACY");
-    expect(await registry.build({ source: "scheduler", mode: "work", userText: "hi" }))
-      .toBe("[插件上下文：plugin:legacy:context]\nLEGACY");
+      .toBe("[插件上下文：plugin:chat:context]\nCHAT");
   });
 
-  it("显式 sources: [\"moments-post\"] 后完全按声明生效", async () => {
+  it("preserves mode filtering when a provider declares multiple active sources", async () => {
     const registry = createPluginPromptRegistry();
-    const signal = new AbortController().signal;
-    registry.register("moments", {
-      id: "context",
-      sources: ["moments-post"],
-      provide: ({ source }) => `POST:${source}`,
-    }, signal);
-
-    expect(await registry.build({ source: "moments-post", userText: "hi" }))
-      .toBe("[插件上下文：plugin:moments:context]\nPOST:moments-post");
-    expect(await registry.build({ source: "conversation", mode: "chat", userText: "hi" })).toBe("");
-  });
-
-  it("plugin-agent 场景只调用显式声明该来源的 Provider", async () => {
-    const registry = createPluginPromptRegistry();
-    const signal = new AbortController().signal;
-    registry.register("minecraft", {
-      id: "goal-context",
-      sources: ["plugin-agent"] as unknown as PluginPromptSource[],
-      provide: ({ source }) => `GOAL:${source}`,
-    }, signal);
-    registry.register("legacy", {
-      id: "conversation-context",
-      provide: () => "LEGACY",
-    }, signal);
-
-    expect(await registry.build({
-      source: "plugin-agent",
-      mode: "work",
-      userText: "收集木头",
-    } as never)).toBe("[插件上下文：plugin:minecraft:goal-context]\nGOAL:plugin-agent");
-  });
-
-  it("moments-post 场景下 Provider 抛错时降级为空串", async () => {
-    const registry = createPluginPromptRegistry();
-    const signal = new AbortController().signal;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    registry.register("broken", {
-      id: "context",
-      sources: ["moments-post"],
-      provide: () => { throw new Error("failed"); },
-    }, signal);
-
-    expect(await registry.build({ source: "moments-post", userText: "hi" })).toBe("");
-    expect(warn).toHaveBeenCalledOnce();
-  });
-
-  it("声明 modes 的 Provider 在 moments-post 场景仅由 sources 决定生效（绕过 modes 过滤）", async () => {
-    const registry = createPluginPromptRegistry();
-    const signal = new AbortController().signal;
-    let calls = 0;
-    registry.register("moments", {
-      id: "context",
-      sources: ["moments-post"],
-      modes: ["chat"],
-      provide: () => { calls += 1; return "POSTED"; },
-    }, signal);
-
-    // moments-post 不携带 mode：即使声明了 modes 也参与，是否生效仅由 sources 决定。
-    expect(await registry.build({ source: "moments-post", userText: "hi" }))
-      .toBe("[插件上下文：plugin:moments:context]\nPOSTED");
-    expect(calls).toBe(1);
-    // 会话场景被 sources 排除：无论 mode 是否匹配都不参与。
-    expect(await registry.build({ source: "conversation", mode: "chat", userText: "hi" })).toBe("");
+    registry.register("hybrid", { id: "context", sources: ["conversation", "plugin-agent"], modes: ["chat"],
+      provide: ({ source }) => `HYBRID:${source}` }, new AbortController().signal);
     expect(await registry.build({ source: "conversation", mode: "work", userText: "hi" })).toBe("");
-    expect(calls).toBe(1);
-  });
-
-  it("同时声明 moments-post 与 conversation 时，会话场景仍受 modes 约束", async () => {
-    const registry = createPluginPromptRegistry();
-    const signal = new AbortController().signal;
-    registry.register("hybrid", {
-      id: "context",
-      sources: ["moments-post", "conversation"],
-      modes: ["chat"],
-      provide: ({ source }) => `HYBRID:${source}`,
-    }, signal);
-
-    expect(await registry.build({ source: "moments-post", userText: "hi" }))
-      .toBe("[插件上下文：plugin:hybrid:context]\nHYBRID:moments-post");
-    expect(await registry.build({ source: "conversation", mode: "work", userText: "hi" })).toBe("");
+    expect(await registry.build({ source: "plugin-agent", mode: "work", userText: "hi" })).toBe("");
     expect(await registry.build({ source: "conversation", mode: "chat", userText: "hi" }))
       .toBe("[插件上下文：plugin:hybrid:context]\nHYBRID:conversation");
   });
 
-  it("moments-post 构建只输出声明该场景的 Provider（与仅会话 Provider 混合）", async () => {
+  it("rejects malformed sources without blocking a subsequent valid provider", async () => {
     const registry = createPluginPromptRegistry();
     const signal = new AbortController().signal;
-    registry.register("chat", {
-      id: "context",
-      sources: ["conversation"],
-      provide: () => "CHAT-ONLY",
-    }, signal);
-    registry.register("moments", {
-      id: "context",
-      sources: ["moments-post"],
-      provide: () => "POST-ONLY",
-    }, signal);
-
-    expect(await registry.build({ source: "moments-post", userText: "hi" }))
-      .toBe("[插件上下文：plugin:moments:context]\nPOST-ONLY");
-    expect(await registry.build({ source: "conversation", mode: "chat", userText: "hi" }))
-      .toBe("[插件上下文：plugin:chat:context]\nCHAT-ONLY");
-  });
-
-  it("register 拒绝空数组或含未知场景的 sources", () => {
-    const registry = createPluginPromptRegistry();
-    const signal = new AbortController().signal;
-    expect(() => registry.register("alpha", { id: "context", sources: [], provide: () => "ok" }, signal))
-      .toThrow(/sources 非法/);
-    const unknownSource = ["moments"] as unknown as PluginPromptSource[];
-    expect(() => registry.register("alpha", { id: "context", sources: unknownSource, provide: () => "ok" }, signal))
-      .toThrow(/sources 非法/);
-  });
-
-  it("register 拒绝假值或非数组形式的 sources，且不影响后续合法注册", async () => {
-    const registry = createPluginPromptRegistry();
-    const signal = new AbortController().signal;
-    const invalidSources = [false, 0, "moments-post", [], ["bogus"]];
-    for (const sources of invalidSources) {
-      expect(() => registry.register("alpha", {
-        id: "context",
-        sources: sources as unknown as PluginPromptSource[],
-        provide: () => "ok",
-      }, signal)).toThrow(/sources 非法/);
+    for (const sources of [false, 0, "plugin-agent", [], ["bogus"], ["moments-post"]]) {
+      expect(() => registry.register("alpha", { id: "context", sources: sources as PluginPromptSource[],
+        provide: () => "unused" }, signal)).toThrow(/sources/);
     }
-
-    // 只拒绝坏的 Provider：之后合法注册与构建不受影响。
-    registry.register("alpha", { id: "context", sources: ["moments-post"], provide: () => "STILL-OK" }, signal);
-    expect(await registry.build({ source: "moments-post", userText: "hi" }))
-      .toBe("[插件上下文：plugin:alpha:context]\nSTILL-OK");
-  });
-
-  it("旧式参数解构写法在升级后保持编译与运行兼容", async () => {
-    // 既有 TypeScript 插件常见写法：provide 参数一次解构 source/mode/userText。
-    // moments-post 的 mode 类型为 never（可选），升级 SDK 后旧解构必须仍能编译，
-    // 且运行时 moments-post 场景不携带 mode（undefined），会话场景照常传值。
-    const registry = createPluginPromptRegistry();
-    const signal = new AbortController().signal;
-    registry.register("alpha", {
-      id: "legacy-destructure",
-      sources: ["moments-post", "conversation"],
-      provide: ({ source, mode, userText }) => `${source}|${String(mode)}|${userText}`,
-    }, signal);
-
-    // 编译期兼容即本文件可通过 tsc：这里同时验证运行时语义。
-    expect(await registry.build({ source: "moments-post", userText: "hi" }))
-      .toBe("[插件上下文：plugin:alpha:legacy-destructure]\nmoments-post|undefined|hi");
-    expect(await registry.build({ source: "conversation", mode: "chat", userText: "yo" }))
-      .toBe("[插件上下文：plugin:alpha:legacy-destructure]\nconversation|chat|yo");
+    registry.register("alpha", { id: "context", sources: ["plugin-agent"], provide: () => "VALID" }, signal);
+    expect(await registry.build({ source: "plugin-agent", mode: "work", userText: "hi" }))
+      .toBe("[插件上下文：plugin:alpha:context]\nVALID");
   });
 });

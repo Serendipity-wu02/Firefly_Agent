@@ -13,7 +13,6 @@
 | 会话轨迹 | `src/main/orchestrator/conversation-transcript-store.ts`、`conversation-transcript-coordinator.ts`、`transcript-sink.ts` | 使用现有提交与读取协议；更名不建立第二份业务事件流，不丢失会话与运行引用。 |
 | Work 知识工作区 | `src/main/orchestrator/pop-quiz.ts`、`src/main/knowledge/`、`skills/tutoring/`、`skills/assessment/`、`skills/knowledge-workspace/` | [显式绑定和确认初始化](../user-guide/knowledge-workspace.md)，保留学习能力与原数据路径；普通 Work 不自动创建 Vault。 |
 | 子任务与通知展示 | `src/main/tasks/`、`src/renderer/react/features/chat/` | 展示身份不改变子代理权限；通知和预览不能作为终态或完成证据。 |
-| 朋友圈 | `src/main/moments/`、`src/renderer/react/features/moments/` | 名称、角色卡与头像按当前注册表；用户身份由 Main 持有；不开启未由用户启用的行为。 |
 | SDK 与面板 | `src/plugins/`、`packages/plugin-sdk/`、`src/main/plugin-host/` | 本地可构建 SDK；保留来源、协议、路径与生命周期校验；无默认线上市场。 |
 
 ## 精确回归而非重复全量验收

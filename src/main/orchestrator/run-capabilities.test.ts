@@ -12,8 +12,8 @@ describe("resolveRunCapabilities", () => {
     tool("web_search"),
     tool("weather"),
     tool("play_live2d_action", ["chat", "work"]),
-    tool("moments_view", ["chat"], true),
-    tool("moments_post", ["chat"], true),
+    tool("fixture_chat_read", ["chat"], true),
+    tool("fixture_chat_write", ["chat"], true),
   ];
   const skills = [skill("office", ["work"]), skill("code-review", ["code"]), skill("study", ["work"])];
   // fake registry 镜像真实现：override 优先于 modes 声明
@@ -34,7 +34,7 @@ describe("resolveRunCapabilities", () => {
   it("makes chat capability-free when enhancement off (builtins excepted)", () => {
     // 总开关关闭时只剩内置人格工具，其余能力全空
     const result = resolveRunCapabilities(input("chat"));
-    expect([...result.toolIds]).toEqual(["moments_view", "moments_post"]);
+    expect([...result.toolIds]).toEqual(["fixture_chat_read", "fixture_chat_write"]);
     expect(result.skills).toEqual([]);
   });
 
@@ -42,7 +42,7 @@ describe("resolveRunCapabilities", () => {
     // 总开关开启但无任何 chat override 勾选：除内置人格工具外仍然空——
     // chat 严格 opt-in，未声明 modes 的工具（read_file）不得漏进闲聊。
     const result = resolveRunCapabilities({ ...input("chat"), chatToolsEnabled: true });
-    expect([...result.toolIds]).toEqual(["moments_view", "moments_post"]);
+    expect([...result.toolIds]).toEqual(["fixture_chat_read", "fixture_chat_write"]);
     expect(result.skills).toEqual([]);
   });
 
@@ -65,26 +65,26 @@ describe("resolveRunCapabilities", () => {
       chatToolsEnabled: true,
     });
     // 内置人格工具不依赖 opt-in，排在显式勾选的工具前面；不重复
-    expect([...result.toolIds]).toEqual(["moments_view", "moments_post", "weather"]);
+    expect([...result.toolIds]).toEqual(["fixture_chat_read", "fixture_chat_write", "weather"]);
     expect(result.skills).toEqual([]);
   });
 
   it("chat 内置人格工具：总开关关闭也可见，显式勾掉即隐藏", () => {
     // 总开关关闭：chatBuiltin 工具仍放行（人格能力不依赖工具增强开关）
     const off = resolveRunCapabilities(input("chat"));
-    expect([...off.toolIds]).toEqual(["moments_view", "moments_post"]);
+    expect([...off.toolIds]).toEqual(["fixture_chat_read", "fixture_chat_write"]);
 
     // 用户显式 override.chat=false：逃生门仍然有效
-    const banned = resolveRunCapabilities(input("chat", { moments_post: { chat: false } }));
-    expect([...banned.toolIds]).toEqual(["moments_view"]);
+    const banned = resolveRunCapabilities(input("chat", { fixture_chat_write: { chat: false } }));
+    expect([...banned.toolIds]).toEqual(["fixture_chat_read"]);
 
     // chatBuiltin 工具被 opt-in 显式勾选时不重复出现
     const dup = resolveRunCapabilities({
-      ...input("chat", { moments_view: { chat: true }, weather: { chat: true } }),
+      ...input("chat", { fixture_chat_read: { chat: true }, weather: { chat: true } }),
       chatToolsEnabled: true,
     });
-    expect(dup.tools.filter((t) => t.id === "moments_view")).toHaveLength(1);
-    expect([...dup.toolIds]).toEqual(["moments_view", "moments_post", "weather"]);
+    expect(dup.tools.filter((t) => t.id === "fixture_chat_read")).toHaveLength(1);
+    expect([...dup.toolIds]).toEqual(["fixture_chat_read", "fixture_chat_write", "weather"]);
   });
 
   it("honors mode filtering for tools and skills", () => {
@@ -93,6 +93,6 @@ describe("resolveRunCapabilities", () => {
     expect(resolveRunCapabilities(input("work")).skillIds).toEqual(new Set(["office", "study"]));
     expect(() => resolveRunCapabilities(input("learn" as never))).toThrow("INVALID_CONVERSATION_MODE");
     // chat 内置工具只声明 chat 模式，不漏进其他模式
-    expect(resolveRunCapabilities(input("work")).toolIds).not.toContain("moments_view");
+    expect(resolveRunCapabilities(input("work")).toolIds).not.toContain("fixture_chat_read");
   });
 });

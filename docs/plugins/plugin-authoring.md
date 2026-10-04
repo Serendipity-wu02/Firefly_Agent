@@ -275,12 +275,12 @@ Provider id 在当前插件内唯一，框架会补全为 `plugin:<插件id>:<pr
 #### sources 场景声明
 
 `sources` 声明 Provider 参与的场景，可选值为 `"conversation"`（用户会话）、`"scheduler"`（定时任务）、
-`"moments-post"`（动态发帖决策）、`"plugin-agent"`（插件无头目标循环）：
+`"plugin-agent"`（插件无头目标循环）：
 
 ```js
 ctx.registerPromptProvider({
   id: "memory-echo",
-  sources: ["conversation", "moments-post"],
+  sources: ["conversation", "scheduler"],
   async provide({ source, userText, conversationId, channel, signal }) {
     if (signal.aborted) return "";
     return `相关记忆：……`;
@@ -291,13 +291,7 @@ ctx.registerPromptProvider({
 - 未声明 `sources` 时默认只参与 `conversation` 与 `scheduler`——与旧版行为一致，既有插件
   无需改动（向后兼容）；声明后仅在列出的场景生效。
 - `plugin-agent` 必须显式声明，携带 `mode` 并参与 `modes` 过滤；定时任务的 `mode` 来自任务执行规格，缺省为 `work`。
-- 参与动态发帖（流萤结合最近对话主动发朋友圈的决策）必须显式声明 `"moments-post"`，
-  防止升级后插件不知情地被扩大调用；该场景没有会话 `mode`，Provider 是否生效仅由
-  `sources` 决定，`modes` 不参与匹配。
-- `moments-post` 调用会附带触发发帖的会话归属 `conversationId` / `channel`，按会话隔离
-  记忆的插件可以用它过滤，避免把其他会话的记忆注入发帖决策。
-- `moments-post` 的 `userText` 是发帖决策所依据的**最近对话摘录快照**，不是用户当前这条
-  消息——不要把它当作用户指令处理，检索/过滤的语义应按「这段对话讲了什么」理解。
+
 
 ### 私有存储
 

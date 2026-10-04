@@ -10,7 +10,6 @@ vi.mock("electron", () => ({ app: { getPath: () => dataDir.value, getAppPath: ()
 import { deleteUserSticker, getAllStickerConfig, isStickerIdTaken } from "./sticker-storage";
 import { buildStickerEmbeddingIndex } from "./sticker-embedder";
 import { resolveStickerImagePath } from "./channels/outgoing-composer";
-import { resolveMomentStickerMedia } from "./moments/moment-media-matcher";
 
 afterEach(() => { if (dataDir.value) fs.rmSync(dataDir.value, { recursive: true, force: true }); });
 
@@ -19,7 +18,6 @@ it("preserves an existing custom ID even when a new built-in uses the same name"
   const stickers = { "firefly-hug": { id: "firefly-hug", file: "custom.gif", description: "公开自定义", phrases: ["自定义含义"], createdAt: 1 } };
   fs.writeFileSync(path.join(dataDir.value, "sticker-manifest.json"), JSON.stringify({ schemaVersion: 1, stickers }));
   expect(getAllStickerConfig({}).filter(item => item.id === "firefly-hug")).toMatchObject([{ builtIn: false }]);
-  expect(resolveMomentStickerMedia("firefly-hug")?.ref).toBe("local-sticker:///custom.gif");
   expect(resolveStickerImagePath("firefly-hug")).toBe(path.join(dataDir.value, "stickers", "custom.gif"));
   const provider = { name: "public-test", dims: 1, embed: async () => [1], embedBatch: async (texts: string[]) => texts.map(text => [text === "自定义含义" ? 2 : 1]) };
   const index = await buildStickerEmbeddingIndex(provider, BUILT_IN_STICKER_DESCRIPTIONS, stickers);
@@ -54,6 +52,4 @@ it("lists built-ins with saved toggles and preserves user GIF metadata without w
   expect(fs.readFileSync(file, "utf8")).toBe(original);
   expect(resolveStickerImagePath("firefly-hug")).toMatch(/hug\.png$/);
   expect(resolveStickerImagePath("hugtight")).toBeNull();
-  expect(resolveMomentStickerMedia("hugtight")).toBeNull();
-  expect(resolveMomentStickerMedia("firefly-hug")?.ref).toBe("stickers/hug.png");
 });

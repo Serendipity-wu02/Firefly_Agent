@@ -10,7 +10,7 @@
 import type { VisionConfig } from "./vision-captioner";
 
 /** 图片入口来源，用于日志和针对性提示。 */
-export type ImageSource = "attachment" | "tool" | "channel" | "moments";
+export type ImageSource = "attachment" | "tool" | "channel";
 
 /** 路由所需的最小设置视图（完整 ModelSettings 与各处 Lite 型都结构兼容）。 */
 export interface ImageRouteSettings {

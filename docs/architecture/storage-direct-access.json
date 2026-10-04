@@ -278,36 +278,6 @@
     ]
   },
   {
-    "file": "src/main/moments/moments-policy.ts",
-    "method": "getPath",
-    "root": "userData",
-    "count": 1,
-    "category": "MIGRATE_LATER",
-    "lines": [
-      151
-    ]
-  },
-  {
-    "file": "src/main/moments/moments-service.ts",
-    "method": "getPath",
-    "root": "userData",
-    "count": 1,
-    "category": "MIGRATE_LATER",
-    "lines": [
-      804
-    ]
-  },
-  {
-    "file": "src/main/moments/moments-store.ts",
-    "method": "getPath",
-    "root": "userData",
-    "count": 1,
-    "category": "MIGRATE_LATER",
-    "lines": [
-      97
-    ]
-  },
-  {
     "file": "src/main/orchestrator/agent-runtime.ts",
     "method": "getPath",
     "root": "userData",

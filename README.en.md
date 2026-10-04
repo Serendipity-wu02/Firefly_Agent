@@ -12,7 +12,7 @@
 
 | Area | Current implementation |
 | --- | --- |
-| Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters retain separate portraits and have explicitly configured persistent specialist roles. Moments is disabled by default. |
+| Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters retain separate portraits and have explicitly configured persistent specialist roles. |
 | Chat | Character conversations, model profiles, streamed replies and history. An explicit preferred form of address takes priority over an existing nickname; the default is “开拓者” (Trailblazer). Canonical story events do not automatically become shared experiences with the current user. |
 | Work | Tools, file and document processing, Skills, Task/Subagent, approvals and cancellation. Explicitly required file reads need evidence from the current run; budget limits require partial-range confirmation. Task completion and complete reading are reported separately. Finished tasks can be exported to Markdown through a native save dialog. |
 | Work knowledge workspace | Learning, quizzes, notes and progress remain available in Work. Bind a workspace, then explicitly confirm “添加学习结构” (add learning structure), or bind an initialized Vault. Ordinary Work does not automatically create a Vault or maintain progress. See the [knowledge workspace guide](docs/user-guide/knowledge-workspace.md). |

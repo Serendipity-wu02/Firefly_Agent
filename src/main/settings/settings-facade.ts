@@ -42,12 +42,6 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   citaEnabled: false,
   citaSemanticEngine: "remote",
   chatSocialContextEnabled: false,
-  momentsEnabled: false,
-  chatMomentsContextEnabled: false,
-  fireflyMomentsPostingEnabled: false,
-  fireflyMomentsReactionsEnabled: true,
-  momentsCharacterReactionsEnabled: true,
-  momentsLiveliness: "quiet",
   petAlwaysOnTop: true,
   petVisible: true,
   petZoom: 1,
@@ -191,25 +185,6 @@ export function normalizeGeneralSettings(
     citaEnabled: cita.enabled,
     citaSemanticEngine: cita.semanticEngine,
     chatSocialContextEnabled: normalizeChatSocialContextEnabled(input?.chatSocialContextEnabled),
-    momentsEnabled: input?.momentsEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.momentsEnabled
-      : Boolean(input.momentsEnabled),
-    chatMomentsContextEnabled: input?.chatMomentsContextEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.chatMomentsContextEnabled
-      : Boolean(input.chatMomentsContextEnabled),
-    fireflyMomentsPostingEnabled: input?.fireflyMomentsPostingEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.fireflyMomentsPostingEnabled
-      : Boolean(input.fireflyMomentsPostingEnabled),
-    fireflyMomentsReactionsEnabled: input?.fireflyMomentsReactionsEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.fireflyMomentsReactionsEnabled
-      : Boolean(input.fireflyMomentsReactionsEnabled),
-    momentsCharacterReactionsEnabled: input?.momentsCharacterReactionsEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.momentsCharacterReactionsEnabled
-      : Boolean(input.momentsCharacterReactionsEnabled),
-    // 热闹程度只认三个合法档位，非法值回落默认档。
-    momentsLiveliness: ["quiet", "natural", "lively"].includes(input?.momentsLiveliness as string)
-      ? (input?.momentsLiveliness as GeneralSettings["momentsLiveliness"])
-      : DEFAULT_GENERAL_SETTINGS.momentsLiveliness,
     petAlwaysOnTop: input?.petAlwaysOnTop === undefined
       ? DEFAULT_GENERAL_SETTINGS.petAlwaysOnTop
       : Boolean(input.petAlwaysOnTop),
@@ -408,7 +383,8 @@ function loadGeneralSettings0(): GeneralSettings {
     const withInstallerSelection = applyInstallerLaunchAtLoginSelection(existing, installerSelection);
     if (installerSelection !== null) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify(normalizeGeneralSettings(withInstallerSelection), null, 2));
+      // Persist only the installer's explicit choice; retirement must not rewrite saved keys.
+      fs.writeFileSync(filePath, JSON.stringify(withInstallerSelection, null, 2));
     }
     return normalizeGeneralSettings(withInstallerSelection);
   } catch {

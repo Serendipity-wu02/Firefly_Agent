@@ -288,7 +288,7 @@ export function getPermanentWorldbookEntries(): string[] {
   return worldbook.getPermanentEntries();
 }
 
-// ── Worldbook 关键词直查：后台轻量调用（Moments 反应/发帖等）用，不经 DMAE 状态机 ──
+// ── Worldbook 关键词直查：后台轻量调用用，不经 DMAE 状态机 ──
 // 文本命中任一触发词即注入该条目，调用方自行决定合并常驻条目。
 export function getKeywordMatchedWorldbookEntries(text: string): string[] {
   if (!worldbook) return [];

@@ -45,7 +45,6 @@ import { runDocumentIndexJob } from "../rag/document-index-worker";
 import { createLlmClient } from "../services/llm/llm-client";
 import { createTtsSynthesisService } from "../services/tts/tts-synthesis-service";
 import { createEmbeddingIndexService } from "../services/embedding/embedding-index-service";
-import { momentsService, registerMomentsMediaMatcher } from "../moments/moments-service";
 import {
   addL2MemoryVector,
   deleteUserMemoryVectors,
@@ -85,7 +84,6 @@ import { backupMemoryRagFiles, reconcileMemoryRag } from "../memory/memory-rag-r
 import { registerChatsIpc } from "../chats/chats-ipc";
 import { registerWorkspaceFilesIpc } from "../chats/workspace-files-ipc";
 import { registerOpenInAppIpc } from "../chats/open-in-app";
-import { registerMomentsIpc } from "../moments/moments-ipc";
 import { registerChatUiIpc, getActiveChatSessionId } from "../chats/chat-ui-ipc";
 import { createToastWindowController } from "../toast/toast-window";
 import { createToastService } from "../toast/toast-service";
@@ -293,10 +291,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         const llmClient = createLlmClient();
         const ttsSynthesisService = createTtsSynthesisService();
         const embeddingIndexService = createEmbeddingIndexService();
-        // Moments 配图：贴图 embedding 索引 getter 晚绑定给 moments-service 模块单例（索引未就绪时纯文字降级）
-        registerMomentsMediaMatcher({
-          getStickerIndex: () => embeddingIndexService.getStickerEmbeddingIndex(),
-        });
         const citaService = createCitaService({ llmClient });
         const socialContextService = createSocialContextService({ llmClient, enqueueLLMTask });
         const proactiveLifecycle = createProactiveLifecycle({ loadGeneralSettings });
@@ -513,7 +507,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           llmClient: services.llm,
           isPrimaryModelBusy: hasActiveConversationRun,
         });
-        registerMomentsIpc(ipc);
         registerCodeGitIpc({ ipc, service: services.git });
         // 会话工作区只读文件（右侧面板文件树 / 预览）
         registerWorkspaceFilesIpc(ipc);
@@ -571,7 +564,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
         // 权限模块：磁盘加载 + 权限/选择卡片 IPC（必须在 createWindow 之后、任意工具调用之前）
         bootstrapPermission(ipc);
-        // pop_quiz 抽查工具：IPC（提交/跳过）与工具注册（learn 模式可见）
+        // pop_quiz 抽查工具：IPC（提交/跳过）与工具注册（Work 模式可见）
         registerPopQuizIpc(ipc);
         registerPopQuizTool();
       },
@@ -674,11 +667,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       startProactiveTrigger: async () => {
         core.services.proactive.initializeProactiveTrigger();
         return { dispose: () => core.services.proactive.stopProactiveTrigger() };
-      },
-      startMomentsReactionScanner: async () => {
-        // 启动即补扫一轮：重启前已逾期的反应任务尽快续上，不等第一个扫描周期
-        momentsService.startReactionScanner();
-        return { dispose: () => momentsService.stopReactionScanner() };
       },
     }),
 

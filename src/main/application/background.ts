@@ -35,8 +35,6 @@ export interface BackgroundDependencies {
   prewarmScreenshot(signal: AbortSignal): Promise<void>;
   scheduleUpdateCheck(signal: AbortSignal): Promise<{ dispose(): void } | void>;
   startProactiveTrigger(signal: AbortSignal): Promise<{ dispose(): void } | void>;
-  /** 启动动态反应队列周期扫描器（含启动补扫，重启后逾期任务尽快续上） */
-  startMomentsReactionScanner(signal: AbortSignal): Promise<{ dispose(): void } | void>;
 }
 
 export interface BackgroundHandle {
@@ -130,7 +128,6 @@ export function startBackground(deps: BackgroundDependencies): BackgroundHandle 
   let proactiveTriggerDisposer: OptionalDisposer;
   let updateCheckDisposer: OptionalDisposer;
   let embeddingRefreshDisposer: OptionalDisposer;
-  let momentsScannerDisposer: OptionalDisposer;
 
   const isShuttingDown = (): boolean => {
     const phase = readiness.getPhase();
@@ -181,11 +178,6 @@ export function startBackground(deps: BackgroundDependencies): BackgroundHandle 
     id: "proactive-trigger",
     phase: "stopProducers",
     dispose: async () => { disposeOptional(proactiveTriggerDisposer); },
-  });
-  shutdown.register({
-    id: "moments-reaction-scanner",
-    phase: "stopProducers",
-    dispose: async () => { disposeOptional(momentsScannerDisposer); },
   });
   shutdown.register({
     id: "scheduler",
@@ -240,11 +232,6 @@ export function startBackground(deps: BackgroundDependencies): BackgroundHandle 
     await runTracked("proactive-trigger", "proactive", async (signal) => {
       if (signal.aborted) throw new Error("aborted before proactive trigger start");
       proactiveTriggerDisposer = await deps.startProactiveTrigger(signal);
-    });
-    // 动态反应队列扫描器：纯定时器启动，失败只降级不影响其余生产者
-    await runTracked("moments-reaction-scanner", "moments", async (signal) => {
-      if (signal.aborted) throw new Error("aborted before moments reaction scanner start");
-      momentsScannerDisposer = await deps.startMomentsReactionScanner(signal);
     });
   }
 

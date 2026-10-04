@@ -245,24 +245,6 @@ const toastApi: import("../shared/toast-types").ToastRendererApi = {
 };
 contextBridge.exposeInMainWorld("toast", toastApi);
 
-// Moments（动态 / 朋友圈）API：renderer 只能提交内容字段，author/id/createdAt 由主进程强制生成
-const momentsApi: import("../shared/moments-types").MomentsApi = {
-  list: (options) => ipcRenderer.invoke(IPC.MOMENTS_LIST, options),
-  getPost: (postId) => ipcRenderer.invoke(IPC.MOMENTS_GET_POST, postId),
-  createPost: (input) => ipcRenderer.invoke(IPC.MOMENTS_CREATE_POST, input),
-  deletePost: (postId) => ipcRenderer.invoke(IPC.MOMENTS_DELETE_POST, postId),
-  createComment: (input) => ipcRenderer.invoke(IPC.MOMENTS_CREATE_COMMENT, input),
-  toggleLike: (postId) => ipcRenderer.invoke(IPC.MOMENTS_TOGGLE_LIKE, postId),
-  listCharacters: () => ipcRenderer.invoke(IPC.MOMENTS_LIST_CHARACTERS),
-  onChanged: (callback) => {
-    const handler = () => callback();
-    ipcRenderer.on(IPC.MOMENTS_CHANGED, handler);
-    return () => ipcRenderer.removeListener(IPC.MOMENTS_CHANGED, handler);
-  },
-};
-contextBridge.exposeInMainWorld("moments", momentsApi);
-
-
 const fireflyThemeApi = {
   get: () => ipcRenderer.invoke(IPC.UI_THEME_GET) as Promise<UiTheme>,
   onChanged: (callback: (theme: UiTheme) => void) => {
@@ -475,7 +457,7 @@ const settingsApi = {
     ipcRenderer.on(IPC.PERMISSION_APPROVAL_SETTLED, listener);
     return () => ipcRenderer.removeListener(IPC.PERMISSION_APPROVAL_SETTLED, listener);
   },
-  // pop_quiz 抽查卡片（learn 模式）：主进程推送卡片（10s 幂等重播，同 quizId 覆盖）
+  // pop_quiz 抽查卡片（Work 模式）：主进程推送卡片（10s 幂等重播，同 quizId 覆盖）
   onPopQuizRequest: (
     cb: (card: { quizId: string; runId: string; intro: string; questions: unknown[] }) => void
   ): (() => void) => {

@@ -565,7 +565,7 @@ export type PluginPromptMode = "chat" | "work" | "code";
  * 提示词 Provider 的场景来源。新增场景默认不收录既有 Provider，
  * 插件必须显式声明 sources 才会参与，防止升级后不知情地被扩大调用。
  */
-export type PluginPromptSource = "conversation" | "scheduler" | "moments-post" | "plugin-agent";
+export type PluginPromptSource = "conversation" | "scheduler" | "plugin-agent";
 
 /** 各场景共有的构建输入：本轮用户文本与可选的会话归属。 */
 interface PluginPromptBuildInputCommon {
@@ -592,27 +592,11 @@ export interface PluginAgentPromptBuildInput extends PluginPromptBuildInputCommo
   mode: PluginPromptMode;
 }
 
-/** 动态发帖决策；无会话模式，是否生效仅由 Provider 的 sources 声明决定。 */
-export interface MomentsPostPromptBuildInput extends PluginPromptBuildInputCommon {
-  source: "moments-post";
-  /**
-   * 恒为 undefined：moments-post 不存在会话模式。声明为 never 而非省略字段，
-   * 是为了兼容既有插件 `provide({ source, mode, userText })` 的参数解构写法——
-   * 升级 SDK 后旧代码仍可编译，运行时该值不存在。
-   */
-  mode?: never;
-}
-
-/**
- * 提示词 Provider 的构建输入，以 source 为判别字段：插件按 source 分支后，
- * TypeScript 自动收窄出各场景的必填字段（conversation/scheduler 必带 mode，
- * moments-post 没有会话模式），不需要猜测可选字段是否合法。
- */
+/** 提示词 Provider 的构建输入；所有保留场景都携带会话模式。 */
 export type PluginPromptBuildInput =
   | ConversationPromptBuildInput
   | SchedulerPromptBuildInput
-  | PluginAgentPromptBuildInput
-  | MomentsPostPromptBuildInput;
+  | PluginAgentPromptBuildInput;
 
 /**
  * PluginPromptBuildInput 是联合，接口不能 extends 联合类型；
@@ -630,7 +614,7 @@ export interface PluginPromptProvider {
   modes?: PluginPromptMode[];
   /**
    * 声明后仅在列出的场景生效；缺省 = 仅 conversation + scheduler
-   * （与旧版行为一致），参与 moments-post 必须显式声明，防止升级后插件不知情地被扩大调用。
+   * （与旧版行为一致），参与 plugin-agent 必须显式声明。
    */
   sources?: PluginPromptSource[];
   provide(input: PluginPromptProviderInput): string | Promise<string>;
