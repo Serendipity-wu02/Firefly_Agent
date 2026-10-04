@@ -21,6 +21,8 @@
 
 后续受控验证：[SW/退出证据](../testing/browser-sw-lifecycle.md)补内存主脚本v1/v2真实激活、安装/更新HTTPS import hook观测与失败v3保留v2，正常原生退出最终7记录/errors=[]。保留首轮失败，清理后即时running快照不保证为空；候选保持deny并有界观察后复验，不把clearStorageData resolve当成同步worker停止。独立复审无新增Critical/Required，仍缺可信Chromium TLS、HTTPS主SW脚本成功及生产ShutdownCoordinator，继续HOLD。
 
+最小独立项续接：[首域清理失败负例](../testing/browser-cleanup-failure.md)证明A的Promise拒绝不跳过B原生清理，保留cleanup_failed/native exit1且不放行正常退出；只做无DNS/TLS夹具。该文列出现有源码落点、尚待父冻结的候选接口、可离线推进模块和受控HTTPS目标条件，不自动开启生产实现或创建外部服务。
+
 ## 历史模块文件与可验证任务
 
 1. 新建 `src/main/browser/public-network-target.ts/.test.ts`：`isPublicNetworkAddress(address)` 与 `parseConnectAuthority(authority)`；Node BlockList保守特殊网段规则，IPv4/IPv6/映射/zone/非法authority/443限制的RED→GREEN。拒绝范围有意覆盖部分全球可达特殊用途地址，不能保证所有网站可用。

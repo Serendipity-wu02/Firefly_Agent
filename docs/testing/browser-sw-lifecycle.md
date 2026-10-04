@@ -40,3 +40,5 @@ r3真实beforeQuit=3、cleanupRuns=1、reentryBlocked=1、willQuit=1、quit=1/ex
 **仍HOLD**：可信Chromium TLS及其已有隧道POST、HTTPS主SW脚本安装/更新/导航预加载、完整跨协议出口、生产owner/ShutdownCoordinator、清理失败注入、Windows系统关机/注销/崩溃及多平台未验证。
 
 最小下一步：当前环境可先做夹具首域清理失败注入，断言仍清后域、全域持续deny且不伪报正常退出；另对准备await取消点补原生生命周期记录。可信TLS正例需要受控HTTPS目标，其证书链由系统原有信任支持、正常DNS答案全过现有公网策略且能部署固定SW测试脚本；满足前再跑同源HTTPS主SW安装/更新、真实已有TLS隧道POST拒绝和GET/HEAD允许。没有这个前提就维持缺口，不安装根、不改网络、不硬编码公网IP绕DNS。全协议出口抓包及生产接线是后续独立门槛，本次不提前实施。
+
+首域失败注入已在[网络独立负例](browser-cleanup-failure.md)续接：A异步拒绝一次，B原生清理完成，聚合cleanup_failed/native exit1保留、未放行正常退出；独立复审两项Required关闭。此项不再列为完全未测，正常退出、异步失败的有限夹具证据分别保留，生产参与者接线与其他失败/超时种类仍未验证。可信TLS/DNS依赖验证按用户要求暂停。
