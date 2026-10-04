@@ -36,16 +36,19 @@ describe("buildTrayMenuTemplate", () => {
     const clicks = clickByLabel(buildTrayMenuTemplate(deps));
 
     clicks.get("打开聊天窗口")!();
-    clicks.get("打开状态面板")!();
-    clicks.get("QQ Music 状态")!();
     clicks.get("设置")!();
 
     expect(requests).toEqual([
       { kind: "chat" },
-      { kind: "sidebar" },
-      { kind: "music" },
       { kind: "settings" },
     ]);
+  });
+
+  it("does not offer removed standalone status or music status entries", () => {
+    const { deps } = makeDeps();
+    const labels = buildTrayMenuTemplate(deps).map(item => item.label);
+    expect(labels).not.toContain("打开状态面板");
+    expect(labels).not.toContain("QQ Music 状态");
   });
 
   it("keeps pet toggle and quit immediate instead of activation requests", () => {

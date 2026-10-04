@@ -686,6 +686,8 @@
     "workbench": "Workbench",
     "more": "More",
     "navigation": "Main navigation",
+    "userMenu": "Local user menu",
+    "localUser": "Local user",
     "contextSidebar": "Conversations and projects"
   }
 }

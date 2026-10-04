@@ -263,7 +263,10 @@ body {
   margin-bottom: 10px;
   font: var(--rb-text-small-em);
   color: var(--rb-text-strong);
+  cursor: pointer;
 }
+.task-section__header:focus-visible { outline: 2px solid var(--rb-pink-600); outline-offset: 4px; }
+.task-section:not([open]) .task-section__header { margin-bottom: 0; }
 
 .task-list {
   display: grid;

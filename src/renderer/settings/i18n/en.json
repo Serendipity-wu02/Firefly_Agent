@@ -1,1 +1,27 @@
-{}
+{
+  "settings": {
+    "providerUi": {
+      "listTitle": "Configured model providers",
+      "listSubtitle": "Each configuration uses one model. Status describes saved configuration only.",
+      "addTitle": "Add model provider",
+      "presetTab": "Preset providers",
+      "customTab": "Custom API",
+      "close": "Collapse",
+      "advanced": "Advanced settings",
+      "routingTitle": "Role model overrides",
+      "edit": "Edit",
+      "delete": "Delete",
+      "incomplete": "Incomplete configuration",
+      "missingKey": "Missing API Key",
+      "configured": "Configured · Connection not tested"
+    },
+    "profile": {
+      "badge": { "default": "Default" },
+      "editorTitle": { "edit": "Edit model configuration", "new": "Add model configuration" },
+      "empty": "No saved model configurations",
+      "loading": "Loading model configurations…",
+      "readFailed": "Could not load model configurations",
+      "count": "{{count}} saved"
+    }
+  }
+}

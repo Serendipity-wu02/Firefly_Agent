@@ -74,27 +74,37 @@
           <div class="profile-list-section">
             <div class="profile-list-heading">
               <div>
-                <h2><span data-i18n="panel.api.profileList.title">已保存档案</span></h2>
-                <p><span data-i18n="panel.api.profileList.subtitle">点击档案载入编辑；在聊天窗口的模型面板里切换使用。</span></p>
+                <h2><span data-i18n="settings.providerUi.listTitle">已配置模型提供商</span></h2>
+                <p><span data-i18n="settings.providerUi.listSubtitle">每条配置使用一个模型；状态仅反映已保存的配置。</span></p>
               </div>
-              <span class="profile-list-count" id="profile-list-count"></span>
+              <div class="provider-list__tools"><span class="profile-list-count" id="profile-list-count"></span><button type="button" class="save-btn save-btn--ghost" id="add-profile-btn" data-i18n="settings.providerUi.addTitle">添加模型提供商</button></div>
             </div>
             <div class="profile-list" id="model-profile-list"></div>
           </div>
 
-          <section class="profile-list-section" aria-label="Agent Routing">
-            <h2>Agent Routing · 专业角色模型路由</h2>
+          <details class="provider-details" id="agent-routing-group">
+            <summary data-i18n="settings.providerUi.routingTitle">角色模型覆盖</summary>
             <div id="agent-routing-panel"></div>
-          </section>
+          </details>
 
-          <div class="preset-row">
+          <div class="save-status" id="save-status" role="status"><span data-i18n="panel.api.saveStatus">等待保存</span></div>
+          <section class="provider-editor" id="profile-editor" hidden aria-labelledby="profile-editor-title">
+            <div class="provider-editor__toolbar">
+              <div class="provider-tabs" role="tablist" data-i18n-aria-label="settings.providerUi.addTitle" aria-label="添加模型提供商">
+                <button type="button" role="tab" id="provider-preset-tab" data-provider-tab="preset" aria-controls="provider-preset-page" aria-selected="true" data-i18n="settings.providerUi.presetTab">预设提供商</button>
+                <button type="button" role="tab" id="provider-custom-tab" data-provider-tab="custom" aria-controls="custom-endpoint-controls" aria-selected="false" tabindex="-1" data-i18n="settings.providerUi.customTab">自定义 API</button>
+              </div>
+              <button type="button" class="provider-row__action" id="close-profile-editor" data-i18n="settings.providerUi.close">收起</button>
+            </div>
+
+          <div class="preset-row" id="provider-preset-page" role="tabpanel" aria-labelledby="provider-preset-tab">
             <div class="field field--full">
               <span><span data-i18n="panel.api.presetRow.label">新建档案 · 选择厂商预设</span></span>
               <div class="preset-cards" id="preset-cards"></div>
             </div>
           </div>
 
-          <div class="custom-endpoint-controls" id="custom-endpoint-controls" hidden>
+          <div class="custom-endpoint-controls" id="custom-endpoint-controls" role="tabpanel" aria-labelledby="provider-custom-tab" hidden>
             <div class="custom-endpoint-controls__copy">
               <div class="custom-endpoint-controls__title">
                 <span><span data-i18n="panel.api.customEndpoint.title">自定义端点</span></span>
@@ -118,8 +128,8 @@
             <p><span data-i18n="panel.api.editor.subtitle">昵称用于区分同模型名、不同 API 的配置；上下文窗口与多模态跟随档案，聊天窗口切档案时自动生效。</span></p>
           </div>
 
-          <div class="form-grid">
-            <label class="field">
+          <div class="form-grid" id="provider-primary-fields">
+            <label class="field" data-provider-field="custom">
               <span><span data-i18n="panel.api.field.nickname.label">昵称</span></span>
               <div class="nickname-row">
                 <input id="display-name" type="text" placeholder="给模型起个名字" autocomplete="off" data-i18n-placeholder="panel.api.field.nickname.placeholder" />
@@ -127,13 +137,13 @@
               </div>
             </label>
 
-            <label class="field">
+            <label class="field" data-provider-field="key">
               <span id="api-key-label"><span data-i18n="panel.api.field.apiKey.label">API Key</span></span>
               <input id="api-key" type="password" placeholder="sk-..." autocomplete="off" data-i18n-placeholder="panel.api.field.apiKey.placeholder" />
               <span class="form-hint" id="api-key-hint"><span data-i18n="panel.api.field.apiKey.hint">填写对应平台创建的 API Key</span></span>
             </label>
 
-            <label class="field field--full base-url-field">
+            <label class="field field--full base-url-field" data-provider-field="custom">
               <span><span data-i18n="panel.api.field.baseUrl.label">Base URL</span></span>
               <div class="base-url-row">
                 <input id="base-url" type="url" placeholder="https://api.deepseek.com" autocomplete="off" data-i18n-placeholder="panel.api.field.baseUrl.placeholder" />
@@ -142,16 +152,16 @@
               <span class="form-hint endpoint-preview" id="endpoint-preview" aria-live="polite"></span>
             </label>
 
-            <div class="field field--full">
+            <div class="field field--full" data-provider-field="custom">
               <span><span data-i18n="panel.api.field.transport.label">API 协议</span></span>
               <div class="transport-cards" id="transport-select" role="group" aria-label="API 协议" data-i18n-aria-label="panel.api.field.transport.groupLabel">
                 <button type="button" class="preset-card" data-value="openai" aria-pressed="false">
                   <span class="preset-card__logo"><img src="../icons/providers/openai.svg" alt="" width="24" height="24" draggable="false" /></span>
-                  <span class="preset-card__name" data-i18n="panel.api.field.transport.openai">chat/completion</span>
+                  <span class="preset-card__name" data-i18n="panel.api.field.transport.openai">Chat Completions</span>
                 </button>
                 <button type="button" class="preset-card" data-value="anthropic" aria-pressed="false">
                   <span class="preset-card__logo"><img src="../icons/providers/claude.svg" alt="" width="24" height="24" draggable="false" /></span>
-                  <span class="preset-card__name" data-i18n="panel.api.field.transport.anthropic">anthropic</span>
+                  <span class="preset-card__name" data-i18n="panel.api.field.transport.anthropic">Anthropic Messages</span>
                 </button>
                 <button type="button" class="preset-card" data-value="responses" aria-pressed="false">
                   <span class="preset-card__logo"><img src="../icons/providers/openai.svg" alt="" width="24" height="24" draggable="false" /></span>
@@ -161,19 +171,19 @@
               <span class="form-hint" id="transport-hint"><span data-i18n="panel.api.field.transport.hint">请按服务商实际提供的接口类型选择（chat/completion / anthropic / Responses）；程序不会自动识别协议。</span></span>
             </div>
 
-            <label class="field field--full">
+            <label class="field field--full" data-provider-field="custom">
               <span><span data-i18n="panel.api.field.model.label">模型名</span></span>
               <input id="model-input" type="text" placeholder="选厂商后自动填入，可手填覆盖" autocomplete="off" list="model-input-suggestions" data-i18n-placeholder="panel.api.field.model.placeholder" />
               <datalist id="model-input-suggestions"></datalist>
             </label>
 
-            <label class="field">
+            <label class="field" data-provider-field="advanced">
               <span><span data-i18n="panel.api.field.model.contextWindow">上下文窗口（Token）</span></span>
               <input id="context-window-input" type="number" min="4096" step="1" placeholder="256000" autocomplete="off" data-i18n-placeholder="panel.api.field.model.contextWindowPlaceholder" />
               <span class="form-hint"><span data-i18n="panel.api.field.model.contextWindowHint">按档案保存；留空按 256000。</span></span>
             </label>
 
-            <label class="setting-row profile-multimodal-row">
+            <label class="setting-row profile-multimodal-row" data-provider-field="advanced">
               <div>
                 <strong><span data-i18n="panel.api.field.model.multimodal.title">多模态（能直发图片）</span></strong>
                 <span><span data-i18n="panel.api.field.model.multimodal.desc">开启后图片直发该模型；关闭则走下方视觉模型转述。跟随档案生效。</span></span>
@@ -182,6 +192,9 @@
             </label>
           </div>
 
+          <details class="provider-details" id="provider-advanced">
+            <summary data-i18n="settings.providerUi.advanced">高级设置</summary>
+            <div class="form-grid" id="provider-advanced-fields"></div>
           <div class="api-note">
             <span><svg width="22" height="22" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="display:block"><title>安全</title><rect x="6" y="22" width="36" height="22" rx="2" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M14 22V14C14 8.47715 18.4772 4 24 4C29.5228 4 34 8.47715 34 14V22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 30V36" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <p id="api-note-text"><span data-i18n="panel.api.noteText">选择模型预设后会自动填入 Provider、Base URL 和模型名；你只需要填写对应平台的 API Key。配置只保存在本机 Electron 用户数据目录。</span></p>
@@ -271,12 +284,14 @@
             </div>
           </div>
 
+          </details>
+
           <div class="form-actions">
-            <div class="save-status" id="save-status"><span data-i18n="panel.api.saveStatus">等待保存</span></div>
             <button type="button" class="save-btn save-btn--danger" id="delete-profile-btn" hidden><span data-i18n="panel.api.deleteProfileButton">删除档案</span></button>
             <button type="button" class="save-btn save-btn--ghost" id="test-connection-btn"><span data-i18n="panel.api.testConnectionButton">测试连接</span></button>
             <button type="submit" class="save-btn"><span data-i18n="panel.api.saveButton">保存档案</span></button>
           </div>
+          </section>
         </form>
 
         <form class="settings-panel is-hidden" id="api-runtime-form" data-panel="api-advanced">
@@ -548,14 +563,6 @@
 
           <div class="settings-list">
             <h2 class="settings-group-title" data-i18n="panel.general.groups.desktop">桌面与提醒</h2>
-            <div class="setting-row">
-              <div>
-                <strong><span data-i18n="panel.general.statusBar.title">状态栏窗口</span></strong>
-                <span><span data-i18n="panel.general.statusBar.desc">不小心关闭后可以从这里重新打开。</span></span>
-              </div>
-              <span class="switch"><input id="sidebar-visible" type="checkbox" checked /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-            </div>
-
             <div class="setting-row">
               <div>
                 <strong><span data-i18n="panel.general.tasksBar.title">日程栏窗口</span></strong>

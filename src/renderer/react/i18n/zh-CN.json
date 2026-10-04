@@ -686,6 +686,8 @@
     "workbench": "工作台",
     "more": "更多",
     "navigation": "主导航",
+    "userMenu": "本地用户菜单",
+    "localUser": "本地用户",
     "contextSidebar": "会话与项目"
   }
 }

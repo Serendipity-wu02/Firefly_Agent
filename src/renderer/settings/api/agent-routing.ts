@@ -56,7 +56,6 @@ export async function loadAgentRoutingPanel(root: HTMLElement, bridge: RoutingBr
       label.append(text, select);
       root.append(label);
     };
-    for (const route of view.routes) addRow("route", route.id, `默认路由 ${route.id}`, route.profileId, route.profileId ? "已绑定" : "未配置");
     for (const agent of view.agents) addRow("agent", agent.id,
       `${agent.nickname} · ${agent.role} · ${agent.modelProfile}`, agent.overrideProfileId,
       agent.error ?? `${agent.overrideProfileId ? "独立绑定" : "继承"}：${agent.effectiveProfileId ?? "未配置"}`);

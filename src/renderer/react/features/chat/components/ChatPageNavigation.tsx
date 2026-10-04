@@ -7,13 +7,14 @@ import { ModeSwitch } from "../../../components/ui/ModeSwitch";
 import { ModelModeButton } from "../../../components/ui/ModelModeButton";
 import { NewTaskButton } from "../../../components/ui/NewTaskButton";
 import { PluginModeButton } from "../../../components/ui/PluginModeButton";
-import { SettingsButton } from "../../../components/ui/SettingsButton";
+import { resolveAsset } from "../../../../../shared/renderer-base";
 import { SidebarToggle } from "../../../components/ui/SidebarToggle";
 import { SkillModeButton } from "../../../components/ui/SkillModeButton";
 import { ToolModeButton } from "../../../components/ui/ToolModeButton";
 import { WindowControls } from "../../../components/ui/WindowControls";
 import { AppUpdateEntry } from "./AppUpdateEntry";
 import { ConversationSidebar } from "./ConversationSidebar";
+import { RailUserMenu } from "./RailUserMenu";
 import { reportChatPerfRender } from "./chat-perf-probe";
 
 export type ChatPagePanel = "tool" | "skill" | "model" | "plugin";
@@ -86,6 +87,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
         <WindowControls onMinimize={onMinimize} onMaximize={onMaximize} onClose={onCloseWindow} />
       </div>
       <nav className="cy-page-rail" aria-label={t("ui.navigation")}>
+        <img className="cy-page-role-avatar" src={resolveAsset("avatars/firefly-avatar.png")} alt="Firefly" draggable={false} />
         <button type="button" className={`cy-rail-button ${!hasOpenPanel ? "is-active" : ""}`}
           title={t("ui.workbench")} aria-label={t("ui.workbench")} aria-pressed={!hasOpenPanel}
           onClick={() => {
@@ -112,7 +114,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
             <Ellipsis size={20} aria-hidden="true" />
           </button>
         </Popover>
-        <div className="cy-page-rail-bottom"><SettingsButton onClick={onOpenSettings} /></div>
+        <div className="cy-page-rail-bottom"><RailUserMenu onOpenSettings={onOpenSettings} /></div>
       </nav>
       <aside id="firefly-context-sidebar" className="cy-page-sidebar" inert={collapsed} aria-hidden={collapsed} aria-label={t("ui.contextSidebar")}>
         <div className="cy-page-context-header">Firefly</div>
