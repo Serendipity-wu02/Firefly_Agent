@@ -66,4 +66,4 @@ nsis:
   createDesktopShortcut: false
   createStartMenuShortcut: true
   menuCategory: Firefly_Agent
-  include: build/installer/installer.nsh
+  include: build/installer.nsh

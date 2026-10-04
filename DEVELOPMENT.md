@@ -20,7 +20,7 @@ Windows 真实 Bash 用例要求 `FIREFLY_TEST_BASH` 指向已核对存在的 Gi
 
 项目归档调用使用 `yauzl@3.4.0` 与 `src/shared/zip-extraction.ts`。验证记录见 [文档与依赖汇总](docs/architecture/firefly-reliability-boundaries.md)；旧审计结论保留其阶段意义，不作为当前安全认证。
 
-原生截图助手源码位于 `native/firefly-screenshot/`，构建入口是 `npm run build:screenshot-helper`。此步骤还需要 Rust/Cargo 的 Windows MSVC 工具链；编译出的 `resources/bin/firefly-screenshot.exe` 是本地产物，不进入 Git。Windows 本地打包脚本见 `package.json` 和 `electron-builder.yml`。
+原生截图助手源码位于 `native/`，manifest 为 `native/Cargo.toml`，构建入口是 `npm run build:screenshot-helper`。此步骤还需要 Rust/Cargo 的 Windows MSVC 工具链；编译出的 `resources/bin/firefly-screenshot.exe` 是本地产物，不进入 Git。Windows 本地打包脚本见 `package.json` 和 `electron-builder.yml`，NSIS 源码为 `build/installer.nsh`。
 
 ## 数据与发布
 

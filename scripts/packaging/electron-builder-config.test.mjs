@@ -12,7 +12,7 @@ const { FileMatcher, copyFiles } = require("app-builder-lib/out/fileMatcher.js")
 const { copyDir } = require("builder-util");
 
 const source = await readFile(new URL("../../electron-builder.yml", import.meta.url), "utf8");
-const installerInclude = await readFile(new URL("../../build/installer/installer.nsh", import.meta.url), "utf8");
+const installerInclude = await readFile(new URL("../../build/installer.nsh", import.meta.url), "utf8");
 const packageJson = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(await readFile(new URL("../../package-lock.json", import.meta.url), "utf8"));
 
@@ -101,7 +101,7 @@ test("the core package excludes retired music components and includes the QQ bri
 
 test("the assisted installer exposes Firefly setup choices and an uninstall entry", () => {
   assert.match(source, /createDesktopShortcut:\s+false/);
-  assert.match(source, /include:\s+build\/installer\/installer\.nsh/);
+  assert.match(source, /include:\s+build\/installer\.nsh/);
   assert.match(source, /menuCategory:\s+Firefly_Agent/);
 });
 

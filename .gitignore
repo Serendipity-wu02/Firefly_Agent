@@ -52,9 +52,7 @@ tmp-m0-poc/
 # build/installer/ui/ 是自研安装器 UI 的整个子项目，源码 + 产物都不进 git。
 # 兜底：未来若在 build/ 下新增其他子目录（除了上方白名单文件），默认全部忽略。
 build/*
-!build/installer/
-build/installer/*
-!build/installer/installer.nsh
+!build/installer.nsh
 build/installer/ui/
 build/installer/ui/node_modules/
 build/installer/ui/dist/

@@ -9,7 +9,7 @@ describe("resolveScreenshotHelperPath", () => {
       appPath: "C:\\repo",
       resourcesPath: "C:\\app\\resources",
       envOverride: undefined,
-    })).toBe("C:\\repo\\native\\firefly-screenshot\\target\\release\\firefly-screenshot.exe");
+    })).toBe("C:\\repo\\native\\target\\release\\firefly-screenshot.exe");
   });
 
   // This fixture uses Windows paths from the Windows native screenshot helper.

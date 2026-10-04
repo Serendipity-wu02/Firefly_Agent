@@ -53,9 +53,9 @@ it("has valid file targets in current navigation", () => {
 });
 
 it("keeps maintenance tools at their current paths and excludes unused installer artwork", () => {
-  expect(fs.existsSync(path.join(root, "build/installer/installer.nsh"))).toBe(true);
-  expect(fs.existsSync(path.join(root, "build/installer/installer-sidebar.bmp"))).toBe(false);
-  expect(read("electron-builder.yml")).toContain("include: build/installer/installer.nsh");
+  expect(fs.existsSync(path.join(root, "build/installer.nsh"))).toBe(true);
+  expect(fs.existsSync(path.join(root, "build/installer-sidebar.bmp"))).toBe(false);
+  expect(read("electron-builder.yml")).toContain("include: build/installer.nsh");
   expect(read("electron-builder.yml")).not.toContain("installerSidebar");
   for (const file of ["loading.png", "icons/mimi.png", "icons/sticker-picker.png", "context-usage/alert.png", "feeling/开心.png"]) {
     expect(fs.existsSync(path.join(root, "src/renderer/public", file)), file).toBe(false);

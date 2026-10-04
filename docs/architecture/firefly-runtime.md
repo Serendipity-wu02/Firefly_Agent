@@ -56,10 +56,10 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `vendor/firefly-skills` | 运/包/测 | 正式 Skills 目录、manifest、LICENSE-NOTICES、licenses/provenance → 安装器 extraResources → Skills 初始化 | 39 项固定来源 Skills，与五项项目 Skills 合计 44 项；隔离启动已确认注册 |
 | `vendor/mingit-manifest.json`、`mpv-manifest.json` | 包准备/测 | 对应准备脚本读取版本、地址、校验和 | 真实第三方二进制来源，不是当前应用更新源 |
 | `resources` | 包准备/包/测 | `bin/firefly-screenshot.exe`、`mingit` 是本机构建/下载暂存；`bin/mpv` 只供显式转码准备 | `electron-builder.yml` 只复制明确列出的输入；components不属于当前音乐包 |
-| `native/firefly-screenshot` | 构/包/测 | `Cargo.toml`、`src/main.rs`、`src/win` → 截图exe；Main screenshot客户端按协议调用 | Windows原生助手，依赖Rust/MSVC/SDK，不依赖原项目二进制 |
+| `native` | 构/包/测 | `Cargo.toml`、`src/main.rs`、`src/win` → 截图exe；Main screenshot客户端按协议调用 | Windows原生助手，依赖Rust/MSVC/SDK，不依赖原项目二进制 |
 | `assets` | 运/包/测 | app/tray图标、编辑器文件类型图标、UI纹理；由app-icon/tray、Renderer和builder引用 | 资源许可独立于代码许可；不同尺寸图标不是重复模块 |
 | `examples` | 显式构/测 | system-status、weather-tool、scheduled-automation、long-term-memory、local-asr-contract → SDK及manifest协议 | 开发示例，不会自动安装到真实用户plugins |
-| `build/installer` | 包准备/包验证 | `installer.nsh` 与侧栏位图由 NSIS include 引用 | 是安装器源码；不同于可再生 dist，不删除整个 build |
+| `build` | 包准备/包验证 | `installer.nsh` 由 NSIS include 引用 | 是安装器源码；不同于可再生 dist，不删除整个 build |
 | `scripts/verify/sandbox-runtime` | 显式研究 | 独立脚本核对 sandbox runtime；普通package脚本不调用 | 保留研究用途，不宣称生产沙箱的替代实现 |
 | `models` | 外部可选运行时 | 仓库只跟踪占位/忽略规则；RAG从明确配置定位用户模型 | 不含权重的源码分发；不自动安装BGE-M3 |
 | `docs` | 文档/核对 | architecture为当前入口，plugins/user-guide为使用契约；archive记录证据与历史 | 不从历史施工计划重新生成产品功能；许可和追溯不抹除 |
