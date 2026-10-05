@@ -1,0 +1,19 @@
+Independent fresh-context reviewer: gpt-6-astra, medium; read-only review.
+Baseline/HEAD during review: c98e5fd2bfa89f3b477330798d93c48a6ceb820d.
+Scope: tracked Main/browser diff and all new Main service/native/owner/IPC/routing modules and tests. No implementation delegation or repository mutation.
+
+Initial findings independently reproduced through in-memory transpilation of actual TypeScript implementations with mocked native objects:
+Important: same-document history only waited for did-finish-load; in-page Back remained pending.
+Important: blur/hide detached once; delayed layout reattached without trusted restoration.
+Minor: negative origin was repositioned rather than clipped by original edges.
+No Critical finding.
+
+After executor RED/GREEN fixes, reviewer independently executed actual updated implementation and confirmed:
+- Main-frame in-page history completes, subframe does not, temporary listeners removed.
+- Blur/hide restriction persists across delayed layout until trusted restoration; actual native visibility/focus independently prevent attachment.
+- Fully offscreen bounds detach, partial negative-origin rectangles intersect correctly.
+- Availability default closed, renderer payload cannot enable, registration once, enabled/closed state follows service.
+Closure: all 3 findings resolved; no new Important/Critical in optional Main availability callback reuse.
+
+Review intentionally set aside separate integrator renderer/preload/application/global guard wiring, inherited DNS-pinning/CONNECT internals, actual native GUI/public DNS/TLS/egress/file selection/storage/full suite/build acceptance. Reviewer r1 inspection established native construction/Session/proxy/authentication/denied navigation, but that run stopped at empty screenshot assertion and did not prove owner-switch/shutdown. Executor's separate archived native r2 provides 8 actual lifecycle/hidden-host checks and no errors/focus events; not a reviewer claim of visual/public-HTTPS acceptance.
+Read-only review made no Git/index/HEAD changes or subagent dispatches.

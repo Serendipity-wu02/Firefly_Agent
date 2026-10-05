@@ -1,0 +1,17 @@
+{
+  "extends": "E:\\Codex\\2026-10-04\\task-4\\audit-r3-r4/tsconfig.main.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "E:\\Codex\\2026-10-04\\task-4\\audit-r3-r4/src",
+    "types": [
+      "node"
+    ],
+    "typeRoots": [
+      "E:\\Codex\\2026-10-04\\task-4\\audit-r3-r4/node_modules/@types"
+    ]
+  },
+  "include": [
+    "E:\\Codex\\2026-10-04\\task-4\\audit-r3-r4/src/main/browser/*.test.ts"
+  ],
+  "exclude": []
+}

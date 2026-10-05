@@ -34,6 +34,17 @@ function fixture(gateOpen = true) {
 }
 afterEach(() => vi.useRealTimers());
 describe("offline browser prepare/dispose", () => {
+  it("bounds per-domain disposal during a never-settling prepare and refuses mismatched context", async () => {
+    const test = fixture(), wait = deferred<void>();
+    vi.mocked(test.port.setProxy).mockImplementationOnce(() => wait.promise);
+    const preparing = test.controller.prepare(test.context);
+    for (let n = 0; n < 8; n++) await Promise.resolve();
+    expect(await test.controller.disposeContext({ ...test.context, profile: {} })).toEqual({ ok: false, code: "owner_mismatch" });
+    expect(test.contents.isDestroyed()).toBe(false);
+    expect(await test.controller.disposeContext(test.context)).toEqual({ ok: false, code: "cleanup_failed" });
+    expect(test.contents.isDestroyed()).toBe(true); expect(test.port.clearStorageData).toHaveBeenCalledTimes(1); expect(test.allowed()).toBe(false);
+    wait.resolve(); expect(await preparing).toEqual({ ok: false, code: "cleanup_failed" });
+  });
   it("maps real Session APIs to fail-closed permissions, sole proxy, and all cleanup operations", async () => {
     let request: ((details: BrowserRequestDetails, callback: (response: { cancel: boolean }) => void) => void) | undefined;
     let check: (() => boolean) | undefined, device: (() => boolean) | undefined;

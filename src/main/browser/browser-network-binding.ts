@@ -220,5 +220,16 @@ export function createBrowserNetworkController<S extends object>(registry: Brows
     const results = await Promise.all([...live].map((cell) => dispose(cell, signal)));
     return results.every((result) => result.ok) ? success() : failure("cleanup_failed");
   }
-  return Object.freeze({ prepare, revokeAll, disposeAll });
+  function disposeContext(context: BrowserDomainContext, signal?: AbortSignal): Promise<BrowserNetworkReply<void>> {
+    const cell = slots.get(context.owner)?.get(context.browserId);
+    // An already cleared slot needs no action. This API never allocates or grants authority.
+    if (!cell) return Promise.resolve(success());
+    const original = cell.context;
+    if (original.profile !== context.profile || original.conversationId !== context.conversationId
+      || original.generation !== context.generation || original.signal !== context.signal) {
+      return Promise.resolve(failure("owner_mismatch"));
+    }
+    return dispose(cell, signal);
+  }
+  return Object.freeze({ prepare, revokeAll, disposeAll, disposeContext });
 }

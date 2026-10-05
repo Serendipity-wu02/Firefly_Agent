@@ -1,0 +1,33 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+ 鉂?src/main/browser/browser-network-binding.test.ts (22 tests | 1 failed) 67ms
+     脳 bounds per-domain disposal during a never-settling prepare and refuses mismatched context 8ms
+
+鈳幆鈳幆鈳幆鈳?Failed Tests 1 鈳幆鈳幆鈳幆鈳?
+ FAIL  src/main/browser/browser-network-binding.test.ts > offline browser prepare/dispose > bounds per-domain disposal during a never-settling prepare and refuses mismatched context
+AssertionError: expected { ok: true, value: undefined } to deeply equal { ok: false, code: 'owner_mismatch' }
+
+- Expected
++ Received
+
+  {
+-   "code": "owner_mismatch",
+-   "ok": false,
++   "ok": true,
++   "value": undefined,
+  }
+
+ 鉂?src/main/browser/browser-network-binding.test.ts:42:84
+     40|     const preparing = test.controller.prepare(test.context);
+     41|     for (let n = 0; n < 8; n++) await Promise.resolve();
+     42|     expect(await test.controller.disposeContext({ ...test.context, pro鈥?       |                                                                                    ^
+     43|     expect(test.contents.isDestroyed()).toBe(false);
+     44|     expect(await test.controller.disposeContext(test.context)).toEqual鈥?
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[1/1]鈳?
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 passed (22)
+   Start at  11:10:02
+   Duration  363ms (transform 65ms, setup 0ms, import 110ms, tests 67ms, environment 0ms)
+

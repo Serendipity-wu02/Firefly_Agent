@@ -1,0 +1,26 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+ 鉂?src/main/browser/electron-browser-guest.test.ts (5 tests | 1 failed) 8ms
+     脳 routes only exact managed guests and keeps destroyed guests denied instead of external fallback 5ms
+
+鈳幆鈳幆鈳幆鈳?Failed Tests 1 鈳幆鈳幆鈳幆鈳?
+ FAIL  src/main/browser/electron-browser-guest.test.ts > real Electron WebContentsView adapter boundary > routes only exact managed guests and keeps destroyed guests denied instead of external fallback
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ 鉂?src/main/browser/electron-browser-guest.test.ts:28:97
+     26|     const f = nativeFixture(), guest = createElectronBrowserGuest(f.se鈥?     27|     expect(routeBrowserGuestNavigation({}, { preventDefault }, "https:鈥?     28|     expect(routeBrowserGuestNavigation(f.contents, { preventDefault },鈥?       |                                                                                                 ^
+     29|     guest.installCallbacks({ allowsNavigation: url => url === "https:/鈥?     30|     preventDefault.mockClear(); expect(routeBrowserGuestNavigation(f.c鈥?
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[1/1]鈳?
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  11:02:50
+   Duration  224ms (transform 34ms, setup 0ms, import 50ms, tests 8ms, environment 0ms)
+

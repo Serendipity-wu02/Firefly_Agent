@@ -1,0 +1,32 @@
+[
+  {
+    "host": "example.com",
+    "addresses": [
+      {
+        "address": "198.18.0.162",
+        "family": 4,
+        "public": false
+      }
+    ]
+  },
+  {
+    "host": "www.wikipedia.org",
+    "addresses": [
+      {
+        "address": "198.18.0.163",
+        "family": 4,
+        "public": false
+      }
+    ]
+  },
+  {
+    "host": "github.com",
+    "addresses": [
+      {
+        "address": "198.18.0.147",
+        "family": 4,
+        "public": false
+      }
+    ]
+  }
+]

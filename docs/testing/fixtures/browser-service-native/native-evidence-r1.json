@@ -1,0 +1,159 @@
+{
+  "run": "r1",
+  "pid": 16896,
+  "versions": {
+    "node": "24.18.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "148",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.0.245.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "43.1.0",
+    "chrome": "150.0.7871.47"
+  },
+  "profile": {
+    "kind": "smoke",
+    "applicationName": "Firefly-smoke",
+    "appData": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1",
+    "userData": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1\\Firefly-smoke\\logs",
+    "isolationRoot": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1"
+  },
+  "paths": {
+    "appData": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1",
+    "userData": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1\\Firefly-smoke\\logs",
+    "crashDumps": "E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\profile-r1\\Firefly-smoke\\logs"
+  },
+  "cases": [
+    {
+      "name": "default production factory stays closed",
+      "actual": {
+        "enabled": false
+      }
+    },
+    {
+      "name": "actual renderer IPC rejects local HTTP before native allocation",
+      "actual": {
+        "guests": 0
+      }
+    },
+    {
+      "name": "real WebContentsView/dedicated Session/default proxy and native preferences",
+      "actual": {
+        "guestId": 2,
+        "sessionPersistent": false,
+        "preferences": {
+          "sandbox": true,
+          "contextIsolation": true,
+          "webSecurity": true,
+          "nodeIntegration": false,
+          "nodeIntegrationInWorker": null,
+          "nodeIntegrationInSubFrames": false,
+          "allowRunningInsecureContent": false,
+          "webviewTag": false,
+          "devTools": null,
+          "navigateOnDragDrop": null,
+          "disableDialogs": true,
+          "preload": null
+        },
+        "publicNavigationSucceeded": false
+      }
+    }
+  ],
+  "publicNavigation": {
+    "dns": [
+      {
+        "address": "198.18.0.162",
+        "family": 4,
+        "public": false
+      }
+    ],
+    "reply": {
+      "ok": false,
+      "code": "load_failed"
+    },
+    "nativeUrl": "https://example.com/",
+    "proxyRoute": "PROXY 127.0.0.1:52276"
+  },
+  "limitations": [
+    "Default public HTTPS navigation did not succeed. DNS returned nonpublic addresses; no classification, resolver, dialer, proxy or TLS override was applied."
+  ],
+  "errors": [
+    "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\ntrue !== false\n\n    at E:\\Codex\\2026-10-04\\task-4\\browser-service-native-qa\\probe.cjs:105:51"
+  ],
+  "focusEvents": 0,
+  "changed": [
+    {
+      "browserId": "6493ad83-bcdb-4e51-bc8a-b063d71e119c",
+      "conversationId": "qa-a",
+      "requestId": 0,
+      "closed": false,
+      "loading": true,
+      "url": "",
+      "pendingUrl": "https://example.com/",
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "6493ad83-bcdb-4e51-bc8a-b063d71e119c",
+      "conversationId": "qa-a",
+      "requestId": 1,
+      "closed": false,
+      "loading": true,
+      "url": "",
+      "pendingUrl": "https://example.com/",
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "6493ad83-bcdb-4e51-bc8a-b063d71e119c",
+      "conversationId": "qa-a",
+      "requestId": 1,
+      "closed": false,
+      "loading": false,
+      "url": "",
+      "pendingUrl": null,
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": "load_failed"
+    }
+  ],
+  "challenges": [
+    {
+      "contentsId": 2,
+      "isProxy": true,
+      "registered": true,
+      "granted": true
+    }
+  ],
+  "certificates": [],
+  "shutdownLogs": []
+}
