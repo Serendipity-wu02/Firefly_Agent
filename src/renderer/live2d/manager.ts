@@ -14,6 +14,13 @@ export type { HitAreaDef } from "./interaction";
 const PET_WINDOW_BASE_WIDTH = 400;
 const PET_WINDOW_BASE_HEIGHT = 500;
 const PET_TARGET_FPS = 60;
+// Firefly's drink, cake plate and table; the adjacent ArtMesh156 chair stays visible.
+const HIDDEN_DRAWABLE_IDS = new Set(["ArtMesh153", "ArtMesh154", "ArtMesh155"]);
+interface DrawableOpacityModel {
+  getDrawableIndex(id: string): number;
+  getDrawableOpacity(index: number): number;
+}
+
 
 export interface Live2DManagerOptions {
   canvas: HTMLCanvasElement;
@@ -57,7 +64,7 @@ function buildHitAreaDefs(json: ModelJsonShape): HitAreaDef[] {
   for (const area of hitAreas) {
     const name = area.Name;
     const id = area.Id;
-    if (!name || !id) continue;
+    if (!name || !id || HIDDEN_DRAWABLE_IDS.has(id)) continue;
     const expressionName = name === "Head" ? "expression4" : name === "Body" ? "expression3" : null;
     if (expressionName && json.FileReferences?.Expressions?.some((entry) => entry.Name === expressionName)) {
       out.push({ name, id, target: { kind: "expression", name: expressionName } });
@@ -69,6 +76,7 @@ function buildHitAreaDefs(json: ModelJsonShape): HitAreaDef[] {
 export class Live2DManager {
   private app: PIXI.Application | null = null;
   private model: Live2DModel | null = null;
+  private restoreDrawableOpacity: (() => void) | null = null;
   private hitAreaDefs: HitAreaDef[] = [];
   /** group -> motionName -> index in internalModel.motionManager.definitions[group]. */
   private motionIndexMap: Map<string, Map<string, number>> = new Map();
@@ -157,6 +165,16 @@ export class Live2DManager {
     if (!this.app || this.disposed) {
       model.destroy();
       return;
+    }
+    const core = model.internalModel.coreModel as Partial<DrawableOpacityModel>;
+    if (typeof core?.getDrawableIndex === "function" && typeof core.getDrawableOpacity === "function") {
+      const opacityModel = core as DrawableOpacityModel;
+      const hidden = new Set([...HIDDEN_DRAWABLE_IDS].map(id => opacityModel.getDrawableIndex(id)).filter(index => index >= 0));
+      const original = opacityModel.getDrawableOpacity;
+      opacityModel.getDrawableOpacity = function(index) {
+        return hidden.has(index) ? 0 : original.call(this, index);
+      };
+      this.restoreDrawableOpacity = () => { opacityModel.getDrawableOpacity = original; };
     }
     this.model = model;
     this.hitAreaDefs = buildHitAreaDefs(json);
@@ -294,6 +312,8 @@ export class Live2DManager {
 
   dispose(): void {
     this.disposed = true;
+    this.restoreDrawableOpacity?.();
+    this.restoreDrawableOpacity = null;
     if (this.model) {
       this.model.destroy();
       this.model = null;
