@@ -1,0 +1,34 @@
+{
+  "reviewer": "n7_acceptance_review",
+  "model": "gpt-6-astra",
+  "reasoningEffort": "medium",
+  "freshContext": true,
+  "readOnly": true,
+  "critical": [],
+  "important": [],
+  "minor": [
+    {
+      "finding": "Future probe result.failure is not explicitly excluded by the in-run pair qualification or offline verifier. All eight actual current records lack failure, so current TCP conclusions remain valid.",
+      "disposition": "Deferred future fixture robustness change. No production source or native rerun; explicitly inspect current records for failure fields before final qualification."
+    },
+    {
+      "finding": "Manifest was absent at the time of initial review.",
+      "disposition": "Final archive manifest added and exact-byte checks performed by author after review; no claim that reviewer reviewed the final manifest."
+    }
+  ],
+  "recomputed": {
+    "records": 8,
+    "ipv4TcpControlHitsAndMagic": [2, 2],
+    "ipv6TcpControlHitsAndMagic": [3, 3],
+    "restrictedSinkHitsEach": 0,
+    "unqualifiedUdpPairs": 2,
+    "proxyEvents": 0,
+    "nativeExitCode": 0,
+    "evidenceQaAndArchiveSha256": "40ce966886d55daf70c64e363d5b934c0e8cb88b173d60c4e109468a67197755"
+  },
+  "limits": [
+    "No independent native, network or regression run.",
+    "No complete N7, all-interface egress, trusted HTTPS SW or OS lifecycle certification.",
+    "Review of source, current native JSON, archive byte identity and existing regression log only."
+  ]
+}

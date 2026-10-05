@@ -1,0 +1,479 @@
+{
+  "run": "n7-r1",
+  "baseline": "138c5268a89e69e20ad7cc2e56cadb6f1fd9d592",
+  "pid": 29336,
+  "versions": {
+    "node": "24.18.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "148",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.0.245.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "43.1.0",
+    "chrome": "150.0.7871.47"
+  },
+  "paths": {
+    "appData": "E:\\Codex\\2026-10-04\\task-4\\browser-bounded-acceptance-qa\\profile-n7-r1",
+    "userData": "E:\\Codex\\2026-10-04\\task-4\\browser-bounded-acceptance-qa\\profile-n7-r1\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-04\\task-4\\browser-bounded-acceptance-qa\\profile-n7-r1\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-04\\task-4\\browser-bounded-acceptance-qa\\profile-n7-r1\\Firefly-smoke\\logs",
+    "crashDumps": "E:\\Codex\\2026-10-04\\task-4\\browser-bounded-acceptance-qa\\profile-n7-r1\\Firefly-smoke\\logs"
+  },
+  "cases": [
+    {
+      "name": "E2-IPv4-udp-same-probe-control",
+      "actual": {
+        "delta": {
+          "hits": 0,
+          "messages": 0,
+          "stunMessages": 0
+        },
+        "result": {
+          "rtc": "function",
+          "candidates": 10,
+          "candidateTypes": {
+            "host": 10
+          },
+          "errors": [],
+          "gatheringComplete": false,
+          "observationMs": 3500
+        },
+        "policy": "default",
+        "scope": "only this owned loopback sink within the fixed observation budget"
+      }
+    },
+    {
+      "name": "E2-IPv4-udp-restricted",
+      "actual": {
+        "delta": {
+          "hits": 0,
+          "messages": 0,
+          "stunMessages": 0
+        },
+        "result": {
+          "rtc": "function",
+          "candidates": 0,
+          "candidateTypes": {},
+          "errors": [],
+          "gatheringComplete": true,
+          "observationMs": 3500
+        },
+        "policy": "disable_non_proxied_udp",
+        "scope": "only this owned loopback sink within the fixed observation budget"
+      }
+    },
+    {
+      "name": "E2-IPv4-tcp-same-probe-control",
+      "actual": {
+        "delta": {
+          "hits": 2,
+          "messages": 10,
+          "stunMessages": 2
+        },
+        "result": {
+          "rtc": "function",
+          "candidates": 10,
+          "candidateTypes": {
+            "host": 10
+          },
+          "errors": [],
+          "gatheringComplete": false,
+          "observationMs": 3500
+        },
+        "policy": "default",
+        "scope": "only this owned loopback sink within the fixed observation budget"
+      }
+    },
+    {
+      "name": "E2-IPv4-tcp-restricted",
+      "actual": {
+        "delta": {
+          "hits": 0,
+          "messages": 0,
+          "stunMessages": 0
+        },
+        "result": {
+          "rtc": "function",
+          "candidates": 0,
+          "candidateTypes": {},
+          "errors": [
+            {
+              "code": 701
+            }
+          ],
+          "gatheringComplete": true,
+          "observationMs": 3500
+        },
+        "policy": "disable_non_proxied_udp",
+        "scope": "only this owned loopback sink within the fixed observation budget"
+      }
+    },
+    {
+      "name": "E2-IPv6-udp-same-probe-control",
+      "actual": {
+        "delta": {
+          "hits": 0,
+          "messages": 0,
+          "stunMessages": 0
+        },
+        "result": {
+          "rtc": "function",
+          "candidates": 10,
+          "candidateTypes": {
+            "host": 10
+          },
+          "errors": [],
+          "gatheringComplete": false,
+          "observationMs": 3500
+        },
+        "policy": "default",
+        "scope": "only this owned loopback sink within the fixed observation budget"
+      }
+    },
+    {
+      "name": "E2-IPv6-udp-restricted",
+      "actual": {
+        "delta": {
+          "hits": 0,
+          "messages": 0,
+          "stunMessages": 0
+        },
+        "result": {
+          "rtc": "function",
+          "candidates": 0,
+          "candidateTypes": {},
+          "errors": [],
+          "gatheringComplete": true,
+          "observationMs": 3500
+        },
+        "policy": "disable_non_proxied_udp",
+        "scope": "only this owned loopback sink within the fixed observation budget"
+      }
+    },
+    {
+      "name": "E2-IPv6-tcp-same-probe-control",
+      "actual": {
+        "delta": {
+          "hits": 3,
+          "messages": 15,
+          "stunMessages": 3
+        },
+        "result": {
+          "rtc": "function",
+          "candidates": 10,
+          "candidateTypes": {
+            "host": 10
+          },
+          "errors": [],
+          "gatheringComplete": false,
+          "observationMs": 3500
+        },
+        "policy": "default",
+        "scope": "only this owned loopback sink within the fixed observation budget"
+      }
+    },
+    {
+      "name": "E2-IPv6-tcp-restricted",
+      "actual": {
+        "delta": {
+          "hits": 0,
+          "messages": 0,
+          "stunMessages": 0
+        },
+        "result": {
+          "rtc": "function",
+          "candidates": 0,
+          "candidateTypes": {},
+          "errors": [
+            {
+              "code": 701
+            }
+          ],
+          "gatheringComplete": true,
+          "observationMs": 3500
+        },
+        "policy": "disable_non_proxied_udp",
+        "scope": "only this owned loopback sink within the fixed observation budget"
+      }
+    }
+  ],
+  "challenges": [],
+  "failures": [],
+  "events": [
+    {
+      "sequence": 1,
+      "kind": "probe-start",
+      "family": 4,
+      "transport": "udp",
+      "restricted": false
+    },
+    {
+      "sequence": 2,
+      "kind": "probe-end",
+      "family": 4,
+      "transport": "udp",
+      "restricted": false
+    },
+    {
+      "sequence": 3,
+      "kind": "probe-start",
+      "family": 4,
+      "transport": "udp",
+      "restricted": true
+    },
+    {
+      "sequence": 4,
+      "kind": "probe-end",
+      "family": 4,
+      "transport": "udp",
+      "restricted": true
+    },
+    {
+      "sequence": 5,
+      "kind": "pair-qualified",
+      "family": 4,
+      "transport": "udp",
+      "positiveStunMessages": 0,
+      "restrictedHits": 0,
+      "qualifies": false
+    },
+    {
+      "sequence": 6,
+      "kind": "probe-start",
+      "family": 4,
+      "transport": "tcp",
+      "restricted": false
+    },
+    {
+      "sequence": 7,
+      "kind": "owned-TCP-accept",
+      "family": 4,
+      "transport": "tcp"
+    },
+    {
+      "sequence": 8,
+      "kind": "owned-TCP-accept",
+      "family": 4,
+      "transport": "tcp"
+    },
+    {
+      "sequence": 9,
+      "kind": "owned-TURN-allocation-message",
+      "family": 4,
+      "transport": "tcp",
+      "bytes": 28
+    },
+    {
+      "sequence": 10,
+      "kind": "owned-TURN-allocation-message",
+      "family": 4,
+      "transport": "tcp",
+      "bytes": 28
+    },
+    {
+      "sequence": 11,
+      "kind": "probe-end",
+      "family": 4,
+      "transport": "tcp",
+      "restricted": false
+    },
+    {
+      "sequence": 12,
+      "kind": "probe-start",
+      "family": 4,
+      "transport": "tcp",
+      "restricted": true
+    },
+    {
+      "sequence": 13,
+      "kind": "probe-end",
+      "family": 4,
+      "transport": "tcp",
+      "restricted": true
+    },
+    {
+      "sequence": 14,
+      "kind": "pair-qualified",
+      "family": 4,
+      "transport": "tcp",
+      "positiveStunMessages": 2,
+      "restrictedHits": 0,
+      "qualifies": true
+    },
+    {
+      "sequence": 15,
+      "kind": "probe-start",
+      "family": 6,
+      "transport": "udp",
+      "restricted": false
+    },
+    {
+      "sequence": 16,
+      "kind": "probe-end",
+      "family": 6,
+      "transport": "udp",
+      "restricted": false
+    },
+    {
+      "sequence": 17,
+      "kind": "probe-start",
+      "family": 6,
+      "transport": "udp",
+      "restricted": true
+    },
+    {
+      "sequence": 18,
+      "kind": "probe-end",
+      "family": 6,
+      "transport": "udp",
+      "restricted": true
+    },
+    {
+      "sequence": 19,
+      "kind": "pair-qualified",
+      "family": 6,
+      "transport": "udp",
+      "positiveStunMessages": 0,
+      "restrictedHits": 0,
+      "qualifies": false
+    },
+    {
+      "sequence": 20,
+      "kind": "probe-start",
+      "family": 6,
+      "transport": "tcp",
+      "restricted": false
+    },
+    {
+      "sequence": 21,
+      "kind": "owned-TCP-accept",
+      "family": 6,
+      "transport": "tcp"
+    },
+    {
+      "sequence": 22,
+      "kind": "owned-TCP-accept",
+      "family": 6,
+      "transport": "tcp"
+    },
+    {
+      "sequence": 23,
+      "kind": "owned-TCP-accept",
+      "family": 6,
+      "transport": "tcp"
+    },
+    {
+      "sequence": 24,
+      "kind": "owned-TURN-allocation-message",
+      "family": 6,
+      "transport": "tcp",
+      "bytes": 28
+    },
+    {
+      "sequence": 25,
+      "kind": "owned-TURN-allocation-message",
+      "family": 6,
+      "transport": "tcp",
+      "bytes": 28
+    },
+    {
+      "sequence": 26,
+      "kind": "owned-TURN-allocation-message",
+      "family": 6,
+      "transport": "tcp",
+      "bytes": 28
+    },
+    {
+      "sequence": 27,
+      "kind": "probe-end",
+      "family": 6,
+      "transport": "tcp",
+      "restricted": false
+    },
+    {
+      "sequence": 28,
+      "kind": "probe-start",
+      "family": 6,
+      "transport": "tcp",
+      "restricted": true
+    },
+    {
+      "sequence": 29,
+      "kind": "probe-end",
+      "family": 6,
+      "transport": "tcp",
+      "restricted": true
+    },
+    {
+      "sequence": 30,
+      "kind": "pair-qualified",
+      "family": 6,
+      "transport": "tcp",
+      "positiveStunMessages": 3,
+      "restrictedHits": 0,
+      "qualifies": true
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "Test-only data document and direct/default control; exact product guest preferences/proxy port are reused, not full BrowserService navigation or all-interface capture.",
+    "Zero owned sink observations have only a 3500ms bound. ICE candidate counts are recorded, never inferred from policy.",
+    "No public endpoint, trusted HTTPS SW, QUIC/HTTP3/WebTransport server, OS shutdown/logoff or new infrastructure tested."
+  ],
+  "evidenceClass": "E1-test-only-direct-policy-control-plus-E2-owned-loopback-native-RTC-sinks",
+  "qualifiedPairs": [
+    {
+      "family": 4,
+      "transport": "tcp",
+      "positiveStunMessages": 2,
+      "restrictedHits": 0,
+      "qualifies": true
+    },
+    {
+      "family": 6,
+      "transport": "tcp",
+      "positiveStunMessages": 3,
+      "restrictedHits": 0,
+      "qualifies": true
+    }
+  ],
+  "unqualifiedPairs": [
+    {
+      "family": 4,
+      "transport": "udp",
+      "positiveStunMessages": 0,
+      "restrictedHits": 0,
+      "qualifies": false
+    },
+    {
+      "family": 6,
+      "transport": "udp",
+      "positiveStunMessages": 0,
+      "restrictedHits": 0,
+      "qualifies": false
+    }
+  ]
+}
