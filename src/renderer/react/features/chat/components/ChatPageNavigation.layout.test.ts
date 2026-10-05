@@ -38,6 +38,71 @@ function button(label: string) {
   return node;
 }
 describe("workspace navigation layout", () => {
+  it("temporarily reveals hidden context on hover without pinning, and retracts when entering chat", () => {
+    render({ collapsed: true });
+    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(aside.hasAttribute("inert")).toBe(false);
+    expect(aside.classList.contains("is-peeking")).toBe(true);
+    expect(aside.classList.contains("is-floating")).toBe(true);
+    expect(props.onToggleCollapsed).not.toHaveBeenCalled();
+    act(() => rail.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: aside })));
+    act(() => aside.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: rail })));
+    expect(aside.hasAttribute("inert")).toBe(false);
+    act(() => aside.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(aside.hasAttribute("inert")).toBe(true);
+    expect(props.onToggleCollapsed).not.toHaveBeenCalled();
+  });
+  it("holds the floating context while its menu owns focus and releases after focus leaves", () => {
+    render({ collapsed: true });
+    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    act(() => button(t("ui.userMenu")).click());
+    act(() => rail.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(aside.hasAttribute("inert")).toBe(false);
+    const outside = document.createElement("button"); document.body.appendChild(outside);
+    act(() => outside.focus());
+    expect(aside.hasAttribute("inert")).toBe(true);
+    outside.remove();
+  });
+  it("retracts after a pointer-focused control, while keeping keyboard focus visible", () => {
+    render({ collapsed: true });
+    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!, aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    const control = aside.querySelector<HTMLButtonElement>("button")!;
+    act(() => { control.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })); control.focus(); });
+    act(() => rail.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(aside.hasAttribute("inert")).toBe(true);
+    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true })));
+    act(() => { button(t("ui.toggleSidebar")).focus(); control.focus(); });
+    expect(aside.hasAttribute("inert")).toBe(false);
+  });
+  it("toggles pinned visibility with Ctrl+Shift+S and exposes the shortcut", () => {
+    render({ collapsed: true });
+    expect(button(t("ui.toggleSidebar")).title).toContain("Ctrl+Shift+S");
+    const event = new KeyboardEvent("keydown", { key: "S", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true });
+    act(() => window.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    expect(props.onToggleCollapsed).toHaveBeenCalledOnce();
+    render();
+    act(() => host.querySelector(".cy-page-rail")!.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(host.querySelector(".cy-page-sidebar")?.hasAttribute("inert")).toBe(false);
+  });
+  it("clears pointer drag feedback on release without stealing keyboard focus", () => {
+    render();
+    const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+    const previous = button(t("ui.toggleSidebar")); act(() => previous.focus());
+    const down = new Event("pointerdown", { bubbles: true, cancelable: true });
+    Object.assign(down, { pointerId: 7, clientX: 240, button: 0 });
+    act(() => handle.dispatchEvent(down));
+    expect(handle.classList.contains("is-resizing")).toBe(true);
+    expect(document.activeElement).toBe(previous);
+    const up = new Event("pointerup"); Object.assign(up, { pointerId: 7 });
+    act(() => window.dispatchEvent(up));
+    expect(handle.classList.contains("is-resizing")).toBe(false);
+  });
   it("exposes a bounded keyboard resize handle and restores its width after collapse", () => {
     localStorage.clear();
     render();

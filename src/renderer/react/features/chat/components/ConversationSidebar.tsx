@@ -339,6 +339,7 @@ export const ConversationSidebar = memo(function ConversationSidebar({
                       mouseEnterDelay={0.25}
                       mouseLeaveDelay={0.12}
                       overlayClassName="cy-project-popover"
+                      getPopupContainer={(trigger) => trigger.closest<HTMLElement>("#firefly-context-sidebar") ?? trigger.parentElement!}
                       content={(
                         <ProjectInfoCard
                           mode={mode}

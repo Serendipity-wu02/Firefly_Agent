@@ -18,6 +18,7 @@ function savedWidth() {
 export function useSidebarWidth() {
   const [requested, setRequested] = useState(savedWidth);
   const requestedRef = useRef(requested);
+  const [isResizing, setIsResizing] = useState(false);
   const [viewport, setViewport] = useState(() => typeof window === "undefined" ? 1280 : window.innerWidth);
   const drag = useRef<{ pointerId: number; x: number; width: number } | null>(null);
   const save = () => { try { window.localStorage.setItem(STORAGE_KEY, String(requestedRef.current)); } catch { /* Optional persistence. */ } };
@@ -35,6 +36,7 @@ export function useSidebarWidth() {
       if (!drag.current) return;
       if ("pointerId" in event && event.pointerId !== drag.current.pointerId) return;
       drag.current = null;
+      setIsResizing(false);
       save();
     };
     window.addEventListener("resize", resize);
@@ -52,11 +54,11 @@ export function useSidebarWidth() {
   }, []);
   const width = clamp(requested, viewport);
   return {
-    width, min: MIN_WIDTH, max: maximum(viewport),
+    width, isResizing, min: MIN_WIDTH, max: maximum(viewport),
     beginResize(event: PointerEvent<HTMLElement>) {
       if (event.button !== 0) return;
       event.preventDefault();
-      event.currentTarget.focus();
+      setIsResizing(true);
       drag.current = { pointerId: event.pointerId, x: event.clientX, width };
     },
     resizeBy(delta: number) { update(width + delta); save(); },

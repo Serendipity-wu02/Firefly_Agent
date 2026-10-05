@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Popover } from "antd";
 import { Ellipsis, LayoutDashboard } from "lucide-react";
 import { useTranslation } from "../../../i18n";
@@ -79,6 +79,57 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLButtonElement>(null);
+  const railRef = useRef<HTMLElement>(null);
+  const contextRef = useRef<HTMLElement>(null);
+  const [peeking, setPeeking] = useState(false);
+  const pointerWithin = useRef(false);
+  const keyboardInteraction = useRef(false);
+  const owns = (target: EventTarget | null) => target instanceof Node &&
+    Boolean(railRef.current?.contains(target) || contextRef.current?.contains(target));
+  const holdFocus = () => owns(document.activeElement) &&
+    (keyboardInteraction.current || Boolean(document.activeElement?.closest('[role="menu"], .cy-rail-user__menu, .ant-popover')));
+  const enter = () => { pointerWithin.current = true; if (collapsed) setPeeking(true); };
+  const leave = (event: React.PointerEvent) => {
+    if (owns(event.relatedTarget)) return;
+    pointerWithin.current = false;
+    if (!moreOpen && !holdFocus()) setPeeking(false);
+  };
+  useEffect(() => { setPeeking(false); }, [collapsed]);
+  useEffect(() => {
+    const focus = (event: FocusEvent) => {
+      if (collapsed && owns(event.target)) setPeeking(true);
+      else if (!pointerWithin.current && !moreOpen) setPeeking(false);
+    };
+    const pointerDown = () => { keyboardInteraction.current = false; };
+    const pointerMove = (event: globalThis.PointerEvent) => {
+      if (owns(event.target)) return;
+      pointerWithin.current = false;
+      if (!moreOpen && !holdFocus()) setPeeking(false);
+    };
+    const shortcut = (event: KeyboardEvent) => {
+      keyboardInteraction.current = true;
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "s" && !event.repeat) {
+        event.preventDefault(); onToggleCollapsed();
+      }
+    };
+    const blur = () => { pointerWithin.current = false; setPeeking(false); };
+    document.addEventListener("focusin", focus);
+    document.addEventListener("pointerdown", pointerDown);
+    document.addEventListener("pointermove", pointerMove);
+    window.addEventListener("keydown", shortcut);
+    window.addEventListener("blur", blur);
+    return () => {
+      document.removeEventListener("focusin", focus);
+      document.removeEventListener("pointerdown", pointerDown);
+      document.removeEventListener("pointermove", pointerMove);
+      window.removeEventListener("keydown", shortcut);
+      window.removeEventListener("blur", blur);
+    };
+  }, [collapsed, moreOpen, onToggleCollapsed]);
+  useEffect(() => {
+    if (!moreOpen && !pointerWithin.current && !holdFocus()) setPeeking(false);
+  }, [moreOpen]);
+  const hidden = collapsed && !peeking;
   const chooseMorePanel = (panel: ChatPagePanel) => {
     setMoreOpen(false);
     onTogglePanel(panel);
@@ -93,7 +144,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
       <div className="cy-page-windows">
         <WindowControls onMinimize={onMinimize} onMaximize={onMaximize} onClose={onCloseWindow} />
       </div>
-      <nav className="cy-page-rail" aria-label={t("ui.navigation")}>
+      <nav ref={railRef} onPointerEnter={enter} onPointerLeave={leave} className="cy-page-rail" aria-label={t("ui.navigation")}>
         <div className="cy-page-role">
           <img className="cy-page-role-avatar" src={resolveAsset("avatars/firefly-avatar.png")} alt="Firefly" draggable={false} />
           <ModelConnectionIndicator activeProfileId={activeModelProfileId} onOpenSettings={onOpenApiSettings ?? onOpenSettings} />
@@ -107,7 +158,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
           <LayoutDashboard size={20} aria-hidden="true" />
         </button>
         <PluginModeButton active={activePanel === "plugin"} onClick={() => onTogglePanel("plugin")} />
-        <Popover trigger="click" placement="rightTop" open={moreOpen} onOpenChange={setMoreOpen}
+        <Popover trigger="click" placement="rightTop" open={moreOpen} onOpenChange={setMoreOpen} getPopupContainer={() => railRef.current!}
           content={(
             <div className="cy-page-more" onKeyDown={(event) => {
               if (event.key === "Escape") {
@@ -126,7 +177,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
         </Popover>
         <div className="cy-page-rail-bottom"><RailUserMenu onOpenSettings={onOpenSettings} /></div>
       </nav>
-      <aside id="firefly-context-sidebar" className="cy-page-sidebar" style={{ width: collapsed ? 0 : sidebar.width }} inert={collapsed} aria-hidden={collapsed} aria-label={t("ui.contextSidebar")}>
+      <aside ref={contextRef} onPointerEnter={enter} onPointerLeave={leave} id="firefly-context-sidebar" className={`cy-page-sidebar ${collapsed ? "is-floating" : ""} ${peeking ? "is-peeking" : ""}`} style={{ width: sidebar.width }} inert={hidden} aria-hidden={hidden} aria-label={t("ui.contextSidebar")}>
         <div className="cy-page-context-header">Firefly</div>
         <ModeSwitch value={mode} onChange={onModeChange} />
         <div className="cy-page-newtask">
@@ -148,7 +199,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
         </div>
         <AppUpdateEntry />
       </aside>
-      {!collapsed && <div className="cy-sidebar-resizer" role="separator" tabIndex={0}
+      {!collapsed && <div className={`cy-sidebar-resizer ${sidebar.isResizing ? "is-resizing" : ""}`} role="separator" tabIndex={0}
         aria-label={t("workspace.resizeSidebar")} aria-orientation="vertical"
         aria-controls="firefly-context-sidebar" aria-valuemin={sidebar.min}
         aria-valuemax={sidebar.max} aria-valuenow={sidebar.width}
