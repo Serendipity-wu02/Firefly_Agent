@@ -12,7 +12,8 @@ export interface BrowserSessionPort<S extends object> {
   closeAllConnections(): Promise<void>; clearStorageData(): Promise<void>; clearCache(): Promise<void>;
   clearAuthCache(): Promise<void>; clearHostResolverCache(): Promise<void>; runningWorkerCount(): number;
 }
-export type BrowserNetworkFailure = "permission_denied" | "owner_mismatch" | "cancelled" | "closed" | "network_unavailable" | "cleanup_failed";
+import type { BrowserNetworkFailure } from "../../shared/manual-browser";
+export type { BrowserNetworkFailure } from "../../shared/manual-browser";
 export type BrowserNetworkReply<T> = { ok: true; value: T } | { ok: false; code: BrowserNetworkFailure };
 export interface BrowserViewPort<S extends object> { contents: BrowserDomainContents<S>; destroy(): void }
 export interface BrowserNetworkBinding<S extends object> {

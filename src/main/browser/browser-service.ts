@@ -6,18 +6,15 @@ import { createBrowserAuthorizationDomainRegistry } from "./browser-authorizatio
 import { createBrowserNetworkController, type BrowserNetworkBinding, type BrowserNetworkReply } from "./browser-network-binding";
 import type { ProxyChallenge } from "./authenticated-connect-proxy";
 import type { BrowserDomainContext } from "./browser-authorization-domain";
-import type { BrowserNetworkDependencies, BrowserNetworkFailure, BrowserViewPort } from "./browser-network-binding";
+import type { BrowserNetworkDependencies, BrowserViewPort } from "./browser-network-binding";
 export interface BrowserHostPort {
   webContents: { id: number; mainFrame: object; isDestroyed(): boolean; on(event: string, listener: () => void): unknown; removeListener(event: string, listener: () => void): unknown };
-  isDestroyed(): boolean; isVisible(): boolean; isFocused(): boolean; getContentSize(): [number, number]; contentView: Pick<View, "addChildView" | "removeChildView">;
+  isDestroyed(): boolean; isVisible(): boolean; isFocused(): boolean; getContentSize(): number[]; contentView: Pick<View, "addChildView" | "removeChildView">;
   on(event: string, listener: () => void): unknown; removeListener(event: string, listener: () => void): unknown;
 }
 export interface TrustedBrowserOwner { readonly host: BrowserHostPort; readonly topFrame: object; readonly profile: object; readonly conversationId: string; readonly ownerSessionId: string; readonly generation: number; readonly signal: AbortSignal }
-export interface BrowserBounds { x: number; y: number; width: number; height: number }
-export type BrowserErrorCode = BrowserNetworkFailure | "blocked_url" | "load_failed";
-export interface BrowserPageDto { browserId: string; conversationId: string; requestId: number; closed: boolean; loading: boolean; url: string; pendingUrl: string | null; canGoBack: boolean; canGoForward: boolean; error: BrowserErrorCode | null }
-export type BrowserReply<T> = { ok: true; value: T } | { ok: false; code: BrowserErrorCode };
-export type ManualBrowserCommand = { kind: "open"; url: string } | { kind: "navigate"; browserId: string; url: string } | { kind: "history"; browserId: string; action: "back" | "forward" | "reload" } | { kind: "layout"; browserId: string; bounds: BrowserBounds | null } | { kind: "close"; browserId: string };
+import type { BrowserBounds, BrowserErrorCode, BrowserPageDto, BrowserReply, ManualBrowserCommand } from "../../shared/manual-browser";
+export type { BrowserBounds, BrowserErrorCode, BrowserPageDto, BrowserReply, ManualBrowserCommand } from "../../shared/manual-browser";
 export interface BrowserInvokeEvent { sender: BrowserHostPort["webContents"]; senderFrame: object | null }
 export interface BrowserGuestPort<S extends object> extends BrowserViewPort<S> {
   loadURL(url: string): Promise<void>; history(action: "back" | "forward" | "reload"): Promise<void>;

@@ -83,7 +83,10 @@ import { memoryStore } from "../memory/memory-store";
 import { backupMemoryRagFiles, reconcileMemoryRag } from "../memory/memory-rag-reconciliation";
 import { registerChatsIpc } from "../chats/chats-ipc";
 import { registerWorkspaceFilesIpc } from "../chats/workspace-files-ipc";
-import { registerBrowserAvailabilityIpc } from "../browser/browser-availability-ipc";
+import { createElectronBrowserService } from "../browser/electron-browser-service";
+import { registerBrowserHostOwner } from "../browser/browser-host-owner";
+import { registerBrowserServiceIpc, installBrowserServiceLifecycle } from "../browser/browser-service-ipc";
+import { activeChatTargetRegistry } from "../plugin-host/active-chat-target";
 import { registerOpenInAppIpc } from "../chats/open-in-app";
 import { registerChatUiIpc, getActiveChatSessionId } from "../chats/chat-ui-ipc";
 import { createToastWindowController } from "../toast/toast-window";
@@ -197,6 +200,31 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
   const readiness = createStartupReadiness();
   const activation = createWindowActivationBroker();
   const shutdown = createShutdownCoordinator({ readiness, timeoutMs: SHUTDOWN_TIMEOUT_MS });
+  let browserService: ReturnType<typeof createElectronBrowserService> | undefined;
+  let browserHost: { window: BrowserWindow; binding: ReturnType<typeof registerBrowserHostOwner> } | undefined;
+  function getBrowserService() {
+    if (!browserService) {
+      browserService = createElectronBrowserService({
+        profile: getStorageContext().profile,
+        onChanged: (owner, page) => {
+          const host = browserHost;
+          if (host && host.window === owner.host && !host.window.isDestroyed() && !host.window.webContents.isDestroyed()) {
+            host.window.webContents.send(IPC.BROWSER_CHANGED, page);
+          }
+        },
+      });
+      const offLifecycle = installBrowserServiceLifecycle(app, browserService, shutdown);
+      app.once("will-quit", offLifecycle);
+    }
+    return browserService;
+  }
+  function bindBrowserHost(window: BrowserWindow) {
+    browserHost?.binding.dispose();
+    const binding = registerBrowserHostOwner({ host: window, profile: getStorageContext().profile,
+      targets: activeChatTargetRegistry, service: getBrowserService(), readSession: chatsStore.getSession });
+    const host = { window, binding }; browserHost = host;
+    window.once("closed", () => { binding.dispose(); if (browserHost === host) browserHost = undefined; });
+  }
 
   // 注入应用图标路径 getter（窗口工厂统一读取，避免循环依赖）。
   // 必须在 shell 阶段之前注入：聊天窗口壳与托盘在 shell 阶段创建时就会读取，
@@ -242,6 +270,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       onWillQuit: (callback) => { app.once("will-quit", callback); },
       createSplashWindow: (options) => createSplashWindow({ isDev, onShown: options.onShown }),
       createWindowManager: () => createWindowManager({
+        onChatWindowCreated: bindBrowserHost,
         getCurrentAppIconPath,
         isDev,
         loadPetWindowSettingsSlice: loadGeneralSettings,
@@ -252,7 +281,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       registerShellIpc: ({ ipc, windowManager, live2dWindowLifecycle }) => {
         // quit 由组合根注入：窗口系统 IPC 不直接依赖 electron app，且退出仍走受控链路。
         registerWindowSystemIpc({ ipc, windowManager, quit: () => app.quit() });
-        registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager });
+        registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager, onActiveTargetChanged: () => browserHost?.binding.refresh() });
       },
       createTray: (input) => createTray({
         togglePetWindow: input.togglePetWindow,
@@ -468,7 +497,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       }),
 
       registerCoreIpc: ({ ipc, runtime, services }) => {
-        registerBrowserAvailabilityIpc(ipc);
+        registerBrowserServiceIpc(ipc, getBrowserService());
         // 设置变更反应：窗口/托盘/截图热键/主动服务联动
         onGeneralSettingsChanged((before, after) =>
           handleGeneralSettingsChanged(before, after, {

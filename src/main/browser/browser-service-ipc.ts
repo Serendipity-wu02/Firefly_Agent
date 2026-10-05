@@ -3,12 +3,13 @@ import type { ShutdownCoordinator } from "../application/shutdown";
 import type { createBrowserService } from "./browser-service";
 import { registerBrowserAvailabilityIpc, getOfflineBrowserAvailability } from "./browser-availability-ipc";
 import type { App, WebContents } from "electron";
+import { IPC } from "../../shared/ipc-channels";
 type Service<S extends object> = ReturnType<typeof createBrowserService<S>>;
 /** Main proposal for the shared contract owner; renderer cannot set a gate. */
-export const BROWSER_SERVICE_CHANNELS = Object.freeze({ command: "browser:command", changed: "browser:changed" });
+export const BROWSER_SERVICE_CHANNELS = Object.freeze({ command: IPC.BROWSER_COMMAND, changed: IPC.BROWSER_CHANGED });
 export function registerBrowserServiceIpc<S extends object>(scope: Pick<IpcScope, "handle">, service: Service<S>): void {
   registerBrowserAvailabilityIpc(scope, () => service.isEnabled() ? { available: true } : getOfflineBrowserAvailability());
-  scope.handle(BROWSER_SERVICE_CHANNELS.command, async (event, command) => {
+  scope.handle(IPC.BROWSER_COMMAND, async (event, command) => {
     try { return await service.dispatch(event, command); } catch { return { ok: false, code: "permission_denied" }; }
   });
 }

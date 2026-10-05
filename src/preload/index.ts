@@ -554,7 +554,15 @@ const modelConfigApi = {
 };
 
 contextBridge.exposeInMainWorld("modelConfig", modelConfigApi);
-const manualBrowser: BrowserAvailabilityApi = { getAvailability: () => ipcRenderer.invoke(IPC.BROWSER_AVAILABILITY) };
+const manualBrowser: BrowserAvailabilityApi = {
+  getAvailability: () => ipcRenderer.invoke(IPC.BROWSER_AVAILABILITY),
+  execute: (command) => ipcRenderer.invoke(IPC.BROWSER_COMMAND, command),
+  onChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, page: import("../shared/manual-browser").BrowserPageDto) => callback(page);
+    ipcRenderer.on(IPC.BROWSER_CHANGED, listener);
+    return () => ipcRenderer.removeListener(IPC.BROWSER_CHANGED, listener);
+  },
+};
 contextBridge.exposeInMainWorld("manualBrowser", manualBrowser);
 const runtimeStateApi = {
   get: () => ipcRenderer.invoke(IPC.RUNTIME_STATE_GET),

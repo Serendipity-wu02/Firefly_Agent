@@ -701,6 +701,12 @@
     "contextSidebar": "Conversations and projects"
   },
   "browserWorkspace": {
+    "loading": "Loading page…",
+    "blocked": "This address is blocked by the browser safety policy.",
+    "loadFailed": "Page could not be loaded.",
+    "cleanupFailed": "Browser cleanup failed. Reopening is blocked.",
+    "ready": "Enter a HTTPS page address to browse.",
+    "sessionRequired": "Start or select a conversation to browse.",
     "title": "Browser",
     "open": "Open browser",
     "address": "Page address",

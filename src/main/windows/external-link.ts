@@ -1,5 +1,6 @@
 import { app, shell } from "electron";
 import { isDev } from "../env";
+import { routeBrowserGuestNavigation } from "../browser/browser-guest-routing";
 
 /**
  * 处理外部 URL：非 http(s) 拒绝，开发环境 localhost:5173 也拒绝（避免调试时误开）。
@@ -25,12 +26,14 @@ export function installGlobalNavigationGuard(): void {
   app.on("web-contents-created", (_event, contents) => {
     // 应用页面不派生新窗口：http(s) 外链转系统浏览器，其余（含 file://）一律拒绝
     contents.setWindowOpenHandler(({ url }) => {
+      if (routeBrowserGuestNavigation(contents, { preventDefault() {} }, url)) return { action: "deny" };
       openExternalUrl(url);
       return { action: "deny" };
     });
 
     // 页面内导航一律阻止，http(s) 再转交系统浏览器
     contents.on("will-navigate", (event, url) => {
+      if (routeBrowserGuestNavigation(contents, event, event.url ?? url)) return;
       event.preventDefault();
       openExternalUrl(url);
     });

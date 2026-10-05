@@ -7,7 +7,7 @@ import { FileTreePanel, FilePreviewContent } from "./FileTreePanel";
 import { PlanContent, planTabDotClass, planTabLabel, type PlanReviewPhase } from "./PlanReviewPanel";
 import { ReviewDiffContent } from "./ReviewInspector";
 import { RightInspector, type InspectorTab } from "./RightInspector";
-import { OfflineBrowserTab } from "../workspace/OfflineBrowserTab";
+import { ManualBrowserTab } from "../workspace/ManualBrowserTab";
 
 /** 从路径取文件名做标签标题（兼容 / 与 \ 分隔） */
 function fileBaseName(filePath: string): string {
@@ -131,7 +131,7 @@ export function ChatPageInspector({
     tabs.push({
       id: "browser",
       label: t("browserWorkspace.title"),
-      content: <OfflineBrowserTab key={sessionId} sessionId={sessionId} onClose={() => onCloseTab("browser")} />,
+      content: <ManualBrowserTab key={sessionId} sessionId={sessionId} active={activeTabId === "browser" || (!tabs.some(tab => tab.id === activeTabId) && tabs.length === 0)} onClose={() => onCloseTab("browser")} />,
     });
   }
   if (tabs.length === 0) return null;

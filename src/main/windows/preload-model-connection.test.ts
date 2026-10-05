@@ -25,9 +25,9 @@ it("preserves sidebar settings and schedule actions for Chat and Tasks", () => {
   const sidebar = fixture.exposed.get("sidebar"); sidebar.openSettings("api"); sidebar.openTasks();
   expect(fixture.send.mock.calls).toEqual([["sidebar:open-settings", "api"], ["sidebar:open-tasks"]]);
 });
-it("exposes only a browser status read and returns Main's closed availability", async () => {
+it("exposes only manual browser commands and presentation updates, preserving closed availability", async () => {
   const api = fixture.exposed.get("manualBrowser");
-  expect(Object.keys(api)).toEqual(["getAvailability"]);
+  expect(Object.keys(api)).toEqual(["getAvailability", "execute", "onChanged"]);
   fixture.invoke.mockImplementation(async (channel: string) => {
     expect(channel).toBe("browser:availability");
     return getOfflineBrowserAvailability();
@@ -35,4 +35,18 @@ it("exposes only a browser status read and returns Main's closed availability", 
   expect(await api.getAvailability()).toEqual({ available: false, reason: "network_unavailable" });
   expect(fixture.invoke).toHaveBeenCalledWith("browser:availability");
   expect(fixture.send).not.toHaveBeenCalled();
+});
+
+it("passes manual command data unchanged and unsubscribes the exact browser DTO listener", async () => {
+  const api = fixture.exposed.get("manualBrowser");
+  const command = { kind: "layout", browserId: "main-minted-id", bounds: null };
+  fixture.invoke.mockResolvedValue({ ok: true, value: null });
+  expect(await api.execute(command)).toEqual({ ok: true, value: null });
+  expect(fixture.invoke).toHaveBeenCalledWith("browser:command", command);
+  const seen: unknown[] = []; const off = api.onChanged((value: unknown) => seen.push(value));
+  const dto = { conversationId: "s", browserId: "b", requestId: 4, closed: true };
+  for (const listener of fixture.listeners.get("browser:changed") ?? []) listener({}, dto);
+  expect(seen).toEqual([dto]); off();
+  for (const listener of fixture.listeners.get("browser:changed") ?? []) listener({}, dto);
+  expect(seen).toHaveLength(1); expect(fixture.send).not.toHaveBeenCalled();
 });

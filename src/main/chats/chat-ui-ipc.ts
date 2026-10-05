@@ -35,6 +35,8 @@ export interface ChatUiIpcDependencies {
   get windowManager(): WindowManager | null;
   /** 传入共享 scope 以便退出时统一注销；缺省时使用独立 scope。 */
   ipc?: IpcScope;
+  /** Refresh private browser ownership synchronously after the trusted target changes. */
+  onActiveTargetChanged?: () => void;
 }
 
 // 活动会话不再用模块变量记录：activeChatTargetRegistry 同时维护会话、模式、
@@ -258,6 +260,7 @@ export function registerChatUiIpc(deps: ChatUiIpcDependencies): void {
         activeSessionId = parsed.sessionId;
       }
     }
+    deps.onActiveTargetChanged?.();
     for (const win of BrowserWindow.getAllWindows()) {
       if (win.isDestroyed()) continue;
       try { win.webContents.send(IPC.CHATS_ACTIVE_SESSION_CHANGED, activeSessionId); } catch { /* ignore */ }

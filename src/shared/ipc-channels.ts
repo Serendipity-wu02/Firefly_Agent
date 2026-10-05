@@ -30,6 +30,8 @@ export interface SpeechInputCommitResult {
 
 export const IPC = {
   BROWSER_AVAILABILITY: "browser:availability",
+  BROWSER_COMMAND: "browser:command",
+  BROWSER_CHANGED: "browser:changed",
   // pet window
   WINDOW_MINIMIZE: "window:minimize",
   WINDOW_CLOSE: "window:close",

@@ -701,6 +701,12 @@
     "contextSidebar": "会话与项目"
   },
   "browserWorkspace": {
+    "loading": "正在加载页面…",
+    "blocked": "浏览器安全策略已阻止此地址。",
+    "loadFailed": "页面加载失败。",
+    "cleanupFailed": "浏览器清理失败，无法重新打开。",
+    "ready": "输入 HTTPS 页面地址开始浏览。",
+    "sessionRequired": "开始或选择一个会话后即可浏览。",
     "title": "浏览器",
     "open": "打开浏览器",
     "address": "网页地址",

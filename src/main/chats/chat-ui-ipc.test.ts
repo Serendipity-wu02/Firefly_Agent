@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IPC } from "../../shared/ipc-channels";
 
 const mocks = vi.hoisted(() => ({
+  sender: { id: 42, mainFrame: {}, isDestroyed: () => false, on: vi.fn(), once: vi.fn(), removeListener: vi.fn() },
   handlers: new Map<string, (...args: any[]) => unknown>(),
   sessions: new Map<string, { id: string; modelProfileId?: string }>(),
   settings: {
@@ -52,6 +53,8 @@ vi.mock("../settings/model-settings", () => ({
       ?? settings.modelProfiles[0],
   saveModelProfile: mocks.saveModelProfile,
 }));
+
+vi.mock("../windows/window-state", () => ({ reactChatWindow: { webContents: mocks.sender, isDestroyed: () => false }, reactChatSession: {} }));
 
 vi.mock("./chats-store", () => ({
   getSession: (id: string) => mocks.sessions.get(id),
@@ -169,4 +172,20 @@ describe("chat reasoning IPC", () => {
     expect(mocks.saveModelProfile).not.toHaveBeenCalled();
     expect(mocks.saveModelSettings).not.toHaveBeenCalled();
   });
+});
+
+it("refreshes private browser ownership synchronously after authorized set/clear, never for another sender", async () => {
+  vi.resetModules(); mocks.handlers.clear();
+  const { activeChatTargetRegistry: targets } = await import("../plugin-host/active-chat-target");
+  const { registerChatUiIpc } = await import("./chat-ui-ipc");
+  const seen: (string | null)[] = [];
+  registerChatUiIpc({ live2dWindowLifecycle: { getDiagnostics: () => ({}) }, windowManager: null,
+    onActiveTargetChanged: () => seen.push(targets.getActive()?.sessionId ?? null) });
+  const invoke = mocks.handlers.get(IPC.CHATS_SET_ACTIVE_SESSION)!;
+  expect(invoke({ sender: {} }, { sessionId: "forged", mode: "chat", rendererTargetId: "r" })).toBe(false);
+  expect(seen).toEqual([]);
+  expect(invoke({ sender: mocks.sender }, { sessionId: "s", mode: "code", rendererTargetId: "r" })).toBe(true);
+  expect(seen).toEqual(["s"]);
+  expect(invoke({ sender: mocks.sender }, null)).toBe(true); expect(seen).toEqual(["s", null]);
+  targets.dispose();
 });

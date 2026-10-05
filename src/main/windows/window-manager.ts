@@ -18,6 +18,8 @@ import { PetWindowMoveController } from "../pet-window-movement";
 export interface WindowManagerOptions {
   getCurrentAppIconPath: () => string;
   isDev: boolean;
+  /** Runs once for each newly created chat shell, before renderer loading. */
+  onChatWindowCreated?: (window: BrowserWindow) => void;
   loadPetWindowSettingsSlice: () => PetWindowSettingsSlice;
   persistPetWindowPosition: (position: { x: number; y: number }) => void;
 }
@@ -150,6 +152,7 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
       };
       chatShell = handle;
       chatLoadPromise = null;
+      options.onChatWindowCreated?.(window);
       return handle;
     },
 
