@@ -2127,3 +2127,10 @@ it("provisions the private controlled observer before the actual canonical user 
  registerAgUiIpc(build,async()=>({}),()=>null);
  try{await mocks.handlers.get(IPC.AGUI_RUN)!({sender:{isDestroyed:()=>false,send:()=>{}}},{sessionId:"early-session",userTurnId:"fresh-user",assistantTurnId:"fresh-assistant",messages:[]});expect(observed).toEqual(["fresh ordinary question"])}finally{close?.();mocks.userDataRoot="";fs.rmSync(root,{recursive:true,force:true})}
 });
+
+it("Main memory sender admission fails before prepareTranscript/canonical writes and releases the session guard",async()=>{
+ vi.resetModules();mocks.handlers.clear();mocks.getSession.mockReturnValue({id:'memory-denied',mode:'chat',messages:[{id:'u',role:'user',content:'synthetic',at:1}]});
+ const {registerAgUiIpc,__getSessionActiveRunForTest}=await import('./agui-bridge'),prepare=vi.fn(),build=Object.assign(vi.fn(),{prepareTranscript:prepare}),authorizeRun=vi.fn(()=>{throw Error('MEMORY_DESKTOP_SESSION_DENIED')});
+ registerAgUiIpc(build as any,vi.fn(),()=>null,undefined,undefined,undefined,{authorizeRun,afterTranscript:vi.fn()} as any);
+ await expect(mocks.handlers.get(IPC.AGUI_RUN)!({sender:{isDestroyed:()=>false,send:()=>{}}},{sessionId:'memory-denied',userTurnId:'u',assistantTurnId:'a'})).rejects.toThrow('MEMORY_DESKTOP_SESSION_DENIED');expect(prepare).not.toHaveBeenCalled();expect(build).not.toHaveBeenCalled();expect(__getSessionActiveRunForTest('memory-denied')).toBeUndefined();
+});

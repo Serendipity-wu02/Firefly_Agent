@@ -55,7 +55,7 @@ export function createMainSourceRegistry(transport:SourceLedgerTransport,options
    const ref=await transport.sourceCommand({kind:"finish",scopeKey,commandId:randomUUID(),body:{sourceId:head.sourceId,operationId:head.operationId,observation}}) as BoundSourceRef;
    if(second.state==="deleted")throw new Error("MEMORY_SOURCE_DELETED");
    mirror.set(ref.sourceId,{scope:scopeKey,ref:structuredClone(ref),snapshot:second});return ref;
-  });
+  },head.published?Object.freeze(structuredClone(head.published)):undefined);
  }
  async function capture(access:unknown,adapter:unknown,value:unknown):Promise<BoundSourceRef>{
   const identity=parseSourceIdentity(value);return publish(access,adapter,await reserve(access,adapter,identity,null));
@@ -79,7 +79,8 @@ export function createMainSourceRegistry(transport:SourceLedgerTransport,options
  const coordinate=options.coordinate??(<T>(operation:()=>Promise<T>|T)=>Promise.resolve().then(operation));
  return {authority,coordinator:options.coordinate,
   capture:(...args:Parameters<typeof capture>)=>coordinate(()=>capture(...args)),
-  prepareChange:(...args:Parameters<typeof prepareChange>)=>coordinate(()=>prepareChange(...args)),
+  prepareIdentityChange:(access:object,adapter:object,identity:SourceIdentity)=>coordinate(()=>reserve(access,adapter,parseSourceIdentity(identity),null)),
+   prepareChange:(...args:Parameters<typeof prepareChange>)=>coordinate(()=>prepareChange(...args)),
   reconcile:(...args:Parameters<typeof reconcile>)=>coordinate(()=>reconcile(...args)),
   readEvidence:(...args:Parameters<typeof readEvidence>)=>coordinate(()=>readEvidence(...args)),resolveVerifiedSource};
 }

@@ -1,3 +1,4 @@
+import type {MainDesktopMemory} from "../memory-context/main-desktop-memory";
 // 聊天会话 IPC 桥接：把 chats-store 的纯数据 API 暴露给渲染进程。
 //
 // 写操作成功后会向渲染窗口广播 `chats:changed`，以便：
@@ -73,6 +74,7 @@ export function registerChatsIpc(
     titleService?: ConversationTitleService;
     llmClient?: LlmClient;
     isPrimaryModelBusy?: () => boolean;
+    memory?:Pick<MainDesktopMemory,"appendUser"|"mutate"|"ownsSession">;
   } = {},
 ): void {
   const ipc = ipcOption ?? createIpcScope();
@@ -87,6 +89,11 @@ export function registerChatsIpc(
         onTitleChanged: () => broadcastChanged(),
       })
     : undefined);
+  const changedUsers=(id:string,next:ChatMessage[])=>{
+    const before=chatsStore.getSession(id)?.messages??[], ids=new Set([...before,...next].filter(m=>m.role==="user").map(m=>m.id));
+    return [...ids].filter(messageId=>JSON.stringify(before.filter(m=>m.id===messageId))!==JSON.stringify(next.filter(m=>m.id===messageId)));
+  };
+  const mutate=<T>(event:any,id:string,ids:string[],commit:()=>T):T|Promise<T>=>options.memory?options.memory.mutate(event,id,ids,commit):commit();
   chatsStore.initialize();
   // 进程刚启动时没有任何存活运行：磁盘上遗留的插话标记都是陈旧的，清回普通队列
   chatsStore.clearStalePendingAdjustMarks();
@@ -143,12 +150,13 @@ export function registerChatsIpc(
 
   ipc.handle(
     IPC.CHATS_APPEND,
-    (event, payload: { id: string; message: ChatMessage }) => {
+    async (event, payload: { id: string; message: ChatMessage }) => {
       if (!payload || !payload.id || !payload.message) return null;
-      const session = chatsStore.appendMessage(payload.id, stripSProjection(payload.message));
+      const commit=()=>chatsStore.appendMessage(payload.id, stripSProjection(payload.message));
+      const session = payload.message.role==="user"&&options.memory?await options.memory.appendUser(event,payload.id,payload.message,commit):await mutate(event,payload.id,[],commit);
       if (session) {
         broadcastChanged(event.sender);
-        if (payload.message.role === "user") {
+        if (payload.message.role === "user"&&!options.memory?.ownsSession?.(payload.id)) {
           titleService?.schedule({
             sessionId: payload.id,
             userMessageId: payload.message.id,
@@ -162,9 +170,11 @@ export function registerChatsIpc(
 
   ipc.handle(
     IPC.CHATS_UPSERT,
-    (event, payload: { id: string; message: ChatMessage } | null | undefined) => {
+    async (event, payload: { id: string; message: ChatMessage } | null | undefined) => {
       if (!payload?.id || !payload.message) return null;
-      const session = chatsStore.upsertMessage(payload.id, stripSProjection(payload.message));
+      const before=chatsStore.getSession(payload.id)?.messages??[],next=before.filter(m=>m.id!==payload.message.id).concat(payload.message);
+      if(options.memory?.ownsSession?.(payload.id)&&changedUsers(payload.id,next).length)throw Error("MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED");
+      const session = await mutate(event,payload.id,changedUsers(payload.id,next),()=>chatsStore.upsertMessage(payload.id, stripSProjection(payload.message)));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -172,18 +182,24 @@ export function registerChatsIpc(
 
   ipc.handle(
     IPC.CHATS_REPLACE_MESSAGES,
-    (event, payload: { id: string; messages: ChatMessage[] }) => {
+    async (event, payload: { id: string; messages: ChatMessage[] }) => {
       if (!payload || !payload.id || !Array.isArray(payload.messages)) return null;
-      const session = chatsStore.replaceMessages(payload.id, payload.messages.map(stripSProjection));
+      if(options.memory?.ownsSession?.(payload.id)&&changedUsers(payload.id,payload.messages).length)throw Error("MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED");
+      const session = await mutate(event,payload.id,changedUsers(payload.id,payload.messages),()=>chatsStore.replaceMessages(payload.id, payload.messages.map(stripSProjection)));
       if (session) broadcastChanged(event.sender);
       return session;
     },
   );
   ipc.handle(
     IPC.CHATS_REPLACE_TAIL,
-    (event, payload: { id: string; startIndex: number; messages: ChatMessage[] }) => {
+    async (event, payload: { id: string; startIndex: number; messages: ChatMessage[] }) => {
       if (!payload?.id || !Array.isArray(payload.messages)) return null;
-      const session = chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages.map(stripSProjection));
+      const before=chatsStore.getSession(payload.id)?.messages??[],next=before.slice(0,payload.startIndex).concat(payload.messages);
+      if(options.memory?.ownsSession?.(payload.id)&&changedUsers(payload.id,next).length){
+        const lastUser=before.map(message=>message.role).lastIndexOf("user"),old=before[lastUser],replacement=payload.messages.filter(message=>message.role==="user");
+        if(payload.startIndex!==lastUser||!old||replacement.length!==1||replacement[0].id!==old.id||replacement[0].modelContext||replacement[0].attachments?.length)throw Error("MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED");
+      }
+      const session = await mutate(event,payload.id,changedUsers(payload.id,next),()=>chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages.map(stripSProjection)));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -203,6 +219,7 @@ export function registerChatsIpc(
       if (typeof sessionId !== "string" || !sessionId) {
         return { ok: false, error: "missing sessionId" };
       }
+      if(options.memory?.ownsSession?.(sessionId))return {ok:false,error:"MEMORY_CONTEXT_LEGACY_COMPACTION_UNSUPPORTED"};
       if (compactingSessions.has(sessionId)) {
         return { ok: false, error: "正在压缩，请稍候" };
       }
@@ -315,7 +332,8 @@ export function registerChatsIpc(
 
   ipc.handle(IPC.CHATS_DELETE, async (event, id: string) => {
     if (!id) return false;
-    const ok = chatsStore.deleteSession(id);
+    const ids=(chatsStore.getSession(id)?.messages??[]).filter(m=>m.role==="user").map(m=>m.id);
+    const ok = await mutate(event,id,ids,()=>chatsStore.deleteSession(id));
     if (ok) {
       // 删除当前活动目标会话时使语音输入租约目标失效（登记表内部判断是否命中）
       activeChatTargetRegistry.notifySessionDeleted(id);

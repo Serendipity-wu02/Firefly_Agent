@@ -331,3 +331,15 @@ it("early controlled provisioning rejects temporary actors before context reads 
  await expect(runtime.buildOptions.prepareTranscript!(input)).rejects.toThrow("MEMORY_CONTEXT_TEMPORARY_UNSUPPORTED");
  expect(provisions).toBe(1);expect(f.commands).toHaveLength(before);expect(f.counted).toHaveLength(0);expect(f.sent).toHaveLength(0);
 });
+
+it('Main selection leaves unselected sessions on their ordinary path without provisioning memory',async()=>{
+ const f=await fixture(),provision=vi.fn(()=>{throw Error('UNSELECTED_PROVISION_FORBIDDEN')});
+ const runtime=createAgentRuntime({runtimeStateService:{getState:()=>({})},sContext:{enabled:true,isControlledSession:(id:string)=>id==='session-a',createPort:provision,streamRequest:()=>f.request}} as any);
+ const input={sessionId:'session-b',userTurnId:'u-b',assistantTurnId:'a-b',mode:'chat',messages:[],memoryEnabled:true,actorKey:'renderer-claim',scopeKey:'renderer-claim'} as any;
+ await runtime.buildOptions.prepareTranscript!(input);const built=await runtime.buildOptions(input);expect(built.options.controlledResponses).toBeUndefined();expect(provision).not.toHaveBeenCalled();
+});
+it('an unselected session does not inspect a controlled-only request builder accessor',async()=>{
+ const f=await fixture();const injection={enabled:true,isControlledSession:()=>false,createPort:()=>f.port};Object.defineProperty(injection,'streamRequest',{get(){throw Error('UNSELECTED_BUILDER_READ_FORBIDDEN')}});
+ const runtime=createAgentRuntime({runtimeStateService:{getState:()=>({})},sContext:injection} as any);const input={sessionId:'session-b',mode:'chat',messages:[]} as any;
+ await expect(runtime.buildOptions.prepareTranscript!(input)).resolves.toBeUndefined();expect((await runtime.buildOptions(input)).options.controlledResponses).toBeUndefined();
+});

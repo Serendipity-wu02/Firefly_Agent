@@ -75,7 +75,7 @@ type EnqueueLLMTask = <T>(
 
 export interface AgentRuntimeDeps {
   /** Main-only opt-in injection. No product registration or initialization by default. */
-  sContext?: {enabled?:boolean;createPort:()=>MainSRuntimePort|Promise<MainSRuntimePort>;streamRequest?:(options:FireflyRunOptions)=>ChatRequest};
+  sContext?: {enabled?:boolean;isControlledSession?:(conversationId:string)=>boolean;createPort:(scope?:Readonly<{conversationId:string}>)=>MainSRuntimePort|Promise<MainSRuntimePort>;streamRequest?:(options:FireflyRunOptions)=>ChatRequest};
   runtimeStateService: RuntimeStateService;
   llmClient: LlmClient;
   enqueueLLMTask: EnqueueLLMTask;
@@ -121,18 +121,39 @@ export interface AgentRuntime {
 
 export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
   const runtimeStateService = rawDeps.runtimeStateService;
-  let sPort:Promise<MainSRuntimePort>|undefined;
-  function provisionSPort():Promise<MainSRuntimePort> {
+  const sPorts=new Map<string|undefined,Promise<MainSRuntimePort>>();
+  function provisionSPort(conversationId?:string):Promise<MainSRuntimePort> {
     const injection=rawDeps.sContext;
     if(injection?.enabled!==true)throw Error("MEMORY_CONTEXT_RUNTIME_DISABLED");
-    return sPort??=Promise.resolve().then(()=>injection.createPort());
+    let port=sPorts.get(conversationId);
+    if(!port){
+      const scope=conversationId===undefined?undefined:Object.freeze({conversationId});
+      port=Promise.resolve().then(()=>injection.createPort(scope));
+      sPorts.set(conversationId,port);
+    }
+    return port;
   }
-  async function prepareTranscript():Promise<void> {
+  function mainSessionId(input:AguiRunInput):string {
+    const session=Object.getOwnPropertyDescriptor(input,"sessionId");
+    if(!session||!("value" in session)||typeof session.value!=="string"||!session.value||session.value.length>256||/[\u0000-\u001f\u007f]/.test(session.value))throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+    return session.value;
+  }
+  function selectedSInput(injection:NonNullable<AgentRuntimeDeps["sContext"]>,input:AguiRunInput):boolean {
+    const selector=Object.getOwnPropertyDescriptor(injection,"isControlledSession");
+    if(!selector)return true;
+    if(!("value" in selector)||typeof selector.value!=="function")throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+    const selected=selector.value(mainSessionId(input));
+    if(typeof selected!=="boolean")throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+    return selected;
+  }
+  async function prepareTranscript(input:AguiRunInput):Promise<void> {
     const injection=rawDeps.sContext;
-    if(injection?.enabled!==true)return;
+    if(injection?.enabled!==true||!selectedSInput(injection,input))return;
     const builder=Object.getOwnPropertyDescriptor(injection,"streamRequest");
     if(builder&&!("value" in builder)||builder?.value!==undefined&&typeof builder.value!=="function")throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
-    if(builder?.value!==undefined)await provisionSPort();
+    if(builder?.value!==undefined){
+      await provisionSPort(mainSessionId(input));
+    }
   }
   async function runSContext(input:MainSRuntimeInput):Promise<MainSRuntimeResult>{
     const injection=rawDeps.sContext;
@@ -147,7 +168,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     if(streamField&&!("value" in streamField))throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
     const snapshot:MainSRuntimeInput={request:copyMainResponsesRequest(requestField.value),signal,...(streamField?.value!==undefined?{stream:copyControlledStreamTarget(streamField.value)}:{})};
     // Store the promise before provisioning, including a failure; never silently retry/fallback.
-    const port=await provisionSPort();
+    const port=await provisionSPort(snapshot.stream?.conversationId);
     if(signal?.aborted)throw Error("MEMORY_CONTEXT_CANCELLED");
     return port.run(snapshot);
   }
@@ -326,7 +347,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
       // Capture the controlled Main scope and builder before the existing asynchronous options build.
       const injection=rawDeps.sContext;
       let controlled:{scope:{conversationId?:string;userTurnId?:string;assistantTurnId?:string};buildRequest:(options:FireflyRunOptions)=>ChatRequest}|undefined;
-      if(injection?.enabled===true){
+      if(injection?.enabled===true&&selectedSInput(injection,input)){
         const builder=Object.getOwnPropertyDescriptor(injection,"streamRequest");
         if(builder&&!("value" in builder))throw Error("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
         if(builder?.value!==undefined){
@@ -340,6 +361,12 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
         }
       }
       const buildOptionsDeps = buildBuildOptionsDeps();
+      if(controlled){
+        buildOptionsDeps.buildAlwaysOnContext=async()=>"";
+        buildOptionsDeps.buildRelationshipContext=async()=>"";
+        buildOptionsDeps.buildChatSocialContext=async()=>({contextBlock:"",retrievedAtoms:[]});
+        buildOptionsDeps.prepareCitaTurn=undefined;
+      }
       const { options, latestUserText } = await buildAgentRunOptions(input, buildOptionsDeps);
       const next:FireflyRunOptions={...options,onToolFinished};
       if(controlled){
@@ -361,11 +388,11 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     },{prepareTranscript}),
 
     onRunFinished: async (result, latestUserText, context) => {
-      const onRunFinishedDeps = buildOnRunFinishedDeps(context.modelProfileId);
-      const effects = await onAgentRunFinished(
+      const controlled=context.source==="desktop"&&context.mode==="chat"&&rawDeps.sContext?.enabled===true&&rawDeps.sContext.isControlledSession?.(context.conversationId)===true;
+      const effects = controlled?{sticker:null}:await onAgentRunFinished(
         result,
         latestUserText,
-        onRunFinishedDeps,
+        buildOnRunFinishedDeps(context.modelProfileId),
         context.channel as ChannelId | undefined,
         context.conversationId,
       );

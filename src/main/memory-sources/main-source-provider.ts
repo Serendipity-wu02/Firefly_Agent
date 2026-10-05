@@ -1,4 +1,4 @@
-import type {SourceIdentity,SourceRole,SourceTrust} from "../memory-core/source-contracts";
+import type {SourceIdentity,SourceRole,SourceTrust,SourceObservation} from "../memory-core/source-contracts";
 import {parseInternalId} from "../memory-core/command-validation";
 
 export interface SourceSnapshot extends SourceIdentity {
@@ -9,7 +9,7 @@ export interface MainSourceProvider {
  providerId:string;
  authorize(scopeKey:string,identity:SourceIdentity):boolean;
  /** The adapter serializes controlled mutations until the operation completes. */
- withLease<T>(identity:SourceIdentity,operation:(read:()=>Promise<SourceSnapshot>)=>Promise<T>):Promise<T>;
+ withLease<T>(identity:SourceIdentity,operation:(read:()=>Promise<SourceSnapshot>)=>Promise<T>,previous?:Readonly<SourceObservation>):Promise<T>;
 }
 const providers=new WeakMap<object,MainSourceProvider>();
 /** Main-only registration; DTOs cannot reconstruct this capability. */

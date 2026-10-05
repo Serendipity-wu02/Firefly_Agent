@@ -1,3 +1,6 @@
+import {createMainDesktopMemory} from "../memory-context/main-desktop-memory";
+import {openDesktopMemoryBackend} from "../memory-context/desktop-memory-backend";
+import {getConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
 import { getStorageContext } from "../storage-context";
 /**
  * 默认应用依赖装配（真正的组合根胶水层）：
@@ -32,7 +35,7 @@ import {
   settingsWindow,
   tasksWindow,
 } from "../windows/window-state";
-import { getCachedSavedModelProfile, listCachedSavedModelProfileIds, loadModelSettings, saveModelSettings } from "../settings/model-settings";
+import { getDefaultModelProfile, getCachedSavedModelProfile, listCachedSavedModelProfileIds, loadModelSettings, saveModelSettings } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
 import {
   applyGeneralSettings,
@@ -200,6 +203,18 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
   const readiness = createStartupReadiness();
   const activation = createWindowActivationBroker();
   const shutdown = createShutdownCoordinator({ readiness, timeoutMs: SHUTDOWN_TIMEOUT_MS });
+  // Explicit Main startup opt-in; no Renderer flag, credentials, roots or actor tokens.
+  const memoryEnabled=app.commandLine?.hasSwitch("firefly-memory-controlled")===true;
+  const memoryProfileId=()=>getDefaultModelProfile(loadModelSettings())?.id;
+  const desktopMemory=memoryEnabled?createMainDesktopMemory({enabled:true,getChatWindow:()=>reactChatWindow,targets:activeChatTargetRegistry,
+    getSession:chatsStore.getSession,listSessionIds:()=>chatsStore.listSessions({mode:"chat"}).map(session=>session.id),
+    isControlledSession:session=>session.modelProfileId===memoryProfileId(),
+    store:getConversationTranscriptStore(getStorageContext().dataRoot),openBackend:()=>openDesktopMemoryBackend({profileId:memoryProfileId}),
+  }):null;
+  if(desktopMemory){
+    shutdown.register({id:"desktop-memory-admission",phase:"quiesce",dispose:()=>desktopMemory.quiesce()});
+    shutdown.register({id:"desktop-memory-resources",phase:"stopLocalResources",dispose:()=>desktopMemory.close()});
+  }
   let browserService: ReturnType<typeof createElectronBrowserService> | undefined;
   let browserHost: { window: BrowserWindow; binding: ReturnType<typeof registerBrowserHostOwner> } | undefined;
   function getBrowserService() {
@@ -281,7 +296,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       registerShellIpc: ({ ipc, windowManager, live2dWindowLifecycle }) => {
         // quit 由组合根注入：窗口系统 IPC 不直接依赖 electron app，且退出仍走受控链路。
         registerWindowSystemIpc({ ipc, windowManager, quit: () => app.quit() });
-        registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager, onActiveTargetChanged: () => browserHost?.binding.refresh() });
+        registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager, onActiveTargetChanged: () => {browserHost?.binding.refresh();desktopMemory?.refresh()} });
       },
       createTray: (input) => createTray({
         togglePetWindow: input.togglePetWindow,
@@ -434,6 +449,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
 
       createRuntime: (services) => createAgentRuntime({
+        ...(desktopMemory?{sContext:desktopMemory.sContext}:{}),
         runtimeStateService: services.runtimeState,
         llmClient: services.llm,
         enqueueLLMTask,
@@ -528,6 +544,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
         // 聊天会话存储 IPC（chats-store.initialize 建好 firefly-chats 目录并加载 index）
         registerChatsIpc(ipc, {
+          ...(desktopMemory?{memory:desktopMemory}:{}),
           llmClient: services.llm,
           isPrimaryModelBusy: hasActiveConversationRun,
         });
@@ -539,12 +556,13 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
         // AG-UI 事件流桥：渲染进程 invoke(AGUI_RUN) → FireflyAgent 跑 Agent 循环 → 事件透传
         registerAgUiIpc(
-          (input) => runtime.buildOptions(input),
+          runtime.buildOptions,
           (result, latestUserText, context) => runtime.onRunFinished(result, latestUserText, context),
           () => reactChatWindow,
           services.proactive.proactiveConversationLifecycle,
           ipc,
           pendingTurnLifecycle,
+          desktopMemory??undefined,
         );
 
         // 应用更新 IPC：安装走受控退出；autoUpdater 兜底路径进入同一协调器

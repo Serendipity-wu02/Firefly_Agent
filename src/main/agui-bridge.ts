@@ -1,3 +1,4 @@
+import type {MainDesktopMemory} from "./memory-context/main-desktop-memory";
 // AG-UI IPC 桥：按会话模式选择执行链并把事件透传给渲染进程。
 //
 // 架构：
@@ -365,6 +366,7 @@ export function registerAgUiIpc(
   lifecycle?: AguiConversationLifecycle,
   ipcOption?: IpcScope,
   pendingTurns?: PendingTurnLifecycle,
+  memory?:Pick<MainDesktopMemory,"authorizeRun"|"afterTranscript">,
 ): void {
   const ipc = ipcOption ?? createIpcScope();
   buildOptionsFn = buildOptions;
@@ -503,6 +505,18 @@ export function registerAgUiIpc(
       clearTimeout(settleTimeout);
     }
 
+    // Main admission precedes canonical writes; target/navigation loss uses the same cancellation gate.
+    try {
+      const admission=memory?.authorizeRun(event,sessionId);
+      if(admission){
+        if(!input.userTurnId||!input.assistantTurnId){admission.release();throw Error("MEMORY_DESKTOP_SESSION_DENIED")}
+        const cancel=()=>cancelRun(),release=releaseSessionGuard!;
+        admission.signal.addEventListener("abort",cancel,{once:true});
+        releaseSessionGuard=()=>{admission.signal.removeEventListener("abort",cancel);admission.release();release()};
+        if(admission.signal.aborted)throw Error("MEMORY_DESKTOP_SESSION_DENIED");
+      }
+    } catch(error){releaseSessionGuard?.();releaseSessionGuard=null;lifecycle?.onConversationEnded();throw error}
+
     // ── 轨迹派发（CTA Phase 1）：模型请求启动前原子提交 user / rewind ──
     if (requiredWorkReads.some((scope) => !isWorkReadScopeCurrent(scope))) {
       releaseSessionGuard?.();
@@ -526,6 +540,7 @@ export function registerAgUiIpc(
           runId,
           rewind: input.transcriptRewind,
         });
+        await memory?.afterTranscript(sessionId,input);
       } catch (error) {
         // 轨迹写入失败即阻断模型启动（fail-closed），复位守卫与插话标记后上抛
         perf.dump();

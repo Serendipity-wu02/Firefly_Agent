@@ -383,4 +383,16 @@ describe("chats IPC mode filtering", () => {
     expect(mocks.openPath).toHaveBeenCalledOnce();
     expect(mocks.openPath).toHaveBeenCalledWith(fs.realpathSync(workspaceRoot));
   });
+
+ it("controlled fresh-user authorization completes before cache writes; denial leaves messages untouched",async()=>{
+  const {registerChatsIpc}=await import('./chats-ipc'),cache=await import('./chats-store'),appendUser=vi.fn(async()=>{throw Error('MEMORY_DESKTOP_SESSION_DENIED')});
+  registerChatsIpc(undefined,{memory:{appendUser,mutate:vi.fn()} as any});const session=cache.createSession({mode:'chat'});
+  await expect(mocks.handlers.get(IPC.CHATS_APPEND)!({sender:{}},{id:session.id,message:{id:'u',role:'user',content:'synthetic',at:1}})).rejects.toThrow('MEMORY_DESKTOP_SESSION_DENIED');expect(cache.getSession(session.id)?.messages).toEqual([]);expect(appendUser).toHaveBeenCalledTimes(1);
+ });
+
+ it("controlled bulk user removal is rejected before cache writes because it has no canonical rewind",async()=>{
+  const {registerChatsIpc}=await import('./chats-ipc'),cache=await import('./chats-store'),mutate=vi.fn(async(_event,_id,_ids,commit)=>commit());
+  registerChatsIpc(undefined,{memory:{ownsSession:()=>true,appendUser:vi.fn(),mutate} as any});const session=cache.createSession({mode:'chat'});cache.appendMessage(session.id,{id:'u',role:'user',content:'synthetic',at:1});
+  await expect(mocks.handlers.get(IPC.CHATS_REPLACE_MESSAGES)!({sender:{}},{id:session.id,messages:[]})).rejects.toThrow('MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED');expect(cache.getSession(session.id)?.messages.map(m=>m.id)).toEqual(['u']);expect(mutate).not.toHaveBeenCalled();
+ });
 });

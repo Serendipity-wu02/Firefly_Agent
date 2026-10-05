@@ -666,3 +666,34 @@ it("AgentRuntime already-aborted first S run never provisions",async()=>{
   await expect(createAgentRuntime(deps).runSContext({signal:abort.signal} as any)).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
   expect(createPort).not.toHaveBeenCalled();
 });
+
+
+describe("controlled Main S session routing",()=>{
+ const request={model:"fixture-model",messages:[],maxTokens:128,stream:true};
+ const stream=(conversationId:string)=>({conversationId,runId:"run-s",userTurnId:"u-s",assistantTurnId:"a-s",sink:{} as any,isCurrent:()=>true,onEvent:()=>{}});
+ it("isolates two session ports while sharing concurrent provisioning within one session",async()=>{
+  const calls:string[]=[],seen:string[]=[];
+  const createPort=async(scope?:{conversationId:string})=>{calls.push(scope?.conversationId??"unbound");return {run:async(input:any)=>{seen.push(scope?.conversationId+":"+input.stream.conversationId);return {status:"sent" as const,requestDigest:"synthetic",result:null}}}};
+  const deps=createDeps(vi.fn());deps.sContext={enabled:true,createPort};const runtime=createAgentRuntime(deps);
+  await Promise.all([runtime.runSContext({request,stream:stream("session-a")}),runtime.runSContext({request,stream:stream("session-b")}),runtime.runSContext({request,stream:stream("session-a")})]);
+  expect(calls).toEqual(["session-a","session-b"]);expect(seen.sort()).toEqual(["session-a:session-a","session-a:session-a","session-b:session-b"]);
+ });
+ it("prepares the exact session before transcript mutation and reuses its port for dispatch",async()=>{
+  const calls:string[]=[];const deps=createDeps(vi.fn());deps.sContext={enabled:true,streamRequest:()=>request,createPort:async(scope?:{conversationId:string})=>{calls.push(scope?.conversationId??"unbound");return {run:async()=>({status:"sent" as const,requestDigest:"synthetic",result:null})}}};
+  const runtime=createAgentRuntime(deps);await runtime.buildOptions.prepareTranscript!({sessionId:"session-a",mode:"chat",messages:[]});await runtime.runSContext({request,stream:stream("session-a")});expect(calls).toEqual(["session-a"]);
+ });
+ it("preparation rejects a missing session or accessor without provisioning",async()=>{
+  const calls:string[]=[];const deps=createDeps(vi.fn());deps.sContext={enabled:true,streamRequest:()=>request,createPort:async(scope?:{conversationId:string})=>{calls.push(scope?.conversationId??"unbound");return {run:vi.fn()}}};
+  const runtime=createAgentRuntime(deps);await expect(runtime.buildOptions.prepareTranscript!({mode:"chat",messages:[]} as any)).rejects.toThrow("MEMORY_CONTEXT_STREAM_TARGET_INVALID");
+  await expect(runtime.buildOptions.prepareTranscript!(Object.defineProperty({mode:"chat",messages:[]},"sessionId",{get(){throw Error("ACCESSOR_READ_FORBIDDEN")}}) as any)).rejects.toThrow("MEMORY_CONTEXT_STREAM_TARGET_INVALID");expect(calls).toEqual([]);
+ });
+ it("a failed session cannot poison another session or silently retry itself",async()=>{
+  const calls:string[]=[];const deps=createDeps(vi.fn());deps.sContext={enabled:true,createPort:async(scope?:{conversationId:string})=>{calls.push(scope?.conversationId??"unbound");if(scope?.conversationId==="session-a")throw Error("SESSION_A_DENIED");return {run:async()=>({status:"sent" as const,requestDigest:"synthetic",result:null})}}};
+  const runtime=createAgentRuntime(deps);await expect(runtime.runSContext({request,stream:stream("session-a")})).rejects.toThrow("SESSION_A_DENIED");await expect(runtime.runSContext({request,stream:stream("session-b")})).resolves.toMatchObject({status:"sent"});await expect(runtime.runSContext({request,stream:stream("session-a")})).rejects.toThrow("SESSION_A_DENIED");expect(calls).toEqual(["session-a","session-b"]);
+ });
+});
+
+it("controlled desktop completion bypasses legacy memory/model side effects and retains metadata-only plugin notification",async()=>{
+ mocks.onAgentRunFinished.mockClear();const publish=vi.fn(async()=>{}),deps=createDeps(publish);deps.sContext={enabled:true,isControlledSession:id=>id==='controlled',createPort:()=>({run:async()=>{throw Error('unused')}})};
+ const runtime=createAgentRuntime(deps);expect(await runtime.onRunFinished({reply:'synthetic',toolResults:[],terminal:{status:'success',reason:'completed',externalEffectsMayContinue:false}},'I prefer PowerShell',{source:'desktop',mode:'chat',conversationId:'controlled'})).toEqual({sticker:null});expect(mocks.onAgentRunFinished).not.toHaveBeenCalled();expect(publish).toHaveBeenCalledWith('turn:completed',{source:'desktop',mode:'chat',conversationId:'controlled'});
+});
