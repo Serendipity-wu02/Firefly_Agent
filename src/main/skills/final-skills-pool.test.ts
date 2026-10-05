@@ -8,7 +8,7 @@ import { registerSkillTools } from "./skill-tools";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 
 const root = path.resolve(__dirname, "../../..");
-const expectedIds = ["assessment", "diagram", "knowledge-workspace", "plugin-development", "tutoring"];
+const expectedIds = ["diagram", "knowledge-workspace", "plugin-development"];
 
 describe("final Skills pool delivery", () => {
   it("loads specialist delegation guidance without a public legacy task contract", async () => {
@@ -51,7 +51,7 @@ describe("final Skills pool delivery", () => {
     }
   });
 
-  it("discovers five explicitly selected capability Skills without executing old factories", () => {
+  it("discovers three explicitly selected capability Skills without executing old factories", () => {
     const skills = scanSkills(path.join(root, "skills"), "builtin");
     expect(skills.map(skill => skill.id).sort()).toEqual(expectedIds);
     expect(buildAutoInjectedSkillContext(skills)).toBe("");
@@ -62,7 +62,7 @@ describe("final Skills pool delivery", () => {
       expect(fs.existsSync(path.join(root, "skills", skill.id, "index.ts"))).toBe(false);
       expect(fs.readFileSync(path.join(root, "skills", skill.id, "LICENSE"), "utf8").replace(/\r\n/g, "\n").trim())
         .toBe(fs.readFileSync(path.join(root, "LICENSE"), "utf8").replace(/\r\n/g, "\n").trim());
-      if (["assessment", "tutoring", "knowledge-workspace"].includes(skill.id)) {
+      if (skill.id === "knowledge-workspace") {
         expect(skill.tools).toEqual([
           "obsidian_list_files", "obsidian_search", "obsidian_read_file",
           "obsidian_read_section", "obsidian_edit", "obsidian_open_note",
@@ -71,10 +71,9 @@ describe("final Skills pool delivery", () => {
     }
   });
 
-  it("delivers the assessment and SDK references with their replacement owners", () => {
+  it("delivers the SDK references with their replacement owner", () => {
     const skills = scanSkills(path.join(root, "skills"), "builtin");
     for (const [id, references] of [
-      ["assessment", ["concept.md", "programming.md", "mathematics.md", "language.md", "physics.md"]],
       ["plugin-development", ["getting-started.md", "api-spec.md", "example-walkthrough.md"]],
     ] as const) {
       expect(skills.find(skill => skill.id === id)?.references?.sort()).toEqual([...references].sort());
@@ -101,7 +100,7 @@ describe("final Skills pool delivery", () => {
     }
   });
 
-  it("ships the 39 canonical vendor bodies and five maintained Skills without retired mode metadata", () => {
+  it("ships the 39 canonical vendor bodies and three maintained Skills without retired mode metadata", () => {
     const vendor = path.join(root, "vendor/firefly-skills");
     const manifest = JSON.parse(fs.readFileSync(path.join(vendor, "skills-manifest.json"), "utf8"));
     expect(manifest.selfSkills).toEqual(expectedIds);
@@ -116,6 +115,6 @@ describe("final Skills pool delivery", () => {
       expect(entry.modes?.length).toBeGreaterThan(0);
       expect(entry.modes?.every(mode => mode === "work" || mode === "code")).toBe(true);
     }
-    expect(new Set([...entries.map(entry => entry.id), ...manifest.selfSkills]).size).toBe(44);
+    expect(new Set([...entries.map(entry => entry.id), ...manifest.selfSkills]).size).toBe(42);
   });
 });

@@ -11,7 +11,7 @@
 | 文件与审查 | `src/main/chats/workspace-files-ipc.ts`、`src/main/orchestrator/review/` | 路径与工作区边界由 Main 校验；预览不冒充写入或读取完成；审查证据与最终文字分开。 |
 | 图片上下文 | `src/main/orchestrator/image-router.ts`、`vision-captioner.ts` | 使用现有路由和实际模型能力，不重复永久注入图片或猜测图像已被模型读取。 |
 | 会话轨迹 | `src/main/orchestrator/conversation-transcript-store.ts`、`conversation-transcript-coordinator.ts`、`transcript-sink.ts` | 使用现有提交与读取协议；更名不建立第二份业务事件流，不丢失会话与运行引用。 |
-| Work 知识工作区 | `src/main/orchestrator/pop-quiz.ts`、`src/main/knowledge/`、`skills/tutoring/`、`skills/assessment/`、`skills/knowledge-workspace/` | [显式绑定和确认初始化](../user-guide/knowledge-workspace.md)，保留学习能力与原数据路径；普通 Work 不自动创建 Vault。 |
+| Work 知识工作区 | `src/main/orchestrator/pop-quiz.ts`、`src/main/knowledge/`、`skills/knowledge-workspace/` | [显式绑定和确认初始化](../user-guide/knowledge-workspace.md)，保留学习能力与原数据路径；普通 Work 不自动创建 Vault。 |
 | 子任务与通知展示 | `src/main/tasks/`、`src/renderer/react/features/chat/` | 展示身份不改变子代理权限；通知和预览不能作为终态或完成证据。 |
 | SDK 与面板 | `src/plugins/`、`packages/plugin-sdk/`、`src/main/plugin-host/` | 本地可构建 SDK；保留来源、协议、路径与生命周期校验；无默认线上市场。 |
 

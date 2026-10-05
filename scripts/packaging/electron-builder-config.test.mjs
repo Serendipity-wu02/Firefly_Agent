@@ -40,7 +40,7 @@ test("vendor resources ship canonical directories and legal notices without a ZI
     assert.ok(!packageJson.scripts[key].includes("prepare:skills"), key);
 });
 
-test("extra files deliver five capabilities and nested support content without retired factories", async context => {
+test("extra files deliver three capabilities and nested support content without retired factories", async context => {
   const config = YAML.parse(source);
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const destination = await mkdtemp(path.join(os.tmpdir(), "firefly-support-test-"));
@@ -52,7 +52,7 @@ test("extra files deliver five capabilities and nested support content without r
     await copyFiles([matcher], undefined, false);
   }
   assert.deepEqual((await readdir(path.join(destination, "skills"))).sort(),
-    ["assessment", "diagram", "knowledge-workspace", "plugin-development", "tutoring"]);
+    ["diagram", "knowledge-workspace", "plugin-development"]);
   for (const name of [
     "persona-support/original-voice.md", "persona-support/references/boundary.md", "persona-support/LICENSE",
     "workflow-support/plan-mode.md", "workflow-support/work-hygiene.md", "workflow-support/LICENSE",

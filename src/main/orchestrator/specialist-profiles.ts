@@ -5,11 +5,9 @@ import type { SkillEntry } from "../skills/types";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 
 const bindings: readonly (readonly [string, string, readonly string[], boolean])[] = [
-  ["assessment", "knowledge", ["documents-data"], false],
   ["diagram", "ui-visual", ["architecture", "knowledge", "documents-data", "strategy-planning"], false],
   ["knowledge-workspace", "knowledge", ["research", "documents-data"], false],
   ["plugin-development", "tooling-skills", ["implementation", "architecture", "security-governance", "ops-release"], false],
-  ["tutoring", "knowledge", ["research"], false],
   ["as-api-and-interface-design", "architecture", ["implementation", "review", "security-governance"], false],
   ["as-code-review-and-quality", "review", ["architecture", "security-governance"], false],
   ["as-code-simplification", "implementation", ["review", "ui-visual", "tooling-skills"], false],

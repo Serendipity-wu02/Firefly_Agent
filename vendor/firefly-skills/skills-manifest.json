@@ -301,10 +301,8 @@
     "xlsx/tests/test_windows_workflow.py": "b3ef159fe6ba18597196e51acad37a5370691f14c3a3ba58178b717a12f2c3d7"
   },
   "selfSkills": [
-    "assessment",
     "diagram",
     "knowledge-workspace",
-    "plugin-development",
-    "tutoring"
+    "plugin-development"
   ]
 }

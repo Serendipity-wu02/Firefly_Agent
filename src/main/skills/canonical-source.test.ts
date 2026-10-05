@@ -44,7 +44,7 @@ it("materializes exactly the distributed vendor tree without adding a runtime so
   expect(fs.readdirSync(source).sort()).toEqual([...manifest.skills].sort());
   expect(manifest.skills).toHaveLength(39);
   expect(fs.readdirSync(path.join(root, "skills")).sort()).toEqual([...manifest.selfSkills].sort());
-  expect(manifest.selfSkills).toEqual(["assessment", "diagram", "knowledge-workspace", "plugin-development", "tutoring"]);
+  expect(manifest.selfSkills).toEqual(["diagram", "knowledge-workspace", "plugin-development"]);
   for (const id of manifest.skills) {
     expect(manifest.selfSkills).not.toContain(id);
     expect(fs.statSync(path.join(source, id)).isDirectory()).toBe(true);

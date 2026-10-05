@@ -498,7 +498,7 @@
   "current_distribution": {
     "canonical_source": "vendor/firefly-skills/skills",
     "formal_archive_sha256": "8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388",
-    "builtin_ids": ["assessment", "diagram", "knowledge-workspace", "plugin-development", "tutoring"],
+    "builtin_ids": ["diagram", "knowledge-workspace", "plugin-development"],
     "distribution_modes": ["work", "code"],
     "historical_mode_scope": "Per-source suggested modes are historical review input, not active vNext declarations. Current SKILL.md frontmatter is authoritative.",
     "predecessor_evidence": "scripts/packaging/vnext-predecessor.json",

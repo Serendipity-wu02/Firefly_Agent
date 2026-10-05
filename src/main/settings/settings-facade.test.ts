@@ -25,6 +25,11 @@ it("ignores retired Moments keys while preserving shared settings", () => {
   }
 });
 
+it("preserves retired skill overrides without rewriting existing user configuration", () => {
+  const skillModeOverrides = { assessment: { work: false }, tutoring: { work: true }, "knowledge-workspace": { work: true } };
+  expect(normalizeGeneralSettings({ skillModeOverrides })).toMatchObject({ skillModeOverrides });
+});
+
 it("ignores removed modes while preserving explicit Work overrides", () => {
   const settings = normalizeGeneralSettings({
     toolModeOverrides: { obsidian_edit: { learn: true, work: false }, obsidian_read_file: { learn: true } },

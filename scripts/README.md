@@ -21,7 +21,7 @@
 
 MinGit 和插件归档仍使用共享的 `src/shared/zip-extraction.ts` 安全解压层；Skills 直接从受校验的目录分发，不经 ZIP。安全维护入口见 [依赖与归档说明](../docs/security/dependency-management.md)，脚本说明不代表整体安全或发布验收通过。
 
-`npm run validate:skills` 检查正式 `vendor/firefly-skills/skills/` 的 39 项、项目 `skills/` 的五项、目录安全及 `skills-manifest.json` 固定的文件哈希。`packaging/skill-adaptations/` 和旧归档元数据仅保留来源与迁移识别依据，不在构建时重写正式目录。不会下载或执行第三方安装脚本；本地备份与取证目录不进入产物。
+`npm run validate:skills` 检查正式 `vendor/firefly-skills/skills/` 的 39 项、项目 `skills/` 的三项、目录安全及 `skills-manifest.json` 固定的文件哈希。`packaging/skill-adaptations/` 和旧归档元数据仅保留来源与迁移识别依据，不在构建时重写正式目录。不会下载或执行第三方安装脚本；本地备份与取证目录不进入产物。
 
 `node --test scripts/packaging/validate-skills.test.mjs scripts/packaging/electron-builder-config.test.mjs` 验证目录、哈希和打包资源规则；这些检查不替代实际运行或外部服务验收。
 

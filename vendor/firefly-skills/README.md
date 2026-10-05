@@ -1,6 +1,6 @@
 # Firefly vendor Skills
 
-`skills/` in this directory is the canonical source of the 39 currently distributed vendor Skills. The repository-root `skills/` contains exactly five Firefly-maintained capabilities: `assessment`, `diagram`, `knowledge-workspace`, `plugin-development`, and `tutoring`. The vendor source is packaging input, not an additional runtime scan root.
+`skills/` in this directory is the canonical source of the 39 currently distributed vendor Skills. The repository-root `skills/` contains exactly three Firefly-maintained capabilities: `diagram`, `knowledge-workspace`, and `plugin-development`. The vendor source is packaging input, not an additional runtime scan root.
 
 `skills-manifest.json` pins the 39 IDs and every canonical file hash. Packaging copies `skills/` and the manifest directly to `resources/firefly-skills/`; runtime validates them, synchronizes managed directories into the user Skills area, and scans the existing builtin/user sources. The packaged vendor directory is not another scan root.
 
@@ -25,6 +25,6 @@ Current distribution changes must preserve mode declarations, tools, effectKind,
 
 ## Validation and distribution
 
-Run `npm run validate:skills` after canonical edits. The validator checks the 39 vendor IDs, five project IDs, every pinned vendor file hash, bodies, path safety and required legal materials. Update the directory manifest deliberately when reviewed Skill bytes change; validation does not rewrite files or create a ZIP.
+Run `npm run validate:skills` after canonical edits. The validator checks the 39 vendor IDs, three project IDs, every pinned vendor file hash, bodies, path safety and required legal materials. Update the directory manifest deliberately when reviewed Skill bytes change; validation does not rewrite files or create a ZIP.
 
 `electron-builder.yml` copies only the canonical `skills/` directory, directory manifest, notices, provenance and licenses from this vendor root. The project-maintained five Skills remain in the separate top-level `skills/` installation folder. Development/acquisition materials and the retired ZIP are not packaged.
