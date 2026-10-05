@@ -1,0 +1,57 @@
+{
+  "run": "n3-r1",
+  "baseline": "c98cceb54402481f70840371a8cc8d2ca141b460",
+  "pid": 32032,
+  "versions": {
+    "node": "24.18.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "148",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.0.245.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "43.1.0",
+    "chrome": "150.0.7871.47"
+  },
+  "paths": {
+    "appData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n3-r1",
+    "userData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n3-r1\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n3-r1\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n3-r1\\Firefly-smoke\\logs",
+    "crashDumps": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n3-r1\\Firefly-smoke\\logs"
+  },
+  "cases": [],
+  "challenges": [],
+  "failures": [],
+  "events": [],
+  "errors": [
+    "Error: ERR_BLOCKED_BY_CLIENT (-20) loading 'data:text/html,<title>Owned anonymous acceptance</title>'\n    at rejectAndCleanup (node:electron/js2c/browser_init:2:90161)\n    at WebContents.finishListener (node:electron/js2c/browser_init:2:90323)\n    at WebContents.emit (node:events:509:28)"
+  ],
+  "limitations": [],
+  "cleanup": {
+    "ok": true,
+    "value": null
+  }
+}

@@ -7,6 +7,9 @@ import { randomUUID } from "node:crypto";
  * deliberately does not invalidate voice leases on an ordinary session switch.
  */
 export function registerBrowserHostOwner<S extends object>(options: { host: BrowserHostPort; profile: object; targets: ActiveChatTargetRegistry; service: ReturnType<typeof createBrowserService<S>>; readSession(id: string): { id: string; mode?: ConversationMode } | null }) {
+  // Native host properties may throw in the destroyed notification. Keep the
+  // registered identity so that notification still revokes the owner signal.
+  const hostWebContentsId = options.host.webContents.id;
   let owner: TrustedBrowserOwner | null = null, abort: AbortController | undefined, generation = 0, targetKey = "", disposed = false;
   const deleted = new Set<string>();
   function invalidate(): void {
@@ -32,7 +35,7 @@ export function registerBrowserHostOwner<S extends object>(options: { host: Brow
     refresh(); return owner;
   }
   const offHost = options.service.registerHost(options.host, resolveOwner);
-  const offInvalidation = options.targets.onInvalidated((_reason, affected) => { if (!affected || affected.webContentsId === options.host.webContents.id) invalidate(); });
+  const offInvalidation = options.targets.onInvalidated((_reason, affected) => { if (!affected || affected.webContentsId === hostWebContentsId) invalidate(); });
   const offDeleted = options.targets.onSessionDeleted(id => { deleted.add(id); if (owner?.conversationId === id) invalidate(); });
   return Object.freeze({ refresh, resolveOwner, dispose() { if (disposed) return; disposed = true; invalidate(); offInvalidation(); offDeleted(); offHost(); } });
 }

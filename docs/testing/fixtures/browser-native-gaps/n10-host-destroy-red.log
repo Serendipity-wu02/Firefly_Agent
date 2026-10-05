@@ -1,0 +1,43 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+stderr | src/main/browser/browser-host-owner.test.ts > native host owner from the existing Main active target and real session lookup > invalidates the owner when native destruction makes host properties unavailable
+[active-chat-target] 澶辨晥鐩戝惉鍣ㄦ姏閿?Error: Object has been destroyed
+    at EventEmitter.get (E:/Codex/2026-10-04/task-4/audit-r3-r4/src/main/browser/browser-host-owner.test.ts:38:79)
+    at E:/Codex/2026-10-04/task-4/audit-r3-r4/src/main/browser/browser-host-owner.ts:35:151
+    at notifyInvalidated (E:/Codex/2026-10-04/task-4/audit-r3-r4/src/main/plugin-host/active-chat-target.ts:90:9)
+    at EventEmitter.handleDestroyed (E:/Codex/2026-10-04/task-4/audit-r3-r4/src/main/plugin-host/active-chat-target.ts:108:5)
+    at Object.onceWrapper (node:events:630:28)
+    at EventEmitter.emit (node:events:521:24)
+    at E:/Codex/2026-10-04/task-4/audit-r3-r4/src/main/browser/browser-host-owner.test.ts:47:32
+    at file:///E:/Codex/Firefly_Agent-skills-layout/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///E:/Codex/Firefly_Agent-skills-layout/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///E:/Codex/Firefly_Agent-skills-layout/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+
+ 鉂?src/main/browser/browser-host-owner.test.ts (3 tests | 1 failed) 9ms
+     脳 invalidates the owner when native destruction makes host properties unavailable 5ms
+
+鈳幆鈳幆鈳幆鈳?Failed Tests 1 鈳幆鈳幆鈳幆鈳?
+ FAIL  src/main/browser/browser-host-owner.test.ts > native host owner from the existing Main active target and real session lookup > invalidates the owner when native destruction makes host properties unavailable
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ 鉂?src/main/browser/browser-host-owner.test.ts:48:35
+     46|     expect(owner).not.toBeNull(); expect(owner?.signal.aborted).toBe(f鈥?     47|     destroyed = true; contents.emit("destroyed");
+     48|     expect(owner?.signal.aborted).toBe(true);
+       |                                   ^
+     49|     binding.dispose(); targets.dispose();
+     50|   });
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[1/1]鈳?
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  14:30:31
+   Duration  288ms (transform 73ms, setup 0ms, import 112ms, tests 9ms, environment 0ms)
+

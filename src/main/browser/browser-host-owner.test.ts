@@ -30,4 +30,22 @@ describe("native host owner from the existing Main active target and real sessio
     targets.notifySessionDeleted("exists"); expect(owner?.signal.aborted).toBe(true); expect(binding.resolveOwner({ sender: contents, senderFrame: frame })).toBeNull();
     binding.dispose(); targets.dispose();
   });
+  it("invalidates the owner when native destruction makes host properties unavailable", () => {
+    let destroyed = false;
+    const targets = createActiveChatTargetRegistry(), frame = {}, contents = Object.assign(new EventEmitter(), {
+      mainFrame: frame, isDestroyed: () => destroyed,
+    });
+    Object.defineProperty(contents, "id", { get: () => { if (destroyed) throw Error("Object has been destroyed"); return 4; } });
+    const host: BrowserHostPort = Object.assign(new EventEmitter(), { webContents: contents as typeof contents & { id: number },
+      isDestroyed: () => destroyed, isVisible: () => false, isFocused: () => false,
+      getContentSize: (): [number, number] => [800, 600], contentView: { addChildView: () => {}, removeChildView: () => {} } });
+    const profile = {}, service = createBrowserService({ profile, createSession: () => { throw Error("gate closed"); }, createView: () => { throw Error("gate closed"); } });
+    const binding = registerBrowserHostOwner({ host, profile, targets, service, readSession: id => ({ id, mode: "chat" }) });
+    targets.setActive({ sender: contents as unknown as WebContents, sessionId: "a", mode: "chat", rendererTargetId: "r" }); binding.refresh();
+    const owner = binding.resolveOwner({ sender: contents as typeof contents & { id: number }, senderFrame: frame });
+    expect(owner).not.toBeNull(); expect(owner?.signal.aborted).toBe(false);
+    destroyed = true; contents.emit("destroyed");
+    expect(owner?.signal.aborted).toBe(true);
+    binding.dispose(); targets.dispose();
+  });
 });

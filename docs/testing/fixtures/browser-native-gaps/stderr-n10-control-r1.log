@@ -1,0 +1,15 @@
+(node:7992) electron: Failed to load URL: https://owned-shutdown.invalid/ with error: ERR_TUNNEL_CONNECTION_FAILED
+(Use `electron --trace-warnings ...` to show where the warning was created)
+(node:7992) electron: Failed to load URL: https://owned-shutdown.invalid/ with error: ERR_TUNNEL_CONNECTION_FAILED
+[active-chat-target] 失效监听器抛错 TypeError: Object has been destroyed
+    at E:\Codex\2026-10-04\task-4\audit-r3-r4\dist\main\main\browser\browser-host-owner.js:51:141
+    at notifyInvalidated (E:\Codex\2026-10-04\task-4\audit-r3-r4\dist\main\main\plugin-host\active-chat-target.js:45:17)
+    at WebContents.handleDestroyed (E:\Codex\2026-10-04\task-4\audit-r3-r4\dist\main\main\plugin-host\active-chat-target.js:63:9)
+    at Object.onceWrapper (node:events:631:26)
+    at WebContents.emit (node:events:521:24)
+[active-chat-target] 失效监听器抛错 TypeError: Object has been destroyed
+    at E:\Codex\2026-10-04\task-4\audit-r3-r4\dist\main\main\browser\browser-host-owner.js:51:141
+    at notifyInvalidated (E:\Codex\2026-10-04\task-4\audit-r3-r4\dist\main\main\plugin-host\active-chat-target.js:45:17)
+    at WebContents.handleDestroyed (E:\Codex\2026-10-04\task-4\audit-r3-r4\dist\main\main\plugin-host\active-chat-target.js:63:9)
+    at Object.onceWrapper (node:events:631:26)
+    at WebContents.emit (node:events:521:24)

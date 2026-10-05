@@ -1,0 +1,9 @@
+{
+  "run": "n3-r3",
+  "exitCode": null,
+  "matrix": "n3",
+  "launcherTimedOut": true,
+  "reclaimedOwnedPid": true,
+  "fixtureCleanupHung": true,
+  "pid": 29584
+}

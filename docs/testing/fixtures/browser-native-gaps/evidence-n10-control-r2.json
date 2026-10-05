@@ -1,0 +1,337 @@
+{
+  "run": "n10-control-r2",
+  "baseline": "c98cceb54402481f70840371a8cc8d2ca141b460",
+  "pid": 31452,
+  "versions": {
+    "node": "24.18.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "148",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.0.245.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "43.1.0",
+    "chrome": "150.0.7871.47"
+  },
+  "paths": {
+    "appData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r2",
+    "userData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r2\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r2\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r2\\Firefly-smoke\\logs",
+    "crashDumps": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r2\\Firefly-smoke\\logs"
+  },
+  "cases": [
+    {
+      "name": "native-revoke-first-and-all-ten-cleanup-operations",
+      "actual": {
+        "operations": 10,
+        "domains": 2,
+        "allRevokedAndDestroyRequested": true,
+        "allDestroyedAtCompletion": true,
+        "destroyedAtCleanupInvocation": false
+      }
+    },
+    {
+      "name": "native-cookie-readback-after-cleanup",
+      "actual": {
+        "a": 0,
+        "b": 0,
+        "cleanupResult": {
+          "ok": true,
+          "value": null
+        }
+      }
+    },
+    {
+      "name": "coordinator-reentry-and-first-final-action-only",
+      "actual": {
+        "finalCalls": 1,
+        "samePromise": true
+      }
+    },
+    {
+      "name": "ordered-phases-and-exact-fault-contract",
+      "actual": {
+        "mode": "none",
+        "started": [
+          "quiesce",
+          "stopProducers",
+          "stopActiveWork",
+          "stopExternalConsumers",
+          "stopExternalProviders",
+          "stopLocalResources",
+          "flushPersistence"
+        ],
+        "logCount": 0,
+        "failureVisible": null
+      }
+    }
+  ],
+  "challenges": [],
+  "failures": [
+    {
+      "label": "owned-1",
+      "code": -111,
+      "description": "ERR_TUNNEL_CONNECTION_FAILED"
+    },
+    {
+      "label": "owned-2",
+      "code": -111,
+      "description": "ERR_TUNNEL_CONNECTION_FAILED"
+    }
+  ],
+  "events": [
+    {
+      "sequence": 1,
+      "kind": "fixture-armed",
+      "mode": "none"
+    },
+    {
+      "sequence": 2,
+      "kind": "before-quit",
+      "finalizing": false
+    },
+    {
+      "sequence": 3,
+      "kind": "browser-revoke-first"
+    },
+    {
+      "sequence": 4,
+      "kind": "native-destroy-request",
+      "index": 0
+    },
+    {
+      "sequence": 5,
+      "kind": "native-destroy-request",
+      "index": 1
+    },
+    {
+      "sequence": 6,
+      "kind": "fixture-probe-start",
+      "phase": "quiesce"
+    },
+    {
+      "sequence": 7,
+      "kind": "fixture-probe-complete",
+      "phase": "quiesce"
+    },
+    {
+      "sequence": 8,
+      "kind": "before-quit",
+      "finalizing": false
+    },
+    {
+      "sequence": 9,
+      "kind": "reentry-same-promise"
+    },
+    {
+      "sequence": 10,
+      "kind": "fixture-probe-start",
+      "phase": "stopProducers"
+    },
+    {
+      "sequence": 11,
+      "kind": "fixture-probe-complete",
+      "phase": "stopProducers"
+    },
+    {
+      "sequence": 12,
+      "kind": "fixture-probe-start",
+      "phase": "stopActiveWork"
+    },
+    {
+      "sequence": 13,
+      "kind": "fixture-probe-complete",
+      "phase": "stopActiveWork"
+    },
+    {
+      "sequence": 14,
+      "kind": "fixture-probe-start",
+      "phase": "stopExternalConsumers"
+    },
+    {
+      "sequence": 15,
+      "kind": "fixture-probe-complete",
+      "phase": "stopExternalConsumers"
+    },
+    {
+      "sequence": 16,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "closeAllConnections",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 17,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "clearStorageData",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 18,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "clearCache",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 19,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "clearAuthCache",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 20,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "clearHostResolverCache",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 21,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "closeAllConnections",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 22,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "clearStorageData",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 23,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "clearCache",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 24,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "clearAuthCache",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 25,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "clearHostResolverCache",
+      "revoked": true,
+      "destroyRequested": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 26,
+      "kind": "browser-cleanup-result",
+      "result": {
+        "ok": true,
+        "value": null
+      }
+    },
+    {
+      "sequence": 27,
+      "kind": "fixture-probe-start",
+      "phase": "stopExternalProviders"
+    },
+    {
+      "sequence": 28,
+      "kind": "fixture-probe-complete",
+      "phase": "stopExternalProviders"
+    },
+    {
+      "sequence": 29,
+      "kind": "fixture-probe-start",
+      "phase": "stopLocalResources"
+    },
+    {
+      "sequence": 30,
+      "kind": "fixture-probe-complete",
+      "phase": "stopLocalResources"
+    },
+    {
+      "sequence": 31,
+      "kind": "fixture-probe-start",
+      "phase": "flushPersistence"
+    },
+    {
+      "sequence": 32,
+      "kind": "fixture-probe-complete",
+      "phase": "flushPersistence"
+    },
+    {
+      "sequence": 33,
+      "kind": "final-action"
+    },
+    {
+      "sequence": 34,
+      "kind": "before-quit",
+      "finalizing": true
+    },
+    {
+      "sequence": 35,
+      "kind": "will-quit"
+    },
+    {
+      "sequence": 36,
+      "kind": "quit",
+      "exitCode": 0
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "Faults are E1 fixture adapter Promise rejection/noncompletion; other cleanup operations use actual native Session APIs. Two native cookie readbacks are E2, not full HTTPS worker or global egress proof.",
+    "Native close() is asynchronous: destroy is requested before cleanup, but isDestroyed() may remain false when API cleanup starts. Final destruction is confirmed. This does not certify N9 late-writer ordering.",
+    "Coordinator intentionally continues after rejection but stops awaiting/running later phases on total deadline. A resolved shutdown Promise or native exit0 does not mean browser cleanup succeeded.",
+    "Actual app before-quit/reentry/will-quit/quit only; no Windows shutdown/logoff/reboot or other-platform claim. No production integration wiring or gate changes."
+  ],
+  "mode": "none",
+  "evidenceClass": "E1-fault-injection-plus-E2-native-Session-cleanup-and-app-events",
+  "shutdownLogs": [],
+  "nativeExitCode": 0
+}

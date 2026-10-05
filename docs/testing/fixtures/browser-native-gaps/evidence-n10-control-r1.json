@@ -1,0 +1,259 @@
+{
+  "run": "n10-control-r1",
+  "baseline": "c98cceb54402481f70840371a8cc8d2ca141b460",
+  "pid": 7992,
+  "versions": {
+    "node": "24.18.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "148",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.0.245.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "43.1.0",
+    "chrome": "150.0.7871.47"
+  },
+  "paths": {
+    "appData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r1",
+    "userData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r1\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r1\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r1\\Firefly-smoke\\logs",
+    "crashDumps": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-control-r1\\Firefly-smoke\\logs"
+  },
+  "cases": [],
+  "challenges": [],
+  "failures": [
+    {
+      "label": "owned-1",
+      "code": -111,
+      "description": "ERR_TUNNEL_CONNECTION_FAILED"
+    },
+    {
+      "label": "owned-2",
+      "code": -111,
+      "description": "ERR_TUNNEL_CONNECTION_FAILED"
+    }
+  ],
+  "events": [
+    {
+      "sequence": 1,
+      "kind": "fixture-armed",
+      "mode": "none"
+    },
+    {
+      "sequence": 2,
+      "kind": "before-quit",
+      "finalizing": false
+    },
+    {
+      "sequence": 3,
+      "kind": "browser-revoke-first"
+    },
+    {
+      "sequence": 4,
+      "kind": "fixture-probe-start",
+      "phase": "quiesce"
+    },
+    {
+      "sequence": 5,
+      "kind": "fixture-probe-complete",
+      "phase": "quiesce"
+    },
+    {
+      "sequence": 6,
+      "kind": "before-quit",
+      "finalizing": false
+    },
+    {
+      "sequence": 7,
+      "kind": "reentry-same-promise"
+    },
+    {
+      "sequence": 8,
+      "kind": "fixture-probe-start",
+      "phase": "stopProducers"
+    },
+    {
+      "sequence": 9,
+      "kind": "fixture-probe-complete",
+      "phase": "stopProducers"
+    },
+    {
+      "sequence": 10,
+      "kind": "fixture-probe-start",
+      "phase": "stopActiveWork"
+    },
+    {
+      "sequence": 11,
+      "kind": "fixture-probe-complete",
+      "phase": "stopActiveWork"
+    },
+    {
+      "sequence": 12,
+      "kind": "fixture-probe-start",
+      "phase": "stopExternalConsumers"
+    },
+    {
+      "sequence": 13,
+      "kind": "fixture-probe-complete",
+      "phase": "stopExternalConsumers"
+    },
+    {
+      "sequence": 14,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "closeAllConnections",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 15,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "clearStorageData",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 16,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "clearCache",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 17,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "clearAuthCache",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 18,
+      "kind": "native-cleanup-call",
+      "index": 0,
+      "operation": "clearHostResolverCache",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 19,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "closeAllConnections",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 20,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "clearStorageData",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 21,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "clearCache",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 22,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "clearAuthCache",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 23,
+      "kind": "native-cleanup-call",
+      "index": 1,
+      "operation": "clearHostResolverCache",
+      "revoked": true,
+      "destroyed": false
+    },
+    {
+      "sequence": 24,
+      "kind": "browser-cleanup-result",
+      "result": {
+        "ok": true,
+        "value": null
+      }
+    },
+    {
+      "sequence": 25,
+      "kind": "fixture-probe-start",
+      "phase": "stopExternalProviders"
+    },
+    {
+      "sequence": 26,
+      "kind": "fixture-probe-complete",
+      "phase": "stopExternalProviders"
+    },
+    {
+      "sequence": 27,
+      "kind": "fixture-probe-start",
+      "phase": "stopLocalResources"
+    },
+    {
+      "sequence": 28,
+      "kind": "fixture-probe-complete",
+      "phase": "stopLocalResources"
+    },
+    {
+      "sequence": 29,
+      "kind": "fixture-probe-start",
+      "phase": "flushPersistence"
+    },
+    {
+      "sequence": 30,
+      "kind": "fixture-probe-complete",
+      "phase": "flushPersistence"
+    },
+    {
+      "sequence": 31,
+      "kind": "final-action"
+    },
+    {
+      "sequence": 32,
+      "kind": "quit",
+      "exitCode": 1
+    }
+  ],
+  "errors": [
+    "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(calls.every(event => event.revoked && event.destroyed))\n\n    at Object.finalAction (E:\\Codex\\2026-10-04\\task-4\\audit-r3-r4\\docs\\testing\\fixtures\\browser-native-gaps\\n10.cjs:40:5)\n    at finalize (E:\\Codex\\2026-10-04\\task-4\\audit-r3-r4\\dist\\main\\main\\application\\shutdown.js:70:25)\n    at E:\\Codex\\2026-10-04\\task-4\\audit-r3-r4\\dist\\main\\main\\application\\shutdown.js:116:17"
+  ],
+  "limitations": [],
+  "mode": "none",
+  "evidenceClass": "E1-fault-injection-plus-E2-native-Session-cleanup-and-app-events",
+  "shutdownLogs": [],
+  "nativeExitCode": 1
+}
