@@ -38,7 +38,7 @@ const SCHEMA_VERSION = 1;
 export type TranscriptMutation = "append" | "delete" | "repair";
 
 /** Optional trusted Main append gate; no IPC/caller JSON callbacks. */
-export interface TranscriptAppendGuard {throughSeq:number;validate:()=>Promise<void>;commit:(write:()=>Promise<TranscriptEntry>)=>Promise<TranscriptEntry>}
+export interface TranscriptAppendGuard {throughSeq:number;validate:(ticket:object)=>Promise<void>;commit:(write:()=>Promise<TranscriptEntry>,ticket:object)=>Promise<TranscriptEntry>}
 
 export interface ConversationTranscriptStoreOptions {
   now?: () => number;
@@ -91,8 +91,9 @@ export class ConversationTranscriptStore {
   private readonly root: string;
   private readonly now: () => number;
   /** 每会话写队列尾（settled promise），串行化所有文件操作。 */
+  private readonly heldTickets = new WeakMap<object,{sessionId:string;phase:"validate"|"other";busy:boolean;pending:Set<Promise<unknown>>;failed:boolean;failure?:unknown}>();
   private readonly queues = new Map<string, Promise<void>>();
-  private readonly mutationObservers = new Map<string, (kind: TranscriptMutation, entry?: TranscriptEntry) => Promise<void>>();
+  private readonly mutationObservers = new Map<string, (kind: TranscriptMutation, entry?: TranscriptEntry,ticket?:object) => Promise<void>>();
 
   constructor(userDataRoot: string, options?: ConversationTranscriptStoreOptions) {
     this.root = path.join(userDataRoot, ROOT_DIR_NAME);
@@ -106,11 +107,19 @@ export class ConversationTranscriptStore {
     if (sWrite)
       input = structuredClone(input);
     return this.enqueue(conversationId, async () => {
+      const ticket=Object.freeze({}),held={sessionId:conversationId,phase:"other" as "validate"|"other",busy:false,pending:new Set<Promise<unknown>>(),failed:false,failure:undefined as unknown};
+      if(guard)this.heldTickets.set(ticket,held);
+      try {
       const state = await this.loadState(conversationId);
       if (guard) {
         if (state.maxSeq !== guard.throughSeq)
           throw Error("MEMORY_CONTEXT_TRANSCRIPT_STALE");
-        await guard.validate();
+        held.phase="validate";
+        try { await guard.validate(ticket); } finally {
+          held.phase="other";
+          await Promise.allSettled([...held.pending]);
+          if(held.failed)throw held.failure;
+        }
       }
       // 幂等主键：entryId 已存在，first-write-wins，返回原条目
       const existingById = state.entries.find((entry) => entry.id === input.id);
@@ -147,7 +156,7 @@ export class ConversationTranscriptStore {
         });
       // seq 只在队列内分配：现有最大 seq + 1（快照基线 + 已重放增量）
       const entry = { ...input, seq: state.maxSeq + 1, at: input.at ?? this.now() } as TranscriptEntry;
-      await this.beforeMutation(conversationId, "append", structuredClone(entry));
+      await this.beforeMutation(conversationId, "append", structuredClone(entry),guard?ticket:undefined);
       const dir = this.conversationDir(conversationId);
       await fs.promises.mkdir(dir, { recursive: true });
       // The final Main gate calls this write directly while holding its coordinator.
@@ -160,13 +169,14 @@ export class ConversationTranscriptStore {
         return entry;
       };
       try {
-        return guard ? await guard.commit(write) : await write();
+        return guard ? await guard.commit(write,ticket) : await write();
       }
       catch (error) {
         if (sWrite && dispatched)
           throw new TranscriptPersistenceError(error);
         throw error;
       }
+      } finally { this.heldTickets.delete(ticket); }
     });
   }
 
@@ -244,7 +254,7 @@ export class ConversationTranscriptStore {
 
 
   /** A single trusted Main observer; inactive by default for ordinary stores. */
-  observeMutations(conversationId: string, before: (kind: TranscriptMutation, entry?: TranscriptEntry) => Promise<void>): () => void {
+  observeMutations(conversationId: string, before: (kind: TranscriptMutation, entry?: TranscriptEntry,ticket?:object) => Promise<void>): () => void {
     this.conversationDir(conversationId);
     if (this.mutationObservers.has(conversationId)) throw new Error("TRANSCRIPT_OBSERVER_EXISTS");
     this.mutationObservers.set(conversationId, before);
@@ -257,6 +267,15 @@ export class ConversationTranscriptStore {
   withReadonlyBarrier<T>(conversationId: string, operation: () => Promise<T>): Promise<T> {
     this.conversationDir(conversationId);
     return this.enqueue(conversationId, operation);
+  }
+
+  /** Exact opaque queue ownership, usable only by the current guarded validation callback. */
+  async withHeldReadonlyBarrier<T>(ticket:object,conversationId:string,root:string,operation:()=>Promise<T>):Promise<T> {
+    const held=this.heldTickets.get(ticket);
+    if(!held||held.phase!=="validate"||held.busy||held.sessionId!==conversationId||path.resolve(root)!==path.resolve(this.root))throw Error("TRANSCRIPT_HELD_TICKET_DENIED");
+    held.busy=true;
+    const pending=Promise.resolve().then(operation);held.pending.add(pending);
+    try{return await pending}catch(error){if(!held.failed){held.failed=true;held.failure=error}throw error}finally{held.pending.delete(pending);held.busy=false}
   }
 
   /** Hold the existing queue through the consumer's read/validate/publish operation. */
@@ -289,8 +308,8 @@ export class ConversationTranscriptStore {
     });
   }
 
-  private async beforeMutation(conversationId: string, kind: TranscriptMutation, entry?: TranscriptEntry): Promise<void> {
-    await this.mutationObservers.get(conversationId)?.(kind, entry);
+  private async beforeMutation(conversationId: string, kind: TranscriptMutation, entry?: TranscriptEntry,ticket?:object): Promise<void> {
+    await this.mutationObservers.get(conversationId)?.(kind, entry,ticket);
   }
 
   /** 会话目录（含路径穿越校验）。 */

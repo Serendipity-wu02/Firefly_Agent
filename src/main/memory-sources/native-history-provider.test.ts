@@ -146,6 +146,15 @@ it('invalidation still waits exact live operation cleanup when captured-head cle
  finally{release();await queryFailed;expect(await invalidation).toBe('HEAD_CLEANUP_FAILED');failHeads=false;await native.close()}
 });
 
+it('head cleanup failure cannot acknowledge invalidation before a late factory finishes disposal',async()=>{
+ const f=await fixture();let starts=0,entered!:()=>void,release!:()=>void,disposed=false;
+ const started=new Promise<void>(r=>entered=r),hold=new Promise<void>(r=>release=r);
+ const native=createNativeHistoryProvider({actorAuthority:f.authority,actorToken:f.actor,store:f.store,history:f.history,deadlineMs:1000,endpointFactory:async()=>{const endpoint=await f.endpointFactory();if(++starts<=2)return endpoint;entered();await hold;return {...endpoint,async dispose(){await endpoint.dispose();disposed=true}}}});
+ await native.capture();vi.spyOn(f.history,'prepareTranscriptChange').mockRejectedValue(Error('head cleanup fault'));
+ const query=native.query({query:'harbor'}),queryFailed=expect(query).rejects.toThrow('head cleanup fault');await started;
+ let acknowledged=false;const invalidated=native.invalidate('root-change').finally(()=>{acknowledged=true}),cleanupFailed=expect(invalidated).rejects.toThrow('head cleanup fault');
+ try{await new Promise<void>(setImmediate);expect(acknowledged).toBe(false)}finally{release();await queryFailed;await cleanupFailed;expect(disposed).toBe(true);await native.close().catch(()=>undefined)}
+});
 it('a captured-head failure still settles later heads before invalidation acknowledges',async()=>{
  const f=await fixture();await f.store.append('session-a',{id:'u2',kind:'user',turnId:'turn2',revision:1,payload:{text:'harbor tea'},at:2000});await f.store.checkpoint('session-a');
  let failHeads=false,calls=0,release!:()=>void;const hold=new Promise<void>(r=>release=r);

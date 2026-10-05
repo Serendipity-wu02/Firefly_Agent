@@ -14,7 +14,7 @@ import {canonicalJson} from "../memory-core/repository-types";
 import {TranscriptLedger} from "./transcript-ledger";
 import {RecallRepository,parseRecallDependencies} from "../memory-recall/recall-repository";
 import type {RecallDependency} from "../memory-recall/recall-contracts";
-import {HistoryRepository,parseHistoryDependencies} from "../memory-history/history-repository";
+import {HistoryRepository,parseHistoryDependencies,isResponseNativeHistoryDocument} from "../memory-history/history-repository";
 import type {HistoryDependency} from "../memory-history/history-contracts";
 
 export interface ContextOwner {actorKey:string;providerId:string;sessionId:string;bootId:string}
@@ -110,9 +110,14 @@ export class ContextRepository {
  }
  private checkSnapshot(scope:string,owner:ContextOwner,snapshot:StoredSnapshot,progress?:{operationId:string;expectedRefs:TranscriptDependency[]}):void {
   this.sameOwner(snapshot,owner);this.assertGeneration(scope,snapshot.generation);
-  if(progress){const refs=[...snapshot.transcriptRefs,...(snapshot.guardRefs??[])];if(progress.expectedRefs.length!==new Set(refs.map(r=>r.headId)).size||progress.expectedRefs.some(r=>!refs.some(expected=>canonicalJson(r)===canonicalJson(expected))))contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED")}
+  const history=new HistoryRepository(this.db,this.key,undefined,()=>transactionNow(this.db));
+  const documents=progress?history.validateResponseWithinTransaction(scope,owner.actorKey,snapshot.historyDeps??[],owner,progress.operationId):history.validateWithinTransaction(scope,owner.actorKey,snapshot.historyDeps??[]);
+  if(progress){
+   const refs=[...snapshot.transcriptRefs,...(snapshot.guardRefs??[]),...documents.filter(d=>isResponseNativeHistoryDocument(d)&&d.providerId===owner.providerId&&d.sessionId===owner.sessionId&&d.transcriptRef).map(d=>d.transcriptRef!)],exact=new Map<string,TranscriptDependency>();
+   for(const ref of refs){const old=exact.get(ref.headId);if(old&&canonicalJson(old)!==canonicalJson(ref))contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");exact.set(ref.headId,ref)}
+   if(new Set(progress.expectedRefs.map(r=>r.headId)).size!==progress.expectedRefs.length||progress.expectedRefs.length!==exact.size||progress.expectedRefs.some(r=>canonicalJson(exact.get(r.headId))!==canonicalJson(r)))contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
+  }
   for(const ref of snapshot.guardRefs??[])this.responseHead(scope,owner,ref,progress);
-  new HistoryRepository(this.db,this.key,undefined,()=>transactionNow(this.db)).validateWithinTransaction(scope,owner.actorKey,snapshot.historyDeps??[]);
   for(const dep of snapshot.sourceDeps){const status=this.sourceState(scope,owner,dep,snapshot.sourceDeps);if(snapshot.requiredSources.includes(dep.sourceRef.sourceId)&&status!=="allowed")contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE")}
   const facts=this.checkedFacts(scope,owner,snapshot.factRefs,parseRecallDependencies(snapshot.recallDeps??[])).facts;
   if(snapshot.factSupportRefs&&canonicalJson(facts.map(f=>({factId:f.factId,revision:f.revision,sourceRefs:f.supportSourceRefs})))!==canonicalJson(snapshot.factSupportRefs))contextFail("MEMORY_CONTEXT_FACT_SUPPORT_STALE");
@@ -169,7 +174,7 @@ export class ContextRepository {
    }
    if(command.kind==="validateResponse"){
     objectFields(body,[...identity,"snapshotId"],["responseProgress"]);const raw=body.responseProgress===undefined?undefined:objectFields(body.responseProgress,["operationId","expectedRefs"]),progress=raw?{operationId:parseInternalId(raw.operationId),expectedRefs:transcripts(raw.expectedRefs)}:undefined;
-    const snapshot=this.read<StoredSnapshot>(scope,parseInternalId(body.snapshotId),"snapshot",owner);this.checkSnapshot(scope,owner,snapshot,progress);if(snapshot.state!=="claimed")contextFail("MEMORY_CONTEXT_RESPONSE_UNSENT");return {valid:true};
+    const snapshot=this.read<StoredSnapshot>(scope,parseInternalId(body.snapshotId),"snapshot",owner);if(snapshot.state!=="claimed")contextFail("MEMORY_CONTEXT_RESPONSE_UNSENT");this.checkSnapshot(scope,owner,snapshot,progress);return {valid:true};
    }
    if(command.kind==="validateSnapshot"){
     objectFields(body,[...identity,"snapshotId"]);const snapshot=this.read<StoredSnapshot>(scope,parseInternalId(body.snapshotId),"snapshot",owner);this.checkSnapshot(scope,owner,snapshot);if(snapshot.state!=="ready")contextFail("MEMORY_CONTEXT_PERMIT_USED");return {valid:true};

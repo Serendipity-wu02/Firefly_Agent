@@ -66,6 +66,10 @@ function settings(v:unknown):HistorySettings {const s=objectFields(v,['version',
  if((s.limit as number)>8||(s.candidateLimit as number)>50||(s.maxIndexDocuments as number)>4096||(s.maxIndexBytes as number)>32*1024*1024||(s.maxTotalChars as number)>65536||(s.maxExcerptChars as number)>65536||!Number.isFinite(s.mmrLambda as number)||(s.mmrLambda as number)<0||(s.mmrLambda as number)>1)fail();return {...s,version:parseInternalId(s.version)} as unknown as HistorySettings;
 }
 export function parseHistoryDependencies(v:unknown):HistoryDependency[]{return list(v,8).map(raw=>{const d=objectFields(raw,['documentId','providerId','sessionId','incarnation','revision','digest','generation','partition','indexVersion','tokenizerVersion','rankingVersion','recallDeps']),p=objectFields(d.partition,['actorKey','sessions']);if(typeof d.digest!=='string'||! /^[a-f0-9]{64}$/.test(d.digest))fail();return {documentId:parseInternalId(d.documentId),providerId:parseInternalId(d.providerId),sessionId:parseInternalId(d.sessionId),incarnation:parseInternalId(d.incarnation),revision:positiveRevision(d.revision),digest:d.digest,generation:natural(d.generation),partition:{actorKey:parseInternalId(p.actorKey),sessions:parseHistorySessions(p.sessions)},indexVersion:text(d.indexVersion,128),tokenizerVersion:text(d.tokenizerVersion,128),rankingVersion:text(d.rankingVersion,128),recallDeps:parseRecallDependencies(d.recallDeps)}})}
+/** Frozen native transcript provenance only; generic canonical/imported H stays current. */
+export function isResponseNativeHistoryDocument(d:HistoryDocument):boolean {
+ return d.origin==='canonical'&&d.classification==='raw-history'&&/^native-[a-f0-9]{64}$/.test(d.id)&&/^native-[a-f0-9]{64}$/.test(d.incarnation)&&d.sourceDeps.length===0&&d.messages.length>0&&d.messages.every(m=>!m.sourceRef)&&d.provenance?.length===d.messages.length&&d.provenance.every(p=>p.format==='transcript-v1'&&p.active&&p.field===undefined&&p.incarnation===d.incarnation&&Number.isSafeInteger(p.seq)&&p.seq!>0);
+}
 /** Worker-only: decrypt authorized partitions, build an ephemeral bounded index, never log bodies. */
 export class HistoryRepository {
  private readonly codec:RecordCodec;private readonly ledger:SourceLedger;private readonly suppression:Suppression;
@@ -99,10 +103,13 @@ export class HistoryRepository {
   return !!dep.derivedRefs?.length&&dep.derivedRefs.every(root=>{const other=d.sourceDeps.find(v=>canonicalJson(v.sourceRef)===canonicalJson(root));return !!other&&this.checkSource(scope,d,other,new Set([...seen,ref.sourceId]))});
  }
  private available(scope:string,d:StoredHistory):boolean {if(d.state!=='live'||d.classification!==undefined&&d.classification!=='raw-history'||d.provenance?.some(p=>!p.active))return false;const generation=this.generation(scope,d.actorKey);if(d.origin==='synthetic-import')return d.generation===generation;if(d.generation<generation&&d.messages.some(m=>!m.sourceRef))return false;return d.sourceDeps.every(dep=>this.checkSource(scope,d,dep))}
- private checkedDocument(scope:string,d:StoredHistory,expected?:RecallDependency[]):RecallDependency[] {
+ private checkedDocument(scope:string,d:StoredHistory,expected?:RecallDependency[],response?:{owner:{actorKey:string;providerId:string;sessionId:string};operationId:string}):RecallDependency[] {
   if(d.origin==='canonical'){
    if(!d.sourceDeps.length&&this.generation(scope,d.actorKey)>0)fail('MEMORY_HISTORY_STALE');
-   if(d.transcriptRef){const head=new TranscriptLedger(this.db,this.key).current(scope,{actorKey:d.actorKey,providerId:d.providerId,sessionId:d.sessionId,bootId:'history'},d.transcriptRef);
+   if(d.transcriptRef){const ledger=new TranscriptLedger(this.db,this.key),owner={actorKey:d.actorKey,providerId:d.providerId,sessionId:d.sessionId,bootId:'history'};
+    const pending=response&&isResponseNativeHistoryDocument(d)&&response.owner.actorKey===d.actorKey&&response.owner.providerId===d.providerId&&response.owner.sessionId===d.sessionId;
+    const head=pending?ledger.head(scope,owner,d.transcriptRef.headId):ledger.current(scope,owner,d.transcriptRef);
+    if(!head||pending&&(head.state!=='pending'||head.operationId!==response!.operationId||canonicalJson(head.ref)!==canonicalJson(d.transcriptRef)))fail('MEMORY_CONTEXT_RESPONSE_PROGRESS_STALE');
     if(!d.sourceDeps.length&&head.ref?.digest!==historyTranscriptDigest(d))fail('MEMORY_HISTORY_SOURCE_MISMATCH');
    }else if(d.messages.some(m=>!m.sourceRef))fail('MEMORY_HISTORY_SOURCE_MISMATCH')
   }
@@ -114,13 +121,18 @@ export class HistoryRepository {
   const roots=d.sourceDeps.map(dep=>dep.sourceRef.sourceId),subjects=d.sourceDeps.flatMap(dep=>dep.subjectKeys??[]),facts=new PolicyRepository(this.db,this.key).eligibleFactsWithinTransaction(scope,d.actorKey,transactionNow(this.db)).filter(f=>roots.includes(f.sourceRef.sourceId)||roots.includes(f.provenance.activationSourceRef.sourceId)||subjects.includes(f.subjectKey));
   return new RecallRepository(this.db,this.key,()=>transactionNow(this.db)).readVisibleFactsWithinTransaction(scope,d.actorKey,facts.map(f=>({factId:f.factId,revision:f.revision})),expected).recallDeps;
  }
- validateWithinTransaction(scope:string,actorKey:string,value:unknown):StoredHistory[]{
+ private validateDocuments(scope:string,actorKey:string,value:unknown,response?:{owner:{actorKey:string;providerId:string;sessionId:string};operationId:string}):StoredHistory[]{
   return parseHistoryDependencies(value).map(dep=>{
    if(dep.partition.actorKey!==actorKey||!dep.partition.sessions.some(s=>s.providerId===dep.providerId&&s.sessionId===dep.sessionId))fail('MEMORY_HISTORY_ACCESS_DENIED');
    if(dep.generation!==this.generation(scope,actorKey)||dep.indexVersion!=='history-index-v1'||dep.rankingVersion!=='history-ranking-v3'||!/^history-jieba-v2-[a-f0-9]{64}$/.test(dep.tokenizerVersion))fail('MEMORY_HISTORY_STALE');
-   const d=this.read(scope,actorKey,dep,dep.documentId);if(!d||d.incarnation!==dep.incarnation||d.revision!==dep.revision||d.digest!==dep.digest)fail('MEMORY_HISTORY_STALE');this.checkedDocument(scope,d,dep.recallDeps);return d;
+   const d=this.read(scope,actorKey,dep,dep.documentId);if(!d||d.incarnation!==dep.incarnation||d.revision!==dep.revision||d.digest!==dep.digest)fail('MEMORY_HISTORY_STALE');this.checkedDocument(scope,d,dep.recallDeps,response);return d;
   });
  }
+ /** Only ContextRepository's claimed response path supplies this reservation-bound exception. */
+ validateResponseWithinTransaction(scope:string,actorKey:string,value:unknown,owner:{actorKey:string;providerId:string;sessionId:string},operationId:string):StoredHistory[]{
+  return this.validateDocuments(scope,actorKey,value,{owner,operationId});
+ }
+ validateWithinTransaction(scope:string,actorKey:string,value:unknown):StoredHistory[]{return this.validateDocuments(scope,actorKey,value)}
  execute(value:unknown):unknown {
   const c=objectFields(value,['kind','scopeKey','body'],['commandId']),scope=parseInternalId(c.scopeKey),b=objectFields(c.body,['actorKey','providerId','sessionId'],['sessions','query','settings','vector','customWords','document','generation','documentId','revision','dependencies','documents','digest','transcriptHeads','temporal']);
   const owner={actorKey:parseInternalId(b.actorKey),providerId:parseInternalId(b.providerId),sessionId:parseInternalId(b.sessionId)},identity=['actorKey','providerId','sessionId'];
