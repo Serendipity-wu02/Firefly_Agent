@@ -1,0 +1,1411 @@
+{
+  "run": "r8",
+  "pid": 908,
+  "versions": {
+    "node": "24.18.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "148",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.0.245.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "43.1.0",
+    "chrome": "150.0.7871.47"
+  },
+  "profile": {
+    "kind": "smoke",
+    "applicationName": "Firefly-smoke",
+    "appData": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8",
+    "userData": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8\\Firefly-smoke\\logs",
+    "isolationRoot": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8"
+  },
+  "paths": {
+    "appData": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8",
+    "userData": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8\\Firefly-smoke\\logs",
+    "crashDumps": "E:\\Codex\\2026-10-03\\task-10\\browser-resolver-integration-20261005\\profile-r8\\Firefly-smoke\\logs"
+  },
+  "cases": [
+    {
+      "name": "default production factory stays closed",
+      "actual": {
+        "enabled": false
+      }
+    },
+    {
+      "name": "actual renderer IPC rejects local HTTP before native allocation",
+      "actual": {
+        "guests": 0
+      }
+    },
+    {
+      "name": "real WebContentsView/dedicated Session/default proxy and native preferences",
+      "actual": {
+        "guestId": 2,
+        "sessionPersistent": false,
+        "preferences": {
+          "sandbox": true,
+          "contextIsolation": true,
+          "webSecurity": true,
+          "nodeIntegration": false,
+          "nodeIntegrationInWorker": null,
+          "nodeIntegrationInSubFrames": false,
+          "allowRunningInsecureContent": false,
+          "webviewTag": false,
+          "devTools": null,
+          "navigateOnDragDrop": null,
+          "disableDialogs": true,
+          "preload": null
+        },
+        "publicNavigationSucceeded": true
+      }
+    },
+    {
+      "name": "actual IPC resolver forgery cannot authorize private webpage",
+      "actual": {
+        "privateUrlBlocked": true,
+        "configuredDns": {
+          "server": "192.168.31.1",
+          "port": 53
+        }
+      }
+    },
+    {
+      "name": "N1 actual IPC IPv4 IPv6 link-local and fake-IP navigation denied",
+      "actual": {
+        "allocatedAdditionalGuests": 0
+      }
+    },
+    {
+      "name": "N5 native same-origin HEAD succeeds unsafe methods and websocket denied",
+      "actual": {
+        "head": 200,
+        "POST": "TypeError",
+        "PUT": "TypeError",
+        "DELETE": "TypeError",
+        "beacon": true,
+        "websocket": "denied",
+        "media": "NotAllowedError",
+        "notification": "denied",
+        "geolocation": 1
+      }
+    },
+    {
+      "name": "N8 native microphone notification and geolocation denied",
+      "actual": {
+        "media": "NotAllowedError",
+        "notification": "denied",
+        "geolocation": 1
+      }
+    },
+    {
+      "name": "N7 actual owned loopback STUN TURN TCP and WebTransport sink observation",
+      "actual": {
+        "before": {
+          "tcp": 1,
+          "udp": 1
+        },
+        "after": {
+          "tcp": 1,
+          "udp": 1
+        },
+        "transports": {
+          "rtc": "function",
+          "webTransport": "function",
+          "webTransportError": "WebTransportError"
+        },
+        "policy": "disable_non_proxied_udp",
+        "scope": "bounded loopback IPv4 sinks; no all-interface packet capture"
+      }
+    },
+    {
+      "name": "actual hidden/unfocused host cannot attach guest from renderer layout",
+      "actual": {
+        "children": 0,
+        "hostVisible": false,
+        "hostFocused": false
+      }
+    },
+    {
+      "name": "native overlay/layout/blur consumers detach the actual view",
+      "actual": {
+        "remainingViews": 0
+      }
+    },
+    {
+      "name": "actual owner switch destroys native guest and denies late Session fetch",
+      "actual": {
+        "destroyed": true,
+        "afterRevoke": "net::ERR_BLOCKED_BY_CLIENT",
+        "remainingViews": 0
+      }
+    },
+    {
+      "name": "fresh owner receives fresh native Session and explicit close disposes it",
+      "actual": {
+        "reply": {
+          "ok": true,
+          "value": {
+            "browserId": "52bed154-14bc-4bb9-8507-6af043931968",
+            "conversationId": "qa-b",
+            "requestId": 1,
+            "closed": false,
+            "loading": false,
+            "url": "https://example.com/",
+            "pendingUrl": null,
+            "canGoBack": false,
+            "canGoForward": false,
+            "error": null
+          }
+        },
+        "destroyed": true,
+        "oldCookies": 0,
+        "oldCacheBytes": 0
+      }
+    },
+    {
+      "name": "N9 actual native old Session storage cleared observed by fixed local-only reader",
+      "actual": {
+        "state": {
+          "localStorage": 0,
+          "databases": [],
+          "caches": []
+        },
+        "cookies": 0,
+        "cacheSize": 0,
+        "workers": 0,
+        "observation": "synthetic fixed protocol page; not TLS or ordinary closed-cap reuse"
+      }
+    },
+    {
+      "name": "existing shutdown final action",
+      "actual": {
+        "enabled": false
+      }
+    },
+    {
+      "name": "N10 actual before-quit",
+      "actual": {
+        "afterCleanup": true,
+        "serviceEnabled": false
+      }
+    },
+    {
+      "name": "N10 actual will-quit",
+      "actual": {
+        "afterCleanup": true,
+        "serviceEnabled": false
+      }
+    },
+    {
+      "name": "N10 actual quit",
+      "actual": {
+        "afterCleanup": true,
+        "serviceEnabled": false
+      }
+    }
+  ],
+  "publicNavigation": {
+    "osDns": [
+      {
+        "address": "198.18.0.162",
+        "family": 4,
+        "public": false
+      }
+    ],
+    "dns": [
+      {
+        "address": "104.20.23.154",
+        "family": 4,
+        "public": true
+      },
+      {
+        "address": "172.66.147.243",
+        "family": 4,
+        "public": true
+      }
+    ],
+    "reply": {
+      "ok": true,
+      "value": {
+        "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+        "conversationId": "qa-a",
+        "requestId": 1,
+        "closed": false,
+        "loading": false,
+        "url": "https://example.com/",
+        "pendingUrl": null,
+        "canGoBack": false,
+        "canGoForward": false,
+        "error": null
+      }
+    },
+    "nativeUrl": "https://example.com/",
+    "proxyRoute": "PROXY 127.0.0.1:55131"
+  },
+  "limitations": [
+    "Native failed-navigation guest screenshot was empty in r1 under hidden offscreen host. No visible/focused native screenshot or frontend visual acceptance is claimed; this run tests the trusted hidden-host restriction.",
+    "Production shared preload/renderer/composition remain integrator work; this fresh smoke process supplies QA-only host IPC and exact routing consumer. OS foreground/tray actions, screenshot/visible UI, cross-protocol egress and complete N1-N10 acceptance are not claimed. Production gate remains closed."
+  ],
+  "errors": [],
+  "focusEvents": 0,
+  "changed": [
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 0,
+      "closed": false,
+      "loading": true,
+      "url": "",
+      "pendingUrl": "https://example.com/",
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 1,
+      "closed": false,
+      "loading": true,
+      "url": "",
+      "pendingUrl": "https://example.com/",
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 1,
+      "closed": false,
+      "loading": false,
+      "url": "https://example.com/",
+      "pendingUrl": null,
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 2,
+      "closed": false,
+      "loading": true,
+      "url": "https://example.com/",
+      "pendingUrl": "https://github.com/",
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 2,
+      "closed": false,
+      "loading": false,
+      "url": "https://github.com/",
+      "pendingUrl": null,
+      "canGoBack": true,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 3,
+      "closed": false,
+      "loading": true,
+      "url": "https://github.com/",
+      "pendingUrl": "https://expired.badssl.com/",
+      "canGoBack": true,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 3,
+      "closed": false,
+      "loading": false,
+      "url": "https://github.com/",
+      "pendingUrl": null,
+      "canGoBack": true,
+      "canGoForward": false,
+      "error": "load_failed"
+    },
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 4,
+      "closed": false,
+      "loading": true,
+      "url": "https://github.com/",
+      "pendingUrl": "https://example.com/",
+      "canGoBack": true,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+      "conversationId": "qa-a",
+      "requestId": 4,
+      "closed": false,
+      "loading": false,
+      "url": "https://example.com/",
+      "pendingUrl": null,
+      "canGoBack": true,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "52bed154-14bc-4bb9-8507-6af043931968",
+      "conversationId": "qa-b",
+      "requestId": 0,
+      "closed": false,
+      "loading": true,
+      "url": "",
+      "pendingUrl": "https://example.com/",
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "52bed154-14bc-4bb9-8507-6af043931968",
+      "conversationId": "qa-b",
+      "requestId": 1,
+      "closed": false,
+      "loading": true,
+      "url": "",
+      "pendingUrl": "https://example.com/",
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "52bed154-14bc-4bb9-8507-6af043931968",
+      "conversationId": "qa-b",
+      "requestId": 1,
+      "closed": false,
+      "loading": false,
+      "url": "https://example.com/",
+      "pendingUrl": null,
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    },
+    {
+      "browserId": "52bed154-14bc-4bb9-8507-6af043931968",
+      "conversationId": "qa-b",
+      "requestId": 2,
+      "closed": true,
+      "loading": false,
+      "url": "https://example.com/",
+      "pendingUrl": null,
+      "canGoBack": false,
+      "canGoForward": false,
+      "error": null
+    }
+  ],
+  "challenges": [
+    {
+      "contentsId": 2,
+      "isProxy": true,
+      "registered": true,
+      "granted": true
+    },
+    {
+      "contentsId": 3,
+      "isProxy": true,
+      "registered": true,
+      "granted": true
+    }
+  ],
+  "certificates": [
+    {
+      "contentsId": 2,
+      "url": "https://expired.badssl.com/",
+      "error": "net::ERR_CERT_DATE_INVALID"
+    }
+  ],
+  "shutdownLogs": [],
+  "nativeRequests": [
+    {
+      "url": "https://example.com/",
+      "method": "GET",
+      "resourceType": "mainFrame",
+      "allowed": true
+    },
+    {
+      "url": "https://example.com/s.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.com/",
+      "method": "GET",
+      "resourceType": "mainFrame",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-e27d1b3e03961e68.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-compiler-runtime-4610bd6d3de9c049.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/scheduler-58b860b049ca307c.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/light-99f877e9ddfc0e51.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/light_high_contrast-48fdd0811afbab3c.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/dark-79ad2ace604703b3.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/dark_high_contrast-24484a076f02295f.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/primer-primitives-ed9ca172356fd545.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/primer-4136ede8b2650a2d.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/global-54ba76e934a49d7c.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/github-7338c07b3a07b8be.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/marketing-c6c574a5b2679474.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/home-4589777a4968936a.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/app-runtime.3aeb6be53cb63c62.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-core.6ea0d857945085b4.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/primer-react-css.e4334163c54cccf5.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/primer-react-brand-css.05b219cdb8e80c43.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/landing-pages.e2650570843de834.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/keyboard-shortcuts-dialog.f88252e9cc874ff1.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/marketing-global-banner.789cbb7ec7317838.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/app-install-banner-partial.a0d80df2c59af719.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/t.0f3c8a0be207bf6c.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/marketing-footer.3842906629a44e43.module.css",
+      "method": "GET",
+      "resourceType": "stylesheet",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-dom-e5fd46a22d5c4058.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-dom-client-1b4a3ee065998cea.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-is-e0b593954b4706d8.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-jsx-runtime-4915cb0f5b3aff04.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-reconciler-8e99e505c4429605.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/global-banner-disable-6fe74fc3dbcb43ea.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/MonaSansVF-wdth-wght-opsz-7a868ff47c93bd97.woff2",
+      "method": "GET",
+      "resourceType": "font",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/high-contrast-cookie-375b8480a0db9429.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/wp-runtime-a54a23791cd037ec.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/app-foundation-69691b300d797200.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/app-runtime-7cd940ac0a938481.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/fetch-utilities-4b62182bc6e3c348.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ser-304cac05a866d0c2.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/tp-34eaad11125a9e67.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/environment-9242c02529e64600.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/catalyst-044fa3a2acdaf0a9.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/selector-observer-e88088f989b27670.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/relative-time-element-fa0968675d128a19.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/by-6b3c07383371bf58.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ja9-36f036c13c2e3a4c.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/kw-866fd9513ae95106.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/r1-b075aab3204f32f9.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/jz5-7c5d1669717041f8.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/hj-5126390ff433704d.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/j05-5779fe7abd4d8255.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/github-elements-30084674d6b8a0d0.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/element-registry-9268749021b71707.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/runtime-helpers-5ca1e1883536e092.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/aria-live-76b18916d0c8ec4d.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/hotkey-45921f564e4706a3.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/react-core-33c43e143fa1fba2.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/a9-6602e6cd810d97c7.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ur-024971cb63acad59.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/4t6-e156dfe598157a27.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/6n-71c0ae3e489775ef.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/yhq-3a209035a30b1a09.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/z1v-da5b33b877bfa358.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/wo-8044e1bac6e0c328.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/9y-cd2a0ff87351e9aa.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/j0-41a4cf04cbd99503.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/0p-81491ed0d9d666e2.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/behaviors-d06528d2be557ee4.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/1ry-b481f3743f02494f.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ttc-539b5868c8c09cb8.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/marketing-essentials-c0743acf6fd4c7fc.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/primer-react-ff194f72d04b3416.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ncx-9a860680a5f230b9.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/t7l-bf6f21d7e7a43c35.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/4u-3fb51fd5b58f1705.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ns-65bc1e8fea42ae55.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/sa-6185d140ab8590ab.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ak-e62e69106ade8d4b.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/rwd-3f84ac06d286ef82.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/fz-30a6af7c53dfa4f1.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/bf8-cf679565d7d96219.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/a3-8832097e3f5df400.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/t1r-1e5fc803344bd8aa.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/hlz-6eb5c11f1ed82fad.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/d8-b4dcfc4e3fec2aab.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/c6-66087f776a711e89.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ks-6a93a7c5885287ef.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/rxr-e6d3c165b9f4e49b.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/a8a-53dd72f8b57ded1a.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/gzu-30b6e9209fc1a27b.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/dgq-e697e92eea89e0b4.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/js-9f65c476840ac516.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/3d8-bbc4e3ce35fac150.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/vdm-970f2fc4ee4e21d5.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/amz-d96e3e9a7e07a745.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/xda-c69b2e3df1637b3d.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/64w-942cb7e1f3f67c22.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/landing-pages-48ce0b81f0289fd9.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/5tt-fd8e75a3d744d5d3.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/bi0-3a7ce5e10042031c.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/keyboard-shortcuts-dialog-7a4085e21aeaf16d.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/MonaSansMonoVF-wght-da74d51ce1316829.woff2",
+      "method": "GET",
+      "resourceType": "font",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/marketing-global-banner-afeb0a1f2b4457af.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/bur-0c370260ea746537.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/MonaSansMonoVF-wght-da74d51ce1316829.woff2",
+      "method": "GET",
+      "resourceType": "font",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/cat-53c4522f687c1719.glb",
+      "method": "GET",
+      "resourceType": "xhr",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/duck-b3412913788eaa25.glb",
+      "method": "GET",
+      "resourceType": "xhr",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/copilot-2addefe0e666acf2.glb",
+      "method": "GET",
+      "resourceType": "xhr",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/shield-99c76cd962f04df2.glb",
+      "method": "GET",
+      "resourceType": "xhr",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/app-install-banner-partial-2c63bf6f0afc86b8.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/jag-4f408bf2b7f99c87.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/ez7-04f2b88d38716866.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/code-1_desktop-6d44c7cb53b4aebb.mp4",
+      "method": "GET",
+      "resourceType": "media",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/tua-88f94f65812643db.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/t-587a26f444353019.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/marketing-header-fe7f145b9d74b8bb.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/3d-c2d7977521a1f6d8.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/marketing-footer-e7a6d279dc80f781.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/xg-ee93b467c433ddbf.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/chunk-3m-9921a2c5ddc8b40a.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/mascot-7c495cf9822e0d5c.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/cat_eye-75fdf7af6c5dc157.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/star-9663b0f4de9d12b1.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/head_sss-29270cf59da664ea.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/eye_sss-8e43fcedfb9ddaf9.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/eye_color-bb27e609004c77cc.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/body_sss-ecb11ff73d84fd3b.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/head_sss-b7e053d8d541a414.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/shield_sss-b8d96cf3572b780d.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/shield_diffuse-41b84e036ea43614.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/shield_blur-bd197c0b02963d75.jpg",
+      "method": "GET",
+      "resourceType": "image",
+      "allowed": true
+    },
+    {
+      "url": "https://collector.github.com/github/collect",
+      "method": "POST",
+      "resourceType": "ping",
+      "allowed": false
+    },
+    {
+      "url": "https://github.githubassets.com/assets/chunk-t9-8f448bff964cab81.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/chunk-y79-1a1a479ec90a5fed.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://github.githubassets.com/assets/chunk-qq-871e0f6c4d59fb9e.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://expired.badssl.com/",
+      "method": "GET",
+      "resourceType": "mainFrame",
+      "allowed": true
+    },
+    {
+      "url": "https://api.github.com/_private/browser/stats",
+      "method": "POST",
+      "resourceType": "ping",
+      "allowed": false
+    },
+    {
+      "url": "https://collector.github.com/github/collect",
+      "method": "POST",
+      "resourceType": "ping",
+      "allowed": false
+    },
+    {
+      "url": "https://example.com/",
+      "method": "GET",
+      "resourceType": "mainFrame",
+      "allowed": true
+    },
+    {
+      "url": "https://example.com/s.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    },
+    {
+      "url": "https://example.com/",
+      "method": "HEAD",
+      "resourceType": "xhr",
+      "allowed": true
+    },
+    {
+      "url": "https://browser-qa.invalid/POST",
+      "method": "POST",
+      "resourceType": "xhr",
+      "allowed": false
+    },
+    {
+      "url": "https://browser-qa.invalid/PUT",
+      "method": "PUT",
+      "resourceType": "xhr",
+      "allowed": false
+    },
+    {
+      "url": "https://browser-qa.invalid/DELETE",
+      "method": "DELETE",
+      "resourceType": "xhr",
+      "allowed": false
+    },
+    {
+      "url": "https://browser-qa.invalid/beacon",
+      "method": "POST",
+      "resourceType": "ping",
+      "allowed": false
+    },
+    {
+      "url": "wss://browser-qa.invalid/socket",
+      "method": "GET",
+      "resourceType": "webSocket",
+      "allowed": false
+    },
+    {
+      "url": "https://example.com/late",
+      "method": "GET",
+      "resourceType": "other",
+      "allowed": false
+    },
+    {
+      "url": "https://example.com/",
+      "method": "GET",
+      "resourceType": "mainFrame",
+      "allowed": true
+    },
+    {
+      "url": "https://example.com/s.js",
+      "method": "GET",
+      "resourceType": "script",
+      "allowed": true
+    }
+  ],
+  "trustedResolver": {
+    "server": "192.168.31.1",
+    "port": 53
+  },
+  "publicAttempts": [
+    {
+      "url": "https://github.com/",
+      "reply": {
+        "ok": true,
+        "value": {
+          "browserId": "35efc854-b333-4a37-a555-5e8953361001",
+          "conversationId": "qa-a",
+          "requestId": 2,
+          "closed": false,
+          "loading": false,
+          "url": "https://github.com/",
+          "pendingUrl": null,
+          "canGoBack": true,
+          "canGoForward": false,
+          "error": null
+        }
+      },
+      "nativeUrl": "https://github.com/",
+      "certificates": []
+    },
+    {
+      "url": "https://expired.badssl.com/",
+      "reply": {
+        "ok": false,
+        "code": "load_failed"
+      },
+      "nativeUrl": "https://expired.badssl.com/",
+      "certificates": [
+        {
+          "contentsId": 2,
+          "url": "https://expired.badssl.com/",
+          "error": "net::ERR_CERT_DATE_INVALID"
+        }
+      ]
+    }
+  ],
+  "nativeFailures": [
+    {
+      "contentsId": 2,
+      "code": -201,
+      "description": "ERR_CERT_DATE_INVALID",
+      "url": "https://expired.badssl.com/"
+    }
+  ],
+  "browserStorageSeed": {
+    "localStorage": true,
+    "databases": [
+      "native-qa"
+    ],
+    "caches": [
+      "native-qa"
+    ]
+  }
+}

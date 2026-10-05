@@ -84,6 +84,7 @@ import { backupMemoryRagFiles, reconcileMemoryRag } from "../memory/memory-rag-r
 import { registerChatsIpc } from "../chats/chats-ipc";
 import { registerWorkspaceFilesIpc } from "../chats/workspace-files-ipc";
 import { createElectronBrowserService } from "../browser/electron-browser-service";
+import { createStartupBrowserService } from "../browser/browser-startup-config";
 import { registerBrowserHostOwner } from "../browser/browser-host-owner";
 import { registerBrowserServiceIpc, installBrowserServiceLifecycle } from "../browser/browser-service-ipc";
 import { activeChatTargetRegistry } from "../plugin-host/active-chat-target";
@@ -204,7 +205,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
   let browserHost: { window: BrowserWindow; binding: ReturnType<typeof registerBrowserHostOwner> } | undefined;
   function getBrowserService() {
     if (!browserService) {
-      browserService = createElectronBrowserService({
+      browserService = createStartupBrowserService({
         profile: getStorageContext().profile,
         onChanged: (owner, page) => {
           const host = browserHost;

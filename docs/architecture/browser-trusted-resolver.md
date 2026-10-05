@@ -59,3 +59,23 @@ Exact Node API reference:
 [Node 24.19.0 DNS](https://nodejs.org/download/release/v24.19.0/docs/api/dns.html).
 Acceptance evidence and remaining gate limitations are in
 [browser-trusted-resolver.md](../testing/browser-trusted-resolver.md).
+
+## Explicit Main startup selection
+
+`src/main/browser/browser-startup-config.ts` is now used by the normal Main
+composition in `application/default-dependencies.ts`. It reads only the launch
+process's `FIREFLY_BROWSER_DNS_SERVER` and optional `FIREFLY_BROWSER_DNS_PORT`.
+No selection returns `undefined`; no router address is a default for other users.
+An explicitly selected numeric IP uses port53 when the port is omitted. Malformed
+addresses/ports reject before constructing the service; the trusted proxy factory
+also enforces its unchanged unicast infrastructure validation. The config is
+snapshotted and frozen. Additional fields cannot grant a gate or change the
+renderer/URL/IPC contract. Existing settings and user data are not rewritten.
+
+The current user's approved selection is server `192.168.31.1`, port `53`, set
+only on the isolated QA process for this verification. DNS-domain disclosure is
+covered by that explicit approval. The production gate remains omitted: these
+variables do not enable browsing, and no production instance was restarted.
+
+Numeric parsing follows the pinned [Node24.19.0 net.isIP contract](https://nodejs.org/download/release/v24.19.0/docs/api/net.html#netisipinput).
+Integrated verification: [shared resolver checkpoint](../testing/browser-resolver-shared-integration.md).
