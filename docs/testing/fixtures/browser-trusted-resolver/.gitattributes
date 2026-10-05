@@ -1,0 +1,5 @@
+* -text
+*.log -diff
+native-launcher-*.json -diff
+trusted-resolver-dns-probe*.json -diff
+*.exit.txt -diff

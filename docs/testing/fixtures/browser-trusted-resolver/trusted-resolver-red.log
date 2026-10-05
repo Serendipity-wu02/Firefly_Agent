@@ -1,0 +1,21 @@
+
+ RUN  v4.1.11 E:/Codex/2026-10-04/task-4/audit-r3-r4
+
+ 鉂?src/main/browser/trusted-browser-resolver.test.ts (0 test)
+
+鈳幆鈳幆鈳幆 Failed Suites 1 鈳幆鈳幆鈳幆鈳?
+ FAIL  src/main/browser/trusted-browser-resolver.test.ts [ src/main/browser/trusted-browser-resolver.test.ts ]
+Error: Cannot find module './trusted-browser-resolver' imported from E:/Codex/2026-10-04/task-4/audit-r3-r4/src/main/browser/trusted-browser-resolver.test.ts
+ 鉂?src/main/browser/trusted-browser-resolver.test.ts:6:1
+      4| import { once } from "node:events";
+      5| import { getServers } from "node:dns/promises";
+      6| import { createTrustedBrowserResolver, createTrustedBrowserProxyFactor鈥?       | ^
+      7| import { startAuthenticatedConnectProxy, type ConnectProxy } from "./a鈥?      8|
+
+鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆鈳幆[1/1]鈳?
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  12:34:50
+   Duration  220ms (transform 20ms, setup 0ms, import 0ms, tests 0ms, environment 0ms)
+

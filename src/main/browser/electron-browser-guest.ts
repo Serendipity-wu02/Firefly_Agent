@@ -1,6 +1,7 @@
 import { WebContentsView, type Session } from "electron";
 import type { BrowserGuestPort, BrowserHostPort } from "./browser-service";
 import { registerBrowserGuestRouting } from "./browser-guest-routing";
+import { rejectBrowserCertificate } from "./browser-certificate-policy";
 /** Fixed Main preferences; no remote page receives Firefly preload or Node.
  * https://github.com/electron/electron/blob/v43.1.0/docs/api/web-contents-view.md
  */
@@ -22,7 +23,7 @@ export function createElectronBrowserGuest(session: Session): BrowserGuestPort<S
   contents.on("will-redirect", (event, legacyUrl) => { if (!callbacks.allowsNavigation(event.url ?? legacyUrl)) event.preventDefault(); });
   contents.on("will-attach-webview", event => event.preventDefault());
   contents.on("content-bounds-updated", event => event.preventDefault());
-  contents.on("certificate-error", (event, _url, _error, _certificate, callback) => { event.preventDefault(); callback(false); });
+  contents.on("certificate-error", (event, _url, _error, _certificate, callback) => rejectBrowserCertificate(event, callback));
   contents.on("did-start-navigation", (_event, url, _inPlace, main) => { if (main) callbacks.started(url); });
   contents.on("did-finish-load", () => callbacks.changed());
   contents.on("did-navigate-in-page", (_event, _url, main) => { if (main) callbacks.changed(); });

@@ -9,6 +9,9 @@ vi.mock("electron", () => ({ WebContentsView: class {
 import { createElectronBrowserGuest } from "./electron-browser-guest";
 import { routeBrowserGuestNavigation } from "./browser-guest-routing";
 import type { BrowserHostPort } from "./browser-service";
+import type { App } from "electron";
+import { createBrowserService } from "./browser-service";
+import { installBrowserServiceLifecycle } from "./browser-service-ipc";
 
 function nativeFixture() {
   const events = new EventEmitter(), session = {}, trace: string[] = [];
@@ -50,6 +53,18 @@ describe("real Electron WebContentsView adapter boundary", () => {
     const f = nativeFixture(), guest = createElectronBrowserGuest(f.session as any), preventDefault = vi.fn(), callback = vi.fn();
     f.contents.emit("certificate-error", { preventDefault }, "https://example.com", "bad", {}, callback, true); expect(callback).toHaveBeenCalledWith(false);
     f.contents.emit("will-attach-webview", { preventDefault }); f.contents.emit("content-bounds-updated", { preventDefault }); expect(preventDefault).toHaveBeenCalledTimes(3); guest.destroy();
+  });
+  it("rejects once when Electron forwards the same certificate event/callback to guest and App", () => {
+    const f = nativeFixture(), guest = createElectronBrowserGuest(f.session as any), app = new EventEmitter();
+    // Electron 43.1.0 lib/browser/api/app.ts forwards this event synchronously to
+    // WebContents BEFORE application listeners, reusing the one-time callback.
+    app.on("certificate-error", (event, contents, ...args) => contents.emit("certificate-error", event, ...args));
+    const service = createBrowserService({ profile: {}, createSession: () => { throw Error("no allocation"); }, createView: () => { throw Error("no allocation"); } });
+    const stop = installBrowserServiceLifecycle(app as unknown as Pick<App, "on" | "removeListener">, { ...service, isRegisteredBrowser: contents => contents === f.contents }, { register: () => () => {} });
+    const answers: boolean[] = [], callback = (trusted: boolean) => { if (answers.length) throw Error("one-time certificate callback reused"); answers.push(trusted); };
+    const event = { preventDefault: vi.fn() };
+    try { expect(() => app.emit("certificate-error", event, f.contents, "https://expired.badssl.com/", "ERR_CERT_DATE_INVALID", {}, callback, true)).not.toThrow(); expect(answers).toEqual([false]); }
+    finally { stop(); guest.destroy(); }
   });
   it("attaches once, detaches on destroy, and closes without beforeunload waits", () => {
     const f = nativeFixture(), guest = createElectronBrowserGuest(f.session as any), trace: string[] = [];

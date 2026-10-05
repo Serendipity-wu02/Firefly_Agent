@@ -1,0 +1,38 @@
+[
+  {
+    "file": "src/main/browser/trusted-browser-resolver.ts",
+    "sha256": "7d2b41fd19fe1a4fd73a9d1ac70d1149a12f9ffca295aaea7588226c53f6ec39"
+  },
+  {
+    "file": "src/main/browser/trusted-browser-resolver.test.ts",
+    "sha256": "35419e6fa2d57ed36231fade5a2d0fd6db4b09f21123dfac39199ee2fbabbda6"
+  },
+  {
+    "file": "src/main/browser/trusted-browser-resolver-budget.test.ts",
+    "sha256": "7a30028046b1870d6157e40d50f678153f29477b59589675713b784c149dbf2a"
+  },
+  {
+    "file": "src/main/browser/browser-certificate-policy.ts",
+    "sha256": "4660315171fb474c6d485036062cb4d457a2aa1a2083f9c9141e1071d3f3af85"
+  },
+  {
+    "file": "src/main/browser/browser-service-ipc.ts",
+    "sha256": "466c6ebb3c7db7ea0a4e15dd304b7e79d27494c1678239b527c60a7e6cada35d"
+  },
+  {
+    "file": "src/main/browser/browser-service.test.ts",
+    "sha256": "3002e06e9061df102d5b84deba8980366addbca531f6cf5138eb8b171b46ff67"
+  },
+  {
+    "file": "src/main/browser/electron-browser-guest.ts",
+    "sha256": "e7745a0251788a16c6441fdf86f2221f501e25c8b7db30b4f47219c8c939bad0"
+  },
+  {
+    "file": "src/main/browser/electron-browser-guest.test.ts",
+    "sha256": "fbe2fee06b40ab257487c20ae6bb1d7c4d63a1ed31ca63b2435d7645db0898fa"
+  },
+  {
+    "file": "src/main/browser/electron-browser-service.ts",
+    "sha256": "82a8da5654bd379910e22ed51a3cdbf1497991c1366dedb708b07041a8864b6c"
+  }
+]

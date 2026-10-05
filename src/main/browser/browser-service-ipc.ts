@@ -4,6 +4,7 @@ import type { createBrowserService } from "./browser-service";
 import { registerBrowserAvailabilityIpc, getOfflineBrowserAvailability } from "./browser-availability-ipc";
 import type { App, WebContents } from "electron";
 import { IPC } from "../../shared/ipc-channels";
+import { rejectBrowserCertificate } from "./browser-certificate-policy";
 type Service<S extends object> = ReturnType<typeof createBrowserService<S>>;
 /** Main proposal for the shared contract owner; renderer cannot set a gate. */
 export const BROWSER_SERVICE_CHANNELS = Object.freeze({ command: IPC.BROWSER_COMMAND, changed: IPC.BROWSER_CHANGED });
@@ -25,7 +26,7 @@ export function installBrowserServiceLifecycle<S extends object>(app: Pick<App, 
     if (credentials) callback(credentials.username, credentials.password); else callback();
   };
   const onCertificate = (event: Electron.Event, contents: WebContents, _url: string, _error: string, _certificate: Electron.Certificate, callback: (trusted: boolean) => void) => {
-    if (!owns(contents)) return; event.preventDefault(); callback(false);
+    if (!owns(contents)) return; rejectBrowserCertificate(event, callback);
   };
   const onClientCertificate = (event: Electron.Event, contents: WebContents, _url: string, _certificates: Electron.Certificate[], callback: (certificate?: Electron.Certificate) => void) => {
     if (!owns(contents)) return; event.preventDefault(); callback();

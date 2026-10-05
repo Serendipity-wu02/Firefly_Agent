@@ -1,0 +1,4 @@
+[20388:1005/125347.563:ERROR:net\cert\internal\cert_issuer_source_aia.cc:136] AiaRequest::OnFetchCompleted got error -379
+[20388:1005/125347.566:ERROR:net\cert\internal\cert_issuer_source_aia.cc:136] AiaRequest::OnFetchCompleted got error -379
+(node:20388) electron: Failed to load URL: https://expired.badssl.com/ with error: ERR_CERT_DATE_INVALID
+(Use `electron --trace-warnings ...` to show where the warning was created)

@@ -50,6 +50,21 @@ describe("Main browser service using the real Session/epoch controller", () => {
   it("default closed gate has zero Session/view/proxy/navigation effects", async () => {
     const f = fixture(false); expect(await f.service.dispatch(f.sender, { kind: "open", url: "https://example.com/" })).toEqual({ ok: false, code: "network_unavailable" }); expect(f.effects).toEqual([]);
   });
+  it("renderer DNS/config/factory fields cannot open the gate or permit private pages", async () => {
+    const forged = { trustedResolver: { server: "127.0.0.1", port: 53 }, resolve: () => [], proxyFactory: () => {}, gateOpen: true };
+    const closed = fixture(false);
+    expect(await closed.service.dispatch(closed.sender, { kind: "open", url: "https://example.com/", ...forged })).toEqual({ ok: false, code: "network_unavailable" });
+    expect(closed.effects).toEqual([]);
+    const open = fixture();
+    expect(await open.service.dispatch(open.sender, { kind: "open", url: "https://192.168.31.1/", ...forged })).toEqual({ ok: false, code: "blocked_url" });
+    expect(open.effects).toEqual([]); await closed.service.dispose(); await open.service.dispose();
+  });
+  it("public renderer commands cannot choose a resolver or replace the trusted factory", async () => {
+    const f = fixture(), resolve = vi.fn(), proxyFactory = vi.fn();
+    expect((await f.service.dispatch(f.sender, { kind: "open", url: "https://example.com/", trustedResolver: { server: "127.0.0.1", port: 53 }, resolve, proxyFactory })).ok).toBe(true);
+    expect(resolve).not.toHaveBeenCalled(); expect(proxyFactory).not.toHaveBeenCalled();
+    expect(f.effects).toContain("setProxy"); expect(f.effects).toContain("load:https://example.com/"); await f.service.dispose();
+  });
   it("rejects forged frame/host/profile and an unregistered owner before allocation", async () => {
     const f = fixture();
     expect((await f.service.dispatch({ ...f.sender, senderFrame: {} }, { kind: "open", url: "https://example.com/" })).ok).toBe(false);

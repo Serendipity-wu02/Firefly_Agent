@@ -1,0 +1,39 @@
+{
+  "time": "2026-10-05T04:31:46.090Z",
+  "node": "v24.19.0",
+  "servers": [
+    "192.168.31.1"
+  ],
+  "results": [
+    {
+      "host": "example.com",
+      "elapsedMs": 5025,
+      "A": {
+        "error": "ETIMEOUT"
+      },
+      "AAAA": {
+        "error": "ETIMEOUT"
+      }
+    },
+    {
+      "host": "www.wikipedia.org",
+      "elapsedMs": 5037,
+      "A": {
+        "error": "ETIMEOUT"
+      },
+      "AAAA": {
+        "error": "ETIMEOUT"
+      }
+    },
+    {
+      "host": "github.com",
+      "elapsedMs": 5042,
+      "A": {
+        "error": "ETIMEOUT"
+      },
+      "AAAA": {
+        "error": "ETIMEOUT"
+      }
+    }
+  ]
+}
