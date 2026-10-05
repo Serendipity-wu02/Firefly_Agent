@@ -1,7 +1,8 @@
 // @xenova/transformers is ESM-only, use dynamic import in CJS context
 import { checkEmbeddingModelInstalled, getProjectModelBaseDir } from "./model-status";
 import * as path from "path";
-import * as os from "os";
+import {createHash} from "node:crypto";
+import {createReadStream} from "node:fs";
 
 // ── 错误类型 ──
 export class EmbeddingDimensionMismatchError extends Error {
@@ -72,6 +73,29 @@ const LOCAL_MODELS: Record<string, ModelConfig> = {
   bgem3: { key: "bgem3", hfName: "Xenova/bge-m3", dims: 1024 },
 };
 
+// Transformers 2.17 shares a process-global model root. Hold it for every file request.
+let localModelLoadTail:Promise<unknown>=Promise.resolve();
+export function withLocalModelLoad<T>(load:()=>Promise<T>):Promise<T>{
+ const pending=localModelLoadTail.then(load);localModelLoadTail=pending.catch(()=>{});return pending;
+}
+const localProviders=new WeakSet<object>();
+export function isLocalEmbeddingProvider(value:object):boolean{return localProviders.has(value)}
+const LOCAL_MODEL_REVISION="4de13258303883538bd53b696b452bf8099f0858";
+const PINNED_EMBEDDING_FILES = {
+  "config.json": "734a79bf12d388c1467a4e3ab625f45de7f6906cffcfb93a1eca1787504bed95",
+  "special_tokens_map.json": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835",
+  "tokenizer_config.json": "7e4c1cc848840aeccdd763458c18dd525eb0f795c992e00ebe9c28554e7db2d4",
+  "sentencepiece.bpe.model": "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865",
+  "tokenizer.json": "6710678b12670bc442b99edc952c4d996ae309a7020c1fa0096dd245c2faf790",
+  "onnx/model_quantized.onnx": "0826f8c1ab9edf1801db86c61919d4d108e8bfc0b809ec823ad366882ff0b77d"
+} as const;
+async function verifyPinnedModel(base:string):Promise<void>{
+ for(const [file,expected] of Object.entries(PINNED_EMBEDDING_FILES)){
+  const digest=createHash('sha256');for await(const chunk of createReadStream(path.join(base,"Xenova/bge-m3",file)))digest.update(chunk);
+  if(digest.digest('hex')!==expected)throw Error('LOCAL_MODEL_PIN_MISMATCH');
+ }
+}
+
 const DEFAULT_MODEL_KEY = "bgem3";
 
 // ── 本地 Pipeline ──
@@ -93,24 +117,27 @@ async function getLocalPipeline(modelKey?: string): Promise<any> {
   const loading = localPipelineLoads.get(key);
   if (loading) return loading;
 
-  const load = (async () => {
+  const load = withLocalModelLoad(async () => {
     localPipelineInitCount += 1;
     const { pipeline, env } = await importEsm("@xenova/transformers");
     env.allowLocalModels = true;
     env.allowRemoteModels = false;
     env.useBrowserCache = false;
+    env.useFSCache = false;
+    env.useCustomCache = false;
     // 主路径：项目根 models/（用户实际放模型的地方）。
     // 兜底：HF cache，通过 cache_dir 选项传给 pipeline。
     // transformers 内部会按 (localModelPath, cache_dir) 顺序查找文件。
     const modelBaseDir = getProjectModelBaseDir("embedding", key);
     if (!modelBaseDir) throw new Error(`Local embedding model "${key}" is not installed`);
+    await verifyPinnedModel(modelBaseDir);
     env.localModelPath = modelBaseDir;
     const pipe = await pipeline("feature-extraction", config.hfName, {
-      cache_dir: path.join(os.homedir(), ".cache", "huggingface"),
+      quantized:true, local_files_only:true, revision:LOCAL_MODEL_REVISION,
     });
     localPipelines.set(key, pipe);
     return pipe;
-  })();
+  });
   localPipelineLoads.set(key, load);
   try {
     return await load;
@@ -125,49 +152,42 @@ export function createLocalEmbeddingProvider(modelKey?: string): EmbeddingProvid
   if (!config) throw new Error("Unknown embedding model: " + key);
 
   // 模型缺失返回 null，调用方决定如何处理
-  if (!checkEmbeddingModelInstalled(key)) {
+  if (!getProjectModelBaseDir("embedding",key)) {
     return null;
   }
 
-  return {
+  const provider:EmbeddingProvider = {
     name: "local-" + config.hfName.split("/").pop(),
     dims: config.dims,
     declaredDimensions: config.dims,
     resolvedDimensions: config.dims,
     cacheIdentity: {
       provider: "local",
-      model: config.hfName,
+      model: config.hfName+"@"+LOCAL_MODEL_REVISION+":cls-normalized-q8-v1",
       dimensions: config.dims,
     },
     workerConfig: { provider: "local", modelKey: key },
 
     async embed(text: string): Promise<number[]> {
       const pipe = await getLocalPipeline(key);
-      const result: any = await pipe(text, { pooling: "mean", normalize: true });
-      return Array.from(result.data as Float32Array);
+      const result: any = await pipe(text, { pooling: "cls", normalize: true });
+      return decodeLocalEmbeddingBatch(result,1,config.dims)[0];
     },
 
     async embedBatch(texts: string[]): Promise<number[][]> {
       if (texts.length === 0) return [];
       const pipe = await getLocalPipeline(key);
       // 真批量：数组一次进 pipeline（张量级并行），实测比逐条 await 快约 1.2~1.4 倍
-      const result: any = await pipe(texts, { pooling: "mean", normalize: true });
-      // 池化归一化后输出形状为 [批数, 维度]，按行切回逐条向量
-      const shape: number[] = result.dims;
-      const data = result.data as Float32Array;
-      if (shape.length !== 2 || shape[0] !== texts.length) {
-        throw new Error(
-          `Unexpected batch embedding output shape ${JSON.stringify(shape)} for ${texts.length} inputs`
-        );
-      }
-      const dim = shape[1];
-      const results: number[][] = [];
-      for (let i = 0; i < texts.length; i++) {
-        results.push(Array.from(data.subarray(i * dim, (i + 1) * dim)));
-      }
-      return results;
+      const result: any = await pipe(texts, { pooling: "cls", normalize: true });
+      return decodeLocalEmbeddingBatch(result,texts.length,config.dims);
     },
   };
+  localProviders.add(provider);return Object.freeze(provider);
+}
+
+export function decodeLocalEmbeddingBatch(result:{dims:number[];data:ArrayLike<number>},count:number,dimensions:number):number[][] {
+ if(!Array.isArray(result.dims)||result.dims.length!==2||result.dims[0]!==count||result.dims[1]!==dimensions||result.data?.length!==count*dimensions)throw Error("LOCAL_EMBEDDING_OUTPUT_INVALID");
+ const data=Array.from(result.data),rows:number[][]=[];for(let i=0;i<count;i++){const row=data.slice(i*dimensions,(i+1)*dimensions),norm=Math.sqrt(row.reduce((n,x)=>n+x*x,0));if(row.some(x=>!Number.isFinite(x))||Math.abs(norm-1)>0.001)throw Error("LOCAL_EMBEDDING_OUTPUT_INVALID");rows.push(row)}return rows;
 }
 
 // ── OpenAI 兼容 Provider ──
