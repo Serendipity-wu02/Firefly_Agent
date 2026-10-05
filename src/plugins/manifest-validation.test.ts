@@ -60,15 +60,15 @@ describe("Schema 与 Loader 一致性", () => {
     }
   });
 
-  it("五项新能力均通过 Schema 枚举并可用于 deps", () => {
-    for (const dep of ["secrets", "workspace", "conversations", "scheduler", "speech-input"]) {
+  it("四项可用能力均通过 Schema 枚举并可用于 deps", () => {
+    for (const dep of ["secrets", "workspace", "conversations", "scheduler"]) {
       expect(validateManifestData({ ...validInput, deps: [dep] }).ok).toBe(true);
     }
     const inspected = inspectWithData({
       ...validInput,
-      deps: ["secrets", "conversations", "speech-input"],
+      deps: ["secrets", "conversations"],
     });
-    expect(inspected.manifest?.deps).toEqual(["secrets", "conversations", "speech-input"]);
+    expect(inspected.manifest?.deps).toEqual(["secrets", "conversations"]);
   });
 
   it("Schema 只管结构：格式问题（SemVer）由 Loader 补充拒绝", () => {
@@ -76,4 +76,10 @@ describe("Schema 与 Loader 一致性", () => {
     expect(validateManifestData(badVersion).ok).toBe(true);
     expect(inspectWithData(badVersion).manifest).toBeNull();
   });
+});
+
+it("rejects removed speech-input capability through schema and actual plugin inspection", () => {
+  const input = {...validInput, deps: ["speech-input"]};
+  expect(validateManifestData(input).ok).toBe(false);
+  expect(inspectWithData(input).manifest).toBeNull();
 });

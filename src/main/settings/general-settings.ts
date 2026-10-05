@@ -62,47 +62,6 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   proactiveChatMode: ProactiveChatMode;
   /** 主动消息最终投递到本地、微信或飞书。 */
   proactiveDeliveryTarget: ProactiveDeliveryTarget;
-  // TTS 配置
-  ttsEngine: "off" | "minimax" | "gptsovits" | "custom-cloud" | "mimo" | "mossland";
-  ttsAutoRead: boolean;
-  ttsSpeed: number;
-  ttsVolume: number;
-  /** 自动语音早播的文本切分是否开启：关闭时不再流式切分，收完整条回复再整段朗读。 */
-  ttsEarlyReadSplitEnabled: boolean;
-  /** 自动语音早播的文本切分方式：sentence=一句一切（默认，现状）；paragraph=一段一切（仅空行段落切分）。 */
-  ttsEarlyReadSplitMode: "sentence" | "paragraph";
-  // MiniMax
-  ttsMinimaxKey: string;
-  ttsMinimaxVoiceId: string;
-  /** MiniMax 合成模型：speech-2.8-hd(高保真¥3.5/万字符) | speech-2.8-turbo(极速¥2.0/万字符) */
-  ttsMinimaxModel: "speech-2.8-hd" | "speech-2.8-turbo";
-  /** MiniMax 流式播放（边合成边播，首字延迟低）；false=完整合成收完再播 */
-  ttsStreaming: boolean;
-  /** MiniMax 语音增强：自动插入 (laughs)、(breath) 等语气词标签 */
-  ttsMinimaxVocalEnhance: boolean;
-  // GPT-SoVITS（本地）
-  ttsGptsovitsBaseUrl: string;
-  ttsGptsovitsRefAudioPath: string;
-  ttsGptsovitsPromptText: string;
-  ttsGptsovitsFormat: "wav" | "mp3";
-  /** GPT-SoVITS 单次合成超时（毫秒）。本地推理长文本可能较慢，默认 3 分钟。 */
-  ttsGptsovitsTimeoutMs: number;
-  // 自定义云端 TTS
-  ttsCustomCloudEndpointUrl: string;
-  ttsCustomCloudApiKey: string;
-  ttsCustomCloudVoiceId: string;
-  ttsCustomCloudFormat: "wav" | "mp3";
-  ttsCustomCloudTimeoutMs: number;
-  // 小米 MiMo TTS
-  ttsMimoKey: string;
-  ttsMimoVoiceAudioPath: string;
-  ttsMimoStylePrompt: string;
-  // Mossland TTS
-  ttsMosslandKey: string;
-  ttsMosslandVoiceId: string;
-  ttsMosslandModel: string;
-  ttsMosslandTestText: string;
-  ttsMosslandFormat: "mp3" | "wav";
   /** 天气源：open-meteo(免配置默认) | amap(高德,需填key) */
   weatherSource: "open-meteo" | "amap";
   /** 天气插件是否启用（开关） */
@@ -134,6 +93,8 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   /** 发件人显示名（可选） */
   emailFromName: string;
   /** 🎧ASR 服务商：off(关闭) | aliyun(阿里云) | mossland(MOSI) | local(本地,占位) */
+  /** Internal channel ASR credential; desktop speech settings are retired. */
+  asrMosslandKey: string;
   asrEngine: "off" | "aliyun" | "mossland" | "local";
   /** 阿里云智能语音交互 AppKey */
   asrAliyunAppKey: string;

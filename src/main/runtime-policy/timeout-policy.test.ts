@@ -7,12 +7,7 @@ describe("resolveTimeoutPolicy", () => {
   it("returns original default values for all stages", () => {
     const cases: Array<[RuntimeTimeoutStage, number]> = [
       ["memory-llm", 30_000],
-      ["tool-execution", 300_000],
-      ["tts-minimax", 30_000],
-      ["tts-gptsovits", 180_000],
-      ["tts-custom-cloud", 30_000],
-      ["tts-mossland", 30_000],
-      ["asr-mossland", 30_000],
+      ["tool-execution", 300_000],      ["asr-mossland", 30_000],
       ["external-http", 30_000],
       ["vision-caption", 30_000],
     ];
@@ -35,10 +30,10 @@ describe("resolveTimeoutPolicy", () => {
 
   it("override with firstResponseMs preserves totalMs default", () => {
     const policy = resolveTimeoutPolicy({
-      stage: "tts-gptsovits",
+      stage: "tool-execution",
       override: { firstResponseMs: 10_000 },
     });
-    expect(policy.totalMs).toBe(180_000); // default preserved
+    expect(policy.totalMs).toBe(300_000); // default preserved
     expect(policy.firstResponseMs).toBe(10_000);
   });
 
@@ -61,12 +56,7 @@ describe("resolveTimeoutPolicy", () => {
   it("known stages are accepted at runtime", () => {
     const stages: RuntimeTimeoutStage[] = [
       "memory-llm",
-      "tool-execution",
-      "tts-minimax",
-      "tts-gptsovits",
-      "tts-custom-cloud",
-      "tts-mossland",
-      "asr-mossland",
+      "tool-execution",      "asr-mossland",
       "external-http",
     ];
     for (const stage of stages) {
@@ -78,10 +68,7 @@ describe("resolveTimeoutPolicy", () => {
 describe("getStageTimeoutPolicy", () => {
   it("returns the same object as resolveTimeoutPolicy without override", () => {
     const stages: RuntimeTimeoutStage[] = [
-      "memory-llm",
-      "tts-minimax",
-      "tts-gptsovits",
-    ];
+      "memory-llm",    ];
     for (const stage of stages) {
       const fromGet = getStageTimeoutPolicy(stage);
       const fromResolve = resolveTimeoutPolicy({ stage });

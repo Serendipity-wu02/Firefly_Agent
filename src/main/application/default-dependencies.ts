@@ -43,7 +43,7 @@ import { registerMemoryUserToolIpc } from "../memory/memory-user-ipc";
 import { configureDocumentIndexQueue } from "../rag/document-index-queue";
 import { runDocumentIndexJob } from "../rag/document-index-worker";
 import { createLlmClient } from "../services/llm/llm-client";
-import { createTtsSynthesisService } from "../services/tts/tts-synthesis-service";
+
 import { createEmbeddingIndexService } from "../services/embedding/embedding-index-service";
 import {
   addL2MemoryVector,
@@ -96,8 +96,7 @@ import { toastEvents } from "../toast/toast-events";
 import { createToastWindowShell } from "../windows/create-toast-window";
 import * as chatsStore from "../chats/chats-store";
 import { flush as flushTokenUsage } from "../token-usage-store";
-import { TtsSessionService } from "../tts/tts-session-service";
-import { registerTtsIpc } from "../tts/tts-ipc";
+
 import { loadUserProfile } from "../settings-store";
 import { getAppIconPath } from "../app-icon";
 import { hasActiveConversationRun, registerAgUiIpc } from "../agui-bridge";
@@ -320,17 +319,13 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         });
 
         const llmClient = createLlmClient();
-        const ttsSynthesisService = createTtsSynthesisService();
+
         const embeddingIndexService = createEmbeddingIndexService();
         const citaService = createCitaService({ llmClient });
         const socialContextService = createSocialContextService({ llmClient, enqueueLLMTask });
         const proactiveLifecycle = createProactiveLifecycle({ loadGeneralSettings });
         // 主动聊天服务初始化是纯装配；触发器由 background 阶段启动
         proactiveLifecycle.initializeProactiveChatService();
-
-        const ttsSessionService = new TtsSessionService((request, signal, emit) =>
-          ttsSynthesisService.synthesizeSession(request, signal, emit),
-        );
 
         // 应用图标 getter 已在工厂体开头注入（早于 shell 阶段的窗口壳/托盘创建）。
 
@@ -394,8 +389,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           llm: llmClient,
           cita: citaService,
           social: socialContextService,
-          tts: ttsSynthesisService,
-          ttsSession: ttsSessionService,
+
           embedding: embeddingIndexService,
           proactive: proactiveLifecycle,
           git,
@@ -466,7 +460,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
       createChannels: (runtime, services) => createChannelsSubsystem({
         agentRuntime: runtime,
-        ttsSynthesisService: services.tts,
+
         getReactChatWindow: () => reactChatWindow,
         ipc: shell.ipc,
         publishLifecycle: lifecyclePublisher,
@@ -531,9 +525,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           windowManager: shell.windowManager,
           embeddingIndexService: services.embedding,
         });
-
-        // ── TTS IPC ──
-        registerTtsIpc({ ipc, ttsSessionService: services.ttsSession });
 
         // 聊天会话存储 IPC（chats-store.initialize 建好 firefly-chats 目录并加载 index）
         registerChatsIpc(ipc, {

@@ -15,7 +15,7 @@ const retiredMomentsSettings = {
 };
 
 it("ignores retired Moments keys while preserving shared settings", () => {
-  const shared = { chatSocialContextEnabled: true, asrEngine: "mossland", ttsEngine: "mossland",
+  const shared = { chatSocialContextEnabled: true, asrEngine: "mossland",
     toolModeOverrides: { search_text: { work: true } }, skillModeOverrides: { tutoring: { work: true } } };
   const settings = normalizeGeneralSettings({ ...shared, ...retiredMomentsSettings } as never);
   expect(settings).toMatchObject(shared);
@@ -80,7 +80,7 @@ describe("general Harness tool concurrency settings", () => {
 describe("general ASR settings", () => {
   it.each(["off", "aliyun", "mossland", "local"])("retires Call controls while preserving %s provider settings", (asrEngine) => {
     const shared = { asrEngine, asrAliyunAppKey: "fixture-app", asrAliyunAccessKeyId: "fixture-id",
-      asrAliyunAccessKeySecret: "fixture-secret", asrLanguage: "en", ttsMosslandKey: "fixture-shared-key" };
+      asrAliyunAccessKeySecret: "fixture-secret", asrLanguage: "en", asrMosslandKey: "fixture-shared-key" };
     const settings = normalizeGeneralSettings({ ...shared, asrVadSilenceMs: 1500, asrVadThreshold: 0.2, asrShowTranscript: true } as never);
     expect(settings).toMatchObject(shared);
     for (const field of ["asrVadSilenceMs", "asrVadThreshold", "asrShowTranscript"]) {
@@ -93,58 +93,6 @@ describe("general ASR settings", () => {
     const settings = normalizeGeneralSettings({ asrEngine: "mossland" } as never);
 
     expect(settings.asrEngine).toBe("mossland");
-  });
-});
-
-describe("external GPT-SoVITS settings", () => {
-  it("does not assume a service address, voice sample, or transcript", () => {
-    const defaults = normalizeGeneralSettings({});
-    expect(defaults.ttsEngine).toBe("off");
-    expect(defaults.ttsGptsovitsBaseUrl).toBe("");
-    expect(defaults.ttsGptsovitsRefAudioPath).toBe("");
-    expect(defaults.ttsGptsovitsPromptText).toBe("");
-  });
-
-  it("preserves an explicitly configured service and matching reference text", () => {
-    const saved = normalizeGeneralSettings({
-      ttsEngine: "gptsovits",
-      ttsGptsovitsBaseUrl: "http://example.invalid:9880",
-      ttsGptsovitsRefAudioPath: "C:/reference.wav",
-      ttsGptsovitsPromptText: "公开样本",
-    } as never);
-    expect(saved.ttsGptsovitsBaseUrl).toBe("http://example.invalid:9880");
-    expect(saved.ttsGptsovitsRefAudioPath).toBe("C:/reference.wav");
-    expect(saved.ttsGptsovitsPromptText).toBe("公开样本");
-  });
-});
-
-describe("general Mossland TTS settings", () => {
-  it("uses the current flash model by default", () => {
-    expect(normalizeGeneralSettings({}).ttsMosslandModel).toBe("moss-tts-1.5-flash");
-  });
-
-  it("migrates the legacy model and synchronous pcm format", () => {
-    const settings = normalizeGeneralSettings({
-      ttsMosslandModel: "moss-tts",
-      ttsMosslandFormat: "pcm",
-    } as never);
-
-    expect(settings.ttsMosslandModel).toBe("moss-tts-1.5-flash");
-    expect(settings.ttsMosslandFormat).toBe("mp3");
-  });
-
-  it("keeps both documented synchronous models", () => {
-    expect(normalizeGeneralSettings({ ttsMosslandModel: "moss-tts-1.5-flash" } as never).ttsMosslandModel)
-      .toBe("moss-tts-1.5-flash");
-    expect(normalizeGeneralSettings({ ttsMosslandModel: "moss-tts-1.0-pro" } as never).ttsMosslandModel)
-      .toBe("moss-tts-1.0-pro");
-  });
-
-  it("defaults an empty Mossland model and trims a saved snapshot id", () => {
-    expect(normalizeGeneralSettings({ ttsMosslandModel: "   " } as never).ttsMosslandModel)
-      .toBe("moss-tts-1.5-flash");
-    expect(normalizeGeneralSettings({ ttsMosslandModel: "  moss-tts-1.5-flash-20260828  " } as never).ttsMosslandModel)
-      .toBe("moss-tts-1.5-flash-20260828");
   });
 });
 
@@ -233,27 +181,11 @@ describe("tool switch persistence round trip (chatToolsEnabled + toolModeOverrid
   });
 });
 
-describe("general early-read TTS split settings", () => {
-  it("defaults split enabled with sentence mode when settings are empty", () => {
-    const settings = normalizeGeneralSettings({});
-    expect(settings.ttsEarlyReadSplitEnabled).toBe(true);
-    expect(settings.ttsEarlyReadSplitMode).toBe("sentence");
-  });
-
-  it("keeps an explicitly disabled split switch", () => {
-    expect(normalizeGeneralSettings({ ttsEarlyReadSplitEnabled: false } as never).ttsEarlyReadSplitEnabled)
-      .toBe(false);
-  });
-
-  it("falls back to enabled when the stored switch is not a boolean", () => {
-    expect(normalizeGeneralSettings({ ttsEarlyReadSplitEnabled: "no" } as never).ttsEarlyReadSplitEnabled)
-      .toBe(true);
-  });
-
-  it("keeps paragraph mode and falls back to sentence for unknown modes", () => {
-    expect(normalizeGeneralSettings({ ttsEarlyReadSplitMode: "paragraph" } as never).ttsEarlyReadSplitMode)
-      .toBe("paragraph");
-    expect(normalizeGeneralSettings({ ttsEarlyReadSplitMode: "chapter" } as never).ttsEarlyReadSplitMode)
-      .toBe("sentence");
-  });
+it("ignores retired TTS settings while preserving text, ordinary audio preferences and internal channel ASR", () => {
+  const settings = normalizeGeneralSettings({ttsEngine: "mossland", ttsAutoRead: true,
+    ttsMosslandKey: "synthetic-existing-channel-key", asrEngine: "mossland", toastSoundEnabled: true} as never);
+  expect(settings).not.toHaveProperty("ttsEngine");
+  expect(settings).not.toHaveProperty("ttsAutoRead");
+  expect(settings).not.toHaveProperty("ttsMosslandKey");
+  expect(settings).toMatchObject({asrEngine: "mossland", asrMosslandKey: "synthetic-existing-channel-key", toastSoundEnabled: true});
 });

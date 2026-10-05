@@ -22,8 +22,6 @@ import {
   FileDropOverlay,
   RunRecoveryNotices,
 } from "../components/ChatWorkspaceNotices";
-import { getTtsPlaybackSnapshot, playTtsToCompletion, stopTtsPlayback } from "../components/tts-playback";
-import { EarlyTtsPlaybackQueue, type EarlyTtsSplitMode } from "../tts/early-tts-queue";
 
 import type {
   ChatMessage,
@@ -240,7 +238,7 @@ export function ChatPage() {
     scrollToBottomRef.current = scroll;
   }, []);
 
-  // 消息域：渲染态消息按会话存储；补丁通道供 run 事件流、TTS、取消与附件预处理共用
+  // 消息域：渲染态消息按会话存储；补丁通道供 run 事件流、取消与附件预处理共用
   const {
     messagesBySession,
     patchMessage: updateMessage,
@@ -372,12 +370,6 @@ export function ChatPage() {
   useEffect(() => {
     pendingQueueBySessionRef.current = pendingQueueBySession;
   }, [pendingQueueBySession]);
-  const activeEarlyTtsRef = useRef<{
-    queue: EarlyTtsPlaybackQueue;
-    mode: ConversationMode;
-    sessionId: string;
-    messageId: string;
-  } | null>(null);
 
   const activeSessionId = activeSessionIds[mode];
   useEffect(() => { setBrowserTabOpen(false); }, [activeSessionId, mode]);
@@ -466,8 +458,7 @@ export function ChatPage() {
   useEffect(() => () => {
     for (const off of activeAguiOffsRef.current) off();
     activeAguiOffsRef.current.clear();
-    activeEarlyTtsRef.current?.queue.cancel();
-    activeEarlyTtsRef.current = null;
+
   }, []);
 
   useEffect(() => {
@@ -558,45 +549,6 @@ export function ChatPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // 外部语音文本提交：主进程经 IPC 要求把文本提交到租约冻结的会话。
-  // 页面重新加载后 rendererTargetId 变化，旧目标的迟到请求直接回绝。
-  useEffect(() => {
-    const store = chatStore();
-    if (!store?.onSpeechInputCommitRequest) return;
-    const unsubscribe = store.onSpeechInputCommitRequest((request) => {
-      void (async () => {
-        let result: { ok: true } | { ok: false; error: { code: string; message: string } };
-        if (request.rendererTargetId !== store.getRendererTargetId()) {
-          result = {
-            ok: false,
-            error: { code: "E_NO_ACTIVE_INPUT_TARGET", message: "渲染目标已过期" },
-          };
-        } else {
-          result = await submitTextToSession({
-            sessionId: request.sessionId,
-            mode: request.mode,
-            text: request.text,
-          });
-        }
-        store.sendSpeechInputCommitResult({
-          requestId: request.requestId,
-          rendererTargetId: request.rendererTargetId,
-          ...(result.ok ? { ok: true } : { ok: false, error: result.error }),
-        });
-      })();
-    });
-    return unsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const active = activeEarlyTtsRef.current;
-    if (active && (active.mode !== mode || active.sessionId !== activeSessionId)) {
-      active.queue.cancel();
-      activeEarlyTtsRef.current = null;
-    }
-  }, [activeSessionId, mode]);
 
   useEffect(() => {
     const sessionId = activeSessionId;
@@ -689,67 +641,6 @@ export function ChatPage() {
 
   function setInteractionBusyForSession(sessionId: string, busy: boolean): void {
     setInteractionsBySession((current) => setSessionInteractionBusy(current, sessionId, busy));
-  }
-
-
-  function handleTtsCacheKey(
-    sessionId: string,
-    messageId: string,
-    cacheKey: string,
-    converterVersion: string,
-  ) {
-    updateMessage(sessionId, messageId, { ttsCacheKey: cacheKey, ttsCacheVersion: converterVersion });
-    void chatStore()?.setMessageTtsCacheKey(sessionId, messageId, cacheKey, converterVersion);
-  }
-
-  // 阶段 1B：TTS 缓存回调稳定化——roles 依赖该引用，仅会话切换时换新；
-  // 内部 updateMessage 走函数式 setState，捕获旧闭包安全
-  const handleTtsCacheKeyForActiveSession = useCallback(
-    (messageId: string, cacheKey: string, converterVersion: string) => {
-      if (!activeSessionId) return;
-      handleTtsCacheKey(activeSessionId, messageId, cacheKey, converterVersion);
-    },
-    [activeSessionId],
-  );
-
-  function createEarlyTtsQueue(
-    targetMode: ConversationMode,
-    sessionId: string,
-    messageId: string,
-    splitMode: EarlyTtsSplitMode = "sentence",
-  ): EarlyTtsPlaybackQueue {
-    activeEarlyTtsRef.current?.queue.cancel();
-    const queue = new EarlyTtsPlaybackQueue(
-      async (segment) => {
-        if (
-          activeModeRef.current !== targetMode
-          || activeSessionIdsRef.current[targetMode] !== sessionId
-          || activeEarlyTtsRef.current?.queue !== queue
-        ) return "interrupted";
-        return await playTtsToCompletion({
-          conversationId: sessionId,
-          messageId,
-          text: segment,
-          speechMode: "default",
-          preferredAddress,
-          automatic: true,
-        });
-      },
-      stopTtsPlayback,
-      splitMode,
-    );
-    activeEarlyTtsRef.current = { queue, mode: targetMode, sessionId, messageId };
-    return queue;
-  }
-
-  function finishEarlyTtsQueue(queue: EarlyTtsPlaybackQueue, fullText: string): void {
-    void queue.finish(fullText).finally(() => {
-      const active = activeEarlyTtsRef.current;
-      if (active?.queue !== queue) return;
-      const playback = getTtsPlaybackSnapshot();
-      if (playback.messageId === active.messageId && playback.status === "completed") stopTtsPlayback();
-      activeEarlyTtsRef.current = null;
-    });
   }
 
   async function selectSession(sessionId: string, targetMode: ConversationMode = mode, expectedGeneration?: number): Promise<SessionSelectionResult> {
@@ -913,10 +804,7 @@ export function ChatPage() {
         },
         requestTakeover: (sessionId, activeRunId, retry) => setSessionTakeover({ sessionId, activeRunId, retry }),
         clearTakeover: (sessionId) => setSessionTakeover((current) => (current && current.sessionId === sessionId ? null : current)),
-        earlyTts: {
-          start: createEarlyTtsQueue,
-          finish: finishEarlyTtsQueue,
-        },
+
         onRunFinished: ({ mode, sessionId, queuePaused }) => {
           setRunRegistryVersion((version) => version + 1);
           // 刷新列表与队列投影；queuePaused 时暂停消费（先恢复认领再说），否则消费下一条
@@ -978,9 +866,6 @@ export function ChatPage() {
       const truncatedSession = await store.replaceTail(sessionId, userIndex, [nextUserMessage]);
       if (!truncatedSession) return false;
 
-      activeEarlyTtsRef.current?.queue.cancel();
-      activeEarlyTtsRef.current = null;
-      stopTtsPlayback();
       const assistantId = crypto.randomUUID();
       replaceSessionMessages(sessionId, [
         ...toUiMessages(truncatedSession),
@@ -1077,8 +962,6 @@ export function ChatPage() {
     await selectSession(session.id, targetMode);
     return session.id;
   }
-
-
 
   async function initVaultStructure(sessionId: string) {
     const store = chatStore();
@@ -1213,13 +1096,11 @@ export function ChatPage() {
     await refreshSessionsRef.current(mode, false);
   }
 
-
   async function sendMessage(content: string, resumeFromRunId?: string) {
     const parsedMessage = parseComposerMessage(mode, content);
     const message = parsedMessage.rawContent;
     if (!message) return;
-    activeEarlyTtsRef.current?.queue.cancel();
-    activeEarlyTtsRef.current = null;
+
     const userSticker = parsedMessage.userSticker;
     const visibleMessage = parsedMessage.visibleContent;
     const userMessageId = crypto.randomUUID();
@@ -1274,46 +1155,6 @@ export function ChatPage() {
    * - 与手动发送走同一持久队列：入队确认成功（消息已落盘）才返回成功，
    *   绝不能只进页面内存就回执；空闲时随即认领派发，模型运行后台继续。
    */
-  async function submitTextToSession(input: {
-    sessionId: string;
-    mode: ConversationMode;
-    text: string;
-  }): Promise<{ ok: true } | { ok: false; error: { code: string; message: string } }> {
-    const text = input.text.trim();
-    if (!text) {
-      return { ok: false, error: { code: "E_INVALID_ARGUMENT", message: "提交文本不能为空" } };
-    }
-    const store = chatStore();
-    if (!store) {
-      return { ok: false, error: { code: "E_INTERNAL", message: "会话存储不可用" } };
-    }
-    const session = await store.get(input.sessionId);
-    if (!session) {
-      return { ok: false, error: { code: "E_NOT_FOUND", message: "会话已删除" } };
-    }
-    if (session.mode !== input.mode) {
-      return { ok: false, error: { code: "E_INVALID_ARGUMENT", message: "会话模式不匹配" } };
-    }
-    // 入队失败不弹窗（外部提交场景）：错误码回传给语音调用方；
-    // 同样走流程的失败标识缓存——外部重试同文本也复用原稳定标识
-    const enqueued = await queueFlow.enqueue(
-      input.sessionId,
-      input.mode,
-      {
-        id: crypto.randomUUID(),
-        rawContent: text,
-        visibleContent: text,
-        attachments: [],
-      },
-      false,
-    );
-    if (!enqueued) {
-      return { ok: false, error: { code: "E_INTERNAL", message: "消息入队失败" } };
-    }
-    // 空闲时立即消费派发（忙时等 run 结束的 onRunFinished）；不等待模型回答
-    void queueFlow.consume(input.mode, input.sessionId);
-    return { ok: true };
-  }
 
   async function cancelCurrentRun() {
     const sessionId = activeSessionId;
@@ -1693,7 +1534,7 @@ export function ChatPage() {
             revisionBusy={Boolean(modelBusyByMode[mode]) || lastTurnRevisionStarting}
             onEditLastUserMessage={mode === "chat" ? editLastChatUserMessage : undefined}
             onRegenerateLastResponse={mode === "chat" ? regenerateLastChatResponse : undefined}
-            onTtsCacheKey={activeSessionId ? handleTtsCacheKeyForActiveSession : undefined}
+
             onScrollToBottomVisibilityChange={setScrollToBottomVisible}
             onRegisterScrollToBottom={registerScrollToBottom}
             onOpenReviewInspector={openDiffTab}

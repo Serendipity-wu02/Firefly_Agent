@@ -18,8 +18,7 @@ export type PluginCapability =
   | "secrets"
   | "workspace"
   | "conversations"
-  | "scheduler"
-  | "speech-input";
+  | "scheduler";
 
 /** 全部宿主能力的运行时清单；与 PluginCapability 类型一一对应，SDK 直接再导出。 */
 export const PLUGIN_CAPABILITIES: readonly PluginCapability[] = [
@@ -28,9 +27,7 @@ export const PLUGIN_CAPABILITIES: readonly PluginCapability[] = [
   "secrets",
   "workspace",
   "conversations",
-  "scheduler",
-  "speech-input",
-];
+  "scheduler",];
 
 /**
  * 插件设置面板的挂载分区。每开放一个枚举值，设置页必须有对应的
@@ -520,32 +517,6 @@ export interface PluginScheduledTaskHistory {
   summary?: string;
 }
 
-/** 语音输入目标：普通聊天窗口。 */
-export type PluginSpeechInputTarget = "active-chat";
-
-export interface PluginSpeechInputAcquireOptions {
-  target: PluginSpeechInputTarget;
-}
-
-/**
- * 语音输入租约。取得时目标即被冻结：切换会话不会迁移租约，
- * 原渲染目标失效时租约自动中止（signal 触发）。
- * commit() 复用宿主正常用户输入路径，不等待模型完整回答。
- */
-export interface PluginSpeechInputLease {
-  /** 提交最终识别文本；用户消息被接受并落盘后即返回。 */
-  commit(text: string): Promise<void>;
-  /** 幂等释放；释放后不得再 commit。 */
-  release(): Promise<void>;
-  /** 租约中止信号（目标失效、插件停止、应用退出等）。 */
-  signal: AbortSignal;
-}
-
-/** 独占语音输入服务：全局同一时刻只允许一个插件持有租约。 */
-export interface PluginSpeechInputService {
-  acquire(options: PluginSpeechInputAcquireOptions): Promise<PluginSpeechInputLease>;
-}
-
 export interface PluginDeps {
   /** Read-only channel discovery. Registration must use PluginContext methods. */
   channels?: { has(id: string): boolean };
@@ -554,7 +525,7 @@ export interface PluginDeps {
   secrets?: PluginSecretsService;
   workspace?: PluginWorkspaceService;
   scheduler?: PluginSchedulerService;
-  speechInput?: PluginSpeechInputService;
+
 }
 
 export type PluginCleanup = () => void | Promise<void>;
@@ -658,7 +629,6 @@ export type PluginHostErrorCode =
   | "E_NOT_FOUND"
   | "E_NOT_OWNER"
   | "E_STORAGE_UNAVAILABLE"
-  | "E_SPEECH_INPUT_BUSY"
   | "E_NO_ACTIVE_INPUT_TARGET"
   | "E_PLUGIN_STOPPING"
   | "E_INTERNAL";
@@ -674,7 +644,6 @@ export const PLUGIN_HOST_ERROR_CODES: ReadonlySet<string> = new Set([
   "E_NOT_FOUND",
   "E_NOT_OWNER",
   "E_STORAGE_UNAVAILABLE",
-  "E_SPEECH_INPUT_BUSY",
   "E_NO_ACTIVE_INPUT_TARGET",
   "E_PLUGIN_STOPPING",
   "E_INTERNAL",

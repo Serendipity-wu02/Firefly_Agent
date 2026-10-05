@@ -6,10 +6,6 @@ import type {
   PendingChatMessage,
   ToolFileChange,
 } from "../../../../../shared/chat-types";
-import type {
-  SpeechInputCommitRequest,
-  SpeechInputCommitResult,
-} from "../../../../../shared/ipc-channels";
 
 /** 认领队首的返回形状（与主进程 chats-store 的 ClaimPendingResult 对齐）。 */
 export type PendingClaimResult =
@@ -44,7 +40,7 @@ export interface ChatStoreApi {
   append: (id: string, message: ChatMessage) => Promise<ChatSession | null>;
   upsert: (id: string, message: ChatMessage) => Promise<ChatSession | null>;
   replaceTail: (id: string, startIndex: number, messages: ChatMessage[]) => Promise<ChatSession | null>;
-  setMessageTtsCacheKey: (id: string, messageId: string, cacheKey: string, converterVersion: string) => Promise<ChatSession | null>;
+
   rename: (id: string, title: string) => Promise<ChatSession | null>;
   delete: (id: string) => Promise<boolean>;
   // 会话级待发队列（主进程为权威）：入队失败时 ok=false，页面必须保留草稿
@@ -81,11 +77,9 @@ export interface ChatStoreApi {
   // 本页面的渲染目标标识；语音提交桥据此识别过期请求
   getRendererTargetId: () => string;
   // main → ChatPage：外部语音文本提交请求（携带租约冻结的目标）
-  onSpeechInputCommitRequest: (
-    callback: (request: SpeechInputCommitRequest) => void,
-  ) => () => void;
+
   // ChatPage → main：提交结果（必须回显 requestId 与 rendererTargetId）
-  sendSpeechInputCommitResult: (result: SpeechInputCommitResult) => void;
+
 }
 
 export interface SidebarApi {

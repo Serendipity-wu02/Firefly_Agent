@@ -27,9 +27,9 @@ describe("search enable persistence", () => {
     document.body.innerHTML = html;
     settings = { searchEngine: "tavily", searchTavilyKey: "synthetic-key", unrelated: "keep" };
     save = vi.fn(async (patch: Record<string, unknown>) => { Object.assign(settings, patch); });
-    Object.defineProperty(window, "tts", {
+    Object.defineProperty(window, "settings", {
       configurable: true,
-      value: { loadSettings: vi.fn(async () => ({ ...settings })), saveSettings: save },
+      value: { getGeneral: vi.fn(async () => ({ ...settings })), saveGeneral: save },
     });
     vi.spyOn(console, "warn").mockImplementation(() => {});
   });

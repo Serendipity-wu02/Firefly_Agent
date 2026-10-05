@@ -198,38 +198,13 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): () => void {
     return saved.uiFont;
   });
 
-  ipc.handle(IPC.SETTINGS_SAVE_GENERAL, (_event, settings: Partial<GeneralSettings>) => {
+  ipc.handle(IPC.SETTINGS_SAVE_GENERAL, async (_event, settings: Partial<GeneralSettings>) => {
     const saved = saveGeneralSettings(settings);
+    if ("searchMinimaxKey" in settings || "searchEngine" in settings) await syncVolcanoSearchMcp(saved);
+    if ("playwrightMcpEnabled" in settings) await syncPlaywrightMcp(saved);
     if ("proactiveChatMode" in settings || "proactiveDeliveryTarget" in settings) {
       proactiveLifecycle.getProactiveChatService()?.invalidate();
     }
-    return saved;
-  });
-
-  // TTS 面板调用的通用设置读写入口（历史命名遗留）
-  ipc.handle(IPC.TTS_LOAD_SETTINGS, () => getGeneralSettings());
-
-  ipc.handle(IPC.TTS_SAVE_SETTINGS, async (_event, tts: Partial<GeneralSettings>) => {
-    const before = getGeneralSettings();
-    const saved = saveGeneralSettings({ ...before, ...tts });
-
-    // 搜索 MCP 自动注册/移除：选 MiniMax+有key→注册，否则→移除
-    const searchConfigChanged = "searchMinimaxKey" in tts || "searchEngine" in tts;
-    if (searchConfigChanged) {
-      await syncVolcanoSearchMcp(saved);
-    }
-
-    // Playwright MCP：按 settings 字段自动连接/断开
-    if ("playwrightMcpEnabled" in tts) {
-      await syncPlaywrightMcp(saved);
-    }
-
-    // 主动聊天总开关变化时使现有评估失效（频率档位由 ProactiveChat 内部判定，无需重启）。
-    if ("proactiveChatMode" in tts) {
-      proactiveLifecycle.getProactiveChatService()?.invalidate();
-    }
-
-    // 返回不含密钥明文的副本（前端展示用）
     return saved;
   });
 

@@ -47,8 +47,7 @@ interface ChatWindowApi {
   getGeneralSettings: () => Promise<{
     language?: string;
     currentStyleId?: string;
-    ttsEarlyReadSplitEnabled?: boolean;
-    ttsEarlyReadSplitMode?: "sentence" | "paragraph";
+
   }>;
 }
 

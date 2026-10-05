@@ -5,8 +5,7 @@
 import { channelsState } from "./state";
 import {
   channelsWechatEnabledEl, channelsFeishuEnabledEl, channelsQqEnabledEl,
-  channelsRateUserEl, channelsRateChannelEl,
-  channelsTtsEl, channelsStickerEl, channelsMirrorEl,
+  channelsRateUserEl, channelsRateChannelEl, channelsStickerEl, channelsMirrorEl,
   channelsToolSandboxOffEl, channelsToolSandboxAllEl,
   channelsFeishuAppIdEl, channelsFeishuAppSecretEl, channelsFeishuAppSecretRevealBtn,
   channelsFeishuSaveBtn, channelsFeishuFeedbackEl,
@@ -269,7 +268,7 @@ export async function loadChannelsPanel(): Promise<void> {
     if (channelsQqEnabledEl) channelsQqEnabledEl.checked = !!cfg.qq?.enabled;
     if (channelsRateUserEl) channelsRateUserEl.value = String(cfg.rateLimitPerUser ?? 10);
     if (channelsRateChannelEl) channelsRateChannelEl.value = String(cfg.rateLimitPerChannel ?? 100);
-    if (channelsTtsEl) channelsTtsEl.checked = cfg.ttsEnabled !== false;
+
     if (channelsStickerEl) channelsStickerEl.checked = cfg.stickerEnabled !== false;
     if (channelsMirrorEl) channelsMirrorEl.checked = cfg.mirrorToDesktop !== false;
     if (channelsToolSandboxOffEl) channelsToolSandboxOffEl.checked = cfg.toolSandbox === "off";
@@ -334,7 +333,7 @@ export async function loadChannelsPanel(): Promise<void> {
         qqbot: { enabled: channelsQqBotEnabledEl?.checked ?? false },
         rateLimitPerUser: Number(channelsRateUserEl?.value) || 10,
         rateLimitPerChannel: Number(channelsRateChannelEl?.value) || 100,
-        ttsEnabled: channelsTtsEl?.checked ?? true,
+
         stickerEnabled: channelsStickerEl?.checked ?? true,
         mirrorToDesktop: channelsMirrorEl?.checked ?? true,
         toolSandbox: channelsToolSandboxOffEl?.checked
@@ -349,9 +348,7 @@ export async function loadChannelsPanel(): Promise<void> {
     channelsQqEnabledEl,
     channelsQqBotEnabledEl,
     channelsRateUserEl,
-    channelsRateChannelEl,
-    channelsTtsEl,
-    channelsStickerEl,
+    channelsRateChannelEl, channelsStickerEl,
     channelsMirrorEl,
     channelsToolSandboxOffEl,
     channelsToolSandboxAllEl,

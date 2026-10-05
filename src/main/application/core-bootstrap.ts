@@ -15,8 +15,7 @@ import type { ShellResult } from "./shell-bootstrap";
 import type { RevealStartupWindowsOptions } from "../startup/startup-window-reveal";
 import type { AgentRuntime } from "../orchestrator/agent-runtime";
 import type { RuntimeStateService } from "../orchestrator/runtime-state-service";
-import type { TtsSynthesisService } from "../services/tts/tts-synthesis-service";
-import type { TtsSessionService } from "../tts/tts-session-service";
+
 import type { EmbeddingIndexService } from "../services/embedding/embedding-index-service";
 import type { ProactiveLifecycle } from "../proactive/proactive-lifecycle";
 import type { GitService } from "../code-git/git-service";
@@ -38,8 +37,7 @@ export interface CoreServices {
   llm: LlmClient;
   cita: CitaService;
   social: SocialContextService;
-  tts: TtsSynthesisService;
-  ttsSession: TtsSessionService;
+
   embedding: EmbeddingIndexService;
   proactive: ProactiveLifecycle;
   git: GitService;
@@ -125,7 +123,7 @@ export async function startCore(deps: CoreDependencies): Promise<CoreResult> {
     readiness.markDegraded({ capability: "skills", message: degradedMessage(error), at: Date.now(), error });
   }
 
-  // 低成本服务（runtimeState/tts/embedding/proactive/git/lsp/screenshot/music/update）
+  // 低成本服务（runtimeState/embedding/proactive/git/lsp/screenshot/music/update）
   const services = deps.createLowCostServices();
 
   // SRT 沙箱：失败不阻塞启动（fallback 到直接 spawn）

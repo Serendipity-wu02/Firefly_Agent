@@ -23,9 +23,9 @@ export function syncWeatherFieldsVisibility(): void {
 }
 
 export async function saveWeatherField(field: string, value: unknown): Promise<void> {
-  if (!window.tts) return;
+  if (!window.settings) return;
   try {
-    await window.tts.saveSettings({ [field]: value });
+    await window.settings?.saveGeneral({ [field]: value });
   } catch (err) {
     console.warn("[plugins] 保存天气配置失败:", field, err);
   }
@@ -33,7 +33,7 @@ export async function saveWeatherField(field: string, value: unknown): Promise<v
 
 export async function loadWeatherConfig(): Promise<void> {
   try {
-    const cfg = await window.tts?.loadSettings();
+    const cfg = await window.settings?.getGeneral();
     if (cfg && weatherEnabledCheckbox) {
       weatherEnabledCheckbox.checked = Boolean(cfg.weatherEnabled);
     }
@@ -56,9 +56,9 @@ export function syncTravelConfigVisibility(): void {
 }
 
 export async function saveTravelField(field: string, value: unknown): Promise<void> {
-  if (!window.tts) return;
+  if (!window.settings) return;
   try {
-    await window.tts.saveSettings({ [field]: value });
+    await window.settings?.saveGeneral({ [field]: value });
   } catch (err) {
     console.warn("[plugins] 保存出行配置失败:", field, err);
   }
@@ -66,7 +66,7 @@ export async function saveTravelField(field: string, value: unknown): Promise<vo
 
 export async function loadTravelConfig(): Promise<void> {
   try {
-    const cfg = await window.tts?.loadSettings();
+    const cfg = await window.settings?.getGeneral();
     if (cfg && travelEnabledCheckbox) {
       travelEnabledCheckbox.checked = Boolean(cfg.travelEnabled);
     }
@@ -84,9 +84,9 @@ export async function loadTravelConfig(): Promise<void> {
 // main 端的 syncPlaywrightMcp() 会监听字段变化自动注册 / 移除 MCP server。
 
 export async function saveBuiltinMcpField(field: string, value: unknown): Promise<void> {
-  if (!window.tts) return;
+  if (!window.settings) return;
   try {
-    await window.tts.saveSettings({ [field]: value });
+    await window.settings?.saveGeneral({ [field]: value });
   } catch (err) {
     console.warn(`[settings] 保存 ${field} 失败:`, err);
   }
@@ -94,7 +94,7 @@ export async function saveBuiltinMcpField(field: string, value: unknown): Promis
 
 export async function loadBuiltinMcpToggles(): Promise<void> {
   try {
-    const cfg = await window.tts?.loadSettings();
+    const cfg = await window.settings?.getGeneral();
     if (cfg && playwrightMcpCheckbox) {
       // 默认关闭 —— 浏览器走系统 Edge，MCP 随应用内置，无需额外下载
       playwrightMcpCheckbox.checked = Boolean(cfg.playwrightMcpEnabled);

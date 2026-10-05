@@ -194,5 +194,5 @@ export function generateRendererTargetId(): string {
   return randomUUID();
 }
 
-/** 全局唯一登记表实例：chat-ui-ipc 上报、speech-input-service 冻结目标共用。 */
+/** 全局唯一登记表实例：chat-ui-ipc 上报与 Main 浏览器宿主授权共用。 */
 export const activeChatTargetRegistry = createActiveChatTargetRegistry();

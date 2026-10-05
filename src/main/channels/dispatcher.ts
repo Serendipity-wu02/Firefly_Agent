@@ -214,7 +214,7 @@ export class ChannelDispatcher {
       replyText,
       sticker,
       settings: {
-        ttsEnabled: this.settings.ttsEnabled,
+
         stickerEnabled: this.settings.stickerEnabled,
       },
       mobileMessageSegmentation: this.deps.loadGeneralSettings().mobileMessageSegmentation,

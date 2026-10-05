@@ -121,15 +121,6 @@ export function registerWindowSystemIpc(deps: WindowSystemIpcDependencies): void
     clearUsage();
   });
 
-  ipc.on(IPC.LIVE2D_SPEECH_PREPARE, () => {
-    deps.windowManager?.sendToPetWindow(IPC.LIVE2D_SPEECH_PREPARE);
-  });
-  ipc.on(IPC.LIVE2D_MOUTH_START, (_event, payload: { durationMs?: number }) => {
-    deps.windowManager?.sendToPetWindow(IPC.LIVE2D_MOUTH_START, { durationMs: Number(payload?.durationMs ?? 0) });
-  });
-  ipc.on(IPC.LIVE2D_MOUTH_STOP, () => {
-    deps.windowManager?.sendToPetWindow(IPC.LIVE2D_MOUTH_STOP);
-  });
   ipc.on(IPC.LIVE2D_ACTION_RECEIPT, (event, receipt: Live2DActionReceipt) => {
     if (!deps.windowManager?.isPetWindowSender(event.sender.id)) return;
     if (!receipt || typeof receipt.requestId !== "string") return;

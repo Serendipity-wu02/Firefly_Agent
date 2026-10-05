@@ -4,12 +4,9 @@ import type { BrowserAvailabilityApi } from "../shared/browser-availability";
 import type { ModelConnectionSnapshot } from "../shared/model-connection-types";
 import type { QqListenAuthRequirement } from "../shared/qq-listen";
 import type { ApprovalRequest, ApprovalSettledPayload } from "../shared/permission-approval";
-import type { StartTtsRequest, TtsSessionEvent, TtsStartResult } from "../shared/tts-session";
+
 import type { ScreenshotInsertPayload } from "../shared/ipc-channels";
-import type {
-  SpeechInputCommitRequest,
-  SpeechInputCommitResult,
-} from "../shared/ipc-channels";
+
 import type { UiTheme } from "../shared/ui-theme";
 import type { UiFont } from "../shared/ui-font";
 import type { PluginPanelApi } from "../shared/plugin-management";
@@ -607,28 +604,6 @@ contextBridge.exposeInMainWorld("user", userApi);
 contextBridge.exposeInMainWorld("memoryPanel", memoryPanelApi);
 contextBridge.exposeInMainWorld("runtimeState", runtimeStateApi);
 
-const live2dSpeechApi = {
-  prepare: () => ipcRenderer.send(IPC.LIVE2D_SPEECH_PREPARE),
-  startMouth: (durationMs: number) => ipcRenderer.send(IPC.LIVE2D_MOUTH_START, { durationMs }),
-  stopMouth: () => ipcRenderer.send(IPC.LIVE2D_MOUTH_STOP),
-  onPrepare: (callback: () => void) => {
-    const listener = () => callback();
-    ipcRenderer.on(IPC.LIVE2D_SPEECH_PREPARE, listener);
-    return () => ipcRenderer.removeListener(IPC.LIVE2D_SPEECH_PREPARE, listener);
-  },
-  onMouthStart: (callback: (payload: { durationMs: number }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: { durationMs: number }) => callback(payload);
-    ipcRenderer.on(IPC.LIVE2D_MOUTH_START, listener);
-    return () => ipcRenderer.removeListener(IPC.LIVE2D_MOUTH_START, listener);
-  },
-  onMouthStop: (callback: () => void) => {
-    const listener = () => callback();
-    ipcRenderer.on(IPC.LIVE2D_MOUTH_STOP, listener);
-    return () => ipcRenderer.removeListener(IPC.LIVE2D_MOUTH_STOP, listener);
-  },
-};
-contextBridge.exposeInMainWorld("live2dSpeech", live2dSpeechApi);
-
 const live2dActionApi = {
   onPlayAction: (callback: (payload: import("../shared/live2d-actions").Live2DActionRequest) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: import("../shared/live2d-actions").Live2DActionRequest) => callback(payload);
@@ -658,8 +633,7 @@ const chatStoreApi = {
     ipcRenderer.invoke(IPC.CHATS_APPEND, { id, message }),
   upsert: (id: string, message: unknown) =>
     ipcRenderer.invoke(IPC.CHATS_UPSERT, { id, message }),
-  setMessageTtsCacheKey: (id: string, messageId: string, cacheKey: string, converterVersion: string) =>
-    ipcRenderer.invoke(IPC.CHATS_SET_MESSAGE_TTS_CACHE, { id, messageId, cacheKey, converterVersion }),
+
   replaceMessages: (id: string, messages: unknown[]) =>
     ipcRenderer.invoke(IPC.CHATS_REPLACE_MESSAGES, { id, messages }),
   replaceTail: (id: string, startIndex: number, messages: unknown[]) =>
@@ -757,18 +731,7 @@ const chatStoreApi = {
   notifyReactReady: () => ipcRenderer.send(IPC.CHATS_REACT_READY),
   // 本页面的渲染目标标识（页面初始化时生成一次；语音提交桥据此识别过期请求）
   getRendererTargetId: () => rendererTargetId,
-  // main → ChatPage：外部语音文本提交请求（携带租约冻结的目标）
-  onSpeechInputCommitRequest: (callback: (request: SpeechInputCommitRequest) => void) => {
-    const listener = (
-      _e: Electron.IpcRendererEvent,
-      request: SpeechInputCommitRequest,
-    ) => callback(request);
-    ipcRenderer.on(IPC.SPEECH_INPUT_COMMIT_REQUEST, listener);
-    return () => ipcRenderer.removeListener(IPC.SPEECH_INPUT_COMMIT_REQUEST, listener);
-  },
-  // ChatPage → main：提交结果（必须回显 requestId 与 rendererTargetId）
-  sendSpeechInputCommitResult: (result: SpeechInputCommitResult) =>
-    ipcRenderer.send(IPC.SPEECH_INPUT_COMMIT_RESULT, result),
+
 };
 
 contextBridge.exposeInMainWorld("chatStore", chatStoreApi);
@@ -823,111 +786,5 @@ const tokenUsageApi = {
   clear: () => ipcRenderer.invoke(IPC.TOKEN_USAGE_CLEAR) as Promise<void>,
 };
 contextBridge.exposeInMainWorld("tokenUsage", tokenUsageApi);
-
-// TTS 语音合成（设置中心 TTS 面板 + 聊天窗口朗读用）
-const ttsApi = {
-  startSession: (payload: StartTtsRequest): Promise<TtsStartResult> =>
-    ipcRenderer.invoke(IPC.TTS_SESSION_START, payload),
-  cancelSession: (requestId: string): Promise<boolean> =>
-    ipcRenderer.invoke(IPC.TTS_SESSION_CANCEL, requestId),
-  onSessionEvent: (callback: (event: TtsSessionEvent) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: TtsSessionEvent) => callback(payload);
-    ipcRenderer.on(IPC.TTS_SESSION_EVENT, listener);
-    return () => ipcRenderer.removeListener(IPC.TTS_SESSION_EVENT, listener);
-  },
-  upload: (apiKey: string, filePath: string, purpose: "voice_clone" | "prompt_audio") =>
-    ipcRenderer.invoke(IPC.TTS_UPLOAD, { apiKey, filePath, purpose }),
-  pickAudio: () => ipcRenderer.invoke(IPC.TTS_PICK_AUDIO),
-  clone: (payload: {
-    apiKey: string; fileId: string; voiceId: string;
-    promptAudioId?: string; promptText?: string;
-    text: string; model?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_CLONE, payload),
-  synthesize: (payload: {
-    apiKey: string; voiceId: string; text: string;
-    speed?: number; volume?: number; pitch?: number;
-    model?: string; format?: "mp3" | "wav" | "pcm";
-    vocalEnhance?: { enabled: boolean };
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE, payload),
-  synthesizeCached: (payload: {
-    apiKey: string; voiceId: string; text: string;
-    speed?: number; volume?: number; pitch?: number;
-    model?: string; format?: "mp3" | "wav" | "pcm";
-    expectedCacheKey?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_CACHED, payload),
-  // GPT-SoVITS 本地 TTS（独立通道，payload 与 minimax 不同）
-  synthesizeGptsovits: (payload: {
-    baseUrl: string; refAudioPath: string; promptText: string; text: string;
-    speed?: number; format?: "wav" | "mp3";
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_GPTSOVITS, payload),
-  synthesizeCachedGptsovits: (payload: {
-    baseUrl: string; refAudioPath: string; promptText: string; text: string;
-    speed?: number; format?: "wav" | "mp3";
-    expectedCacheKey?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_CACHED_GPTSOVITS, payload),
-  // 自定义云端 TTS（固定 HTTP 合约）
-  synthesizeCustomCloud: (payload: {
-    endpointUrl: string; apiKey?: string; voiceId?: string; text: string;
-    speed?: number; volume?: number; format?: "wav" | "mp3"; timeoutMs?: number;
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_CUSTOM_CLOUD, payload),
-  synthesizeCachedCustomCloud: (payload: {
-    endpointUrl: string; apiKey?: string; voiceId?: string; text: string;
-    speed?: number; volume?: number; format?: "wav" | "mp3"; timeoutMs?: number;
-    expectedCacheKey?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_CACHED_CUSTOM_CLOUD, payload),
-  // 小米 MiMo TTS（官方 chat-completions 接口）
-  synthesizeMimo: (payload: {
-    apiKey: string; voiceAudioPath?: string; text: string; stylePrompt?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_MIMO, payload),
-  synthesizeCachedMimo: (payload: {
-    apiKey: string; voiceAudioPath?: string; text: string; stylePrompt?: string;
-    expectedCacheKey?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_CACHED_MIMO, payload),
-  // Mossland TTS（api.mosi.cn，POST /v1/audio/speech）
-  synthesizeMossland: (payload: {
-    apiKey: string; voiceId: string; text: string;
-    model?: string; format?: "mp3" | "wav";
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_MOSSLAND, payload),
-  synthesizeCachedMossland: (payload: {
-    apiKey: string; voiceId: string; text: string;
-    model?: string; format?: "mp3" | "wav";
-    expectedCacheKey?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_CACHED_MOSSLAND, payload),
-  // Mossland 音色克隆（POST /v1/audio/voices，multipart 上传本地文件）
-  cloneMossland: (payload: {
-    apiKey: string; filePath: string; name?: string; description?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_CLONE_MOSSLAND, payload),
-  // Mossland 拉取账号下音色列表（GET /v1/audio/voices）
-  listMosslandVoices: (payload: {
-    apiKey: string; limit?: number; offset?: number; after?: string; status?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_LIST_MOSSLAND_VOICES, payload),
-  // 选择音频文件（复用 TTS_PICK_AUDIO，gptsovits 选 ref audio 也用这个）
-  pickAudioFile: () => ipcRenderer.invoke(IPC.TTS_PICK_AUDIO),
-  // 流式语音合成（边合成边播）
-  streamStart: (payload: {
-    apiKey: string; voiceId: string; text: string;
-    speed?: number; volume?: number; pitch?: number;
-    model?: string; format?: "mp3" | "wav" | "pcm";
-    expectedCacheKey?: string;
-  }) => ipcRenderer.invoke(IPC.TTS_STREAM_START, payload),
-  onAudioChunk: (callback: (payload: { base64: string }) => void) => {
-    const listener = (_e: Electron.IpcRendererEvent, payload: { base64: string }) => callback(payload);
-    ipcRenderer.on(IPC.TTS_AUDIO_CHUNK, listener);
-    return () => ipcRenderer.removeListener(IPC.TTS_AUDIO_CHUNK, listener);
-  },
-  onStreamEnd: (callback: (payload: { cacheKey: string; cached: boolean; format: "mp3" | "wav" | "pcm" }) => void) => {
-    const listener = (_e: Electron.IpcRendererEvent, payload: { cacheKey: string; cached: boolean; format: "mp3" | "wav" | "pcm" }) => callback(payload);
-    ipcRenderer.on(IPC.TTS_STREAM_END, listener);
-    return () => ipcRenderer.removeListener(IPC.TTS_STREAM_END, listener);
-  },
-  onStreamError: (callback: (payload: { message: string }) => void) => {
-    const listener = (_e: Electron.IpcRendererEvent, payload: { message: string }) => callback(payload);
-    ipcRenderer.on(IPC.TTS_STREAM_ERROR, listener);
-    return () => ipcRenderer.removeListener(IPC.TTS_STREAM_ERROR, listener);
-  },
-  saveSettings: (tts: Record<string, unknown>) => ipcRenderer.invoke(IPC.TTS_SAVE_SETTINGS, tts),
-  loadSettings: () => ipcRenderer.invoke(IPC.TTS_LOAD_SETTINGS),
-};
-contextBridge.exposeInMainWorld("tts", ttsApi);
 
 exposeMusicApi();

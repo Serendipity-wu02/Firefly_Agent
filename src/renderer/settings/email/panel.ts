@@ -13,9 +13,9 @@ export function syncEmailConfigVisibility(): void {
 }
 
 export async function saveEmailField(field: string, value: unknown): Promise<void> {
-  if (!window.tts) return;
+  if (!window.settings) return;
   try {
-    await window.tts.saveSettings({ [field]: value });
+    await window.settings?.saveGeneral({ [field]: value });
   } catch (err) {
     console.warn("[plugins] 保存邮件配置失败:", field, err);
   }
@@ -23,7 +23,7 @@ export async function saveEmailField(field: string, value: unknown): Promise<voi
 
 export async function loadEmailConfig(): Promise<void> {
   try {
-    const cfg = await window.tts?.loadSettings();
+    const cfg = await window.settings?.getGeneral();
     if (cfg && emailEnabledCheckbox) {
       emailEnabledCheckbox.checked = Boolean(cfg.emailEnabled);
     }

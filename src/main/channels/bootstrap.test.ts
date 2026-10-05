@@ -130,9 +130,7 @@ import { initializeChannels, startChannels, shutdownChannels } from "./init";
 
 function makeChannelsDeps(): ChannelsSubsystemDeps {
   return {
-    agentRuntime: {} as ChannelsSubsystemDeps["agentRuntime"],
-    ttsSynthesisService: {} as ChannelsSubsystemDeps["ttsSynthesisService"],
-    getReactChatWindow: () => null,
+    agentRuntime: {} as ChannelsSubsystemDeps["agentRuntime"],    getReactChatWindow: () => null,
   };
 }
 

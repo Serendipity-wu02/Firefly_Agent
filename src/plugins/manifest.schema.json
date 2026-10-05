@@ -70,8 +70,7 @@
         "secrets",
         "workspace",
         "conversations",
-        "scheduler",
-        "speech-input"
+        "scheduler"
       ],
       "description": "插件可向宿主申请的宿主服务。deps 只是服务可用性声明，不是安全权限： 未声明的服务不会注入，声明的服务也只是获得该服务的稳定接口。"
     }

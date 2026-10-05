@@ -9,7 +9,7 @@ export const channelsFeishuStatusEl = document.getElementById("channels-feishu-s
 export const channelsQqStatusEl = document.getElementById("channels-qq-status");
 export const channelsRateUserEl = document.getElementById("channels-rate-user") as HTMLInputElement | null;
 export const channelsRateChannelEl = document.getElementById("channels-rate-channel") as HTMLInputElement | null;
-export const channelsTtsEl = document.getElementById("channels-tts-enabled") as HTMLInputElement | null;
+
 export const channelsStickerEl = document.getElementById("channels-sticker-enabled") as HTMLInputElement | null;
 export const channelsMirrorEl = document.getElementById("channels-mirror-desktop") as HTMLInputElement | null;
 export const channelsToolSandboxOffEl = document.getElementById("channels-tool-sandbox-off") as HTMLInputElement | null;

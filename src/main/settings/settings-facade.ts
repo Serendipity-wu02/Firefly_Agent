@@ -26,7 +26,7 @@ import { normalizeWindowVisibilitySettings } from "../window-visibility-settings
 import { normalizeCitaSettings } from "../cita/settings";
 import { getGeneralSettingsPath } from "../settings-store";
 import type { GeneralSettings } from "./general-settings";
-import { DEFAULT_MOSSLAND_TTS_MODEL } from "../../shared/tts-types";
+
 import type { ToolModeOverrides } from "../orchestrator/tools/registry/tool-registry";
 import type { ConversationMode } from "../../shared/chat-types";
 import type { SkillModeOverrides } from "../skills/types";
@@ -62,35 +62,7 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   mobileMessageSegmentation: "off",
   proactiveChatMode: "off",
   proactiveDeliveryTarget: "local",
-  ttsEngine: "off",
-  ttsAutoRead: true,
-  ttsSpeed: 1,
-  ttsVolume: 1,
-  ttsEarlyReadSplitEnabled: true,
-  ttsEarlyReadSplitMode: "sentence",
-  ttsMinimaxKey: "",
-  ttsMinimaxVoiceId: "",
-  ttsMinimaxModel: "speech-2.8-turbo",
-  ttsStreaming: true,
-  ttsMinimaxVocalEnhance: true,
-  ttsGptsovitsBaseUrl: "",
-  ttsGptsovitsRefAudioPath: "",
-  ttsGptsovitsPromptText: "",
-  ttsGptsovitsFormat: "wav",
-  ttsGptsovitsTimeoutMs: 180_000,
-  ttsCustomCloudEndpointUrl: "",
-  ttsCustomCloudApiKey: "",
-  ttsCustomCloudVoiceId: "",
-  ttsCustomCloudFormat: "mp3",
-  ttsCustomCloudTimeoutMs: 30000,
-  ttsMimoKey: "",
-  ttsMimoVoiceAudioPath: "",
-  ttsMimoStylePrompt: "温柔、自然、略带亲近感，像在轻声陪用户聊天。",
-  ttsMosslandKey: "",
-  ttsMosslandVoiceId: "",
-  ttsMosslandModel: DEFAULT_MOSSLAND_TTS_MODEL,
-  ttsMosslandTestText: "你好，我是流萤。今天也请多多关照。",
-  ttsMosslandFormat: "mp3",
+
   weatherSource: "open-meteo",
   weatherEnabled: false,
   amapKey: "",
@@ -108,6 +80,7 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   emailSmtpUser: "",
   emailSmtpPass: "",
   emailFromName: "",
+  asrMosslandKey: "",
   asrEngine: "off",
   asrAliyunAppKey: "",
   asrAliyunAccessKeyId: "",
@@ -120,11 +93,6 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   skillModeOverrides: {},
   lspServerOverrides: [],
 };
-
-function normalizeMosslandTtsModel(value: unknown): string {
-  const model = typeof value === "string" ? value.trim() : "";
-  return model && model !== "moss-tts" ? model : DEFAULT_MOSSLAND_TTS_MODEL;
-}
 
 const listeners = new Set<(before: GeneralSettings, after: GeneralSettings) => void>();
 
@@ -220,31 +188,7 @@ export function normalizeGeneralSettings(
     mobileMessageSegmentation: normalizeMobileMessageSegmentationMode(input?.mobileMessageSegmentation),
     proactiveChatMode: normalizeProactiveChatMode(input?.proactiveChatMode),
     proactiveDeliveryTarget: normalizeProactiveDeliveryTarget(input?.proactiveDeliveryTarget),
-    ttsEngine: (["off", "minimax", "gptsovits", "custom-cloud", "mimo", "mossland"].includes(input?.ttsEngine as string)
-      ? input?.ttsEngine
-      : "off") as GeneralSettings["ttsEngine"],
-    ttsAutoRead: input?.ttsAutoRead === undefined
-      ? DEFAULT_GENERAL_SETTINGS.ttsAutoRead
-      : Boolean(input.ttsAutoRead),
-    ttsSpeed: typeof input?.ttsSpeed === "number"
-      ? Math.max(0.5, Math.min(2, input.ttsSpeed))
-      : DEFAULT_GENERAL_SETTINGS.ttsSpeed,
-    ttsVolume: typeof input?.ttsVolume === "number"
-      ? Math.max(0, Math.min(1, input.ttsVolume))
-      : DEFAULT_GENERAL_SETTINGS.ttsVolume,
-    ttsEarlyReadSplitEnabled: typeof input?.ttsEarlyReadSplitEnabled === "boolean"
-      ? input.ttsEarlyReadSplitEnabled
-      : DEFAULT_GENERAL_SETTINGS.ttsEarlyReadSplitEnabled,
-    ttsEarlyReadSplitMode: ["sentence", "paragraph"].includes(String(input?.ttsEarlyReadSplitMode))
-      ? (input!.ttsEarlyReadSplitMode as "sentence" | "paragraph")
-      : DEFAULT_GENERAL_SETTINGS.ttsEarlyReadSplitMode,
-    ttsMinimaxKey: typeof input?.ttsMinimaxKey === "string" ? input.ttsMinimaxKey : "",
-    ttsMinimaxVoiceId: typeof input?.ttsMinimaxVoiceId === "string" ? input.ttsMinimaxVoiceId : "",
-    ttsMinimaxModel: input?.ttsMinimaxModel === "speech-2.8-hd" ? "speech-2.8-hd" : "speech-2.8-turbo",
-    ttsStreaming: input?.ttsStreaming === undefined ? true : Boolean(input.ttsStreaming),
-    ttsMinimaxVocalEnhance: input?.ttsMinimaxVocalEnhance === undefined
-      ? DEFAULT_GENERAL_SETTINGS.ttsMinimaxVocalEnhance
-      : Boolean(input.ttsMinimaxVocalEnhance),
+
     weatherSource: ["open-meteo", "amap"].includes(String(input?.weatherSource))
       ? (input!.weatherSource as "open-meteo" | "amap")
       : "open-meteo",
@@ -268,6 +212,7 @@ export function normalizeGeneralSettings(
     emailSmtpUser: typeof input?.emailSmtpUser === "string" ? input.emailSmtpUser : "",
     emailSmtpPass: typeof input?.emailSmtpPass === "string" ? input.emailSmtpPass : "",
     emailFromName: typeof input?.emailFromName === "string" ? input.emailFromName : "",
+    asrMosslandKey: typeof input?.asrMosslandKey === "string" ? input.asrMosslandKey : typeof (input as {ttsMosslandKey?: unknown})?.ttsMosslandKey === "string" ? (input as {ttsMosslandKey: string}).ttsMosslandKey : "",
     asrEngine: ["off", "aliyun", "mossland", "local"].includes(String(input?.asrEngine))
       ? (input!.asrEngine as "off" | "aliyun" | "mossland" | "local")
       : "off",
@@ -280,32 +225,7 @@ export function normalizeGeneralSettings(
     screenshotHotkey: typeof input?.screenshotHotkey === "string" && input.screenshotHotkey.trim()
       ? input.screenshotHotkey.trim()
       : DEFAULT_GENERAL_SETTINGS.screenshotHotkey,
-    ttsGptsovitsBaseUrl: typeof input?.ttsGptsovitsBaseUrl === "string"
-      ? input.ttsGptsovitsBaseUrl
-      : DEFAULT_GENERAL_SETTINGS.ttsGptsovitsBaseUrl,
-    ttsGptsovitsRefAudioPath: typeof input?.ttsGptsovitsRefAudioPath === "string" ? input.ttsGptsovitsRefAudioPath : "",
-    ttsGptsovitsPromptText: typeof input?.ttsGptsovitsPromptText === "string"
-      ? input.ttsGptsovitsPromptText
-      : DEFAULT_GENERAL_SETTINGS.ttsGptsovitsPromptText,
-    ttsGptsovitsFormat: input?.ttsGptsovitsFormat === "mp3" ? "mp3" : "wav",
-    ttsGptsovitsTimeoutMs: typeof input?.ttsGptsovitsTimeoutMs === "number" && Number.isFinite(input.ttsGptsovitsTimeoutMs)
-      ? Math.max(10_000, Math.min(3_600_000, Math.round(input.ttsGptsovitsTimeoutMs)))
-      : DEFAULT_GENERAL_SETTINGS.ttsGptsovitsTimeoutMs,
-    ttsCustomCloudEndpointUrl: typeof input?.ttsCustomCloudEndpointUrl === "string" ? input.ttsCustomCloudEndpointUrl : "",
-    ttsCustomCloudApiKey: typeof input?.ttsCustomCloudApiKey === "string" ? input.ttsCustomCloudApiKey : "",
-    ttsCustomCloudVoiceId: typeof input?.ttsCustomCloudVoiceId === "string" ? input.ttsCustomCloudVoiceId : "",
-    ttsCustomCloudFormat: input?.ttsCustomCloudFormat === "wav" ? "wav" : "mp3",
-    ttsCustomCloudTimeoutMs: clampMs(input?.ttsCustomCloudTimeoutMs, DEFAULT_GENERAL_SETTINGS.ttsCustomCloudTimeoutMs),
-    ttsMimoKey: typeof input?.ttsMimoKey === "string" ? input.ttsMimoKey : "",
-    ttsMimoVoiceAudioPath: typeof input?.ttsMimoVoiceAudioPath === "string" ? input.ttsMimoVoiceAudioPath : "",
-    ttsMimoStylePrompt: typeof input?.ttsMimoStylePrompt === "string"
-      ? input.ttsMimoStylePrompt
-      : DEFAULT_GENERAL_SETTINGS.ttsMimoStylePrompt,
-    ttsMosslandKey: typeof input?.ttsMosslandKey === "string" ? input.ttsMosslandKey : "",
-    ttsMosslandVoiceId: typeof input?.ttsMosslandVoiceId === "string" ? input.ttsMosslandVoiceId : "",
-    ttsMosslandModel: normalizeMosslandTtsModel(input?.ttsMosslandModel),
-    ttsMosslandTestText: typeof input?.ttsMosslandTestText === "string" ? input.ttsMosslandTestText : DEFAULT_GENERAL_SETTINGS.ttsMosslandTestText,
-    ttsMosslandFormat: input?.ttsMosslandFormat === "wav" ? "wav" : "mp3",
+
     ...normalizeChatAppearance(input),
     toolModeOverrides: normalizeToolModeOverrides(input?.toolModeOverrides),
     chatToolsEnabled: Boolean(input?.chatToolsEnabled),

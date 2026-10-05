@@ -427,7 +427,7 @@ async register(ctx) {
 |---|---|
 | 启用报错“工具 id 必须以 xxx 开头” | 工具 id 没加 `<插件id>_` 前缀 |
 | 启用报错“version 不是 SemVer” | 版本号要写 `1.0.0`，不能是 `1.0` 或 `v1.0` |
-| 启用报错“deps 含未知值” | `deps` 接受 `channels` / `llm` / `secrets` / `workspace` / `conversations` / `scheduler` / `speech-input`，检查拼写 |
+| 启用报错“deps 含未知值” | `deps` 接受 `channels` / `llm` / `secrets` / `workspace` / `conversations` / `scheduler`，检查拼写 |
 | AI 不用我的工具 | description 没写清楚使用场景，AI 不知道何时该调 |
 | 弹窗图片不显示 | 用相对路径且文件确实打进了包里 |
 | 改了代码没生效 | 聊天窗口插件面板点“刷新插件”（会清模块缓存重新加载） |
@@ -443,7 +443,6 @@ async register(ctx) {
 | `weather-tool` | 联网请求、工具、私有存储、Secrets 密钥 + 降级 | 第三方平台真实密钥 |
 | `long-term-memory` | 轮次事件、冻结分页、LLM、动态提示词 Provider | 用户画像业务规则 |
 | `scheduled-automation` | 调度任务的创建、列出、更新、删除 | 绕过用户启用和全部工具模式 |
-| `local-asr-contract` | 语音输入租约的接管、提交与释放 | ASR 模型、推理运行时和下载器 |
 
 后四个示例是 TypeScript 写的，用 `@firefly/plugin-sdk` 编译；`npm run test:plugin-examples` 会从打包后的 SDK 编译并冒烟测试它们。
 

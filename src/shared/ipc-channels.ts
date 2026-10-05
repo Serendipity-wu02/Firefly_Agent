@@ -8,25 +8,7 @@ export interface ScreenshotInsertPayload {
   hasAnnotations: boolean;
 }
 
-/** 语音输入提交请求（main → 聊天窗口渲染页）：把外部识别文本提交到冻结的会话。 */
-export interface SpeechInputCommitRequest {
-  /** 本次提交的关联标识；结果必须原样回显。 */
-  requestId: string;
-  /** 租约冻结的渲染目标标识；页面据此识别过期请求。 */
-  rendererTargetId: string;
-  sessionId: string;
-  mode: "chat" | "work" | "code";
-  text: string;
-}
 
-/** 语音输入提交结果（渲染页 → main）：必须回显 requestId 与 rendererTargetId。 */
-export interface SpeechInputCommitResult {
-  requestId: string;
-  rendererTargetId: string;
-  ok: boolean;
-  /** ok 为 false 时的稳定错误码（PluginHostErrorCode 之一）与说明。 */
-  error?: { code: string; message: string };
-}
 
 export const IPC = {
   BROWSER_AVAILABILITY: "browser:availability",
@@ -162,7 +144,7 @@ export const IPC = {
   CHATS_CREATE: "chats:create",
   CHATS_APPEND: "chats:append",
   CHATS_UPSERT: "chats:upsert",
-  CHATS_SET_MESSAGE_TTS_CACHE: "chats:set-message-tts-cache",
+
   CHATS_REPLACE_MESSAGES: "chats:replace-messages",
   CHATS_REPLACE_TAIL: "chats:replace-tail",
   // renderer → main：主动压缩会话上下文（模型窗口内旧消息摘要成一条记忆）
@@ -198,13 +180,6 @@ export const IPC = {
   CHATS_GET_ACTIVE_SESSION: "chats:get-active-session",
   // main → 所有窗口：活跃 sessionId 变化时广播
   CHATS_ACTIVE_SESSION_CHANGED: "chats:active-session-changed",
-
-  // 语音输入提交桥（主进程 ↔ 聊天窗口渲染页，仅供宿主内部使用，插件不直接接触）
-  // main → reactChatWindow：要求把外部语音识别文本提交到租约冻结的会话
-  SPEECH_INPUT_COMMIT_REQUEST: "speech-input:commit-request",
-  // reactChatWindow → main：提交结果（必须回显 requestId 与 rendererTargetId）
-  SPEECH_INPUT_COMMIT_RESULT: "speech-input:commit-result",
-
   // 对话工作区绑定
   // renderer → main：设置当前对话的工作区目录
   CHATS_SET_WORKSPACE: "chats:set-workspace",
@@ -257,10 +232,6 @@ export const IPC = {
   RUNTIME_STATE_GET: "runtime-state:get",
   RUNTIME_STATE_CHANGED: "runtime-state:changed",
 
-  // Live2D speech / mouth sync
-  LIVE2D_SPEECH_PREPARE: "live2d:speech-prepare",
-  LIVE2D_MOUTH_START: "live2d:mouth-start",
-  LIVE2D_MOUTH_STOP: "live2d:mouth-stop",
   LIVE2D_PLAY_ACTION: "live2d:play-action",        // 主进程 → 桌宠窗口：执行动作（motion 或 expression）
   LIVE2D_ACTION_RECEIPT: "live2d:action-receipt",
   LIVE2D_GET_MAIN_DIAGNOSTICS: "live2d:get-main-diagnostics",
@@ -333,33 +304,10 @@ export const IPC = {
   // token usage statistics
   TOKEN_USAGE_GET: "token-usage:get",
   TOKEN_USAGE_CLEAR: "token-usage:clear",
-
-  // TTS 语音合成
-  TTS_UPLOAD: "tts:upload",          // 上传音频文件 → file_id
-  TTS_CLONE: "tts:clone",           // 音色快速复刻 → voice_id
-  TTS_SYNTHESIZE: "tts:synthesize", // 语音合成 → audio buffer(base64)
-  TTS_SYNTHESIZE_CACHED: "tts:synthesize-cached", // 语音合成 + 本地音频缓存
-  // 流式语音合成（边合成边播，首字延迟低）
-  TTS_STREAM_START: "tts:stream-start",           // 渲染端 → main：启动流式合成
-  TTS_AUDIO_CHUNK: "tts:audio-chunk",             // main → 渲染端：推一段音频 base64
-  TTS_STREAM_END: "tts:stream-end",               // main → 渲染端：流式结束（含 cacheKey）
-  TTS_STREAM_ERROR: "tts:stream-error",           // main → 渲染端：流式错误
-  TTS_SESSION_START: "tts:session-start",
-  TTS_SESSION_CANCEL: "tts:session-cancel",
-  TTS_SESSION_EVENT: "tts:session-event",
-  TTS_SAVE_SETTINGS: "tts:save-settings",   // 保存 TTS 配置
-  TTS_LOAD_SETTINGS: "tts:load-settings",   // 加载 TTS 配置
-  TTS_PICK_AUDIO: "tts:pick-audio",         // 选择音频文件（dialog）
-  TTS_SYNTHESIZE_GPTSOVITS: "tts:synthesize-gptsovits",             // GPT-SoVITS 合成 → base64
-  TTS_SYNTHESIZE_CACHED_GPTSOVITS: "tts:synthesize-cached-gptsovits", // GPT-SoVITS 合成 + 本地缓存
-  TTS_SYNTHESIZE_CUSTOM_CLOUD: "tts:synthesize-custom-cloud",             // 自定义云端 TTS 合成 → base64
-  TTS_SYNTHESIZE_CACHED_CUSTOM_CLOUD: "tts:synthesize-cached-custom-cloud", // 自定义云端 TTS 合成 + 本地缓存
-  TTS_SYNTHESIZE_MIMO: "tts:synthesize-mimo",             // 小米 MiMo TTS 合成 → base64
-  TTS_SYNTHESIZE_CACHED_MIMO: "tts:synthesize-cached-mimo", // 小米 MiMo TTS 合成 + 本地缓存
-  TTS_SYNTHESIZE_MOSSLAND: "tts:synthesize-mossland",       // Mossland (api.mosi.cn) 合成 → base64
-  TTS_SYNTHESIZE_CACHED_MOSSLAND: "tts:synthesize-cached-mossland", // Mossland 合成 + 本地缓存
-  TTS_CLONE_MOSSLAND: "tts:clone-mossland",           // Mossland 克隆音色（multipart 上传）
-  TTS_LIST_MOSSLAND_VOICES: "tts:list-mossland-voices", // Mossland 拉取账号下音色列表
+               // main → 渲染端：推一段音频 base64
+                 // main → 渲染端：流式结束（含 cacheKey）
+             // main → 渲染端：流式错误
+           // 选择音频文件（dialog）
 
   // agent permission level (file/shell access)
   PERMISSION_GET_LEVEL: "permission:get-level",
@@ -392,7 +340,6 @@ export const IPC = {
   POP_QUIZ_SKIP: "pop-quiz:skip",
   // main → renderer：结算广播（提交/跳过/run 取消），渲染端据此清卡
   POP_QUIZ_SETTLED: "pop-quiz:settled",
-
 
   // 多渠道（微信/飞书/QQ/QQ 机器人）
   CHANNELS_GET_CONFIG: "channels:get-config",

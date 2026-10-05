@@ -198,8 +198,7 @@ export interface ChannelsSettings {
   rateLimitPerUser: number;
   /** 全局：单渠道每分钟最多消息数 */
   rateLimitPerChannel: number;
-  /** 全局：是否发送 TTS 音频消息 */
-  ttsEnabled: boolean;
+
   /** 全局：是否发送 sticker */
   stickerEnabled: boolean;
   /** 全局：是否把 bot 会话镜像到桌面端 chatWindow */
@@ -232,7 +231,7 @@ const DEFAULT_SETTINGS: ChannelsSettings = {
   sharedSecret: "",
   rateLimitPerUser: 10,
   rateLimitPerChannel: 100,
-  ttsEnabled: true,
+
   stickerEnabled: false,
   mirrorToDesktop: true,
   toolSandbox: "all",
@@ -329,7 +328,7 @@ feishu: {
     sharedSecret: typeof input?.sharedSecret === "string" ? input.sharedSecret : "",
     rateLimitPerUser: safeNum(input?.rateLimitPerUser, 10, 1, 1000),
     rateLimitPerChannel: safeNum(input?.rateLimitPerChannel, 100, 1, 10000),
-    ttsEnabled: safeBool(input?.ttsEnabled, true),
+
     stickerEnabled: safeBool(input?.stickerEnabled, false),
     mirrorToDesktop: safeBool(input?.mirrorToDesktop, true),
     toolSandbox: safeToolSandbox(input?.toolSandbox),
@@ -429,7 +428,7 @@ export type ChannelConfigPatch = Partial<{
   sharedSecret: string;
   rateLimitPerUser: number;
   rateLimitPerChannel: number;
-  ttsEnabled: boolean;
+
   stickerEnabled: boolean;
   mirrorToDesktop: boolean;
   toolSandbox: ChannelToolSandbox;

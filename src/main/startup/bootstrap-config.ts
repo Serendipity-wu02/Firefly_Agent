@@ -112,7 +112,7 @@ export function bootstrapConfigGetters(ctx: BootstrapConfigContext): void {
   setAsrConfig(() => {
     const s = loadGeneralSettings();
     if (s.asrEngine === "mossland") {
-      return { engine: "mossland", apiKey: s.ttsMosslandKey };
+      return { engine: "mossland", apiKey: s.asrMosslandKey };
     }
     if (s.asrEngine === "aliyun") {
       return { engine: "aliyun", appKey: s.asrAliyunAppKey, accessKeyId: s.asrAliyunAccessKeyId, accessKeySecret: s.asrAliyunAccessKeySecret, language: s.asrLanguage };

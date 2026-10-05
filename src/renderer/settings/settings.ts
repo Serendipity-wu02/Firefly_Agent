@@ -58,7 +58,7 @@ import type {
 import { musicToggle, musicAccordionCard, musicAccordionBody } from "./music/dom";
 import { channelsState } from "./channels/state";
 import { mountPluginPanels } from "./plugin-panels";
-import { channelsWechatEnabledEl, channelsFeishuEnabledEl, channelsWechatStatusEl, channelsFeishuStatusEl, channelsRateUserEl, channelsRateChannelEl, channelsTtsEl, channelsStickerEl, channelsMirrorEl, channelsToolSandboxOffEl, channelsToolSandboxAllEl, channelsFeishuAppIdEl, channelsFeishuAppSecretEl, channelsFeishuAppSecretRevealBtn, channelsFeishuSaveBtn, channelsWechatLoginBtn, channelsWechatRestartBtn, channelsWechatFeedbackEl, channelsFeishuFeedbackEl, channelsLogListEl, channelsLogRefreshBtn, channelsLogClearBtn } from "./channels/dom";
+import { channelsWechatEnabledEl, channelsFeishuEnabledEl, channelsWechatStatusEl, channelsFeishuStatusEl, channelsRateUserEl, channelsRateChannelEl, channelsStickerEl, channelsMirrorEl, channelsToolSandboxOffEl, channelsToolSandboxAllEl, channelsFeishuAppIdEl, channelsFeishuAppSecretEl, channelsFeishuAppSecretRevealBtn, channelsFeishuSaveBtn, channelsWechatLoginBtn, channelsWechatRestartBtn, channelsWechatFeedbackEl, channelsFeishuFeedbackEl, channelsLogListEl, channelsLogRefreshBtn, channelsLogClearBtn } from "./channels/dom";
 import { memoryState } from "./memory/state";
 import { memoryL0NameInput, memoryL0OccupationInput, memoryL0InterestsInput, memoryL0LanguageInput, memoryL0NoteInput, memoryL1GoalsInput, memoryL1PreferencesInput, memoryL1ProjectInput, memoryL2SearchInput, memoryL2List, memoryImportedList, memoryReflectionList, memoryL0EditBtn, memoryL0CancelBtn, memoryL1EditBtn, memoryL1CancelBtn } from "./memory/dom";
 import { schedulerState } from "./scheduler/state";
@@ -113,7 +113,6 @@ import {
 import { loadMusicPanel, disposeMusicPanel } from "./music/qqmusic-panel";
 import { loadChannelsPanel } from "./channels/panel";
 import { renderProactiveDeliveryAvailability } from "./channels/panel";
-import "./asr/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./email/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./search/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import { saveTimeoutSettings } from "./timeout/panel";  // saveTimeoutSettings 被 API 表单处理器调用
@@ -121,7 +120,6 @@ import { DEFAULT_TIMEOUT_SETTINGS, type TimeoutSettings } from "../../shared/tim
 import "./user/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./plugins/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./plugins/permission";  // 副作用导入：权限档位 UI + 风险确认弹窗
-import "./tts/panel";  // 副作用导入：TTS 配置加载 + 引擎切换 + 测试发音 + 音色复刻
 import "./rag/panel";  // 副作用导入：RAG 模型切换 + Reranker 模式
 import "./preferences/panel";  // 副作用导入：截图热键捕获 + 表情包列表/添加/删除
 import "./mcp/panel";  // 副作用导入：MCP Server 添加/删除/启停 + 自定义端点接入说明
@@ -130,20 +128,15 @@ import { t, subscribeLocaleChanged } from "./i18n";
 
 // Inline modal (to avoid Vite tree-shaking)
 
-
 /**
  * 富文本模态框（基于 cy-modal 样式但使用独立 overlay，避免与 showModal 冲突）。
  * 用于"音色快速复刻"这种需要展示多组说明（规格 / 费用 / 过期规则）的场景。
  * 调用方负责传入安全的 HTML（项目内固定字符串）；若内容来自用户/网络必须先 escapeHtml。
  */
 
-
 // escapeHtml() 已定义在文件下方（settings.ts:3738），此处复用即可。
 
 // Inline input modal (Electron 禁用了 window.prompt，所以自己实现)
-
-
-
 
 declare global {
   interface Window {
@@ -159,7 +152,6 @@ declare global {
 // 实施时若图片加载失败，可考虑：1) 锁定 commit hash；2) 下载到本地 assets/icons/mimo.png
 const MIMO_ICON_URL =
   "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/xiaomimimo.png";
-
 
 if (!window.settings) {
   (window as unknown as { settings: SettingsApi }).settings = {
@@ -278,9 +270,6 @@ if (!window.fireflyScheduler) {
   };
 }
 
-
-
-
 // 模式按钮已删除——baseUrl 永远可改、模型名永远可手填（datalist 出预设建议）
 // provider 不再暴露给用户（从预设内部拿，保证 capabilities 匹配不出错）。
 // 用户看到的是"昵称"框——给模型起自定义名字，状态栏"正在喂养"显示它。
@@ -298,8 +287,6 @@ if (!window.fireflyScheduler) {
 
 // 当前激活的厂商：每次 applyPreset 后更新；用于"切到下一家厂商前先把当前那家的输入框值缓存住"
 
-
-
 const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }> = {
   memory: { emoji: `<img src="../avatars/firefly-avatar.png" width="24" height="24" alt="" aria-hidden="true" style="vertical-align:-3px" />`, title: t("settings.nav.memory"), hint: t("settings.nav.memoryHint") },
   chat: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M33 38H22V30H36V22H44V38H39L36 41L33 38Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6H36V30H17L13 34L9 30H4V6Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 18H20" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M26 18H27" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M12 18H13" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>`, title: t("settings.nav.chat"), hint: t("settings.nav.chatHint") },
@@ -312,18 +299,13 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
   api: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>API 设置</title><g clip-path="url(#api-key-nav-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-nav-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg>`, title: "API 设置", hint: "选择预设后只需要填写 API Key。" },
   "api-advanced": { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>高级设置</title><path d="M34.0003 41L44 24L34.0003 7H14.0002L4 24L14.0002 41H34.0003Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 29C26.7614 29 29 26.7614 29 24C29 21.2386 26.7614 19 24 19C21.2386 19 19 21.2386 19 24C19 26.7614 21.2386 29 24 29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "高级设置", hint: "配置 API 超时时间、调用模式．" },
   firefly: { emoji: "🌸", title: t("settings.nav.firefly"), hint: t("settings.nav.fireflyHint") },
-  tts: { emoji: "🎙️", title: t("settings.nav.tts"), hint: t("settings.nav.ttsHint") },
-  asr: { emoji: "🎧", title: t("settings.nav.asr"), hint: t("settings.nav.asrHint") },
+
 	  tokens: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "Token 用量", hint: "查看 API 调用统计与消耗" },
 	  disclaimer: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>免责声明</title><rect x="13" y="10" width="28" height="34" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M35 10V4H8C7.44772 4 7 4.44772 7 5V38H13" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 22H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 30H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: "免责声明", hint: "使用条款与隐私说明" },
 };
 
 minBtn.addEventListener("click", () => window.settings?.minimize());
 closeBtn.addEventListener("click", () => window.settings?.close());
-
-
-
-
 
 async function saveAppearancePatch(patch: Partial<GeneralSettings>, successText = t("settings.status.applied")): Promise<void> {
   try {
@@ -418,8 +400,6 @@ function getProactiveChatValue(): ProactiveChatMode {
   return normalizeProactiveChatMode(getOptionGroupValue(proactiveChatSelect, "off"));
 }
 
-
-
 function applyProactiveDeliverySelection(target: ProactiveDeliveryTarget): void {
   applyOptionGroupValue(proactiveDeliverySelect, target);
 }
@@ -427,7 +407,6 @@ function applyProactiveDeliverySelection(target: ProactiveDeliveryTarget): void 
 function getProactiveDeliveryValue(): ProactiveDeliveryTarget {
   return normalizeProactiveDeliveryTarget(getOptionGroupValue(proactiveDeliverySelect, "local"));
 }
-
 
 function buildCustomStyleConfigFromModal(): CustomStyleConfig {
   if (!preferencesState.customStyleOverlay) return preferencesState.currentCustomStyleConfig;
@@ -548,8 +527,6 @@ function renderProactiveDeliveryVisibility(): void {
   proactiveDeliveryRow.hidden = getProactiveChatValue() !== "on";
 }
 
-
-
 function renderUiFont(font: UiFont): void {
   uiFontCurrent.textContent = font.kind === "custom" ? font.displayName : t("settings.appearance.font.defaultNotion");
   uiFontResetButton.hidden = font.kind !== "custom";
@@ -562,9 +539,6 @@ function renderUiIcon(icon: UiIcon): void {
     button.setAttribute("aria-pressed", String(active));
   });
 }
-
-
-
 
 function fillPresetOptions(): void {
   if (!presetCards) return;
@@ -1052,7 +1026,6 @@ async function loadGeneralSettings(): Promise<void> {
   }
 }
 
-
 toggleEnableThinking.addEventListener("change", () => {
   if (toggleEnableThinking.checked) {
     toggleDisableThinking.checked = false;
@@ -1097,7 +1070,6 @@ openChromeGpu.addEventListener("click", () => {
 disableGpuInput.addEventListener("change", () => {
   void window.settings?.saveGeneral({ disableGpuElectron: disableGpuInput.checked });
 });
-
 
 tasksVisibleInput.addEventListener("change", () => {
   if (tasksVisibleInput.checked) window.settings?.openTasks();
@@ -1228,7 +1200,6 @@ proactiveChatSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach
   });
 });
 
-
 proactiveDeliverySelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
   button.addEventListener("click", () => {
     if (button.disabled) return;
@@ -1240,7 +1211,6 @@ proactiveDeliverySelect.querySelectorAll<HTMLButtonElement>(".option-block").for
 citaEnabledInput.addEventListener("change", () => {
   setPreferencesSaveStatus(t("settings.status.dirty"));
 });
-
 
 // ── 模型厂商 Work 流程适配说明 ──────────────────────────────
 // 展示各厂商结构化输出档位与实测兼容性；「详细文档」在 app 内本地渲染完整实测报告。
@@ -1413,9 +1383,6 @@ testVisionBtn.addEventListener("click", async () => {
   }
 });
 
-
-
-
 apiRuntimeForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   setRuntimeSaveStatus(t("settings.status.saving"));
@@ -1529,17 +1496,6 @@ apiForm.addEventListener("submit", async (e) => {
   }
 });
 
-
-
-
-
-
-
-
-
-
-
-
 const navigationButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".nav-item"));
 const panelSections = Array.from(document.querySelectorAll<HTMLElement>("[data-panel]"), panel => panel.dataset.panel!);
 
@@ -1562,8 +1518,7 @@ function switchSection(requestedSection: string): void {
   const isPlugins = section === "plugins";
   const isTokens = section === "tokens";
   const isChannels = section === "channels";
-  const isTts = section === "tts";
-  const isAsr = section === "asr";
+
   const isMusic = section === "music";
   apiForm.classList.toggle("is-hidden", !isApi);
   apiRuntimeForm.classList.toggle("is-hidden", !isApiAdvanced);
@@ -1585,17 +1540,14 @@ function switchSection(requestedSection: string): void {
   const channelsPanel = document.getElementById("channels-panel");
   if (channelsPanel) channelsPanel.classList.toggle("is-hidden", !isChannels);
   if (isChannels) void loadChannelsPanel();
-  const ttsPanel = document.getElementById("tts-panel");
-  if (ttsPanel) ttsPanel.classList.toggle("is-hidden", !isTts);
-  const asrPanel = document.getElementById("asr-panel");
-  if (asrPanel) asrPanel.classList.toggle("is-hidden", !isAsr);
+
   const musicPanel = document.getElementById("music-panel");
   if (musicPanel) musicPanel.classList.toggle("is-hidden", !isMusic);
   if (isMusic) void loadMusicPanel();
   else disposeMusicPanel();
   placeholderPanel.classList.toggle(
     "is-hidden",
-    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isFirefly || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic,
+    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isFirefly || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isMusic,
   );
 
   if (
@@ -1612,8 +1564,6 @@ function switchSection(requestedSection: string): void {
     !isPlugins &&
     !isTokens &&
     !isChannels &&
-    !isTts &&
-    !isAsr &&
     !isMusic
   ) {
 	    placeholderIcon.innerHTML = label.emoji;
@@ -1647,15 +1597,7 @@ window.settings?.onChannelsStatusChanged((status) => {
 // 飞书配置输入框（长连接版：只需 App ID + App Secret）
 // 微信按钮
 
-
-
-
-
 // ===== 消息日志 =====
-
-
-
-
 
 // 首次进入 channels panel 时拉一次日志
 // （也可以在用户展开 details 时再拉，但保持简单直接拉）
@@ -1665,25 +1607,6 @@ void loadChannelsPanel();
 // 备注：window.music.* 已在 preload 中通过 contextBridge 暴露。
 // 由于 renderer 走 Vite 打包、main/preload 走 esbuild，两端类型不互通，
 // 这里直接用 (window as any).music 做弱类型化调用，避免给 global.d.ts 加一堆 cross-bundle 类型。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // ── QQ Music 状态在音乐面板内展示 ──
 
@@ -1696,19 +1619,6 @@ window.settings?.onSwitchSection?.((section) => {
   switchSection(section);
 });
 // --- L0/L1 editable logic ---
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // Bind edit button events
 memoryL0EditBtn?.addEventListener("click", () => {
@@ -1754,9 +1664,7 @@ memoryImportedList?.addEventListener("click", async (event) => {
   }
 });
 
-
 void loadMemoryPanel();
-
 
 // ── 音乐工具手风琴 ─────────────────────────────────────────
 musicToggle?.addEventListener("click", () => {
@@ -1770,8 +1678,6 @@ musicToggle?.addEventListener("click", () => {
 document.getElementById("music-platform-qq")?.addEventListener("click", () => {
   switchSection("music");
 });
-
-
 
 // ── 预设卡：选择厂商 = 开始新建档案草稿 ───────────────────────
 presetCards?.addEventListener("click", (e) => {
@@ -1886,7 +1792,6 @@ subscribeLocaleChanged(() => {
   renderProfileList();
   applyEditingStateUI();
 });
-
 
 // ── 偏好设置：聊天社交上下文 / 自定义风格 / 表单提交 ─────────
 chatSocialContextEnabledInput.addEventListener("change", () => {

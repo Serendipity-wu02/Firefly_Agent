@@ -26,7 +26,7 @@ const DEP_TO_FIELD: Record<string, keyof PluginDeps> = {
   workspace: "workspace",
   conversations: "conversations",
   scheduler: "scheduler",
-  "speech-input": "speechInput",
+
 };
 
 /**

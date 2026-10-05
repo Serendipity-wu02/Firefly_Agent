@@ -42,9 +42,9 @@ export function syncSearchEngineRows(): void {
 }
 
 export async function saveSearchField(field: string, value: unknown): Promise<boolean> {
-  if (!window.tts) return false;
+  if (!window.settings) return false;
   try {
-    await window.tts.saveSettings({ [field]: value });
+    await window.settings?.saveGeneral({ [field]: value });
     return true;
   } catch (err) {
     console.warn("[plugins] 保存搜索配置失败:", field, err);
@@ -58,7 +58,7 @@ let savingSearchEngine = false;
 
 export async function loadSearchConfig(): Promise<void> {
   try {
-    const cfg = await window.tts?.loadSettings();
+    const cfg = await window.settings?.getGeneral();
     if (!cfg) return;
     const engine = String(cfg.searchEngine ?? "off");
     savedSearchEngine = engine;

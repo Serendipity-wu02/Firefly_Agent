@@ -1,5 +1,5 @@
-// 示例插件端到端验证：模拟仓库外空项目，只用打包后的 SDK 编译并冒烟测试四个示例。
-// 流程：构建 SDK → npm pack → 临时空项目安装 tarball → tsc 编译四个示例 →
+// 示例插件端到端验证：模拟仓库外空项目，只用打包后的 SDK 编译并冒烟测试三个示例。
+// 流程：构建 SDK → npm pack → 临时空项目安装 tarball → tsc 编译三个示例 →
 //       组装可安装目录（manifest.json + index.cjs）→ Mock Context 冒烟注册与契约断言。
 import { cp, mkdtemp, readFile, rm, writeFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const sdkDir = path.join(repoRoot, "packages", "plugin-sdk");
 const examplesDir = path.join(repoRoot, "examples");
-const exampleIds = ["weather-tool", "long-term-memory", "scheduled-automation", "local-asr-contract"];
+const exampleIds = ["weather-tool", "long-term-memory", "scheduled-automation"];
 
 // npm 的 cli 入口：优先取 npm run 注入的 npm_execpath（跨平台指向真实 npm-cli.js，
 // Linux CI 上 node 与 npm 不在同一目录）；直接跑 node 脚本时回退 Windows 安装器布局
@@ -60,7 +60,7 @@ try {
     });
   }
 
-  // 5. 从打包产物编译四个示例
+  // 5. 从打包产物编译三个示例
   for (const id of exampleIds) {
     run(process.execPath, [tscJs, "-p", path.join(projectDir, "examples", id, "tsconfig.json")]);
   }
@@ -79,7 +79,7 @@ try {
   await writeFile(smokeScript, await readFile(path.join(repoRoot, "scripts/plugin-sdk/smoke-examples.mjs")));
   run(process.execPath, [smokeScript, installRoot], { cwd: projectDir });
 
-  console.log("[test-examples] 四个示例编译与冒烟测试全部通过");
+  console.log("[test-examples] 三个示例编译与冒烟测试全部通过");
 } finally {
   await rm(tarball, { force: true });
   await rm(projectDir, { recursive: true, force: true });

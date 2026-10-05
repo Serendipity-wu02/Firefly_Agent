@@ -12,7 +12,7 @@ import { captionImageSafe, IMAGE_CAPTION_PROMPT } from "../chat/image-caption";
 import { resolveCaptionVisionConfig, resolveImageRoute } from "../orchestrator/image-router";
 import { indexConversationTurn } from "../orchestrator/tools/history-tools";
 import type { AgentRuntime } from "../orchestrator/agent-runtime";
-import type { TtsSynthesisService } from "../services/tts/tts-synthesis-service";
+
 import { buildChannelAttachmentInputs } from "./agent-input";
 import { loadChannelsSettings } from "./settings-store";
 import { enforceChannelAgentPolicy, resolveChannelAgentPolicy } from "./agent-policy";
@@ -31,7 +31,7 @@ import { createChannelDeliveryService } from "./delivery-service";
 import {
   createOutgoingComposer,
   type OutgoingComposer,
-  type SynthesizeChannelTts,
+
 } from "./outgoing-composer";
 import { channelManager } from "./manager";
 import {
@@ -56,7 +56,7 @@ export interface ChannelsSubsystem {
 
 export interface ChannelsSubsystemDeps {
   agentRuntime: AgentRuntime;
-  ttsSynthesisService: TtsSynthesisService;
+
   getReactChatWindow: () => BrowserWindow | null;
   /** 共享 IPC scope；传入后 channels IPC 由组合根统一注销。 */
   ipc?: IpcScope;
@@ -251,11 +251,6 @@ export function createChannelsSubsystem(
     }
   };
 
-  const synthesizeTts: SynthesizeChannelTts = async (text, context) => {
-    const cfg = loadGeneralSettings();
-    return await deps.ttsSynthesisService.synthesizeChannelTts(text, cfg, context.channel);
-  };
-
   const broadcastChat: DispatcherDeps["broadcastChat"] = (event) => {
     const win = deps.getReactChatWindow();
     if (!win || win.isDestroyed()) return;
@@ -278,7 +273,7 @@ export function createChannelsSubsystem(
     appendBoundConversationMessage,
     migrateHistory,
   });
-  const baseComposer = createOutgoingComposer({ synthesizeTts });
+  const baseComposer = createOutgoingComposer();
   const composer: OutgoingComposer = {
     compose: (input) => baseComposer.compose({
       ...input,

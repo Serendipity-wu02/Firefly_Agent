@@ -108,7 +108,7 @@ userData/plugin-data/<plugin-id>/
 | `entry` | string | 是 | 插件目录内裸文件名；支持 `.cjs`、`.js`、`.mjs` |
 | `icon` | string | 否 | 插件目录内裸文件名；支持 `.png`、`.jpg`、`.jpeg`、`.webp`、`.svg`；≤2MiB。在聊天窗口插件卡片左侧展示；不合法时静默忽略，不影响加载 |
 | `defaultEnabled` | boolean | 否 | 缺省 true，但只对内置插件生效 |
-| `deps` | string[] | 否 | 可选 `channels`、`llm`、`secrets`、`workspace`、`conversations`、`scheduler`、`speech-input` |
+| `deps` | string[] | 否 | 可选 `channels`、`llm`、`secrets`、`workspace`、`conversations`、`scheduler` |
 | `settingsPanel` | string | 否 | 插件目录内 `.html` 裸文件名，普通文件且不超过 1 MiB；文件无效时忽略面板 |
 | `settingsSection` | string | 否 | `channels` 或 `plugins`，缺省挂到 `plugins`；面板无效时一并丢弃 |
 
@@ -422,33 +422,6 @@ const task = await ctx.deps.scheduler.createTask({
 - 计划、提示词、模式或工具白名单的任何变更都会撤销用户已有的授权并回到停用状态；仅改标题不影响授权；
 - 试图访问其他插件的任务统一返回 `E_NOT_OWNER`，不泄露任务存在性。
 
-### Speech-input（独占语音输入租约）
-
-manifest 声明 `"deps": ["speech-input"]` 后可用。适用于自带 ASR 模型的本地语音插件：Firefly 只提供受控的最终文本提交入口，模型、运行时、麦克风采集和窗口都由插件自行维护。
-
-```js
-// 当前仅支持 "active-chat"（普通聊天窗口）；旧 "active-call" 已退役
-const lease = await ctx.deps.speechInput.acquire({ target: "active-chat" });
-
-// 租约被宿主中止（页面重载、会话删除、插件停止、应用退出）
-// 时 signal 触发，必须立即停止识别
-lease.signal.addEventListener("abort", stopRecognition, { once: true });
-
-// 提交最终识别文本：复用宿主正常用户输入路径，消息落盘后即返回，
-// 不等待模型回答；同一租约的多次 commit 串行执行
-await lease.commit("识别出的最终文本");
-
-// 幂等释放：把输入权还给宿主；释放后不得再 commit
-await lease.release();
-```
-
-租约语义：
-
-- 全局同一时刻只允许一个插件持有租约，占用中再 acquire 抛 `E_SPEECH_INPUT_BUSY`；
-- 取得租约时目标即被冻结：页面内切换会话不迁移租约；冻结目标失效时租约自动中止；
-- `active-chat` 目标要求有活动的聊天窗口，否则抛 `E_NO_ACTIVE_INPUT_TARGET`；旧 `active-call` 请求明确抛 `E_INVALID_ARGUMENT`，不会取得租约。Call 窗口与专用循环退役不删除共享 ASR/TTS、Chat 播放或渠道语音能力；
-- commit 的失败按稳定错误码分支处理（如会话删除 `E_NOT_FOUND`）。
-
 ### 统一错误码
 
 宿主服务失败时抛出带稳定错误码的异常；插件只应依赖错误码做分支处理，不要匹配错误消息文案：
@@ -457,7 +430,7 @@ await lease.release();
 import { isPluginHostError } from "@firefly/plugin-sdk";
 
 try {
-  await lease.commit(text);
+  await ctx.deps.conversations.list();
 } catch (error) {
   if (isPluginHostError(error)) {
     // error.code 是稳定错误码，error.message 仅供日志
@@ -472,7 +445,6 @@ try {
 | `E_NOT_FOUND` | 目标不存在（会话/任务已删除） |
 | `E_NOT_OWNER` | 试图访问其他插件拥有的资源 |
 | `E_STORAGE_UNAVAILABLE` | 安全存储不可用 |
-| `E_SPEECH_INPUT_BUSY` | 语音输入租约被占用 |
 | `E_NO_ACTIVE_INPUT_TARGET` | 无可用的聊天窗口 |
 | `E_PLUGIN_STOPPING` | 插件正在停止 |
 | `E_INTERNAL` | 宿主内部错误 |

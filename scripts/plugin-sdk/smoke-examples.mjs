@@ -29,14 +29,6 @@ function mockDeps(manifest) {
         deleteTask: async () => true,
         getHistory: async () => [],
       };
-    } else if (dep === "speech-input") {
-      deps.speechInput = {
-        acquire: async () => ({
-          commit: async () => undefined,
-          release: async () => undefined,
-          signal: new AbortController().signal,
-        }),
-      };
     } else if (dep === "llm") {
       deps.llm = { generateText: async () => "摘要" };
     } else if (dep === "conversations") {

@@ -40,11 +40,6 @@ import {
   startSessionTodos,
   type TodoStateBySession,
 } from "../session-runtime-state";
-import {
-  resolveEarlyTtsSplitMode,
-  type EarlyTtsPlaybackQueue,
-  type EarlyTtsSplitMode,
-} from "../../tts/early-tts-queue";
 
 /** 一次模型运行的全部输入：目标会话、消息占位与恢复/接管信息。 */
 export interface AgentRunInput {
@@ -94,17 +89,7 @@ export interface AgentRunHost {
   requestTakeover(sessionId: string, activeRunId: string, retry: () => Promise<void>): void;
   /** 新 run 已被主进程接受：同会话旧的接管操作卡（若有）不再有效。 */
   clearTakeover(sessionId: string): void;
-  earlyTts: {
-    /** 创建本轮的早播 TTS 队列（同一时间只保留一个活跃队列）。 */
-    start(
-      mode: ConversationMode,
-      sessionId: string,
-      messageId: string,
-      splitMode?: EarlyTtsSplitMode,
-    ): EarlyTtsPlaybackQueue;
-    /** run 成功结束后用完整正文收尾播放。 */
-    finish(queue: EarlyTtsPlaybackQueue, fullText: string): void;
-  };
+
   /**
    * run 结束（含成功、失败、取消、接管冲突等所有路径）。
    * 宿主据此刷新会话列表并消费该会话的待发消息队列。
@@ -137,7 +122,7 @@ export interface AgentRunDeps {
 }
 /**
  * 单次 Agent 运行的生命周期控制器：事件归约、检查点落盘、
- * 正文渐显、早播 TTS 接线与终态结算全部内聚于此。
+ * 正文渐显与终态结算全部内聚于此。
  * 不依赖 React，可注入假桥与记录型宿主做全流程单测。
  */
 export class AgentRunController {
@@ -209,7 +194,7 @@ export class AgentRunController {
   private checkpointChain: Promise<ChatSession | null> = Promise.resolve<ChatSession | null>(null);
   private readonly activeReasoningStarts = new Map<string, number>();
   private currentReasoningId: string | undefined;
-  private earlyTtsQueue: EarlyTtsPlaybackQueue | undefined;
+
   private controlledSResponse=false;
   private resolveTerminal!: (error?: Error) => void;
   private readonly terminal: Promise<Error | undefined>;
@@ -277,16 +262,7 @@ export class AgentRunController {
 
     try {
       const general = await window.chat?.getGeneralSettings?.();
-      const splitMode = resolveEarlyTtsSplitMode(
-        general?.ttsEarlyReadSplitEnabled,
-        general?.ttsEarlyReadSplitMode,
-      );
-      this.earlyTtsQueue = this.deps.host.earlyTts.start(
-        this.input.targetMode,
-        this.input.sessionId,
-        this.input.assistantId,
-        splitMode,
-      );
+
       const ack = await api.run({
         // 权威模型上下文已由主进程轨迹构建；此数组仅一个版本周期的渲染端回退用，发送完整历史
         messages: this.input.session.messages.map((item) => ({
@@ -395,12 +371,9 @@ export class AgentRunController {
       const savedAssistant = await this.checkpointRun("terminal", true);
       const canonical=await this.refreshCanonicalSettlement();
       this.reportRunPersisted();
-      if (savedAssistant && formalAnswerCommitted && (!this.controlledSResponse||canonical?.state==="success") && this.earlyTtsQueue) {
-        if(this.controlledSResponse)this.earlyTtsQueue=this.deps.host.earlyTts.start(this.input.targetMode,this.input.sessionId,this.input.assistantId);
-        this.deps.host.earlyTts.finish(this.earlyTtsQueue, canonical?.originalText??finalContent);
-      } else this.earlyTtsQueue?.cancel();
+
     } catch (error) {
-      this.earlyTtsQueue?.cancel();
+
       this.terminalStatus = this.terminalStatus ?? "runtime_error";
       this.completeRunActivity(true);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -511,7 +484,7 @@ export class AgentRunController {
       const active=this.deps.registries.activeRuns.current[this.input.sessionId];
       if(!session||!projection||active?.assistantId!==this.input.assistantId||projection.runId!==active.runId)return;
       this.deps.host.patchMessage(this.input.sessionId,this.input.assistantId,toUiMessages({...session,messages:[message!]})[0]);return projection;
-    }catch{if(this.controlledSResponse)this.earlyTtsQueue?.cancel()}
+    }catch{}
   }
 
   /** 构建落盘检查点消息（含 runSnapshot 状态与累积的过程数据）。 */
@@ -834,7 +807,7 @@ export class AgentRunController {
   private handleEvent(event: AguiEvent) {
     if (this.terminalReceived) return;
     if(event.type==="CUSTOM"&&event.name==="firefly.sResponse"){
-      this.controlledSResponse=true;this.earlyTtsQueue?.cancel();return;
+      this.controlledSResponse=true;return;
     }
     if (event.type === "CUSTOM" && event.name === "firefly.round") {
       const value = event.value as { action?: unknown; roundId?: unknown } | null | undefined;
@@ -999,7 +972,6 @@ export class AgentRunController {
       } else {
         this.enqueuePublicTextReveal(event.delta, (chunk) => {
           this.streamContent += chunk;
-          if(!this.controlledSResponse)this.earlyTtsQueue?.append(chunk);
           this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, {
             content: this.streamContent,
             loading: false,

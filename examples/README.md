@@ -8,7 +8,6 @@
 | `weather-tool/` | `index.ts`；`secrets` | 读取 `openweathermap_key`、OpenWeather 请求失败或未配密钥时改用 Open-Meteo、城市缓存 |
 | `long-term-memory/` | `index.ts`；`llm`、`conversations` | 监听 `host:turn:finished`、读取消息、摘要、动态 Provider |
 | `scheduled-automation/` | `index.ts`；`scheduler` | 自有任务创建、列出、更新、删除；创建即停用，用户在宿主启用 |
-| `local-asr-contract/` | `index.ts`；`speech-input` | `active-chat` 租约与模拟文本提交；不含 ASR 模型、麦克风采集或推理运行时 |
 
 ## 构建与安装
 
@@ -36,6 +35,5 @@ npm run test:plugin-examples
 - `weather-tool`：`secrets.get()` 抛错会使注册失败；只有缺少密钥或 OpenWeather 请求失败才进入免密钥路径。`unregister()` 先清空 `lastCity`，宿主随后执行的 `onDispose` 再尝试保存该值，不能宣称停止后城市缓存可靠保存。
 - `long-term-memory`：直接向 JSON 存储写 `Map`，恢复所得值不具备 `Map` 方法；`unregister()` 还会在保存回调之前清空记忆。消息读取只取一页，未循环消费游标；事件没有 `finalMessageId` 时也未跳过，不能宣称已实现严格冻结的全量归档。
 - `scheduled-automation`：`unregister()` 先清空 `ownTaskIds`，保存回调随后写入空数组；停止后本地所有权清单不能可靠恢复。宿主仍通过插件所有权校验限制任务访问，示例没有启用任务的接口。
-- `local-asr-contract`：识别延时期间租约中止会清除计时器，但等待识别结果的 Promise 没有同步结束；该取消路径需要实现修正与真实宿主验证。
 
 停止顺序依据 `src/plugins/manager.ts`：`beginStop()` → 插件 `unregister()` → context `dispose()`。真实存储依据 `src/plugins/storage.ts` 的 `JSON.stringify` / `JSON.parse`；Mock 以进程内 Map 保存原值，且 `dispose()` 不代调 `unregister()`，因此注册冒烟无法发现上述所有问题。上述实现缺陷已登记，留待后续处理。

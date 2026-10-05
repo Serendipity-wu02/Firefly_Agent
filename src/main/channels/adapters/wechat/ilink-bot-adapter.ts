@@ -757,11 +757,13 @@ function isWechatAsrConfigured(): boolean {
       asrAliyunAppKey?: unknown;
       asrAliyunAccessKeyId?: unknown;
       asrAliyunAccessKeySecret?: unknown;
-      ttsMosslandKey?: unknown;
+      asrMosslandKey?: unknown;
+      ttsMosslandKey?: unknown; // Legacy ASR shared credential only.
     };
     if (settings.asrEngine === "local") return true;
     if (settings.asrEngine === "mossland") {
-      return Boolean(typeof settings.ttsMosslandKey === "string" && settings.ttsMosslandKey.trim());
+      const key = settings.asrMosslandKey ?? settings.ttsMosslandKey;
+      return Boolean(typeof key === "string" && key.trim());
     }
     if (settings.asrEngine !== "aliyun") return false;
     return Boolean(
