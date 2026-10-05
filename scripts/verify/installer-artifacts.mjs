@@ -74,10 +74,10 @@ export async function verifyInstallerArtifacts(options = {}) {
   const manifest = JSON.parse(await readFile(path.join(distributed, "skills-manifest.json"), "utf8"));
   const vendorIds = await readdir(path.join(distributed, "skills"));
   const maintainedIds = await readdir(path.join(outputDir, "win-unpacked", "skills"));
-  if (manifest.skills.length !== 39 || manifest.selfSkills.length !== 3
+  if (manifest.skills.length !== 41 || manifest.selfSkills.length !== 4
     || JSON.stringify(vendorIds.sort()) !== JSON.stringify([...manifest.skills].sort())
     || JSON.stringify(maintainedIds.sort()) !== JSON.stringify([...manifest.selfSkills].sort())) {
-    throw new Error("Skills distribution does not contain the expected 39+3 directories");
+    throw new Error("Skills distribution does not contain the expected 41+4 directories");
   }
   for (const id of manifest.skills) await stat(path.join(distributed, "skills", id, "SKILL.md"));
   for (const id of manifest.selfSkills) await stat(path.join(outputDir, "win-unpacked", "skills", id, "SKILL.md"));

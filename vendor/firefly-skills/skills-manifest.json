@@ -22,6 +22,7 @@
     "ecc-codebase-onboarding",
     "ecc-coding-standards",
     "ecc-plan-canvas",
+    "ecc-production-audit",
     "ecc-security-review",
     "ecc-tdd-workflow",
     "office-design",
@@ -38,6 +39,7 @@
     "sp-using-superpowers",
     "sp-verification-before-completion",
     "sp-writing-plans",
+    "tob-property-based-testing",
     "write-expense-report",
     "xlsx"
   ],
@@ -298,10 +300,22 @@
     "xlsx/templates/minimal_xlsx/xl/styles.xml": "74cc1beed659e4232e435012441d92c3a3f8c20bf5ed282411a3beda75d1fbd1",
     "xlsx/templates/minimal_xlsx/xl/workbook.xml": "6b74b0117fb0eaa34cc1765aba6716bd4965636466e5e62e94dae0676048094a",
     "xlsx/templates/minimal_xlsx/xl/worksheets/sheet1.xml": "256e6bb25075835970efbaac1b58642a73e88f2abd86e667a7650bb1eb8c6f2d",
-    "xlsx/tests/test_windows_workflow.py": "b3ef159fe6ba18597196e51acad37a5370691f14c3a3ba58178b717a12f2c3d7"
+    "xlsx/tests/test_windows_workflow.py": "b3ef159fe6ba18597196e51acad37a5370691f14c3a3ba58178b717a12f2c3d7",
+    "tob-property-based-testing/LICENSE": "7abe19ec9bb73b36141b999b861d24ad855e808bafe0f81e84cce28556f6c297",
+    "tob-property-based-testing/NOTICE.md": "b868314afcc04d0b58f043102b32fe467d65f5c9f9757ce8dc88ec518db0566d",
+    "tob-property-based-testing/references/generating.md": "c0e72dfc89babe3c32de718b81b94044362c85e776d7475e950dfeaab78bb58e",
+    "tob-property-based-testing/references/interpreting-failures.md": "dbae7db8773712ba03268a3d56ea5aa6720af0650a5189580bfd88aa2edc3f9a",
+    "tob-property-based-testing/references/libraries.md": "f7218acf8e668130ef3048983472579d04e12030c5401926f666363e5f69c686",
+    "tob-property-based-testing/references/refactoring.md": "6eb5c206f575704791f089608bb06e41d6eed91b9d3c7fb27912f969aed07a18",
+    "tob-property-based-testing/references/reviewing.md": "110b08118a1e7b1a2566def6e9d2a0bf43fc2deefce857d2ce3b4382b07bc774",
+    "tob-property-based-testing/SKILL.md": "aea689b3e79b25e538aa36de3304de433f8e00ba2aff56322cac8b6f7eec0e1f",
+    "ecc-production-audit/LICENSE": "326146379f01bb137c0a5d3c54770c1aa31076705c8b88a7f6b26a460f6221b2",
+    "ecc-production-audit/NOTICE.md": "fd8e25e043ddfa928976f2669d2a016d0c53df75da040b331573b754f3ee2541",
+    "ecc-production-audit/SKILL.md": "8c972a5b3c76d8f8d11b0befd5ff0f442bab599558e130ae26138299b33b49c5"
   },
   "selfSkills": [
     "diagram",
+    "document-reader-validation",
     "knowledge-workspace",
     "plugin-development"
   ]

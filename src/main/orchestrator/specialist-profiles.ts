@@ -5,6 +5,9 @@ import type { SkillEntry } from "../skills/types";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 
 const bindings: readonly (readonly [string, string, readonly string[], boolean])[] = [
+  ["tob-property-based-testing", "implementation", ["review", "security-governance"], false],
+  ["ecc-production-audit", "ops-release", ["review", "security-governance"], false],
+  ["document-reader-validation", "documents-data", ["knowledge", "research"], false],
   ["diagram", "ui-visual", ["architecture", "knowledge", "documents-data", "strategy-planning"], false],
   ["knowledge-workspace", "knowledge", ["research", "documents-data"], false],
   ["plugin-development", "tooling-skills", ["implementation", "architecture", "security-governance", "ops-release"], false],

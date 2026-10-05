@@ -8,7 +8,7 @@ import { registerSkillTools } from "./skill-tools";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 
 const root = path.resolve(__dirname, "../../..");
-const expectedIds = ["diagram", "knowledge-workspace", "plugin-development"];
+const expectedIds = ["diagram", "document-reader-validation", "knowledge-workspace", "plugin-development"];
 
 describe("final Skills pool delivery", () => {
   it("loads specialist delegation guidance without a public legacy task contract", async () => {
@@ -51,7 +51,7 @@ describe("final Skills pool delivery", () => {
     }
   });
 
-  it("discovers three explicitly selected capability Skills without executing old factories", () => {
+  it("discovers four explicitly selected capability Skills without executing old factories", () => {
     const skills = scanSkills(path.join(root, "skills"), "builtin");
     expect(skills.map(skill => skill.id).sort()).toEqual(expectedIds);
     expect(buildAutoInjectedSkillContext(skills)).toBe("");
@@ -100,13 +100,13 @@ describe("final Skills pool delivery", () => {
     }
   });
 
-  it("ships the 39 canonical vendor bodies and three maintained Skills without retired mode metadata", () => {
+  it("ships the 41 canonical vendor bodies and four maintained Skills without retired mode metadata", () => {
     const vendor = path.join(root, "vendor/firefly-skills");
     const manifest = JSON.parse(fs.readFileSync(path.join(vendor, "skills-manifest.json"), "utf8"));
     expect(manifest.selfSkills).toEqual(expectedIds);
     const entries = scanSkills(path.join(vendor, "skills"), "builtin");
     expect(entries.map(skill => skill.id).sort()).toEqual([...manifest.skills].sort());
-    expect(entries).toHaveLength(39);
+    expect(entries).toHaveLength(41);
     for (const entry of entries) {
       const relative = `${entry.id}/SKILL.md`;
       const canonical = fs.readFileSync(path.join(vendor, "skills", relative));
@@ -115,6 +115,6 @@ describe("final Skills pool delivery", () => {
       expect(entry.modes?.length).toBeGreaterThan(0);
       expect(entry.modes?.every(mode => mode === "work" || mode === "code")).toBe(true);
     }
-    expect(new Set([...entries.map(entry => entry.id), ...manifest.selfSkills]).size).toBe(42);
+    expect(new Set([...entries.map(entry => entry.id), ...manifest.selfSkills]).size).toBe(45);
   });
 });

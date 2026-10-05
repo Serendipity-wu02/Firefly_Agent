@@ -17,7 +17,7 @@
 | Work | 工具调用、文件和文档处理、Skills、Task/Subagent、审批与取消。明确要求读取的文件使用本次运行证据；预算不足时确认部分范围，任务完成与完整读取分别展示；已结束任务通过原生保存对话框导出 Markdown。 |
 | Work 知识工作区 | 学习、测验、笔记与进度能力保留在 Work。先绑定工作区，再明确确认“添加学习结构”，或绑定已初始化的 Vault；普通 Work 不自动创建 Vault 或维护进度。详见[使用说明](docs/user-guide/knowledge-workspace.md)。 |
 | Code | Git、LSP、AST、文件与命令工具，以及 Code Skills；执行沿用现有 Agent、工具权限与审批。外部语言服务器需要相应环境。 |
-| Skills | 39 项第三方 Skills 与 `diagram`、`knowledge-workspace`、`plugin-development` 三项项目 Skills，共 42 项；角色表达及计划/文件协议移至 `prompts/persona-support/`、`prompts/workflow-support/`，不再占用 Skill ID。保留扫描注册、模式过滤、按需正文及附件读取、用户覆盖，以及带哈希识别、备份和用户修改保护的托管更新。 |
+| Skills | 41 项第三方 Skills 与 `diagram`、`document-reader-validation`、`knowledge-workspace`、`plugin-development` 四项项目 Skills，共 45 项；角色表达及计划/文件协议移至 `prompts/persona-support/`、`prompts/workflow-support/`，不再占用 Skill ID。保留扫描注册、模式过滤、按需正文及附件读取、用户覆盖，以及带哈希识别、备份和用户修改保护的托管更新。 |
 | Plugins | 本地安装、生命周期和隔离面板；本地可构建的 SDK、manifest/schema 契约与四个示例。尚无本项目在线市场或已发布 SDK 包的承诺。 |
 | Memory / RAG | 原始对话与向量索引分别保存，提供现有记忆与历史检索链。向量模型不可用时明确反馈，原始 Chat 仍保存，不把索引失败记成成功。 |
 | Voice / Channels | GPT-SoVITS、ASR、QQ Music 及飞书、微信、QQ 等已有接入链；服务、客户端、渠道凭据和资源由用户配置。Call 独立通话窗口、循环和接口已退役；共享 ASR/TTS、Chat 播放与渠道语音保留。接入代码存在不代表完整外部服务实测通过。 |

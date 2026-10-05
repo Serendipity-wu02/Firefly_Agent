@@ -3,10 +3,10 @@ import { vendorSkillSource } from "../../test-utils/vendor-skill-source";
 import { scanSkills } from "./skill-scanner";
 import { SkillRegistry } from "./skill-registry";
 
-it("registers all 39 distributed Skills with current mode and permission boundaries", () => {
+it("registers all 41 distributed Skills with current mode and permission boundaries", () => {
   const registry = new SkillRegistry();
   for (const skill of scanSkills(vendorSkillSource, "user")) registry.register(skill);
-  expect(registry.getAll()).toHaveLength(39);
+  expect(registry.getAll()).toHaveLength(41);
   for (const id of ["as-api-and-interface-design", "as-context-engineering", "as-using-agent-skills"]) {
     const skill = registry.getAll().find(entry => entry.id === id);
     expect(skill?.modes).toEqual(["code"]);

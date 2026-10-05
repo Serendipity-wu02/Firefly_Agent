@@ -498,14 +498,57 @@
   "current_distribution": {
     "canonical_source": "vendor/firefly-skills/skills",
     "formal_archive_sha256": "8a120122f239939536801eea283d6334d50935da5e87343c009277a29660f388",
-    "builtin_ids": ["diagram", "knowledge-workspace", "plugin-development"],
-    "distribution_modes": ["work", "code"],
+    "builtin_ids": [
+      "diagram",
+      "document-reader-validation",
+      "knowledge-workspace",
+      "plugin-development"
+    ],
+    "distribution_modes": [
+      "work",
+      "code"
+    ],
     "historical_mode_scope": "Per-source suggested modes are historical review input, not active vNext declarations. Current SKILL.md frontmatter is authoritative.",
     "predecessor_evidence": "scripts/packaging/vnext-predecessor.json",
     "current_file_hashes": "vendor/firefly-skills/license-provenance.json.currentDistribution.changedFiles",
     "pinned_sources_scope": "Fixed upstream acquisition inputs; each current Firefly body and adaptation decision is recorded separately in license-provenance.json and the distribution governance record.",
-    "firefly_maintained_workflows": ["office-design", "write-expense-report"],
-    "retained_windows_workflows": ["pdf", "xlsx"]
+    "firefly_maintained_workflows": [
+      "office-design",
+      "write-expense-report"
+    ],
+    "retained_windows_workflows": [
+      "pdf",
+      "xlsx"
+    ],
+    "approved_additions": [
+      {
+        "id": "tob-property-based-testing",
+        "repository": "trailofbits/skills",
+        "commit": "82fe8226252622fa807643bdca1710901198553a",
+        "path": "plugins/property-based-testing/skills/property-based-testing/SKILL.md",
+        "bodySha256": "9448cacb65c6237a7c22dc59602667177ecae405524079ae9ff92240590b995a",
+        "licensePath": "LICENSE",
+        "references": {
+          "generating.md": "c0e72dfc89babe3c32de718b81b94044362c85e776d7475e950dfeaab78bb58e",
+          "interpreting-failures.md": "dbae7db8773712ba03268a3d56ea5aa6720af0650a5189580bfd88aa2edc3f9a",
+          "libraries.md": "f7218acf8e668130ef3048983472579d04e12030c5401926f666363e5f69c686",
+          "refactoring.md": "6eb5c206f575704791f089608bb06e41d6eed91b9d3c7fb27912f969aed07a18",
+          "reviewing.md": "110b08118a1e7b1a2566def6e9d2a0bf43fc2deefce857d2ce3b4382b07bc774"
+        },
+        "license": "CC-BY-SA-4.0"
+      },
+      {
+        "id": "ecc-production-audit",
+        "repository": "affaan-m/ECC",
+        "commit": "ef648e01899ba3e8dc6371642deaaf64b4477775",
+        "path": "skills/production-audit/SKILL.md",
+        "bodySha256": "3ab3dd8a364ee17566e9361f0ebed2aec3b3146ede44e1db0a72c5ceae1ca0a4",
+        "licensePath": "LICENSE",
+        "license": "MIT"
+      }
+    ],
+    "vendor_count": 41,
+    "total_count": 45
   },
   "execution_status": {
     "github_write": "403 Resource not accessible by integration",

@@ -40,10 +40,10 @@ async function readTree(root) {
 export async function validateSkills(root = projectRoot) {
   const vendorRoot = path.join(root, "vendor", "firefly-skills");
   const manifest = JSON.parse(await fs.readFile(path.join(vendorRoot, "skills-manifest.json"), "utf8"));
-  if (manifest.formatVersion !== 2 || !Array.isArray(manifest.skills) || manifest.skills.length !== 39
-    || !Array.isArray(manifest.selfSkills) || manifest.selfSkills.length !== 3) throw new Error("SKILL_MANIFEST_INVALID");
+  if (manifest.formatVersion !== 2 || !Array.isArray(manifest.skills) || manifest.skills.length !== 41
+    || !Array.isArray(manifest.selfSkills) || manifest.selfSkills.length !== 4) throw new Error("SKILL_MANIFEST_INVALID");
   const ids = [...manifest.skills, ...manifest.selfSkills];
-  if (new Set(ids).size !== 42 || ids.some(id => typeof id !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id))) {
+  if (new Set(ids).size !== 45 || ids.some(id => typeof id !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id))) {
     throw new Error("SKILL_MANIFEST_IDS_INVALID");
   }
   const vendor = path.join(vendorRoot, "skills");

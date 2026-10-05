@@ -21,7 +21,7 @@ it("ships usable review and delegation references without changing mode availabi
   copyVendorSkills(directory);
   const registry = new SkillRegistry();
   for (const skill of scanSkills(directory, "user")) registry.register(skill);
-  expect(registry.getAll()).toHaveLength(39);
+  expect(registry.getAll()).toHaveLength(41);
   for (const [id, references] of [
     ["sp-requesting-code-review", ["code-reviewer.md"]],
     ["sp-subagent-driven-development", ["implementer-prompt.md", "task-reviewer-prompt.md", "re-review-prompt.md"]],
@@ -76,7 +76,7 @@ it("first and repeated installs preserve user-created skills", async () => {
   roots.push(root);
   const userSkillsDir = path.join(root, "skills");
   const expectedIds = fs.readdirSync(vendorSkillSource);
-  expect(synchronizeManagedSkillDirectories({ sourceDirectory: vendorSkillSource, expectedIds, userSkillsDir }).installed).toHaveLength(39);
+  expect(synchronizeManagedSkillDirectories({ sourceDirectory: vendorSkillSource, expectedIds, userSkillsDir }).installed).toHaveLength(41);
   fs.mkdirSync(path.join(userSkillsDir, "my-skill"));
   fs.writeFileSync(path.join(userSkillsDir, "my-skill", "SKILL.md"), "user");
   expect(synchronizeManagedSkillDirectories({ sourceDirectory: vendorSkillSource, expectedIds, userSkillsDir })).toEqual({ installed: [], updated: [], preserved: [] });

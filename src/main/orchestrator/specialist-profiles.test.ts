@@ -33,8 +33,8 @@ describe("production specialist profiles", () => {
 
   it("assigns every distributed Skill exactly once and derives profile Skills from ownership", () => {
     const matrix = buildSkillOwnership(skills);
-    expect(matrix).toHaveLength(42);
-    expect(new Set(matrix.map(entry => entry.skillId)).size).toBe(42);
+    expect(matrix).toHaveLength(45);
+    expect(new Set(matrix.map(entry => entry.skillId)).size).toBe(45);
     expect(matrix.map(entry => entry.skillId).sort()).toEqual(skills.map(skill => skill.id).sort());
     for (const entry of matrix) {
       expect(Object.keys(expected)).toContain(entry.primaryAgent);

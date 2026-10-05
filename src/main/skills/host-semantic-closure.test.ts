@@ -47,7 +47,7 @@ it("resolves required cross-Skill calls when each Skill is invoked directly", as
   copyVendorSkills(root);
   const skills = scanSkills(root, "builtin");
   ids = skills.map(skill => skill.id);
-  expect(skills).toHaveLength(39);
+  expect(skills).toHaveLength(41);
   for (const skill of skills) skillRegistry.register(skill);
   registerSkillTools();
   registerDocumentTools();
