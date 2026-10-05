@@ -1,0 +1,29 @@
+{
+  "reviewer": "n6_evidence_review",
+  "model": "gpt-6-astra",
+  "reasoningEffort": "medium",
+  "freshContext": true,
+  "readOnly": true,
+  "baseline": "2cf8eb93d4a227f5b46dc1e4c30b93720c3ece19",
+  "critical": [],
+  "important": [],
+  "minor": [{
+    "location": "n6.cjs evidenceClass assignment",
+    "finding": "local-only r2 retains a classification suffix mentioning a public TLS observation, although only r1 contains that subrecord.",
+    "disposition": "Deferred metadata assignment refinement. Preserve original JSON; final document/manifest classify r2 by actual local cases and accept only the r1 public subrecord."
+  }],
+  "verified": {
+    "localR2Records": 17,
+    "rawCasesWithExactlyOneMarker": 14,
+    "forbiddenInitiationsAfterRevoke": 0,
+    "positiveFreshNonceEach": 1,
+    "negativeFreshNonceEach": 0,
+    "n10DistinctCallbacks": { "first": 1, "second": 0 }
+  },
+  "limits": [
+    "Reviewer read source and independently recomputed existing events; no native rerun or external action.",
+    "Entire r1 raw matrix superseded for P0 marker absence; public subrecord independently valid.",
+    "P2/P3 are delivery barriers around native operations, P4 has no introduced asynchronous window.",
+    "No full E3, complete N6, OS resolver cancellation, N7 or N9 certification."
+  ]
+}

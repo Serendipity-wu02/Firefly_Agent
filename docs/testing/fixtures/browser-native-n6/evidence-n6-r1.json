@@ -1,0 +1,2611 @@
+{
+  "run": "n6-r1",
+  "baseline": "2cf8eb93d4a227f5b46dc1e4c30b93720c3ece19",
+  "pid": 29012,
+  "versions": {
+    "node": "24.18.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "148",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.0.245.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "43.1.0",
+    "chrome": "150.0.7871.47"
+  },
+  "paths": {
+    "appData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-n6-qa\\profile-n6-r1",
+    "userData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-n6-qa\\profile-n6-r1\\Firefly-smoke",
+    "sessionData": "E:\\Codex\\2026-10-04\\task-4\\browser-native-n6-qa\\profile-n6-r1\\Firefly-smoke\\session",
+    "logs": "E:\\Codex\\2026-10-04\\task-4\\browser-native-n6-qa\\profile-n6-r1\\Firefly-smoke\\logs",
+    "crashDumps": "E:\\Codex\\2026-10-04\\task-4\\browser-native-n6-qa\\profile-n6-r1\\Firefly-smoke\\logs"
+  },
+  "cases": [
+    {
+      "name": "E1-E2-P0-control",
+      "actual": {
+        "point": "P0",
+        "negative": false,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 1,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 19,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P0-revoke",
+      "actual": {
+        "point": "P0",
+        "negative": true,
+        "originDelta": 0,
+        "dials": 0,
+        "writes200": 0,
+        "freshNonceDelta": 0,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P1-control",
+      "actual": {
+        "point": "P1",
+        "negative": false,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 1,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 48,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P1-revoke",
+      "actual": {
+        "point": "P1",
+        "negative": true,
+        "originDelta": 0,
+        "dials": 0,
+        "writes200": 0,
+        "freshNonceDelta": 0,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 59,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P2-control",
+      "actual": {
+        "point": "P2",
+        "negative": false,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 1,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 85,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P2-revoke",
+      "actual": {
+        "point": "P2",
+        "negative": true,
+        "originDelta": 0,
+        "dials": 0,
+        "writes200": 0,
+        "freshNonceDelta": 0,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 99,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P3-control",
+      "actual": {
+        "point": "P3",
+        "negative": false,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 1,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 123,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P3-revoke",
+      "actual": {
+        "point": "P3",
+        "negative": true,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 0,
+        "freshNonceDelta": 0,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 141,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P5-control",
+      "actual": {
+        "point": "P5",
+        "negative": false,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 1,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 167,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P5-revoke",
+      "actual": {
+        "point": "P5",
+        "negative": true,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 0,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 188,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P6-control",
+      "actual": {
+        "point": "P6",
+        "negative": false,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 1,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 217,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P6-revoke",
+      "actual": {
+        "point": "P6",
+        "negative": true,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 0,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 241,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P7-control",
+      "actual": {
+        "point": "P7",
+        "negative": false,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 1,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 270,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": false
+      }
+    },
+    {
+      "name": "E1-E2-P7-revoke",
+      "actual": {
+        "point": "P7",
+        "negative": true,
+        "originDelta": 1,
+        "dials": 1,
+        "writes200": 1,
+        "freshNonceDelta": 0,
+        "forbiddenInitiationsAfterRevoke": 0,
+        "revokeSequence": 294,
+        "localDestroyed": true,
+        "remoteEOFOrReset": true,
+        "repeatSamePromise": true,
+        "revokeRejected": true
+      }
+    },
+    {
+      "name": "E2-dedicated-native-UDP-cancel-does-not-cancel-sibling",
+      "actual": {
+        "a": "ECANCELLED",
+        "bCompleted": true,
+        "familiesEach": [
+          4,
+          6
+        ],
+        "lateAAnswersSent": true,
+        "osLookupClaim": false
+      }
+    },
+    {
+      "name": "E2-native-DNS-control",
+      "actual": {
+        "reply": {
+          "ok": false,
+          "code": "load_failed"
+        },
+        "originDelta": 2,
+        "dials": 2,
+        "oldGuestDestroyed": true,
+        "cleanup": {
+          "ok": true,
+          "value": null
+        },
+        "lateSessionFetchBlocked": true,
+        "forbiddenInitiationsAfterRevoke": 0
+      }
+    },
+    {
+      "name": "E2-native-DNS-revoke",
+      "actual": {
+        "reply": {
+          "ok": false,
+          "code": "cancelled"
+        },
+        "originDelta": 0,
+        "dials": 0,
+        "oldGuestDestroyed": true,
+        "cleanup": {
+          "ok": true,
+          "value": null
+        },
+        "lateSessionFetchBlocked": true,
+        "forbiddenInitiationsAfterRevoke": 0
+      }
+    },
+    {
+      "name": "real-public-TLS-revoke-observation-not-full-E3",
+      "actual": {
+        "loaded": true,
+        "reply": {
+          "ok": true,
+          "value": {
+            "browserId": "294d5598-308c-4ba1-8726-b544285c20b3",
+            "conversationId": "public-example-TLS-observation",
+            "requestId": 1,
+            "closed": false,
+            "loading": false,
+            "url": "https://example.com/",
+            "pendingUrl": null,
+            "canGoBack": false,
+            "canGoForward": false,
+            "error": null
+          }
+        },
+        "upstreamNumericDials": 1,
+        "oldGuestDestroyed": true,
+        "localUpstreamsDestroyed": true,
+        "newDialAfterRevoke": 0,
+        "originLogsAvailable": false
+      }
+    }
+  ],
+  "challenges": [],
+  "failures": [
+    {
+      "label": "native-DNS-control",
+      "code": -107,
+      "description": "ERR_SSL_PROTOCOL_ERROR"
+    }
+  ],
+  "events": [
+    {
+      "sequence": 1,
+      "case": "P0-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 2,
+      "case": "P0-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 3,
+      "case": "P0-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 4,
+      "case": "P0-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 5,
+      "case": "P0-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 6,
+      "case": "P0-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 7,
+      "case": "P0-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 8,
+      "case": "P0-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 9,
+      "case": "P0-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 10,
+      "case": "P0-control",
+      "kind": "origin-accept",
+      "hit": 1
+    },
+    {
+      "sequence": 11,
+      "case": "P0-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 12,
+      "case": "P0-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 13,
+      "case": "P0-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 14,
+      "case": "P0-control",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 15,
+      "case": "P0-control",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": false
+    },
+    {
+      "sequence": 16,
+      "case": "P0-control",
+      "kind": "forward-up-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 17,
+      "case": "P0-control",
+      "kind": "origin-fresh-nonce-observed"
+    },
+    {
+      "sequence": 18,
+      "case": "P0-control",
+      "kind": "forward-down-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 19,
+      "case": "P0-control",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 20,
+      "case": "P0-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 21,
+      "case": "P0-control",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 22,
+      "case": "P0-control",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 23,
+      "case": "P0-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 24,
+      "case": "P0-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 25,
+      "case": "P0-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 26,
+      "case": "P0-revoke",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": false
+    },
+    {
+      "sequence": 27,
+      "case": "P0-revoke",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 28,
+      "case": "P0-revoke",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 29,
+      "case": "P0-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 30,
+      "case": "P1-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 31,
+      "case": "P1-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 32,
+      "case": "P1-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 33,
+      "case": "P1-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 34,
+      "case": "P1-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 35,
+      "case": "P1-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 36,
+      "case": "P1-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 37,
+      "case": "P1-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 38,
+      "case": "P1-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 39,
+      "case": "P1-control",
+      "kind": "origin-accept",
+      "hit": 2
+    },
+    {
+      "sequence": 40,
+      "case": "P1-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 41,
+      "case": "P1-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 42,
+      "case": "P1-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 43,
+      "case": "P1-control",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 44,
+      "case": "P1-control",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": false
+    },
+    {
+      "sequence": 45,
+      "case": "P1-control",
+      "kind": "forward-up-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 46,
+      "case": "P1-control",
+      "kind": "origin-fresh-nonce-observed"
+    },
+    {
+      "sequence": 47,
+      "case": "P1-control",
+      "kind": "forward-down-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 48,
+      "case": "P1-control",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 49,
+      "case": "P1-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 50,
+      "case": "P1-control",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 51,
+      "case": "P1-control",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 52,
+      "case": "P1-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 53,
+      "case": "P1-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 54,
+      "case": "P1-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 55,
+      "case": "P1-revoke",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 56,
+      "case": "P1-revoke",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 57,
+      "case": "P1-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 58,
+      "case": "P1-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 59,
+      "case": "P1-revoke",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 60,
+      "case": "P1-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": true
+    },
+    {
+      "sequence": 61,
+      "case": "P1-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": true
+    },
+    {
+      "sequence": 62,
+      "case": "P1-revoke",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": true
+    },
+    {
+      "sequence": 63,
+      "case": "P1-revoke",
+      "kind": "native-resolver-rejected",
+      "code": "ECANCELLED"
+    },
+    {
+      "sequence": 64,
+      "case": "P1-revoke",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 65,
+      "case": "P1-revoke",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 66,
+      "case": "P1-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 67,
+      "case": "P2-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 68,
+      "case": "P2-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 69,
+      "case": "P2-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 70,
+      "case": "P2-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 71,
+      "case": "P2-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 72,
+      "case": "P2-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 73,
+      "case": "P2-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 74,
+      "case": "P2-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 75,
+      "case": "P2-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 76,
+      "case": "P2-control",
+      "kind": "origin-accept",
+      "hit": 3
+    },
+    {
+      "sequence": 77,
+      "case": "P2-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 78,
+      "case": "P2-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 79,
+      "case": "P2-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 80,
+      "case": "P2-control",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 81,
+      "case": "P2-control",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": false
+    },
+    {
+      "sequence": 82,
+      "case": "P2-control",
+      "kind": "forward-up-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 83,
+      "case": "P2-control",
+      "kind": "origin-fresh-nonce-observed"
+    },
+    {
+      "sequence": 84,
+      "case": "P2-control",
+      "kind": "forward-down-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 85,
+      "case": "P2-control",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 86,
+      "case": "P2-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 87,
+      "case": "P2-control",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 88,
+      "case": "P2-control",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 89,
+      "case": "P2-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 90,
+      "case": "P2-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 91,
+      "case": "P2-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 92,
+      "case": "P2-revoke",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 93,
+      "case": "P2-revoke",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 94,
+      "case": "P2-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 95,
+      "case": "P2-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 96,
+      "case": "P2-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 97,
+      "case": "P2-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 98,
+      "case": "P2-revoke",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 99,
+      "case": "P2-revoke",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 100,
+      "case": "P2-revoke",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": true
+    },
+    {
+      "sequence": 101,
+      "case": "P2-revoke",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 102,
+      "case": "P2-revoke",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 103,
+      "case": "P2-revoke",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 104,
+      "case": "P2-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 105,
+      "case": "P3-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 106,
+      "case": "P3-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 107,
+      "case": "P3-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 108,
+      "case": "P3-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 109,
+      "case": "P3-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 110,
+      "case": "P3-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 111,
+      "case": "P3-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 112,
+      "case": "P3-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 113,
+      "case": "P3-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 114,
+      "case": "P3-control",
+      "kind": "origin-accept",
+      "hit": 4
+    },
+    {
+      "sequence": 115,
+      "case": "P3-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 116,
+      "case": "P3-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 117,
+      "case": "P3-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 118,
+      "case": "P3-control",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 119,
+      "case": "P3-control",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": false
+    },
+    {
+      "sequence": 120,
+      "case": "P3-control",
+      "kind": "forward-up-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 121,
+      "case": "P3-control",
+      "kind": "origin-fresh-nonce-observed"
+    },
+    {
+      "sequence": 122,
+      "case": "P3-control",
+      "kind": "forward-down-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 123,
+      "case": "P3-control",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 124,
+      "case": "P3-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 125,
+      "case": "P3-control",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 126,
+      "case": "P3-control",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 127,
+      "case": "P3-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 128,
+      "case": "P3-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 129,
+      "case": "P3-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 130,
+      "case": "P3-revoke",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 131,
+      "case": "P3-revoke",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 132,
+      "case": "P3-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 133,
+      "case": "P3-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 134,
+      "case": "P3-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 135,
+      "case": "P3-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 136,
+      "case": "P3-revoke",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 137,
+      "case": "P3-revoke",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 138,
+      "case": "P3-revoke",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 139,
+      "case": "P3-revoke",
+      "kind": "origin-accept",
+      "hit": 5
+    },
+    {
+      "sequence": 140,
+      "case": "P3-revoke",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 141,
+      "case": "P3-revoke",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 142,
+      "case": "P3-revoke",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": true
+    },
+    {
+      "sequence": 143,
+      "case": "P3-revoke",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 144,
+      "case": "P3-revoke",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 145,
+      "case": "P3-revoke",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 146,
+      "case": "P3-revoke",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 147,
+      "case": "P3-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 148,
+      "case": "P3-revoke",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 149,
+      "case": "P5-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 150,
+      "case": "P5-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 151,
+      "case": "P5-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 152,
+      "case": "P5-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 153,
+      "case": "P5-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 154,
+      "case": "P5-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 155,
+      "case": "P5-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 156,
+      "case": "P5-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 157,
+      "case": "P5-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 158,
+      "case": "P5-control",
+      "kind": "origin-accept",
+      "hit": 6
+    },
+    {
+      "sequence": 159,
+      "case": "P5-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 160,
+      "case": "P5-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 161,
+      "case": "P5-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 162,
+      "case": "P5-control",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 163,
+      "case": "P5-control",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": false
+    },
+    {
+      "sequence": 164,
+      "case": "P5-control",
+      "kind": "forward-up-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 165,
+      "case": "P5-control",
+      "kind": "origin-fresh-nonce-observed"
+    },
+    {
+      "sequence": 166,
+      "case": "P5-control",
+      "kind": "forward-down-write-init",
+      "bytes": 11
+    },
+    {
+      "sequence": 167,
+      "case": "P5-control",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 168,
+      "case": "P5-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 169,
+      "case": "P5-control",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 170,
+      "case": "P5-control",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 171,
+      "case": "P5-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 172,
+      "case": "P5-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 173,
+      "case": "P5-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 174,
+      "case": "P5-revoke",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 175,
+      "case": "P5-revoke",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 176,
+      "case": "P5-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 177,
+      "case": "P5-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 178,
+      "case": "P5-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 179,
+      "case": "P5-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 180,
+      "case": "P5-revoke",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 181,
+      "case": "P5-revoke",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 182,
+      "case": "P5-revoke",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 183,
+      "case": "P5-revoke",
+      "kind": "origin-accept",
+      "hit": 7
+    },
+    {
+      "sequence": 184,
+      "case": "P5-revoke",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 185,
+      "case": "P5-revoke",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 186,
+      "case": "P5-revoke",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 187,
+      "case": "P5-revoke",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 188,
+      "case": "P5-revoke",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 189,
+      "case": "P5-revoke",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": true
+    },
+    {
+      "sequence": 190,
+      "case": "P5-revoke",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 191,
+      "case": "P5-revoke",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 192,
+      "case": "P5-revoke",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 193,
+      "case": "P5-revoke",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 194,
+      "case": "P5-revoke",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 195,
+      "case": "P5-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 196,
+      "case": "P6-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 197,
+      "case": "P6-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 198,
+      "case": "P6-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 199,
+      "case": "P6-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 200,
+      "case": "P6-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 201,
+      "case": "P6-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 202,
+      "case": "P6-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 203,
+      "case": "P6-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 204,
+      "case": "P6-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 205,
+      "case": "P6-control",
+      "kind": "origin-accept",
+      "hit": 8
+    },
+    {
+      "sequence": 206,
+      "case": "P6-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 207,
+      "case": "P6-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 208,
+      "case": "P6-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 209,
+      "case": "P6-control",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 210,
+      "case": "P6-control",
+      "kind": "forward-up-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 211,
+      "case": "P6-control",
+      "kind": "forward-down-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 212,
+      "case": "P6-control",
+      "kind": "P6-pre-nonce-echo-observed"
+    },
+    {
+      "sequence": 213,
+      "case": "P6-control",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": false
+    },
+    {
+      "sequence": 214,
+      "case": "P6-control",
+      "kind": "forward-up-write-init",
+      "bytes": 12
+    },
+    {
+      "sequence": 215,
+      "case": "P6-control",
+      "kind": "origin-fresh-nonce-observed"
+    },
+    {
+      "sequence": 216,
+      "case": "P6-control",
+      "kind": "forward-down-write-init",
+      "bytes": 12
+    },
+    {
+      "sequence": 217,
+      "case": "P6-control",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 218,
+      "case": "P6-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 219,
+      "case": "P6-control",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 220,
+      "case": "P6-control",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 221,
+      "case": "P6-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 222,
+      "case": "P6-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 223,
+      "case": "P6-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 224,
+      "case": "P6-revoke",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 225,
+      "case": "P6-revoke",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 226,
+      "case": "P6-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 227,
+      "case": "P6-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 228,
+      "case": "P6-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 229,
+      "case": "P6-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 230,
+      "case": "P6-revoke",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 231,
+      "case": "P6-revoke",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 232,
+      "case": "P6-revoke",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 233,
+      "case": "P6-revoke",
+      "kind": "origin-accept",
+      "hit": 9
+    },
+    {
+      "sequence": 234,
+      "case": "P6-revoke",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 235,
+      "case": "P6-revoke",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 236,
+      "case": "P6-revoke",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 237,
+      "case": "P6-revoke",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 238,
+      "case": "P6-revoke",
+      "kind": "forward-up-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 239,
+      "case": "P6-revoke",
+      "kind": "forward-down-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 240,
+      "case": "P6-revoke",
+      "kind": "P6-pre-nonce-echo-observed"
+    },
+    {
+      "sequence": 241,
+      "case": "P6-revoke",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 242,
+      "case": "P6-revoke",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": true
+    },
+    {
+      "sequence": 243,
+      "case": "P6-revoke",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 244,
+      "case": "P6-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 245,
+      "case": "P6-revoke",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 246,
+      "case": "P6-revoke",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 247,
+      "case": "P6-revoke",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 248,
+      "case": "P6-revoke",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 249,
+      "case": "P7-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 250,
+      "case": "P7-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 251,
+      "case": "P7-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 252,
+      "case": "P7-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 253,
+      "case": "P7-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 254,
+      "case": "P7-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 255,
+      "case": "P7-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 256,
+      "case": "P7-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 257,
+      "case": "P7-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 258,
+      "case": "P7-control",
+      "kind": "origin-accept",
+      "hit": 10
+    },
+    {
+      "sequence": 259,
+      "case": "P7-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 260,
+      "case": "P7-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 261,
+      "case": "P7-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 262,
+      "case": "P7-control",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 263,
+      "case": "P7-control",
+      "kind": "forward-up-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 264,
+      "case": "P7-control",
+      "kind": "forward-down-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 265,
+      "case": "P7-control",
+      "kind": "P6-pre-nonce-echo-observed"
+    },
+    {
+      "sequence": 266,
+      "case": "P7-control",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": false
+    },
+    {
+      "sequence": 267,
+      "case": "P7-control",
+      "kind": "forward-up-write-init",
+      "bytes": 12
+    },
+    {
+      "sequence": 268,
+      "case": "P7-control",
+      "kind": "origin-fresh-nonce-observed"
+    },
+    {
+      "sequence": 269,
+      "case": "P7-control",
+      "kind": "forward-down-write-init",
+      "bytes": 12
+    },
+    {
+      "sequence": 270,
+      "case": "P7-control",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 271,
+      "case": "P7-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 272,
+      "case": "P7-control",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 273,
+      "case": "P7-control",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": false
+    },
+    {
+      "sequence": 274,
+      "case": "P7-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 275,
+      "case": "P7-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 276,
+      "case": "P7-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 277,
+      "case": "P7-revoke",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 278,
+      "case": "P7-revoke",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 279,
+      "case": "P7-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 280,
+      "case": "P7-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 281,
+      "case": "P7-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 282,
+      "case": "P7-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 283,
+      "case": "P7-revoke",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 284,
+      "case": "P7-revoke",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 285,
+      "case": "P7-revoke",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 286,
+      "case": "P7-revoke",
+      "kind": "origin-accept",
+      "hit": 11
+    },
+    {
+      "sequence": 287,
+      "case": "P7-revoke",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 288,
+      "case": "P7-revoke",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 289,
+      "case": "P7-revoke",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 290,
+      "case": "P7-revoke",
+      "kind": "P5-peer-headers-observed"
+    },
+    {
+      "sequence": 291,
+      "case": "P7-revoke",
+      "kind": "forward-up-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 292,
+      "case": "P7-revoke",
+      "kind": "forward-down-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 293,
+      "case": "P7-revoke",
+      "kind": "P6-pre-nonce-echo-observed"
+    },
+    {
+      "sequence": 294,
+      "case": "P7-revoke",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 295,
+      "case": "P7-revoke",
+      "kind": "fresh-probe-write-attempt",
+      "afterRevoke": true
+    },
+    {
+      "sequence": 296,
+      "case": "P7-revoke",
+      "kind": "E1-close-callback-error-injected"
+    },
+    {
+      "sequence": 297,
+      "case": "P7-revoke",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 298,
+      "case": "P7-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 299,
+      "case": "P7-revoke",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 300,
+      "case": "P7-revoke",
+      "kind": "probe-peer-close"
+    },
+    {
+      "sequence": 301,
+      "case": "P7-revoke",
+      "kind": "P7-product-close-observed",
+      "localDestroyed": true,
+      "remoteEOFOrReset": true,
+      "revokeRejected": true
+    },
+    {
+      "sequence": 302,
+      "case": "P7-revoke",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 303,
+      "case": "DNS-isolation-a",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 304,
+      "case": "DNS-isolation-a",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 305,
+      "case": "DNS-isolation-b",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 306,
+      "case": "DNS-isolation-b",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 307,
+      "case": "DNS-isolation-a",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 308,
+      "case": "DNS-isolation-a",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": true
+    },
+    {
+      "sequence": 309,
+      "case": "DNS-isolation-a",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": true
+    },
+    {
+      "sequence": 310,
+      "case": "DNS-isolation-b",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 311,
+      "case": "DNS-isolation-b",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 312,
+      "case": "native-DNS-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 313,
+      "case": "native-DNS-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 314,
+      "case": "native-DNS-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 315,
+      "case": "native-DNS-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 316,
+      "case": "native-DNS-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 317,
+      "case": "native-DNS-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 318,
+      "case": "native-DNS-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 319,
+      "case": "native-DNS-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 320,
+      "case": "native-DNS-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 321,
+      "case": "native-DNS-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 322,
+      "case": "native-DNS-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 323,
+      "case": "native-DNS-control",
+      "kind": "origin-accept",
+      "hit": 12
+    },
+    {
+      "sequence": 324,
+      "case": "native-DNS-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 325,
+      "case": "native-DNS-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 326,
+      "case": "native-DNS-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 327,
+      "case": "native-DNS-control",
+      "kind": "forward-up-write-init",
+      "bytes": 1830
+    },
+    {
+      "sequence": 328,
+      "case": "native-DNS-control",
+      "kind": "forward-down-write-init",
+      "bytes": 1830
+    },
+    {
+      "sequence": 329,
+      "case": "native-DNS-control",
+      "kind": "forward-up-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 330,
+      "case": "native-DNS-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 331,
+      "case": "native-DNS-control",
+      "kind": "forward-down-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 332,
+      "case": "native-DNS-control",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 333,
+      "case": "native-DNS-control",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 334,
+      "case": "native-DNS-control",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 335,
+      "case": "native-DNS-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 336,
+      "case": "native-DNS-control",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 337,
+      "case": "native-DNS-control",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": false
+    },
+    {
+      "sequence": 338,
+      "case": "native-DNS-control",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 339,
+      "case": "native-DNS-control",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 340,
+      "case": "native-DNS-control",
+      "kind": "dial-init",
+      "address": "127.0.0.1",
+      "port": 443
+    },
+    {
+      "sequence": 341,
+      "case": "native-DNS-control",
+      "kind": "origin-accept",
+      "hit": 13
+    },
+    {
+      "sequence": 342,
+      "case": "native-DNS-control",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 343,
+      "case": "native-DNS-control",
+      "kind": "P4-real-peer-read",
+      "actual": "127.0.0.1"
+    },
+    {
+      "sequence": 344,
+      "case": "native-DNS-control",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 345,
+      "case": "native-DNS-control",
+      "kind": "forward-up-write-init",
+      "bytes": 1734
+    },
+    {
+      "sequence": 346,
+      "case": "native-DNS-control",
+      "kind": "forward-down-write-init",
+      "bytes": 1734
+    },
+    {
+      "sequence": 347,
+      "case": "native-DNS-control",
+      "kind": "forward-up-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 348,
+      "case": "native-DNS-control",
+      "kind": "forward-down-write-init",
+      "bytes": 7
+    },
+    {
+      "sequence": 349,
+      "case": "native-DNS-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 350,
+      "case": "native-DNS-control",
+      "kind": "remote-EOF"
+    },
+    {
+      "sequence": 351,
+      "case": "native-DNS-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 352,
+      "case": "native-DNS-control",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 353,
+      "case": "native-DNS-control",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 354,
+      "case": "native-DNS-control",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 355,
+      "case": "native-DNS-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 356,
+      "case": "native-DNS-control",
+      "kind": "remote-close"
+    },
+    {
+      "sequence": 357,
+      "case": "native-DNS-revoke",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 358,
+      "case": "native-DNS-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 359,
+      "case": "native-DNS-revoke",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 360,
+      "case": "native-DNS-revoke",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 361,
+      "case": "native-DNS-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 4
+    },
+    {
+      "sequence": 362,
+      "case": "native-DNS-revoke",
+      "kind": "P1-native-UDP-query",
+      "family": 6
+    },
+    {
+      "sequence": 363,
+      "case": "native-DNS-revoke",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 364,
+      "case": "native-DNS-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 4,
+      "afterRevoke": true
+    },
+    {
+      "sequence": 365,
+      "case": "native-DNS-revoke",
+      "kind": "owned-UDP-answer-send",
+      "family": 6,
+      "afterRevoke": true
+    },
+    {
+      "sequence": 366,
+      "case": "native-DNS-revoke",
+      "kind": "native-resolver-rejected",
+      "code": "ECANCELLED"
+    },
+    {
+      "sequence": 367,
+      "case": "native-DNS-revoke",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 368,
+      "case": "public-example-TLS-observation",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 369,
+      "case": "public-example-TLS-observation",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 370,
+      "case": "public-example-TLS-observation",
+      "kind": "P0-CONNECT-received-before-admission"
+    },
+    {
+      "sequence": 371,
+      "case": "public-example-TLS-observation",
+      "kind": "resolve-entry"
+    },
+    {
+      "sequence": 372,
+      "case": "public-example-TLS-observation",
+      "kind": "P2-native-answers-complete"
+    },
+    {
+      "sequence": 373,
+      "case": "public-example-TLS-observation",
+      "kind": "answers-delivered-before-proxy-validation"
+    },
+    {
+      "sequence": 374,
+      "case": "public-example-TLS-observation",
+      "kind": "dial-init",
+      "address": "172.66.147.243",
+      "port": 443
+    },
+    {
+      "sequence": 375,
+      "case": "public-example-TLS-observation",
+      "kind": "P3-native-connect-completed"
+    },
+    {
+      "sequence": 376,
+      "case": "public-example-TLS-observation",
+      "kind": "P4-real-peer-read",
+      "actual": "172.66.147.243"
+    },
+    {
+      "sequence": 377,
+      "case": "public-example-TLS-observation",
+      "kind": "connect200-write-init"
+    },
+    {
+      "sequence": 378,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-up-write-init",
+      "bytes": 1791
+    },
+    {
+      "sequence": 379,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-down-write-init",
+      "bytes": 2610
+    },
+    {
+      "sequence": 380,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-down-write-init",
+      "bytes": 1658
+    },
+    {
+      "sequence": 381,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-up-write-init",
+      "bytes": 64
+    },
+    {
+      "sequence": 382,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-up-write-init",
+      "bytes": 92
+    },
+    {
+      "sequence": 383,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-up-write-init",
+      "bytes": 401
+    },
+    {
+      "sequence": 384,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-down-write-init",
+      "bytes": 521
+    },
+    {
+      "sequence": 385,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-up-write-init",
+      "bytes": 31
+    },
+    {
+      "sequence": 386,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-down-write-init",
+      "bytes": 192
+    },
+    {
+      "sequence": 387,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-down-write-init",
+      "bytes": 396
+    },
+    {
+      "sequence": 388,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-up-write-init",
+      "bytes": 186
+    },
+    {
+      "sequence": 389,
+      "case": "public-example-TLS-observation",
+      "kind": "forward-down-write-init",
+      "bytes": 1588
+    },
+    {
+      "sequence": 390,
+      "case": "public-example-TLS-observation",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 391,
+      "case": "public-example-TLS-observation",
+      "kind": "local-proxy-client-close"
+    },
+    {
+      "sequence": 392,
+      "case": "public-example-TLS-observation",
+      "kind": "local-upstream-close"
+    },
+    {
+      "sequence": 393,
+      "case": "P0-revoke",
+      "kind": "revoke-linearized"
+    },
+    {
+      "sequence": 394,
+      "case": "fixture",
+      "kind": "fixture-peer-reclamation",
+      "remainingOriginPeers": 0
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "Loopback classification and destination port routing are QA-process-only substitutes. They are restored for the public observation. No TLS trust override or production modification.",
+    "P2 holds native answers before proxy validation. P3 holds delivery of a genuinely completed socket connect event. Both are E1 delivery barriers around E2 operations, not OS lookup/connect suspension.",
+    "P4 peer check, CONNECT200 write and initial pipe setup share a synchronous continuation; no manufactured reentrant/async gap. Not complete OS/Chromium timing-window acceptance.",
+    "Only post-revoke fresh nonce and initiation ordering are asserted. Bytes initiated before revoke may arrive later. Local destruction and remote EOF/reset observations precede fixture reclamation.",
+    "DNS cancellation is dedicated Resolver/c-ares through own UDP stub, not OS dns.lookup cancellation. One public anonymous GET/default TLS observation has no origin logs and is not full E3. No N7/N9 closure."
+  ],
+  "evidenceClass": "E1-barriers-plus-E2-owned-native-DNS-TCP-and-one-public-TLS-observation"
+}

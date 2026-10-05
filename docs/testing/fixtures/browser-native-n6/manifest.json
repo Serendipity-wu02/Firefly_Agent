@@ -1,0 +1,261 @@
+{
+  "baseline": "2cf8eb93d4a227f5b46dc1e4c30b93720c3ece19",
+  "branch": "audit/browser-native-gaps-20261005",
+  "productionGateOpen": false,
+  "productSourceChanges": [],
+  "accepted": [
+    {
+      "run": "n6-r2",
+      "pid": 33064,
+      "nativeExitCode": 0,
+      "records": 17,
+      "scope": "entire local-only run",
+      "evidenceClass": "E1-delivery-barriers-and-close-fault-plus-E2-native-owned-UDP-TCP-and-Electron-guest",
+      "rawProxyRecords": 14,
+      "controlPairs": 7
+    },
+    {
+      "run": "n6-r1",
+      "pid": 29012,
+      "nativeExitCode": 0,
+      "records": 1,
+      "scope": "only real-public-TLS-revoke-observation-not-full-E3",
+      "evidenceClass": "single-normal-trusted-public-TLS-revoke-observation-without-origin-logs-not-full-E3"
+    },
+    {
+      "run": "n10-identity-r1",
+      "pid": 3200,
+      "nativeExitCode": 0,
+      "records": 1,
+      "evidenceClass": "E2-native-quit-events-and-distinct-coordinator-final-callbacks",
+      "firstCalls": 1,
+      "secondCalls": 0
+    }
+  ],
+  "supersededWholeRuns": [
+    {
+      "run": "n6-r1",
+      "nativeExitCode": 0,
+      "qualificationExitCode": 1,
+      "reason": "P0-revoke lacks an integer revoke marker in its case result; native exit0 is insufficient.",
+      "inputSnapshot": "inputs-n6-r1.cjs",
+      "exception": "Only the independently qualified public TLS subrecord is accepted."
+    }
+  ],
+  "classificationMinor": {
+    "rawFile": "evidence-n6-r2.json",
+    "reason": "Its unmodified evidenceClass suffix mentions public TLS; r2 contains only 17 local records.",
+    "disposition": "This manifest classifies actual records. Public TLS comes only from the r1 subrecord. Mode-based script label refinement deferred."
+  },
+  "verification": {
+    "qualification": {
+      "exitCode": 0,
+      "script": "verify-evidence.cjs",
+      "log": "n6-evidence-green.log"
+    },
+    "regression": {
+      "files": 4,
+      "passed": 95,
+      "exitCode": 0,
+      "log": "n6-regression.log"
+    },
+    "independentReview": {
+      "critical": 0,
+      "important": 0,
+      "minor": 1,
+      "record": "review.json"
+    },
+    "newFullSuiteRun": false,
+    "newTypecheckRun": false,
+    "newBuildRun": false,
+    "reason": "Fixture/document-only increment; prior production verification reused, not represented as current execution.",
+    "priorCheckpoint": {
+      "commit": "2cf8eb93d4a227f5b46dc1e4c30b93720c3ece19",
+      "browserTests": 288,
+      "mainAndTestTypes": "passed",
+      "build": "passed",
+      "fullSuite": {
+        "exitCode": 1,
+        "inheritedFailures": 14,
+        "file": "src/main/memory-sources/native-history-presence-process.test.ts",
+        "cause": "external H TEMP mismatch, unresolved and not waived"
+      }
+    }
+  },
+  "limits": [
+    "P2 holds native answers before proxy validation; not after the final address predicate.",
+    "P3 holds actual connected socket event delivery; not a suspended OS SYN/connect operation.",
+    "P4 source continuation is synchronous; no artificial asynchronous timing window added.",
+    "Dedicated c-ares cancellation and sibling resolver isolation do not certify OS lookup cancellation or all simultaneous Chromium session cases.",
+    "Public observation has no controlled origin logs or remote EOF trace and is not full E3.",
+    "No complete N6, N7 or N9 certification; production gate remains closed."
+  ],
+  "sourceInputsAtFinal": [
+    {
+      "name": "docs/testing/browser-native-n6-plan.md",
+      "bytes": 3068,
+      "sha256WorkingBytes": "8e8f1c54d6cf6970878d75eeb7b64d763e8a5fe8062be9e1261514c9e0dde67e",
+      "sha256GitIndexBytes": "8e8f1c54d6cf6970878d75eeb7b64d763e8a5fe8062be9e1261514c9e0dde67e"
+    },
+    {
+      "name": "docs/testing/browser-native-n6.md",
+      "bytes": 8264,
+      "sha256WorkingBytes": "8bd2294f8af6dfea176d875501bf1087d38f82d72a63f9bed6c9b76b1005eddd",
+      "sha256GitIndexBytes": "8bd2294f8af6dfea176d875501bf1087d38f82d72a63f9bed6c9b76b1005eddd"
+    },
+    {
+      "name": "docs/testing/fixtures/browser-native-gaps/common.cjs",
+      "bytes": 3882,
+      "sha256WorkingBytes": "58f17f9b3f57d8f50aa5344a1ea08620b85709558ebf749165821cb7a8bcdd76",
+      "sha256GitIndexBytes": "58f17f9b3f57d8f50aa5344a1ea08620b85709558ebf749165821cb7a8bcdd76"
+    },
+    {
+      "name": "src/main/browser/authenticated-connect-proxy.ts",
+      "bytes": 10284,
+      "sha256WorkingBytes": "544a4293e22a37c5f1fc56a243be37b2752c569629b83c718605275d16de04f2",
+      "sha256GitIndexBytes": "544a4293e22a37c5f1fc56a243be37b2752c569629b83c718605275d16de04f2"
+    },
+    {
+      "name": "src/main/browser/trusted-browser-resolver.ts",
+      "bytes": 5738,
+      "sha256WorkingBytes": "7d2b41fd19fe1a4fd73a9d1ac70d1149a12f9ffca295aaea7588226c53f6ec39",
+      "sha256GitIndexBytes": "7d2b41fd19fe1a4fd73a9d1ac70d1149a12f9ffca295aaea7588226c53f6ec39"
+    },
+    {
+      "name": "src/main/browser/browser-service.ts",
+      "bytes": 21840,
+      "sha256WorkingBytes": "ef8732511a975193fea00138f517b26eb2082e04943a650c91dc429a01e65153",
+      "sha256GitIndexBytes": "3410ecd75c1943f78e3b9f08363d6387ac83bff4439076392c0653d6c23d4715",
+      "byteDifference": "Existing working-tree CRLF vs Git normalized bytes; no source content change."
+    }
+  ],
+  "compiledInputs": [
+    {
+      "name": "dist/main/main/browser/authenticated-connect-proxy.js",
+      "bytes": 10799,
+      "sha256WorkingBytes": "77e83f4313d5fe133a59943bf7fdddb036e2e22747b7627b6642c8d93f614254"
+    },
+    {
+      "name": "dist/main/main/browser/trusted-browser-resolver.js",
+      "bytes": 6187,
+      "sha256WorkingBytes": "36d3de0779f76e225cd02c4c024b1f4645299cd929f66caa5b5875f7e7b7ca3f"
+    },
+    {
+      "name": "dist/main/main/browser/browser-service.js",
+      "bytes": 20831,
+      "sha256WorkingBytes": "82c743d02da351a0d9295fb8c6ceb64bb4180f4ca98ecc213bb0165d49e2a5b6"
+    }
+  ],
+  "files": [
+    {
+      "name": ".gitattributes",
+      "bytes": 109,
+      "sha256": "255650b36d2e7d0279e8003e2b2a0e8182f9cda77af348c772b880b69372ee54"
+    },
+    {
+      "name": "evidence-n10-identity-r1.json",
+      "bytes": 2533,
+      "sha256": "a6a097d23f0084aee0aea8db717f1a02ec3f87afa90b400ec5f0427f56609a2b"
+    },
+    {
+      "name": "evidence-n6-r1.json",
+      "bytes": 57888,
+      "sha256": "4af3de07facb6e029f2a6b149ad3d43a023db84df34c70f6e7e42816df5c3095"
+    },
+    {
+      "name": "evidence-n6-r2.json",
+      "bytes": 56255,
+      "sha256": "d03e44b97a2ec6295e58fbd90fe01683f62db575c07b1b55d1d1fdd1c5856b28"
+    },
+    {
+      "name": "inputs-n6-r1.cjs",
+      "bytes": 23820,
+      "sha256": "6a6c98c55ce6a2c5f993903239b18a45a633cad40e517efefeaa5c531f195970"
+    },
+    {
+      "name": "launcher-n10-identity-r1.json",
+      "bytes": 298,
+      "sha256": "8c43c56682ddeaa8f2e03bc559e860584c968fe1b2b288147b349cca07e4492b"
+    },
+    {
+      "name": "launcher-n6-r1.json",
+      "bytes": 259,
+      "sha256": "d776db5788a7139dd14d21cb04604cd19e851b6eb5c563b7b0c99fcf5ab5816c"
+    },
+    {
+      "name": "launcher-n6-r2.json",
+      "bytes": 265,
+      "sha256": "19d5514cc14b29837481cee0a91b6765208e2ad023bf6270061a8100e98e1f7a"
+    },
+    {
+      "name": "n10-identity.cjs",
+      "bytes": 3037,
+      "sha256": "5e354be41fe447f0f68ed6c177b143a2668c654f5284c2fb7eadf29252e3e2a7"
+    },
+    {
+      "name": "n6-evidence-green.log",
+      "bytes": 116,
+      "sha256": "0250fa464e68dc04361f94709cc39d9bc98b62895ed76ecab8bc612601c34ebd"
+    },
+    {
+      "name": "n6-r1-marker-red.log",
+      "bytes": 779,
+      "sha256": "388ea798b7ba75203a08d7590e40b09a874d1e05d448ad9f42f16c150d67a285"
+    },
+    {
+      "name": "n6-regression.log",
+      "bytes": 235,
+      "sha256": "0ccbef249414c5bebc458c94a73a3719d1ef9fcb3d7bac4701f80c63c5964ba0"
+    },
+    {
+      "name": "n6.cjs",
+      "bytes": 24622,
+      "sha256": "430d7a8db29e7d045cff8c1315fe7d39825e682cdab0175e1f19a3e216eb3cec"
+    },
+    {
+      "name": "review.json",
+      "bytes": 1298,
+      "sha256": "36e8b08176671e1f0c7e4e06f99fc956f563f462e39c89b1216bd3ddc5301318"
+    },
+    {
+      "name": "run.ps1",
+      "bytes": 3364,
+      "sha256": "23d84c59535b108b584b229220863e1065bdfc40beb9c2392de7929d1431531f"
+    },
+    {
+      "name": "stderr-n10-identity-r1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "stderr-n6-r1.log",
+      "bytes": 182,
+      "sha256": "0d0a63d3e79b11e3bae46751335cadafb3c3966aa1510979f4da593a51f154d2"
+    },
+    {
+      "name": "stderr-n6-r2.log",
+      "bytes": 182,
+      "sha256": "0dc99569448ebcab77bbb0ae0dc46930f12259d52b3ebb3a57b98a9b4ecc9170"
+    },
+    {
+      "name": "stdout-n10-identity-r1.log",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "name": "stdout-n6-r1.log",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "name": "stdout-n6-r2.log",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "name": "verify-evidence.cjs",
+      "bytes": 2906,
+      "sha256": "37851083b9144378cf8bae6b8fa2192ae2125ed23374dd6b7c40e5a3f6e6698e"
+    }
+  ]
+}
