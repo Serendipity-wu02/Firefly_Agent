@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, mkdtemp, rm, access, readdir } from "node:fs/promises";
+import { readFile, mkdtemp, rm, access, readdir, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { createRequire } from "node:module";
 import test from "node:test";
@@ -126,4 +126,35 @@ test("the assisted installer stores launch preferences under the Firefly userDat
 test("upgrade staging is Firefly-owned rather than sharing Firefly paths", () => {
   assert.match(installerInclude, /\.Firefly\.content-preserve/);
   assert.match(installerInclude, /\.Firefly\.models-preserve/);
+});
+
+
+test("controlled history helper ships outside ASAR in resources/bin", async context => {
+  const entry = YAML.parse(source).extraResources.find(entry => entry.from === "native/target/release/firefly-history-read.exe");
+  assert.ok(entry, "package must include the native read-only history helper");
+  const root = await mkdtemp(path.join(os.tmpdir(), "firefly-history-package-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const helper = path.join(root, entry.from);
+  await mkdir(path.dirname(helper), { recursive: true });
+  await writeFile(helper, "synthetic helper fixture");
+  await copyFiles([new FileMatcher(helper, path.join(root, "resources", entry.to), value => value, entry.filter)], undefined, false);
+  assert.equal(await readFile(path.join(root, "resources/bin/firefly-history-read.exe"), "utf8"), "synthetic helper fixture");
+});
+
+test("pinned retrieval models and provenance ship externally without unrelated models", async context => {
+  const entry = YAML.parse(source).extraResources.find(entry => entry.from === "models");
+  assert.ok(entry, "package must include the pinned local retrieval models");
+  const root = await mkdtemp(path.join(os.tmpdir(), "firefly-model-package-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const required = ["config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "sentencepiece.bpe.model", "onnx/model_quantized.onnx", "README.md"];
+  const shipped = [...required.map(name => "Xenova/bge-m3/" + name), ...required.map(name => "bge-reranker-base/" + name), "provenance/FlagEmbedding-LICENSE", "provenance/smh-pinned-assets.json"];
+  for (const name of [...shipped, "unrelated-model/onnx/model.onnx", "cache/untrusted.bin"]) {
+    const location = path.join(root, "models", name);
+    await mkdir(path.dirname(location), { recursive: true });
+    await writeFile(location, name);
+  }
+  await copyFiles([new FileMatcher(path.join(root, entry.from), path.join(root, "resources", entry.to), value => value, entry.filter)], undefined, false);
+  for (const name of shipped) assert.equal(await readFile(path.join(root, "resources/models", name), "utf8"), name);
+  await assert.rejects(access(path.join(root, "resources/models/unrelated-model/onnx/model.onnx")), { code: "ENOENT" });
+  await assert.rejects(access(path.join(root, "resources/models/cache/untrusted.bin")), { code: "ENOENT" });
 });

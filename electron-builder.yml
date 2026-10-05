@@ -36,6 +36,14 @@ extraFiles:
   - from: skills
     to: skills
 extraResources:
+  - from: native/target/release/firefly-history-read.exe
+    to: bin/firefly-history-read.exe
+  - from: models
+    to: models
+    filter:
+      - "Xenova/bge-m3/**/*"
+      - "bge-reranker-base/**/*"
+      - "provenance/**/*"
   - from: resources/bin/firefly-screenshot.exe
     to: bin/firefly-screenshot.exe
   - from: src/main/music/scripts/qqmusic_gsmtc.ps1

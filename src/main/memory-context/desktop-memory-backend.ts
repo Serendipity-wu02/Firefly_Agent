@@ -28,11 +28,15 @@ interface Options {
  storage?:StorageContext;settings?:()=>ModelSettings;keyProtection?:KeyProtection;helper?:string;
  sdkFactory?:(settings:ModelSettings)=>ResponsesSdkClient;
 }
+/** Native executables live outside app.asar in packaged Electron resources. */
+export function desktopHistoryHelperPath(app:{isPackaged:boolean;getAppPath():string},resourcesPath:string):string {
+ return app.isPackaged?path.join(resourcesPath,'bin','firefly-history-read.exe'):path.join(app.getAppPath(),'native','target','release','firefly-history-read.exe');
+}
 /** Opens the existing one-writer Worker and pinned local models under Main's profile. */
 export async function openDesktopMemoryBackend(options:Options):Promise<DesktopMemoryBackend>{
  const {app,safeStorage}=await import('electron');
  const settings=()=>resolveModelSettingsProfile((options.settings??loadModelSettings)(),options.profileId()),initial=settings(),limits=desktopResponsesContract(initial);
- const helper=options.helper??path.join(app.getAppPath(),'native','target','release','firefly-history-read.exe');
+ const helper=options.helper??desktopHistoryHelperPath(app,process.resourcesPath);
  if(!fs.existsSync(helper))throw Error('MEMORY_HISTORY_NATIVE_UNAVAILABLE');
  const salt=randomBytes(32),fingerprint=(s:ModelSettings)=>createHash('sha256').update(salt).update(JSON.stringify({profile:options.profileId(),provider:s.provider,baseUrl:s.baseUrl,model:s.model,apiKey:s.apiKey,explicitTransport:s.explicitTransport,reasoning:s.reasoning,contextWindowTokens:s.contextWindowTokens})).digest('hex');
  let previous=fingerprint(initial),revision=1;
