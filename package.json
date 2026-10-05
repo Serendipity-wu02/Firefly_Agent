@@ -38,6 +38,7 @@
     "start": "electron .",
     "check:storage-boundary": "node scripts/verify/storage-boundary.mjs",
     "test": "vitest run",
+    "test:memory-history-zero-write": "vitest run --config vitest.memory-history-zero-write.config.ts",
     "test:watch": "vitest",
     "smoke:music": "npm run build:main && node scripts/verify/music-smoke.mjs",
     "build:sim": "tsc -p tsconfig.sim.json",

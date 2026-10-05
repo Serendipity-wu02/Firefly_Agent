@@ -134,3 +134,26 @@ it('one late cleanup failure cannot acknowledge invalidation while another opera
  await native.capture();const first=native.query({query:'harbor'}),second=native.query({query:'harbor'}),firstFailed=expect(first).rejects.toThrow('first cleanup fault'),secondFailed=expect(second).rejects.toThrow();await both;let acknowledged=false;const invalidated=native.invalidate('root-change').finally(()=>{acknowledged=true}),cleanupFailed=expect(invalidated).rejects.toThrow('first cleanup fault');
  releases[0]();try{await firstFailed;await new Promise<void>(setImmediate);expect(acknowledged).toBe(false)}finally{releases[1]();await secondFailed;await cleanupFailed;await native.close()}
 });
+
+it('invalidation still waits exact live operation cleanup when captured-head cleanup rejects',async()=>{
+ const f=await fixture();let failHeads=false,starts=0,entered!:()=>void,release!:()=>void;
+ const started=new Promise<void>(r=>entered=r),hold=new Promise<void>(r=>release=r);
+ const history={...f.history,prepareTranscriptChange:async(...args:Parameters<typeof f.history.prepareTranscriptChange>)=>{if(failHeads)throw Error('HEAD_CLEANUP_FAILED');return f.history.prepareTranscriptChange(...args)}};
+ const native=createNativeHistoryProvider({actorAuthority:f.authority,actorToken:f.actor,store:f.store,history,deadlineMs:1000,endpointFactory:async()=>{const endpoint=await f.endpointFactory();if(++starts===3){entered();await hold}return endpoint}});
+ await native.capture();const query=native.query({query:'harbor'}),queryFailed=expect(query).rejects.toThrow();await started;
+ failHeads=true;let acknowledged=false;const invalidation=native.invalidate('root-change').catch(error=>{acknowledged=true;return error.message});
+ try{await new Promise<void>(setImmediate);expect(acknowledged).toBe(false)}
+ finally{release();await queryFailed;expect(await invalidation).toBe('HEAD_CLEANUP_FAILED');failHeads=false;await native.close()}
+});
+
+it('a captured-head failure still settles later heads before invalidation acknowledges',async()=>{
+ const f=await fixture();await f.store.append('session-a',{id:'u2',kind:'user',turnId:'turn2',revision:1,payload:{text:'harbor tea'},at:2000});await f.store.checkpoint('session-a');
+ let failHeads=false,calls=0,release!:()=>void;const hold=new Promise<void>(r=>release=r);
+ const history={...f.history,prepareTranscriptChange:async(...args:Parameters<typeof f.history.prepareTranscriptChange>)=>{if(failHeads){if(++calls===1)throw Error('FIRST_HEAD_FAILED');await hold}return f.history.prepareTranscriptChange(...args)}};
+ const native=createNativeHistoryProvider({actorAuthority:f.authority,actorToken:f.actor,store:f.store,history,endpointFactory:f.endpointFactory,deadlineMs:1000});
+ expect(await native.capture()).toMatchObject({captured:2});const refs=f.commands.filter(c=>c.kind==='put').map(c=>c.body.document.transcriptRef);
+ const baseline=(ref:typeof refs[number])=>f.transport.contextCommand({kind:'baseline',scopeKey:'scope-a',body:{actorKey:'actor-a',providerId:'synthetic',sessionId:'session-a',bootId:f.authority.bootId,sourceRefs:[],factRefs:[],transcriptRefs:[ref]}});
+ await baseline(refs[1]);failHeads=true;let acknowledged=false;const invalidated=native.invalidate('root-change').catch(error=>{acknowledged=true;return error.message});
+ try{await new Promise<void>(setImmediate);expect(calls).toBe(2);expect(acknowledged).toBe(false);release();expect(await invalidated).toBe('FIRST_HEAD_FAILED');await expect(baseline(refs[1])).rejects.toThrow('MEMORY_CONTEXT_TRANSCRIPT_PENDING')}
+ finally{release();await invalidated;failHeads=false;await native.close()}
+});
