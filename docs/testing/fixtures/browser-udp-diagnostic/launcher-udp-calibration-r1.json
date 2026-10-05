@@ -1,0 +1,9 @@
+{
+  "matrix": "diagnostic",
+  "pid": 31296,
+  "exitCode": 0,
+  "mode": "fix",
+  "run": "udp-calibration-r1",
+  "temp": "E:\\Codex\\2026-10-04\\task-4\\browser-udp-diagnostic-qa\\temp-udp-calibration-r1",
+  "profile": "E:\\Codex\\2026-10-04\\task-4\\browser-udp-diagnostic-qa\\profile-udp-calibration-r1"
+}

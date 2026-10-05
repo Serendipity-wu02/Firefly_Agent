@@ -1,0 +1,33 @@
+鉁?actual native before/after positives qualify both owned UDP families (1.1208ms)
+鉁?a missing family cannot be reported qualified (0.8335ms)
+鉁?an empty native positive or probe exception cannot qualify (2.8207ms)
+鉁?late positive loss and explicit false pair cannot qualify (0.9329ms)
+鉁?declared metadata cannot certify a changed sink or configuration (0.452ms)
+鈩?tests 5
+鈩?suites 0
+鈩?pass 4
+鈩?fail 1
+鈩?cancelled 0
+鈩?skipped 0
+鈩?todo 0
+鈩?duration_ms 98.8162
+
+鉁?failing tests:
+
+test at docs\testing\fixtures\browser-udp-diagnostic\qualification.test.cjs:26:1
+鉁?declared metadata cannot certify a changed sink or configuration (0.452ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (E:\Codex\2026-10-04\task-4\audit-r3-r4\docs\testing\fixtures\browser-udp-diagnostic\qualification.test.cjs:32:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /identical runtime probe metadata/,
+    operator: 'throws',
+    diff: 'simple'
+  }

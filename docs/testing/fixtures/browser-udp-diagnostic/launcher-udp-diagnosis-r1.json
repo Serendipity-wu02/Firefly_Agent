@@ -1,0 +1,9 @@
+{
+  "matrix": "diagnostic",
+  "pid": 4588,
+  "profile": "E:\\Codex\\2026-10-04\\task-4\\browser-udp-diagnostic-qa\\profile-udp-diagnosis-r1",
+  "run": "udp-diagnosis-r1",
+  "mode": "diagnostic",
+  "temp": "E:\\Codex\\2026-10-04\\task-4\\browser-udp-diagnostic-qa\\temp-udp-diagnosis-r1",
+  "exitCode": 0
+}

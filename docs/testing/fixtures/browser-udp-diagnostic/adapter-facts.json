@@ -1,0 +1,172 @@
+[
+  {
+    "Name": "本地连接* 3",
+    "InterfaceIndex": 19,
+    "InterfaceDescription": "WAN Miniport (L2TP)",
+    "MediaType": "Connection Oriented WAN",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Disconnected"
+  },
+  {
+    "Name": "本地连接* 5",
+    "InterfaceIndex": 18,
+    "InterfaceDescription": "WAN Miniport (PPPOE)",
+    "MediaType": "Connection Oriented WAN",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Disconnected"
+  },
+  {
+    "Name": "本地连接* 10",
+    "InterfaceIndex": 17,
+    "InterfaceDescription": "Microsoft Wi-Fi Direct Virtual Adapter #2",
+    "MediaType": "Native 802.11",
+    "PhysicalMediaType": "Native 802.11",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Disconnected"
+  },
+  {
+    "Name": "本地连接* 9",
+    "InterfaceIndex": 16,
+    "InterfaceDescription": "Microsoft Wi-Fi Direct Virtual Adapter",
+    "MediaType": "Native 802.11",
+    "PhysicalMediaType": "Native 802.11",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Disconnected"
+  },
+  {
+    "Name": "WLAN",
+    "InterfaceIndex": 15,
+    "InterfaceDescription": "Intel(R) Wi-Fi 6 AX201 160MHz",
+    "MediaType": "Native 802.11",
+    "PhysicalMediaType": "Native 802.11",
+    "HardwareInterface": true,
+    "Virtual": false,
+    "Status": "Up"
+  },
+  {
+    "Name": "本地连接* 7",
+    "InterfaceIndex": 14,
+    "InterfaceDescription": "WAN Miniport (IPv6)",
+    "MediaType": "802.3",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Up"
+  },
+  {
+    "Name": "本地连接* 1",
+    "InterfaceIndex": 13,
+    "InterfaceDescription": "WAN Miniport (SSTP)",
+    "MediaType": "Connection Oriented WAN",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Disconnected"
+  },
+  {
+    "Name": "Mihomo",
+    "InterfaceIndex": 11,
+    "InterfaceDescription": "Meta Tunnel",
+    "MediaType": "IP",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Up"
+  },
+  {
+    "Name": "以太网",
+    "InterfaceIndex": 10,
+    "InterfaceDescription": "Realtek PCIe GbE Family Controller",
+    "MediaType": "802.3",
+    "PhysicalMediaType": "802.3",
+    "HardwareInterface": true,
+    "Virtual": false,
+    "Status": "Disconnected"
+  },
+  {
+    "Name": "Teredo Tunneling Pseudo-Interface",
+    "InterfaceIndex": 9,
+    "InterfaceDescription": "",
+    "MediaType": "Tunnel",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Not Present"
+  },
+  {
+    "Name": "本地连接* 2",
+    "InterfaceIndex": 8,
+    "InterfaceDescription": "WAN Miniport (IKEv2)",
+    "MediaType": "Connection Oriented WAN",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Disconnected"
+  },
+  {
+    "Name": "以太网(内核调试器)",
+    "InterfaceIndex": 7,
+    "InterfaceDescription": "Microsoft Kernel Debug Network Adapter",
+    "MediaType": "802.3",
+    "PhysicalMediaType": "802.3",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Not Present"
+  },
+  {
+    "Name": "本地连接* 8",
+    "InterfaceIndex": 6,
+    "InterfaceDescription": "WAN Miniport (Network Monitor)",
+    "MediaType": "802.3",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Up"
+  },
+  {
+    "Name": "Microsoft IP-HTTPS Platform Interface",
+    "InterfaceIndex": 5,
+    "InterfaceDescription": "",
+    "MediaType": "Tunnel",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Not Present"
+  },
+  {
+    "Name": "本地连接* 6",
+    "InterfaceIndex": 4,
+    "InterfaceDescription": "WAN Miniport (IP)",
+    "MediaType": "802.3",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Up"
+  },
+  {
+    "Name": "6to4 Adapter",
+    "InterfaceIndex": 3,
+    "InterfaceDescription": "",
+    "MediaType": "Tunnel",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Not Present"
+  },
+  {
+    "Name": "本地连接* 4",
+    "InterfaceIndex": 2,
+    "InterfaceDescription": "WAN Miniport (PPTP)",
+    "MediaType": "Connection Oriented WAN",
+    "PhysicalMediaType": "Unspecified",
+    "HardwareInterface": false,
+    "Virtual": true,
+    "Status": "Disconnected"
+  }
+]

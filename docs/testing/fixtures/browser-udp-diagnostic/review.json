@@ -1,0 +1,36 @@
+{
+  "reviewer": "/root/udp_diagnosis_review",
+  "mode": "independent-read-only",
+  "initial": {
+    "critical": 0,
+    "important": 1,
+    "minor": 1,
+    "importantFinding": "Missing families or failed pairs could still produce native exit0. Current successful pairs were not invalidated.",
+    "minorFinding": "Minimal STUN header/length checks are not full attribute validation. Actual native requests are 20-byte Binding requests."
+  },
+  "followup": {
+    "critical": 0,
+    "important": 0,
+    "minor": 1,
+    "importantDisposition": "Closed: mandatory native and launcher qualifiers require both ordered families, successful positive probes and exact runtime metadata; negative missing-family CLI rejects.",
+    "minorDisposition": "Retained as explicit protocol and evidence scope limit; arbitrary STUN parser expansion deferred.",
+    "confirmed": {
+      "pid": 31296,
+      "nativeExitCode": 0,
+      "records": 12,
+      "ipv4": [6, 0, 6],
+      "ipv6": [3, 0, 3],
+      "interfaceName": "WLAN",
+      "interfaceIndex": 15,
+      "hardwareInterface": true,
+      "virtual": false,
+      "ports": [54416, 50014],
+      "sameRuntimeMetadata": true,
+      "calibrationArchiveMatchesQaSha256": "f62c76314c91df8f20934fbf4f81c0e41df939d56ab814db990ee87785c34f39",
+      "prelaunchSnapshotAndQualifierHashesMatch": true,
+      "archivedOfflineTestLog": "8 passed / 0 failed"
+    }
+  },
+  "notIndependentlyExecuted": ["tests", "native", "network", "deployment"],
+  "manifestReview": "Not independently reviewed; finalized and verified by implementer after this review."
+}

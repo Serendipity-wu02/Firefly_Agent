@@ -1,0 +1,332 @@
+{
+  "baseline": "e191a965a3e0036e5999a5b9c0d7d70f2d79ea52",
+  "branch": "audit/browser-native-gaps-20261005",
+  "productionGateOpen": false,
+  "productSourceChanges": [],
+  "ciChanges": [],
+  "runs": [
+    {
+      "run": "udp-diagnosis-r1",
+      "pid": 4588,
+      "nativeExitCode": 0,
+      "records": 11,
+      "errors": 0,
+      "runtimeMetadataVersion": null
+    },
+    {
+      "run": "udp-own-interface-r1",
+      "pid": 30096,
+      "nativeExitCode": 0,
+      "records": 12,
+      "errors": 0,
+      "runtimeMetadataVersion": null
+    },
+    {
+      "run": "udp-calibration-r1",
+      "pid": 31296,
+      "nativeExitCode": 0,
+      "records": 12,
+      "errors": 0,
+      "runtimeMetadataVersion": 1
+    }
+  ],
+  "qualifiedCalibration": {
+    "run": "udp-calibration-r1",
+    "ipv4": [
+      6,
+      0,
+      6
+    ],
+    "ipv6": [
+      3,
+      0,
+      3
+    ],
+    "observationBudgetMs": 3500,
+    "mainBudgetMs": 6000,
+    "sameRuntimeProbeMetadata": true,
+    "selectedInterface": {
+      "name": "WLAN",
+      "index": 15,
+      "type": "physical Wi-Fi / Native 802.11"
+    },
+    "fullN7": false,
+    "fullE3": false
+  },
+  "verification": {
+    "initialCodec": {
+      "passed": 3,
+      "exitCode": 0,
+      "log": "udp-codec-tests.log"
+    },
+    "guestRegression": {
+      "files": 1,
+      "passed": 7,
+      "exitCode": 0,
+      "log": "udp-guest-regression.log"
+    },
+    "qualificationRed": {
+      "passed": 4,
+      "failed": 1,
+      "exitCode": 1,
+      "log": "udp-qualification-red.log",
+      "reason": "changed sink port accepted before metadata check"
+    },
+    "qualificationGreen": {
+      "passed": 5,
+      "exitCode": 0,
+      "log": "udp-qualification-green.log"
+    },
+    "finalOffline": {
+      "passed": 8,
+      "exitCode": 0,
+      "log": "offline-final-tests.log"
+    },
+    "actualQualification": {
+      "exitCode": 0,
+      "log": "qualification-positive-cli.log"
+    },
+    "missingFamilyNegative": {
+      "exitCode": 1,
+      "file": "negative-missing-family.json",
+      "log": "qualification-negative-cli.log",
+      "provenance": "derived from actual calibration by removing IPv6 cases, not a native run"
+    },
+    "independentReview": {
+      "critical": 0,
+      "important": 0,
+      "minor": 1,
+      "file": "review.json"
+    },
+    "fullTestsTypesBuild": "Not rerun for QA/document-only change; previous runs and inherited 14 TEMP/history failures remain historical."
+  },
+  "snapshots": [
+    {
+      "file": "inputs-diagnosis-r1.cjs",
+      "provenance": "reconstructed after diagnostic run; no prelaunch SHA receipt; only first-fix-only predicate differs"
+    },
+    {
+      "file": "inputs-own-interface-r1.cjs",
+      "provenance": "postrun snapshot captured before gate edits; no prelaunch SHA receipt"
+    },
+    {
+      "file": "inputs-calibration-r1.cjs",
+      "provenance": "captured before launch; hashes and compiled inputs in inputs-udp-calibration-r1.json"
+    }
+  ],
+  "preservedHistoricalArchives": [
+    {
+      "folder": "browser-native-gaps",
+      "hashedFiles": 53
+    },
+    {
+      "folder": "browser-native-n6",
+      "hashedFiles": 22
+    },
+    {
+      "folder": "browser-bounded-acceptance",
+      "hashedFiles": 11
+    }
+  ],
+  "constraints": [
+    "No product/renderer/R1/native-backend change",
+    "No TURN TCP or N6 native rerun",
+    "No all-interface capture or global zero-UDP invariant",
+    "Dedicated Main DNS UDP is legitimate",
+    "No OS/TUN/trust/userData changes",
+    "No Cloudflare deployment/login/account/credentials/public write",
+    "No push/PR/merge/deploy"
+  ],
+  "remaining": [
+    "Selected owned-interface finite arrival only, not accepted response/full ICE/public reachability",
+    "Full N7/QUIC/WebTransport and whole-interface evidence unverified",
+    "Trusted HTTPS main SW install/update/preload awaits explicit owned origin/deployment authority",
+    "Minimal 20-byte STUN responder does not validate arbitrary attributes"
+  ],
+  "files": [
+    {
+      "name": ".gitattributes",
+      "bytes": 109,
+      "sha256": "255650b36d2e7d0279e8003e2b2a0e8182f9cda77af348c772b880b69372ee54"
+    },
+    {
+      "name": "adapter-facts.json",
+      "bytes": 4780,
+      "sha256": "50c61ae93dd4dac4572336b5f7660f13467549af6e6c12af53b2c722cee3d810"
+    },
+    {
+      "name": "diagnostic.cjs",
+      "bytes": 11466,
+      "sha256": "eeec7dd4d471f49f7a39f111aef635ec8b648310dfa43bc74cada46645cc9ad0"
+    },
+    {
+      "name": "evidence-udp-calibration-r1.json",
+      "bytes": 24151,
+      "sha256": "f62c76314c91df8f20934fbf4f81c0e41df939d56ab814db990ee87785c34f39"
+    },
+    {
+      "name": "evidence-udp-diagnosis-r1.json",
+      "bytes": 10678,
+      "sha256": "fcf883e496ffa3693e87e917fd802fdc1d0c5ac298501efda6d75a90067a7b24"
+    },
+    {
+      "name": "evidence-udp-own-interface-r1.json",
+      "bytes": 13893,
+      "sha256": "a56b590f3661397a767302bc735b981cda25eb3e20efbf311f78676cb47b5481"
+    },
+    {
+      "name": "inputs-calibration-r1.cjs",
+      "bytes": 11466,
+      "sha256": "eeec7dd4d471f49f7a39f111aef635ec8b648310dfa43bc74cada46645cc9ad0"
+    },
+    {
+      "name": "inputs-diagnosis-r1.cjs",
+      "bytes": 9535,
+      "sha256": "dffa0a9a8e87f3a19fc690c2c9b3c65ca436a72ca86d9612ff278a0e9a464efd"
+    },
+    {
+      "name": "inputs-own-interface-r1.cjs",
+      "bytes": 9632,
+      "sha256": "f813382e403a7cf58edf5d853032116c00857dda398af3f6b157693e76245919"
+    },
+    {
+      "name": "inputs-udp-calibration-r1.json",
+      "bytes": 2568,
+      "sha256": "4293e0d4a7c5c21e22072922e8dbb89d0267255cf77908f56da4e1754481d242"
+    },
+    {
+      "name": "launcher-udp-calibration-r1.json",
+      "bytes": 315,
+      "sha256": "2d9abc3228212a715381b124a5c59b40575d2b4dedda4f669a0c18af3e804cd1"
+    },
+    {
+      "name": "launcher-udp-diagnosis-r1.json",
+      "bytes": 315,
+      "sha256": "9b296b524794ffbb00d05aaf11bc326e7ae3917a74833a20c1c927cce7a74516"
+    },
+    {
+      "name": "launcher-udp-own-interface-r1.json",
+      "bytes": 321,
+      "sha256": "36a90c9eec7572ab62bf542739d57f4366e42c8411087b0d611549fa6fdb6eac"
+    },
+    {
+      "name": "negative-missing-family.json",
+      "bytes": 20418,
+      "sha256": "bd8485a6395be979154cdfa24478a8e3e3a1c1fde2559000b2114ac9382e3d0d"
+    },
+    {
+      "name": "offline-final-tests.log",
+      "bytes": 740,
+      "sha256": "a8420597b1b37f793b546c146d4a9741988e223679d61a6d8a44eeeaffe63410"
+    },
+    {
+      "name": "qualification-negative-cli.log",
+      "bytes": 1031,
+      "sha256": "f47ddbcc64af6d937e0e206f2a1eee4fec66d3bf6ebeaf7e8a884e6214f93c80"
+    },
+    {
+      "name": "qualification-positive-cli.log",
+      "bytes": 134,
+      "sha256": "aa97366b5d4d5fc5415d3fe53c8cbfffb386401939134d869fe81cb24b52dd5b"
+    },
+    {
+      "name": "qualification.cjs",
+      "bytes": 4536,
+      "sha256": "c200a3a5aa0733b872d65b1f2da47fff7c8b97da806d471f4a65e5de01b4957b"
+    },
+    {
+      "name": "qualification.test.cjs",
+      "bytes": 2348,
+      "sha256": "5cc29da2118c429861c83118ec161a971bfd5da3c55b8fe1bf352efb560d2db1"
+    },
+    {
+      "name": "review.json",
+      "bytes": 1576,
+      "sha256": "681ef5a554a8a80e6001d3d3146159f5f1f15ceedd880fd92b8d01279fb9f2e4"
+    },
+    {
+      "name": "run.ps1",
+      "bytes": 3244,
+      "sha256": "1d0087d1efaa940c41d6ed87ae3d6849d03f0145b0853e2d9748c5a2234923b7"
+    },
+    {
+      "name": "stderr-udp-calibration-r1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "stderr-udp-diagnosis-r1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "stderr-udp-own-interface-r1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "stdout-udp-calibration-r1.log",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "name": "stdout-udp-diagnosis-r1.log",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "name": "stdout-udp-own-interface-r1.log",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "name": "stun.cjs",
+      "bytes": 1894,
+      "sha256": "baf49e670c1855e9ec491d263a361e0a0c0d94125ca4a07a260077a2d0355f17"
+    },
+    {
+      "name": "stun.test.cjs",
+      "bytes": 1396,
+      "sha256": "dea3f5e960c0aa7e10aca4d64313b9cf9bc25c9121440ac4a8727f9eb7fc6432"
+    },
+    {
+      "name": "udp-codec-tests.log",
+      "bytes": 351,
+      "sha256": "09f02beb0cf02f386ca7fe3dc2b73dd842325c16f0ec6b4fbf8698d98dc4077c"
+    },
+    {
+      "name": "udp-guest-regression.log",
+      "bytes": 230,
+      "sha256": "5f33a0893ffe1f4959eeae9091085c896613c87cb015f5a0ea6dc8a28641dc10"
+    },
+    {
+      "name": "udp-qualification-green.log",
+      "bytes": 498,
+      "sha256": "a52e8aa1f33c66d7840450a9acb6c79459930858ec619b89396fce762f9b19e3"
+    },
+    {
+      "name": "udp-qualification-red.log",
+      "bytes": 1481,
+      "sha256": "b82f6b5611f545e0694130c633459a7f159faa160912db6adfb1ff5ddc884b4e"
+    },
+    {
+      "name": "verify-archive.cjs",
+      "bytes": 2151,
+      "sha256": "3475c0c5a2be4e8674df2b3b822ae4dcb4dff136a914c2284e078cb96aae0bc3"
+    }
+  ],
+  "reportInputs": [
+    {
+      "path": "../../browser-udp-diagnostic.md",
+      "sha256": "d3badf627be141757bdf24939e7e1aab978229242d01351a460e5ad1238dda5b"
+    },
+    {
+      "path": "../../browser-udp-diagnostic-plan.md",
+      "sha256": "0a41577fafe5480948161dddc385e360426f48d3a7f7f7c640e163b0d57c89e9"
+    },
+    {
+      "path": "../../../architecture/browser-trusted-https-fixture-proposal.md",
+      "sha256": "a3e29af2cb276b774841d5bbfd31a32d2196de776f915bcb3998a0f856e97135"
+    }
+  ]
+}

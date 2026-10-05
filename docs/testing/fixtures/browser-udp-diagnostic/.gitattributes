@@ -1,0 +1,6 @@
+*.json -text -diff
+manifest.json diff
+review.json diff
+*.log -text -diff
+*.cjs text eol=lf
+*.ps1 text eol=lf
