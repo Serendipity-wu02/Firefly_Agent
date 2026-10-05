@@ -140,7 +140,8 @@ describe("resolvePluginPanelRequest：静态资源路由", () => {
     expect((await panelUrl("not a url")).status).toBe(404);
   });
 
-  it.skipIf(!symlinkSupported)("符号链接逃逸被 realpath 拦截", async () => {
+  it("符号链接逃逸被 realpath 拦截", async ({skip}) => {
+    if(!symlinkSupported)skip(symlinkSkipReason);
     const outside = path.join(tmp, "outside.html");
     writeFileSync(outside, "outside-secret", "utf8");
     symlinkSync(outside, path.join(pluginDir, "escape.html"));

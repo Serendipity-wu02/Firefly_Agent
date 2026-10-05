@@ -1,5 +1,5 @@
 import {createMainDesktopMemory} from "../memory-context/main-desktop-memory";
-import {openDesktopMemoryBackend} from "../memory-context/desktop-memory-backend";
+import {openDesktopMemoryBackend,desktopMemoryAdmissionMode} from "../memory-context/desktop-memory-backend";
 import {getConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
 import { getStorageContext } from "../storage-context";
 /**
@@ -204,12 +204,13 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
   const activation = createWindowActivationBroker();
   const shutdown = createShutdownCoordinator({ readiness, timeoutMs: SHUTDOWN_TIMEOUT_MS });
   // Explicit Main startup opt-in; no Renderer flag, credentials, roots or actor tokens.
+  const memoryAdmissionMode=desktopMemoryAdmissionMode(name=>app.commandLine?.hasSwitch(name)===true,getStorageContext().profile.kind);
   const memoryEnabled=app.commandLine?.hasSwitch("firefly-memory-controlled")===true;
   const memoryProfileId=()=>getDefaultModelProfile(loadModelSettings())?.id;
   const desktopMemory=memoryEnabled?createMainDesktopMemory({enabled:true,getChatWindow:()=>reactChatWindow,targets:activeChatTargetRegistry,
     getSession:chatsStore.getSession,listSessionIds:()=>chatsStore.listSessions({mode:"chat"}).map(session=>session.id),
     isControlledSession:session=>session.modelProfileId===memoryProfileId(),
-    store:getConversationTranscriptStore(getStorageContext().dataRoot),openBackend:()=>openDesktopMemoryBackend({profileId:memoryProfileId}),
+    store:getConversationTranscriptStore(getStorageContext().dataRoot),openBackend:()=>openDesktopMemoryBackend({profileId:memoryProfileId,...(memoryAdmissionMode?{admissionMode:memoryAdmissionMode}:{})}),
   }):null;
   if(desktopMemory){
     shutdown.register({id:"desktop-memory-admission",phase:"quiesce",dispose:()=>desktopMemory.quiesce()});

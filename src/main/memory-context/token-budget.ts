@@ -29,10 +29,10 @@ function inputLimit(budget:ContextBudget,request:PreparedRequest):number {
  const result=Math.min(budget.maxInputTokens===undefined?context:integer(budget.maxInputTokens,1),context-output-margin);
  if(!Number.isSafeInteger(result)||result<0)contextFail("MEMORY_CONTEXT_FIXED_OVER_BUDGET");return result;
 }
-async function count(counter:TokenCounter,request:PreparedRequest,signal?:AbortSignal):Promise<number> {
+async function count(counter:TokenCounter,request:PreparedRequest,signal?:AbortSignal,mode:"exact"|"estimate"="exact"):Promise<number> {
  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
  if(!counter?.capability||identityKeys.some(k=>counter.capability[k]!==request[k])||!Array.isArray(counter.capability.inputTypes)||request.inputTypes.some(t=>!counter.capability.inputTypes.includes(t)))contextFail("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
- if(counter.capability.mode!=="exact")contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
+ if(counter.capability.mode!==mode)contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
  let result:number;try{result=await counter.count(request,...(signal?[{signal}]:[]))}catch{if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");contextFail("MEMORY_CONTEXT_COUNT_FAILED")}
  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");if(!Number.isSafeInteger(result)||result<0)contextFail("MEMORY_CONTEXT_COUNT_FAILED");return result;
 }
@@ -68,17 +68,19 @@ export function validateUnit(unit:ContextUnit):void {
 /** Counts every candidate as a whole prepared request; never assumes additivity/monotonicity. */
 export async function selectBudget(input:BudgetInput):Promise<BudgetResult> {
  input={...input,budget:structuredClone(input.budget)};
+ if(input.budget.admissionMode!==undefined&&input.budget.admissionMode!=="bounded")contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+ const bounded=input.budget.admissionMode==="bounded",mode=bounded?"estimate":"exact";
  const units=structuredClone(input.units);if(!Array.isArray(units)||units.length>10000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");units.forEach(validateUnit);
  if(new Set(units.map(u=>u.id)).size!==units.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
  const fixed=freezeRequest(input.prepare([])),fixedLimit=inputLimit(input.budget,fixed);
- if(await count(input.counter,fixed,input.signal)>fixedLimit)contextFail("MEMORY_CONTEXT_FIXED_OVER_BUDGET");
+ if(await count(input.counter,fixed,input.signal,mode)>fixedLimit)contextFail("MEMORY_CONTEXT_FIXED_OVER_BUDGET");
  const protectedIds=new Set(units.filter(u=>u.kind==="recent").slice(-integer(input.budget.minRecentCompleteTurns)).map(u=>u.id));
  if(input.budget.minRecentCompleteTurns===0)protectedIds.clear();
  let selected=units;
  for(;;){
-  const request=freezeRequest(input.prepare(structuredClone(selected))),limit=inputLimit(input.budget,request),promptTokens=await count(input.counter,request,input.signal);
-  const sRequest=freezeRequest(input.prepareS(structuredClone(selected))),sTokens=selected.length?await count(input.counter,sRequest,input.signal):0;
-  if(promptTokens<=limit&&sTokens<=input.budget.maxSTokens)return {request,requestDigest:requestDigest(request),selectedIds:selected.map(u=>u.id),promptTokens,sTokens,inputLimit:limit,counterIdentity:{providerId:request.providerId,model:request.model,transport:request.transport,framingVersion:request.framingVersion}};
+  const request=freezeRequest(input.prepare(structuredClone(selected))),limit=inputLimit(input.budget,request),promptTokens=await count(input.counter,request,input.signal,mode);
+  const sRequest=freezeRequest(input.prepareS(structuredClone(selected))),sTokens=selected.length?await count(input.counter,sRequest,input.signal,mode):0;
+  if(promptTokens<=limit&&sTokens<=input.budget.maxSTokens)return {request,requestDigest:requestDigest(request),selectedIds:selected.map(u=>u.id),...(bounded?{admissionMode:"bounded" as const,estimates:{estimatedPromptTokens:promptTokens,estimatedSTokens:sTokens,selectionInputLimit:limit}}:{promptTokens,sTokens,inputLimit:limit}),counterIdentity:{providerId:request.providerId,model:request.model,transport:request.transport,framingVersion:request.framingVersion}};
   const remove=selected.findIndex(u=>!protectedIds.has(u.id));if(remove<0)contextFail("MEMORY_CONTEXT_RECENT_OVER_BUDGET");selected=selected.filter((_,i)=>i!==remove);
  }
 }

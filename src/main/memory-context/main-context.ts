@@ -24,7 +24,7 @@ interface ContextOptions {
  resolveDerivedRefs?:(ref:BoundSourceRef)=>BoundSourceRef[]|null;
 }
 interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];currentUserSourceRef?:BoundSourceRef;transcriptTokens?:object[];currentTranscript?:{token:object;user?:{turnId:string;revision:number}};summaryIds?:string[];historyTokens?:object[];signal?:AbortSignal}
-interface Snapshot extends BudgetResult {snapshotId:string;generation:number;excluded:{sourceId:string;reason:string}[]}
+type Snapshot=BudgetResult&{snapshotId:string;generation:number;excluded:{sourceId:string;reason:string}[]};
 interface ResponseProgress {operationId:string;expectedRefs:TranscriptDependency[];check:()=>void}
 interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:ContextFact[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];historyTokens:object[];configuration:string;responseProgress?:ResponseProgress;claimed?:boolean;historyResponse?:HistoryContinuation}
 interface HistoryContinuation {cap:object;state:SnapshotState;binding:HistoryResponseBinding;evidence:HistoryResponseEvidence[];phase:number;active:boolean;ticket?:object;observed:boolean;receipt?:object}
@@ -80,6 +80,7 @@ export function createMainContext(options:ContextOptions){
   }
  }
  async function prepareTranscriptSummary(token:object,input:{sessionId:string;transcriptTokens?:object[];summaryIds?:string[];inputRefs?:BoundSourceRef[];leaseMs:number}):Promise<object>{
+  if(options.budget.admissionMode==="bounded")contextFail("MEMORY_CONTEXT_BOUNDED_SUMMARY_UNSUPPORTED");
   const a=actor(token);if(input.sessionId!==a.sessionId)contextFail("MEMORY_ACTOR_DENIED");
   if(input.inputRefs?.length||!Array.isArray(input.transcriptTokens)||input.transcriptTokens.length>1000||!Array.isArray(input.summaryIds??[])||(input.summaryIds??[]).length>1000)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");
   const prior:StoredSummary[]=[];
@@ -114,6 +115,7 @@ export function createMainContext(options:ContextOptions){
   });return result.receipt;
  }
  async function prepareSummary(token:object,input:{sessionId:string;inputRefs?:BoundSourceRef[];transcriptTokens?:object[];summaryIds?:string[];leaseMs:number}):Promise<object>{
+  if(options.budget.admissionMode==="bounded")contextFail("MEMORY_CONTEXT_BOUNDED_SUMMARY_UNSUPPORTED");
   if(input.transcriptTokens!==undefined||input.summaryIds?.length)return prepareTranscriptSummary(token,input);
   const a=actor(token);if(input.sessionId!==a.sessionId)contextFail("MEMORY_ACTOR_DENIED");if(!Array.isArray(input.inputRefs)||!input.inputRefs.length||input.inputRefs.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const refs=input.inputRefs!.map(v=>checkedRef(a,v));if(new Set(refs.map(r=>r.sourceId)).size!==refs.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
@@ -232,7 +234,7 @@ export function createMainContext(options:ContextOptions){
   for(const ref of state.sourceRefs)await readSource(state.actor,ref);
   await readFactSupports(state.actor,state.facts);
   await command(state.actor,"validateSnapshot",{snapshotId:state.snapshot.snapshotId});
-  if(result.requestDigest!==state.snapshot.requestDigest||result.promptTokens!==state.snapshot.promptTokens||result.inputLimit!==state.snapshot.inputLimit)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");return result;
+  if(result.requestDigest!==state.snapshot.requestDigest||result.promptTokens!==state.snapshot.promptTokens||result.inputLimit!==state.snapshot.inputLimit||(result.admissionMode??"exact")!==(state.snapshot.admissionMode??"exact")||canonicalJson(result.estimates??null)!==canonicalJson(state.snapshot.estimates??null))contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");return result;
  }
  async function assemble(token:object,input:ContextInput):Promise<Snapshot>{
   const a=actor(token);if(input.sessionId!==a.sessionId)throw new Error("MEMORY_ACTOR_DENIED");
@@ -293,7 +295,7 @@ export function createMainContext(options:ContextOptions){
   if(current&&!result.selectedIds.includes(current.ref.headId))contextFail("MEMORY_CONTEXT_RECENT_INCOMPLETE");
   for(const [index,h] of historical.entries())if(result.selectedIds.includes(h.unit.id))await validateHistoryEvidence(options.actorAuthority,token,input.historyTokens![index]);
   const snapshotId=randomUUID();
-  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,...(includeFactSupportMetadata?{factSupportRefs:supports}:{}),recallDeps:baseline.recallDeps,transcriptRefs:dependencyRefs,guardRefs,historyDeps:historical.filter(h=>result.selectedIds.includes(h.unit.id)).flatMap(h=>h.dependencies),requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:[...result.selectedIds.flatMap(id=>unitSources.get(id)??[]),...(input.currentUserSourceRef?[input.currentUserSourceRef.sourceId]:[])],counterIdentity:{...result.counterIdentity,mode:"exact",inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,promptTokens:result.promptTokens,inputLimit:result.inputLimit},randomUUID()));
+  await options.actorAuthority.coordinate(()=>command(a,"snapshot",{snapshotId,generation:baseline.generation,sourceDeps:deps,factRefs:selectedFacts,...(includeFactSupportMetadata?{factSupportRefs:supports}:{}),recallDeps:baseline.recallDeps,transcriptRefs:dependencyRefs,guardRefs,historyDeps:historical.filter(h=>result.selectedIds.includes(h.unit.id)).flatMap(h=>h.dependencies),requiredSummaries:result.selectedIds.filter(id=>summaries.some(s=>s.id===id)),requiredTranscripts:result.selectedIds.filter(id=>toolRefs.some(r=>r.headId===id)),requiredSources:[...result.selectedIds.flatMap(id=>unitSources.get(id)??[]),...(input.currentUserSourceRef?[input.currentUserSourceRef.sourceId]:[])],counterIdentity:{...result.counterIdentity,mode:options.counter.capability.mode,inputTypes:[...options.counter.capability.inputTypes]},requestDigest:result.requestDigest,...(result.admissionMode==="bounded"?{admissionMode:"bounded",estimates:result.estimates}:{promptTokens:result.promptTokens,inputLimit:result.inputLimit})},randomUUID()));
   const snapshot=Object.freeze({...result,snapshotId,generation:baseline.generation,excluded:structuredClone(excluded)});
   snapshots.set(snapshot,{actorToken:token,actor:a,units:allowed.filter(u=>result.selectedIds.includes(u.id)),facts:inspected.facts,snapshot,sourceRefs:deps.map(d=>d.sourceRef),transcripts:dependencyStates,historyTokens:(input.historyTokens??[]).filter((_cap,index)=>result.selectedIds.includes(historical[index].unit.id)),configuration:configuration()});return snapshot;
  }

@@ -1,3 +1,4 @@
+import {applyOpenRouterExpense,OPENROUTER_EXPENSE_SCOPE} from "./openrouter-bounded";
 import type {DatabaseSync} from "node:sqlite";
 import {objectFields,parseInternalId,parseSourceRef,positiveRevision} from "../memory-core/command-validation";
 import {executeTransaction,type TransactionFault} from "../memory-core/command-transactions";
@@ -7,7 +8,7 @@ import {SourceLedger} from "../memory-core/source-ledger";
 import {Suppression} from "../memory-core/suppression";
 import {PolicyRepository} from "../memory-policy/policy-repository";
 import {FactSupports} from "../memory-policy/fact-supports";
-import type {ContextFact,FactSupportDependency} from "./context-contracts";
+import type {ContextFact,FactSupportDependency,BoundedEstimates} from "./context-contracts";
 import type {BoundSourceRef,FactView} from "../../shared/memory-contracts";
 import {contextFail,CONTEXT_CLAIM_WINDOW_MS,type SourceDependency,type FactDependency,type TranscriptDependency,type TokenCounter,type StoredSummary,type SummarySegment,type SummaryReceipt} from "./context-contracts";
 import {canonicalJson} from "../memory-core/repository-types";
@@ -20,7 +21,7 @@ import type {HistoryDependency} from "../memory-history/history-contracts";
 export interface ContextOwner {actorKey:string;providerId:string;sessionId:string;bootId:string}
 export interface StoredSnapshot extends ContextOwner {
  id:string;generation:number;sourceDeps:SourceDependency[];requiredSources:string[];factRefs:FactDependency[];recallDeps:RecallDependency[];transcriptRefs:TranscriptDependency[];requiredTranscripts:string[];requiredSummaries:string[];
- guardRefs?:TranscriptDependency[];requestDigest:string;promptTokens:number;inputLimit:number;state:"ready"|"claimed";
+ guardRefs?:TranscriptDependency[];requestDigest:string;promptTokens?:number;inputLimit?:number;admissionMode?:"bounded";estimates?:BoundedEstimates;state:"ready"|"claimed";
  counterIdentity:TokenCounter["capability"];
  historyDeps?:HistoryDependency[];
  factSupportRefs?:FactSupportDependency[];
@@ -42,10 +43,16 @@ export function parseSourceDependencies(value:unknown):SourceDependency[] {
 function factRefs(value:unknown):FactDependency[] {return list(value,200).map(raw=>{const d=objectFields(raw,["factId","revision"]);return {factId:parseInternalId(d.factId),revision:positiveRevision(d.revision)}})}
 function factSupportRefs(value:unknown):FactSupportDependency[]{return list(value,200).map(raw=>{const d=objectFields(raw,["factId","revision","sourceRefs"]);return {factId:parseInternalId(d.factId),revision:positiveRevision(d.revision),sourceRefs:list(d.sourceRefs).map(bound)}})}
 function transcripts(value:unknown):TranscriptDependency[]{return list(value).map(raw=>{const d=objectFields(raw,["headId","revision","digest"]);if(typeof d.digest!=="string"||! /^[a-f0-9]{64}$/.test(d.digest))contextFail("MEMORY_CONTEXT_INPUT_INVALID");return {headId:parseInternalId(d.headId),revision:positiveRevision(d.revision),digest:d.digest}})}
-function counterIdentity(value:unknown):TokenCounter["capability"] {
- const c=objectFields(value,["providerId","model","transport","framingVersion","mode","inputTypes"]);if(c.mode!=="exact")contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
+function counterIdentity(value:unknown,bounded=false):TokenCounter["capability"] {
+ const c=objectFields(value,["providerId","model","transport","framingVersion","mode","inputTypes"]);if(c.mode!==(bounded?"estimate":"exact"))contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
+ if(bounded&&(c.providerId!=="openrouter"||c.model!=="openai/gpt-6-luna"||c.transport!=="responses"))contextFail("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
  const text=(value:unknown)=>{if(typeof value!=="string"||!value||value.length>1024)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return value};
- return {providerId:text(c.providerId),model:text(c.model),transport:text(c.transport),framingVersion:text(c.framingVersion),mode:"exact",inputTypes:list(c.inputTypes,64).map(text)};
+ return {providerId:text(c.providerId),model:text(c.model),transport:text(c.transport),framingVersion:text(c.framingVersion),mode:bounded?"estimate":"exact",inputTypes:list(c.inputTypes,64).map(text)};
+}
+function parseBoundedEstimates(value:unknown):BoundedEstimates {
+ const e=objectFields(value,["estimatedPromptTokens","estimatedSTokens","selectionInputLimit"]),selectionInputLimit=natural(e.selectionInputLimit);
+ if(selectionInputLimit>922000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+ return {estimatedPromptTokens:natural(e.estimatedPromptTokens),estimatedSTokens:natural(e.estimatedSTokens),selectionInputLimit};
 }
 /** Worker-only metadata repository. No source text, prompt body or model output is persisted. */
 export class ContextRepository {
@@ -133,9 +140,11 @@ export class ContextRepository {
  }
  execute(value:unknown):unknown {
   const command=objectFields(value,["kind","scopeKey","body"],["commandId"]),scope=parseInternalId(command.scopeKey);
-  const body=objectFields(command.body,["actorKey","providerId","sessionId","bootId"],["sourceRefs","sourceDeps","factRefs","generation","snapshotId","permitId","requestDigest","promptTokens","inputLimit","requiredSources","transcriptRefs","requiredTranscripts","headId","operationId","expectedRef","incarnation","contentRevision","throughSeq","digest","counterIdentity","requiredSummaries","leaseId","leaseMs","inputRefs","summaryId","intent","segments","beforeTokens","afterTokens","summaryLimit","recallDeps","useTicketId","processBootId","invokedAt","attemptAt","historyDeps","guardRefs","provenance","inputTranscriptRefs","transcriptSegments","expectedRefs","responseProgress","factSupportRefs"]),owner=this.owner(body);
+  const body=objectFields(command.body,["actorKey","providerId","sessionId","bootId"],["sourceRefs","sourceDeps","factRefs","generation","snapshotId","permitId","requestDigest","promptTokens","inputLimit","requiredSources","transcriptRefs","requiredTranscripts","headId","operationId","expectedRef","incarnation","contentRevision","throughSeq","digest","counterIdentity","requiredSummaries","leaseId","leaseMs","inputRefs","summaryId","intent","segments","beforeTokens","afterTokens","summaryLimit","recallDeps","useTicketId","processBootId","invokedAt","attemptAt","historyDeps","guardRefs","provenance","inputTranscriptRefs","transcriptSegments","expectedRefs","responseProgress","factSupportRefs","admissionMode","estimates","reservationId","costNanodollars"]),owner=this.owner(body);
+  if(scope===OPENROUTER_EXPENSE_SCOPE&&!["expenseReserve","expenseSettle","expenseRelease"].includes(command.kind as string))contextFail("MEMORY_CONTEXT_COST_DENIED");
   const identity=["actorKey","providerId","sessionId","bootId"];
   const apply=()=>{
+   if(["expenseReserve","expenseSettle","expenseRelease"].includes(command.kind as string)){const result=applyOpenRouterExpense(this.db,this.key,scope,owner,command.kind as string,body);this.fault?.("after-record");return result}
    if(command.kind==="summaryGet"){
     objectFields(body,[...identity,"summaryId"]);const summary=this.read<StoredSummary>(scope,parseInternalId(body.summaryId),"summary",owner,false);
     try{this.checkSummary(scope,owner,summary)}catch(error){if(error instanceof Error&&["MEMORY_SOURCE_PENDING","MEMORY_SOURCE_STALE","MEMORY_SOURCE_DELETED","MEMORY_SOURCE_INVALID","MEMORY_CONTEXT_SOURCE_UNAVAILABLE","MEMORY_CONTEXT_TRANSCRIPT_PENDING","MEMORY_CONTEXT_TRANSCRIPT_STALE","MEMORY_CONTEXT_TRANSCRIPT_DELETED","MEMORY_CONTEXT_TRANSCRIPT_DENIED"].includes(error.message))return {available:false,reason:error.message};throw error}
@@ -207,12 +216,13 @@ export class ContextRepository {
     return {generation:body.generation,sourceStates:[...deps.map(dep=>({sourceId:dep.sourceRef.sourceId,reason:this.sourceState(scope,owner,dep,deps)})),...transcripts(body.transcriptRefs??[]).map(ref=>({sourceId:ref.headId,reason:this.transcriptState(scope,owner,ref,deps)}))],...this.checkedFacts(scope,owner,factRefs(body.factRefs),parseRecallDependencies(body.recallDeps??[]))};
    }
    if(command.kind==="snapshot"){
-    objectFields(body,[...identity,"generation","sourceDeps","factRefs","snapshotId","requiredSources","requestDigest","promptTokens","inputLimit","counterIdentity"],["transcriptRefs","requiredTranscripts","requiredSummaries","recallDeps","historyDeps","guardRefs","factSupportRefs"]);
+    const bounded=body.admissionMode==="bounded";if(body.admissionMode!==undefined&&!bounded)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+    objectFields(body,[...identity,"generation","sourceDeps","factRefs","snapshotId","requiredSources","requestDigest","counterIdentity",...(bounded?["admissionMode","estimates"]:["promptTokens","inputLimit"])],["transcriptRefs","requiredTranscripts","requiredSummaries","recallDeps","historyDeps","guardRefs","factSupportRefs"]);
     if(typeof body.requestDigest!=="string"||! /^[a-f0-9]{64}$/.test(body.requestDigest))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
     const record:StoredSnapshot={...owner,id:parseInternalId(body.snapshotId),generation:natural(body.generation),sourceDeps:parseSourceDependencies(body.sourceDeps),factRefs:factRefs(body.factRefs),recallDeps:parseRecallDependencies(body.recallDeps??[]),
-     guardRefs:transcripts(body.guardRefs??[]),historyDeps:parseHistoryDependencies(body.historyDeps??[]),requiredSources:list(body.requiredSources).map(parseInternalId),transcriptRefs:transcripts(body.transcriptRefs??[]),requiredTranscripts:list(body.requiredTranscripts??[]).map(parseInternalId),requiredSummaries:list(body.requiredSummaries??[]).map(parseInternalId),counterIdentity:counterIdentity(body.counterIdentity),requestDigest:body.requestDigest,promptTokens:natural(body.promptTokens),inputLimit:natural(body.inputLimit),state:"ready"};
+     guardRefs:transcripts(body.guardRefs??[]),historyDeps:parseHistoryDependencies(body.historyDeps??[]),requiredSources:list(body.requiredSources).map(parseInternalId),transcriptRefs:transcripts(body.transcriptRefs??[]),requiredTranscripts:list(body.requiredTranscripts??[]).map(parseInternalId),requiredSummaries:list(body.requiredSummaries??[]).map(parseInternalId),counterIdentity:counterIdentity(body.counterIdentity,bounded),requestDigest:body.requestDigest,...(bounded?{admissionMode:"bounded" as const,estimates:parseBoundedEstimates(body.estimates)}:{promptTokens:natural(body.promptTokens),inputLimit:natural(body.inputLimit)}),state:"ready"};
     if(body.factSupportRefs!==undefined)record.factSupportRefs=factSupportRefs(body.factSupportRefs);
-    if(record.promptTokens>record.inputLimit)contextFail("MEMORY_CONTEXT_OVER_BUDGET");
+    if(bounded?record.estimates!.estimatedPromptTokens>record.estimates!.selectionInputLimit:record.promptTokens!>record.inputLimit!)contextFail("MEMORY_CONTEXT_OVER_BUDGET");
     if(record.requiredSources.some(id=>!record.sourceDeps.some(d=>d.sourceRef.sourceId===id)))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
     if(record.requiredTranscripts.some(id=>!record.transcriptRefs.some(r=>r.headId===id)))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
     this.checkSnapshot(scope,owner,record);this.save(scope,"snapshot",record);return {snapshotId:record.id,generation:record.generation};

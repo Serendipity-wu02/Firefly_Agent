@@ -1,3 +1,4 @@
+import {execFileSync} from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -66,10 +67,13 @@ describe("runtime profile boundary", () => {
     expect(() => resolve({ ...request, argv: ["--firefly-profile=smoke", `--firefly-isolation-root=${alias}`] })).toThrow("FIREFLY_RUNTIME_PRODUCTION_OVERLAP");
   });
   it.runIf(process.platform === "win32")("rejects raw Windows 8.3 and canonical aliases of the same production directory", ({ skip }) => {
-    const rawRoot = temporary();
-    const canonicalRoot = fs.realpathSync.native(rawRoot);
-    // Some Windows installations disable 8.3 names. Do not substitute a junction.
-    if (!/~\d+(?:\\|$)/.test(rawRoot)) { skip(); return; }
+    const fixtureRoot = temporary();
+    if(!process.env.ComSpec)throw Error("ComSpec is required for the Windows short-path fixture");
+    const rawRoot=execFileSync(process.env.ComSpec,["/d","/s","/c",'for %I in ("%FIREFLY_PROFILE_TEST_ROOT%") do @echo %~fsI'],{env:{...process.env,FIREFLY_PROFILE_TEST_ROOT:fixtureRoot},encoding:"utf8",windowsHide:true,windowsVerbatimArguments:true,timeout:5000}).trim();
+    const canonicalRoot = fs.realpathSync.native(fixtureRoot);
+    expect(fs.realpathSync.native(rawRoot)).toBe(canonicalRoot);
+    // Query a real short path; never substitute a junction or change volume settings.
+    if (!/~\d+(?:\\|$)/.test(rawRoot)) { skip("The isolated test directory has no real Windows 8.3 short path"); return; }
     expect(rawRoot.toLowerCase()).not.toBe(canonicalRoot.toLowerCase());
     for (const [productionAppData, isolationRoot] of [[canonicalRoot, rawRoot], [rawRoot, canonicalRoot]]) {
       expect(() => resolveRuntimeProfile({

@@ -6,12 +6,14 @@ export interface RequestIdentity {providerId:string;model:string;transport:strin
 /** Prepared provider input, without credentials/headers. Never a renderer DTO. */
 export interface PreparedRequest extends RequestIdentity {body:{[key:string]:JsonValue};inputTypes:string[];maxOutputTokens?:number}
 export interface TokenCounter {capability:RequestIdentity&{mode:"exact"|"estimate";inputTypes:string[]};count(request:Readonly<PreparedRequest>,options?:{signal?:AbortSignal}):Promise<number>}
-export interface ContextBudget {maxContextTokens:number;maxInputTokens?:number;reservedOutputTokens:number;safetyMarginTokens:number;maxSTokens:number;minRecentCompleteTurns:number}
+export interface ContextBudget {admissionMode?:"bounded";maxContextTokens:number;maxInputTokens?:number;reservedOutputTokens:number;safetyMarginTokens:number;maxSTokens:number;minRecentCompleteTurns:number}
 export interface ContextToolCall {id:string;name:string;arguments:string}
 export interface ContextMessage {role:"user"|"assistant"|"system"|"tool";text:string;toolCallIds?:string[];toolCallId?:string;toolCalls?:ContextToolCall[];name?:string}
 export interface ContextUnit {id:string;kind:"recent"|"summary";messages:ContextMessage[]}
 export interface BudgetInput {counter:TokenCounter;budget:ContextBudget;units:ContextUnit[];prepare:(units:ContextUnit[])=>PreparedRequest;prepareS:(units:ContextUnit[])=>PreparedRequest;signal?:AbortSignal}
-export interface BudgetResult {request:PreparedRequest;requestDigest:string;selectedIds:string[];promptTokens:number;sTokens:number;inputLimit:number;counterIdentity:RequestIdentity}
+export interface BoundedEstimates {estimatedPromptTokens:number;estimatedSTokens:number;selectionInputLimit:number}
+interface BudgetBase {request:PreparedRequest;requestDigest:string;selectedIds:string[];counterIdentity:RequestIdentity}
+export type BudgetResult=BudgetBase&({admissionMode?:"exact";promptTokens:number;sTokens:number;inputLimit:number;estimates?:never}|{admissionMode:"bounded";estimates:BoundedEstimates;promptTokens?:never;sTokens?:never;inputLimit?:never});
 export interface FactDependency {factId:string;revision:number}
 /** Matches the existing memory Worker request deadline; no delayed claim sends. */
 export const CONTEXT_CLAIM_WINDOW_MS=5000;
