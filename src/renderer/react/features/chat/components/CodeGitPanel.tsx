@@ -21,6 +21,7 @@ interface CodeGitApi {
 
 export interface CodeGitPanelProps {
   docked?: boolean;
+  expanded?: boolean;
   sessionId: string;
   projectName?: string;
   todoState: TodoState | null;
@@ -36,7 +37,7 @@ function ToggleIcon() {
   return <svg width="16" height="16" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M27 9V21H39M21 39V27H9M27 21L42 6M21 27L6 42" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-export function CodeGitPanel({ sessionId, projectName, todoState, planPhase, onOpenPlan, docked = false }: CodeGitPanelProps) {
+export function CodeGitPanel({ sessionId, projectName, todoState, planPhase, onOpenPlan, docked = false, expanded = false }: CodeGitPanelProps) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<CodeGitStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,7 +48,7 @@ export function CodeGitPanel({ sessionId, projectName, todoState, planPhase, onO
   const [operating, setOperating] = useState(false);
   const refreshControllerRef = useRef<CodeGitRefreshController | null>(null);
   const api = codeGitApi();
-  const floating = useFloatingCard({ width: 260, defaultCollapsed: docked });
+  const floating = useFloatingCard({ width: 260, defaultCollapsed: docked && !expanded });
 
   useEffect(() => {
     if (!api) return undefined;

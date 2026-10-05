@@ -6,7 +6,7 @@
   height: 32px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: 12px;
   color: #8e8e93;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;

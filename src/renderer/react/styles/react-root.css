@@ -1,32 +1,32 @@
 /* ===== 设计变量 ===== */
 :root {
   /* 背景 */
-  --cy-bg-page: #f2f8f5;
+  --cy-bg-page: #eff1f5;
   --cy-bg-workspace: #ffffff;
-  --cy-bg-hover: #e9f6ef;
-  --cy-bg-active: #e8f4ed;
+  --cy-bg-hover: #e6e9ef;
+  --cy-bg-active: #e6e9ef;
 
   /* 边框 */
-  --cy-border: #F2F2F2;
+  --cy-border: #ccd0da;
 
   /* 文字 */
-  --cy-text: #183628;
-  --cy-text-muted: #456858;
+  --cy-text: #4c4f69;
+  --cy-text-muted: #6c6f85;
 
   /* 强调色 */
-  --cy-accent: #2d7a5f;
+  --cy-accent: #8839ef;
 
   /* 胶囊组件 */
-  --cy-pill-bg: #e9f6ef;
-  --cy-pill-border: #38a169;
-  --cy-pill-status: #183628;
+  --cy-pill-bg: #e6e9ef;
+  --cy-pill-border: #8839ef;
+  --cy-pill-status: #4c4f69;
 
   /* 投影 */
   --cy-shadow-workspace: inset 0 2px 8px rgba(31, 35, 48, 0.04), inset 0 0 2px rgba(31, 35, 48, 0.03);
   --cy-shadow-bubble-neutral: 2px 2px 3px rgba(31, 35, 48, 0.06), 3px 5px 16px rgba(31, 35, 48, 0.055);
-  --cy-shadow-bubble-accent: 2px 2px 4px rgba(45, 122, 95, 0.12), 3px 7px 16px rgba(45, 122, 95, 0.16);
+  --cy-shadow-bubble-accent: 2px 2px 4px rgba(136, 57, 239, 0.12), 3px 7px 16px rgba(136, 57, 239, 0.16);
   --cy-shadow-control-hover: 2px 2px 5px rgba(31, 35, 48, 0.075), 3px 8px 18px rgba(31, 35, 48, 0.065);
-  --cy-shadow-control-focus: 0 0 0 3px rgba(45, 122, 95, 0.16), 2px 6px 16px rgba(31, 35, 48, 0.08);
+  --cy-shadow-control-focus: 0 0 0 3px rgba(136, 57, 239, 0.16), 2px 6px 16px rgba(31, 35, 48, 0.08);
 }
 
 html, body {
@@ -52,7 +52,7 @@ html, body {
   gap: 8px;
   transition: padding 0.25s ease;
   border: 1px solid var(--cy-border);
-  border-radius: var(--cy-window-radius, 24px);
+  border-radius: 12px;
   overflow: hidden;
   user-select: none;
   app-region: drag;
@@ -74,7 +74,7 @@ html, body {
   display: grid;
   place-items: center;
   border: 2px dashed var(--cy-accent);
-  border-radius: max(8px, calc(var(--cy-window-radius, 12px) - 2px));
+  border-radius: 12px;
   background: rgb(255 255 255 / 88%);
   color: var(--cy-accent);
   font: 600 15px/1.4 var(--rb-font-sans, sans-serif);
@@ -84,9 +84,9 @@ html, body {
 
 .cy-file-drop-overlay span {
   padding: 10px 16px;
-  border-radius: 999px;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 8px 24px rgb(45 122 95 / 16%);
+  box-shadow: 0 8px 24px rgb(136 57 239 / 16%);
 }
 
 .cy-page.is-collapsed {
@@ -125,7 +125,7 @@ html, body {
   width: 240px;
   flex-shrink: 0;
   min-height: 0;
-  transition: width 0.25s ease, opacity 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 
 .cy-page.is-collapsed .cy-page-sidebar {
@@ -165,7 +165,7 @@ html, body {
 
 /* 全局文字选中：用应用粉色强调色替代浏览器默认蓝 */
 ::selection {
-  background: rgba(45, 122, 95, 0.24);
+  background: rgba(136, 57, 239, 0.24);
   color: inherit;
 }
 
@@ -210,7 +210,7 @@ html, body {
 
 .cy-dock-separator:hover::after,
 .cy-dock-separator:active::after {
-  background: var(--cy-accent, #2d7a5f);
+  background: var(--cy-accent, #8839ef);
 }
 
 .cy-page-newtask {
@@ -247,7 +247,7 @@ html, body {
   width: 100%;
   height: 100%;
   background: var(--cy-bg-workspace);
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--cy-border);
   box-shadow: var(--cy-shadow-workspace);
   position: relative;
@@ -261,7 +261,7 @@ html, body {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: url("../../../../assets/ui/firefly-surface-pattern.svg");
+  background-image: none;
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -343,7 +343,7 @@ html, body {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border-radius: 20px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   color: var(--cy-text);
@@ -394,7 +394,7 @@ html, body {
   height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   background: transparent;
   color: var(--cy-text-muted);
   cursor: pointer;
@@ -460,7 +460,7 @@ html, body {
   max-width: calc(100vw - 64px);
   padding: 8px;
   border: 1px solid var(--cy-border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--cy-bg-page);
   box-shadow: var(--cy-shadow-control-hover);
 }
@@ -479,7 +479,7 @@ html, body {
   width: 100%;
   padding: 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 12px;
   background: transparent;
   color: var(--cy-text);
   cursor: pointer;
@@ -517,7 +517,7 @@ html, body {
     box-sizing: border-box;
     padding: 8px;
     border: 1px solid var(--cy-border);
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--cy-bg-page);
     box-shadow: var(--cy-shadow-control-hover);
     app-region: no-drag;
@@ -535,3 +535,18 @@ html, body {
 .cy-workspace { overflow-y: auto; }
 
 .cy-workspace, .cy-right-inspector { box-sizing: border-box; }
+
+.cy-sidebar-resizer { width: 4px; flex: 0 0 4px; cursor: col-resize; touch-action: none; app-region: no-drag; border-radius: 12px; }
+.cy-sidebar-resizer:hover, .cy-sidebar-resizer:focus-visible { background: var(--cy-accent); outline: none; }
+.cy-workspace-empty { padding: 24px; color: var(--cy-text-muted); line-height: 1.6; }
+.cy-workspace-empty button { padding: 8px 12px; border: 1px solid var(--cy-border); border-radius: 12px; background: #fff; color: var(--cy-text); cursor: pointer; }
+.cy-workspace .cy-workspace-composer { padding-top: 56px; }
+.cy-workspace.has-messages .cy-message-list { padding-top: 52px; }
+.cy-right-inspector .cy-todo--docked, .cy-right-inspector .cy-code-git--docked { flex: 1; min-height: 0; border-bottom: 0; border-radius: 12px; }
+.cy-right-inspector .cy-todo--docked:not(.cy-todo--collapsed) .cy-todo__body { max-height: none; }
+.ant-popover-inner, .ant-dropdown-menu, .ant-modal-content, .ant-sender, .ant-input, .ant-input-affix-wrapper, .ant-select-selector, .ant-tooltip-inner { border-radius: 12px !important; }
+@media (max-width: 900px) { .cy-sidebar-resizer { display: none; } }
+
+.cy-right-inspector .cy-code-git--docked:not(.cy-code-git--collapsed) .cy-code-git__body { max-height: none; }
+
+.cy-right-inspector .cy-todo.cy-todo--docked, .cy-right-inspector .cy-code-git.cy-code-git--docked { height: 100%; }

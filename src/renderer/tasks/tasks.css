@@ -24,7 +24,7 @@ body {
   height: 100vh;
   width: 100vw;
   margin: 0;
-  border-radius: var(--cy-window-radius, 24px);
+  border-radius: 12px;
   overflow: hidden;
   /* 与 sidebar 一致：经典主题下三层暗紫微光，避免"两坨紫"挤左上/右上 */
   background:
@@ -90,7 +90,7 @@ body {
   color: var(--rb-text-muted);
   padding: 3px 9px;
   border: 1px solid var(--rb-border-soft);
-  border-radius: var(--rb-radius-full);
+  border-radius: 12px;
   background: var(--rb-bg-2);
   white-space: nowrap;
 }
@@ -218,7 +218,7 @@ body {
   max-width: 100%;
   margin-bottom: 14px;
   padding: 5px 11px;
-  border-radius: var(--rb-radius-full);
+  border-radius: 12px;
   font: var(--rb-text-micro);
   color: var(--rb-text-default);
   background: var(--rb-bg-2);
@@ -230,7 +230,7 @@ body {
   gap: 10px;
   padding: 11px 12px;
   margin-bottom: 16px;
-  border-radius: 17px;
+  border-radius: 12px;
   background: var(--rb-bg-1);
   border: 1px solid var(--rb-border-soft);
   box-shadow: none;
@@ -280,7 +280,7 @@ body {
   gap: 9px;
   min-width: 0;
   padding: 8px 10px;
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--rb-bg-1);
   border: 1px solid var(--rb-border-soft);
   box-shadow: none;
@@ -288,7 +288,7 @@ body {
 
 .task-time {
   padding: 4px 7px;
-  border-radius: var(--rb-radius-full);
+  border-radius: 12px;
   font-size: 10px;
   font-weight: 800;
   text-align: center;
@@ -333,7 +333,7 @@ body {
   color: var(--rb-text-default);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--rb-border-soft);
-  border-radius: var(--rb-radius-md);
+  border-radius: 12px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition: background 120ms ease, color 120ms ease, transform 120ms ease, border-color 120ms ease, box-shadow 200ms ease;
 }

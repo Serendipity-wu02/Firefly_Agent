@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../../i18n";
-import { DownOutlined, GlobalOutlined } from "@ant-design/icons";
+import { DownOutlined, GlobalOutlined, FolderOpenOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { useCompactDock } from "./useCompactDock";
 import { ChatComposer, parseComposerMessage } from "../components/ChatComposer";
@@ -167,7 +167,9 @@ export function ChatPage() {
   const [fileTabs, setFileTabs] = useState<{ id: string; relPath: string; line?: number; lineSeq?: number }[]>([]);
   /** 工作区文件树标签是否打开（ID 固定为 files） */
   const [filesTabOpen, setFilesTabOpen] = useState(false);
-  const [browserTabSessionId, setBrowserTabSessionId] = useState<string | null>(null);
+  const [browserTabOpen, setBrowserTabOpen] = useState(false);
+  const [tasksTabOpen, setTasksTabOpen] = useState(false);
+  const [inspectorHidden, setInspectorHidden] = useState(false);
   /** 右侧面板当前激活的标签 ID（files / file:... / diff:... / plan:...），null 时面板取第一个标签 */
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   // 右栏拖宽布局：聊天区 + 右侧面板套 Group/Panel，宽度持久化到 localStorage。
@@ -378,8 +380,7 @@ export function ChatPage() {
   } | null>(null);
 
   const activeSessionId = activeSessionIds[mode];
-  const browserTabOpen = !!activeSessionId && browserTabSessionId === activeSessionId;
-  useEffect(() => { setBrowserTabSessionId(null); }, [activeSessionId]);
+  useEffect(() => { setBrowserTabOpen(false); }, [activeSessionId, mode]);
   const scopeKey = activeSessionId ?? `mode:${mode}`;
   const draft = drafts[scopeKey] ?? "";
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : [];
@@ -1414,12 +1415,15 @@ export function ChatPage() {
     setDiffTabs([]);
     setFileTabs([]);
     setFilesTabOpen(false);
-    setActiveTabId(null);
-  }, [activeSessionId]);
+    setTasksTabOpen(mode !== "chat");
+    setInspectorHidden(false);
+    setActiveTabId(mode !== "chat" ? "tasks" : null);
+  }, [activeSessionId, mode]);
 
   /** 打开/激活一个 diff 标签：同 runId + 文件路径已存在则仅激活，不重复开 */
   // 阶段 1B：useCallback 稳定引用——作为 onOpenReviewInspector 进 roles 依赖，每次渲染新建会连锁重建 roles
   const openDiffTab = useCallback((runId: string, fileIndex: number, filePath: string) => {
+    setInspectorHidden(false);
     const id = `diff:${runId}:${filePath || `#${fileIndex}`}`;
     setDiffTabs((tabs) =>
       tabs.some((tab) => tab.id === id) ? tabs : [...tabs, { id, runId, fileIndex, filePath }],
@@ -1431,24 +1435,19 @@ export function ChatPage() {
 
   /** 打开/激活文件树标签 */
   const openFilesTab = () => {
+    setInspectorHidden(false);
     setFilesTabOpen(true);
     setActiveTabId("files");
   };
 
-  /** 收起右侧面板：关闭全部标签（再次点击开关可重新展开文件树） */
-  const collapseInspector = () => {
-    setBrowserTabSessionId(null);
-    setFilesTabOpen(false);
-    setFileTabs([]);
-    setDiffTabs([]);
-    setPlanDrawerOpen(false);
-    setActiveTabId(null);
-  };
+  /** 收起右侧面板并保留标签；再次点击恢复原标签 */
+  const collapseInspector = () => setInspectorHidden(true);
 
   /** 打开/激活一个文件预览标签：同路径只激活不重开；带行号时更新定位并触发滚动 */
   const fileLineSeqRef = useRef(0);
   // 阶段 1B：useCallback 稳定引用——进 fileLinkEnv 依赖，防止 FileLink 消费者全量更新
   const openFileTab = useCallback((relPath: string, line?: number) => {
+    setInspectorHidden(false);
     const id = `file:${relPath}`;
     setFileTabs((tabs) => {
       const existing = tabs.some((tab) => tab.id === id);
@@ -1474,6 +1473,7 @@ export function ChatPage() {
 
   /** 右侧面板标签的固定顺序：文件树 → 文件预览 → Diff → 计划 */
   const inspectorTabIds = [
+    ...(tasksTabOpen ? ["tasks"] : []),
     ...(filesTabOpen ? ["files"] : []),
     ...fileTabs.map((tab) => tab.id),
     ...diffTabs.map((tab) => tab.id),
@@ -1500,7 +1500,9 @@ export function ChatPage() {
     }
     const remaining = inspectorTabIds.filter((tabId) => tabId !== id);
     if (id === "browser") {
-      setBrowserTabSessionId(null);
+      setBrowserTabOpen(false);
+    } else if (id === "tasks") {
+      setTasksTabOpen(false);
     } else if (id === "files") {
       setFilesTabOpen(false);
     } else if (id.startsWith("file:")) {
@@ -1622,7 +1624,7 @@ export function ChatPage() {
         // 拖动条命中区外溢到两侧（视觉条只有 12px，命中区鼠标 24px / 触屏 33px）
         resizeTargetMinimumSize={{ coarse: 33, fine: 24 }}
       >
-        <Panel id="chat" minSize={compactDock ? "60%" : 360} className="cy-dock-body">
+        <Panel id="chat" minSize={compactDock ? "60%" : 300} className="cy-dock-body">
       <main
         className={`cy-page-main cy-workspace ${hasMessages ? "has-messages" : "is-empty"} ${isDraggingFiles ? "is-dragging-files" : ""}`}
         onDragEnter={dragHandlers.onDragEnter}
@@ -1632,8 +1634,8 @@ export function ChatPage() {
       >
         <FileDropOverlay visible={isDraggingFiles} />
         {/* 白色工作区右上角：打开菜单 + 分割线 + 右侧面板展开/收起开关（左上角 SidebarToggle 的镜像同款动画）。
-            仅在会话对话视图显示：产生过消息、且当前不在插件/工具/技能/模型/动态等面板页时才挂载 */}
-        {(hasMessages && !activePanel && activeSessionId) && (
+            仅在会话对话视图显示：欢迎态与已有会话均显示；工具等独立面板页不显示 */}
+        {!activePanel && (
           <span className="cy-inspector-toggle-float">
             {activeSession?.workspaceBinding && activeSessionId && (
               <>
@@ -1642,16 +1644,24 @@ export function ChatPage() {
               </>
             )}
             <button type="button" className="cy-inspector-toggle" aria-label={t("browserWorkspace.open")}
-              title={t("browserWorkspace.open")} aria-expanded={browserTabOpen}
-              onClick={() => { setBrowserTabSessionId(activeSessionId); setActiveTabId("browser"); }}>
+              title={t("browserWorkspace.open")} aria-expanded={browserTabOpen && !inspectorHidden}
+              onClick={() => { setBrowserTabOpen(true); setInspectorHidden(false); setActiveTabId("browser"); }}>
               <GlobalOutlined aria-hidden="true" />
             </button>
+            <button type="button" className="cy-inspector-toggle" aria-label={t("fileTree.title")}
+              title={t("fileTree.title")} aria-expanded={filesTabOpen && !inspectorHidden}
+              onClick={openFilesTab}><FolderOpenOutlined aria-hidden="true" /></button>
+            {mode !== "chat" && <button type="button" className="cy-inspector-toggle"
+              aria-label={t("workspace.tasks")} title={t("workspace.tasks")}
+              aria-expanded={tasksTabOpen && !inspectorHidden}
+              onClick={() => { setTasksTabOpen(true); setInspectorHidden(false); setActiveTabId("tasks"); }}>
+              <UnorderedListOutlined aria-hidden="true" /></button>}
             <InspectorToggle
-              open={inspectorTabIds.length > 0}
+              open={inspectorTabIds.length > 0 && !inspectorHidden}
               onToggle={() => {
-                if (inspectorTabIds.length > 0) collapseInspector();
-                else if (activeSession?.workspaceBinding) openFilesTab();
-                else { setBrowserTabSessionId(activeSessionId); setActiveTabId("browser"); }
+                if (inspectorTabIds.length > 0 && !inspectorHidden) collapseInspector();
+                else if (inspectorTabIds.length > 0) setInspectorHidden(false);
+                else openFilesTab();
               }}
             />
           </span>
@@ -1660,26 +1670,6 @@ export function ChatPage() {
           <ChatPagePanelHost panel={activePanel} />
         ) : (
         <>
-        {(mode === "work") && (
-          <TodoPanel
-            docked
-            state={activeSessionId ? todoStateBySession[activeSessionId] : null}
-            mode={mode}
-          />
-        )}
-        {mode === "code" && activeSessionId && (
-          <CodeGitPanel
-            docked
-            sessionId={activeSessionId}
-            projectName={workspaceNames.code}
-            todoState={todoStateBySession[activeSessionId] ?? null}
-            planPhase={planReviewBySession[activeSessionId]?.phase}
-            onOpenPlan={() => {
-              setPlanDrawerOpen(true);
-              setActiveTabId(planTabId);
-            }}
-          />
-        )}
         <RunRecoveryNotices
           interruptedRun={interruptedRun}
           sessionTakeover={sessionTakeover}
@@ -1835,17 +1825,29 @@ export function ChatPage() {
         )}
       </main>
         </Panel>
-        {/* 右侧面板打开时才挂载 Panel + 拖动条；默认 45% 宽，范围 320px ～ 窗口 70% */}
-        {inspectorTabIds.length > 0 && (
+        {/* 右侧面板打开时才挂载 Panel + 拖动条；默认 40% 宽，最小 280px，最大 70% */}
+        {!activePanel && inspectorTabIds.length > 0 && !inspectorHidden && (
           <>
             <Separator className="cy-dock-separator" />
-            <Panel id="inspector" defaultSize={compactDock ? "30%" : "40%"} minSize={compactDock ? "15%" : 320} maxSize={compactDock ? "40%" : "70%"} className="cy-dock-body">
+            <Panel id="inspector" defaultSize={compactDock ? "30%" : "40%"} minSize={compactDock ? "15%" : 280} maxSize={compactDock ? "40%" : "70%"} className="cy-dock-body">
               <ChatPageInspector
                 sessionId={activeSessionId}
                 workspaceRoot={activeSession?.workspaceBinding?.workspaceRoot}
                 filesTabOpen={filesTabOpen}
                 filesTabPinned={filesTabPinned}
                 browserTabOpen={browserTabOpen}
+                tasksTabOpen={tasksTabOpen}
+                pendingWorkspaceName={pendingWorkspaceByMode[mode]?.displayName}
+                onChooseWorkspace={mode !== "chat" ? () => void chooseWorkspace() : undefined}
+                taskPanel={mode === "work"
+                  ? <TodoPanel docked expanded state={activeSessionId ? todoStateBySession[activeSessionId] : null} mode="work" />
+                  : mode === "code" && activeSessionId
+                    ? <CodeGitPanel docked expanded sessionId={activeSessionId} projectName={workspaceNames.code}
+                        todoState={todoStateBySession[activeSessionId] ?? null}
+                        planPhase={planReviewBySession[activeSessionId]?.phase}
+                        onOpenPlan={() => { setPlanDrawerOpen(true); setActiveTabId(planTabId); }} />
+                    : <div className="cy-workspace-empty"><p>{t("workspace.chooseProject")}</p>
+                        <button type="button" onClick={() => void chooseWorkspace()}>{t("workspace.chooseFolder")}</button></div>}
                 fileTabs={fileTabs}
                 diffTabs={diffTabs}
                 activePlan={activePlan}

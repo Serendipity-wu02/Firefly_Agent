@@ -6,6 +6,7 @@ import "./TodoPanel.css";
 
 export interface TodoPanelProps {
   docked?: boolean;
+  expanded?: boolean;
   state: TodoState | null;
   mode: "work";
 }
@@ -62,9 +63,9 @@ function ModeCapsule({ mode }: { mode: TodoPanelProps["mode"] }) {
   );
 }
 
-export function TodoPanel({ state, mode, docked = false }: TodoPanelProps) {
+export function TodoPanel({ state, mode, docked = false, expanded = false }: TodoPanelProps) {
   const { t } = useTranslation();
-  const floating = useFloatingCard({ width: DEFAULT_WIDTH, defaultCollapsed: docked });
+  const floating = useFloatingCard({ width: DEFAULT_WIDTH, defaultCollapsed: docked && !expanded });
 
   const todos = state?.todos ?? [];
   const total = todos.length;

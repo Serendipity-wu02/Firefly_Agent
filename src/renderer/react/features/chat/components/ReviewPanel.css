@@ -109,7 +109,7 @@
 .cy-review-panel__kind {
   flex-shrink: 0;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: 12px;
   font-size: 10.5px;
   font-weight: 600;
   line-height: 1.5;
@@ -166,7 +166,7 @@
 .cy-review-panel__restore-btn {
   padding: 5px 12px;
   border: 1px solid var(--cy-border, #d9d2d6);
-  border-radius: 7px;
+  border-radius: 12px;
   background: #fff;
   color: var(--cy-text, #2f2d31);
   font: 12px/1.4 var(--rb-font-sans, sans-serif);

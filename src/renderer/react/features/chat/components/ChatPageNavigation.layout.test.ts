@@ -21,6 +21,8 @@ const props: ChatPageNavigationProps = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
+  Object.defineProperty(window, "innerWidth", { value: 1280, configurable: true });
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addListener: vi.fn(), removeListener: vi.fn() });
   globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
@@ -36,6 +38,73 @@ function button(label: string) {
   return node;
 }
 describe("workspace navigation layout", () => {
+  it("exposes a bounded keyboard resize handle and restores its width after collapse", () => {
+    localStorage.clear();
+    render();
+    const handle = host.querySelector<HTMLElement>('[role="separator"][aria-orientation="vertical"]')!;
+    expect(handle).toBeTruthy();
+    expect(handle.getAttribute("aria-valuenow")).toBe("240");
+    act(() => handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(handle.getAttribute("aria-valuenow")).toBe("256");
+    render({ collapsed: true });
+    expect(host.querySelector('[role="separator"]')).toBeNull();
+    render();
+    expect(host.querySelector('[role="separator"]')?.getAttribute("aria-valuenow")).toBe("256");
+    expect(host.querySelector<HTMLElement>(".cy-page-sidebar")!.style.width).toBe("256px");
+  });
+  it("clamps pointer resizing, persists user width, and restores it after a narrow viewport", () => {
+    render();
+    const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+    const pointer = (type: string, x: number, id = 1) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.assign(event, { clientX: x, pointerId: id, button: 0 });
+      return event;
+    };
+    act(() => handle.dispatchEvent(pointer("pointerdown", 240)));
+    act(() => window.dispatchEvent(pointer("pointermove", 600, 2)));
+    expect(handle.getAttribute("aria-valuenow")).toBe("240");
+    act(() => window.dispatchEvent(pointer("pointermove", 600)));
+    act(() => window.dispatchEvent(pointer("pointerup", 600)));
+    expect(handle.getAttribute("aria-valuenow")).toBe("360");
+    expect(localStorage.getItem("firefly.chat.sidebar-width")).toBe("360");
+    Object.defineProperty(window, "innerWidth", { value: 960, configurable: true });
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(handle.getAttribute("aria-valuenow")).toBe("250");
+    expect(localStorage.getItem("firefly.chat.sidebar-width")).toBe("360");
+    Object.defineProperty(window, "innerWidth", { value: 1280, configurable: true });
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(handle.getAttribute("aria-valuenow")).toBe("360");
+    act(() => handle.dispatchEvent(pointer("pointerdown", 360)));
+    act(() => window.dispatchEvent(pointer("pointermove", 0)));
+    act(() => window.dispatchEvent(pointer("pointercancel", 0)));
+    expect(handle.getAttribute("aria-valuenow")).toBe("180");
+    act(() => window.dispatchEvent(pointer("pointermove", 600)));
+    expect(handle.getAttribute("aria-valuenow")).toBe("180");
+  });
+  it("keeps resize usable when optional layout storage throws", () => {
+    const read = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    const write = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    render();
+    const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+    act(() => handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+    expect(handle.getAttribute("aria-valuenow")).toBe("224");
+    read.mockRestore(); write.mockRestore();
+  });
+  it("marks only the generated portrait as the white U placeholder", () => {
+    render();
+    const avatar = host.querySelector(".cy-rail-user .cy-user-avatar-circle")!;
+    expect(avatar.classList.contains("is-placeholder")).toBe(true);
+    expect(avatar.textContent).toBe("U");
+  });
+  it("keeps the generated U portrait when a nickname exists without an uploaded avatar", async () => {
+    Object.assign(window, { user: {
+      getAvatar: async () => null, onAvatarChanged: () => () => {},
+      getProfile: async () => ({ nickname: "Synthetic nickname" }), onProfileChanged: () => () => {},
+    } });
+    await act(async () => render());
+    expect(host.querySelector(".cy-rail-user .is-placeholder")?.textContent).toBe("U");
+    expect(button(t("ui.userMenu")).title).toBe("Synthetic nickname");
+  });
   it("keeps rail settings reachable and mounted history inert while collapsed", () => {
     render({ collapsed: true });
     expect(host.querySelector(".cy-page-sidebar")?.hasAttribute("inert")).toBe(true);
@@ -86,6 +155,7 @@ describe("workspace navigation layout", () => {
     const trigger = button(t("ui.userMenu"));
     expect(trigger.title).toBe("Existing local nickname");
     expect(trigger.querySelector("img")?.getAttribute("src")).toBe("data:image/png;base64,fixture-one");
+    expect(trigger.querySelector(".is-placeholder")).toBeNull();
     avatar = "data:image/png;base64,fixture-two";
     await act(async () => { changedAvatar!(); changedProfile!({ nickname: "Updated local nickname" }); });
     act(() => trigger.click());

@@ -11,7 +11,7 @@
 
 /* ── 模态框 ── */
 .cy-feedback-modal .ant-modal-content {
-  border-radius: 18px;
+  border-radius: 12px;
   background: var(--rb-feedback-surface);
   border: 1px solid var(--rb-feedback-border);
   box-shadow: var(--rb-feedback-shadow);
@@ -37,7 +37,7 @@
 }
 
 .cy-feedback-modal .ant-modal-footer .ant-btn {
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 /* 错误信息弹窗的折叠详情 */
@@ -60,7 +60,7 @@
   padding: 10px 12px;
   max-height: 220px;
   overflow: auto;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--rb-feedback-details-bg);
   color: var(--rb-feedback-fg);
   font-size: 12px;

@@ -16,6 +16,7 @@ import { AppUpdateEntry } from "./AppUpdateEntry";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { RailUserMenu } from "./RailUserMenu";
 import { ModelConnectionIndicator } from "./ModelConnectionIndicator";
+import { useSidebarWidth } from "../pages/useSidebarWidth";
 import { reportChatPerfRender } from "./chat-perf-probe";
 
 export type ChatPagePanel = "tool" | "skill" | "model" | "plugin";
@@ -73,6 +74,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
 }: ChatPageNavigationProps) {
   // 性能探针：perf harness 注册后统计导航子树执行次数（阶段 1A 验收：流式期间应为 0）
   reportChatPerfRender("navigationRenders");
+  const sidebar = useSidebarWidth();
   const hasOpenPanel = activePanel !== null;
   const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -124,7 +126,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
         </Popover>
         <div className="cy-page-rail-bottom"><RailUserMenu onOpenSettings={onOpenSettings} /></div>
       </nav>
-      <aside id="firefly-context-sidebar" className="cy-page-sidebar" inert={collapsed} aria-hidden={collapsed} aria-label={t("ui.contextSidebar")}>
+      <aside id="firefly-context-sidebar" className="cy-page-sidebar" style={{ width: collapsed ? 0 : sidebar.width }} inert={collapsed} aria-hidden={collapsed} aria-label={t("ui.contextSidebar")}>
         <div className="cy-page-context-header">Firefly</div>
         <ModeSwitch value={mode} onChange={onModeChange} />
         <div className="cy-page-newtask">
@@ -146,6 +148,17 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
         </div>
         <AppUpdateEntry />
       </aside>
+      {!collapsed && <div className="cy-sidebar-resizer" role="separator" tabIndex={0}
+        aria-label={t("workspace.resizeSidebar")} aria-orientation="vertical"
+        aria-controls="firefly-context-sidebar" aria-valuemin={sidebar.min}
+        aria-valuemax={sidebar.max} aria-valuenow={sidebar.width}
+        onPointerDown={sidebar.beginResize}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          sidebar.resizeBy(event.key === "ArrowRight" ? 16 : -16);
+        }} />}
+
     </>
   );
 });

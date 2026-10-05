@@ -22,7 +22,7 @@
   gap: 8px;
   padding: 8px 9px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 12px;
   background: transparent;
   color: #4a4a4a;
   cursor: pointer;
@@ -31,13 +31,13 @@
 }
 
 .cy-style-panel__option:hover {
-  background: #f2f8f5;
+  background: #eff1f5;
   color: var(--cy-accent);
 }
 
 .cy-style-panel__option.is-active {
-  background: #e9f6ef;
-  color: #23654e;
+  background: #e6e9ef;
+  color: #7287fd;
 }
 
 .cy-style-icon {
@@ -50,7 +50,7 @@
 .cy-style-popover .ant-popover-inner {
   padding: 9px;
   border: 1px solid #eeeeee;
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: 0 12px 32px rgba(29, 29, 31, 0.12);
 }
 

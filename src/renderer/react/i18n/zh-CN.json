@@ -714,5 +714,12 @@
     "closed": "浏览器已关闭。",
     "viewport": "网页预览",
     "empty": "网页加载暂不可用。"
+  },
+  "workspace": {
+    "resizeSidebar": "调整会话侧栏宽度",
+    "tasks": "任务与项目",
+    "chooseFolder": "选择工作目录",
+    "chooseProject": "选择项目目录，开始工作。",
+    "pendingFiles": "已选择 {{name}}。开始会话后显示文件。"
   }
 }

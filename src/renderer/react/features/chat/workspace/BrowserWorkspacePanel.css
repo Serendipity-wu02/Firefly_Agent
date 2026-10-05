@@ -25,7 +25,7 @@
   min-height: 30px;
   padding: 5px 7px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 12px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -53,7 +53,7 @@
   min-width: 40px;
   padding: 5px 8px;
   border: 1px solid var(--cy-border, #e5e9e6);
-  border-radius: 7px;
+  border-radius: 12px;
   background: rgb(255 255 255 / 85%);
   color: inherit;
   font: inherit;

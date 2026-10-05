@@ -1,7 +1,7 @@
 .cy-mode-picker { position: relative; flex-shrink: 0; }
 .cy-mode-picker__trigger {
   display: flex; width: 100%; height: 38px; align-items: center; gap: 8px;
-  padding: 0 10px; border: 0; border-radius: 10px; background: transparent;
+  padding: 0 10px; border: 0; border-radius: 12px; background: transparent;
   color: var(--cy-text); font: 600 14px/1.2 var(--rb-font-sans, sans-serif); cursor: pointer;
   app-region: no-drag;
 }
@@ -17,7 +17,7 @@
 }
 .cy-mode-picker__item {
   display: flex; width: 100%; align-items: center; gap: 10px; padding: 10px 8px;
-  border: 0; border-radius: 8px; background: transparent; color: var(--cy-text);
+  border: 0; border-radius: 12px; background: transparent; color: var(--cy-text);
   font-family: var(--rb-font-sans, sans-serif); text-align: left; cursor: pointer;
 }
 .cy-mode-picker__item:hover,

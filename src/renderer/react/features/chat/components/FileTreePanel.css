@@ -32,7 +32,7 @@
 }
 
 .cy-file-tree .ant-tree .ant-tree-node-content-wrapper {
-  border-radius: 6px;
+  border-radius: 12px;
   transition: background 0.12s;
 }
 
@@ -166,7 +166,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: 12px;
   background: transparent;
   color: var(--cy-text-muted, #99939a);
   cursor: pointer;
@@ -179,8 +179,8 @@
 }
 
 .cy-file-preview__md-btn.is-active {
-  background: rgba(45, 122, 95, 0.1);
-  color: var(--cy-accent, #2d7a5f);
+  background: rgba(136, 57, 239, 0.1);
+  color: var(--cy-accent, #8839ef);
 }
 
 /* Markdown 渲染预览区：滚动 + 内边距，样式复用聊天的 markdown 体系 */

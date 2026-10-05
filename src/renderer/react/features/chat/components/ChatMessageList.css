@@ -25,7 +25,7 @@
   margin: 0 auto 16px;
   padding: 6px 12px;
   border: 1px solid var(--cy-border);
-  border-radius: 999px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--cy-bg-workspace) 88%, transparent);
   box-shadow: 0 4px 16px rgb(43 33 54 / 8%);
   color: var(--cy-text-secondary);
@@ -73,7 +73,7 @@
 
 .cy-message-avatar__image {
   object-fit: cover;
-  border: 1px solid #dcfce7;
+  border: 1px solid #ccd0da;
   filter: drop-shadow(0 2px 8px rgba(76, 55, 98, 0.22));
   animation: firefly-avatar-float 3s ease-in-out infinite;
 }
@@ -92,7 +92,7 @@
 }
 
 .cy-message--user .ant-bubble-content {
-  border-radius: 16px 16px 4px;
+  border-radius: 12px;
   background: var(--cy-accent);
   color: #fff;
   box-shadow: var(--cy-shadow-bubble-accent);
@@ -141,7 +141,7 @@
   width: min(260px, 48vw);
   margin: 0;
   overflow: hidden;
-  border-radius: 13px;
+  border-radius: 12px;
   background: #eee;
 }
 
@@ -157,7 +157,7 @@
   right: 7px;
   bottom: 7px;
   padding: 4px 7px;
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgb(0 0 0 / 58%);
   color: #fff;
   font: 500 10px/1.2 var(--rb-font-sans, sans-serif);
@@ -171,7 +171,7 @@
   max-width: 240px;
   overflow: hidden;
   padding: 7px 10px;
-  border-radius: 9px;
+  border-radius: 12px;
   background: rgb(255 255 255 / 18%);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -316,13 +316,13 @@
 }
 
 .cy-run-activity__header:hover {
-  color: var(--cy-accent, #2d7a5f);
+  color: var(--cy-accent, #8839ef);
 }
 
 .cy-run-activity__header:focus-visible {
   outline: 2px solid rgb(45 122 95 / 55%);
   outline-offset: 3px;
-  border-radius: 7px;
+  border-radius: 12px;
 }
 
 .cy-run-activity__title {
@@ -355,7 +355,7 @@
   width: 18px;
   height: 18px;
   flex: 0 0 18px;
-  color: #23654e;
+  color: #7287fd;
   transition: transform 180ms ease;
 }
 
@@ -414,13 +414,13 @@
 }
 
 .cy-agent-round__header:hover {
-  color: var(--cy-accent, #2d7a5f);
+  color: var(--cy-accent, #8839ef);
 }
 
 .cy-agent-round__header:focus-visible {
   outline: 2px solid rgb(45 122 95 / 42%);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: 12px;
 }
 
 .cy-agent-round__art {
@@ -451,14 +451,14 @@
 
 /* 完成态标题后的文件改动提示：项目主粉高亮 */
 .cy-agent-round__files {
-  color: var(--cy-accent, #2d7a5f);
+  color: var(--cy-accent, #8839ef);
   font-weight: 600;
 }
 
 .cy-agent-round__chevron {
   width: 16px;
   height: 16px;
-  color: #23654e;
+  color: #7287fd;
   transition: transform 180ms ease;
 }
 
@@ -600,9 +600,9 @@
   overflow: hidden;
   padding: 2px 6px;
   border: 1px solid rgb(31 35 48 / 8%);
-  border-radius: 5px;
+  border-radius: 12px;
   background: rgb(255 255 255 / 68%);
-  color: #23654e;
+  color: #7287fd;
   font: 12px/1.4 var(--rb-font-mono, monospace);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -613,7 +613,7 @@
   margin: 7px 0 2px;
   overflow: auto;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #f4f4f5;
   color: var(--cy-text-muted);
   font: 12px/1.55 var(--rb-font-mono, monospace);
@@ -635,7 +635,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 7px 9px;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #f4f4f5;
 }
 
@@ -666,7 +666,7 @@
   display: block;
   width: 38px;
   height: 38px;
-  color: #2d7a5f;
+  color: #8839ef;
 }
 
 .cy-reasoning-status-art img {
@@ -717,7 +717,7 @@
   width: min(var(--cy-sticker-width, 160px), 32vw);
   max-height: var(--cy-sticker-height, 176px);
   object-fit: contain;
-  border-radius: 18px;
+  border-radius: 12px;
   -webkit-user-drag: none;
 }
 
@@ -819,7 +819,7 @@
 }
 
 .cy-file-link:hover {
-  color: color-mix(in srgb, var(--cy-accent) 82%, #1e5a45);
+  color: color-mix(in srgb, var(--cy-accent) 82%, #5c5f77);
   text-decoration: underline;
 }
 
@@ -883,7 +883,7 @@
   overflow: auto;
   text-align: center;
   background: #f8fcfa;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 8px;
 }
 
@@ -908,8 +908,8 @@
 .cy-mermaid--fallback .cy-mermaid__source {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 8px;
-  background: #f2f8f5;
+  border-radius: 12px;
+  background: #eff1f5;
   color: var(--cy-text);
   font: 12px/1.6 Consolas, "Cascadia Code", monospace;
   white-space: pre-wrap;
@@ -948,8 +948,8 @@
 .cy-svg-card--fallback .cy-svg-card__source {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 8px;
-  background: #f2f8f5;
+  border-radius: 12px;
+  background: #eff1f5;
   color: var(--cy-text);
   font: 12px/1.6 Consolas, "Cascadia Code", monospace;
   white-space: pre-wrap;
@@ -963,7 +963,7 @@
   overflow: auto;
   padding: 10px 12px;
   border: 1px solid rgb(31 35 48 / 10%);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #f2f2f3;
   color: var(--cy-text);
   font: 12px/1.6 Consolas, "Cascadia Code", monospace;
@@ -1001,7 +1001,7 @@
 }
 
 .cy-message-markdown li[data-streamdown="list-item"]::marker {
-  color: #2d7a5f;
+  color: #8839ef;
 }
 
 /* GFM 任务列表使用产品色复选框，禁用态也保持清晰，不再回落成系统灰。 */
@@ -1060,9 +1060,9 @@
 
 .cy-message-markdown :not(pre) > code {
   padding: 2px 5px;
-  border-radius: 5px;
-  background: #e9f6ef;
-  color: #1e5a45;
+  border-radius: 12px;
+  background: #e6e9ef;
+  color: #5c5f77;
   font-family: Consolas, "Cascadia Code", monospace;
 }
 
@@ -1084,7 +1084,7 @@
   gap: 0;
   padding: 0;
   border: 1px solid #d8e9df;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #ffffff;
   overflow: hidden;
 }
@@ -1114,8 +1114,8 @@
 }
 
 .cy-message-markdown [data-streamdown="table"] th {
-  background: #f2f8f5;
-  color: #183628;
+  background: #eff1f5;
+  color: #4c4f69;
   font-size: 12.5px;
   font-weight: 600;
   line-height: 1.45;
@@ -1240,7 +1240,7 @@
 .cy-last-message-editor__actions button {
   padding: 5px 11px;
   border: 1px solid rgb(255 255 255 / 68%);
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgb(255 255 255 / 82%);
   color: #555;
   cursor: pointer;

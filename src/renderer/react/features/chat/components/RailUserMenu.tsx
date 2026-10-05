@@ -45,8 +45,8 @@ export function RailUserMenu({ onOpenSettings }: { onOpenSettings: () => void })
             event.preventDefault(); setOpen(true);
           }
         }}>
-        <span className="cy-user-avatar-circle">
-          {avatar ? <img src={avatar} alt={t("ui.userAlt")} draggable={false} /> : <span>{nickname ? Array.from(nickname)[0] : "U"}</span>}
+        <span className={`cy-user-avatar-circle ${avatar ? "" : "is-placeholder"}`}>
+          {avatar ? <img src={avatar} alt={t("ui.userAlt")} draggable={false} /> : <span>U</span>}
         </span>
       </button>
       {open && <div className="cy-rail-user__menu" id={menuId}>

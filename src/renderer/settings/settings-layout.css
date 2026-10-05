@@ -9,7 +9,7 @@
 .provider-row__copy > span { font-size: 12px; color: var(--rb-text-muted); overflow-wrap: anywhere; }
 .provider-row__state { font-size: 11px; color: var(--rb-text-muted); }
 .provider-row__actions { display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
-.provider-row__action { padding: 6px 10px; border: 1px solid var(--rb-border-soft); border-radius: 6px; background: transparent; color: var(--rb-text-default); font: inherit; font-size: 12px; cursor: pointer; }
+.provider-row__action { padding: 6px 10px; border: 1px solid var(--rb-border-soft); border-radius: 12px; background: transparent; color: var(--rb-text-default); font: inherit; font-size: 12px; cursor: pointer; }
 .provider-row__action:hover { background: var(--rb-border-faint); }
 .provider-row__action[data-profile-action="delete"] { color: #c42b1c; }
 .provider-details { margin: 20px 0; border-top: 1px solid var(--rb-border-soft); border-bottom: 1px solid var(--rb-border-soft); }
@@ -21,7 +21,7 @@
 .provider-editor__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .provider-tabs { display: flex; align-items: center; gap: 4px; }
 .provider-tabs[hidden] { display: none; }
-.provider-tabs > button { padding: 9px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--rb-text-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.provider-tabs > button { padding: 9px 12px; border: 0; border-radius: 12px; background: transparent; color: var(--rb-text-muted); font: inherit; font-size: 13px; cursor: pointer; }
 .provider-tabs > button[aria-selected="true"] { color: var(--rb-pink-500); background: var(--rb-border-faint); font-weight: 600; }
 #preset-cards { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
 #agent-routing-panel { display: grid; gap: 12px; }
@@ -65,7 +65,7 @@
 [data-ui-theme="pearl-white"] .nav-item {
   min-height: 38px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 12px;
   color: var(--rb-text-muted);
 }
 
@@ -101,7 +101,7 @@
   width: 42px;
   height: 32px;
   border: 0;
-  border-radius: 5px;
+  border-radius: 12px;
   background: transparent;
   box-shadow: none;
   color: var(--rb-text-default);

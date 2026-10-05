@@ -1,6 +1,7 @@
 // ChatPageInspector — 把 ChatPage 的标签状态组装成 RightInspector 的标签列表。
 // 标签固定顺序：文件树（files）→ 文件预览（file:<路径>）→ Diff（diff:<run>:<路径>）→ 计划（plan:<会话>）。
 
+import type { ReactNode } from "react";
 import { useTranslation } from "../../../i18n";
 import { FileTreePanel, FilePreviewContent } from "./FileTreePanel";
 import { PlanContent, planTabDotClass, planTabLabel, type PlanReviewPhase } from "./PlanReviewPanel";
@@ -38,6 +39,10 @@ export interface ChatPageInspectorProps {
   /** 文件树标签被钉住（面板里还有其它标签时不可关） */
   filesTabPinned: boolean;
   browserTabOpen?: boolean;
+  tasksTabOpen?: boolean;
+  taskPanel?: ReactNode;
+  pendingWorkspaceName?: string;
+  onChooseWorkspace?: () => void;
   fileTabs: ChatPageInspectorFileTab[];
   diffTabs: ChatPageInspectorDiffTab[];
   activePlan: { content: string; phase: PlanReviewPhase } | null;
@@ -57,6 +62,10 @@ export function ChatPageInspector({
   filesTabOpen,
   filesTabPinned,
   browserTabOpen = false,
+  tasksTabOpen = false,
+  taskPanel,
+  pendingWorkspaceName,
+  onChooseWorkspace,
   fileTabs,
   diffTabs,
   activePlan,
@@ -70,18 +79,27 @@ export function ChatPageInspector({
   const { t } = useTranslation();
   const tabs: InspectorTab[] = [];
 
-  if (filesTabOpen && sessionId) {
+  if (tasksTabOpen) {
+    tabs.push({ id: "tasks", label: t("workspace.tasks"), content: taskPanel });
+  }
+  if (filesTabOpen) {
     tabs.push({
       id: "files",
       label: t("fileTree.title"),
       // 被钉住的文件树标签隐藏 chip 上的 ×，右上角关闭按钮也对它无效
       closable: !filesTabPinned,
       content: (
-        <FileTreePanel
+        sessionId && workspaceRoot ? <FileTreePanel
           sessionId={sessionId}
           workspaceRoot={workspaceRoot}
           onOpenFile={onOpenFile}
-        />
+        /> : <div className="cy-workspace-empty">
+          <p>{pendingWorkspaceName
+            ? t("workspace.pendingFiles", { name: pendingWorkspaceName })
+            : t("fileTree.errNoWorkspace")}</p>
+          {onChooseWorkspace && <button type="button" data-workspace-choose="true"
+            onClick={onChooseWorkspace}>{t("workspace.chooseFolder")}</button>}
+        </div>
       ),
     });
   }
@@ -109,7 +127,7 @@ export function ChatPageInspector({
       content: <PlanContent content={activePlan.content} phase={activePlan.phase} />,
     });
   }
-  if (browserTabOpen && sessionId) {
+  if (browserTabOpen) {
     tabs.push({
       id: "browser",
       label: t("browserWorkspace.title"),

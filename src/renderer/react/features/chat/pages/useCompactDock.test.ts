@@ -22,7 +22,7 @@ it("stacks the inspector for a narrow reading area and restores the wide dock", 
   act(() => root.render(createElement(Harness)));
   const input = host.querySelector("textarea")!;
   input.value = "still typing";
-  for (const [width, compact] of [[600, true], [720, false], [1100, false]] as const) {
+  for (const [width, compact] of [[580, true], [620, false], [720, false], [1100, false]] as const) {
     act(() => reportResize!([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver));
     expect(host.firstElementChild?.getAttribute("data-compact")).toBe(String(compact));
     expect(host.querySelector("textarea")).toBe(input);

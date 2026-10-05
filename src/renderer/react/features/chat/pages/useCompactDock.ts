@@ -6,7 +6,7 @@ export function useCompactDock(ref: RefObject<HTMLDivElement | null>): boolean {
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const update = (width: number) => setCompact(width < 720);
+    const update = (width: number) => setCompact(width < 600);
     update(element.getBoundingClientRect().width);
     const observer = new ResizeObserver(([entry]) => update(entry.contentRect.width));
     observer.observe(element);

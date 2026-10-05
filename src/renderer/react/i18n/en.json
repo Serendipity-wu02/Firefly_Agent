@@ -714,5 +714,12 @@
     "closed": "Browser closed.",
     "viewport": "Page preview",
     "empty": "Page loading is currently unavailable."
+  },
+  "workspace": {
+    "resizeSidebar": "Resize conversation sidebar",
+    "tasks": "Tasks and project",
+    "chooseFolder": "Choose workspace folder",
+    "chooseProject": "Choose a project folder to get started.",
+    "pendingFiles": "{{name}} is selected. Files will appear when the conversation starts."
   }
 }

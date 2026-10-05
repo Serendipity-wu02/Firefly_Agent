@@ -7,20 +7,20 @@
   --rb-bg-elevated: #2a2350;
 
   /* Firefly brand palette; legacy token names remain for existing selectors. */
-  --rb-pink-50:  #f2f8f5;
-  --rb-pink-100: #e9f6ef;
-  --rb-pink-200: #dcfce7;
-  --rb-pink-300: #48bb78;
-  --rb-pink-400: #2d7a5f;
-  --rb-pink-500: #2d7a5f;
-  --rb-pink-600: #23654e;
-  --rb-pink-700: #1e5a45;
-  --rb-pink-glow: #48bb78;
+  --rb-pink-50:  #eff1f5;
+  --rb-pink-100: #e6e9ef;
+  --rb-pink-200: #ccd0da;
+  --rb-pink-300: #ac80f4;
+  --rb-pink-400: #8839ef;
+  --rb-pink-500: #8839ef;
+  --rb-pink-600: #7287fd;
+  --rb-pink-700: #5c5f77;
+  --rb-pink-glow: #ac80f4;
 
   /* ===== Accent purple (gradient endpoint) ===== */
-  --rb-violet-400: #71d19a;
-  --rb-violet-500: #48bb78;
-  --rb-violet-600: #2d7a5f;
+  --rb-violet-400: #b4befe;
+  --rb-violet-500: #ac80f4;
+  --rb-violet-600: #8839ef;
 
   /* ===== Cyan (secondary tech accent) ===== */
   --rb-cyan-400: #67e8f9;
@@ -34,30 +34,30 @@
   --rb-text-on-pink: #ffffff;
 
   /* ===== Borders ===== */
-  --rb-border-faint:  rgba(45, 122, 95, 0.08);
-  --rb-border-soft:   rgba(45, 122, 95, 0.18);
-  --rb-border-strong: rgba(45, 122, 95, 0.40);
+  --rb-border-faint:  rgba(136, 57, 239, 0.08);
+  --rb-border-soft:   rgba(136, 57, 239, 0.18);
+  --rb-border-strong: rgba(136, 57, 239, 0.40);
   --rb-border-grid:   rgba(157, 127, 234, 0.12);
 
   /* ===== Gradient ===== */
-  --rb-grad-pink: linear-gradient(135deg, #2d7a5f 0%, #1e5a45 100%);
-  --rb-grad-pink-hot: linear-gradient(135deg, #2d7a5f 0%, #23654e 50%, #1e5a45 100%);
+  --rb-grad-pink: linear-gradient(135deg, #8839ef 0%, #5c5f77 100%);
+  --rb-grad-pink-hot: linear-gradient(135deg, #8839ef 0%, #7287fd 50%, #5c5f77 100%);
   --rb-grad-bg: radial-gradient(ellipse at top, #181432 0%, #08070f 60%);
 
   /* ===== Glow (tech feel) ===== */
-  --rb-glow-pink: 0 0 20px rgba(45, 122, 95, 0.35);
-  --rb-glow-soft: 0 0 12px rgba(45, 122, 95, 0.18);
+  --rb-glow-pink: 0 0 20px rgba(136, 57, 239, 0.35);
+  --rb-glow-soft: 0 0 12px rgba(136, 57, 239, 0.18);
   --rb-glow-violet: 0 0 24px rgba(157, 127, 234, 0.28);
 
   /* ===== Radius (from MiniMax design ref, rounded everywhere) ===== */
-  --rb-radius-xs: 4px;
-  --rb-radius-sm: 6px;
-  --rb-radius-md: 8px;
+  --rb-radius-xs: 12px;
+  --rb-radius-sm: 12px;
+  --rb-radius-md: 12px;
   --rb-radius-lg: 12px;
-  --rb-radius-xl: 16px;
-  --rb-radius-xxl: 20px;
-  --rb-radius-xxxl: 24px;
-  --rb-radius-hero: 32px;
+  --rb-radius-xl: 12px;
+  --rb-radius-xxl: 12px;
+  --rb-radius-xxxl: 12px;
+  --rb-radius-hero: 12px;
   --rb-radius-full: 9999px;
 
   /* ===== Spacing ===== */
@@ -101,8 +101,8 @@
   --rb-shadow-card:    0 4px 16px rgba(0, 0, 0, 0.35),
                        0 1px 2px rgba(0, 0, 0, 0.25);
   --rb-shadow-elevated:0 12px 40px rgba(0, 0, 0, 0.55),
-                       0 0 0 1px rgba(45, 122, 95, 0.10);
-  --rb-shadow-pink:    0 8px 32px rgba(45, 122, 95, 0.35);
+                       0 0 0 1px rgba(136, 57, 239, 0.10);
+  --rb-shadow-pink:    0 8px 32px rgba(136, 57, 239, 0.35);
 
   /* ===== Light-mode primitives (neutral defaults; pearl-white overrides these) ===== */
   --rb-card-bg:        transparent;
@@ -110,7 +110,7 @@
   --rb-hover-light:    rgba(0, 0, 0, 0.04);
   --rb-active-light:   rgba(0, 0, 0, 0.08);
   --rb-input-bg:       rgba(255, 255, 255, 0.06);
-  --rb-input-border:   rgba(45, 122, 95, 0.18);
+  --rb-input-border:   rgba(136, 57, 239, 0.18);
   --rb-input-text:     #ebe5f5;
   --rb-input-placeholder: rgba(235, 229, 245, 0.48);
   --rb-slider-track:   rgba(255, 255, 255, 0.18);
@@ -123,12 +123,12 @@
 
   /* ===== Markdown render variables (dark theme defaults) ===== */
   --md-code-bg:           rgba(255, 255, 255, 0.04);
-  --md-code-border:       rgba(45, 122, 95, 0.18);
+  --md-code-border:       rgba(136, 57, 239, 0.18);
   --md-inline-code-bg:    rgba(255, 255, 255, 0.08);
   --md-inline-code-text:  #fef7ff;
   --md-quote-border:      var(--rb-pink-400);
-  --md-quote-bg:          rgba(45, 122, 95, 0.06);
-  --md-table-border:      rgba(45, 122, 95, 0.18);
+  --md-quote-bg:          rgba(136, 57, 239, 0.06);
+  --md-table-border:      rgba(136, 57, 239, 0.18);
   --md-link-color:        var(--rb-pink-400);
   --md-link-hover:        var(--rb-pink-500);
   --md-copy-text:         var(--rb-text-muted);
@@ -144,7 +144,7 @@
   --rb-weather-text-default: #d8d0ee;
   --rb-weather-text-muted:  #a79fc4;
   --rb-weather-text-faint:  #6f698c;
-  --rb-weather-accent:      #71d19a;
+  --rb-weather-accent:      #b4befe;
   --rb-weather-detail-bg:   rgba(255, 255, 255, 0.045);
   --rb-weather-detail-border: rgba(255, 255, 255, 0.07);
   --rb-weather-icon-bg:     linear-gradient(135deg, rgba(72,187,120,0.16), rgba(167,231,188,0.16));

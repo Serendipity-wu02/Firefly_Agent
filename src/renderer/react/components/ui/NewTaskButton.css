@@ -7,7 +7,7 @@
   padding: 0 10px;
   background: transparent;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--cy-text, #1d1d1f);
   transition: background 0.15s ease;
@@ -18,7 +18,7 @@
 }
 
 .cy-side-action.is-active {
-  background: var(--cy-bg-active, #e8f4ed);
+  background: var(--cy-bg-active, #e6e9ef);
 }
 
 .cy-side-action-icon {
@@ -33,7 +33,7 @@
 }
 
 .cy-side-action.is-active .cy-side-action-icon {
-  color: var(--cy-accent, #2d7a5f);
+  color: var(--cy-accent, #8839ef);
 }
 
 .cy-side-action-label {

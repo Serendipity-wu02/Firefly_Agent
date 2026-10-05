@@ -4,7 +4,7 @@ import { BrowserWorkspacePanel, type BrowserWorkspaceLabels } from "./BrowserWor
 import { createBrowserPageState } from "./browser-page-state";
 
 /** Closed production gate presentation; never creates a guest or navigates. */
-export function OfflineBrowserTab({ sessionId, onClose }: { sessionId: string; onClose(): void }) {
+export function OfflineBrowserTab({ sessionId, onClose }: { sessionId?: string; onClose(): void }) {
   const { t } = useTranslation();
   const [address, setAddress] = useState("");
   const [checked, setChecked] = useState(false);
@@ -22,7 +22,7 @@ export function OfflineBrowserTab({ sessionId, onClose }: { sessionId: string; o
     loadFailed: t("browserWorkspace.unavailable"), closed: t("browserWorkspace.closed"),
     viewport: t("browserWorkspace.viewport"), empty: t("browserWorkspace.empty"),
   };
-  return <BrowserWorkspacePanel page={{ ...createBrowserPageState(sessionId, "offline"), error: "blocked" }}
+  return <BrowserWorkspacePanel page={{ ...createBrowserPageState(sessionId ?? "", "offline"), error: "blocked" }}
     address={address} labels={labels} navigationAvailable={false} onAddressChange={setAddress}
     onNavigate={() => {}} onCommand={() => {}} onClose={onClose} />;
 }

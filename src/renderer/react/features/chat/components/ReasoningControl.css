@@ -34,13 +34,13 @@
 
 .cy-reasoning-popover .ant-popover-inner {
   border: 1px solid #eeeeee;
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: 0 12px 32px rgba(29, 29, 31, 0.12);
 }
 
 .cy-reasoning-popover .ant-segmented {
   padding: 3px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #f7f7f7;
 }
 
@@ -55,12 +55,12 @@
    跟随流萤主题变量（--cy-accent），变量缺失时回退默认粉。 */
 .cy-reasoning-popover .ant-segmented-thumb {
   border-radius: 8px;
-  background: rgba(45, 122, 95, 0.22);
-  background: color-mix(in srgb, var(--cy-accent, #2d7a5f) 22%, transparent);
+  background: rgba(136, 57, 239, 0.22);
+  background: color-mix(in srgb, var(--cy-accent, #8839ef) 22%, transparent);
   box-shadow: none;
 }
 
 .cy-reasoning-popover .ant-segmented-item-selected {
-  color: var(--cy-accent, #2d7a5f);
+  color: var(--cy-accent, #8839ef);
   font-weight: 600;
 }
