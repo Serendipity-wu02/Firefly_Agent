@@ -86,7 +86,8 @@ export function createMainSRuntimePort(options:PortOptions):MainSRuntimePort|nul
     const check=()=>{binding.assertCurrent();if(target&&!target.isCurrent())contextFail("MEMORY_CONTEXT_RUN_STALE")};
     const sent=await binding.dispatch(context,options.actorToken,permit,signal,target?check:undefined);
     if(!target)return sent;if(sent.status!=="sent")contextFail("MEMORY_CONTEXT_SEND_UNKNOWN");
-    const validate=async()=>{check();await context.validateResponse(options.actorToken,snapshot,signal);check()};
+    let historyResponse:object|undefined;
+    const validate=async(ticket?:object)=>{check();if(historyResponse&&ticket)await context.validateHistoryResponseStep(options.actorToken,historyResponse,ticket,signal);else await context.validateResponse(options.actorToken,snapshot,signal);check()};
     if(!transcript.mutationState||!Number.isSafeInteger(capture!.userRevision)||capture!.userRevision<1)contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
     const owned:SAssistantBinding={runId:target.runId,assistantTurnId:target.assistantTurnId,userTurnId:target.userTurnId,userRevision:capture!.userRevision};
     const assistantEntryId=`${target.runId}:assistant:s-response`,settlementBinding={...owned,assistantEntryId};
@@ -104,16 +105,20 @@ export function createMainSRuntimePort(options:PortOptions):MainSRuntimePort|nul
     const result=await consumeSResponseStream({stream:sent.result,target,signal,validate,afterCommit:()=>{if(gate!.get()!=="success")contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN")},commit:async text=>{
      let dispatched=false;
      try{
+      historyResponse=context.beginHistoryResponse(options.actorToken,snapshot,{...owned,assistantEntryId,throughSeq:capture!.throughSeq,text});
+      if(historyResponse)await context.prepareHistoryResponseStep(options.actorToken,historyResponse,signal);
       await target.sink.appendSAssistant({message:{role:"assistant",content:text},binding:owned,guard:{throughSeq:capture!.throughSeq,validate,commit:write=>{
        bindProgress(capture!.throughSeq+1,capture!.mutationRevision+1,"assistant",text);
        return context.commitResponse(options.actorToken,snapshot,()=>{dispatched=true;return write()},signal,check);
       }}});
+      if(historyResponse)await context.prepareHistoryResponseStep(options.actorToken,historyResponse,signal);
       await target.sink.settleSAssistant({binding:settlementBinding,result:"success",safeReason:"completed",guard:{throughSeq:capture!.throughSeq+1,validate,commit:write=>{
        bindProgress(capture!.throughSeq+2,capture!.mutationRevision+2,"assistant_settlement",text);
        return context.commitResponse(options.actorToken,snapshot,()=>{if(!gate!.reserve("success"))contextFail("MEMORY_CONTEXT_CANCELLED");return write()},signal,check);
       }}});
       if(!gate!.confirm("success"))contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN");
      }catch(error){
+      if(historyResponse){context.endHistoryResponse(options.actorToken,historyResponse);historyResponse=undefined}
       // A reserved result may only be confirmed by its sink, never replaced by cancellation.
       if(gate!.get()==="success_reserved"||gate!.get()==="unknown"){gate!.markUnknown();contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN")}
       if(!dispatched)throw error;
@@ -126,7 +131,7 @@ export function createMainSRuntimePort(options:PortOptions):MainSRuntimePort|nul
        }catch{gate!.markUnknown();contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN")}
       }else if(dispatched)contextFail("MEMORY_CONTEXT_SETTLEMENT_UNKNOWN");
       throw error;
-     }
+     }finally{if(historyResponse){context.endHistoryResponse(options.actorToken,historyResponse);historyResponse=undefined}}
     }});
     return {status:"sent" as const,requestDigest:sent.requestDigest,result};
    }finally{active=undefined}

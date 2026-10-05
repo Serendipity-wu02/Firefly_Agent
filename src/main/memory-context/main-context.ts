@@ -1,4 +1,4 @@
-import {readHistoryEvidence,validateHistoryEvidence} from "../memory-history/main-history";
+import {readHistoryEvidence,validateHistoryEvidence,claimHistoryResponseEvidence,type HistoryResponseBinding,type HistoryResponseEvidence} from "../memory-history/main-history";
 import {createHash,randomUUID} from "node:crypto";
 import {canonicalJson} from "../memory-core/repository-types";
 import type {BoundSourceRef,FactView} from "../../shared/memory-contracts";
@@ -11,6 +11,7 @@ import {policySubjectKey} from "../memory-policy/policy-repository";
 import {ContextError,contextFail,CONTEXT_CLAIM_WINDOW_MS,type ContextBudget,type TokenCounter,type ContextUnit,type PreparedRequest,type BudgetResult,type ContextTransport,type SourceDependency,type FactDependency,type TranscriptDependency,type StoredSummary,type SummaryReceipt,type SummarySegment} from "./context-contracts";
 import {selectBudget,requestDigest,freezeRequest,countPrepared} from "./token-budget";
 import {parseCanonicalTranscript,requireMainTranscriptProvider,type TranscriptEventSource} from "./main-transcript-provider";
+import type {TranscriptEntry} from "../orchestrator/conversation-transcript-types";
 import type {ContextFact} from "./context-contracts";
 
 interface ContextOptions {
@@ -25,7 +26,8 @@ interface ContextOptions {
 interface ContextInput {sessionId:string;sourceRefs:BoundSourceRef[];factRefs?:FactDependency[];currentUserSourceRef?:BoundSourceRef;transcriptTokens?:object[];currentTranscript?:{token:object;user?:{turnId:string;revision:number}};summaryIds?:string[];historyTokens?:object[];signal?:AbortSignal}
 interface Snapshot extends BudgetResult {snapshotId:string;generation:number;excluded:{sourceId:string;reason:string}[]}
 interface ResponseProgress {operationId:string;expectedRefs:TranscriptDependency[];check:()=>void}
-interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:ContextFact[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];historyTokens:object[];configuration:string;responseProgress?:ResponseProgress}
+interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextUnit[];facts:ContextFact[];snapshot:Snapshot;sourceRefs:BoundSourceRef[];transcripts:TranscriptState[];historyTokens:object[];configuration:string;responseProgress?:ResponseProgress;claimed?:boolean;historyResponse?:HistoryContinuation}
+interface HistoryContinuation {cap:object;state:SnapshotState;binding:HistoryResponseBinding;evidence:HistoryResponseEvidence[];phase:number;active:boolean;ticket?:object;observed:boolean;receipt?:object}
 interface PermitState {snapshot:SnapshotState;id:string;used:boolean}
 interface TranscriptState {actorToken:object;ref:TranscriptDependency;unit:ContextUnit;sourceRefs:BoundSourceRef[];adapter:object;locator:string;guardRefs:TranscriptDependency[];provenance?:TranscriptEventSource[];firstSeq?:number;lastSeq?:number}
 interface LeaseState {actorToken:object;id:string;summaryId:string;commandId:string;inputRefs:BoundSourceRef[];transcripts?:TranscriptState[];inputTranscriptRefs?:TranscriptDependency[];beforeUnits?:ContextUnit[]}
@@ -34,6 +36,7 @@ export function createMainContext(options:ContextOptions){
  if(options.registry.coordinator!==options.actorAuthority.coordinate)contextFail("MEMORY_CONTEXT_COORDINATOR_REQUIRED");
  const bootId=randomUUID(),snapshots=new WeakMap<object,SnapshotState>(),permits=new WeakMap<object,PermitState>(),transcriptTokens=new WeakMap<object,TranscriptState>(),transcriptHeads=new Map<string,TranscriptState>(),leases=new WeakMap<object,LeaseState>();
  const changeReceipts=new WeakMap<object,{actorToken:object;generation:number;operationId:string;refs:TranscriptDependency[]}>();
+ const continuations=new WeakMap<object,HistoryContinuation>(),activeContinuations=new Map<object,HistoryContinuation>();
  const includeFactSupportMetadata=options.includeFactSupportMetadata===true;
  function actor(token:object):MainActorContext {const a=options.actorAuthority.requireActor(token);if(a.sessionMode==="temporary")contextFail("MEMORY_CONTEXT_TEMPORARY_UNSUPPORTED");return a}
  function owner(a:MainActorContext){return {actorKey:a.actorKey,providerId:a.providerId,sessionId:a.sessionId,bootId}}
@@ -170,9 +173,45 @@ export function createMainContext(options:ContextOptions){
  function bindResponseProgress(token:object,value:object,receipt:object,check:()=>void):void {
   const state=snapshotState(token,value),change=changeReceipts.get(receipt);
   if(!change||change.actorToken!==token||change.generation!==state.snapshot.generation)contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
-  const refs=[...new Map(state.transcripts.flatMap(s=>[s.ref,...s.guardRefs]).map(r=>[r.headId,r])).values()];
+  const refs=responseRefs(state);
   if(!refs.length||refs.some(ref=>!change.refs.some(r=>canonicalJson(r)===canonicalJson(ref))))contextFail("MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED");
   check();state.responseProgress={operationId:change.operationId,expectedRefs:refs,check};
+ }
+ function responseRefs(state:SnapshotState){return [...new Map([...state.transcripts.flatMap(s=>[s.ref,...s.guardRefs]),...(state.historyResponse?.evidence.flatMap(e=>e.witnesses.flatMap(w=>w.refs))??[])].map(r=>[r.headId,r])).values()]}
+ function responseWitnesses(c:HistoryContinuation){return [...new Set(c.evidence.flatMap(e=>e.witnesses))]}
+ function continuation(token:object,value:object):HistoryContinuation{actor(token);const c=continuations.get(value);if(!c||!c.active||c.state.actorToken!==token||c.state.historyResponse!==c)contextFail('MEMORY_CONTEXT_HISTORY_RESPONSE_DENIED');for(const w of responseWitnesses(c))w.check();return c}
+ function endHistoryResponse(token:object,value:object){const c=continuations.get(value);if(!c||c.state.actorToken!==token)contextFail('MEMORY_CONTEXT_HISTORY_RESPONSE_DENIED');c.active=false;c.ticket=undefined;for(const w of responseWitnesses(c))w.retire();if(activeContinuations.get(token)===c)activeContinuations.delete(token)}
+ function beginHistoryResponse(token:object,value:object,input:Omit<HistoryResponseBinding,'actorToken'|'bootId'|'providerId'|'sessionId'|'snapshotId'|'requestDigest'|'contentDigest'> & {text:string}):object|undefined{
+  const state=snapshotState(token,value);if(!state.claimed||state.historyResponse||activeContinuations.has(token))contextFail('MEMORY_CONTEXT_HISTORY_RESPONSE_DENIED');
+  const {text,...owned}=input,binding:HistoryResponseBinding={...owned,actorToken:token,bootId:options.actorAuthority.bootId,providerId:state.actor.providerId,sessionId:state.actor.sessionId,snapshotId:state.snapshot.snapshotId,requestDigest:state.snapshot.requestDigest,contentDigest:createHash('sha256').update(canonicalJson(text)).digest('hex')};
+  const evidence:HistoryResponseEvidence[]=[];
+  try{for(const cap of state.historyTokens)evidence.push(claimHistoryResponseEvidence(options.actorAuthority,token,cap,binding));if(!evidence.some(e=>e.witnesses.length))return undefined;
+   const cap=Object.freeze({}),c:HistoryContinuation={cap,state,binding:Object.freeze(binding),evidence,phase:0,active:true,observed:false};state.historyResponse=c;continuations.set(cap,c);activeContinuations.set(token,c);return cap;
+  }catch(error){for(const e of evidence)for(const w of e.witnesses)w.retire();throw error}
+ }
+ async function prepareHistoryResponseStep(token:object,value:object,signal?:AbortSignal){const c=continuation(token,value);if(c.phase>1||c.ticket||c.observed)contextFail('MEMORY_CONTEXT_HISTORY_RESPONSE_DENIED');for(const e of c.evidence)await e.validateOrdinary();for(const w of responseWitnesses(c))if(w.sessionId!==c.state.actor.sessionId||w.providerId!==c.state.actor.providerId)await w.validate(undefined,signal);continuation(token,value)}
+ async function validateHistoryResponseStep(token:object,value:object,ticket:object,signal?:AbortSignal){
+  const c=continuation(token,value);if(c.phase>1||c.ticket||c.observed)contextFail('MEMORY_CONTEXT_HISTORY_RESPONSE_DENIED');
+  try{for(const w of responseWitnesses(c))await w.validate(ticket,signal);await validateResponse(token,c.state.snapshot,signal);continuation(token,value);c.ticket=ticket}
+  catch(error){endHistoryResponse(token,value);throw error}
+ }
+ function matchesResponse(c:HistoryContinuation,entry:TranscriptEntry){const b=c.binding;if(entry.seq!==b.throughSeq+c.phase+1||entry.runId!==b.runId||entry.turnId!==b.assistantTurnId)return false;
+  return c.phase===0?entry.kind==='assistant'&&entry.id===b.assistantEntryId&&entry.sSettlement?.userTurnId===b.userTurnId&&entry.sSettlement?.userRevision===b.userRevision&&createHash('sha256').update(canonicalJson(entry.payload.content)).digest('hex')===b.contentDigest:
+   c.phase===1&&entry.kind==='assistant_settlement'&&entry.payload.result==='success'&&entry.payload.binding.assistantEntryId===b.assistantEntryId&&entry.payload.binding.userTurnId===b.userTurnId&&entry.payload.binding.userRevision===b.userRevision;
+ }
+ async function observeResponseMutation(token:object,kind:string,entry:TranscriptEntry|undefined,ticket:object|undefined,values:object[]):Promise<object|undefined>{
+  const c=activeContinuations.get(token);if(!c)return undefined;
+  if(kind!=='append'||!entry||!ticket||c.ticket!==ticket||c.observed||!matchesResponse(c,entry)){const responseAttempt=ticket!==undefined&&c.ticket===ticket;endHistoryResponse(token,c.cap);if(responseAttempt)contextFail('MEMORY_CONTEXT_HISTORY_RESPONSE_DENIED');return undefined}
+  try{
+   continuation(token,c.cap);const refs=responseRefs(c.state),published=values.map(v=>transcriptState(token,v));
+   const sRefs=[...new Map(published.flatMap(s=>[s.ref,...s.guardRefs]).map(r=>[r.headId,r])).values()];
+   if(c.phase===0){if(sRefs.some(r=>!refs.some(ref=>canonicalJson(ref)===canonicalJson(r))))contextFail('MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED');
+    const operationId=randomUUID();await options.actorAuthority.coordinate(()=>command(c.state.actor,'transcriptReserveBatch',{generation:c.state.snapshot.generation,operationId,expectedRefs:refs},randomUUID()));
+    c.receipt=Object.freeze({});changeReceipts.set(c.receipt,{actorToken:token,generation:c.state.snapshot.generation,operationId,refs});
+   }else if(sRefs.length||!c.receipt)contextFail('MEMORY_CONTEXT_RESPONSE_PROGRESS_DENIED');
+   for(const w of responseWitnesses(c))await w.observe(entry,ticket);
+   continuation(token,c.cap);c.observed=true;return c.receipt;
+  }catch(error){endHistoryResponse(token,c.cap);throw error}
  }
  function responseBody(state:SnapshotState){const progress=state.responseProgress;progress?.check();return {snapshotId:state.snapshot.snapshotId,...(progress?{responseProgress:{operationId:progress.operationId,expectedRefs:progress.expectedRefs}}:{})}}
  async function deleteTranscript(token:object,value:object):Promise<void>{
@@ -266,7 +305,7 @@ export function createMainContext(options:ContextOptions){
  async function validateResponse(token:object,value:object,signal?:AbortSignal):Promise<void>{
   const state=snapshotState(token,value);if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
   if(configuration()!==state.configuration)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
-  for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,token,cap);
+  if(state.historyResponse){const c=continuation(token,state.historyResponse.cap);for(const e of c.evidence)await e.validateOrdinary()}else for(const cap of state.historyTokens)await validateHistoryEvidence(options.actorAuthority,token,cap);
   for(const ref of state.sourceRefs)await readSource(state.actor,ref);
   await readFactSupports(state.actor,state.facts);
   await command(state.actor,"validateResponse",responseBody(state));state.responseProgress?.check();
@@ -281,6 +320,8 @@ export function createMainContext(options:ContextOptions){
    if(configuration()!==state.configuration||requestDigest(freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts))))!==state.snapshot.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
    state.responseProgress!.check();check();if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
    // Linearization is append dispatch: no await between final guards and file append.
+   const c=state.historyResponse;
+   if(c){continuation(token,c.cap);if(!c.ticket||!c.observed||c.phase>1)contextFail('MEMORY_CONTEXT_HISTORY_RESPONSE_DENIED');c.phase++;c.ticket=undefined;c.observed=false;try{return await write()}catch(error){endHistoryResponse(token,c.cap);throw error}}
    return write();
   });
  }
@@ -300,7 +341,7 @@ export function createMainContext(options:ContextOptions){
    const invokedAt=(options.clock??Date.now)();if(!Number.isSafeInteger(invokedAt)||!Number.isSafeInteger(claim.claimedAt)||invokedAt<claim.claimedAt||invokedAt-claim.claimedAt>CONTEXT_CLAIM_WINDOW_MS){await command(state.actor,"useUnknown",{useTicketId,processBootId},"unknown-"+useTicketId).catch(()=>{});contextFail("MEMORY_RECALL_CLOCK_INVALID")}
    if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
    let response:Promise<T>|null;
-   try{response=Promise.resolve(send(result.request));void response.catch(()=>{})}catch{response=null}
+   try{response=Promise.resolve(send(result.request));state.claimed=true;void response.catch(()=>{})}catch{response=null}
    try{await command(state.actor,"confirmUse",{useTicketId,processBootId,invokedAt},"confirm-"+useTicketId)}catch{
     // The callback already ran. Durable confirmation failure cannot trigger a
     // resend or be described as an unsent request; preserve an unknown ticket.
@@ -311,5 +352,5 @@ export function createMainContext(options:ContextOptions){
   if(sent.result===null)return {status:"result-unknown",requestDigest:result.requestDigest};
   try{return {status:"sent",requestDigest:result.requestDigest,result:await sent.result}}catch{return {status:"result-unknown",requestDigest:result.requestDigest}};
  }
- return {assemble,validateForDispatch,validateResponse,commitResponse,bindResponseProgress,dispatch,captureTranscript,prepareTranscriptChange,prepareTranscriptChanges,transcriptGeneration,deleteTranscript,prepareSummary,commitSummary,readSummaryInput};
+ return {beginHistoryResponse,prepareHistoryResponseStep,validateHistoryResponseStep,observeResponseMutation,endHistoryResponse,assemble,validateForDispatch,validateResponse,commitResponse,bindResponseProgress,dispatch,captureTranscript,prepareTranscriptChange,prepareTranscriptChanges,transcriptGeneration,deleteTranscript,prepareSummary,commitSummary,readSummaryInput};
 }

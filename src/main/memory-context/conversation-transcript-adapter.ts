@@ -15,9 +15,9 @@ interface AdapterOptions {
  store:ConversationTranscriptStore;
  actorAuthority:MainActorAuthority;
  actorToken:object;
- context:Pick<ReturnType<typeof createMainContext>,"captureTranscript"|"prepareTranscriptChanges"|"transcriptGeneration">;
+ context:Pick<ReturnType<typeof createMainContext>,"captureTranscript"|"prepareTranscriptChanges"|"transcriptGeneration"> & Partial<Pick<ReturnType<typeof createMainContext>,"observeResponseMutation">>;
  /** Main-owned fanout; an error aborts the canonical mutation before dispatch. */
- beforeMutation?:(kind:"append"|"delete"|"repair",entry?:TranscriptEntry)=>Promise<void>;
+ beforeMutation?:(kind:"append"|"delete"|"repair",entry?:TranscriptEntry,ticket?:object)=>Promise<void>;
 }
 const LOCATOR="conversation";
 
@@ -36,10 +36,11 @@ export function createConversationTranscriptAdapter(options:AdapterOptions) {
  const invalidate=async()=>{
   if(published.size){receipt=await options.context.prepareTranscriptChanges(options.actorToken,[...published.values()]);published.clear()}
  };
- const releaseObserver=options.store.observeMutations(actor.sessionId,async(kind,entry)=>{
+ const releaseObserver=options.store.observeMutations(actor.sessionId,async(kind,entry,ticket)=>{
   const epoch=entry?await options.context.transcriptGeneration(options.actorToken):0;
-  await invalidate();
-  await options.beforeMutation?.(kind,entry);
+  const responseReceipt=await options.context.observeResponseMutation?.(options.actorToken,kind,entry,ticket,[...published.values()]);
+  if(responseReceipt){receipt=responseReceipt;published.clear()}else await invalidate();
+  await options.beforeMutation?.(kind,entry,ticket);
   // Observing a historical backfill write does not make its original event new.
   if(entry&&!entry.id.startsWith("backfill:v1:"))eventEpochs.set(entry.id,epoch);
   if(revision===Number.MAX_SAFE_INTEGER)contextFail("MEMORY_CONTEXT_INPUT_INVALID");

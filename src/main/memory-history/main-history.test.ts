@@ -147,3 +147,7 @@ it('failed head invalidation cannot become a successful acknowledgement on retry
  const f=fixture();let fault=false;const history=createMainHistory({actorAuthority:f.authority,registry:f.registry,transport:{...f.transport,contextCommand:async(c:any)=>{if(fault&&c.kind==='transcriptReserve')throw Error('invalidate fault');return f.transport.contextCommand(c)}}});const doc=unboundDocument(),provider=createMainHistoryProvider(f.authority,f.actor,{withLease:async(_id,run)=>run(async()=>structuredClone(doc))}),capture=await history.captureTranscript(f.actor,provider,doc.id);
  fault=true;await expect(history.prepareTranscriptChange(f.actor,capture.transcriptToken)).rejects.toThrow('invalidate fault');await expect(history.prepareTranscriptChange(f.actor,capture.transcriptToken)).rejects.toThrow('invalidate fault');
 });
+it('local H retrieval rejects spoofed model providers before corpus access or fallback',()=>{
+ const f=fixture(),embedding={name:'local-bge-m3',dims:1024,embed:async()=>[],embedBatch:async()=>[]},reranker={name:'bge-reranker-base',rerank:async()=>[]};
+ expect(()=>createMainHistory({actorAuthority:f.authority,registry:f.registry,transport:f.transport,localRetrieval:{embedding,reranker}})).toThrow('MEMORY_HISTORY_VECTOR_DENIED');
+});
