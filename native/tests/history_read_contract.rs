@@ -179,3 +179,20 @@ fn existing_write_handle_causes_fail_closed_without_mutation() {
         b"original"
     );
 }
+
+#[test]
+fn final_missing_leaf_is_distinct_from_missing_ancestor() {
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.0.join("session")).unwrap();
+    let root = AuthorizedHistoryRoot::open(&fixture.0).unwrap();
+    let leaf = root
+        .open_snapshot(&["session".into(), "snapshot.json".into()], 128)
+        .err()
+        .unwrap();
+    assert_eq!(leaf.code(), "history-leaf-missing");
+    let ancestor = root
+        .open_snapshot(&["absent".into(), "snapshot.json".into()], 128)
+        .err()
+        .unwrap();
+    assert_eq!(ancestor.code(), "history-native-open-failed");
+}

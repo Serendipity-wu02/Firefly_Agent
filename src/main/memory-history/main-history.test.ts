@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import path from 'node:path';
 import {SyntheticSourceProvider} from '../../../scripts/verify/memory-sources/synthetic-provider';
 import {recallFixture} from '../../../scripts/verify/memory-recall/recall-fixture';
-import {createMainHistory,createMainHistoryProvider} from './main-history';
+import {createMainHistory,createMainHistoryProvider,readHistoryEvidence} from './main-history';
 import {createMainContext} from '../memory-context/main-context';
 import {createMainRecall} from '../memory-recall/main-recall';
 import {createMainActorAuthority} from '../memory-core/main-actor-authority';
@@ -117,4 +117,33 @@ it.each(['role','tool-call-id','inner-message-time','time-zone'])('keeps distinc
 it('folds two captures only when the complete original source evidence is identical',async()=>{
  const f=fixture(),source=await f.source('quartz same original evidence');for(const documentId of ['quartz-a','quartz-b'])await f.history.captureSource(f.actor,source.ref,{documentId,incarnation:'v1',revision:1});
  expect((await f.history.query(f.actor,{query:'quartz'})).hits).toHaveLength(1);
+});
+
+function unboundDocument(){return {id:'native-doc',incarnation:'native-inc',revision:1,origin:'canonical' as const,sourceDeps:[],vector:null,messages:[{id:'u',role:'user' as const,text:'native harbor',occurredAt:1000,timeZone:null}]}}
+it('native lease holds through head and index commits and hooks bind the committed token',async()=>{
+ const f=fixture();let held=false,captured:any;const doc=unboundDocument();
+ const history=createMainHistory({actorAuthority:f.authority,registry:f.registry,transport:{...f.transport,contextCommand:async(c:any)=>{if(c.kind==='transcriptPublish')expect(held).toBe(true);return f.transport.contextCommand(c)},historyCommand:async(c:any)=>{if(c.kind==='put')expect(held).toBe(true);return f.repo.historyCommand(c)}}});
+ const provider=createMainHistoryProvider(f.authority,f.actor,{withLease:async(_id,run)=>{held=true;try{return await run(async()=>structuredClone(doc))}finally{held=false}},onCaptured:value=>{expect(held).toBe(true);captured=value}});
+ const result=await history.captureTranscript(f.actor,provider,doc.id);expect(held).toBe(false);expect(captured.transcriptToken).toBe(result.transcriptToken);
+ expect((await history.query(f.actor,{query:'harbor'})).hits).toHaveLength(1);
+});
+it('cancel after dispatched index invalidates before acknowledgement and yields no evidence',async()=>{
+ const f=fixture(),controller=new AbortController(),doc=unboundDocument();let active=true;
+ const history=createMainHistory({actorAuthority:f.authority,registry:f.registry,transport:{...f.transport,historyCommand:async(c:any)=>{const result=f.repo.historyCommand(c);if(c.kind==='put')controller.abort();return result}}});
+ const provider=createMainHistoryProvider(f.authority,f.actor,{check:()=>{if(controller.signal.aborted)throw Error('MEMORY_HISTORY_CANCELLED')},checkEvidence:()=>{if(!active)throw Error('MEMORY_HISTORY_STALE')},onInvalidated:()=>{active=false},withLease:async(_id,run)=>run(async()=>structuredClone(doc))});
+ await expect(history.captureTranscript(f.actor,provider,doc.id)).rejects.toThrow('MEMORY_HISTORY_CANCELLED');expect(active).toBe(false);
+ expect((await history.query(f.actor,{query:'harbor'})).hits).toEqual([]);
+});
+it('session evidence gate rejects direct query during publication and old synchronous reads after removal',async()=>{
+ const f=fixture(),doc=unboundDocument();let committed=false;
+ const provider=createMainHistoryProvider(f.authority,f.actor,{checkEvidence:()=>{if(!committed)throw Error('MEMORY_HISTORY_STALE')},onInvalidated:()=>{committed=false},withLease:async(_id,run)=>run(async()=>structuredClone(doc))});
+ await f.history.captureTranscript(f.actor,provider,doc.id);
+ await expect(f.history.query(f.actor,{query:'harbor'})).rejects.toThrow('MEMORY_HISTORY_STALE');
+ committed=true;const result=await f.history.query(f.actor,{query:'harbor'});
+ await f.history.remove(f.actor,{documentId:doc.id,revision:1});expect(()=>readHistoryEvidence(f.authority,f.actor,result.evidence)).toThrow('MEMORY_HISTORY_STALE');
+});
+
+it('failed head invalidation cannot become a successful acknowledgement on retry',async()=>{
+ const f=fixture();let fault=false;const history=createMainHistory({actorAuthority:f.authority,registry:f.registry,transport:{...f.transport,contextCommand:async(c:any)=>{if(fault&&c.kind==='transcriptReserve')throw Error('invalidate fault');return f.transport.contextCommand(c)}}});const doc=unboundDocument(),provider=createMainHistoryProvider(f.authority,f.actor,{withLease:async(_id,run)=>run(async()=>structuredClone(doc))}),capture=await history.captureTranscript(f.actor,provider,doc.id);
+ fault=true;await expect(history.prepareTranscriptChange(f.actor,capture.transcriptToken)).rejects.toThrow('invalidate fault');await expect(history.prepareTranscriptChange(f.actor,capture.transcriptToken)).rejects.toThrow('invalidate fault');
 });

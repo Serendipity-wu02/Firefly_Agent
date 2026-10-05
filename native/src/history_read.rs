@@ -53,6 +53,8 @@ pub enum HistoryReadError {
     MultipleLinks,
     #[error("history-source-changed")]
     Changed,
+    #[error("history-leaf-missing")]
+    MissingLeaf,
     #[error("history-native-open-failed: NTSTATUS {0:#010x}")]
     OpenFailed(i32),
     #[error("history-native-io-failed")]
@@ -68,6 +70,7 @@ impl HistoryReadError {
             Self::UnsafeAttributes => "history-unsafe-attributes",
             Self::MultipleLinks => "history-multiple-links",
             Self::Changed => "history-source-changed",
+            Self::MissingLeaf => "history-leaf-missing",
             Self::OpenFailed(_) => "history-native-open-failed",
             Self::Io => "history-native-io-failed",
         }
@@ -255,7 +258,14 @@ impl AuthorizedHistoryRoot {
             Some(directories.last().unwrap().as_ref()),
             components.last().unwrap(),
             false,
-        )?;
+        )
+        .map_err(|error| {
+            if precise_absence(&error) {
+                HistoryReadError::MissingLeaf
+            } else {
+                error
+            }
+        })?;
         let before = inspect(&leaf)?;
         validate_type(before, false)?;
         if before.identity.volume_serial != self.identity.volume_serial {
@@ -280,6 +290,16 @@ impl AuthorizedHistoryRoot {
                 return Err(HistoryReadError::Changed);
             }
             offset += count;
+            // Debug-only synthetic process barrier: pause while source chunks remain.
+            // The release reader contains neither this hook nor its installation API.
+            #[cfg(debug_assertions)]
+            if offset < bytes.len() {
+                DEBUG_READ_HOOK.with(|hook| {
+                    if let Some(mut barrier) = hook.borrow_mut().take() {
+                        barrier();
+                    }
+                });
+            }
         }
         let after = inspect_file(&file)?;
         if before != after {
@@ -293,6 +313,16 @@ impl AuthorizedHistoryRoot {
         })
     }
 }
+#[cfg(debug_assertions)]
+thread_local! {
+    static DEBUG_READ_HOOK: std::cell::RefCell<Option<Box<dyn FnMut()>>> = std::cell::RefCell::new(None);
+}
+/// Synthetic harness only; no filesystem access, paths, or release build API.
+#[cfg(debug_assertions)]
+pub fn install_debug_read_hook(hook: Box<dyn FnMut()>) {
+    DEBUG_READ_HOOK.with(|slot| *slot.borrow_mut() = Some(hook));
+}
+
 fn valid_component(component: &str) -> bool {
     if component.is_empty()
         || component == "."

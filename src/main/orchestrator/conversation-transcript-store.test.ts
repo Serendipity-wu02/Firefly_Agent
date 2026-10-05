@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConversationTranscriptStore } from "./conversation-transcript-store";
 import type { TranscriptAppendInput } from "./conversation-transcript-types";
 
@@ -128,4 +128,33 @@ describe("S transcript envelope validation", () => {
     await expect(store.append("c1", { id: "s-marker", kind: "assistant_settlement", runId: "s-run", turnId: "s-at", payload: { binding: { runId: "s-run", assistantTurnId: "s-at", userTurnId: "s-u", userRevision: 1, assistantEntryId: "missing" }, result: "success", safeReason: "completed" } } as any)).rejects.toThrow("TRANSCRIPT_S_BINDING_INVALID");
     expect((await store.read("c1")).entries).toEqual([]);
   });
+});
+
+
+it("readonly barrier never loads, reads or repairs missing and broken sources", async () => {
+ const {store,root,jsonlPath}=createStore();
+ await store.append("broken",userDraft("e1","u1",1,"one"));
+ await fs.promises.appendFile(jsonlPath("broken"),'{"broken"');
+ const before=fs.readFileSync(jsonlPath("broken"));
+ const spies=["mkdir","readFile","writeFile","appendFile","truncate","rename","rm","open"].map(name=>vi.spyOn(fs.promises,name as "readFile"));
+ try {
+  await store.withReadonlyBarrier("missing",async()=>undefined);
+  await store.withReadonlyBarrier("broken",async()=>undefined);
+  for(const spy of spies)expect(spy).not.toHaveBeenCalled();
+ }finally{for(const spy of spies)spy.mockRestore()}
+ expect(fs.existsSync(path.join(root,"transcripts","missing"))).toBe(false);
+ expect(fs.readFileSync(jsonlPath("broken"))).toEqual(before);
+});
+it("readonly barrier queues mutations and survives rejection",async()=>{
+ const {store}=createStore();let entered!:()=>void,release!:()=>void;
+ const start=new Promise<void>(r=>entered=r),hold=new Promise<void>(r=>release=r);
+ const barrier=store.withReadonlyBarrier("c1",async()=>{entered();await hold;throw Error("barrier failure")});
+ const failed=expect(barrier).rejects.toThrow("barrier failure");await start;
+ let appended=false,deleted=false;
+ const append=store.append("c1",userDraft("e1","u1",1,"one")).then(()=>{appended=true});
+ const remove=store.deleteConversation("c1").then(()=>{deleted=true});
+ await Promise.resolve();expect(appended).toBe(false);expect(deleted).toBe(false);
+ release();await failed;await append;await remove;
+ expect(await store.withReadonlyBarrier("c1",async()=>42)).toBe(42);
+ expect(()=>store.withReadonlyBarrier("../escape",async()=>42)).toThrow("TRANSCRIPT_INVALID_CONVERSATION_ID");
 });

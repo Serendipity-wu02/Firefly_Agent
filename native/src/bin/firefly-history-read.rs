@@ -216,6 +216,19 @@ fn snapshot_event(lease: &HistorySnapshotLease) -> Event<'static> {
         bytes_hex,
     }
 }
+// This fixed-marker barrier is compiled out of release builds. It holds no
+// caller-supplied paths and the independent process watchdog remains active.
+#[cfg(debug_assertions)]
+fn debug_cancel_barrier(state: &AtomicU8, marker: &str) {
+    let mut output = io::stderr().lock();
+    let _ = writeln!(output, "{marker}");
+    let _ = output.flush();
+    drop(output);
+    while state.load(Ordering::Acquire) == ACTIVE {
+        thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 fn run() -> Result<(), &'static str> {
     let options = options()?;
     // Watchdog is established before potentially blocking root acquisition.
@@ -246,10 +259,21 @@ fn run() -> Result<(), &'static str> {
     if state.load(Ordering::Acquire) == CANCELLED {
         return emit(&Event::Cancelled { version: VERSION });
     }
+    #[cfg(debug_assertions)]
+    if std::env::var("FF_HISTORY_TEST_PRECOMMIT_CANCEL").as_deref() == Ok("read") {
+        let read_state = Arc::clone(&state);
+        firefly_screenshot::history_read::install_debug_read_hook(Box::new(move || {
+            debug_cancel_barrier(&read_state, "history-test-read-active");
+        }));
+    }
     let lease = root
         .open_snapshot(&components, max_bytes)
         .map_err(|error| error.code())?;
     let snapshot = encoded(&snapshot_event(&lease))?;
+    #[cfg(debug_assertions)]
+    if std::env::var("FF_HISTORY_TEST_PRECOMMIT_CANCEL").as_deref() == Ok("1") {
+        debug_cancel_barrier(&state, "history-test-precommit");
+    }
     // This CAS is the publication commit boundary. A previously observed cancel
     // prevents snapshot output. Cancellation after it cannot recall pipe bytes.
     if state

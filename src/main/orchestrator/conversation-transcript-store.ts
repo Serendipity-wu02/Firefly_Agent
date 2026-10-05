@@ -253,6 +253,12 @@ export class ConversationTranscriptStore {
     };
   }
 
+  /** Serialize a trusted readonly acquisition without loading or repairing source state. */
+  withReadonlyBarrier<T>(conversationId: string, operation: () => Promise<T>): Promise<T> {
+    this.conversationDir(conversationId);
+    return this.enqueue(conversationId, operation);
+  }
+
   /** Hold the existing queue through the consumer's read/validate/publish operation. */
   withReadLease<T>(conversationId: string, operation: (read: () => Promise<TranscriptSnapshot>) => Promise<T>): Promise<T> {
     this.conversationDir(conversationId);

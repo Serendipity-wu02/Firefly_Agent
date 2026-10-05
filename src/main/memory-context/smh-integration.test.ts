@@ -16,6 +16,10 @@ import {createMainHistoryProvider,validateHistoryEvidence} from "../memory-histo
 import type {HistoryDocument} from "../memory-history/history-contracts";
 import {parseFireflyHistoryBytes} from "../memory-history/firefly-history-reader";
 
+vi.mock('../rag/index',()=>({searchHistoryEntries:vi.fn(()=>{throw Error('LEGACY_FALLBACK_FORBIDDEN')}),addMemory:vi.fn(()=>{throw Error('LEGACY_FALLBACK_FORBIDDEN')}),isUserMemoryVectorStoreReady:()=>true}));
+vi.mock('../orchestrator/tools/registry/tool-registry',()=>({toolRegistry:{register:vi.fn()}}));
+vi.mock('../orchestrator/tools/built-in-tools',()=>({currentUserTimezone:()=> 'Etc/UTC'}));
+vi.mock('../locale-context',()=>({getDateLocale:()=> 'en'}));
 vi.mock("electron",()=>({app:{getPath:()=>{throw Error("PRODUCT_DATA_FORBIDDEN")}}}));
 const roots:string[]=[],fixtures:ReturnType<typeof createSmhFixture>[]=[];
 afterEach(()=>{vi.restoreAllMocks();for(const f of fixtures.splice(0))f.close();for(const root of roots.splice(0))fs.rmSync(root,{recursive:true,force:true});setVendorRuntimeSettingsGetter(()=>({}))});
@@ -161,4 +165,28 @@ it("supplied-byte S pending text remains diagnostic and never enters H evidence 
   const provider=createMainHistoryProvider(f.actorAuthority,f.actorB,{withLease:async(_locator,run)=>run(async()=>structuredClone(doc))});await f.history.captureTranscript(f.actorB,provider,doc.id);
  }
  await f.port.run(f.input);const sent=JSON.stringify(f.sends[0]);expect(sent).toContain("history-user");expect(sent).not.toContain("PENDING_AUDIT_ONLY");expect(await f.policy.recall(f.actor)).toHaveLength(1);
+});
+
+it("native H joins S and M through one observer and coverage never invokes legacy RAG",async()=>{
+ const {initializeStorageContext}=await import('../storage-context'),{resolveRuntimeProfile}=await import('../runtime-profile'),{createNativeHistoryProvider}=await import('../memory-sources/native-history-provider');
+ const isolation=fs.mkdtempSync(path.join(os.tmpdir(),'smh-native-joint-'));roots.push(isolation);
+ const storage=initializeStorageContext(resolveRuntimeProfile({argv:['--firefly-profile=test','--firefly-isolation-root='+isolation],env:{},isPackaged:false,productionAppData:path.join(os.tmpdir(),'synthetic-production-never-used')}));
+ const f=createSmhFixture(path.join(isolation,'index'));fixtures.push(f);const store=new ConversationTranscriptStore(storage.dataRoot);
+ await store.append('session-a',{id:'native-user',kind:'user',turnId:'native-turn',revision:1,at:1000,payload:{text:'harbor original coffee'}});await store.checkpoint('session-a');
+ const native=createNativeHistoryProvider({actorAuthority:f.actorAuthority,actorToken:f.actor,store,history:f.history,deadlineMs:1000,endpointFactory:async()=>({rootIdentity:{volumeSerial:42,fileIndex:'1111111111111111'},async read(components,maxBytes){const target=path.join(storage.dataRoot,'transcripts',...components);if(!fs.existsSync(target))throw Error('history-leaf-missing');const bytes=fs.readFileSync(target);if(bytes.length>maxBytes)throw Error('history-invalid-budget');return {identity:{volumeSerial:42,fileIndex:components[1]==='snapshot.json'?'bbbbbbbbbbbbbbbb':'aaaaaaaaaaaaaaaa'},bytes}},assertLive(){},async dispose(){}})});
+ const observer=vi.spyOn(store,'observeMutations');const adapter=createConversationTranscriptAdapter({enabled:true,store,actorAuthority:f.actorAuthority,actorToken:f.actor,context:f.context,beforeMutation:(kind,entry)=>native.beforeMutation(kind,entry)})!;
+ await native.capture();const query=await native.query({query:'harbor'});if(query.status!=='queried')throw Error('expected evidence');
+ const direct=await f.source('I prefer PowerShell',{occurredAt:1700000000000}),coordinator=createMainUserFactCoordinator({actorAuthority:f.actorAuthority,registry:f.registry,policy:f.policy});await coordinator.onCommittedUserSource(f.actor,direct.ref);
+ const facts=await f.policy.recall(f.actor);expect(facts).toHaveLength(1);expect(facts[0].assertion).toContain('PowerShell');
+ const current=await adapter.capture(),assembled=await f.context.assemble(f.actor,{sessionId:'session-a',sourceRefs:[],transcriptTokens:[current],historyTokens:[query.result.evidence]});
+ expect(JSON.stringify(assembled.request.body)).toContain('harbor original coffee');expect(observer).toHaveBeenCalledTimes(1);
+ await store.append('session-a',{id:'native-next',kind:'user',turnId:'native-next',revision:1,payload:{text:'harbor next'},at:2000});
+ await expect(validateHistoryEvidence(f.actorAuthority,f.actor,query.result.evidence)).rejects.toThrow();expect(await native.query({query:'harbor'})).toMatchObject({reason:'not-acquired'});
+ await store.checkpoint('session-a');await native.capture();fs.unlinkSync(path.join(storage.dataRoot,'transcripts','session-a','snapshot.json'));
+ const legacy=await import('../orchestrator/tools/history-tools'),rag=await import('../rag/index'),{toolRegistry}=await import('../orchestrator/tools/registry/tool-registry');
+ legacy.registerRecallHistoryTool();const recallTool=vi.mocked(toolRegistry.register).mock.calls.at(-1)![0];
+ const fallback={recall_history:vi.spyOn(recallTool,'execute').mockImplementation(async()=>{throw Error('LEGACY_FALLBACK_FORBIDDEN')}),searchHistoryEntries:vi.mocked(rag.searchHistoryEntries),indexConversationTurn:vi.spyOn(legacy,'indexConversationTurn').mockImplementation(async()=>{throw Error('LEGACY_FALLBACK_FORBIDDEN')})};
+ const outcome=await native.query({query:'harbor'});expect(outcome).toMatchObject({status:'coverage-insufficient',reason:'snapshot-missing'});expect(outcome).not.toHaveProperty('result');for(const spy of Object.values(fallback))expect(spy).not.toHaveBeenCalled();expect(await f.policy.recall(f.actor)).toHaveLength(1);
+ await native.invalidate('forget');await f.policy.act(f.actor,await f.policy.event(f.actor,{kind:'forget',nonce:'native-forget',factId:facts[0].factId,revision:facts[0].revision}));await expect(native.capture()).rejects.toThrow('MEMORY_HISTORY_STALE');
+ await adapter.close();await native.close();
 });

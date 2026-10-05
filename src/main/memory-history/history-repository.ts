@@ -1,3 +1,4 @@
+import {historyTranscriptDigest} from './history-transcript-digest';
 import {historyMessageChars} from './history-message';
 import {createHash,createHmac} from 'node:crypto';
 import type {DatabaseSync} from 'node:sqlite';
@@ -40,7 +41,7 @@ export function parseReadonlyHistoryProvenance(v:unknown):ReadonlyHistoryProvena
 export function parseHistorySessions(v:unknown):HistorySession[]{const sessions=list(v,32).map(raw=>{const s=objectFields(raw,['providerId','sessionId']);return {providerId:parseInternalId(s.providerId),sessionId:parseInternalId(s.sessionId)}});if(!sessions.length||new Set(sessions.map(canonicalJson)).size!==sessions.length)fail();return sessions.sort((a,b)=>canonicalJson(a)<canonicalJson(b)?-1:1)}
 function vector(v:unknown):HistoryVector|null {if(v===null)return null;const raw=objectFields(v,['identity','values']),values=raw.values as number[];return {identity:parseInternalId(raw.identity),values:normalizeVector(values,values?.length)}}
 function dependencies(v:unknown):SourceDependency[]{return list(v,128).map(raw=>{const d=objectFields(raw,['sourceRef','subjectKeys','derivedRefs']);const subjectKeys=d.subjectKeys===null?null:list(d.subjectKeys,64).map(x=>{if(typeof x!=='string'||!/^actor-attribute-[a-f0-9]{64}$/.test(x))fail();return x});return {sourceRef:bound(d.sourceRef),subjectKeys,derivedRefs:d.derivedRefs===null?null:list(d.derivedRefs,64).map(bound)}})}
-export function parseHistoryDocument(v:unknown):HistoryDocument {
+export function parseHistoryDocument(v:unknown,options?:{allowUnboundTranscript?:boolean}):HistoryDocument {
  const d=objectFields(v,['id','incarnation','revision','origin','sourceDeps','messages','vector'],['transcriptRef','classification','provenance']);if(d.origin!=='canonical'&&d.origin!=='synthetic-import')fail();
  const messages:HistoryMessage[]=list(d.messages,128).map(raw=>{const m=objectFields(raw,['id','role','text','occurredAt','timeZone'],['sourceRef','toolCallIds','toolCallId','toolCalls','name']);
   if(!['user','assistant','system','tool'].includes(m.role as string))fail();const time=m.occurredAt===null?null:natural(m.occurredAt),zone=m.timeZone===null?null:text(m.timeZone,128);if(zone!==null){try{new Intl.DateTimeFormat('en',{timeZone:zone})}catch{fail()}}
@@ -48,7 +49,7 @@ export function parseHistoryDocument(v:unknown):HistoryDocument {
  });
  if(!messages.length||new Set(messages.map(m=>m.id)).size!==messages.length||messages.reduce((n,m)=>n+historyMessageChars(m),0)>65536)fail();
  validateUnit({id:parseInternalId(d.id),kind:'summary',messages});if(messages.some(m=>[m.text,m.name??'',...(m.toolCalls??[]).flatMap(c=>[c.name,c.arguments])].some(s=>extractMaintenance(s).kind==='rejected')))fail('MEMORY_HISTORY_SECRET');
- const sourceDeps=dependencies(d.sourceDeps);if(d.origin==='canonical'&&!sourceDeps.length)fail();
+ const sourceDeps=dependencies(d.sourceDeps);if(d.origin==='canonical'&&!sourceDeps.length&&d.transcriptRef===undefined&&options?.allowUnboundTranscript!==true)fail();
  const byRef=new Map(sourceDeps.map(dep=>[canonicalJson(dep.sourceRef),dep]));if(byRef.size!==sourceDeps.length||new Set(sourceDeps.map(dep=>dep.sourceRef.sourceId)).size!==sourceDeps.length)fail('MEMORY_HISTORY_SOURCE_MISMATCH');
  const complete=new Set<string>();
  function closed(dep:SourceDependency,path=new Set<string>()):void {const key=canonicalJson(dep.sourceRef);if(complete.has(key))return;if(path.has(key))fail('MEMORY_HISTORY_SOURCE_MISMATCH');for(const ref of dep.derivedRefs??[]){const root=byRef.get(canonicalJson(ref));if(!root)fail('MEMORY_HISTORY_SOURCE_MISMATCH');closed(root,new Set([...path,key]))}complete.add(key)}
@@ -99,7 +100,12 @@ export class HistoryRepository {
  }
  private available(scope:string,d:StoredHistory):boolean {if(d.state!=='live'||d.classification!==undefined&&d.classification!=='raw-history'||d.provenance?.some(p=>!p.active))return false;const generation=this.generation(scope,d.actorKey);if(d.origin==='synthetic-import')return d.generation===generation;if(d.generation<generation&&d.messages.some(m=>!m.sourceRef))return false;return d.sourceDeps.every(dep=>this.checkSource(scope,d,dep))}
  private checkedDocument(scope:string,d:StoredHistory,expected?:RecallDependency[]):RecallDependency[] {
-  if(d.origin==='canonical'){if(d.transcriptRef)new TranscriptLedger(this.db,this.key).current(scope,{actorKey:d.actorKey,providerId:d.providerId,sessionId:d.sessionId,bootId:'history'},d.transcriptRef);else if(d.messages.some(m=>!m.sourceRef))fail('MEMORY_HISTORY_SOURCE_MISMATCH')}
+  if(d.origin==='canonical'){
+   if(!d.sourceDeps.length&&this.generation(scope,d.actorKey)>0)fail('MEMORY_HISTORY_STALE');
+   if(d.transcriptRef){const head=new TranscriptLedger(this.db,this.key).current(scope,{actorKey:d.actorKey,providerId:d.providerId,sessionId:d.sessionId,bootId:'history'},d.transcriptRef);
+    if(!d.sourceDeps.length&&head.ref?.digest!==historyTranscriptDigest(d))fail('MEMORY_HISTORY_SOURCE_MISMATCH');
+   }else if(d.messages.some(m=>!m.sourceRef))fail('MEMORY_HISTORY_SOURCE_MISMATCH')
+  }
   for(const dep of d.sourceDeps){if(dep.sourceRef.binding.providerId!==d.providerId||dep.sourceRef.binding.sessionId!==d.sessionId)fail('MEMORY_HISTORY_ACCESS_DENIED');this.ledger.assertCurrent(scope,dep.sourceRef)}
   for(const m of d.messages)if(m.sourceRef){if(!d.sourceDeps.some(dep=>canonicalJson(dep.sourceRef)===canonicalJson(m.sourceRef)))fail('MEMORY_HISTORY_SOURCE_MISMATCH');const h=this.ledger.assertCurrent(scope,m.sourceRef)!;
    if(h.published!.role!==m.role||(h.published!.occurredAt??null)!==m.occurredAt||h.published!.fingerprint!==digest({text:m.text,state:h.published!.state,role:h.published!.role,trust:h.published!.trust}))fail('MEMORY_HISTORY_SOURCE_MISMATCH');
@@ -122,7 +128,7 @@ export class HistoryRepository {
    if(c.kind==='baseline'){objectFields(b,identity);return {generation:this.generation(scope,owner.actorKey)}}
    if(c.kind==='validate'){objectFields(b,[...identity,'dependencies']);return {documents:this.validateWithinTransaction(scope,owner.actorKey,b.dependencies)}}
    if(c.kind==='migrationPreview'||c.kind==='migrationApply'){
-    objectFields(b,[...identity,'documents','digest','generation']);if(natural(b.generation)!==this.generation(scope,owner.actorKey))fail('MEMORY_HISTORY_STALE');const documents=list(b.documents,c.kind==='migrationApply'?16:128).map(parseHistoryDocument);if(digest(documents)!==b.digest||documents.some(d=>d.origin!=='synthetic-import')||new Set(documents.map(d=>d.id)).size!==documents.length)fail('MEMORY_HISTORY_IMPORT_INVALID');
+    objectFields(b,[...identity,'documents','digest','generation']);if(natural(b.generation)!==this.generation(scope,owner.actorKey))fail('MEMORY_HISTORY_STALE');const documents=list(b.documents,c.kind==='migrationApply'?16:128).map(value=>parseHistoryDocument(value));if(digest(documents)!==b.digest||documents.some(d=>d.origin!=='synthetic-import')||new Set(documents.map(d=>d.id)).size!==documents.length)fail('MEMORY_HISTORY_IMPORT_INVALID');
     const result={new:0,duplicates:0,conflicts:0,inserted:0,quarantined:0};
     for(const doc of documents){const old=this.read(scope,owner.actorKey,owner,doc.id),incoming=this.contentDigest(doc),duplicate=old&&old.state==='live'&&old.revision===doc.revision&&old.digest===incoming;
      if(duplicate){result.duplicates++;continue}
@@ -133,7 +139,7 @@ export class HistoryRepository {
    }
    if(c.kind==='put'){objectFields(b,[...identity,'document','generation']);const generation=natural(b.generation);if(generation!==this.generation(scope,owner.actorKey))fail('MEMORY_HISTORY_STALE');const doc=parseHistoryDocument(b.document),old=this.read(scope,owner.actorKey,owner,doc.id),contentDigest=this.contentDigest(doc);
     if(old?.state==='deleted')fail('MEMORY_HISTORY_CONFLICT');
-    if(old&&old.revision===doc.revision){if(old.state==='live'&&old.digest===contentDigest)return {status:'duplicate',documentId:doc.id};fail('MEMORY_HISTORY_CONFLICT')}
+    if(old&&old.revision===doc.revision){if(old.state==='live'&&old.digest===contentDigest){this.checkedDocument(scope,old);return {status:'duplicate',documentId:doc.id}};fail('MEMORY_HISTORY_CONFLICT')}
     if(old&&doc.revision<=old.revision)fail('MEMORY_HISTORY_CONFLICT');const stored:StoredHistory={...doc,...owner,generation,digest:contentDigest,state:'live'};this.checkedDocument(scope,stored);this.save(scope,stored);return {status:'stored',documentId:doc.id};
    }
    if(c.kind==='delete'){objectFields(b,[...identity,'documentId','revision']);const d=this.read(scope,owner.actorKey,owner,parseInternalId(b.documentId));if(!d||d.revision!==positiveRevision(b.revision))fail('MEMORY_HISTORY_STALE');d.state='deleted';this.save(scope,d);return {deleted:true}}

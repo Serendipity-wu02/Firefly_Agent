@@ -24,7 +24,8 @@ export interface ReadonlyHistoryProvenance {
  format:'transcript-v1'|'chat-session-v1';providerId:string;sessionId:string;field?:'modelContext';
 }
 export interface ReadonlyHistoryRecord {document:HistoryDocument;classification:ReadonlyHistoryClassification;provenance:ReadonlyHistoryProvenance[]}
-export interface ReadonlyHistoryReadResult {documents:ReadonlyHistoryRecord[];coverage:'complete'|'partial';diagnostics:string[]}
+export interface ReadonlyHistorySelectionHead {providerId:string;sessionId:string;incarnation:string;maxSeq:number;checkpointThroughSeq:number;completeTail:boolean}
+export interface ReadonlyHistoryReadResult {selectionHeads:ReadonlyHistorySelectionHead[];documents:ReadonlyHistoryRecord[];coverage:'complete'|'partial';diagnostics:string[]}
 
 /** Explicit immutable-by-value input for the pure parser; never a filesystem or Worker capability. */
 export interface ReadonlyHistoryBytes {

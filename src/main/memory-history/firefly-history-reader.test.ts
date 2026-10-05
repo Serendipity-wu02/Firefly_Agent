@@ -158,3 +158,12 @@ it.each(['invalid-utf8','byte-budget'])('pure parser rejects supplied %s bytes w
  const f=fixture(),input={providerId:'synthetic',sessionId:'session-a',incarnation:'synthetic-bytes-v1',transcript:kind==='invalid-utf8'?Buffer.from([255]):new Uint8Array(8*1024*1024+1),snapshot:null,chat:null};
  expect(()=>parseFireflyHistoryBytes(f.scope,[input])).toThrow(kind==='invalid-utf8'?'MEMORY_HISTORY_CORRUPT':'MEMORY_HISTORY_INPUT_INVALID');
 });
+
+it('selection head counts physical rewind and settlement entries rather than projected messages',async()=>{
+ const f=fixture(),rows=[user(),assistant(),{id:'settled:3',seq:3,at:1003,kind:'backfill_boundary',payload:{}},{id:'edit:4',seq:4,at:1004,kind:'turn_rewind',turnId:'u:1',revision:2,payload:{anchorUserTurnId:'u:1',disposition:'replace_user',reason:'edit',replacementUser:{text:'茶'}}}];
+ const {dir,file}=write(f.root,rows);
+ fs.writeFileSync(path.join(dir,'snapshot.json'),JSON.stringify({schemaVersion:1,throughSeq:2,entries:rows.slice(0,2),seenEntryIds:['backfill:v1:u:1','a:2'],seenUserRevisions:['u:1\u00001']}));
+ const r=await parseSyntheticFixture(f.scope);
+ expect(r.selectionHeads).toEqual([{providerId:'synthetic',sessionId:'session-a',incarnation:r.documents[0].document.incarnation,maxSeq:4,checkpointThroughSeq:2,completeTail:true}]);
+ fs.appendFileSync(file,'BROKEN');expect((await parseSyntheticFixture(f.scope)).selectionHeads[0]).toMatchObject({maxSeq:4,completeTail:false});
+});

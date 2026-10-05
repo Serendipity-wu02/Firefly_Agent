@@ -84,3 +84,19 @@ it('a fresh query is required after a ranking/tokenizer protocol version change'
  expect(()=>f.command('validate',{dependencies:[{...dep,rankingVersion:'history-ranking-v1'}]})).toThrow('MEMORY_HISTORY_STALE');
  expect(()=>f.command('validate',{dependencies:[{...dep,tokenizerVersion:dep.tokenizerVersion.replace('-v2-','-v1-')}]})).toThrow('MEMORY_HISTORY_STALE');
 });
+
+it('Main unbound structure mode cannot authorize Worker put; current head binds the exact body',async()=>{
+ const f=fixture(),{parseHistoryDocument}=await import('./history-repository'),{historyTranscriptDigest}=await import('./history-transcript-digest');
+ const d={id:'native',incarnation:'native-inc',revision:1,origin:'canonical',sourceDeps:[],messages:[{id:'u',role:'user',text:'cat native',occurredAt:null,timeZone:null}],vector:null};
+ expect(()=>parseHistoryDocument(d)).toThrow();expect(parseHistoryDocument(d,{allowUnboundTranscript:true})).toEqual(d);
+ expect(()=>put(f,d)).toThrow();
+ const context=(kind:string,body:any)=>f.transport.contextCommand({kind,scopeKey:'scope-a',commandId:randomUUID(),body:{...f.owner,...body}});
+ await context('transcriptReserve',{headId:'head-native',operationId:'op-native',generation:0,expectedRef:null});
+ const ref=await context('transcriptPublish',{headId:'head-native',operationId:'op-native',generation:0,incarnation:d.incarnation,contentRevision:1,throughSeq:1,digest:historyTranscriptDigest(d as any),sourceRefs:[]});
+ expect(()=>put(f,{...d,transcriptRef:ref,messages:[{...d.messages[0],text:'forged cat'}]})).toThrow('MEMORY_HISTORY_SOURCE_MISMATCH');
+ put(f,{...d,transcriptRef:ref});expect(query(f,{transcriptHeads:['head-native']}).hits).toHaveLength(1);
+ const fact=await f.active();await f.policy.act(f.actor,await f.policy.event(f.actor,{kind:'forget',nonce:randomUUID(),factId:fact.factId,revision:1}));
+ const generation=f.command('baseline').generation;
+ expect(()=>f.command('put',{document:{...d,id:'new-id',revision:99,transcriptRef:ref},generation},randomUUID())).toThrow('MEMORY_HISTORY_STALE');
+ expect(query(f,{transcriptHeads:['head-native']}).hits).toEqual([]);f.reopen();expect(query(f,{transcriptHeads:['head-native']}).hits).toEqual([]);
+});
