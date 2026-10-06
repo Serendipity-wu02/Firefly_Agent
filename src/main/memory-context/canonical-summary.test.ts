@@ -1,13 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import {expect,it} from "vitest";
+import {beforeEach,expect,it} from "vitest";
 import {contextFixture} from "../../../scripts/verify/memory-context/context-fixture";
 import {ConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
 import {createConversationTranscriptAdapter} from "./conversation-transcript-adapter";
 import {RecordCodec} from "../memory-core/record-codec";
 import {DatabaseSync} from "node:sqlite";
+let preparedFixture:Awaited<ReturnType<typeof contextFixture>>;
+beforeEach(async()=>{preparedFixture=await contextFixture()});
 async function fixture(){
- const f=await contextFixture(),store=new ConversationTranscriptStore(path.join(f.root,"conversation"));
+ const f=preparedFixture,store=new ConversationTranscriptStore(path.join(f.root,"conversation"));
  const user=(id:string,text:string)=>store.append("session-a",{id,at:1000+Number(id.slice(1)),kind:"user",turnId:id,revision:1,payload:{text}});
  await user("u1","first user 🌱");
  await store.append("session-a",{id:"a1",at:1100,kind:"assistant",payload:{role:"assistant",content:"checking",toolCalls:[{id:"call",name:"read_file",arguments:'{"path":"fixture.txt"}'}]}});

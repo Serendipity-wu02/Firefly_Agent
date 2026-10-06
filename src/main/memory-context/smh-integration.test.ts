@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {afterEach,expect,it,vi} from "vitest";
+import {afterEach,beforeEach,expect,it,vi} from "vitest";
 import {createSmhFixture} from "./smh-fixture.test-support";
 import {createMainSRuntimePort} from "./main-s-runtime-port";
 import {createConversationTranscriptAdapter} from "./conversation-transcript-adapter";
@@ -22,10 +22,15 @@ vi.mock('../orchestrator/tools/built-in-tools',()=>({currentUserTimezone:()=> 'E
 vi.mock('../locale-context',()=>({getDateLocale:()=> 'en'}));
 vi.mock("electron",()=>({app:{getPath:()=>{throw Error("PRODUCT_DATA_FORBIDDEN")}}}));
 const roots:string[]=[],fixtures:ReturnType<typeof createSmhFixture>[]=[];
+let preparedFixture:{root:string;fixture:ReturnType<typeof createSmhFixture>;clock:{now:number}};
+beforeEach(()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-smh-integrate-"));roots.push(root);
+ const clock={now:1700000000000},fixture=createSmhFixture(root,{clock:()=>clock.now});
+ fixtures.push(fixture);preparedFixture={root,fixture,clock};
+});
 afterEach(()=>{vi.restoreAllMocks();for(const f of fixtures.splice(0))f.close();for(const root of roots.splice(0))fs.rmSync(root,{recursive:true,force:true});setVendorRuntimeSettingsGetter(()=>({}))});
 async function fixture(options:{queryText?:string;unknownTime?:boolean;trust?:"history"|"imported"|"model";history?:"source"|"tool"}={}){
- const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-smh-integrate-"));roots.push(root);let now=1700000000000;
- const f=createSmhFixture(root,{clock:()=>now});fixtures.push(f);setVendorRuntimeSettingsGetter(()=>({}));
+ const {root,fixture:f,clock}=preparedFixture,now=clock.now;setVendorRuntimeSettingsGetter(()=>({}));
  const coordinator=createMainUserFactCoordinator({actorAuthority:f.actorAuthority,registry:f.registry,policy:f.policy}),selector=createMainFactSelector({actorAuthority:f.actorAuthority,registry:f.registry,policy:f.policy,recall:f.recall});
  const prior=await f.source("I prefer PowerShell",{sessionId:"session-b",occurredAt:now}),actorB=f.actorAuthority.bindActor(f.access,f.adapter,prior.id);
  await coordinator.onCommittedUserSource(actorB,prior.ref);
@@ -53,12 +58,12 @@ async function fixture(options:{queryText?:string;unknownTime?:boolean;trust?:"h
  Object.assign(client.responses,{_client:client});Object.assign(client.responses.inputTokens,{_client:client});
  const binding=createMainResponsesBinding({enabled:true,client,limits:createMainResponsesLimits({model:"fixture-model",limitsSource:"fixture://sm",modelMaxOutputTokens:512,budget:{maxContextTokens:20000,reservedOutputTokens:128,safetyMarginTokens:16,maxSTokens:4000,minRecentCompleteTurns:1}}),configuration:()=>({revision:1,config:{provider:"ChatGPT（OpenAI）",baseUrl:"https://api.openai.com/v1",model:"fixture-model",explicitTransport:"responses"}})})!;
  const sink=createTranscriptSink({store,conversationId:"session-a",runId:"run",assistantTurnId:"a1"});
- const port=createMainSRuntimePort({enabled:true,clock:()=>now,registry:f.registry,transport:f.transport,actorAuthority:f.actorAuthority,actorToken:f.actor,binding,
+ const port=createMainSRuntimePort({enabled:true,clock:()=>clock.now,registry:f.registry,transport:f.transport,actorAuthority:f.actorAuthority,actorToken:f.actor,binding,
   facts:{currentUserSource:async()=>query.ref,coordinator,selector,limits:{maxFacts:8}},
   ...(historySource?{history:{query:(capture:{userTurnId:string;userRevision:number;userText:string},signal?:AbortSignal)=>historyQuery(capture,signal)}}:{}),
   createTranscript:context=>createConversationTranscriptAdapter({enabled:true,store,context,actorAuthority:f.actorAuthority,actorToken:f.actor,beforeMutation:async()=>{await onMutation?.()}})!})!;
  const input={request:{model:"fixture-model",messages:[{role:"system" as const,content:"fixed"}],stream:true,maxTokens:128},stream:{conversationId:"session-a",runId:"run",assistantTurnId:"a1",userTurnId:"u1",sink,isCurrent:()=>true,onEvent:(event:unknown)=>events.push(event)}};
- return {...f,port,store,input,counts,sends,events,prior,query,actorB,observerRegistration,historySource,historyCapture,setHistoryDocument:(value:HistoryDocument)=>{historyDocument=value},setHistoryQuery:(value:typeof historyQuery)=>{historyQuery=value},beforeMutation:(value:typeof onMutation)=>{onMutation=value},setCountHook:(value:typeof hook)=>{hook=value},onStream:(value:typeof onStream)=>{onStream=value},advance:(ms:number)=>{now+=ms}};
+ return {...f,port,store,input,counts,sends,events,prior,query,actorB,observerRegistration,historySource,historyCapture,setHistoryDocument:(value:HistoryDocument)=>{historyDocument=value},setHistoryQuery:(value:typeof historyQuery)=>{historyQuery=value},beforeMutation:(value:typeof onMutation)=>{onMutation=value},setCountHook:(value:typeof hook)=>{hook=value},onStream:(value:typeof onStream)=>{onStream=value},advance:(ms:number)=>{clock.now+=ms}};
 }
 it("cross-session M selection is included in the exact counted request and S durably settles once",async()=>{
  const f=await fixture();expect(await f.policy.recall(f.actor)).toHaveLength(1);

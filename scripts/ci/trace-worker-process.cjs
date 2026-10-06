@@ -1,9 +1,9 @@
-const { appendFileSync } = require("node:fs");
+const { writeFileSync } = require("node:fs");
 const path = require("node:path");
 const { ChildProcess } = require("node:child_process");
 const { syncBuiltinESMExports } = require("node:module");
 const output = process.env.FIREFLY_VITEST_DIAGNOSTICS;
-const write = (event, details = {}) => appendFileSync(path.join(output, `process-${process.pid}.jsonl`), JSON.stringify({ time: new Date().toISOString(), event, pid: process.pid, ppid: process.ppid, ...details }) + "\n");
+const write = (event, details = {}) => writeFileSync(path.join(output, `process-${process.pid}.jsonl`), JSON.stringify({ time: new Date().toISOString(), event, pid: process.pid, ppid: process.ppid, ...details }) + "\n", { flag: "a" });
 const stack = () => new Error().stack.split("\n").slice(2, 10);
 write("process-start", { node: process.version, uv: process.versions.uv });
 process.on("exit", code => write("process-exit", { code }));

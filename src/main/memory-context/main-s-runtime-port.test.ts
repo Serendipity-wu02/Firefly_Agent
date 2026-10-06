@@ -1,5 +1,5 @@
 import path from "node:path";
-import {afterEach,expect,it,vi} from "vitest";
+import {afterEach,beforeEach,expect,it,vi} from "vitest";
 import {contextFixture} from "../../../scripts/verify/memory-context/context-fixture";
 import {ConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
 import {createConversationTranscriptAdapter} from "./conversation-transcript-adapter";
@@ -10,7 +10,10 @@ import type {ChatRequest} from "../orchestrator/vendors/types";
 vi.mock("electron",()=>({app:{getPath:()=>{throw Error("PRODUCT_DATA_READ_FORBIDDEN")}}}));
 
 afterEach(()=>{vi.unstubAllGlobals();setVendorRuntimeSettingsGetter(()=>({}))});
-async function fixture(){
+let preparedFixture:Awaited<ReturnType<typeof createFixture>>;
+beforeEach(async()=>{preparedFixture=await createFixture()});
+async function fixture(){return preparedFixture}
+async function createFixture(){
  const {createMainSRuntimePort}=await import("./main-s-runtime-port");
  const f=await contextFixture();setVendorRuntimeSettingsGetter(()=>({}));vi.stubGlobal("fetch",()=>{throw Error("NETWORK_FORBIDDEN")});
  let revision=1,hook:undefined|(()=>Promise<void>),claimHook:undefined|(()=>void),configHook:undefined|(()=>void),sendHook:undefined|(()=>Promise<void>),failure=false;

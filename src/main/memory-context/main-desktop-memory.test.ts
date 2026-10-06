@@ -1,4 +1,4 @@
-import {it,expect,vi} from "vitest";
+import {beforeEach,it,expect,vi} from "vitest";
 import {EventEmitter} from "node:events";
 import {createActiveChatTargetRegistry} from "../plugin-host/active-chat-target";
 import {createMainDesktopMemory} from "./main-desktop-memory";
@@ -6,7 +6,10 @@ import {contextFixture} from "../../../scripts/verify/memory-context/context-fix
 import {ConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
 import path from "node:path";
 import {mkdirSync} from "node:fs";
-async function fixture(){
+let preparedFixture:Awaited<ReturnType<typeof createFixture>>;
+beforeEach(async()=>{preparedFixture=await createFixture()});
+async function fixture(){return preparedFixture}
+async function createFixture(){
  const f=await contextFixture(),sender=Object.assign(new EventEmitter(),{id:7,mainFrame:{},isDestroyed:()=>false}),targets=createActiveChatTargetRegistry();targets.setActive({sender:sender as any,sessionId:"session-a",mode:"chat",rendererTargetId:"r"});
  const sessions=new Map<string,any>([["session-a",{id:"session-a",mode:"chat",messages:[]}],["session-b",{id:"session-b",mode:"chat",messages:[]}]]);let opened=0,closed=0;
  const options={enabled:true,getChatWindow:()=>({webContents:sender,isDestroyed:()=>false} as any),targets,getSession:(id:string)=>sessions.get(id),listSessionIds:()=>[...sessions.keys()],isControlledSession:()=>true,store:new ConversationTranscriptStore(path.join(f.root,"desktop-transcripts")),clock:()=>1700000000010,openBackend:async()=>{opened++;return {transport:f.transport,close:async()=>{closed++},binding:{} as any,request:()=>({} as any),endpointFactory:(async()=>{throw Error("UNUSED_NATIVE")}) as any}}};

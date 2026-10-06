@@ -1,6 +1,6 @@
 import path from "node:path";
 import {DatabaseSync} from "node:sqlite";
-import {afterEach,expect,it,vi} from "vitest";
+import {afterEach,beforeEach,expect,it,vi} from "vitest";
 import {contextFixture} from "../../../scripts/verify/memory-context/context-fixture";
 import {ConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
 import {createConversationTranscriptAdapter} from "./conversation-transcript-adapter";
@@ -18,9 +18,11 @@ import type {VendorConfig,ProviderCapability} from "../orchestrator/vendors/type
 
 vi.mock("electron",()=>({app:{getPath:()=>{throw Error("PRODUCT_DATA_READ_FORBIDDEN")}}}));
 afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks()});
+let preparedFixture:Awaited<ReturnType<typeof contextFixture>>;
+beforeEach(async()=>{preparedFixture=await contextFixture()});
 
 async function fixture(estimated=false){
- const f=await contextFixture(),store=new ConversationTranscriptStore(path.join(f.root,"conversation"));
+ const f=preparedFixture,store=new ConversationTranscriptStore(path.join(f.root,"conversation"));
  const options:any=f.options;
  options.budget.maxSTokens=1500;
  if(estimated){
