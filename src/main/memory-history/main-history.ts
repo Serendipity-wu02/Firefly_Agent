@@ -67,7 +67,14 @@ export function createMainHistory(options:Options){
  }
  function requireSourceActor(a:MainActorContext,ref:BoundSourceRef){authorizeSourceActor(a,ref);requireMainAccess(a.access).verifySource(ref)}
  function command<T>(a:MainActorContext,kind:string,body:object,commandId?:string):Promise<T>{return options.transport.historyCommand({kind,scopeKey:a.scopeKey,...(commandId?{commandId}:{}),body:{...owner(a),...body}}) as Promise<T>}
- function grantSessions(token:object,tokens:object[]):object {const a=actor(token);if(!Array.isArray(tokens)||tokens.length>31)fail('MEMORY_HISTORY_ACCESS_DENIED');const sessions=[token,...tokens].map(t=>{const other=actor(t);if(other.actorKey!==a.actorKey||other.scopeKey!==a.scopeKey)fail('MEMORY_HISTORY_ACCESS_DENIED');return {providerId:other.providerId,sessionId:other.sessionId}});const cap=Object.freeze({}),partition={actorKey:a.actorKey,sessions:[...new Map(sessions.map(s=>[canonicalJson(s),s])).values()]};scopes.set(cap,{actorToken:token,partition});return cap}
+ function grantSessions(token:object,tokens:object[],settings?:{includeCurrent?:boolean}):object {
+  const a=actor(token);if(!Array.isArray(tokens)||tokens.length>31||settings?.includeCurrent!==undefined&&typeof settings.includeCurrent!=='boolean')fail('MEMORY_HISTORY_ACCESS_DENIED');
+  const selected=settings?.includeCurrent===false?tokens:[token,...tokens];
+  // The repository requires a nonempty authorized partition; never silently fall back to current S.
+  if(!selected.length)fail('MEMORY_HISTORY_ACCESS_DENIED');
+  const sessions=selected.map(t=>{const other=actor(t);if(other.actorKey!==a.actorKey||other.scopeKey!==a.scopeKey)fail('MEMORY_HISTORY_ACCESS_DENIED');return {providerId:other.providerId,sessionId:other.sessionId}});
+  const cap=Object.freeze({}),partition={actorKey:a.actorKey,sessions:[...new Map(sessions.map(s=>[canonicalJson(s),s])).values()]};scopes.set(cap,{actorToken:token,partition});return cap;
+ }
  function partition(token:object,a:MainActorContext,scope?:object):HistoryPartition {if(scope===undefined)return {actorKey:a.actorKey,sessions:[{providerId:a.providerId,sessionId:a.sessionId}]};const state=scopes.get(scope);if(!state||state.actorToken!==token)fail('MEMORY_HISTORY_ACCESS_DENIED');return structuredClone(state.partition)}
  async function embeddingVector(text:string){checkModels();if(!embedding)return null;if(currentEmbeddingIdentity()!==embeddingIdentity)fail('MEMORY_HISTORY_VECTOR_INVALID');const result=await embedding.embed(text);if(currentEmbeddingIdentity()!==embeddingIdentity)fail('MEMORY_HISTORY_VECTOR_INVALID');return {identity:embeddingIdentity!,values:normalizeVector(result,embedding.dims)}}
  function contextCommand<T>(a:MainActorContext,kind:string,body:object,commandId?:string):Promise<T>{return options.transport.contextCommand({kind,scopeKey:a.scopeKey,...(commandId?{commandId}:{}),body:{...owner(a),bootId:options.actorAuthority.bootId,...body}}) as Promise<T>}

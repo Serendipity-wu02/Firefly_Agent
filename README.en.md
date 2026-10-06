@@ -132,9 +132,9 @@ Settings, model profiles, Chat / Work history, run records and user Skills do no
 
 Commit and validate development on `firefly-mini-v1.1.x`, then use a PR to merge into `main`. Run checks appropriate to the change and state what remains unverified. Read the [contribution guide](./.github/CONTRIBUTING.md) and [AGENTS.md](./AGENTS.md). Do not include credentials, private conversations or user data in Issues or PRs.
 
-## Upstream and licensing
+## Maintenance and licensing
 
-Firefly_Agent is independently maintained. Portions of its source originated from Cyrene-Agent and remain subject to the preserved MIT notice. This does not mean all code was written from scratch.
+Firefly_Agent is independently maintained by Serendipity-wu02. Source copyright and licensing are documented in [LICENSE](./LICENSE).
 
 Source licensing is documented in the complete [MIT License](./LICENSE). Third-party Skills, dependencies, Live2D models, portraits, character IP and other assets have their own licenses or permissions; the source MIT license does not automatically grant asset redistribution rights. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md), [MODEL_LICENSE.md](./MODEL_LICENSE.md) and the [contributors record](./docs/CONTRIBUTORS.md) for provenance and boundaries. Public asset redistribution review remains pending.
 

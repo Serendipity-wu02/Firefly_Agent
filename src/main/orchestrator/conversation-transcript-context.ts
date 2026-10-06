@@ -113,6 +113,7 @@ function addUncertainEffect(
 export function materializeTranscript(
   entries: TranscriptEntry[],
   runReader: TranscriptRunReader,
+  options: { missingRunEvidence?: "unknown" } = {},
 ): MaterializedTranscript {
   const active: ActiveNode[] = [];
   const uncertainEffects: UncertainEffect[] = [];
@@ -186,10 +187,12 @@ export function materializeTranscript(
       }
       messageSources.push(node.entry);
       const record = statusById.get(call.id);
-      const isUnknown = record?.status === "started" || record?.status === "unknown";
+      const isUnknown = record?.status === "started" || record?.status === "unknown"
+        || !runSession && options.missingRunEvidence === "unknown";
       if (isUnknown) {
-        // 仅已启动且非幂等副作用的调用才提示未知副作用
-        if (record?.sideEffect === "non_idempotent_side_effect") {
+        // Unknown mutations, including idempotent writes, cannot be automatically replayed.
+        // With no Main run evidence, retain a conservative fingerprint guard.
+        if (record?.sideEffect !== "read_only") {
           addUncertainEffect(uncertainEffects, node.entry.runId, call);
         }
         messages.push(syntheticToolMessage(call, "unknown"));

@@ -10,21 +10,24 @@ vi.mock("node:child_process", async (original) => {
 });
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { createNativeHistoryPresenceEndpoint } from "./native-history-presence-process";
 
-const BASE = "E:\\Codex\\2026-10-03\\task-10\\h-presence-synthetic-20261004";
-const HELPER = "E:\\Codex\\2026-10-03\\task-10\\h-review-reception-20261004\\cargo-target\\debug\\firefly-history-presence.exe";
+// Protocol mocks still exercise the real absolute-path preflight. Native integration
+// requires a Windows build: cargo build --manifest-path native/Cargo.toml
+// --features history-read --bin firefly-history-presence.
+const HELPER = process.env.FIREFLY_HISTORY_PRESENCE_TEST_HELPER
+  ?? path.resolve("native/target/debug/firefly-history-presence.exe");
 let root: string;
 beforeEach(() => {
-  expect(process.env.TEMP).toBe(BASE);
-  root = fs.mkdtempSync(path.join(BASE, "process-"));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-presence-process-"));
 });
 afterEach(() => {
-  expect(path.dirname(root)).toBe(BASE);
+  expect(path.dirname(root)).toBe(os.tmpdir());
   fs.rmSync(root, { recursive: true });
 });
 describe("native metadata process endpoint", () => {
-  it("maps real bounded helper results and confirms its exact exit", async () => {
+  it.runIf(process.platform === "win32")("maps real bounded helper results and confirms its exact exit [requires Windows native helper]", async () => {
     fs.mkdirSync(path.join(root, "transcripts", "a"), { recursive: true });
     const leaf = path.join(root, "transcripts", "a", "snapshot.json");
     fs.writeFileSync(leaf, "SYNTHETIC_BODY_NOT_JSON");
@@ -45,7 +48,7 @@ describe("native metadata process endpoint", () => {
     const controller = new AbortController(); controller.abort();
     await expect(createNativeHistoryPresenceEndpoint(HELPER).open(root, 3000, controller.signal)).rejects.toThrow("PRESENCE_CANCELLED");
   });
-  it("closes a ready helper on cancellation", async () => {
+  it.runIf(process.platform === "win32")("closes a ready helper on cancellation [requires Windows native helper]", async () => {
     const controller = new AbortController();
     const session = await createNativeHistoryPresenceEndpoint(HELPER).open(root, 3000, controller.signal);
     controller.abort();
@@ -57,11 +60,13 @@ describe("native metadata process endpoint", () => {
     const endpoint = createNativeHistoryPresenceEndpoint(HELPER);
     for (const deadline of [0, 30001, NaN]) await expect(endpoint.open(root, deadline, new AbortController().signal)).rejects.toThrow("PRESENCE_INVALID_BUDGET");
   });
-  it("rejects absent helper and unavailable root without leaving an open child", async () => {
+  it("rejects an absent helper without leaving an open child", async () => {
     await expect(createNativeHistoryPresenceEndpoint(path.join(root, "firefly-history-presence.exe")).open(root, 3000, new AbortController().signal)).rejects.toThrow("PRESENCE_PROCESS_FAILED");
+  });
+  it.runIf(process.platform === "win32")("rejects an unavailable root [requires Windows native helper]", async () => {
     await expect(createNativeHistoryPresenceEndpoint(HELPER).open(path.join(root, "not-created"), 3000, new AbortController().signal)).rejects.toThrow("PRESENCE_NATIVE_FAILED");
   });
-  it("rejects overlapping and oversized requests and confirms cleanup", async () => {
+  it.runIf(process.platform === "win32")("rejects overlapping and oversized requests and confirms cleanup [requires Windows native helper]", async () => {
     const signal = new AbortController().signal;
     const session = await createNativeHistoryPresenceEndpoint(HELPER).open(root, 3000, signal);
     await expect(session.probe(Array.from({ length: 33 }, () => "a"), signal)).rejects.toThrow("PRESENCE_INVALID_BATCH");
@@ -92,10 +97,10 @@ describe("native metadata process endpoint", () => {
       await expect(session.close()).rejects.toThrow("PRESENCE_PROTOCOL_FAILED");
     }
   });
-  it("connects actual Main cache selection through the real helper with zero source I/O", async () => {
+  it.runIf(process.platform === "win32")("connects actual Main cache selection through the real helper with zero source I/O [requires Windows native helper]", async () => {
     const { resolveRuntimeProfile } = await import("../runtime-profile");
     const { initializeStorageContext } = await import("../storage-context");
-    // A production-shaped profile rooted entirely in the E fixture; no live app.
+    // A production-shaped profile rooted entirely in the synthetic fixture; no live app.
     const context = initializeStorageContext(resolveRuntimeProfile({ argv: ["--firefly-profile=production"], env: {}, isPackaged: true, productionAppData: root }));
     electron.userData = context.dataRoot;
     const chats = path.join(context.dataRoot, "firefly-chats");
@@ -103,7 +108,7 @@ describe("native metadata process endpoint", () => {
     fs.writeFileSync(path.join(chats, "index.json"), JSON.stringify(["a", "b"].map((id) => ({ id, title: "synthetic", createdAt: 1, updatedAt: 1, messageCount: 0, mode: "chat" }))));
     fs.mkdirSync(path.join(context.dataRoot, "transcripts", "a"), { recursive: true });
     fs.writeFileSync(path.join(context.dataRoot, "transcripts", "a", "snapshot.json"), "SYNTHETIC_BODY");
-    const store = await import("../chats/chats-store"); store.initialize(); // E setup before measurement.
+    const store = await import("../chats/chats-store"); store.initialize(); // Synthetic setup before measurement.
     const { selectCachedHistoryCoverage, measureHistoryPresence } = await import("./native-history-coverage");
     const selected = selectCachedHistoryCoverage();
     const spies = ["readFileSync", "writeFileSync", "readdirSync", "mkdirSync", "statSync"].map((name) => vi.spyOn(fs, name as "readFileSync"));

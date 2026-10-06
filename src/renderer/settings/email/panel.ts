@@ -52,17 +52,17 @@ export async function loadEmailConfig(): Promise<void> {
 }
 
 // ===== 事件绑定（模块加载时执行） =====
-emailEnabledCheckbox?.addEventListener("change", () => {
+emailEnabledCheckbox?.addEventListener("change", function () {
   syncEmailConfigVisibility();
-  void saveEmailField("emailEnabled", emailEnabledCheckbox.checked);
+  void saveEmailField("emailEnabled", this.checked);
 });
 // 防抖保存：每个字段独立 timer，避免连续填写多个字段时只有最后一个被保存
-emailSmtpHostInput?.addEventListener("input", () => { clearTimeout(pluginsState.emailSmtpHostTimer); pluginsState.emailSmtpHostTimer = setTimeout(() => void saveEmailField("emailSmtpHost", emailSmtpHostInput.value.trim()), 800); });
-emailSmtpPortInput?.addEventListener("input", () => { clearTimeout(pluginsState.emailSmtpPortTimer); pluginsState.emailSmtpPortTimer = setTimeout(() => void saveEmailField("emailSmtpPort", Number(emailSmtpPortInput.value) || 465), 800); });
-emailSmtpSecureInput?.addEventListener("change", () => void saveEmailField("emailSmtpSecure", emailSmtpSecureInput.checked));
-emailSmtpUserInput?.addEventListener("input", () => { clearTimeout(pluginsState.emailSmtpUserTimer); pluginsState.emailSmtpUserTimer = setTimeout(() => void saveEmailField("emailSmtpUser", emailSmtpUserInput.value.trim()), 800); });
-emailSmtpPassInput?.addEventListener("input", () => { clearTimeout(pluginsState.emailSmtpPassTimer); pluginsState.emailSmtpPassTimer = setTimeout(() => void saveEmailField("emailSmtpPass", emailSmtpPassInput.value.trim()), 800); });
-emailFromNameInput?.addEventListener("input", () => { clearTimeout(pluginsState.emailFromNameTimer); pluginsState.emailFromNameTimer = setTimeout(() => void saveEmailField("emailFromName", emailFromNameInput.value.trim()), 800); });
+emailSmtpHostInput?.addEventListener("input", function () { clearTimeout(pluginsState.emailSmtpHostTimer); pluginsState.emailSmtpHostTimer = setTimeout(() => void saveEmailField("emailSmtpHost", this.value.trim()), 800); });
+emailSmtpPortInput?.addEventListener("input", function () { clearTimeout(pluginsState.emailSmtpPortTimer); pluginsState.emailSmtpPortTimer = setTimeout(() => void saveEmailField("emailSmtpPort", Number(this.value) || 465), 800); });
+emailSmtpSecureInput?.addEventListener("change", function () { void saveEmailField("emailSmtpSecure", this.checked); });
+emailSmtpUserInput?.addEventListener("input", function () { clearTimeout(pluginsState.emailSmtpUserTimer); pluginsState.emailSmtpUserTimer = setTimeout(() => void saveEmailField("emailSmtpUser", this.value.trim()), 800); });
+emailSmtpPassInput?.addEventListener("input", function () { clearTimeout(pluginsState.emailSmtpPassTimer); pluginsState.emailSmtpPassTimer = setTimeout(() => void saveEmailField("emailSmtpPass", this.value.trim()), 800); });
+emailFromNameInput?.addEventListener("input", function () { clearTimeout(pluginsState.emailFromNameTimer); pluginsState.emailFromNameTimer = setTimeout(() => void saveEmailField("emailFromName", this.value.trim()), 800); });
 
 // 模块加载时拉一次配置
 void loadEmailConfig();

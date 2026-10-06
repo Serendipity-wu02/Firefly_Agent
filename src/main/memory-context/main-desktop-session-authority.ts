@@ -9,6 +9,8 @@ export interface DesktopMemoryBinding {
 }
 interface Options {
  enabled?:boolean;scopeKey:string;actorKey:string;
+ /** Main composition opts ordinary Work/Code in; renderer cannot alter this set. */
+ allowedModes?:readonly ("chat"|"work"|"code")[];
  getChatWindow:()=>Pick<BrowserWindow,"webContents"|"isDestroyed">|null;
  targets:Pick<ActiveChatTargetRegistry,"getActive"|"onInvalidated"|"onSessionDeleted">;
  getSession:(id:string)=>DesktopMemorySession|undefined|null;
@@ -21,6 +23,8 @@ const denied=():never=>{throw Error("MEMORY_DESKTOP_SESSION_DENIED")};
 export function createMainDesktopSessionAuthority(options:Options){
  if(options.enabled!==true)return null;
  const scopeKey=parseInternalId(options.scopeKey),actorKey=parseInternalId(options.actorKey);
+ const allowedModes=new Set<string>(options.allowedModes??["chat"]);
+ if(!allowedModes.size||[...allowedModes].some(mode=>!["chat","work","code"].includes(mode)))return denied();
  const grants=new WeakMap<object,GrantState>(),states=new Set<GrantState>(),deleted=new Set<string>();
  let disposed=false,current:{token:object;state:GrantState}|undefined;
  function revoke(state:GrantState){state.controller.abort();states.delete(state);if(current?.state===state)current=undefined}
@@ -28,9 +32,9 @@ export function createMainDesktopSessionAuthority(options:Options){
   if(disposed||deleted.has(conversationId))return denied();
   const window=options.getChatWindow(),target=options.targets.getActive();
   if(!window||window.isDestroyed()||sender.isDestroyed()||window.webContents!==sender||!frame||frame!==sender.mainFrame
-   ||!target||target.webContentsId!==sender.id||target.sessionId!==conversationId||target.mode!=="chat")return denied();
+   ||!target||target.webContentsId!==sender.id||target.sessionId!==conversationId||!allowedModes.has(target.mode))return denied();
   const session=options.getSession(conversationId);
-  if(!session||session.id!==conversationId||session.mode!=="chat"||options.isControlledSession(session)!==true)return denied();
+  if(!session||session.id!==conversationId||session.mode!==target.mode||options.isControlledSession(session)!==true)return denied();
   return target;
  }
  function check(state:GrantState,conversationId:string){

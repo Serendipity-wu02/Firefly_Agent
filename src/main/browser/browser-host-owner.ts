@@ -37,5 +37,5 @@ export function registerBrowserHostOwner<S extends object>(options: { host: Brow
   const offHost = options.service.registerHost(options.host, resolveOwner);
   const offInvalidation = options.targets.onInvalidated((_reason, affected) => { if (!affected || affected.webContentsId === hostWebContentsId) invalidate(); });
   const offDeleted = options.targets.onSessionDeleted(id => { deleted.add(id); if (owner?.conversationId === id) invalidate(); });
-  return Object.freeze({ refresh, resolveOwner, dispose() { if (disposed) return; disposed = true; invalidate(); offInvalidation(); offDeleted(); offHost(); } });
+  return Object.freeze({ refresh, resolveOwner, getCurrentOwner() { refresh(); return owner; }, dispose() { if (disposed) return; disposed = true; invalidate(); offInvalidation(); offDeleted(); offHost(); } });
 }

@@ -1,3 +1,4 @@
+import { getToolWriteEvidence } from "./file-write-evidence";
 import { isAbortError } from "../../../abort-utils";
 import type { ToolContext } from "./tool-context";
 import type { ToolDefinition } from "./tool-registry";
@@ -85,17 +86,21 @@ export async function executeToolDefinition(
   args: Record<string, unknown>,
   context?: ToolContext,
 ): Promise<ReturnType<typeof normalizeToolExecutionOutcome>> {
+  const normalize = (outcome: ToolExecutionOutcome) => {
+    const writes = getToolWriteEvidence(context);
+    return normalizeToolExecutionOutcome({ ...outcome, ...(writes.length ? { writes } : {}) });
+  };
   try {
     const output = await tool.execute(args, context);
     const legacy = legacyFailure(output);
-    return normalizeToolExecutionOutcome(legacy ?? {
+    return normalize(legacy ?? {
       status: "succeeded",
       output,
     });
   } catch (error) {
     if (isAbortError(error)) throw error;
     if (error instanceof ToolExecutionError) {
-      return normalizeToolExecutionOutcome({
+      return normalize({
         status: "failed",
         output: error.message,
         errorCode: error.code,
@@ -110,7 +115,7 @@ export async function executeToolDefinition(
       && typeof (error as { code?: unknown }).code === "string"
       ? String((error as { code: string }).code)
       : undefined;
-    return normalizeToolExecutionOutcome({
+    return normalize({
       status: "failed",
       output: message,
       errorCode: explicitCode ?? "E_TOOL_EXECUTION_FAILED",

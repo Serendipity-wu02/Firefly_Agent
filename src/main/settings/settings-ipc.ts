@@ -148,6 +148,8 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): () => void {
     saveTimeoutSettings(settings),
   );
 
+  ipc.handle(IPC.UI_COLORS_GET, () => getGeneralSettings().uiColors);
+
   ipc.handle(IPC.UI_THEME_GET, () => getGeneralSettings().uiTheme);
 
   ipc.handle(IPC.UI_THEME_RADIUS_GET, () => getGeneralSettings().uiThemeRadius);

@@ -268,7 +268,9 @@
     "errListFailed": "Failed to list directory",
     "errReadFailed": "Failed to read file",
     "previewLoading": "Reading file…",
-    "previewLinesHint": "Large file, showing first {{count}} lines"
+    "previewLinesHint": "Large file, showing first {{count}} lines",
+    "refresh": "Refresh files",
+    "refreshPreview": "Reload file"
   },
   "modelPanel": {
     "title": "Model",
@@ -716,16 +718,74 @@
     "reload": "Reload",
     "close": "Close browser",
     "checking": "Checking browser availability…",
-    "unavailable": "Browser unavailable: network safety verification is incomplete.",
+    "unavailable": "The browser service is currently unavailable.",
     "closed": "Browser closed.",
     "viewport": "Page preview",
-    "empty": "Page loading is currently unavailable."
+    "empty": "Page loading is currently unavailable.",
+    "permission": "Browser permission",
+    "permissionRequired": "Enable the browser for this conversation",
+    "permissionGranted": "Permission granted for this conversation",
+    "permissionScope": "A native confirmation dialog will open. Permission is limited to these hosts and actions and expires when the page is closed, permission is revoked, or the conversation changes.",
+    "permissionDenied": "You declined this request. You can enable it again when needed.",
+    "permissionFailed": "This conversation has no valid browser permission.",
+    "permissionPending": "Waiting for confirmation…",
+    "revoke": "Revoke permission",
+    "enable": "Enable browser"
   },
   "workspace": {
     "resizeSidebar": "Resize conversation sidebar",
     "tasks": "Tasks and project",
     "chooseFolder": "Choose workspace folder",
     "chooseProject": "Choose a project folder to get started.",
-    "pendingFiles": "{{name}} is selected. Files will appear when the conversation starts."
+    "pendingFiles": "{{name}} is selected. Files will appear when the conversation starts.",
+    "results": "Run results",
+    "noResults": "No tool or child-task results in this conversation yet.",
+    "runResult": "Run {{index}} results",
+    "resultCounts": "{{files}} changed files · {{tools}} tool results",
+    "changedFiles": "Changed files",
+    "openFile": "Open file",
+    "openDiff": "View diff",
+    "childResult": "Child-task result",
+    "emptyResult": "No text was returned.",
+    "resultTruncated": "Showing the first 64,000 characters. The full result remains in the original tool record.",
+    "toolSummary": "Tool result summary",
+    "diffUnavailable": "This tool result did not provide a line-level diff.",
+    "writeEvidence": "Write evidence",
+    "writeEvidenceUnavailable": "Write evidence is unavailable for this child result.",
+    "noRecordedWrites": "No writes were recorded for this child run.",
+    "versionUnavailable": "Unavailable",
+    "fileVersion": "Version",
+    "beforeWrite": "Before",
+    "afterWrite": "After",
+    "writeTool": "Tool call",
+    "writeEvents": "Tool events",
+    "eventsUnavailable": "Unavailable",
+    "executionEvidence": "Model execution events",
+    "executionClock": "Monotonic clock",
+    "writeState": {
+      "applied": "Applied",
+      "partially_applied": "Partially applied",
+      "unknown": "Unknown effect",
+      "not_applied": "Not applied"
+    },
+    "childStatus": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "interrupted": "Interrupted"
+    },
+    "executionPhase": {
+      "start": "Started",
+      "end": "Ended",
+      "terminal": "Terminal"
+    },
+    "toolStatus": {
+      "running": "Running",
+      "success": "Succeeded",
+      "failed": "Failed",
+      "error": "Failed",
+      "cancelled": "Cancelled"
+    }
   }
 }

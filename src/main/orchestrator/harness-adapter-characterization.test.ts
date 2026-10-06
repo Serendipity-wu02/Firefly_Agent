@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { userDataRoot, cleanupUserData } = await vi.hoisted(async () => {
+  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-characterization-"));
+  return {
+    userDataRoot: root,
+    cleanupUserData: () => fs.rmSync(root, { recursive: true, force: true }),
+  };
+});
+
+afterAll(cleanupUserData);
 
 const { trace, runHarness, runStore, reviewTracker } = vi.hoisted(() => ({
   trace: [] as string[],
@@ -40,7 +53,7 @@ vi.mock("../prompts/prompt-loader", () => ({
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn(() => "C:\\firefly-characterization") },
+  app: { getPath: vi.fn(() => userDataRoot) },
 }));
 
 import { runHarnessWithAdapter } from "./harness-adapter";
@@ -99,5 +112,20 @@ describe("harness-adapter characterization", () => {
       "review.finalizeReview",
       "return",
     ]);
+  });
+
+  it("passes the Main run and guarded sink through Harness and its terminal checkpoint", async () => {
+    const checkpoint = vi.fn(async () => undefined), guardedCheckpoint = vi.fn(async () => undefined);
+    const sink = { checkpoint }, guardedSink = { checkpoint: guardedCheckpoint };
+    const memoryRun = { call: vi.fn(), bindSink: vi.fn(() => guardedSink), close: vi.fn(async () => undefined) };
+    await runHarnessWithAdapter({
+      runId: "run-memory-adapter",
+      settings: { provider: "test", baseUrl: "", model: "fixture", apiKey: "", contextWindowTokens: 256000 },
+      messages: [{ role: "user", content: "执行" }], toolSystemContent: "", soulSystemBaseContent: "persona",
+      executionMode: "work", conversationMode: "work", memoryRun, transcriptSink: sink,
+    } as never, new AbortController().signal, () => undefined);
+    expect(memoryRun.bindSink).toHaveBeenCalledWith(sink);
+    expect(runHarness).toHaveBeenCalledWith(expect.objectContaining({ memoryRun, transcriptSink: guardedSink }));
+    expect(guardedCheckpoint).toHaveBeenCalledOnce(); expect(checkpoint).not.toHaveBeenCalled();
   });
 });

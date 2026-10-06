@@ -11,6 +11,7 @@ import type {
   WorkReadReport,
 } from "../../../../../../shared/chat-types";
 import { isContextUsageSnapshot, type ContextUsageSnapshot } from "../../../../../../shared/context-usage";
+import { normalizeToolTaskResult } from "../../../../../../shared/task-result-evidence";
 import type { TodoItem } from "../../../../../../shared/todo-types";
 import type { ChatMessageItem } from "../../components/ChatMessageList";
 import type { ComposerAttachment } from "../../components/ChatComposer";
@@ -954,6 +955,8 @@ export class AgentRunController {
         status: event.status === "failed" ? "error" : "success",
         result: (event.content ?? "").slice(0, 4000),
         changes: event.changes,
+        taskResult: this.toolExecutions.find(tool => tool.id === event.toolCallId)?.name === "delegate_agent"
+          ? normalizeToolTaskResult(event.taskResult, event.runId) : undefined,
       });
       void this.checkpointRun("running", true);
     } else if (event.type === "TOOL_CALL_END" && event.toolCallId) {

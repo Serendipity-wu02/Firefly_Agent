@@ -21,15 +21,18 @@ vi.mock("fs", async importOriginal => {
 vi.mock("electron", () => ({ app: { getPath: () => root } }));
 vi.mock("./registry/tool-registry", () => ({ toolRegistry: { register: (tool: any) => tools.set(tool.id, tool) } }));
 vi.mock("../../external-content-paths", () => ({ findSkillPath: () => null }));
+import { createHash } from "node:crypto";
+import { getWorkspaceExecutionCoordinator } from "../harness/execution-coordinator";
+import type { ToolContext } from "./registry/tool-context";
 import { registerDocumentTools } from "./document-tools";
 registerDocumentTools();
 
 const oldBytes = Buffer.from("%PDF-original\0synthetic");
 const windowsFonts = /^C:\\Windows\\Fonts\\/;
 const msyh = "C:\\Windows\\Fonts\\msyh.ttc";
-const execute = () => tools.get("write_pdf").execute(
+const execute = (execution?: ToolContext["execution"]) => tools.get("write_pdf").execute(
   { filename: "report.pdf", title: "标题", paragraphs: ["段落一"] },
-  { runId: "pdf-protection" },
+  { userQuery: "", runId: "pdf-protection", execution },
 );
 const target = () => path.join(root, "report.pdf");
 const temporaryFiles = () => fs.readdirSync(root).filter(name => name.startsWith(".firefly-pdf-"));
@@ -158,5 +161,56 @@ describe("real PDF output protection", () => {
     expect(fs.readFileSync(target())).toEqual(oldBytes);
     expect(fs.readFileSync(collision, "utf8")).toBe("other-owner");
     expect(streams.every(stream => stream.closed)).toBe(true);
+  });
+});
+
+
+describe("PDF write batch lifetime and actual output evidence", () => {
+  function scope(coordinator: ReturnType<typeof getWorkspaceExecutionCoordinator>, call: string) {
+    return { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: call };
+  }
+  it("keeps read excluded through pipeline, rename and temporary cleanup", async () => {
+    noSystemFonts();
+    const coordinator = getWorkspaceExecutionCoordinator(root);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let rendering!: () => void;
+    const entered = new Promise<void>((resolve) => { rendering = resolve; });
+    const end = PDF.prototype.end;
+    vi.spyOn(PDF.prototype, "end").mockImplementation(function (this: any, ...args: any[]) {
+      rendering();
+      void gate.then(() => end.apply(this, args as any));
+      return this;
+    });
+    const writer = coordinator.runLeaf(scope(coordinator, "pdf"), "exclusive", undefined, async (permit) => execute({ coordinator, scope: scope(coordinator, "pdf"), permit }));
+    await entered;
+    let readEntered = false;
+    const reader = coordinator.runLeaf({ ...scope(coordinator, "read"), childRunId: "reader", agentId: "b" }, "shared", undefined, async () => {
+      readEntered = true;
+      expect(temporaryFiles()).toEqual([]);
+      expect(streams.every(stream => stream.closed)).toBe(true);
+      return createHash("sha256").update(fs.readFileSync(target())).digest("hex");
+    });
+    await Promise.resolve();
+    expect(readEntered).toBe(false);
+    release();
+    await writer;
+    const sha256 = await reader;
+    const writes = coordinator.getWriteEvidence({ toolCallId: "pdf" });
+    expect(writes.find(item => item.path === target())).toMatchObject({ state: "applied", after: { sha256 } });
+    expect(writes.find(item => item.path !== target())?.after).toEqual({ version: "absent" });
+    await coordinator.closeGroup("g");
+  });
+
+  it("render failure leaves never-touched final output not_applied and no temporary file", async () => {
+    noSystemFonts();
+    const coordinator = getWorkspaceExecutionCoordinator(root);
+    vi.spyOn(PDF.prototype, "text").mockImplementation(() => { throw new Error("PDF_RENDER_FAILED"); });
+    await expect(coordinator.runLeaf(scope(coordinator, "failed-pdf"), "exclusive", undefined, async (permit) => execute({ coordinator, scope: scope(coordinator, "failed-pdf"), permit }))).rejects.toThrow("PDF_RENDER_FAILED");
+    const writes = coordinator.getWriteEvidence();
+    expect(writes.find(item => item.path === target())?.state).toBe("not_applied");
+    expect(fs.readFileSync(target())).toEqual(oldBytes);
+    expect(temporaryFiles()).toEqual([]);
+    await coordinator.closeGroup("g");
   });
 });

@@ -24,8 +24,10 @@ export function RightInspector({
   activeTabId,
   onTabChange,
   onCloseTab,
+  visible = true,
 }: {
   tabs: InspectorTab[];
+  visible?: boolean;
   /** 当前活动标签 ID，不在列表中时回退到第一个标签 */
   activeTabId: string | null;
   onTabChange: (id: string) => void;
@@ -36,7 +38,7 @@ export function RightInspector({
   if (tabs.length === 0) return null;
   const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
   return (
-    <aside className="cy-right-inspector" aria-label={t("rightInspector.panelAria")}>
+    <aside className="cy-right-inspector" hidden={!visible} inert={!visible} aria-label={t("rightInspector.panelAria")}>
       <Tabs
         type="editable-card"
         hideAdd
@@ -49,6 +51,7 @@ export function RightInspector({
         }}
         items={tabs.map((tab) => ({
           key: tab.id,
+          forceRender: true,
           closable: tab.closable !== false,
           label: (
             <>

@@ -57,7 +57,9 @@ export class QqBotWsClient {
   private ws: WebSocket | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private identifyTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  private generation = 0;
   private seq = 0;
   private sessionId = "";
   private ready = false;
@@ -77,11 +79,13 @@ export class QqBotWsClient {
 
   async start(): Promise<void> {
     this.stopped = false;
+    this.generation++;
     await this.connect(false);
   }
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.generation++;
     this.clearTimers();
     const ws = this.ws;
     this.ws = null;
@@ -98,16 +102,19 @@ export class QqBotWsClient {
 
   private async connect(resume: boolean): Promise<void> {
     if (this.stopped) return;
+    const generation = this.generation;
     let token: string;
     try {
       token = await this.options.getAccessToken();
     } catch (error) {
+      if (this.stopped || generation !== this.generation) return;
       const err = error instanceof Error ? error : new Error(String(error));
       this.lastError = err;
       this.options.onError(err);
       this.scheduleReconnect();
       return;
     }
+    if (this.stopped || generation !== this.generation) return;
     const ws = this.options.websocketFactory
       ? this.options.websocketFactory(this.options.gatewayUrl)
       : new WebSocket(this.options.gatewayUrl);
@@ -174,6 +181,7 @@ export class QqBotWsClient {
         this.heartbeatAcked = true;
         break;
       case 7:
+        this.setReady(false);
         // 服务端要求重连：优先 Resume
         if (this.ws) {
           try {
@@ -184,11 +192,16 @@ export class QqBotWsClient {
         }
         break;
       case 9: {
+        this.setReady(false);
         // Invalid Session：重新 Identify（丢弃旧 session）
         this.sessionId = "";
         this.seq = 0;
-        setTimeout(() => {
-          if (!this.stopped) this.sendIdentify(token);
+        if (this.identifyTimer) clearTimeout(this.identifyTimer);
+        const ws = this.ws;
+        const generation = this.generation;
+        this.identifyTimer = setTimeout(() => {
+          this.identifyTimer = null;
+          if (!this.stopped && generation === this.generation && this.ws === ws) this.sendIdentify(token);
         }, 3_000);
         break;
       }
@@ -258,6 +271,10 @@ export class QqBotWsClient {
 
   private clearTimers(): void {
     this.clearHeartbeat();
+    if (this.identifyTimer) {
+      clearTimeout(this.identifyTimer);
+      this.identifyTimer = null;
+    }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

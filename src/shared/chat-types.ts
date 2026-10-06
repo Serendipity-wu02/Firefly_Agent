@@ -9,6 +9,7 @@ import type { MusicCardData } from "./music-card";
 import type { TodoItem } from "./todo-types";
 import type { TaskDelegationPresentation } from "./task-session";
 import type { ContextUsageSnapshot } from "./context-usage";
+import type { ModelExecutionEvent, TaskWriteEvidence } from "./agent-execution-evidence";
 
 // - schemaVersion 标记当前会话结构；当前固定 1。
 
@@ -32,6 +33,19 @@ export type ChatStickerId =
 /** 任意表情包 ID（内置 + 用户自定义） */
 export type AnyStickerId = string;
 
+/** Main-projected child result. This is output data, never the child prompt or private trace. */
+export interface ToolTaskResult {
+  agentId: string;
+  sessionId: string;
+  status: import("./task-session").TaskSessionStatus;
+  text: string;
+  truncated?: boolean;
+  /** Actual write effects survive failures, cancellation and display text truncation. */
+  writes?: TaskWriteEvidence[];
+  error?: { code: string; message: string };
+  executionEvents?: ModelExecutionEvent[];
+}
+
 /** 一次模型回复中已展示的工具执行记录，供 React Harness 会话恢复执行过程。 */
 export interface ToolExecutionRecord {
   id: string;
@@ -44,6 +58,8 @@ export interface ToolExecutionRecord {
   roundId?: string;
   /** 结构化文件变更证据（Diff Review 卡片）；由 tool_end 事件独立携带，不依赖被截断的 result 文本。 */
   changes?: ToolFileChange[];
+  /** Structured child output, carried independently of the short tool preview. */
+  taskResult?: ToolTaskResult;
   /** run 内单调递增的时间线序号：保证推理/正文/工具跨类别按实际发生顺序排列。 */
   seq?: number;
 }

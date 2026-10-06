@@ -64,3 +64,11 @@
 .cy-browser-workspace__notice.is-error { color: #9e3838; background: #fff2f0; }
 .cy-browser-workspace__viewport { flex: 1; min-height: 0; overflow: hidden; }
 .cy-browser-workspace__empty { padding: 20px; text-align: center; color: var(--cy-text-muted, #777); }
+.cy-browser-tab { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+.cy-browser-tab > .cy-browser-workspace { flex: 1; }
+.cy-browser-permission { padding: 8px 12px; border-bottom: 1px solid var(--cy-border, #e5e9e6); font-size: 12px; }
+.cy-browser-permission p { margin: 6px 0; }
+.cy-browser-permission summary { cursor: pointer; }
+.cy-browser-permission__scope { overflow-wrap: anywhere; color: var(--cy-text-muted); }
+.cy-browser-permission button { padding: 6px 10px; margin-top: 6px; border: 1px solid var(--cy-border); border-radius: 12px; color: inherit; background: var(--cy-bg-page, #fff); cursor: pointer; }
+.cy-browser-permission button:disabled { opacity: .55; cursor: default; }

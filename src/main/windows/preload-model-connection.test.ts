@@ -25,9 +25,9 @@ it("preserves sidebar settings and schedule actions for Chat and Tasks", () => {
   const sidebar = fixture.exposed.get("sidebar"); sidebar.openSettings("api"); sidebar.openTasks();
   expect(fixture.send.mock.calls).toEqual([["sidebar:open-settings", "api"], ["sidebar:open-tasks"]]);
 });
-it("exposes only manual browser commands and presentation updates, preserving closed availability", async () => {
+it("exposes manual commands and Main-confirmed permission requests, preserving offline availability", async () => {
   const api = fixture.exposed.get("manualBrowser");
-  expect(Object.keys(api)).toEqual(["getAvailability", "execute", "onChanged"]);
+  expect(Object.keys(api).sort()).toEqual(["getAvailability", "execute", "onChanged", "getPermission", "requestPermission", "revokePermission"].sort());
   fixture.invoke.mockImplementation(async (channel: string) => {
     expect(channel).toBe("browser:availability");
     return getOfflineBrowserAvailability();
@@ -49,4 +49,29 @@ it("passes manual command data unchanged and unsubscribes the exact browser DTO 
   expect(seen).toEqual([dto]); off();
   for (const listener of fixture.listeners.get("browser:changed") ?? []) listener({}, dto);
   expect(seen).toHaveLength(1); expect(fixture.send).not.toHaveBeenCalled();
+});
+
+it("routes permission requests to Main without exposing a renderer grant switch", async () => {
+  const api = fixture.exposed.get("manualBrowser");
+  const scope = { hosts: ["example.com"], actions: ["navigate"] };
+  fixture.invoke.mockResolvedValue({ ok: false, code: "permission_denied" });
+  await api.getPermission(); await api.requestPermission(scope); await api.revokePermission();
+  expect(fixture.invoke.mock.calls).toEqual([
+    ["browser:permission", { kind: "get" }],
+    ["browser:permission", { kind: "request", scope }],
+    ["browser:permission", { kind: "revoke" }],
+  ]);
+  expect(api.grant).toBeUndefined();
+});
+
+it("exposes read-only custom colors and detaches its exact update listener", async () => {
+  const api = fixture.exposed.get("fireflyTheme");
+  const colors = { enabled: true, accent: "#123456", background: "#ffffff", foreground: "#111111" };
+  fixture.invoke.mockResolvedValue(colors);
+  expect(await api.getColors()).toEqual(colors); expect(fixture.invoke).toHaveBeenCalledWith("ui-colors:get");
+  const seen: unknown[] = []; const off = api.onColorsChanged((value: unknown) => seen.push(value));
+  for (const listener of fixture.listeners.get("ui-colors:changed") ?? []) listener({}, colors);
+  expect(seen).toEqual([colors]); off();
+  for (const listener of fixture.listeners.get("ui-colors:changed") ?? []) listener({}, colors);
+  expect(seen).toHaveLength(1);
 });

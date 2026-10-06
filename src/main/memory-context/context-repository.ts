@@ -1,3 +1,4 @@
+import {isProductionEstimateIdentity} from "./model-counting-contract";
 import {applyOpenRouterExpense,OPENROUTER_EXPENSE_SCOPE} from "./openrouter-bounded";
 import type {DatabaseSync} from "node:sqlite";
 import {objectFields,parseInternalId,parseSourceRef,positiveRevision} from "../memory-core/command-validation";
@@ -10,7 +11,7 @@ import {PolicyRepository} from "../memory-policy/policy-repository";
 import {FactSupports} from "../memory-policy/fact-supports";
 import type {ContextFact,FactSupportDependency,BoundedEstimates} from "./context-contracts";
 import type {BoundSourceRef,FactView} from "../../shared/memory-contracts";
-import {contextFail,CONTEXT_CLAIM_WINDOW_MS,type SourceDependency,type FactDependency,type TranscriptDependency,type TokenCounter,type StoredSummary,type SummarySegment,type SummaryReceipt} from "./context-contracts";
+import {contextFail,CONTEXT_CLAIM_WINDOW_MS,type SourceDependency,type FactDependency,type TranscriptDependency,type TokenCounter,type StoredSummary,type SummarySegment,type SummaryReceipt,type SummaryCounting} from "./context-contracts";
 import {canonicalJson} from "../memory-core/repository-types";
 import {TranscriptLedger} from "./transcript-ledger";
 import {RecallRepository,parseRecallDependencies} from "../memory-recall/recall-repository";
@@ -27,7 +28,7 @@ export interface StoredSnapshot extends ContextOwner {
  factSupportRefs?:FactSupportDependency[];
 }
 interface StoredPermit extends ContextOwner {id:string;snapshotId:string;state:"ready"|"claimed"}
-interface SummaryLease extends ContextOwner {id:string;generation:number;sourceDeps:SourceDependency[];inputRefs:BoundSourceRef[];transcriptRefs?:TranscriptDependency[];inputTranscriptRefs?:TranscriptDependency[];guardRefs?:TranscriptDependency[];expiresAt:number;completed?:{intent:string;receipt:SummaryReceipt}}
+interface SummaryLease extends ContextOwner {id:string;generation:number;sourceDeps:SourceDependency[];inputRefs:BoundSourceRef[];transcriptRefs?:TranscriptDependency[];inputTranscriptRefs?:TranscriptDependency[];guardRefs?:TranscriptDependency[];expiresAt:number;counterIdentity?:TokenCounter["capability"];completed?:{intent:string;receipt:SummaryReceipt}}
 function natural(value:unknown):number {if(!Number.isSafeInteger(value)||(value as number)<0)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return value as number}
 function list(value:unknown,max=1000):unknown[] {if(!Array.isArray(value)||value.length>max)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return value}
 function bound(value:unknown):BoundSourceRef {const ref=parseSourceRef(value);if(!ref.binding||ref.span)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return ref as BoundSourceRef}
@@ -45,13 +46,18 @@ function factSupportRefs(value:unknown):FactSupportDependency[]{return list(valu
 function transcripts(value:unknown):TranscriptDependency[]{return list(value).map(raw=>{const d=objectFields(raw,["headId","revision","digest"]);if(typeof d.digest!=="string"||! /^[a-f0-9]{64}$/.test(d.digest))contextFail("MEMORY_CONTEXT_INPUT_INVALID");return {headId:parseInternalId(d.headId),revision:positiveRevision(d.revision),digest:d.digest}})}
 function counterIdentity(value:unknown,bounded=false):TokenCounter["capability"] {
  const c=objectFields(value,["providerId","model","transport","framingVersion","mode","inputTypes"]);if(c.mode!==(bounded?"estimate":"exact"))contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
- if(bounded&&(c.providerId!=="openrouter"||c.model!=="openai/gpt-6-luna"||c.transport!=="responses"))contextFail("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
+ if(bounded){
+  const production=isProductionEstimateIdentity(c);
+  if(typeof c.framingVersion==="string"&&c.framingVersion.startsWith("firefly-prepared-estimate-")&&!production)contextFail("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
+  if(!production&&(c.providerId!=="openrouter"||c.model!=="openai/gpt-6-luna"||c.transport!=="responses"))contextFail("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
+  if(production&&list(c.inputTypes,64).some(type=>!["text","function-tools","image"].includes(type as string)))contextFail("MEMORY_CONTEXT_COUNTER_UNSUPPORTED");
+ }
  const text=(value:unknown)=>{if(typeof value!=="string"||!value||value.length>1024)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return value};
  return {providerId:text(c.providerId),model:text(c.model),transport:text(c.transport),framingVersion:text(c.framingVersion),mode:bounded?"estimate":"exact",inputTypes:list(c.inputTypes,64).map(text)};
 }
-function parseBoundedEstimates(value:unknown):BoundedEstimates {
+function parseBoundedEstimates(value:unknown,production=false):BoundedEstimates {
  const e=objectFields(value,["estimatedPromptTokens","estimatedSTokens","selectionInputLimit"]),selectionInputLimit=natural(e.selectionInputLimit);
- if(selectionInputLimit>922000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+ if(!production&&selectionInputLimit>922000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
  return {estimatedPromptTokens:natural(e.estimatedPromptTokens),estimatedSTokens:natural(e.estimatedSTokens),selectionInputLimit};
 }
 /** Worker-only metadata repository. No source text, prompt body or model output is persisted. */
@@ -140,7 +146,7 @@ export class ContextRepository {
  }
  execute(value:unknown):unknown {
   const command=objectFields(value,["kind","scopeKey","body"],["commandId"]),scope=parseInternalId(command.scopeKey);
-  const body=objectFields(command.body,["actorKey","providerId","sessionId","bootId"],["sourceRefs","sourceDeps","factRefs","generation","snapshotId","permitId","requestDigest","promptTokens","inputLimit","requiredSources","transcriptRefs","requiredTranscripts","headId","operationId","expectedRef","incarnation","contentRevision","throughSeq","digest","counterIdentity","requiredSummaries","leaseId","leaseMs","inputRefs","summaryId","intent","segments","beforeTokens","afterTokens","summaryLimit","recallDeps","useTicketId","processBootId","invokedAt","attemptAt","historyDeps","guardRefs","provenance","inputTranscriptRefs","transcriptSegments","expectedRefs","responseProgress","factSupportRefs","admissionMode","estimates","reservationId","costNanodollars"]),owner=this.owner(body);
+  const body=objectFields(command.body,["actorKey","providerId","sessionId","bootId"],["sourceRefs","sourceDeps","factRefs","generation","snapshotId","permitId","requestDigest","promptTokens","inputLimit","requiredSources","transcriptRefs","requiredTranscripts","headId","operationId","expectedRef","incarnation","contentRevision","throughSeq","digest","counterIdentity","requiredSummaries","leaseId","leaseMs","inputRefs","summaryId","intent","segments","beforeTokens","afterTokens","summaryLimit","recallDeps","useTicketId","processBootId","invokedAt","attemptAt","historyDeps","guardRefs","provenance","inputTranscriptRefs","transcriptSegments","expectedRefs","responseProgress","factSupportRefs","admissionMode","estimates","reservationId","costNanodollars","includeCounting"]),owner=this.owner(body);
   if(scope===OPENROUTER_EXPENSE_SCOPE&&!["expenseReserve","expenseSettle","expenseRelease"].includes(command.kind as string))contextFail("MEMORY_CONTEXT_COST_DENIED");
   const identity=["actorKey","providerId","sessionId","bootId"];
   const apply=()=>{
@@ -151,16 +157,19 @@ export class ContextRepository {
     return {available:true,summary};
    }
    if(command.kind==="summaryLease"){
-    objectFields(body,[...identity,"leaseId","generation","sourceDeps","inputRefs","leaseMs"],["transcriptRefs","inputTranscriptRefs","guardRefs"]);const duration=natural(body.leaseMs);if(duration<1||duration>300000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+    objectFields(body,[...identity,"leaseId","generation","sourceDeps","inputRefs","leaseMs"],["transcriptRefs","inputTranscriptRefs","guardRefs","counterIdentity","admissionMode"]);const duration=natural(body.leaseMs);if(duration<1||duration>300000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
     const inputRefs=list(body.inputRefs).map(bound),sourceDeps=parseSourceDependencies(body.sourceDeps);const transcriptRefs=transcripts(body.transcriptRefs??[]),inputTranscriptRefs=transcripts(body.inputTranscriptRefs??[]),guardRefs=transcripts(body.guardRefs??[]);
     if((!inputRefs.length&&!inputTranscriptRefs.length)||(inputRefs.length&&inputTranscriptRefs.length)||new Set(inputRefs.map(r=>r.sourceId)).size!==inputRefs.length||inputRefs.some(r=>!sourceDeps.some(d=>canonicalJson(r)===canonicalJson(d.sourceRef)))||new Set(inputTranscriptRefs.map(r=>r.headId)).size!==inputTranscriptRefs.length||inputTranscriptRefs.some(r=>!transcriptRefs.some(d=>canonicalJson(r)===canonicalJson(d))))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
-    const lease:SummaryLease={...owner,id:parseInternalId(body.leaseId),generation:this.assertGeneration(scope,body.generation),sourceDeps,inputRefs,transcriptRefs,inputTranscriptRefs,guardRefs,expiresAt:transactionNow(this.db)+duration};this.checkLease(scope,owner,lease);this.save(scope,"summary-lease",lease);return {leaseId:lease.id};
+    if(body.admissionMode!==undefined&&body.admissionMode!=="bounded")contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+    const summaryCounter=body.counterIdentity===undefined?undefined:counterIdentity(body.counterIdentity,body.admissionMode==="bounded");
+    if(body.admissionMode==="bounded"&&(!summaryCounter||!inputTranscriptRefs.length))contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
+    const lease:SummaryLease={...owner,...(summaryCounter?{counterIdentity:summaryCounter}:{}),id:parseInternalId(body.leaseId),generation:this.assertGeneration(scope,body.generation),sourceDeps,inputRefs,transcriptRefs,inputTranscriptRefs,guardRefs,expiresAt:transactionNow(this.db)+duration};this.checkLease(scope,owner,lease);this.save(scope,"summary-lease",lease);return {leaseId:lease.id};
    }
    if(command.kind==="summaryLeaseRead"){
     objectFields(body,[...identity,"leaseId"]);const lease=this.read<SummaryLease>(scope,parseInternalId(body.leaseId),"summary-lease",owner);this.checkLease(scope,owner,lease);return {ready:true};
    }
    if(command.kind==="summaryLeaseState"||command.kind==="summaryCommit"){
-    objectFields(body,[...identity,"leaseId","intent"],command.kind==="summaryCommit"?["summaryId","segments","beforeTokens","afterTokens","summaryLimit","transcriptSegments"]:[]);
+    objectFields(body,[...identity,"leaseId","intent"],command.kind==="summaryCommit"?["summaryId","segments","beforeTokens","afterTokens","summaryLimit","transcriptSegments","counterIdentity","admissionMode","estimates","includeCounting"]:[]);
     if(typeof body.intent!=="string"||! /^[a-f0-9]{64}$/.test(body.intent))contextFail("MEMORY_CONTEXT_INPUT_INVALID");const lease=this.read<SummaryLease>(scope,parseInternalId(body.leaseId),"summary-lease",owner);
     if(lease.completed){if(lease.completed.intent!==body.intent)contextFail("MEMORY_CONTEXT_LEASE_USED");return {receipt:lease.completed.receipt}}
     this.checkLease(scope,owner,lease);if(command.kind==="summaryLeaseState")return {ready:true};
@@ -172,9 +181,23 @@ export class ContextRepository {
     let prior=-1;const transcriptSegments=transcripts(body.transcriptSegments??[]);
     for(const ref of transcriptSegments){const index=(lease.inputTranscriptRefs??[]).findIndex(r=>canonicalJson(r)===canonicalJson(ref));if(index<0||index<=prior)contextFail("MEMORY_CONTEXT_SUMMARY_ORDER_INVALID");prior=index}
     if(segments.length&&transcriptSegments.length)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");
-    const before=natural(body.beforeTokens),after=natural(body.afterTokens),limit=natural(body.summaryLimit),id=parseInternalId(body.summaryId);
-    const receipt:SummaryReceipt=(segments.length||transcriptSegments.length)&&after<before&&after<=limit?{status:"committed",summaryId:id}:{status:"no-benefit",summaryId:null};
-    if(receipt.status==="committed")this.save(scope,"summary",{...owner,id,generation:lease.generation,sourceDeps:lease.sourceDeps,inputRefs:lease.inputRefs,segments,transcriptRefs:lease.transcriptRefs??[],transcriptSegments} as StoredSummary);
+    if(body.admissionMode!==undefined&&body.admissionMode!=="bounded"||body.includeCounting!==undefined&&body.includeCounting!==true)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+    const bounded=body.admissionMode==="bounded",summaryCounter=body.counterIdentity===undefined?undefined:counterIdentity(body.counterIdentity,bounded);
+    if(canonicalJson(summaryCounter??null)!==canonicalJson(lease.counterIdentity??null))contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
+    let before:number,after:number,counting:SummaryCounting|undefined;
+    if(bounded){
+     if(!summaryCounter||!lease.inputTranscriptRefs?.length||body.beforeTokens!==undefined||body.afterTokens!==undefined)contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
+     const estimates=objectFields(body.estimates,["estimatedBeforeTokens","estimatedAfterTokens"]);
+     before=natural(estimates.estimatedBeforeTokens);after=natural(estimates.estimatedAfterTokens);
+     counting={mode:"estimate",framingVersion:summaryCounter.framingVersion,estimatedBeforeTokens:before,estimatedAfterTokens:after};
+    }else{
+     if(body.estimates!==undefined)contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");
+     before=natural(body.beforeTokens);after=natural(body.afterTokens);
+     if(body.includeCounting){if(!summaryCounter)contextFail("MEMORY_CONTEXT_BUDGET_UNPROVEN");counting={mode:"exact",framingVersion:summaryCounter.framingVersion,beforeTokens:before,afterTokens:after}}
+    }
+    const limit=natural(body.summaryLimit),id=parseInternalId(body.summaryId);
+    const receipt:SummaryReceipt={...((segments.length||transcriptSegments.length)&&after<before&&after<=limit?{status:"committed" as const,summaryId:id}:{status:"no-benefit" as const,summaryId:null}),...(counting?{counting}:{})};
+    if(receipt.status==="committed")this.save(scope,"summary",{...owner,id,generation:lease.generation,sourceDeps:lease.sourceDeps,inputRefs:lease.inputRefs,segments,transcriptRefs:lease.transcriptRefs??[],transcriptSegments,...(counting?{counting}:{})} as StoredSummary);
     lease.completed={intent:body.intent,receipt};this.save(scope,"summary-lease",lease);return {receipt};
    }
    if(command.kind==="confirmUse"||command.kind==="useUnknown"){
@@ -219,8 +242,9 @@ export class ContextRepository {
     const bounded=body.admissionMode==="bounded";if(body.admissionMode!==undefined&&!bounded)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
     objectFields(body,[...identity,"generation","sourceDeps","factRefs","snapshotId","requiredSources","requestDigest","counterIdentity",...(bounded?["admissionMode","estimates"]:["promptTokens","inputLimit"])],["transcriptRefs","requiredTranscripts","requiredSummaries","recallDeps","historyDeps","guardRefs","factSupportRefs"]);
     if(typeof body.requestDigest!=="string"||! /^[a-f0-9]{64}$/.test(body.requestDigest))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+    const checkedCounter=counterIdentity(body.counterIdentity,bounded);
     const record:StoredSnapshot={...owner,id:parseInternalId(body.snapshotId),generation:natural(body.generation),sourceDeps:parseSourceDependencies(body.sourceDeps),factRefs:factRefs(body.factRefs),recallDeps:parseRecallDependencies(body.recallDeps??[]),
-     guardRefs:transcripts(body.guardRefs??[]),historyDeps:parseHistoryDependencies(body.historyDeps??[]),requiredSources:list(body.requiredSources).map(parseInternalId),transcriptRefs:transcripts(body.transcriptRefs??[]),requiredTranscripts:list(body.requiredTranscripts??[]).map(parseInternalId),requiredSummaries:list(body.requiredSummaries??[]).map(parseInternalId),counterIdentity:counterIdentity(body.counterIdentity,bounded),requestDigest:body.requestDigest,...(bounded?{admissionMode:"bounded" as const,estimates:parseBoundedEstimates(body.estimates)}:{promptTokens:natural(body.promptTokens),inputLimit:natural(body.inputLimit)}),state:"ready"};
+     guardRefs:transcripts(body.guardRefs??[]),historyDeps:parseHistoryDependencies(body.historyDeps??[]),requiredSources:list(body.requiredSources).map(parseInternalId),transcriptRefs:transcripts(body.transcriptRefs??[]),requiredTranscripts:list(body.requiredTranscripts??[]).map(parseInternalId),requiredSummaries:list(body.requiredSummaries??[]).map(parseInternalId),counterIdentity:checkedCounter,requestDigest:body.requestDigest,...(bounded?{admissionMode:"bounded" as const,estimates:parseBoundedEstimates(body.estimates,isProductionEstimateIdentity(checkedCounter))}:{promptTokens:natural(body.promptTokens),inputLimit:natural(body.inputLimit)}),state:"ready"};
     if(body.factSupportRefs!==undefined)record.factSupportRefs=factSupportRefs(body.factSupportRefs);
     if(bounded?record.estimates!.estimatedPromptTokens>record.estimates!.selectionInputLimit:record.promptTokens!>record.inputLimit!)contextFail("MEMORY_CONTEXT_OVER_BUDGET");
     if(record.requiredSources.some(id=>!record.sourceDeps.some(d=>d.sourceRef.sourceId===id)))contextFail("MEMORY_CONTEXT_INPUT_INVALID");

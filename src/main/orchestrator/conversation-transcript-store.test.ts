@@ -158,3 +158,64 @@ it("readonly barrier queues mutations and survives rejection",async()=>{
  expect(await store.withReadonlyBarrier("c1",async()=>42)).toBe(42);
  expect(()=>store.withReadonlyBarrier("../escape",async()=>42)).toThrow("TRANSCRIPT_INVALID_CONVERSATION_ID");
 });
+it("can validate canonical sources under the same real guarded append without reentering its queue",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));let ticket:object|undefined;
+ await store.append("c",{kind:"assistant",id:"a",at:1001,payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:async value=>{ticket=value;expect((await store.withReadLease("c",read=>read())).throughSeq).toBe(1)},
+  commit:async write=>{expect((await store.withReadLease("c",read=>read())).entries).toHaveLength(1);return write()},
+ });
+ expect((await store.read("c")).throughSeq).toBe(2);
+ await expect(store.withHeldReadLease(ticket!,"c",read=>read())).rejects.toThrow("TRANSCRIPT_HELD_TICKET_DENIED");
+});
+it("does not lend a guard's read scope to a concurrent outside async chain",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));let release!:()=>void,started!:()=>void;
+ const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ const append=store.append("c",{kind:"assistant",id:"a",at:1001,payload:{role:"assistant",content:"answer"}},{throughSeq:1,validate:async ticket=>{
+  await expect(store.withHeldReadLease({},"c",read=>read())).rejects.toThrow("TRANSCRIPT_HELD_TICKET_DENIED");
+  await expect(store.withHeldReadLease(ticket,"other",read=>read())).rejects.toThrow("TRANSCRIPT_HELD_TICKET_DENIED");
+  started();await gate;expect((await store.withReadLease("c",read=>read())).throughSeq).toBe(1);
+ },commit:write=>write()});
+ await ready;let outside=false;const reading=store.withReadLease("c",async read=>{const value=await read();outside=true;return value});await new Promise<void>(r=>setImmediate(r));expect(outside).toBe(false);release();await append;expect((await reading).throughSeq).toBe(2);
+});
+it("drains unawaited guarded reads before releasing the mutation queue",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));
+ let release!:()=>void,started!:()=>void;
+ const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ let readFinished=false,committed=false,outside=false;
+ const append=store.append("c",{kind:"assistant",id:"a",payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:()=>{void store.withReadLease("c",async read=>{await read();started();await gate;readFinished=true});},
+  commit:write=>{expect(readFinished).toBe(true);committed=true;return write()},
+ });
+ await ready;const reading=store.withReadLease("c",async read=>{outside=true;return read()});
+ await new Promise<void>(r=>setImmediate(r));expect(committed).toBe(false);expect(outside).toBe(false);
+ release();await append;expect((await reading).throughSeq).toBe(2);
+});
+it("rejects a commit with an unawaited read and drains it before permitting later work",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ let finished=false;
+ const append=store.append("c",{kind:"assistant",id:"a",payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:()=>{},commit:async write=>{void store.withReadLease("c",async()=>{started();await gate});await ready;return write()},
+ });
+ const rejected=expect(append).rejects.toThrow("TRANSCRIPT_HELD_READ_PENDING").then(()=>{finished=true});
+ await ready;let outside=false;const reading=store.withReadLease("c",async read=>{outside=true;return read()});
+ await new Promise<void>(r=>setImmediate(r));expect(finished).toBe(false);expect(outside).toBe(false);
+ release();await rejected;expect((await reading).entries.map(e=>e.id)).toEqual(["u"]);
+});
+it("rejects reads from an inherited async guard scope after its append has settled",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));
+ let release!:()=>void;const gate=new Promise<void>(r=>release=r);let late:Promise<unknown>|undefined;
+ await store.append("c",{kind:"assistant",id:"a",payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:()=>{late=gate.then(()=>store.withReadLease("c",read=>read()));},commit:write=>write(),
+ });
+ const denied=expect(late).rejects.toThrow("TRANSCRIPT_HELD_TICKET_DENIED");release();await denied;
+ expect((await store.read("c")).throughSeq).toBe(2);
+});
+it("does not persist when a commit swallows a failed held source validation",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));
+ const append=store.append("c",{kind:"assistant",id:"a",payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:()=>{},commit:async write=>{await store.withReadLease("c",async()=>{throw Error("source validation failed")}).catch(()=>{});return write()},
+ });
+ await expect(append).rejects.toThrow("source validation failed");
+ expect((await store.read("c")).entries.map(e=>e.id)).toEqual(["u"]);
+});

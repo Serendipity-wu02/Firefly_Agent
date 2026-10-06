@@ -87,3 +87,8 @@ describe("appearance settings markup", () => {
     }
   });
 });
+
+it("includes real auto-applied custom color controls and reset in appearance", () => {
+  const panel = form("appearance-form");
+  for (const id of ["ui-colors-enabled", "ui-colors-reset", "ui-colors-status", "ui-color-accent", "ui-color-background", "ui-color-foreground"]) expect(panel).toContain(`id="${id}"`);
+});

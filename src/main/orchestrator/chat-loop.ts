@@ -23,8 +23,10 @@ import { buildContextUsageSnapshot } from "./context-usage";
 import { isExplicitStreamUnsupported } from "./vendors/stream-support";
 import { composePromptLayers } from "./prompt-layers";
 import type { TranscriptSink } from "./transcript-sink";
+import type { MainMemoryRun } from "../memory-context/main-memory-runtime";
 
 export interface ChatLoopOptions {
+  memoryRun?: MainMemoryRun;
   settings: AgentLoopSettings;
   adapter: ChatVendorAdapter;
   messages: ChatMessage[];
@@ -101,11 +103,16 @@ function stripToolProtocol(text: string): string {
 }
 
 export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopResult> {
+  if (options.memoryRun && options.transcriptSink) {
+    options = { ...options, transcriptSink: options.memoryRun.bindSink(options.transcriptSink) };
+  }
   const startedAt = Date.now();
   const usageRecorder = options.recordUsage ?? ((input, output, calls, cachedInput, cacheCreation) => recordUsage(input, output, calls, cachedInput, options.settings.model, cacheCreation));
   let usedImageCaptionFallback = false;
 
-  const messages = await compressConversation({
+  // S owns selection and provenance-backed summaries for controlled runs. The old
+  // summarizer has an independent fetch and cannot establish canonical evidence.
+  const messages = options.memoryRun ? options.messages : await compressConversation({
     messages: options.messages,
     adapter: options.adapter,
     settings: options.settings,
@@ -137,7 +144,7 @@ export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopRe
   const timeout = getTimeoutSettings().chatRequestTimeout;
 
   const remainingBudget = (): number => {
-    if (options.signal?.aborted) throw new Error("E_SOUL_ONLY_CANCELLED");
+    if (options.signal?.aborted) throw new Error(options.memoryRun ? "MEMORY_CONTEXT_CANCELLED" : "E_SOUL_ONLY_CANCELLED");
     // 0 表示没有整轮预算；单次请求仍使用局部请求超时。
     if (options.timeoutMs <= 0 || !Number.isFinite(options.timeoutMs)) return timeout;
     const remaining = options.timeoutMs - (Date.now() - startedAt);
@@ -170,6 +177,12 @@ export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopRe
       ...buildRequest(messages, false),
     };
     const effectiveRequest = options.adapter.applyCacheHints?.(request, vendorConfig) ?? request;
+    if (options.memoryRun) {
+      return options.memoryRun.call({
+        adapter: options.adapter, request: effectiveRequest, config: vendorConfig,
+        timeoutMs: remainingBudget(), signal: options.signal,
+      });
+    }
     const http = options.adapter.buildRequest(effectiveRequest, options.settings);
     const controller = new AbortController();
     const abort = () => controller.abort();
@@ -200,7 +213,7 @@ export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopRe
 
   const messageId = `msg-${Date.now()}`;
   const reasoningMessageId = `${messageId}-reasoning`;
-  let emittedStreamContent = false;
+  let receivedMeaningfulStreamDelta = false;
   let reasoningStarted = false;
   let reasoningEnded = false;
   let textStarted = false;
@@ -239,13 +252,16 @@ export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopRe
     const emitTextDelta = (delta: string) => {
       if (!delta) return;
       text += delta;
-      emittedStreamContent = true;
       startText();
       options.onEvent?.({ type: "text_message_content", messageId, delta });
     };
     const onDelta = (delta: UnifiedStreamDelta) => {
+      // Count provider content before display filtering. Usage and empty string
+      // deltas do not make a stream partial; tool/refusal/terminal events do.
+      if (delta.type !== "usage" && (!("delta" in delta) || delta.delta.length > 0)) {
+        receivedMeaningfulStreamDelta = true;
+      }
       if (delta.type === "reasoning_delta" && delta.delta) {
-        emittedStreamContent = true;
         startReasoning();
         options.onEvent?.({
           type: "reasoning_message_content",
@@ -257,7 +273,9 @@ export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopRe
       }
     };
     try {
-      const response = await (options.streamChat ?? streamChatWithSdk)({
+      const response = await (options.memoryRun
+        ? (input: Parameters<MainMemoryRun["call"]>[0]) => options.memoryRun!.call(input)
+        : options.streamChat ?? streamChatWithSdk)({
         adapter: options.adapter,
         request: effectiveRequest,
         config: vendorConfig,
@@ -279,7 +297,8 @@ export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopRe
         needsReveal: false,
       };
     } catch (error) {
-      if (!emittedStreamContent && isExplicitStreamUnsupported(error)) {
+      if (!receivedMeaningfulStreamDelta && (isExplicitStreamUnsupported(error)
+        || options.memoryRun && error instanceof Error && error.message === "MEMORY_CONTEXT_STREAM_UNSUPPORTED")) {
         throw new StreamUnavailableError("流式请求不受支持", { cause: error });
       }
       throw error;
@@ -290,7 +309,7 @@ export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopRe
     try {
       return await invokeStreaming(messages);
     } catch (error) {
-      if (!(error instanceof StreamUnavailableError) || emittedStreamContent) throw error;
+      if (!(error instanceof StreamUnavailableError) || receivedMeaningfulStreamDelta) throw error;
       return { response: await invokeNonStreaming(messages), needsReveal: true };
     }
   };
@@ -301,7 +320,10 @@ export async function runChatLoop(options: ChatLoopOptions): Promise<AgentLoopRe
     try {
       result = await invokeWithStreamFallback(options.messages);
     } catch (error) {
-      if (emittedStreamContent || options.signal?.aborted || !options.imageCaptionFallback || usedImageCaptionFallback) {
+      // Only Main's definite image-capability refusal permits a newly authorized caption frame.
+      // Authority/budget errors, timeouts, and unknown sends remain terminal.
+      const memoryFailure = options.memoryRun && !(error instanceof Error && error.message === "MEMORY_CONTEXT_IMAGE_UNSUPPORTED");
+      if (memoryFailure || receivedMeaningfulStreamDelta || options.signal?.aborted || !options.imageCaptionFallback || usedImageCaptionFallback) {
         throw error;
       }
       usedImageCaptionFallback = true;

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { createBackgroundMemoryIngressIssuer, type BackgroundMemoryHost, type BackgroundMemoryPreparedRun } from "../memory-context/background-memory-ingress";
 import type { WebContents } from "electron";
 import { IPC } from "../../shared/ipc-channels";
 import type { PluginPromptMode, PluginTurnStatus } from "../../plugins/api";
@@ -17,9 +19,10 @@ import type { ScheduledRunResult, ScheduledTask, ScheduledTaskHistoryEntry } fro
  * 第二期：scheduler 同步迁移到 tool_system / soul_system 分阶段，buildOptions 改为返回
  * 带 toolSystemContent / soulSystemBaseContent 的 FireflyRunOptions。
  */
-type LegacyRunOptions = Omit<FireflyRunOptions, "toolSystemContent" | "soulSystemBaseContent">;
+type LegacyRunOptions = Omit<FireflyRunOptions, "toolSystemContent" | "soulSystemBaseContent"> & { modelProfileId?: string };
 
 interface RunnerDeps {
+  memoryHost?: BackgroundMemoryHost;
   buildOptions: (task: ScheduledTask) => Promise<LegacyRunOptions>;
   getChatWebContents: () => WebContents | null;
   recordHistory: (entry: ScheduledTaskHistoryEntry) => void;
@@ -45,11 +48,21 @@ export function applyScheduledExecutionPolicy(options: FireflyRunOptions, mode: 
 }
 
 export function createSchedulerRunner(deps: RunnerDeps) {
-  async function runScheduledTask(task: ScheduledTask, _scheduledFireAt: Date, manual: boolean): Promise<ScheduledRunResult> {
+  let closed = false;
+  const active = new Map<object, AbortController>();
+  const pending = new Set<Promise<ScheduledRunResult>>();
+  const issuer = createBackgroundMemoryIngressIssuer({ entry: "scheduler", isCurrent: source => !closed && active.has(source) });
+  function runScheduledTask(task: ScheduledTask, scheduledFireAt: Date, manual: boolean): Promise<ScheduledRunResult> {
+    if (closed) return Promise.reject(Error("MEMORY_CONTEXT_RUNTIME_CLOSED"));
+    const source = {}, controller = new AbortController(); active.set(source, controller);
+    const operation = execute(task, scheduledFireAt, manual, source, controller.signal).finally(() => { active.delete(source); pending.delete(operation); });
+    pending.add(operation); return operation;
+  }
+  async function execute(task: ScheduledTask, _scheduledFireAt: Date, manual: boolean, source: object, signal: AbortSignal): Promise<ScheduledRunResult> {
     const historyId = deps.id();
     const startedAt = deps.now();
     const allTools = toolRegistry.getAllTools();
-    const effectiveTools = filterToolsForTask(task, allTools);
+    const effectiveTools = filterToolsForTask(task, deps.memoryHost ? allTools.filter(tool => !["user_memory", "read_memory", "write_memory", "recall_history"].includes(tool.id)) : allTools);
     const effectiveToolIds = effectiveTools.map(t => t.id);
 
     deps.recordHistory({
@@ -85,6 +98,7 @@ export function createSchedulerRunner(deps: RunnerDeps) {
       schedulerRunId: historyId,
     });
 
+    let prepared: BackgroundMemoryPreparedRun | undefined;
     try {
       const legacyOptions = await deps.buildOptions(task);
       legacyOptions.tools = effectiveTools;
@@ -103,11 +117,22 @@ export function createSchedulerRunner(deps: RunnerDeps) {
       }
       const toolSystemContent = soulSystemBaseContent; // 第一期暂用同一份
 
+      if (deps.memoryHost) {
+        if (!legacyOptions.modelProfileId) throw Error("MEMORY_RUN_PROFILE_DENIED");
+        const key = createHash("sha256").update(task.id).digest("hex");
+        const ingress = issuer.capture({ source, sessionId: `scheduler-${key}`, sourceKey: `scheduler-task-${key}`, instructionText: task.prompt, signal });
+        prepared = await deps.memoryHost.prepareBackgroundRun({ ingress, modelProfileId: legacyOptions.modelProfileId,
+          runId: historyId, userTurnId: `${historyId}-instruction`, assistantTurnId: `${historyId}-assistant`, instructionText: task.prompt, signal });
+      }
       const options = applyScheduledExecutionPolicy({
         ...legacyOptions,
         messages,
         toolSystemContent,
         soulSystemBaseContent,
+        signal: prepared?.signal ?? signal,
+        runId: historyId,
+        ...(prepared ? { conversationId: prepared.sessionId, transcriptSink: prepared.transcriptSink,
+          openMemoryRun: prepared.openMemoryRun, backgroundMemory: deps.memoryHost } : {}),
       }, task.mode ?? "work");
 
       const agent = new FireflyAgent({ threadId: `scheduler-${task.id}`, description: `Scheduled task: ${task.title}` });
@@ -200,8 +225,14 @@ export function createSchedulerRunner(deps: RunnerDeps) {
       });
       send({ type: "RUN_ERROR", message, code: err instanceof AgentRuntimeError ? err.code : undefined, threadId: `scheduler-${task.id}`, runId: historyId, schedulerRunId: historyId, schedulerTaskId: task.id });
       return { ok: false, historyId, error: message, effectiveToolIds };
+    } finally {
+      await prepared?.close();
     }
   }
 
-  return { runScheduledTask };
+  return { runScheduledTask, async close(): Promise<void> {
+    closed = true;
+    for (const controller of active.values()) controller.abort(Error("MEMORY_CONTEXT_CANCELLED"));
+    await Promise.allSettled([...pending]);
+  } };
 }

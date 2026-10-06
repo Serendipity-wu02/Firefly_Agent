@@ -558,6 +558,10 @@ html, body {
 .cy-sidebar-resizer:focus-visible { outline: 2px solid var(--cy-accent); outline-offset: 2px; }
 .cy-workspace-empty { padding: 24px; color: var(--cy-text-muted); line-height: 1.6; }
 .cy-workspace-empty button { padding: 8px 12px; border: 1px solid var(--cy-border); border-radius: 12px; background: #fff; color: var(--cy-text); cursor: pointer; }
+:root[data-ui-colors] .cy-compressing-context,
+:root[data-ui-colors] .cy-workspace-empty button {
+  background: var(--cy-bg-workspace);
+}
 .cy-workspace .cy-workspace-composer { padding-top: 56px; }
 .cy-workspace.has-messages .cy-message-list { padding-top: 52px; }
 .cy-right-inspector .cy-todo--docked, .cy-right-inspector .cy-code-git--docked { flex: 1; min-height: 0; border-bottom: 0; border-radius: 12px; }
@@ -568,3 +572,5 @@ html, body {
 .cy-right-inspector .cy-code-git--docked:not(.cy-code-git--collapsed) .cy-code-git__body { max-height: none; }
 
 .cy-right-inspector .cy-todo.cy-todo--docked, .cy-right-inspector .cy-code-git.cy-code-git--docked { height: 100%; }
+
+.cy-page-sidebar > .cy-sidebar-resizer { position: absolute; top: 8px; bottom: 8px; right: -3px; width: 6px; display: block; }

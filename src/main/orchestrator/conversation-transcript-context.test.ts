@@ -305,3 +305,22 @@ describe("transcript failure matrix", () => {
     });
   });
 });
+
+it("keeps missing Main run evidence unknown instead of inventing a non-execution fact", () => {
+  const e = createEntries(), calls = [{ id: "unknown-write", name: "write_file", arguments: '{"path":"unknown.txt","content":"fixture"}' }];
+  const active = materializeTranscript([e.user("u", "u", 1, "fixture"), e.assistantWithCalls("a", calls, "unavailable-run")], noRuns, { missingRunEvidence: "unknown" });
+  expect(outcomeFor(active.messages, "unknown-write")).toBe("unknown");
+  expect(active.uncertainEffects).toEqual([expect.objectContaining({ toolCallId: "unknown-write", toolName: "write_file" })]);
+});
+
+it("guards unknown started idempotent file mutations while keeping planned writes unstarted", () => {
+  const e = createEntries(), calls = [{ id: "started-write", name: "write_file", arguments: '{"path":"same.txt","content":"same"}' }, { id: "planned-write", name: "write_file", arguments: '{"path":"planned.txt","content":"same"}' }];
+  const run = { toolCalls: [
+    { toolCallId: "started-write", status: "started", sideEffect: "idempotent_mutation" },
+    { toolCallId: "planned-write", status: "planned", sideEffect: "idempotent_mutation" },
+  ] } as import("./harness/run-store").HarnessRunSession;
+  const active = materializeTranscript([e.assistantWithCalls("a", calls, "interrupted-run")], { get: () => run });
+  expect(outcomeFor(active.messages, "started-write")).toBe("unknown");
+  expect(outcomeFor(active.messages, "planned-write")).toBe("not_executed");
+  expect(active.uncertainEffects.map(effect => effect.toolCallId)).toEqual(["started-write"]);
+});

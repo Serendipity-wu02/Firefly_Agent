@@ -6,10 +6,10 @@
 // 高亮：shiki 单例 + github-light 主题，按扩展名选语言；渐进式渲染（先纯文本后上色），
 // 高亮失败或语言不支持时保持纯文本，不阻塞阅读。
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Tree } from "antd";
 import type { DataNode, EventDataNode } from "antd/es/tree";
-import { FileText } from "lucide-react";
+import { FileText, RefreshCw } from "lucide-react";
 import { createHighlighter, type BundledLanguage, type Highlighter, type ThemedToken } from "shiki";
 import { useTranslation } from "../../../i18n";
 import type { WorkspaceFileEntry, WorkspaceFileErrorCode } from "../../../../../shared/workspace-files-types";
@@ -142,96 +142,136 @@ export function FileTreePanel({
   sessionId,
   workspaceRoot,
   onOpenFile,
+  refreshRevision,
 }: {
   sessionId: string;
   /** 工作区根路径（仅用于判定是否绑定；实际访问全部走 sessionId 由主进程校验） */
   workspaceRoot?: string;
   onOpenFile: (relPath: string) => void;
+  /** 外部工作区变更通知；变化时重新读取目录及展开的子目录。 */
+  refreshRevision?: number | string;
 }) {
   const { t } = useTranslation();
   const [treeData, setTreeData] = useState<TreeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<WorkspaceFileErrorCode | null>(null);
   const [truncated, setTruncated] = useState(false);
+  const [refreshSequence, setRefreshSequence] = useState(0);
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
+  const expandedRef = useRef<string[]>([]);
+  const workspaceRef = useRef({ sessionId, workspaceRoot });
+  // 每次读取周期都有独立身份，旧根目录/懒加载结果不能写入新周期。
+  const requestScope = useMemo(() => ({ active: false, generation: 0 }), [sessionId, workspaceRoot, refreshRevision, refreshSequence]);
   // 文件树根容器引用：切标签前用它释放焦点，避免 aria-hidden 区域持有 activeElement
   const treeRootRef = useRef<HTMLDivElement>(null);
 
-  const listDirectory = useCallback(
-    async (relPath: string): Promise<TreeItem[]> => {
-      const api = window.workspaceFiles;
-      if (!api) throw new Error("workspaceFiles API unavailable");
-      const result = await api.list(sessionId, relPath);
-      if (!result.ok) throw Object.assign(new Error(result.code), { code: result.code });
-      setTruncated(Boolean(result.truncated));
-      return result.entries.map(toTreeItem);
-    },
-    [sessionId],
-  );
+  const listDirectory = useCallback(async (relPath: string) => {
+    const api = window.workspaceFiles;
+    if (!api) throw new Error("workspaceFiles API unavailable");
+    const result = await api.list(sessionId, relPath);
+    if (!result.ok) throw Object.assign(new Error(result.code), { code: result.code });
+    return { items: result.entries.map(toTreeItem), truncated: Boolean(result.truncated) };
+  }, [sessionId]);
 
-  // 根目录：sessionId / 工作区变化时重拉
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
+    requestScope.active = true;
+    const generation = ++requestScope.generation;
+    const isCurrent = () => requestScope.active && requestScope.generation === generation;
+    if (workspaceRef.current.sessionId !== sessionId || workspaceRef.current.workspaceRoot !== workspaceRoot) {
+      expandedRef.current = [];
+      setExpandedKeys([]);
+      workspaceRef.current = { sessionId, workspaceRoot };
+    }
+    setLoading(Boolean(workspaceRoot));
     setError(null);
-    listDirectory("")
+    setTreeData([]);
+    setTruncated(false);
+    if (!workspaceRoot) return () => { requestScope.active = false; };
+
+    const expanded = new Set(expandedRef.current);
+    let nextTruncated = false;
+    // 保持展开状态，但不沿用已缓存的子节点；目录消失时不会再请求它。
+    const readExpanded = async (relPath: string): Promise<TreeItem[]> => {
+      const result = await listDirectory(relPath);
+      if (!isCurrent()) return [];
+      nextTruncated ||= result.truncated;
+      return Promise.all(result.items.map(async (item) => item.isDir && expanded.has(item.key)
+        ? { ...item, loaded: true, children: await readExpanded(item.key) }
+        : item));
+    };
+    readExpanded("")
       .then((items) => {
-        if (!cancelled) setTreeData(items);
+        if (!isCurrent()) return;
+        setTreeData(items);
+        setTruncated(nextTruncated);
       })
       .catch((err: { code?: WorkspaceFileErrorCode }) => {
-        if (!cancelled) {
-          setError(err?.code ?? "LIST_FAILED");
-          setTreeData([]);
-        }
+        if (isCurrent()) setError(err?.code ?? "LIST_FAILED");
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (isCurrent()) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [listDirectory, workspaceRoot]);
+    return () => { requestScope.active = false; };
+  }, [listDirectory, sessionId, workspaceRoot, requestScope]);
 
-  // 懒加载：展开目录时拉该层
-  const loadData = useCallback(
-    async (node: EventDataNode<TreeItem>) => {
-      const item = node as unknown as TreeItem;
-      if (!item.isDir || item.loaded) return;
-      const children = await listDirectory(item.key);
-      setTreeData((current) => attachChildren(current, item.key, children));
-    },
-    [listDirectory],
-  );
+  const loadData = useCallback(async (node: EventDataNode<TreeItem>) => {
+    const item = node as unknown as TreeItem;
+    if (!requestScope.active || !item.isDir || item.loaded) return;
+    const generation = requestScope.generation;
+    const isCurrent = () => requestScope.active && requestScope.generation === generation;
+    try {
+      const result = await listDirectory(item.key);
+      if (!isCurrent()) return;
+      setTreeData((current) => attachChildren(current, item.key, result.items));
+      setTruncated((current) => current || result.truncated);
+    } catch (err) {
+      if (isCurrent()) setError((err as { code?: WorkspaceFileErrorCode })?.code ?? "LIST_FAILED");
+    }
+  }, [listDirectory, requestScope]);
 
-  if (!workspaceRoot) {
-    return <div className="cy-file-tree is-state">{t("fileTree.errNoWorkspace")}</div>;
-  }
-  if (loading && treeData.length === 0) {
-    return <div className="cy-file-tree is-state">{t("fileTree.loading")}</div>;
-  }
-  if (error) {
-    return <div className="cy-file-tree is-state">{t(ERROR_KEYS[error])}</div>;
-  }
-  if (treeData.length === 0) {
-    return <div className="cy-file-tree is-state">{t("fileTree.empty")}</div>;
-  }
+  const stateMessage = !workspaceRoot ? t("fileTree.errNoWorkspace")
+    : loading ? t("fileTree.loading")
+    : error ? t(ERROR_KEYS[error])
+    : treeData.length === 0 ? t("fileTree.empty") : null;
 
   return (
-    <div className="cy-file-tree" ref={treeRootRef}>
-      {/* antd v6 的目录树挂在 Tree.DirectoryTree 上：点击目录名即展开/收起（expandAction 默认 click） */}
-      <Tree.DirectoryTree
-        treeData={treeData}
-        loadData={loadData}
-        showIcon
-        blockNode
-        onSelect={(_keys, info) => {
-          const item = info.node as unknown as TreeItem;
-          if (!item.isDir) {
-            // 切标签前释放文件树焦点，避免 aria-hidden 面板持有 activeElement
-            releaseFocusedDescendant(treeRootRef.current);
-            onOpenFile(item.key);
-          }
-        }}
-      />
+    <div className="cy-file-tree" ref={treeRootRef} aria-busy={loading}>
+      <div className="cy-file-tree__header">
+        <span>{t("fileTree.title")}</span>
+        <button
+          type="button"
+          className="cy-file-refresh"
+          aria-label={t("fileTree.refresh")}
+          title={!workspaceRoot ? t("fileTree.errNoWorkspace") : t("fileTree.refresh")}
+          disabled={!workspaceRoot || loading}
+          onClick={() => setRefreshSequence((value) => value + 1)}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+          {t("fileTree.refresh")}
+        </button>
+      </div>
+      {stateMessage ? <div className="cy-file-tree__state" role="status">{stateMessage}</div> : (
+        <Tree.DirectoryTree
+          treeData={treeData}
+          loadData={loadData}
+          expandedKeys={expandedKeys}
+          onExpand={(keys) => {
+            if (!requestScope.active) return;
+            const next = keys.map(String);
+            expandedRef.current = next;
+            setExpandedKeys(next);
+          }}
+          showIcon
+          blockNode
+          onSelect={(_keys, info) => {
+            const item = info.node as unknown as TreeItem;
+            if (!item.isDir) {
+              releaseFocusedDescendant(treeRootRef.current);
+              onOpenFile(item.key);
+            }
+          }}
+        />
+      )}
       {truncated && <div className="cy-file-tree__truncated">{t("fileTree.truncated", { count: 1000 })}</div>}
     </div>
   );
@@ -242,6 +282,7 @@ export function FilePreviewContent({
   relPath,
   scrollToLine,
   lineSeq,
+  refreshRevision,
 }: {
   sessionId: string;
   relPath: string;
@@ -249,6 +290,8 @@ export function FilePreviewContent({
   scrollToLine?: number;
   /** 定位序号：同标签换行号时靠它变化触发重新滚动 */
   lineSeq?: number;
+  /** 外部工作区变更通知；不重置用户选择的 Markdown 展示方式。 */
+  refreshRevision?: number | string;
 }) {
   const { t } = useTranslation();
   const [state, setState] = useState<
@@ -263,13 +306,17 @@ export function FilePreviewContent({
   const isMarkdown = isMarkdownPath(relPath);
   const [mdView, setMdView] = useState<"preview" | "source">(scrollToLine === undefined ? "preview" : "source");
   const scrollHostRef = useRef<HTMLDivElement>(null);
+  const [refreshSequence, setRefreshSequence] = useState(0);
+
+  useEffect(() => {
+    // 只有切换文件时恢复默认视图，刷新和失败重试保留用户选择。
+    setMdView(scrollToLine === undefined ? "preview" : "source");
+  }, [sessionId, relPath]);
 
   useEffect(() => {
     let cancelled = false;
     setState({ phase: "loading" });
     setTokens(null);
-    // 切换文件时回到默认视图；带行号定位的打开方式下回源码视图
-    setMdView(scrollToLine === undefined ? "preview" : "source");
     const api = window.workspaceFiles;
     if (!api) {
       setState({ phase: "error", code: "READ_FAILED" });
@@ -301,7 +348,7 @@ export function FilePreviewContent({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, relPath]);
+  }, [sessionId, relPath, refreshRevision, refreshSequence]);
 
   // 行号定位：文件内容就绪后把目标行滚到视口中间；lineSeq 变化（同标签换行号）时重滚
   useEffect(() => {
@@ -312,28 +359,30 @@ export function FilePreviewContent({
     row?.scrollIntoView({ block: "center", behavior: "auto" });
   }, [state.phase, scrollToLine, lineSeq, mdView]);
 
-  if (state.phase === "loading") {
-    return <div className="cy-file-preview is-state">{t("fileTree.previewLoading")}</div>;
-  }
-  if (state.phase === "error") {
-    return <div className="cy-file-preview is-state">{t(ERROR_KEYS[state.code])}</div>;
-  }
-
-  // 高亮结果与纯文本统一成"每行一个 token 列表"的结构再渲染
-  const totalLines = tokens ? tokens.length : state.content.split("\n").length;
-  const lineTokens: ThemedToken[][] = tokens ?? state.content.split("\n").map((line) => [{ content: line, offset: 0 }]);
+  // 高亮结果与纯文本统一成"每行一个 token 列表"的结构再渲染。
+  const text = state.phase === "ok" ? state.content : "";
+  const totalLines = tokens ? tokens.length : text.split("\n").length;
+  const lineTokens: ThemedToken[][] = tokens ?? text.split("\n").map((line) => [{ content: line, offset: 0 }]);
   const lines = lineTokens.slice(0, PREVIEW_MAX_LINES);
-
-  // Markdown 渲染预览同样限制行数，避免超大文档一次性铺满 DOM
   const renderedContent = isMarkdown && totalLines > PREVIEW_MAX_LINES
-    ? state.content.split("\n").slice(0, PREVIEW_MAX_LINES).join("\n")
-    : state.content;
+    ? text.split("\n").slice(0, PREVIEW_MAX_LINES).join("\n")
+    : text;
 
   return (
-    <div className="cy-file-preview" ref={scrollHostRef}>
+    <div className="cy-file-preview" ref={scrollHostRef} aria-busy={state.phase === "loading"}>
       <div className="cy-file-preview__header">
         <span className="cy-file-preview__path" title={relPath}>{relPath}</span>
-        <span className="cy-file-preview__size">{(state.size / 1024).toFixed(1)} KB</span>
+        {state.phase === "ok" && <span className="cy-file-preview__size">{(state.size / 1024).toFixed(1)} KB</span>}
+        <button
+          type="button"
+          className="cy-file-refresh"
+          aria-label={t("fileTree.refreshPreview")}
+          title={t("fileTree.refreshPreview")}
+          disabled={state.phase === "loading"}
+          onClick={() => setRefreshSequence((value) => value + 1)}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+        </button>
         {isMarkdown && (
           <span className="cy-file-preview__md-toggle" role="group" aria-label={t("rightInspector.toggle")}>
             <button
@@ -357,7 +406,11 @@ export function FilePreviewContent({
           </span>
         )}
       </div>
-      {isMarkdown && mdView === "preview" ? (
+      {state.phase !== "ok" ? (
+        <div className="cy-file-preview__state" role="status">
+          {state.phase === "loading" ? t("fileTree.previewLoading") : t(ERROR_KEYS[state.code])}
+        </div>
+      ) : isMarkdown && mdView === "preview" ? (
         <div className="cy-file-preview__markdown">
           <MarkdownContent content={renderedContent} />
         </div>
@@ -379,7 +432,7 @@ export function FilePreviewContent({
           ))}
         </pre>
       )}
-      {totalLines > PREVIEW_MAX_LINES && (
+      {state.phase === "ok" && totalLines > PREVIEW_MAX_LINES && (
         <div className="cy-file-preview__truncated">
           {t("fileTree.previewLinesHint", { count: PREVIEW_MAX_LINES })}
         </div>

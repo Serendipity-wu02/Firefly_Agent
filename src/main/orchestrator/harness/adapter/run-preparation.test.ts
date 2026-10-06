@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { userDataRoot, cleanupUserData } = await vi.hoisted(async () => {
+  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-preparation-"));
+  return {
+    userDataRoot: root,
+    cleanupUserData: () => fs.rmSync(root, { recursive: true, force: true }),
+  };
+});
+
+afterAll(cleanupUserData);
 
 const { trace, preparePlanRunContext, buildHarnessPromptLayers, materializeHarnessStartTranscript, runStore } = vi.hoisted(() => ({
   trace: [] as string[],
@@ -15,7 +28,7 @@ vi.mock("../run-recovery", () => ({ prepareHarnessRecovery: vi.fn() }));
 vi.mock("../../tools/registry/tool-registry", () => ({
   toolRegistry: { getEnabledTools: vi.fn(() => []) },
 }));
-vi.mock("electron", () => ({ app: { getPath: vi.fn(() => "C:\\firefly-preparation") } }));
+vi.mock("electron", () => ({ app: { getPath: vi.fn(() => userDataRoot) } }));
 
 import { prepareHarnessRun } from "./run-preparation";
 

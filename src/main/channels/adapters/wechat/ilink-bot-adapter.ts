@@ -1,3 +1,4 @@
+import { markChannelTextTransform } from "../../../memory-context/channel-memory-ingress";
 // ILink Bot Adapter —— 用 iLinkProtocolClient 包出 ChannelAdapter。
 //
 // 流程：
@@ -49,11 +50,13 @@ import type {
   MessageHandler,
   OutgoingMessage,
 } from "../../types";
-import type { ChannelAdapter } from "../base";
+import { createChannelMemoryAccountIdentity, type ChannelAdapter, type ChannelMemoryAccountIdentity } from "../base";
 import { logger, LogTag } from "../../../logger";
 
 const LOG_PREFIX = "[WechatBot]";
 const USER_PROFILE_FILE = "user-profile.json";
+const DEDUPE_TTL_MS = 5 * 60_000;
+const MAX_DEDUPE_ENTRIES = 2_048;
 
 interface PendingInboundMedia {
   media: InboundMediaDescriptor;
@@ -88,6 +91,7 @@ export class ILinkBotAdapter implements ChannelAdapter {
 
   /** 由 ChannelManager.setDispatcher 注入 */
   onMessage: MessageHandler | null = null;
+  private readonly memoryAccount = createChannelMemoryAccountIdentity();
 
   private client: ILinkClient | null = null;
   private pollAbort: AbortController | null = null;
@@ -97,6 +101,7 @@ export class ILinkBotAdapter implements ChannelAdapter {
   /** 当前 credentials（动态加载） */
   currentCredentials: Credentials | null = null;
   private replyContextByTarget = new Map<string, string>();
+  private seenMessageIds = new Map<string, number>();
   private pendingSaveIntentByTarget = new Map<string, number>();
   private pendingUnsupportedMediaByTarget = new Map<string, PendingInboundMedia>();
   private uploadMedia = uploadWechatMediaFile;
@@ -112,11 +117,16 @@ export class ILinkBotAdapter implements ChannelAdapter {
   // ── ChannelAdapter ────────────────────────────────────────────────────────
 
   async start(): Promise<void> {
+    this.memoryAccount.revoke();
+    this.pollAbort?.abort();
+    const pollAbort = new AbortController();
+    this.pollAbort = pollAbort;
     this.status = { enabled: true, phase: "starting" };
     logger.info(LogTag.Wechat, "Starting...");
 
     // 1. 加载已存凭证
     const creds = await loadCredentials();
+    if (pollAbort.signal.aborted) return;
     if (!creds) {
       this.status = {
         enabled: true,
@@ -132,29 +142,45 @@ export class ILinkBotAdapter implements ChannelAdapter {
     this.isLoggedIn = true;
 
     // 2. 启动 long-poll 循环
-    this.pollAbort = new AbortController();
-    this.pollLoopPromise = this.#pollLoop();
+    this.pollLoopPromise = this.#pollLoop(this.client, pollAbort.signal, `wechat:${creds.ilinkBotId}`);
 
     this.status = { enabled: true, phase: "running", message: "微信已连接" };
     logger.info(LogTag.Wechat, `Connected as botId=${creds.ilinkBotId}`);
   }
 
   async stop(): Promise<void> {
+    this.memoryAccount.revoke();
     console.log(LOG_PREFIX, "Stopping...");
     this.pollAbort?.abort();
-    if (this.pollLoopPromise) {
-      try {
-        await this.pollLoopPromise;
-      } catch {}
-      this.pollLoopPromise = null;
-    }
+    const pollLoop = this.pollLoopPromise;
+    this.pollLoopPromise = null;
     this.pollAbort = null;
     this.client = null;
     this.isLoggedIn = false;
     this.status = { enabled: false, phase: "offline" };
+    if (pollLoop) {
+      try {
+        await pollLoop;
+      } catch {}
+    }
   }
 
   async send(msg: OutgoingMessage): Promise<{ ok: boolean; error?: string }> {
+    const client = this.client;
+    try {
+      return await this.sendConnectedMessage(msg);
+    } catch (error) {
+      if (error instanceof SessionExpiredError && this.client === client) {
+        this.memoryAccount.revoke();
+        // A pending successful poll must not revive credentials the server has rejected.
+        this.pollAbort?.abort();
+        this.status = { enabled: true, phase: "error", message: "会话已过期，请重新扫码登录" };
+      }
+      throw error;
+    }
+  }
+
+  private async sendConnectedMessage(msg: OutgoingMessage): Promise<{ ok: boolean; error?: string }> {
     if (!this.client) return { ok: false, error: "微信未连接" };
     const contextToken = this.replyContextByTarget.get(msg.targetId);
     if (!contextToken) return { ok: false, error: "缺少微信 context_token，无法回复" };
@@ -192,6 +218,7 @@ export class ILinkBotAdapter implements ChannelAdapter {
         }
       } else if (part.kind === "audio") {
         const voice = await this.buildVoiceItem(msg.targetId, part.filePath).catch((err) => {
+          if (err instanceof SessionExpiredError) throw err;
           console.warn(LOG_PREFIX, "voice_item 构造失败（跳过语音）:", err instanceof Error ? err.message : err);
           return null;
         });
@@ -231,6 +258,10 @@ export class ILinkBotAdapter implements ChannelAdapter {
     const encoded = await this.encodeVoice(source, { format: "wav" });
     const media = await this.uploadMediaData(this.client, targetId, encoded.data, MediaType.VOICE);
     return buildVoiceItem(media, encoded.durationMs, encoded.sampleRate, encoded.encodeType);
+  }
+
+  getMemoryAccountIdentity(): ChannelMemoryAccountIdentity | null {
+    return this.memoryAccount.read();
   }
 
   getStatus(): ChannelStatus {
@@ -290,19 +321,23 @@ export class ILinkBotAdapter implements ChannelAdapter {
 
   // ── Internal: poll loop ──────────────────────────────────────────────────
 
-  async #pollLoop(): Promise<void> {
-    if (!this.client || !this.pollAbort) return;
+  async #pollLoop(client: ILinkClient, signal: AbortSignal, accountKey: string): Promise<void> {
     let buf = "";
     let sessionExpired = false;
 
-    while (!this.pollAbort.signal.aborted && !sessionExpired) {
+    while (!signal.aborted && !sessionExpired) {
       try {
-        const { messages, buf: newBuf } = await this.client.getUpdates(buf);
+        const { messages, buf: newBuf } = await client.getUpdates(buf, signal);
+        if (signal.aborted) break;
+        this.memoryAccount.authenticate(accountKey);
         buf = newBuf;
         for (const msg of messages) {
-          await this.dispatchInbound(msg);
+          if (signal.aborted) break;
+          await this.dispatchInbound(msg, signal);
         }
       } catch (err) {
+        if (signal.aborted) break;
+        this.memoryAccount.revoke();
         if (err instanceof SessionExpiredError) {
           console.warn(LOG_PREFIX, "Session expired — please re-login");
           sessionExpired = true;
@@ -313,34 +348,49 @@ export class ILinkBotAdapter implements ChannelAdapter {
           };
           break;
         }
-        if (this.pollAbort?.signal.aborted) break;
-        // 网络抖一下 backoff
-        await new Promise((r) => setTimeout(r, 2_000));
+        // 网络抖一下 backoff；停用时立即结束等待。
+        await delay(2_000, signal);
       }
     }
   }
 
-  private async dispatchInbound(msg: WeixinMessage): Promise<void> {
+  private async dispatchInbound(msg: WeixinMessage, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return;
     if (!this.onMessage) {
       console.warn(LOG_PREFIX, "onMessage 未注入，跳过消息");
       return;
+    }
+    if (msg.msgId) {
+      const now = Date.now();
+      for (const [key, expiresAt] of this.seenMessageIds) {
+        if (expiresAt <= now) this.seenMessageIds.delete(key);
+      }
+      const key = JSON.stringify([this.currentCredentials?.ilinkBotId, msg.fromUserId, msg.msgId]);
+      if (this.seenMessageIds.has(key)) return;
+      // Reserve before asynchronous media work so concurrent redelivery is also ignored.
+      this.seenMessageIds.set(key, now + DEDUPE_TTL_MS);
+      if (this.seenMessageIds.size > MAX_DEDUPE_ENTRIES) {
+        this.seenMessageIds.delete(this.seenMessageIds.keys().next().value!);
+      }
     }
     console.log(LOG_PREFIX, `inbound from=${msg.fromUserId} text=${(msg.content ?? "").slice(0, 80)}`);
     this.replyContextByTarget.set(msg.fromUserId, msg.contextToken);
 
     const media = describeInboundWechatMedia(msg.items);
-    const voiceText = await this.#maybeTranscribeInboundVoice(msg, media);
-    if (voiceText === null) return;
+    const voiceText = await this.#maybeTranscribeInboundVoice(msg, media, signal);
+    if (voiceText === null || signal?.aborted) return;
     const intercept = await this.#maybeInterceptInboundMedia(msg, media);
+    if (signal?.aborted) return;
     if (intercept.handled) {
       if (intercept.text) void this.#sendInterceptText(msg.fromUserId, msg.contextToken, intercept.text);
       return;
     }
-    const attachments = await this.#downloadInboundAttachments(msg, media);
-    if (attachments === null) return;
+    const attachments = await this.#downloadInboundAttachments(msg, media, signal);
+    if (attachments === null || signal?.aborted) return;
 
     const incoming: IncomingMessage = {
       channel: "wechat",
+      messageId: msg.msgId || undefined,
       senderId: msg.fromUserId,
       chatId: msg.fromUserId,
       text: voiceText || msg.content || "",
@@ -349,6 +399,7 @@ export class ILinkBotAdapter implements ChannelAdapter {
       _raw: msg,
     };
 
+    if (voiceText) markChannelTextTransform(incoming, "asr");
     void this.onMessage(incoming).catch((err) => {
       console.error(LOG_PREFIX, "dispatcher error:", err);
     });
@@ -434,37 +485,37 @@ export class ILinkBotAdapter implements ChannelAdapter {
     }
   }
 
-  async #maybeTranscribeInboundVoice(msg: WeixinMessage, media: InboundMediaDescriptor[]): Promise<string | undefined | null> {
+  async #maybeTranscribeInboundVoice(msg: WeixinMessage, media: InboundMediaDescriptor[], signal?: AbortSignal): Promise<string | undefined | null> {
     const voice = media.find((item) => item.kind === "voice");
     if (!voice) return undefined;
 
     const username = loadWechatPreferredName();
     if (!this.isAsrConfigured()) {
-      await this.#sendInterceptText(msg.fromUserId, msg.contextToken, buildWechatAsrMissingPrompt(username));
+      await this.#sendInterceptText(msg.fromUserId, msg.contextToken, buildWechatAsrMissingPrompt(username), signal);
       return null;
     }
 
     try {
       const transcript = (await this.transcribeVoice(voice, msg.msgId || String(Date.now()))).trim();
       if (!transcript) {
-        await this.#sendInterceptText(msg.fromUserId, msg.contextToken, buildWechatAsrFailedPrompt(username, "没有识别到文字"));
+        await this.#sendInterceptText(msg.fromUserId, msg.contextToken, buildWechatAsrFailedPrompt(username, "没有识别到文字"), signal);
         return null;
       }
       return transcript;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       console.warn(LOG_PREFIX, "入站语音识别失败:", reason);
-      await this.#sendInterceptText(msg.fromUserId, msg.contextToken, buildWechatAsrFailedPrompt(username, reason));
+      await this.#sendInterceptText(msg.fromUserId, msg.contextToken, buildWechatAsrFailedPrompt(username, reason), signal);
       return null;
     }
   }
 
-  async #downloadInboundAttachments(msg: WeixinMessage, media: InboundMediaDescriptor[]): Promise<ChannelAttachment[] | null> {
+  async #downloadInboundAttachments(msg: WeixinMessage, media: InboundMediaDescriptor[], signal?: AbortSignal): Promise<ChannelAttachment[] | null> {
     const attachments: ChannelAttachment[] = [];
     for (const item of media) {
       if (item.kind !== "image" && !(item.kind === "file" && item.analyzable)) continue;
       if (!item.media) {
-        await this.#sendInterceptText(msg.fromUserId, msg.contextToken, `${loadWechatPreferredName()}，这个微信附件缺少下载信息，可以再发一次。`);
+        await this.#sendInterceptText(msg.fromUserId, msg.contextToken, `${loadWechatPreferredName()}，这个微信附件缺少下载信息，可以再发一次。`, signal);
         return null;
       }
       try {
@@ -478,7 +529,7 @@ export class ILinkBotAdapter implements ChannelAdapter {
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
         console.warn(LOG_PREFIX, "入站媒体下载失败:", reason);
-        await this.#sendInterceptText(msg.fromUserId, msg.contextToken, `${loadWechatPreferredName()}，这个微信附件下载失败：${reason}。可以再发一次。`);
+        await this.#sendInterceptText(msg.fromUserId, msg.contextToken, `${loadWechatPreferredName()}，这个微信附件下载失败：${reason}。可以再发一次。`, signal);
         return null;
       }
     }
@@ -496,8 +547,8 @@ export class ILinkBotAdapter implements ChannelAdapter {
     }
   }
 
-  async #sendInterceptText(toUserId: string, contextToken: string, text: string): Promise<void> {
-    if (!this.client) return;
+  async #sendInterceptText(toUserId: string, contextToken: string, text: string, signal?: AbortSignal): Promise<void> {
+    if (!this.client || signal?.aborted) return;
     const result = await this.client.sendText(toUserId, text, contextToken);
     if (!result.ok) {
       console.warn(LOG_PREFIX, "入站媒体拦截回复发送失败:", result.error);
@@ -654,8 +705,17 @@ async function transcribePcmWithConfiguredAsr(pcm: Buffer, cfg: AsrConfig): Prom
   });
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
 }
 
 function pickInboundExtension(item: InboundMediaDescriptor, data: Buffer): string {

@@ -1,3 +1,4 @@
+import type { UiColors } from "../../shared/ui-colors";
 import type { ChatAppearanceSettings } from "../../shared/chat-appearance";
 import type { UiTheme } from "../../shared/ui-theme";
 import type { UiFont } from "../../shared/ui-font";
@@ -43,6 +44,7 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   launchAtLogin: boolean;
   language: "zh-CN";
   uiTheme: UiTheme;
+  uiColors: UiColors;
   windowCornerRadius: number;
   /** 当前窗口圆角状态，由主窗口状态同步。 */
   uiThemeRadius: boolean;

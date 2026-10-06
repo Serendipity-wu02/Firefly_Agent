@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from "node:async_hooks";
 /**
  * 会话轨迹权威存储（CTA Phase 1）。
  *
@@ -91,7 +92,8 @@ export class ConversationTranscriptStore {
   private readonly root: string;
   private readonly now: () => number;
   /** 每会话写队列尾（settled promise），串行化所有文件操作。 */
-  private readonly heldTickets = new WeakMap<object,{sessionId:string;phase:"validate"|"other";busy:boolean;pending:Set<Promise<unknown>>;failed:boolean;failure?:unknown}>();
+  private readonly heldTickets = new WeakMap<object,{sessionId:string;phase:"validate"|"other";readActive:boolean;snapshot?:TranscriptSnapshot;busy:boolean;pending:Set<Promise<unknown>>;failed:boolean;failure?:unknown}>();
+  private readonly guardReadScope = new AsyncLocalStorage<object>();
   private readonly queues = new Map<string, Promise<void>>();
   private readonly mutationObservers = new Map<string, (kind: TranscriptMutation, entry?: TranscriptEntry,ticket?:object) => Promise<void>>();
 
@@ -107,16 +109,17 @@ export class ConversationTranscriptStore {
     if (sWrite)
       input = structuredClone(input);
     return this.enqueue(conversationId, async () => {
-      const ticket=Object.freeze({}),held={sessionId:conversationId,phase:"other" as "validate"|"other",busy:false,pending:new Set<Promise<unknown>>(),failed:false,failure:undefined as unknown};
+      const ticket=Object.freeze({}),held={sessionId:conversationId,phase:"other" as "validate"|"other",readActive:false,snapshot:undefined as TranscriptSnapshot|undefined,busy:false,pending:new Set<Promise<unknown>>(),failed:false,failure:undefined as unknown};
       if(guard)this.heldTickets.set(ticket,held);
       try {
       const state = await this.loadState(conversationId);
       if (guard) {
+        held.snapshot=structuredClone({schemaVersion:SCHEMA_VERSION,throughSeq:state.maxSeq,entries:state.entries,seenEntryIds:[...state.seenEntryIds],seenUserRevisions:[...state.seenUserRevisions]});
         if (state.maxSeq !== guard.throughSeq)
           throw Error("MEMORY_CONTEXT_TRANSCRIPT_STALE");
-        held.phase="validate";
-        try { await guard.validate(ticket); } finally {
-          held.phase="other";
+        held.phase="validate";held.readActive=true;
+        try { await this.guardReadScope.run(ticket,()=>guard.validate(ticket)); } finally {
+          held.phase="other";held.readActive=false;
           await Promise.allSettled([...held.pending]);
           if(held.failed)throw held.failure;
         }
@@ -162,6 +165,8 @@ export class ConversationTranscriptStore {
       // The final Main gate calls this write directly while holding its coordinator.
       let dispatched = false;
       const write = async () => {
+        if(guard&&held.failed)throw held.failure;
+        if(guard&&held.pending.size)throw Error("TRANSCRIPT_HELD_READ_PENDING");
         dispatched = true;
         await fs.promises.appendFile(path.join(dir, JSONL_FILE_NAME), `${JSON.stringify(entry)}\n`, "utf8");
         if (sWrite)
@@ -169,7 +174,10 @@ export class ConversationTranscriptStore {
         return entry;
       };
       try {
-        return guard ? await guard.commit(write,ticket) : await write();
+        if(!guard)return await write();
+        held.readActive=true;
+        try{return await this.guardReadScope.run(ticket,()=>guard.commit(write,ticket))}
+        finally{held.readActive=false;await Promise.allSettled([...held.pending]);if(held.failed)throw held.failure}
       }
       catch (error) {
         if (sWrite && dispatched)
@@ -278,9 +286,29 @@ export class ConversationTranscriptStore {
     try{return await pending}catch(error){if(!held.failed){held.failed=true;held.failure=error}throw error}finally{held.pending.delete(pending);held.busy=false}
   }
 
+  /** Reentrant read of the immutable pre-append view, only in this exact guard's async scope. */
+  async withHeldReadLease<T>(ticket:object,conversationId:string,operation:(read:()=>Promise<TranscriptSnapshot>)=>Promise<T>):Promise<T>{
+    const held=this.heldTickets.get(ticket);
+    if(!held||!held.readActive||!held.snapshot||held.sessionId!==conversationId||this.guardReadScope.getStore()!==ticket)throw Error("TRANSCRIPT_HELD_TICKET_DENIED");
+    let active=true;
+    const read=async()=>{
+      if(!active||!held.readActive||this.heldTickets.get(ticket)!==held||this.guardReadScope.getStore()!==ticket)throw Error("TRANSCRIPT_LEASE_EXPIRED");
+      return structuredClone(held.snapshot!);
+    };
+    const pending=Promise.resolve().then(()=>operation(read));held.pending.add(pending);
+    try{return await pending}catch(error){if(!held.failed){held.failed=true;held.failure=error}throw error}
+    finally{active=false;held.pending.delete(pending)}
+  }
+
   /** Hold the existing queue through the consumer's read/validate/publish operation. */
   withReadLease<T>(conversationId: string, operation: (read: () => Promise<TranscriptSnapshot>) => Promise<T>): Promise<T> {
     this.conversationDir(conversationId);
+    const ticket=this.guardReadScope.getStore();
+    if(ticket){
+      const held=this.heldTickets.get(ticket);
+      if(!held||!held.readActive)return Promise.reject(Error("TRANSCRIPT_HELD_TICKET_DENIED"));
+      if(held.sessionId===conversationId)return this.withHeldReadLease(ticket,conversationId,operation);
+    }
     return this.enqueue(conversationId, async () => {
       let active = true;
       let pending: Promise<LoadedConversationState> | undefined;

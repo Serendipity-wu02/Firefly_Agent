@@ -20,6 +20,14 @@
   app-region: no-drag;
 }
 
+:root[data-ui-colors] .cy-right-inspector,
+:root[data-ui-colors] .cy-right-inspector__tabs > .ant-tabs-nav {
+  background: var(--cy-bg-page);
+}
+:root[data-ui-colors] .cy-right-inspector__tabs .ant-tabs-tab.ant-tabs-tab-active {
+  background: var(--cy-bg-active);
+}
+
 @keyframes cy-right-inspector-slide-in {
   from { opacity: 0; transform: translateX(24px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -166,3 +174,5 @@
 .cy-right-inspector__tabs .ant-tabs-tabpane {
   height: 100%;
 }
+
+.cy-right-inspector[hidden] { display: none; }

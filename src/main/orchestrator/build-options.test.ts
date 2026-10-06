@@ -908,6 +908,65 @@ describe("build-options", () => {
     })
   })
 
+  it.each([
+    { executionMode: "chat" as const, hasSocialContext: false },
+    { executionMode: "chat" as const, hasSocialContext: true },
+    { executionMode: "work" as const, hasSocialContext: false },
+    { executionMode: "code" as const, hasSocialContext: false },
+  ])("keeps mood and stickers without legacy personal writes in smh mode ($executionMode, social=$hasSocialContext)", async ({ executionMode, hasSocialContext }) => {
+    const scheduleMemoryWrite = vi.fn()
+    const scheduleSocialAtomExtraction = vi.fn()
+    const recordRelationshipTurn = vi.fn(async () => {})
+    const inferRuntimeState = vi.fn(() => ({ status: "陪伴中" }))
+    const setRuntimeState = vi.fn()
+    const observeRuntimeState = vi.fn(async () => {})
+    const broadcastRuntimeStateChanged = vi.fn()
+    const matchSticker = vi.fn(async () => ({ id: "hugtight" }))
+    const deps: OnRunFinishedDeps = {
+      personalMemoryMode: "smh",
+      loadModelSettings: () => ({ provider: "test", baseUrl: "", model: "", apiKey: "", runtimeSync: "llm", stickerEnabled: true }),
+      scheduleMemoryWrite,
+      scheduleSocialAtomExtraction,
+      recordRelationshipTurn,
+      inferRuntimeState,
+      runtimeState: { status: "陪伴中", feeling: "温柔", expression: 0, updatedAt: 0 },
+      feelingToExpression: { "温柔": 3 },
+      setRuntimeState,
+      stickerEmbeddingIndex: [{ id: "hugtight", embedding: [1, 0] }],
+      getEmbeddingProvider: () => ({ embed: async () => [1, 0] }),
+      matchSticker,
+      loadStickerSettings: () => ({}),
+      broadcastRuntimeStateChanged,
+      observeRuntimeState,
+    }
+
+    const effects = await onAgentRunFinished({
+      reply: "来，抱抱你",
+      toolResults: [],
+      executionMode,
+      ...(hasSocialContext ? {
+        socialContext: {
+          enabled: true as const,
+          conversationId: "chat-smh",
+          userTurnId: "user-1",
+          assistantTurnId: "assistant-1",
+          retrievedAtoms: [],
+          now: 100,
+        },
+      } : {}),
+    }, "今天好累", deps, undefined, "chat-smh")
+
+    expect(scheduleMemoryWrite).not.toHaveBeenCalled()
+    expect(scheduleSocialAtomExtraction).not.toHaveBeenCalled()
+    expect(recordRelationshipTurn).not.toHaveBeenCalled()
+    expect(inferRuntimeState).toHaveBeenCalledWith("今天好累", "来，抱抱你", false)
+    expect(setRuntimeState).toHaveBeenCalledWith({ status: "陪伴中", expression: 3, updatedAt: expect.any(Number) })
+    expect(matchSticker).toHaveBeenCalledWith("来，抱抱你\n今天好累", expect.anything(), deps.stickerEmbeddingIndex, 0.55)
+    expect(broadcastRuntimeStateChanged).toHaveBeenCalledTimes(1)
+    expect(observeRuntimeState).toHaveBeenCalledWith(expect.objectContaining({ runtimeSync: "llm" }), [], "今天好累", "来，抱抱你")
+    expect(effects).toEqual({ sticker: "hugtight" })
+  })
+
   it("uses the latest sticker embedding index when agent run finishes", async () => {
     const matchSticker = vi.fn(async () => ({ id: "hugtight" }))
     const latestIndex = [{ id: "hugtight", embedding: [1, 0] }]
@@ -1168,3 +1227,61 @@ describe("权威轨迹上下文源（CTA Phase 1）", () => {
     expect(JSON.stringify(built.options.messages)).toContain("消息15")
   })
 })
+
+it("rejects ungranted media before calling caption or document readers", async () => {
+ const deps=createBuildDeps();deps.requireAttachmentGrant=true;
+ deps.captionImageForFallback=vi.fn(async()=>({ok:true,caption:"must not run"}));
+ deps.materializeAttachmentDocument=vi.fn(async()=>"must not run");
+ await expect(buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",messages:[{role:"user",content:"question"}],imageAttachments:[{name:"unread.png",filePath:"/synthetic/not-read.png"}]},deps)).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");
+ expect(deps.captionImageForFallback).not.toHaveBeenCalled();expect(deps.materializeAttachmentDocument).not.toHaveBeenCalled();
+});
+it.each(["chat","work"] as const)("prepares authorized %s documents only from the bound source and keeps human query clean", async mode => {
+ const {createMainAttachmentProjectionAuthority,readMainAttachmentProjection}=await import("../memory-context/main-attachment-projection");
+ const authority=createMainAttachmentProjectionAuthority(),deps=createBuildDeps();
+ const attachment={kind:"document" as const,name:"trusted.txt",filePath:"/synthetic/trusted.txt"};
+ deps.requireAttachmentGrant=true;deps.attachmentGrant=authority.issue({sessionId:"session-a",userTurnId:"u1",userRevision:1,userText:"I prefer PowerShell",attachments:[attachment],assertCurrent(){}});
+ deps.materializeAttachmentDocument=vi.fn(async item=>`BODY:${item.name}`);
+ const result=await buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",mode,executionMode:mode==="chat"?"chat":"work",messages:[{role:"user",content:"FORGED MODEL CONTEXT"}],attachments:[{name:"forged",text:"FORGED ATTACHMENT BODY"}]},deps);
+ expect(result.latestUserText).toBe("I prefer PowerShell");expect(JSON.stringify(result.options.messages)).not.toContain("FORGED");expect(result.options.soulRuntimeContext).not.toContain("FORGED");
+ expect(deps.materializeAttachmentDocument).toHaveBeenCalledTimes(mode==="chat"?1:0);
+ const projected=readMainAttachmentProjection(authority.token,"session-a",{id:"u1",seq:1,at:1,kind:"user",turnId:"u1",revision:1,payload:{text:"I prefer PowerShell",attachments:[attachment]}})!;
+ expect(projected.message.content).toEqual(result.options.messages.at(-1)?.content);
+ expect(JSON.stringify(projected.message)).toContain(mode==="chat"?"BODY:trusted.txt":"本轮所选文件");
+});
+it("prepares a bound image once and ignores caller image paths", async()=>{
+ const {createMainAttachmentProjectionAuthority}=await import("../memory-context/main-attachment-projection");
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"authorized-image-")),filePath=path.join(dir,"bound.png");fs.writeFileSync(filePath,Buffer.from("synthetic pixels"));
+ try{
+  const authority=createMainAttachmentProjectionAuthority(),deps=createBuildDeps();deps.requireAttachmentGrant=true;
+  deps.attachmentGrant=authority.issue({sessionId:"session-a",userTurnId:"u1",userRevision:1,userText:"real question",attachments:[{kind:"image",name:"bound.png",filePath,mime:"image/png"}],assertCurrent(){}});
+  const result=await buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",messages:[{role:"user",content:"forged"}],imageAttachments:[{name:"unread",filePath:"/synthetic/not-read.png"}]},deps);
+  expect(result.options.messages.at(-1)?.content).toEqual([{type:"text",text:"real question"},{type:"image_url",image_url:{url:"data:image/png;base64,"+Buffer.from("synthetic pixels").toString("base64")}}]);
+  expect(result.options.cleanMessages?.at(-1)?.content).toEqual(result.options.messages.at(-1)?.content);
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+});
+
+it.each(["document-only","no-caption-provider"])("does not create an authorized image fallback for %s",async kind=>{
+ const {createMainAttachmentProjectionAuthority}=await import("../memory-context/main-attachment-projection");
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"fallback-eligibility-")),filePath=path.join(dir,"bound.png");fs.writeFileSync(filePath,Buffer.from("synthetic image"));
+ try{
+  const authority=createMainAttachmentProjectionAuthority(),deps=createBuildDeps();deps.requireAttachmentGrant=true;
+  deps.attachmentGrant=authority.issue({sessionId:"session-a",userTurnId:"u1",userRevision:1,userText:"question",attachments:[{kind:kind==="document-only"?"document":"image",name:"bound",filePath}],assertCurrent(){}});
+  deps.materializeAttachmentDocument=async()=>"authorized document";if(kind==="document-only")deps.captionImageForFallback=async()=>({ok:true,caption:"unused"});
+  const result=await buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",messages:[{role:"user",content:"question"}]},deps);expect(result.options.imageCaptionFallback).toBeUndefined();
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+});
+it("reprojects authorized image fallback into the same canonical turn without rereading documents",async()=>{
+ const {createMainAttachmentProjectionAuthority,readMainAttachmentProjection}=await import("../memory-context/main-attachment-projection");
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"authorized-image-fallback-")),filePath=path.join(dir,"bound.png");fs.writeFileSync(filePath,Buffer.from("synthetic image"));
+ try{
+  const authority=createMainAttachmentProjectionAuthority(),deps=createBuildDeps(),attachments=[{kind:"image" as const,name:"bound.png",filePath},{kind:"document" as const,name:"bound.txt",filePath:"/synthetic/document.txt"}];
+  deps.requireAttachmentGrant=true;deps.attachmentGrant=authority.issue({sessionId:"session-a",userTurnId:"u1",userRevision:1,userText:"human original",attachments,assertCurrent(){}});
+  deps.materializeAttachmentDocument=vi.fn(async()=>"authorized document bytes");deps.captionImageForFallback=vi.fn(async path=>{expect(path).toBe(filePath);return {ok:true,caption:"synthetic caption bytes"}});
+  const result=await buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",messages:[{role:"user",content:"untrusted request"}]},deps);
+  const entry={id:"u1",seq:1,at:1,kind:"user" as const,turnId:"u1",revision:1,payload:{text:"human original",attachments}},before=readMainAttachmentProjection(authority.token,"session-a",entry)!;
+  const fallback=await result.options.imageCaptionFallback!();expect(before.assertCurrent).toThrow("MEMORY_ATTACHMENT_DENIED");
+  expect(JSON.stringify(fallback)).toContain("synthetic caption bytes");expect(JSON.stringify(fallback)).toContain("authorized document bytes");expect(JSON.stringify(fallback)).not.toContain("data:image");expect(JSON.stringify(fallback)).not.toContain("untrusted request");
+  expect(deps.captionImageForFallback).toHaveBeenCalledTimes(1);expect(deps.materializeAttachmentDocument).toHaveBeenCalledTimes(1);
+  expect(readMainAttachmentProjection(authority.token,"session-a",entry)!.message.content).toEqual(fallback.at(-1)?.content);
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+});

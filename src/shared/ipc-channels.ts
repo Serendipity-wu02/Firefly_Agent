@@ -12,6 +12,7 @@ export interface ScreenshotInsertPayload {
 
 export const IPC = {
   BROWSER_AVAILABILITY: "browser:availability",
+  BROWSER_PERMISSION: "browser:permission",
   BROWSER_COMMAND: "browser:command",
   BROWSER_CHANGED: "browser:changed",
   // pet window
@@ -109,6 +110,8 @@ export const IPC = {
   SETTINGS_SAVE_GENERAL: "settings:save-general",
   SETTINGS_GET_TIMEOUT_SETTINGS: "settings:get-timeout-settings",
   SETTINGS_SAVE_TIMEOUT_SETTINGS: "settings:save-timeout-settings",
+  UI_COLORS_GET: "ui-colors:get",
+  UI_COLORS_CHANGED: "ui-colors:changed",
   UI_THEME_GET: "ui-theme:get",
   UI_THEME_CHANGED: "ui-theme:changed",
   UI_THEME_RADIUS_GET: "ui-theme-radius:get",
@@ -252,6 +255,9 @@ export const IPC = {
   USER_AVATAR_CHANGED: "user:avatar-changed",
 
   // memory panel
+  MEMORY_PANEL_GET_STATE: "memory-panel:get-state",
+  MEMORY_PANEL_APPLY_ACTION: "memory-panel:apply-action",
+  MEMORY_PANEL_AUDIT_SOURCE: "memory-panel:audit-source",
   MEMORY_PANEL_GET_DATA: "memory-panel:get-data",
   MEMORY_PANEL_DELETE_IMPORTED_DOC: "memory-panel:delete-imported-doc",
   MEMORY_PANEL_SAVE_L0: "memory-panel:save-l0",

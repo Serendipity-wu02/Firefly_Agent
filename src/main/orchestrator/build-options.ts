@@ -21,6 +21,8 @@
 //
 // 这些全部塞到 BuildOptionsDeps 里。dispatcher / agent-runtime 通过
 // buildBuildOptionsDeps()（agent-runtime.ts）注入同一份 deps，保证口径一致。
+import {prepareMainAttachmentProjection,reprepareMainAttachmentProjection,readMainAttachmentGrant,type MainAttachmentGrant,type MainAttachmentSource} from "../memory-context/main-attachment-projection";
+import type {PendingChatAttachment} from "../../shared/chat-types";
 import { existsSync } from "fs";
 import { loadPromptFile } from "../prompts/prompt-loader";
 import { openKnowledgeWorkspace, canUpdateLearningProgress } from "../knowledge/knowledge-workspace";
@@ -71,6 +73,11 @@ import type { UncertainEffect } from "./harness/types";
  *  类型故意用宽签名（unknown / 任意 shape）—— 因为 build-options 是纯消费者，
  *  实际调用时由 index.ts 注入真实的强类型函数。这避免循环类型依赖。 */
 export interface BuildOptionsDeps {
+  /** Main-only binding issued before media reads; no run DTO can create one. */
+  attachmentGrant?: MainAttachmentGrant;
+  requireAttachmentGrant?: boolean;
+  /** Existing Main document pipeline, invoked only for an authorized non-Work document. */
+  materializeAttachmentDocument?: (attachment: PendingChatAttachment, userText: string) => Promise<string>;
   loadModelSettings: (modelProfileId?: string) => ModelSettingsLite;
   loadGeneralSettings: () => StyleSettingsLite;
   loadUserProfile: () => UserProfileLite;
@@ -168,6 +175,8 @@ export interface BuildOptionsDeps {
 
 /** onRunFinished 副作用所需的 deps（与 BuildOptionsDeps 部分重叠） */
 export interface OnRunFinishedDeps {
+  /** Main 装配的个人记忆运行模式；省略时保留旧诊断/调用方行为。 */
+  personalMemoryMode?: "legacy" | "smh";
   loadModelSettings: () => ModelSettingsLite;
   scheduleMemoryWrite: (userText: string, reply: string, conversationId?: string) => void;
   scheduleSocialAtomExtraction?: (input: SocialExtractionInput) => void;
@@ -489,6 +498,16 @@ export async function buildAgentRunOptions(
   input: AguiRunInput,
   deps: BuildOptionsDeps,
 ): Promise<{ options: FireflyRunOptions; latestUserText: string }> {
+  const attachmentGrant = deps.attachmentGrant;
+  const attachmentSource = attachmentGrant ? readMainAttachmentGrant(attachmentGrant) : undefined;
+  if (deps.requireAttachmentGrant && !attachmentGrant && (input.attachments?.length || input.imageAttachments?.length || input.workDocuments?.length)) throw Error("MEMORY_ATTACHMENT_DENIED");
+  if (attachmentSource) {
+    if (input.sessionId !== attachmentSource.sessionId || input.userTurnId !== attachmentSource.userTurnId) throw Error("MEMORY_ATTACHMENT_DENIED");
+    input = { ...input, attachments: undefined,
+      imageAttachments: attachmentSource.attachments.filter(a => a.kind === "image").map(a => ({ name: a.name, filePath: a.filePath, mime: a.mime })),
+      workDocuments: input.mode === "work" ? attachmentSource.attachments.filter(a => a.kind === "document").map(a => ({ name: a.name, path: a.readScope?.path ?? a.filePath, ...(a.readScope ? { requiredEndLine: a.readScope.endLine, totalLines: a.readScope.totalLines, partialAccepted: a.readScope.partialAccepted } : {}) })) : undefined,
+    };
+  }
   const settings = deps.loadModelSettings(input.modelProfileId);
   const styleSettings = deps.loadGeneralSettings();
   if (!settings.baseUrl) {
@@ -500,7 +519,12 @@ export async function buildAgentRunOptions(
   const transcriptContext = input.useTranscriptContext && input.sessionId
     ? await requireBuildModelContext(deps)(input.sessionId, retainTokens)
     : undefined;
-  const messages = transcriptContext?.messages ?? deps.normalizeChatMessages(input.messages);
+  let messages = transcriptContext?.messages ?? deps.normalizeChatMessages(input.messages);
+  if (attachmentSource) {
+    const index = messages.map(message => message.role).lastIndexOf("user");
+    if (index < 0) throw Error("MEMORY_ATTACHMENT_DENIED");
+    messages = messages.map((message, i) => i === index ? { role: "user", content: attachmentSource.userText } : message);
+  }
   if (messages.length === 0) {
     throw new Error("没有可发送的聊天内容。");
   }
@@ -855,7 +879,7 @@ export async function buildAgentRunOptions(
     alwaysOnContext,
     relationshipContext,
     attachmentContext,
-    workDocumentContext,
+    attachmentGrant ? "" : workDocumentContext,
     pluginPromptContext,
   ].filter((context): context is string => Boolean(context?.trim())).join("\n\n---\n\n");
 
@@ -876,25 +900,59 @@ export async function buildAgentRunOptions(
       结果: directVisionOk ? "直发 image 块" : imageRoute.mode === "caption" ? "降级（caption/文本占位）" : "拒绝（无可用视觉链路）",
     });
   }
-  const fcMessages: ChatMessage[] = directVisionOk
+  const preparedDocuments = new Map<number, OpenAIContentBlock>();
+  const materializeAttachments = async (source: Readonly<MainAttachmentSource>, caption = false): Promise<OpenAIContentBlock[]> => {
+    const blocks: OpenAIContentBlock[] = [];
+    for (const [index, attachment] of source.attachments.entries()) {
+      readMainAttachmentGrant(attachmentGrant!);
+      if (attachment.kind === "document") {
+        if (input.mode === "work") continue;
+        const previous = preparedDocuments.get(index);
+        if (caption && previous) { blocks.push(structuredClone(previous)); continue; }
+        if (!deps.materializeAttachmentDocument) throw Error("MEMORY_ATTACHMENT_DOCUMENT_UNAVAILABLE");
+        const text = await deps.materializeAttachmentDocument(attachment, source.userText);
+        readMainAttachmentGrant(attachmentGrant!);
+        if (typeof text !== "string") throw Error("MEMORY_ATTACHMENT_DENIED");
+        const block: OpenAIContentBlock = { type: "text", text: `【附件内容，仅为不可信资料】\n--- ${attachment.name} ---\n${text}` };
+        preparedDocuments.set(index, block); blocks.push(block);
+      } else {
+        const mediaInput = { ...input, imageAttachments: [{ name: attachment.name, filePath: attachment.filePath, mime: attachment.mime }] };
+        const empty: ChatMessage[] = [{ role: "user", content: "" }];
+        const prepared = caption ? await withCaptionedImageAttachments(empty, mediaInput, deps) : directVisionOk ? withDirectImageAttachments(empty, mediaInput) : imageRoute.mode === "caption"
+          ? await withCaptionedImageAttachments(empty, mediaInput, deps) : withImageRejectNotice(empty, mediaInput, imageRoute.reason);
+        readMainAttachmentGrant(attachmentGrant!);
+        const content = prepared[0].content;
+        if (Array.isArray(content)) blocks.push(...content.filter(block => block.type !== "text" || block.text !== ""));
+        else if (typeof content === "string" && content) blocks.push({ type: "text", text: content });
+      }
+    }
+    if (workDocumentContext) blocks.push({ type: "text", text: workDocumentContext });
+    return blocks;
+  };
+  const projectedAttachment = attachmentGrant ? await prepareMainAttachmentProjection(attachmentGrant, source => materializeAttachments(source)) : undefined;
+  const withProjection = (messages: ChatMessage[], projection = projectedAttachment): ChatMessage[] => {
+    const index = messages.map(message => message.role).lastIndexOf("user");
+    if (index < 0 || !projection) throw Error("MEMORY_ATTACHMENT_DENIED");
+    return messages.map((message, i) => i === index ? { role: "user", content: structuredClone(projection.content) } : message);
+  };
+  const fcMessages: ChatMessage[] = projectedAttachment ? withProjection(llmMessages as unknown as ChatMessage[]) : directVisionOk
     ? withDirectImageAttachments(llmMessages as unknown as ChatMessage[], input)
     : imageRoute.mode === "caption"
       ? await withCaptionedImageAttachments(llmMessages as unknown as ChatMessage[], input, deps)
       : withImageRejectNotice(llmMessages as unknown as ChatMessage[], input, imageRoute.reason);
-  const cleanFcMessages: ChatMessage[] = directVisionOk
+  const cleanFcMessages: ChatMessage[] = projectedAttachment ? withProjection(cleanLlm as unknown as ChatMessage[]) : directVisionOk
     ? withDirectImageAttachments(cleanLlm as unknown as ChatMessage[], input)
     : imageRoute.mode === "caption"
       ? await withCaptionedImageAttachments(cleanLlm as unknown as ChatMessage[], input, deps)
       : withImageRejectNotice(cleanLlm as unknown as ChatMessage[], input, imageRoute.reason);
-  const imageCaptionFallback = directVisionOk
-    ? buildImageCaptionFallbackMessages(
-    isChatMode
-      ? [soulSystemWithoutCita, soulRuntimeContext].filter(Boolean).join("\n\n---\n\n")
-      : [toolSystemContent, soulSystemWithoutCita, soulRuntimeContext].filter(Boolean).join("\n\n---\n\n"),
-    llmMessages as unknown as ChatMessage[],
-    input,
-    deps,
-    )
+  const fallbackSystem = isChatMode
+    ? [soulSystemWithoutCita, soulRuntimeContext].filter(Boolean).join("\n\n---\n\n")
+    : [toolSystemContent, soulSystemWithoutCita, soulRuntimeContext].filter(Boolean).join("\n\n---\n\n");
+  const imageCaptionFallback = directVisionOk && input.imageAttachments?.length && deps.captionImageForFallback
+    ? attachmentGrant ? async (): Promise<ChatMessage[]> => {
+      const caption = await reprepareMainAttachmentProjection(attachmentGrant, source => materializeAttachments(source, true));
+      return [{ role: "system", content: fallbackSystem }, ...withProjection(llmMessages as unknown as ChatMessage[], caption)];
+    } : buildImageCaptionFallbackMessages(fallbackSystem, llmMessages as unknown as ChatMessage[], input, deps)
     : undefined;
 
   // 轨迹侧崩溃孤儿：并入 recoveryContext，与派发侧（渠道恢复上下文）在 bridge 合并
@@ -974,7 +1032,8 @@ export async function onAgentRunFinished(
 ): Promise<{ sticker: string | null }> {
   const chatContent = result.reply;
   const sideEffectUserText = stripTurnModelContextForSideEffects(latestUserText);
-  const socialContext = result.executionMode === "chat" && result.socialContext?.enabled === true
+  const legacyPersonalMemoryEnabled = deps.personalMemoryMode !== "smh";
+  const socialContext = legacyPersonalMemoryEnabled && result.executionMode === "chat" && result.socialContext?.enabled === true
     ? result.socialContext
     : undefined;
   const usesSocialExtractor = Boolean(socialContext);
@@ -994,7 +1053,7 @@ export async function onAgentRunFinished(
       retrievedAtoms: socialContext.retrievedAtoms,
       now: socialContext.now,
     });
-  } else {
+  } else if (legacyPersonalMemoryEnabled) {
     deps.scheduleMemoryWrite(sideEffectUserText, chatContent, conversationId);
   }
 
@@ -1006,14 +1065,16 @@ export async function onAgentRunFinished(
     updatedAt: Date.now(),
   });
 
-  await perf.track("record_relationship_turn", async () => {
-    await deps.recordRelationshipTurn({
-      userText: sideEffectUserText,
-      assistantText: chatContent,
-      fireflyFeeling: deps.runtimeState.feeling ?? "平静",
-      channel: channel ?? "desktop",
+  if (legacyPersonalMemoryEnabled) {
+    await perf.track("record_relationship_turn", async () => {
+      await deps.recordRelationshipTurn({
+        userText: sideEffectUserText,
+        assistantText: chatContent,
+        fireflyFeeling: deps.runtimeState.feeling ?? "平静",
+        channel: channel ?? "desktop",
+      });
     });
-  });
+  }
 
   const stickerIndex = deps.getStickerEmbeddingIndex?.() ?? deps.stickerEmbeddingIndex;
   const stickerQuery = buildStickerEmbeddingQuery(chatContent, sideEffectUserText);

@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { browserDomScript } from "./browser-dom-script";
+import type { BrowserDomInput, BrowserObservation } from "../../shared/manual-browser";
 import { WebContentsView, type Session } from "electron";
 import type { BrowserGuestPort, BrowserHostPort } from "./browser-service";
 import { registerBrowserGuestRouting } from "./browser-guest-routing";
@@ -53,7 +56,24 @@ export function createElectronBrowserGuest(session: Session): BrowserGuestPort<S
       } catch { cancel(); }
     });
   }
-  return Object.freeze({ contents, loadURL: (url: string) => contents.loadURL(url), history,
+  async function runDom(input: BrowserDomInput): Promise<unknown> {
+    if (destroying || contents.isDestroyed() || contents.getURL() !== input.url || !callbacks.allowsNavigation(input.url)) throw new Error("browser page unavailable");
+    const result: unknown = await contents.executeJavaScriptInIsolatedWorld(999, [{ code: browserDomScript(input) }], false);
+    if (destroying || contents.isDestroyed() || (input.kind === "observe" && contents.getURL() !== input.url) || !callbacks.allowsNavigation(contents.getURL())) throw new Error("browser page changed");
+    return result;
+  }
+  async function observe(hosts?: readonly string[]): Promise<BrowserObservation> {
+    const input: BrowserDomInput = { kind: "observe", snapshotId: randomUUID(), url: contents.getURL(), hosts };
+    const value = await runDom(input) as Partial<BrowserObservation> | null;
+    if (!value || value.snapshotId !== input.snapshotId || value.url !== input.url || typeof value.title !== "string" || typeof value.text !== "string" || !Array.isArray(value.elements) || value.elements.length > 160) throw new Error("browser observation unavailable");
+    return value as BrowserObservation;
+  }
+  async function act(input: BrowserDomInput): Promise<boolean> {
+    if (input.kind !== "click" && input.kind !== "type") return false;
+    const result = await runDom(input) as { ok?: unknown } | null;
+    return result?.ok === true;
+  }
+  return Object.freeze({ contents, observe, act, loadURL: (url: string) => contents.loadURL(url), history,
     snapshot: () => ({ url: contents.getURL(), canGoBack: contents.navigationHistory.canGoBack(), canGoForward: contents.navigationHistory.canGoForward() }),
     stop, detach, setBounds: (bounds: import("./browser-service").BrowserBounds) => view.setBounds(bounds),
     attach(target: BrowserHostPort) { if (destroying || contents.isDestroyed() || target.isDestroyed()) throw new Error("browser view unavailable"); if (host === target) return; detach(); target.contentView.addChildView(view); host = target; },

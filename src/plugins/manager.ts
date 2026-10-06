@@ -67,6 +67,9 @@ type DisposableContext = PluginContext & {
   dispose(): Promise<void>;
 };
 
+/** Bounds asynchronous import/register waits; in-process synchronous code is not preemptible. */
+export const PLUGIN_ACTIVATION_TIMEOUT_MS = 10_000;
+
 const ICON_MIME: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -99,6 +102,7 @@ export class PluginManager {
   private records = new Map<string, PluginRecord>();
   private instances = new Map<string, FireflyPlugin>();
   private contexts = new Map<string, DisposableContext>();
+  private pendingActivations = new Map<string, (error: Error) => void>();
   private statuses = new Map<string, PluginRuntimeStatus>();
   private errors = new Map<string, string>();
   private scanIssues: PluginScanIssue[] = [];
@@ -265,6 +269,11 @@ export class PluginManager {
     id: string,
     enabled: boolean,
   ): Promise<{ ok: boolean; error?: string }> {
+    // Cancellation must bypass the queue that the pending register/import is holding.
+    // Cleanup and persisted lifecycle changes still run in their original order.
+    if (!enabled) {
+      this.pendingActivations.get(id)?.(new Error(`插件 ${id} 激活已取消`));
+    }
     return this.enqueueOperation(async () => {
       const record = this.records.get(id);
       if (!record) return { ok: false, error: `插件不存在: ${id}` };
@@ -466,6 +475,9 @@ export class PluginManager {
   }
 
   stop(): Promise<void> {
+    for (const [id, cancel] of this.pendingActivations) {
+      cancel(new Error(`插件 ${id} 激活已取消`));
+    }
     return this.enqueueOperation(async () => {
       if (!this.started) return;
       await this.publishHostLifecycleBarrier("plugins:stopping", undefined);
@@ -635,39 +647,66 @@ export class PluginManager {
     if (!record || this.instances.has(id)) return;
     this.statuses.set(id, "starting");
     this.errors.delete(id);
+    let plugin: FireflyPlugin | undefined;
+    let ctx: DisposableContext | undefined;
+    let interrupted: Error | undefined;
+    let cancel!: (error: Error) => void;
+    const cancellation = new Promise<never>((_, reject) => {
+      cancel = (error) => {
+        if (interrupted) return;
+        interrupted = error;
+        ctx?.beginStop();
+        reject(error);
+      };
+    });
+    this.pendingActivations.set(id, cancel);
+    const timeout = setTimeout(() => {
+      cancel(new Error(`插件 ${id} 激活超时（${PLUGIN_ACTIVATION_TIMEOUT_MS}ms）`));
+    }, PLUGIN_ACTIVATION_TIMEOUT_MS);
     try {
-      const plugin = await loadPlugin(record);
-      const ctx = createContext(
-        id,
-        path.join(this.opts.storageRoot, id),
-        this.opts.runtime,
-        this.eventBus,
-        record.manifest.deps,
-      );
-      try {
-        await plugin.register(ctx);
-      } catch (error) {
-        ctx.beginStop();
-        if (plugin.unregister) {
+      const activated = await Promise.race([
+        (async () => {
+          const loaded = await loadPlugin(record);
+          // A timed-out ESM import can still resolve later; it must not acquire host resources.
+          if (interrupted) throw interrupted;
+          plugin = loaded;
+          ctx = createContext(
+            id,
+            path.join(this.opts.storageRoot, id),
+            this.opts.runtime,
+            this.eventBus,
+            record.manifest.deps,
+          );
+          await loaded.register(ctx);
+          return { plugin: loaded, ctx };
+        })(),
+        cancellation,
+      ]);
+      if (interrupted) throw interrupted;
+      this.instances.set(id, activated.plugin);
+      this.contexts.set(id, activated.ctx);
+      this.statuses.set(id, "running");
+      this.notifyRunningState(id, true);
+      console.log(`[plugins] 已启用 ${id}@${record.manifest.version}`);
+    } catch (error) {
+      ctx?.beginStop();
+      if (ctx) {
+        if (plugin?.unregister) {
           try {
-            await runPluginCleanup(() => plugin.unregister!(), `插件 ${id} unregister`);
+            await runPluginCleanup(() => plugin!.unregister!(), `插件 ${id} unregister`);
           } catch (cleanupError) {
             console.warn(`[plugins] 插件 ${id} 激活回滚时 unregister 失败`, cleanupError);
           }
         }
         await ctx.dispose();
-        throw error;
       }
-      this.instances.set(id, plugin);
-      this.contexts.set(id, ctx);
-      this.statuses.set(id, "running");
-      this.notifyRunningState(id, true);
-      console.log(`[plugins] 已启用 ${id}@${record.manifest.version}`);
-    } catch (error) {
       const message = errorMessage(error);
       this.statuses.set(id, "failed");
       this.errors.set(id, message);
       throw error;
+    } finally {
+      clearTimeout(timeout);
+      this.pendingActivations.delete(id);
     }
   }
 

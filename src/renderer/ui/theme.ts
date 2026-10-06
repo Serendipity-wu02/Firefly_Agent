@@ -1,3 +1,5 @@
+import { connectUiColors } from "./colors";
+import type { UiColors } from "../../shared/ui-colors";
 import "./window-corner-radius";
 import { normalizeUiTheme, type UiTheme } from "../../shared/ui-theme";
 import { DEFAULT_UI_FONT, normalizeUiFont, type UiFont } from "../../shared/ui-font";
@@ -6,6 +8,8 @@ import type { ChatAppearanceSettings } from "../../shared/chat-appearance";
 declare global {
   interface Window {
     fireflyTheme?: {
+      getColors: () => Promise<UiColors>;
+      onColorsChanged: (callback: (colors: UiColors) => void) => () => void;
       get: () => Promise<UiTheme>;
       onChanged: (callback: (theme: UiTheme) => void) => () => void;
       getRadius: () => Promise<boolean>;
@@ -70,3 +74,5 @@ window.fireflyTheme?.onRadiusChanged((theme) => {
 applyFont(DEFAULT_UI_FONT);
 void window.fireflyFont?.get().then(applyFont).catch(() => applyFont(DEFAULT_UI_FONT));
 window.fireflyFont?.onChanged((font) => applyFont(font));
+
+if (typeof window.fireflyTheme?.getColors === "function" && typeof window.fireflyTheme.onColorsChanged === "function") connectUiColors(window.fireflyTheme);

@@ -105,43 +105,43 @@ export async function loadBuiltinMcpToggles(): Promise<void> {
 }
 
 // ===== 事件绑定（模块加载时执行） =====
-weatherEnabledCheckbox?.addEventListener("change", () => {
+weatherEnabledCheckbox?.addEventListener("change", function () {
   syncWeatherConfigVisibility();
-  void saveWeatherField("weatherEnabled", weatherEnabledCheckbox.checked);
+  void saveWeatherField("weatherEnabled", this.checked);
 });
-weatherSourceSelect?.addEventListener("change", () => {
+weatherSourceSelect?.addEventListener("change", function () {
   syncWeatherFieldsVisibility();
-  void saveWeatherField("weatherSource", weatherSourceSelect.value);
+  void saveWeatherField("weatherSource", this.value);
 });
-amapKeyInput?.addEventListener("change", () => {
-  void saveWeatherField("amapKey", amapKeyInput.value.trim());
+amapKeyInput?.addEventListener("change", function () {
+  void saveWeatherField("amapKey", this.value.trim());
 });
 // 防抖保存：粘贴后 800ms 自动保存
-amapKeyInput?.addEventListener("input", () => {
+amapKeyInput?.addEventListener("input", function () {
   clearTimeout(pluginsState.amapKeyDebounceTimer);
   pluginsState.amapKeyDebounceTimer = setTimeout(() => {
-    void saveWeatherField("amapKey", amapKeyInput.value.trim());
+    void saveWeatherField("amapKey", this.value.trim());
   }, 800);
 });
 
-travelEnabledCheckbox?.addEventListener("change", () => {
+travelEnabledCheckbox?.addEventListener("change", function () {
   syncTravelConfigVisibility();
-  void saveTravelField("travelEnabled", travelEnabledCheckbox.checked);
+  void saveTravelField("travelEnabled", this.checked);
 });
-travelAmapKeyInput?.addEventListener("change", () => {
+travelAmapKeyInput?.addEventListener("change", function () {
   // 存到同一个 amapKey 字段（与天气查询共用）
-  void saveTravelField("amapKey", travelAmapKeyInput.value.trim());
+  void saveTravelField("amapKey", this.value.trim());
 });
 // 防抖保存：粘贴后 800ms 自动保存
-travelAmapKeyInput?.addEventListener("input", () => {
+travelAmapKeyInput?.addEventListener("input", function () {
   clearTimeout(pluginsState.travelAmapKeyDebounceTimer);
   pluginsState.travelAmapKeyDebounceTimer = setTimeout(() => {
-    void saveTravelField("amapKey", travelAmapKeyInput.value.trim());
+    void saveTravelField("amapKey", this.value.trim());
   }, 800);
 });
 
-playwrightMcpCheckbox?.addEventListener("change", () => {
-  void saveBuiltinMcpField("playwrightMcpEnabled", playwrightMcpCheckbox.checked);
+playwrightMcpCheckbox?.addEventListener("change", function () {
+  void saveBuiltinMcpField("playwrightMcpEnabled", this.checked);
 });
 
 // 模块加载时拉一次配置

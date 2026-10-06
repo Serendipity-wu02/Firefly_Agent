@@ -7,6 +7,8 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ToolDefinition, toolRegistry, type ToolEffectKind } from "./tools/registry/tool-registry";
 import type { ToolRiskLevel } from "../permission-policy";
 import { ToolExecutionError } from "./tools/registry/tool-execution-error";
+import type { ToolContext } from "./tools/registry/tool-context";
+import { createAbortError, isCancellationError, raceWithSignal } from "../abort-utils";
 
 const LOG_PREFIX = "[MCP Adapter]";
 
@@ -283,19 +285,24 @@ async function connectMcpServerNow(config: McpServerConfig): Promise<string[]> {
           properties: mt.inputSchema?.properties as Record<string, { type: string; description: string }> || {},
           required: mt.inputSchema?.required,
         },
-        // TODO: 未来若 MCP 工具需要 ToolContext，在此将 ctx 映射为 MCP 协议 arguments 的隐藏字段。
-        // 当前 MCP 工具 execute 签名不带 ctx，按需接入时改签名为 (args, ctx?) 并在这里处理。
-        execute: async (args: Record<string, unknown>) => {
+        needsContext: true,
+        // Cancellation belongs to SDK request options, never to server-visible tool arguments.
+        execute: async (args: Record<string, unknown>, ctx?: ToolContext) => {
+          if (ctx?.signal?.aborted) throw createAbortError();
           console.log(LOG_PREFIX, "调用工具:", toolId, JSON.stringify(args));
           try {
             const owned = mcpServerStates.get(config.id);
             if (!owned?.connected || owned.client !== client || closed) {
               throw new Error("MCP connection is no longer owned");
             }
-            const result = await client.callTool({
-              name: mt.name,
-              arguments: args,
-            });
+            const request = { name: mt.name, arguments: args };
+            const result = await raceWithSignal(ctx?.signal
+              ? client.callTool(request, undefined, { signal: ctx.signal })
+              : client.callTool(request), ctx?.signal);
+            const currentOwner = mcpServerStates.get(config.id);
+            if (!currentOwner?.connected || currentOwner.client !== client || closed) {
+              throw new Error("MCP connection is no longer owned");
+            }
             // 提取文本内容
             const texts: string[] = [];
             if (result.content && Array.isArray(result.content)) {
@@ -312,6 +319,7 @@ async function connectMcpServerNow(config: McpServerConfig): Promise<string[]> {
             console.log(LOG_PREFIX, "工具返回 [" + toolId + "]:", output.slice(0, 200));
             return output;
           } catch (err) {
+            if (isCancellationError(err, ctx?.signal)) throw createAbortError();
             const msg = err instanceof Error ? err.message : String(err);
             console.error(LOG_PREFIX, "工具调用失败 [" + toolId + "]:", msg);
             throw new ToolExecutionError(

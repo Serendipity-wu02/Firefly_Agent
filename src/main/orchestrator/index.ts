@@ -1,5 +1,5 @@
 // Orchestrator — unified entry point
-// 只负责构建 always-on 上下文（世界书 + L0/L1）；工具的选择和执行由 FireflyHarness 处理
+// 提供独立世界书上下文及旧个人记忆兼容入口；工具的选择和执行由 FireflyHarness 处理
 import { updateWorldbookActivation, getPermanentWorldbookEntries, getActiveWorldbookEntries, getCascadeWorldbookEntries, searchMemory, INJECTION_HEADER, INJECTION_PREAMBLE } from "../rag";
 import { memoryStore } from "../memory/memory-store";
 import { entityGraph } from "../memory/entity-graph";
@@ -93,12 +93,12 @@ function getWorldbookTriggerText(userInput: string): string {
 }
 
 /**
- * 构建 always-on 上下文：世界书 + L0/L1 画像。
- * 不涉及工具选择和执行——那些由 function calling 处理。
+ * 构建非个人记忆的世界书上下文；普通 S/M/H 运行只注入此部分。
+ * 保留原有常驻、当轮激活和级联语义，不读取 L0/L1 或其他旧个人记忆。
  */
-export async function buildAlwaysOnContext(
+export async function buildWorldbookContext(
   userInput: string,
-  recentMessages: Array<{ role: string; content: string }>,
+  recentMessages: ReadonlyArray<{ role: string; content?: string }>,
 ): Promise<string> {
   const parts: string[] = [];
 
@@ -132,6 +132,20 @@ export async function buildAlwaysOnContext(
   } catch (err) {
     console.warn("[Orchestrator] worldbook dmae failed:", err);
   }
+
+  return parts.join("\n\n");
+}
+
+/**
+ * 旧调用方/诊断兼容：世界书 + L0/L1 画像。
+ * 普通 S/M/H 运行由 Main 选择 buildWorldbookContext，不在此回退读取旧画像。
+ */
+export async function buildAlwaysOnContext(
+  userInput: string,
+  recentMessages: Array<{ role: string; content: string }>,
+): Promise<string> {
+  const worldbookContext = await buildWorldbookContext(userInput, recentMessages);
+  const parts: string[] = worldbookContext ? [worldbookContext] : [];
 
   // ── L0/L1 画像 — 永远跑 ──────────────────────────────
   try {

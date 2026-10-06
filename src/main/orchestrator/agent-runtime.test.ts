@@ -11,6 +11,7 @@ import { createAgentRuntime, type AgentRuntimeDeps } from "./agent-runtime";
 const mocks = vi.hoisted(() => ({
   onAgentRunFinished: vi.fn(),
   buildAlwaysOnContext: vi.fn(),
+  buildWorldbookContext: vi.fn(async()=>"[WORLD_ONLY]"),
   scheduleMemoryWrite: vi.fn(),
 }));
 
@@ -32,6 +33,7 @@ vi.mock("./index", async (importOriginal) => {
   return {
     ...actual,
     buildAlwaysOnContext: mocks.buildAlwaysOnContext,
+    buildWorldbookContext: mocks.buildWorldbookContext,
     scheduleMemoryWrite: mocks.scheduleMemoryWrite,
   };
 });
@@ -696,4 +698,55 @@ describe("controlled Main S session routing",()=>{
 it("controlled desktop completion bypasses legacy memory/model side effects and retains metadata-only plugin notification",async()=>{
  mocks.onAgentRunFinished.mockClear();const publish=vi.fn(async()=>{}),deps=createDeps(publish);deps.sContext={enabled:true,isControlledSession:id=>id==='controlled',createPort:()=>({run:async()=>{throw Error('unused')}})};
  const runtime=createAgentRuntime(deps);expect(await runtime.onRunFinished({reply:'synthetic',toolResults:[],terminal:{status:'success',reason:'completed',externalEffectsMayContinue:false}},'I prefer PowerShell',{source:'desktop',mode:'chat',conversationId:'controlled'})).toEqual({sticker:null});expect(mocks.onAgentRunFinished).not.toHaveBeenCalled();expect(publish).toHaveBeenCalledWith('turn:completed',{source:'desktop',mode:'chat',conversationId:'controlled'});
+});
+describe("ordinary Main memory injection",()=>{
+ it("defers trusted run creation, retires legacy context, and preserves worldbook and model selection",async()=>{
+  const root=mkdtempSync(path.join(os.tmpdir(),"default-memory-runtime-"));electronMocks.userDataRoot=root;
+  mocks.buildAlwaysOnContext.mockClear();mocks.buildWorldbookContext.mockClear();
+  try{
+   const openRun=vi.fn(),deps=createFullDeps({defaultMemory:{openRun}} as Partial<AgentRuntimeDeps>);
+   const runtime=createAgentRuntime(deps),built=await runtime.buildOptions({sessionId:"session-a",messages:[{role:"user",content:"synthetic prompt"}],mode:"chat",modelProfileId:"profile-1"} as never);
+   expect(openRun).not.toHaveBeenCalled();expect(built.options.openMemoryRun).toBeTypeOf("function");
+   expect(mocks.buildAlwaysOnContext).not.toHaveBeenCalled();expect(mocks.buildWorldbookContext).toHaveBeenCalled();
+   expect(built.options.soulRuntimeContext).toContain("[WORLD_ONLY]");expect(deps.citaService.prepareTurn).not.toHaveBeenCalled();
+   const actual={...built.options,runId:"run-a"};await built.options.openMemoryRun!(actual);expect(openRun).toHaveBeenCalledWith(actual);
+  }finally{electronMocks.userDataRoot="";rmSync(root,{recursive:true,force:true})}
+ });
+ it("sends the new memory policy to completion effects without discarding sticker processing",async()=>{
+  mocks.onAgentRunFinished.mockReset();mocks.onAgentRunFinished.mockResolvedValue({sticker:"synthetic-sticker"});
+  const runtime=createAgentRuntime(createFullDeps({defaultMemory:{openRun:vi.fn()}} as Partial<AgentRuntimeDeps>));
+  expect(await runtime.onRunFinished({reply:"synthetic",toolResults:[]},"prompt",{source:"desktop",mode:"chat",conversationId:"session-a"})).toEqual({sticker:"synthetic-sticker"});
+  expect(mocks.onAgentRunFinished.mock.calls[0][2]).toMatchObject({personalMemoryMode:"smh"});
+ });
+});
+it("ordinary S/M/H tool exposure removes only legacy personal-memory tools",async()=>{
+ const module=await import("./build-options");let captured:import("./build-options").BuildOptionsDeps|undefined;
+ const spy=vi.spyOn(module,"buildAgentRunOptions").mockImplementation(async(_input,deps)=>{captured=deps;return {options:{toolSystemContent:"",soulSystemBaseContent:""},latestUserText:"synthetic"} as never});
+ try{
+  const tools=["user_memory","read_memory","write_memory","recall_history","search_knowledge","read_file"].map(id=>({id}));
+  const deps=createFullDeps({defaultMemory:{openRun:vi.fn()},toolRegistry:{getEnabledTools:()=>tools,getEnabledToolsForMode:()=>tools}} as unknown as Partial<AgentRuntimeDeps>);
+  await createAgentRuntime(deps).buildOptions({} as never);
+  expect(captured!.toolRegistry.getEnabled()).toEqual([{id:"search_knowledge"},{id:"read_file"}]);
+  expect(captured!.toolRegistry.getEnabledToolsForMode("work")).toEqual([{id:"search_knowledge"},{id:"read_file"}]);
+ }finally{spy.mockRestore()}
+});
+it("resolves a saved scheduler profile and forwards only the Main background host",async()=>{
+ const prepareBackgroundRun=vi.fn();const runtime=createAgentRuntime(createFullDeps({defaultMemory:{openRun:vi.fn(),prepareBackgroundRun}}));
+ const options=await runtime.buildSchedulerOptions(createScheduledTask({prompt:"synthetic task"}));
+ expect(options.modelProfileId).toBe("profile-1");expect(options.backgroundMemory?.prepareBackgroundRun).toBeTypeOf("function");expect(prepareBackgroundRun).not.toHaveBeenCalled();
+});
+it("refuses a scheduler memory run with no saved model identity before model invocation",async()=>{
+ const runtime=createAgentRuntime(createFullDeps({defaultMemory:{openRun:vi.fn()},loadModelSettings:()=>({...modelSettingsFixture(),modelProfiles:[]})}));
+ await expect(runtime.buildSchedulerOptions(createScheduledTask({prompt:"synthetic"}))).rejects.toThrow("MEMORY_RUN_PROFILE_DENIED");
+});
+it("takes attachment authority only from the second Main context, never raw input",async()=>{
+ const {createMainAttachmentProjectionAuthority}=await import("../memory-context/main-attachment-projection");
+ const authority=createMainAttachmentProjectionAuthority(),grant=authority.issue({sessionId:"session-a",userTurnId:"turn-a",userRevision:1,userText:"synthetic",attachments:[{kind:"image",name:"a.png",filePath:"/synthetic/a.png",mime:"image/png"}],assertCurrent:()=>{}});
+ const module=await import("./build-options");let captured:import("./build-options").BuildOptionsDeps|undefined;
+ const spy=vi.spyOn(module,"buildAgentRunOptions").mockImplementation(async(_input,deps)=>{captured=deps;return {options:{toolSystemContent:"",soulSystemBaseContent:""},latestUserText:"synthetic"} as never});
+ try{
+  const runtime=createAgentRuntime(createFullDeps({defaultMemory:{openRun:vi.fn()}}));
+  await runtime.buildOptions({attachmentGrant:grant} as never);expect(captured!.attachmentGrant).toBeUndefined();expect(captured!.requireAttachmentGrant).toBe(true);
+  await runtime.buildOptions({} as never,{attachmentGrant:grant});expect(captured!.attachmentGrant).toBe(grant);expect(captured!.materializeAttachmentDocument).toBeTypeOf("function");
+ }finally{spy.mockRestore();await authority.close()}
 });

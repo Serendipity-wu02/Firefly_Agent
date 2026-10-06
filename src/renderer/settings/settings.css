@@ -3741,56 +3741,6 @@ body {
 .tts-clone-status.is-error { color: #f87171; }
 .tts-clone-status.is-loading { color: var(--rb-text-muted); }
 
-/* Mossland 已克隆音色列表（拉取 GET /v1/audio/voices 后渲染） */
-.tts-mossland-voice-list {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  border-radius: 12px;
-  border: 1px solid rgba(45, 122, 95, 0.14);
-}
-.tts-mossland-voice-list:empty {
-  display: none;
-}
-.tts-mossland-voice-list li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  font-size: 12px;
-  border-bottom: 1px solid rgba(45, 122, 95, 0.08);
-}
-.tts-mossland-voice-list li:last-child {
-  border-bottom: 0;
-}
-.tts-mossland-voice-list .voice-id {
-  font-family: ui-monospace, "SFMono-Regular", monospace;
-  color: var(--rb-text-default);
-  flex: 1 1 auto;
-  word-break: break-all;
-}
-.tts-mossland-voice-list .voice-name {
-  color: var(--rb-text-muted);
-  font-size: 11px;
-  flex: 0 0 auto;
-}
-.tts-mossland-voice-list .voice-use {
-  flex: 0 0 auto;
-  padding: 3px 10px;
-  font-size: 11px;
-  border-radius: 12px;
-  border: 1px solid rgba(45, 122, 95, 0.32);
-  background: rgba(45, 122, 95, 0.08);
-  color: var(--rb-text-default);
-  cursor: pointer;
-}
-.tts-mossland-voice-list .voice-use:hover {
-  background: rgba(45, 122, 95, 0.18);
-  border-color: rgba(45, 122, 95, 0.55);
-}
-
 .panel-hint { font-size: 13px; color: var(--rb-text-muted); margin: 4px 0 16px; }
 .empty-hint { font-size: 13px; color: rgba(235, 229, 245, 0.5); padding: 24px 0; text-align: center; }
 

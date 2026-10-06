@@ -222,3 +222,13 @@ describe("bound current assistant placeholder", () => {
     expect(entries.filter(e=>e.kind==="assistant")).toEqual([assistant]);
   });
 });
+
+it("keeps default memory canonical users original across backfill, append, and attachment edits", async () => {
+ const {store}=createStore(),attachment={kind:"document" as const,name:"synthetic.txt",filePath:"/synthetic/not-read.txt",status:"pending" as const};
+ const session=makeSession({messages:[{id:"old",role:"user",content:"old human",modelContext:"OLD INJECTED BODY",at:1,attachments:[attachment]},{id:"u-current",role:"user",content:"current human",modelContext:"CURRENT INJECTED BODY",at:2,attachments:[attachment]}]});
+ await prepareTranscriptDispatch({store,session,userTurnId:"u-current",runId:"run-1",forceUserContent:true});
+ const first=await store.read(session.id);expect(first.entries.filter(entry=>entry.kind==="user").map(entry=>entry.payload.text)).toEqual(["old human","current human"]);
+ session.messages[1]={...session.messages[1],content:"edited human",modelContext:"EDIT INJECTED BODY"};
+ await prepareTranscriptDispatch({store,session,userTurnId:"u-current",runId:"run-2",forceUserContent:true,rewind:{anchorUserTurnId:"u-current",disposition:"replace_user",reason:"edit"}});
+ const edited=(await store.read(session.id)).entries.at(-1)!;expect(edited.kind).toBe("turn_rewind");expect(edited.payload).toMatchObject({replacementUser:{text:"edited human",attachments:[{kind:"document",name:"synthetic.txt",filePath:"/synthetic/not-read.txt"}]}});
+});

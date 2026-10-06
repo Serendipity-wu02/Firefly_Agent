@@ -15,18 +15,18 @@ const bindings: readonly (readonly [string, string, readonly string[], boolean])
   ["as-code-review-and-quality", "review", ["architecture", "security-governance"], false],
   ["as-code-simplification", "implementation", ["review", "ui-visual", "tooling-skills"], false],
   ["as-context-engineering", "knowledge", [], true],
-  ["as-debugging-and-error-recovery", "implementation", ["coordination-debug", "review", "ops-release"], false],
-  ["as-doubt-driven-development", "review", ["research", "architecture", "security-governance"], false],
+  ["as-debugging-and-error-recovery", "tooling-skills", ["implementation", "coordination-debug", "review", "ops-release"], false],
+  ["as-doubt-driven-development", "research", ["review", "architecture", "security-governance"], false],
   ["as-frontend-ui-engineering", "ui-visual", ["implementation"], false],
   ["as-git-workflow-and-versioning", "ops-release", ["implementation", "coordination-debug"], false],
   ["as-incremental-implementation", "implementation", ["architecture", "ui-visual", "tooling-skills"], false],
   ["as-planning-and-task-breakdown", "strategy-planning", ["architecture", "coordination-debug"], false],
   ["as-security-and-hardening", "security-governance", ["architecture", "implementation", "review", "tooling-skills"], false],
   ["as-source-driven-development", "research", ["knowledge", "architecture", "implementation", "tooling-skills"], false],
-  ["as-spec-driven-development", "strategy-planning", ["architecture", "review"], false],
+  ["as-spec-driven-development", "architecture", ["strategy-planning", "review"], false],
   ["as-using-agent-skills", "tooling-skills", [], true],
   ["docx", "documents-data", ["knowledge", "research"], false],
-  ["ecc-agent-introspection-debugging", "coordination-debug", ["research", "tooling-skills"], false],
+  ["ecc-agent-introspection-debugging", "tooling-skills", ["coordination-debug", "research"], false],
   ["ecc-ai-regression-testing", "review", ["implementation", "research", "coordination-debug"], false],
   ["ecc-code-tour", "knowledge", ["architecture", "review", "coordination-debug"], false],
   ["ecc-codebase-onboarding", "knowledge", ["architecture", "implementation"], false],
@@ -39,18 +39,31 @@ const bindings: readonly (readonly [string, string, readonly string[], boolean])
   ["pptx-generator", "documents-data", ["ui-visual"], false],
   ["self-improving-agent", "knowledge", [], true],
   ["skill-creator", "tooling-skills", ["research", "review"], false],
-  ["sp-brainstorming", "strategy-planning", ["architecture", "ui-visual"], false],
-  ["sp-dispatching-parallel-agents", "strategy-planning", ["coordination-debug"], false],
+  ["sp-brainstorming", "research", ["strategy-planning", "architecture", "ui-visual"], false],
+  ["sp-dispatching-parallel-agents", "coordination-debug", ["strategy-planning"], false],
   ["sp-requesting-code-review", "review", ["implementation", "coordination-debug", "security-governance"], false],
   ["sp-subagent-driven-development", "coordination-debug", ["strategy-planning", "implementation", "review"], false],
-  ["sp-systematic-debugging", "coordination-debug", ["implementation", "research", "ops-release", "tooling-skills"], false],
+  ["sp-systematic-debugging", "tooling-skills", ["coordination-debug", "implementation", "research", "ops-release"], false],
   ["sp-using-git-worktrees", "ops-release", ["implementation", "coordination-debug"], false],
   ["sp-using-superpowers", "tooling-skills", ["strategy-planning", "coordination-debug"], false],
-  ["sp-verification-before-completion", "security-governance", [], true],
+  ["sp-verification-before-completion", "review", [], true],
   ["sp-writing-plans", "strategy-planning", ["architecture", "implementation", "coordination-debug"], false],
-  ["write-expense-report", "documents-data", [], false],
+  ["write-expense-report", "ops-release", ["documents-data"], false],
   ["xlsx", "documents-data", ["research"], false],
 ];
+
+// Primary ownership is a routing responsibility; shared use never grants authority.
+const ownershipReasons: Readonly<Record<string, string>> = {
+  "as-debugging-and-error-recovery": "银狼调查技术根因并提出恢复方案，刃落实代码修复，卡芙卡协调处理顺序",
+  "as-doubt-driven-development": "大黑塔负责质疑假设和实验求证，瓦尔特独立复核质量结论",
+  "as-spec-driven-development": "姬子维护规格、接口与模块边界，艾利欧据此拆解计划",
+  "ecc-agent-introspection-debugging": "银狼分析 Agent 运行链路，卡芙卡组织复现、交接与升级",
+  "sp-brainstorming": "大黑塔探索候选方案，艾利欧收敛为可执行计划",
+  "sp-dispatching-parallel-agents": "卡芙卡提出并行分工与依赖协调建议，实际委派仍由 Firefly 主代理执行",
+  "sp-systematic-debugging": "银狼主责系统化技术排障，卡芙卡协调、刃修复、瓦尔特复核",
+  "sp-verification-before-completion": "瓦尔特维护完成证据和质量验收标准，所有角色必须遵守",
+  "write-expense-report": "帕姆负责费用分类与事务汇总，知更鸟协作报表表达；仅使用用户授权的数据与原有工具",
+};
 
 const blockedTools = new Set(["task", "delegate_agent", "ask_user", "ask_user_choice", "confirm_uncertain_effect"]);
 
@@ -62,7 +75,7 @@ export function buildSkillOwnership(skills: readonly SkillEntry[]) {
       sharedAgents: globalProtocol ? SPECIALIST_AGENTS.filter(agent => agent.id !== primaryAgent).map(agent => agent.id) : [...shared],
       globalProtocol, supportedModes: skill.modes ?? ["work", "code"],
       effectKind: skill.effectKind ?? "unknown", tools: skill.tools ?? [],
-      reason: `${skill.description}；由${SPECIALIST_AGENTS.find(agent => agent.id === primaryAgent)!.role}负责，共享不授予工具权限。`,
+      reason: `${skill.description}；${ownershipReasons[skillId] ?? `由${SPECIALIST_AGENTS.find(agent => agent.id === primaryAgent)!.role}负责`}，共享不授予工具权限。`,
     }];
   });
 }

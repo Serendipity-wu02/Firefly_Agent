@@ -150,8 +150,11 @@ export class ILinkClient {
    * 后端最长挂 35 秒；如果返回就立刻拿新 get_updates_buf 再次请求。
    * 收到会话过期（ret=-14）抛 SessionExpired。
    */
-  async getUpdates(buf = ""): Promise<{ messages: WeixinMessage[]; buf: string }> {
+  async getUpdates(buf = "", signal?: AbortSignal): Promise<{ messages: WeixinMessage[]; buf: string }> {
+    signal?.throwIfAborted();
     const ctrl = new AbortController();
+    const onAbort = () => ctrl.abort(signal?.reason);
+    signal?.addEventListener("abort", onAbort, { once: true });
     const timer = setTimeout(() => ctrl.abort(), LONG_POLL_TIMEOUT_MS + 5_000);
 
     try {
@@ -177,6 +180,7 @@ export class ILinkClient {
         buf: data.get_updates_buf ?? "",
       };
     } finally {
+      signal?.removeEventListener("abort", onAbort);
       clearTimeout(timer);
     }
   }

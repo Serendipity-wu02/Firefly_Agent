@@ -1,3 +1,5 @@
+import type { TaskWriteEvidence, ModelExecutionEvent } from "./agent-execution-evidence";
+
 /** 私有子任务会话的跨进程可序列化契约。 */
 
 export type TaskSessionStatus = "running" | "completed" | "failed" | "cancelled" | "interrupted";
@@ -54,6 +56,8 @@ export interface TaskSession {
   parentConversationId: string;
   parentRunId: string;
   childRunId: string;
+  /** Exact unfinished prior-run closure, set and cleared only by Main recovery. */
+  recoveryRunId?: string;
   description: string;
   agent: AgentSessionIdentity;
   mode: "work" | "code";
@@ -63,6 +67,9 @@ export interface TaskSession {
   trace: TaskTraceRecord[];
   todoItems: TodoItem[];
   uncertainEffects?: TaskUncertainEffect[];
+  /** Optional: old sessions have no historical evidence to infer. */
+  writes?: TaskWriteEvidence[];
+  executionEvents?: ModelExecutionEvent[];
   resultText?: string;
   error?: { code: string; message: string };
   createdAt: number;

@@ -1,38 +1,64 @@
 import { useEffect, useRef, useState } from "react";
-import type { BrowserPageDto, ManualBrowserApi, ManualBrowserCommand } from "../../../../../shared/manual-browser";
+import { BROWSER_PUBLIC_SCOPE, type BrowserPageDto, type BrowserPermissionDto, type ManualBrowserApi, type ManualBrowserCommand } from "../../../../../shared/manual-browser";
 import { useTranslation } from "../../../i18n";
 import { BrowserWorkspacePanel, type BrowserWorkspaceLabels } from "./BrowserWorkspacePanel";
 import { createBrowserPageState, type BrowserPageState } from "./browser-page-state";
 
 interface Scope {
   sessionId?: string; api?: ManualBrowserApi; disposed: boolean; closed: boolean; opening: boolean;
+  permissionBusy: boolean; permission: BrowserPermissionDto | null;
   page: BrowserPageDto | null; accept(page: BrowserPageDto): void;
+  acceptPermission(permission: BrowserPermissionDto): void;
 }
-/** Connects manual presentation to Main. The renderer never creates an owner or opens a URL itself. */
+/** Main owns the active conversation, permission decisions and guest. DTOs are presentation only. */
 export function ManualBrowserTab({ sessionId, active = true, onClose }: { sessionId?: string; active?: boolean; onClose(): void }) {
   const { t } = useTranslation();
   const [address, setAddress] = useState("");
   const [available, setAvailable] = useState(false), [checked, setChecked] = useState(false);
+  const [permission, setPermission] = useState<BrowserPermissionDto | null>(null);
+  const [permissionBusy, setPermissionBusy] = useState(false);
   const [page, setPage] = useState<BrowserPageState>(() => createBrowserPageState(sessionId ?? "", ""));
   const [failure, setFailure] = useState<string | null>(null);
   const viewport = useRef<HTMLDivElement>(null), scopeRef = useRef<Scope | null>(null);
   useEffect(() => {
     const api = window.manualBrowser;
-    const scope: Scope = { sessionId, api, disposed: false, closed: false, opening: false, page: null, accept(dto) {
-      if (scope.disposed || !scope.sessionId || dto.conversationId !== scope.sessionId || (scope.closed && !dto.closed)) return;
-      const current = scope.page;
-      if (current ? dto.browserId !== current.browserId || dto.requestId < current.requestId || (current.closed && !dto.closed) : !scope.opening) return;
-      scope.page = dto;
-      scope.closed ||= dto.closed;
-      setPage({ ...dto, error: dto.error === null ? null : dto.error === "blocked_url" || dto.error === "network_unavailable" ? "blocked" : "load_failed" });
-      setFailure(dto.error);
-      if (!dto.loading && dto.url) setAddress(dto.url);
-    } };
-    scopeRef.current = scope; setAvailable(false); setChecked(false); setAddress(""); setFailure(null);
+    const scope: Scope = {
+      sessionId, api, disposed: false, closed: false, opening: false, permissionBusy: false, permission: null, page: null,
+      acceptPermission(dto) {
+        if (scope.disposed || scope.closed || dto.conversationId !== scope.sessionId) return;
+        scope.permission = dto; setPermission(dto);
+      },
+      accept(dto) {
+        if (scope.disposed || scope.closed || !scope.sessionId || dto.conversationId !== scope.sessionId) return;
+        const current = scope.page;
+        // Main filters expired owner generations. Within a page, requests are monotonic and close is terminal.
+        // A new Main page may follow the previous page's close; a late get never displaces a newer event.
+        if (current && (dto.browserId === current.browserId
+          ? dto.requestId < current.requestId || (current.closed && !dto.closed)
+          : !current.closed)) return;
+        scope.page = dto;
+        setPage({ ...dto, error: dto.error === null ? null : dto.error === "blocked_url" || dto.error === "network_unavailable" ? "blocked" : "load_failed" });
+        setFailure(dto.error);
+        if (!dto.loading && dto.url) setAddress(dto.url);
+      },
+    };
+    scopeRef.current = scope; setAvailable(false); setChecked(false); setAddress(""); setFailure(null); setPermission(null); setPermissionBusy(false);
     setPage(createBrowserPageState(sessionId ?? "", ""));
-    const off = api?.onChanged?.(dto => scope.accept(dto));
+    const off = api?.onChanged?.(dto => {
+      scope.accept(dto);
+      if (dto.conversationId === scope.sessionId && !scope.disposed && !scope.closed && !scope.permissionBusy) {
+        void api.getPermission().then(reply => { if (reply.ok) scope.acceptPermission(reply.value); }).catch(() => {});
+      }
+    });
     void Promise.resolve().then(() => api?.getAvailability()).catch(() => undefined).then(result => {
-      if (!scope.disposed) { setAvailable(result?.available === true && !!api?.execute && !!api?.onChanged); setChecked(true); }
+      if (scope.disposed) return;
+      const ready = result?.available === true && !!api?.execute && !!api?.onChanged && !!api?.getPermission && !!api?.requestPermission;
+      setAvailable(ready); setChecked(true);
+      if (!ready || !sessionId) return;
+      void api!.getPermission().then(reply => { if (reply.ok) scope.acceptPermission(reply.value); }).catch(() => {});
+      void api!.execute({ kind: "get" }).then(reply => {
+        if (reply.ok && reply.value && !scope.page) scope.accept(reply.value);
+      }).catch(() => {});
     });
     return () => {
       scope.disposed = true; off?.();
@@ -41,9 +67,25 @@ export function ManualBrowserTab({ sessionId, active = true, onClose }: { sessio
     };
   }, [sessionId]);
 
+  async function changePermission(revoke = false) {
+    const scope = scopeRef.current;
+    if (!scope?.api || !scope.sessionId || scope.disposed || scope.closed || !available || scope.permissionBusy) return;
+    scope.permissionBusy = true; setPermissionBusy(true); setFailure(null);
+    try {
+      const reply = await (revoke ? scope.api.revokePermission() : scope.api.requestPermission(BROWSER_PUBLIC_SCOPE));
+      if (scope.disposed || scope.closed) return;
+      if (reply.ok) {
+        scope.acceptPermission(reply.value);
+        if (reply.value.conversationId === scope.sessionId && reply.value.status === "granted" && scope.page?.closed) {
+          scope.page = null; setPage(createBrowserPageState(scope.sessionId, ""));
+        }
+      } else setFailure(reply.code);
+    } catch { if (!scope.disposed && !scope.closed) setFailure("permission_denied"); }
+    finally { scope.permissionBusy = false; if (!scope.disposed && !scope.closed) setPermissionBusy(false); }
+  }
   async function command(input: ManualBrowserCommand) {
     const scope = scopeRef.current;
-    if (!scope || !scope.api || scope.disposed || scope.closed || !available || !scope.sessionId) return;
+    if (!scope?.api || scope.disposed || scope.closed || !available || !scope.sessionId || scope.permissionBusy || scope.permission?.status !== "granted") return;
     if (input.kind === "open") { if (scope.opening) return; scope.opening = true; }
     try {
       const reply = await scope.api.execute(input);
@@ -86,6 +128,7 @@ export function ManualBrowserTab({ sessionId, active = true, onClose }: { sessio
     }
     setPage(current => ({ ...current, closed: true, loading: false })); onClose();
   }
+  const granted = permission?.status === "granted";
   const labels: BrowserWorkspaceLabels = {
     panel: t("browserWorkspace.title"), address: t("browserWorkspace.address"), go: t("browserWorkspace.go"),
     back: t("browserWorkspace.back"), forward: t("browserWorkspace.forward"), reload: t("browserWorkspace.reload"), close: t("browserWorkspace.close"),
@@ -93,9 +136,24 @@ export function ManualBrowserTab({ sessionId, active = true, onClose }: { sessio
     loadFailed: t("browserWorkspace.loadFailed"), closed: t(failure === "cleanup_failed" ? "browserWorkspace.cleanupFailed" : "browserWorkspace.closed"),
     viewport: t("browserWorkspace.viewport"), empty: t(sessionId ? "browserWorkspace.ready" : "browserWorkspace.sessionRequired"),
   };
-  return <BrowserWorkspacePanel page={!available ? { ...page, error: "blocked" } : page}
-    address={address} labels={labels} navigationAvailable={available && !!sessionId && !page.closed}
-    viewportRef={viewport} onAddressChange={setAddress} onNavigate={url => void command(scopeRef.current?.page
-      ? { kind: "navigate", browserId: scopeRef.current.page.browserId, url } : { kind: "open", url })}
-    onCommand={action => { const id = scopeRef.current?.page?.browserId; if (id) void command({ kind: "history", browserId: id, action }); }} onClose={close} />;
+  return <div className="cy-browser-tab">
+    {available && sessionId && <section className="cy-browser-permission" aria-label={t("browserWorkspace.permission")}>
+      <details open={!granted}>
+        <summary>{t(granted ? "browserWorkspace.permissionGranted" : "browserWorkspace.permissionRequired")}</summary>
+        <p>{t("browserWorkspace.permissionScope")}</p>
+        <p className="cy-browser-permission__scope">{BROWSER_PUBLIC_SCOPE.hosts.join(", ")}<br />{BROWSER_PUBLIC_SCOPE.actions.join(", ")}</p>
+      </details>
+      {permission?.status === "denied" && <p role="status">{t("browserWorkspace.permissionDenied")}</p>}
+      {failure === "permission_denied" && <p role="alert">{t("browserWorkspace.permissionFailed")}</p>}
+      <button type="button" data-browser-enable={!granted || undefined} data-browser-revoke={granted || undefined}
+        disabled={permissionBusy || permission?.status === "pending"} onClick={() => void changePermission(granted)}>
+        {t(permissionBusy || permission?.status === "pending" ? "browserWorkspace.permissionPending" : granted ? "browserWorkspace.revoke" : "browserWorkspace.enable")}
+      </button>
+    </section>}
+    <BrowserWorkspacePanel page={!available ? { ...page, error: "blocked" } : page}
+      address={address} labels={labels} navigationAvailable={available && granted && !permissionBusy && !!sessionId && !page.closed}
+      viewportRef={viewport} onAddressChange={setAddress} onNavigate={url => void command(scopeRef.current?.page
+        ? { kind: "navigate", browserId: scopeRef.current.page.browserId, url } : { kind: "open", url })}
+      onCommand={action => { const id = scopeRef.current?.page?.browserId; if (id) void command({ kind: "history", browserId: id, action }); }} onClose={close} />
+  </div>;
 }

@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import type { ChannelsSettings } from "./settings-store";
 import { appendLog } from "./message-log";
+import { requireChannelMemoryIngress, type ChannelMemoryIngress } from "../memory-context/channel-memory-ingress";
 import type { MobileMessageSegmentationMode } from "../../shared/preferences";
 import { rememberProactiveChannelRecipient } from "./proactive-delivery";
 import type { ChannelRateLimiter } from "./rate-limiter";
@@ -44,6 +45,8 @@ const LOG = "[ChannelDispatcher]";
 
 /** Dispatcher 配置（依赖注入）。 */
 export interface DispatcherDeps {
+  /** Main-owned memory uses only its canonical scoped transcript, never a desktop mirror. */
+  readonly memoryEnabled?: boolean;
   /** 按外部会话和绑定桌面会话串行执行。 */
   readonly queue: KeyedQueue;
   /** 原子消费渠道和用户限速额度。 */
@@ -59,6 +62,7 @@ export interface DispatcherDeps {
     msg: IncomingMessage,
     sessionId: string,
     priorMessages?: ChatMessage[],
+    ingress?: ChannelMemoryIngress,
   ) => Promise<{ text: string; sticker: string | null }>;
   /** 延迟读取渠道设置，避免应用就绪前访问加密存储。 */
   readonly loadSettings: () => ChannelsSettings;
@@ -110,8 +114,9 @@ export class ChannelDispatcher {
    * 组装并发送出站消息 → 确认成功后提交助手状态。
    * 返回的出站消息仅供调用方观测和测试，不要求适配器再次发送。
    */
-  async handleIncoming(msg: IncomingMessage): Promise<OutgoingMessage | null> {
-    const sessionId = makeSessionId(msg.channel, msg.chatId);
+  async handleIncoming(msg: IncomingMessage, ingress?: ChannelMemoryIngress): Promise<OutgoingMessage | null> {
+    const binding = ingress ? requireChannelMemoryIngress(ingress, msg) : undefined;
+    const sessionId = binding?.sessionId ?? makeSessionId(msg.channel, msg.chatId);
     // 读取设置会同步刷新限速器，必须发生在本轮额度消费之前。
     void this.settings;
     return this.deps.queue.run(`external:${sessionId}`, async () => {
@@ -127,7 +132,7 @@ export class ChannelDispatcher {
       }
 
       const context = this.deps.context.resolveDispatchContext(sessionId);
-      const execute = () => this.processIncoming(msg, context);
+      const execute = () => this.processIncoming(msg, context, ingress);
       return context.boundConversationId
         ? this.deps.queue.run(`conversation:${context.boundConversationId}`, execute)
         : execute();
@@ -137,6 +142,7 @@ export class ChannelDispatcher {
   private async processIncoming(
     msg: IncomingMessage,
     context: DispatchContext,
+    ingress?: ChannelMemoryIngress,
   ): Promise<OutgoingMessage | null> {
     const { sessionId } = context;
     // 绑定只选择历史与消息镜像目标，Agent 运行身份始终属于原渠道。
@@ -178,7 +184,7 @@ export class ChannelDispatcher {
     // 先加载历史滑窗（此时还不含本条），再落本条入站消息。
     // 顺序不能反：先 append 再 load 会让本条消息既出现在滑窗末尾、又作为新 user
     // 消息追加给 agent，模型会把同一条消息读两遍。
-    const priorMessages = await this.deps.context.resolvePriorMessages(context, 16);
+    const priorMessages = this.deps.memoryEnabled ? [] : await this.deps.context.resolvePriorMessages(context, 16);
 
     // 入站消息落对话历史（下一轮滑窗的数据源）
     await this.deps.context.appendIncomingContext(msg, context);
@@ -187,7 +193,11 @@ export class ChannelDispatcher {
     let replyText: string;
     let sticker: string | null;
     try {
-      const result = await this.deps.buildAndRunAgent(msg, sessionId, priorMessages);
+      if (ingress) requireChannelMemoryIngress(ingress, msg);
+      const result = ingress
+        ? await this.deps.buildAndRunAgent(msg, sessionId, priorMessages, ingress)
+        : await this.deps.buildAndRunAgent(msg, sessionId, priorMessages);
+      if (ingress) requireChannelMemoryIngress(ingress, msg);
       replyText = result.text;
       sticker = result.sticker;
     } catch (err) {
@@ -221,6 +231,7 @@ export class ChannelDispatcher {
     });
 
     try {
+      if (ingress) requireChannelMemoryIngress(ingress, msg);
       const deliveryResult = await this.deps.delivery.send(prepared.message);
       if (!deliveryResult.ok) {
         console.warn(LOG, `发送失败 [${msg.channel}]:`, deliveryResult.error);

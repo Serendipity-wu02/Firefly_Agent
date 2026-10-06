@@ -1,3 +1,4 @@
+import { beginWriteBatch } from "./registry/file-write-evidence";
 // 生活类工具 —— 记账/汇率/翻译/代码补丁。
 //
 // 设计原则：
@@ -407,13 +408,14 @@ function registerStrReplaceTool(): void {
         });
       }
 
+      const batch = beginWriteBatch(ctx, [filePath]);
       // Review 基线捕获：在写文件之前保存 pre-mutation baseline
       if (ctx?.runId) {
         const tracker = getRunReviewTracker(app.getPath("userData"));
         tracker.captureBefore(ctx.runId, filePath);
       }
 
-      fs.writeFileSync(filePath, result.newContent, "utf8");
+      await batch.run([filePath], () => fs.writeFileSync(filePath, result.newContent, "utf8"));
       const size = fs.statSync(filePath).size;
       console.log(
         LOG_PREFIX,

@@ -112,6 +112,15 @@ describe("tool switch persistence round trip (chatToolsEnabled + toolModeOverrid
     return import("./settings-facade");
   }
 
+  it("persists custom colors and reset across a settings-store reopen", async () => {
+    const colors = { enabled: true, accent: "#123456", background: "#222222", foreground: "#eeeeee" };
+    const first = await importFresh(); first.saveGeneralSettings({ uiColors: colors });
+    vi.resetModules(); const reopened = await importFresh();
+    expect(reopened.loadGeneralSettings().uiColors).toEqual(colors);
+    reopened.saveGeneralSettings({ uiColors: { ...colors, enabled: false } });
+    vi.resetModules(); expect((await importFresh()).loadGeneralSettings().uiColors.enabled).toBe(false);
+  });
+
   it("consumes an installer login choice without rewriting retired settings", async () => {
     const settingsFile = path.join(electronMock.userDataDir, "app-settings.json");
     const saved = { ...retiredMomentsSettings, chatSocialContextEnabled: true, launchAtLogin: false };
@@ -193,4 +202,10 @@ it("ignores retired TTS settings while preserving text, ordinary audio preferenc
   expect(settings).not.toHaveProperty("ttsAutoRead");
   expect(settings).not.toHaveProperty("ttsMosslandKey");
   expect(settings).toMatchObject({asrEngine: "mossland", asrMosslandKey: "synthetic-existing-channel-key", toastSoundEnabled: true});
+});
+
+it("normalizes valid custom colors and rejects malformed stored colors", () => {
+  const colors = { enabled: true, accent: "#123456", background: "#ffffff", foreground: "#222222" };
+  expect(normalizeGeneralSettings({ uiColors: colors }).uiColors).toEqual(colors);
+  expect(normalizeGeneralSettings({ uiColors: { ...colors, accent: "url(secret)" } }).uiColors.accent).toBe("#0285ff");
 });

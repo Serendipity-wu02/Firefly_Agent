@@ -1,7 +1,7 @@
 import {objectFields,parseInternalId,parseSourceRef,positiveRevision} from "../memory-core/command-validation";
 import type {BoundSourceRef} from "../../shared/memory-contracts";
 import {contextFail,type ContextUnit} from "./context-contracts";
-import {validateUnit} from "./token-budget";
+import {CONTEXT_MESSAGE_FIELDS,validateUnit} from "./token-budget";
 export interface TranscriptEventSource {entryId:string;turnId?:string;revision?:number;seq:number;occurredAt:number;suppressionGeneration?:number;role:ContextUnit["messages"][number]["role"]}
 export interface TranscriptView {id:string;incarnation:string;revision:number;throughSeq:number;digest:string}
 export interface CanonicalTranscript {incarnation:string;revision:number;throughSeq:number;sourceRefs:BoundSourceRef[];unit:ContextUnit;provenance?:TranscriptEventSource[];view?:TranscriptView}
@@ -38,7 +38,8 @@ export function parseCanonicalTranscript(value:unknown):CanonicalTranscript {
  const v=objectFields(structuredClone(value),["incarnation","revision","throughSeq","sourceRefs","unit"],["provenance","view"]);
  if(!Number.isSafeInteger(v.throughSeq)||(v.throughSeq as number)<0||!Array.isArray(v.sourceRefs)||v.sourceRefs.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
  const sourceRefs=v.sourceRefs.map(raw=>{const ref=parseSourceRef(raw);if(!ref.binding||ref.span)contextFail("MEMORY_CONTEXT_INPUT_INVALID");return ref as BoundSourceRef});
- const unit=v.unit as ContextUnit;validateUnit(unit);
+ const unit=objectFields(v.unit,["id","kind","messages"]) as unknown as ContextUnit;validateUnit(unit);
+ if(unit.messages.some(message=>Object.keys(message).some(key=>!CONTEXT_MESSAGE_FIELDS.includes(key))))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
  const provenance=v.provenance===undefined?undefined:parseTranscriptProvenance(v.provenance);
  if(provenance&&(provenance.length!==unit.messages.length||provenance.some((e,i)=>e.role!==unit.messages[i].role||e.seq>(v.throughSeq as number))))contextFail("MEMORY_CONTEXT_INPUT_INVALID");
  let view:TranscriptView|undefined;

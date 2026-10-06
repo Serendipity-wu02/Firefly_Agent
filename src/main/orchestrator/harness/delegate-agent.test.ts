@@ -81,3 +81,36 @@ describe("persistent agent delegation contract", () => {
     expect(result.fullOutputRef).toBe(`tool-result://v1/${"a".repeat(64)}`);
   });
 });
+
+it("passes trusted delegation scope separately from the unchanged model request", async () => {
+  const executor = vi.fn(async () => ({ agentId: "fixture-review", sessionId: "session-1", status: "completed" as const, text: "done" }));
+  const delegationScope = { groupId: "main-owned-group", toolCallId: "delegate-1" };
+  await dispatchToolCall(call({ agent_id: "fixture-review", prompt: "inspect" }), {
+    state: { todoItems: [], uncertainEffects: [] }, tools: [], agentExecutor: executor, delegationScope,
+  });
+  expect(executor).toHaveBeenCalledWith({ agentId: "fixture-review", prompt: "inspect" }, delegationScope);
+});
+
+it("duplicate_role_and_failed_sibling_are_local_failures", async () => {
+  const executor = vi.fn(async () => { throw new Error("AGENT_ALREADY_RUNNING"); });
+  expect(await executeDelegateAgent(call({ agent_id: "fixture-review", prompt: "inspect" }), executor))
+    .toMatchObject({ outcome: "failure", category: "runtime_safety", message: expect.stringContaining("AGENT_ALREADY_RUNNING") });
+});
+
+it("child_leaf_does_not_deadlock_parent_delegate", async () => {
+  const { RunExecutionCoordinator } = await import("./execution-coordinator");
+  const coordinator = new RunExecutionCoordinator("synthetic-delegation-workspace");
+  const parentScope = { workspaceId: coordinator.workspaceId, parentRunId: "parent", groupId: "group", agentId: "main", childRunId: "parent", toolCallId: "delegate-1" };
+  let childEntered = false;
+  const result = await dispatchToolCall(call({ agent_id: "fixture-review", prompt: "inspect" }), {
+    state: { todoItems: [], uncertainEffects: [] }, tools: [], delegationScope: { groupId: "group", toolCallId: "delegate-1" },
+    toolContext: { userQuery: "synthetic", execution: { coordinator, scope: parentScope } },
+    agentExecutor: async () => {
+      await coordinator.runLeaf({ ...parentScope, agentId: "fixture-review", childRunId: "child", toolCallId: "child-read" }, "shared", undefined, async () => { childEntered = true; });
+      return { agentId: "fixture-review", sessionId: "session", status: "completed", text: "done" };
+    },
+  });
+  expect(childEntered).toBe(true);
+  expect(result.outcome).toBe("success");
+  await coordinator.closeGroup("group");
+});

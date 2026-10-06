@@ -20,7 +20,9 @@ export function createHistoryTokenizer():HistoryTokenizer {
     if(words.has(part)){out.push(part.toLowerCase());continue}
     // Keep the whole identifier and add casing-derived words. No synonym/model data.
     const identifiers=new Map<string,string[]>();for(const match of part.matchAll(/[A-Za-z][A-Za-z0-9]+/g)){
-     const whole=match[0],pieces=whole.replace(/([A-Z]+)([A-Z][a-z])/g,'$1 $2').replace(/([a-z0-9])([A-Z])/g,'$1 $2').split(' ').map(s=>s.toLowerCase());
+     // Only the adjacent acronym/camel boundary is needed. An unbounded capital
+     // run backtracks quadratically on a valid long all-uppercase identifier.
+     const whole=match[0],pieces=whole.replace(/([A-Z])([A-Z][a-z])/g,'$1 $2').replace(/([a-z0-9])([A-Z])/g,'$1 $2').split(' ').map(s=>s.toLowerCase());
      if(pieces.length>1)identifiers.set(whole.toLowerCase(),pieces);
     }
     out.push(...tokenizeJieba(part,jieba,words).map(t=>t.word).filter(t=>/[\p{L}\p{N}]/u.test(t)).flatMap(t=>[t,...(identifiers.get(t)??[])]));

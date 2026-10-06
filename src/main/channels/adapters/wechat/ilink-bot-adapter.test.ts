@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { ILinkBotAdapter } from "./ilink-bot-adapter";
 import type { OutgoingMessage } from "../../types";
+import { ChannelManager } from "../../manager";
+import { createChannelMemoryAccountIdentity } from "../base";
+import { requireChannelMemoryIngress, type ChannelMemoryIngress } from "../../../memory-context/channel-memory-ingress";
 
 vi.mock("electron", () => ({
   app: {
@@ -477,9 +480,15 @@ describe("ILinkBotAdapter inbound media", () => {
 
   it("transcribes inbound voice and dispatches the transcript when ASR is configured", async () => {
     const adapter = new ILinkBotAdapter();
-    const onMessage = vi.fn(async () => null);
+    const onMessage = vi.fn(async (_message: import("../../types").IncomingMessage) => null);
+    const identity = createChannelMemoryAccountIdentity(); identity.authenticate("wechat:synthetic-bot");
+    vi.spyOn(adapter, "getMemoryAccountIdentity").mockImplementation(identity.read);
+    vi.spyOn(adapter, "start").mockResolvedValue();
+    const manager = new ChannelManager(); manager.register(adapter);
+    let ingress: ChannelMemoryIngress | undefined;
+    manager.setDispatcher(async (message, cap) => { ingress = cap; return onMessage(message); });
+    await manager.startOne("wechat");
     const sendText = vi.fn(async () => ({ ok: true }));
-    (adapter as any).onMessage = onMessage;
     (adapter as any).client = { sendText };
     (adapter as any).isAsrConfigured = () => true;
     (adapter as any).transcribeVoice = vi.fn(async () => "你在忙什么呀");
@@ -518,6 +527,9 @@ describe("ILinkBotAdapter inbound media", () => {
       text: "你在忙什么呀",
       attachments: undefined,
     }));
+    const message = onMessage.mock.calls[0][0];
+    expect(requireChannelMemoryIngress(ingress, message).provenance).toBe("asr");
+    expect(() => requireChannelMemoryIngress(ingress, { ...message })).toThrow("MEMORY_CHANNEL_INGRESS_DENIED");
   });
 
   it("does not dispatch inbound voice when ASR transcription fails", async () => {

@@ -132,9 +132,9 @@ npm run package:win:dir
 
 后续开发在 `firefly-mini-v1.1.x` 完成提交与验证，再通过 PR 合入 `main`。按修改范围执行实际检查并说明未覆盖项。请阅读[贡献指南](./.github/CONTRIBUTING.md)和 [AGENTS.md](./AGENTS.md)；Issue 与 PR 不要附密钥、私人对话或用户数据。
 
-## 上游与许可
+## 维护与许可
 
-Firefly_Agent 独立维护；部分源码源自 Cyrene-Agent，并遵循保留的原 MIT 版权声明。这不表示全部代码从零原创。
+Firefly_Agent 由 Serendipity-wu02 独立维护。源码版权与许可见 [LICENSE](./LICENSE)。
 
 源码见完整 [MIT License](./LICENSE)。第三方 Skills、依赖、Live2D 模型、头像、角色 IP 和其他资产分别遵循自己的许可或授权；MIT 源码许可不自动授予素材再分发权。来源与边界见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)、[MODEL_LICENSE.md](./MODEL_LICENSE.md)及[贡献者记录](./docs/CONTRIBUTORS.md)。公开资产再分发检查继续保留。
 

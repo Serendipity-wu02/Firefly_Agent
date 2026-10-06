@@ -23,6 +23,12 @@ describe("harness event mapper", () => {
     expect(sent[1]).toMatchObject({ type: "TOOL_CALL_END", runId: "run-1" });
   });
 
+  it("forwards structured task results with the parent run and thread identity", () => {
+    const taskResult = { agentId: "reviewer", sessionId: "child-1", status: "completed" as const, text: "x".repeat(500) };
+    const sent = capture({ type: "tool_end", toolCallId: "delegate-1", preview: "short", outcome: "success", taskResult });
+    expect(sent[0]).toMatchObject({ type: "TOOL_CALL_RESULT", threadId: "thread-1", runId: "run-1", taskResult });
+  });
+
   it("maps final answers into one AG-UI text message", () => {
     expect(capture({ type: "final_answer", content: "完成" })).toEqual([
       expect.objectContaining({ type: "TEXT_MESSAGE_START", runId: "run-1" }),
@@ -67,4 +73,10 @@ describe("harness event mapper", () => {
       expect.objectContaining({ type: "CUSTOM", name: "firefly.task", runId: "run-1" }),
     ]);
   });
+});
+
+it("rejects child model evidence belonging to a foreign parent before transmission", () => {
+  const sent: BaseEvent[] = [];
+  sendHarnessEventAsAgui({ type: "tool_end", toolCallId: "delegate", outcome: "success", preview: "short", taskResult: { agentId: "reviewer", sessionId: "child", status: "failed", text: "stale", executionEvents: [{ id: "event", seq: 1, monotonicMs: 0, clockDomainId: "synthetic", agentId: "reviewer", parentRunId: "foreign-run", childRunId: "child-run", executionId: "execution", phase: "start" }] } } as HarnessEvent, "message", "thread", "run-1", value => sent.push(value));
+  expect((sent[0] as BaseEvent & { taskResult?: unknown }).taskResult).toBeUndefined();
 });

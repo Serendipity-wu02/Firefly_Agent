@@ -294,4 +294,23 @@ describe("MCP connection ownership", () => {
     expect((await addMcpServer(config)).ok).toBe(true);
     expect(fixture.configs).toEqual([config]);
   });
+it("propagates run cancellation to MCP and promptly rejects a stalled call", async () => {
+  await connectMcpServer(config);
+  const tool = toolRegistry.getById("fixture-inspect")!;
+  const controller = new AbortController();
+  fixture.clients[0].callTool.mockImplementation(() => new Promise(() => {}));
+  expect(tool.needsContext).toBe(true);
+  const pending = tool.execute({}, { signal: controller.signal } as never);
+  await vi.waitFor(() => expect(fixture.clients[0].callTool).toHaveBeenCalledTimes(1));
+  controller.abort();
+  await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  expect(fixture.clients[0].callTool.mock.calls[0][2]).toMatchObject({ signal: controller.signal });
+});
+it("does not start an MCP call after its run was already cancelled", async () => {
+  await connectMcpServer(config);
+  const controller = new AbortController(); controller.abort();
+  await expect(toolRegistry.getById("fixture-inspect")!.execute({}, { signal: controller.signal } as never)).rejects.toMatchObject({ name: "AbortError" });
+  expect(fixture.clients[0].callTool).not.toHaveBeenCalled();
+});
+
 });

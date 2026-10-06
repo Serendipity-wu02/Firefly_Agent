@@ -14,7 +14,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConversationTranscriptStore } from "./conversation-transcript-store";
 import { classifySAssistantSettlement } from "./conversation-transcript-settlement";
 import { SRunSettlementGate } from "./run-settlement";
-import { createTranscriptSink } from "./transcript-sink";
+import { createTranscriptSink, requireTranscriptSinkBinding, wrapTranscriptSink } from "./transcript-sink";
+import type { TranscriptAppendGuard } from "./conversation-transcript-store";
 import type { HarnessRunSession, PersistedToolCall } from "./harness/run-store";
 import type { ToolCallOutcome } from "./harness/types";
 import type { ChatMessage } from "./vendors/types";
@@ -328,4 +329,285 @@ describe("S canonical append and durable settlement", () => {
     await expect(sink.settleSAssistant(settlement)).rejects.toThrow("TRANSCRIPT_S_SETTLEMENT_UNKNOWN");
     expect(append).not.toHaveBeenCalled();
   });
+});
+
+
+describe("Main-owned TranscriptSink facade", () => {
+  const target = { conversationId: "c1", runId: "run-1", assistantTurnId: "a1" };
+  async function fixture() {
+    const store = makeStore(), sink = createTranscriptSink({ store, ...target });
+    const assistantEntryId = await sink.appendAssistant({ message: { role: "assistant", content: "checking",
+      toolCalls: [{ id: "call-1", name: "lookup", arguments: "{}" }] }, roundId: "round-0" });
+    const result = { assistantEntryId, message: { role: "tool" as const, toolCallId: "call-1", content: "result" }, outcome: "success" as const };
+    return { store, sink, result };
+  }
+  function guard(throughSeq: number, trace: string[], label: string): TranscriptAppendGuard {
+    return { throughSeq,
+      validate: async ticket => { expect(typeof ticket).toBe("object"); trace.push(`${label}:validate`); },
+      commit: async (write, ticket) => { expect(typeof ticket).toBe("object"); trace.push(`${label}:commit`); return write(); },
+    };
+  }
+
+  it.each(["validate", "commit"] as const)("refuses a tool-result %s guard before persistent bytes", async phase => {
+    const { store, sink, result } = await fixture(), before = await store.read("c1");
+    const append = vi.spyOn(fs.promises, "appendFile");
+    const gate = guard(before.throughSeq, [], "tool");
+    if (phase === "validate") gate.validate = async () => { throw Error("MEMORY_CONTEXT_CANCELLED"); };
+    else gate.commit = async () => { throw Error("MEMORY_CONTEXT_RESPONSE_PROGRESS_STALE"); };
+    await expect(sink.appendToolResult({ ...result, guard: gate })).rejects.toThrow(phase === "validate" ? "MEMORY_CONTEXT_CANCELLED" : "MEMORY_CONTEXT_RESPONSE_PROGRESS_STALE");
+    expect(append).not.toHaveBeenCalled(); expect(await store.read("c1")).toEqual(before);
+  });
+
+  it("rejects tool-result stale throughSeq and preserves both call arguments and receipts", async () => {
+    const { store, sink, result } = await fixture(), before = await store.read("c1");
+    const validate = vi.fn(), commit = vi.fn();
+    await expect(sink.appendToolResult({ ...result, guard: { throughSeq: 0, validate, commit } })).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_STALE");
+    expect(validate).not.toHaveBeenCalled(); expect(commit).not.toHaveBeenCalled(); expect(await store.read("c1")).toEqual(before);
+  });
+
+  it("rejects forged sinks without evaluating hooks or registering their identity", async () => {
+    const { sink, store } = await fixture(), run = vi.fn();
+    const forged = { ...sink };
+    expect(() => wrapTranscriptSink(forged, { run })).toThrow("MEMORY_CONTEXT_STREAM_SINK_DENIED");
+    expect(() => requireTranscriptSinkBinding(forged, target, store)).toThrow("MEMORY_CONTEXT_STREAM_SINK_DENIED");
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("retains a real sink's exact private binding through nested frozen facades", async () => {
+    const { sink, store } = await fixture();
+    const facade = wrapTranscriptSink(wrapTranscriptSink(sink, {}), {});
+    expect(Object.isFrozen(facade)).toBe(true);
+    expect(() => requireTranscriptSinkBinding(facade, target, store)).not.toThrow();
+    expect(() => requireTranscriptSinkBinding(facade, { ...target, runId: "forged-run" }, store)).toThrow("MEMORY_CONTEXT_STREAM_SINK_DENIED");
+    expect(() => requireTranscriptSinkBinding(facade, target, makeStore())).toThrow("MEMORY_CONTEXT_STREAM_SINK_DENIED");
+    expect(() => wrapTranscriptSink({ ...facade }, {})).toThrow("MEMORY_CONTEXT_STREAM_SINK_DENIED");
+  });
+
+  it("composes both guards inside the same real store ticket and tracks the real operation", async () => {
+    const { sink, store, result } = await fixture(), trace: string[] = [];
+    const original = guard(1, trace, "original"), injected = guard(1, trace, "injected");
+    const facade = wrapTranscriptSink(sink, {
+      run: async (method, operation) => { trace.push(`${method}:start`); try { return await operation(); } finally { trace.push(`${method}:end`); } },
+      guard: () => injected,
+    });
+    await facade.appendToolResult({ ...result, guard: original });
+    expect(trace).toEqual(["appendToolResult:start", "original:validate", "injected:validate", "original:commit", "injected:commit", "appendToolResult:end"]);
+    expect((await store.read("c1")).entries.at(-1)).toMatchObject({ kind: "tool_result", payload: { message: result.message, outcome: "success" } });
+  });
+
+  it("rejects conflicting guard receipts rather than replacing the caller guard", async () => {
+    const { sink, store, result } = await fixture(), before = await store.read("c1"), append = vi.spyOn(fs.promises, "appendFile");
+    const facade = wrapTranscriptSink(sink, { guard: () => guard(2, [], "new") });
+    await expect(facade.appendToolResult({ ...result, guard: guard(1, [], "old") })).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_STALE");
+    expect(append).not.toHaveBeenCalled(); expect(await store.read("c1")).toEqual(before);
+  });
+
+  it("cannot claim a successful wrapper operation without invoking the real sink", async () => {
+    const { sink, store, result } = await fixture(), before = await store.read("c1");
+    const facade = wrapTranscriptSink(sink, { run: async () => undefined as never });
+    await expect(facade.appendToolResult(result)).rejects.toThrow("MEMORY_CONTEXT_STREAM_SINK_OPERATION_DENIED");
+    expect(await store.read("c1")).toEqual(before);
+  });
+
+  it("preserves an explicit lifecycle rejection without invoking persistence", async () => {
+    const { sink, store, result } = await fixture(), before = await store.read("c1");
+    const facade = wrapTranscriptSink(sink, { run: async () => { throw Error("MEMORY_CONTEXT_RUN_CLOSED"); } });
+    await expect(facade.appendToolResult(result)).rejects.toThrow("MEMORY_CONTEXT_RUN_CLOSED");
+    expect(await store.read("c1")).toEqual(before);
+  });
+
+  it("permits cancellation closure after stopping ordinary append operations", async () => {
+    const { sink, store, result } = await fixture();
+    const facade = wrapTranscriptSink(sink, { run: async (method, operation) => {
+      if (method !== "closeInterruption" && method !== "checkpoint") throw Error("MEMORY_CONTEXT_CANCELLED");
+      return operation();
+    } });
+    await expect(facade.appendToolResult(result)).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
+    await facade.closeInterruption({ reason: "user_cancel", runSession: makeRunSession([
+      { toolCallId: "call-1", toolName: "lookup", sideEffect: "read_only", status: "started", updatedAt: 0 },
+    ]) });
+    await facade.checkpoint();
+    expect(await outcomes(store)).toEqual({ "call-1": "unknown" });
+    expect((await store.read("c1")).entries.at(-1)?.kind).toBe("interruption");
+  });
+
+  it("keeps the lifecycle pending until an unawaited real append settles", async () => {
+    const { sink, store, result } = await fixture();
+    let ready!: () => void, release!: () => void;
+    const entered = new Promise<void>(resolve => { ready = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+    const original = fs.promises.appendFile.bind(fs.promises);
+    vi.spyOn(fs.promises, "appendFile").mockImplementationOnce(async (...args) => { ready(); await gate; return original(...args); });
+    const facade = wrapTranscriptSink(sink, { run: async (_method, operation) => { void operation(); return undefined as never; } });
+    let settled = false;
+    const pending = facade.appendToolResult(result).finally(() => { settled = true; });
+    await entered; await new Promise(resolve => setImmediate(resolve));
+    expect(settled).toBe(false);
+    release(); await pending;
+    expect((await store.read("c1")).entries.at(-1)?.kind).toBe("tool_result");
+  });
+});
+
+describe("TranscriptSink facade ownership edges", () => {
+  it("refuses duplicate operation invocation even when a hook swallows its rejection", async () => {
+    const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+    const facade = wrapTranscriptSink(sink, { run: async (_method, operation) => {
+      const result = await operation(); await operation().catch(() => undefined); return result;
+    } });
+    const append = vi.spyOn(fs.promises, "appendFile");
+    await expect(facade.appendAssistant({ message: { role: "assistant", content: "once" } })).rejects.toThrow("MEMORY_CONTEXT_STREAM_SINK_OPERATION_DENIED");
+    expect(append).toHaveBeenCalledTimes(1); expect((await store.read("c1")).entries).toHaveLength(1);
+  });
+
+  it("does not let a hook return a fabricated assistant entry ID", async () => {
+    const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+    const facade = wrapTranscriptSink(sink, { run: async (_method, operation) => { await operation(); return "forged-entry-id" as never; } });
+    const id = await facade.appendAssistant({ message: { role: "assistant", content: "real" }, roundId: "round-0" });
+    expect(id).toBe("run-1:assistant:round-0"); expect((await store.read("c1")).entries.at(-1)?.id).toBe(id);
+  });
+
+  it("retains S binding/message snapshots across an asynchronous lifecycle hook", async () => {
+    const store = makeStore();
+    await store.append("c1", { kind: "user", id: "u-entry", turnId: "u1", revision: 1, payload: { text: "question" } });
+    const sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1", assistantTurnId: "a1" });
+    let entered!: () => void, release!: () => void;
+    const ready = new Promise<void>(resolve => { entered = resolve; }), hold = new Promise<void>(resolve => { release = resolve; });
+    const facade = wrapTranscriptSink(sink, { run: async (_method, operation) => { entered(); await hold; return operation(); } });
+    const binding = { runId: "run-1", assistantTurnId: "a1", userTurnId: "u1", userRevision: 1 };
+    const message: ChatMessage = { role: "assistant", content: "original" };
+    const pending = facade.appendSAssistant({ binding, message });
+    await ready; binding.userTurnId = "mutated"; message.content = "mutated"; release();
+    const id = await pending;
+    expect((await store.read("c1")).entries.find(entry => entry.id === id)).toMatchObject({ sSettlement: { userTurnId: "u1" }, payload: { content: "original" } });
+  });
+
+  it("does not let one combined guard bypass the other commit or fabricate persistence", async () => {
+    const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+    const commit = vi.fn(async (write: () => Promise<any>) => write());
+    const facade = wrapTranscriptSink(sink, { guard: () => ({ throughSeq: 0, validate: async () => {}, commit }) });
+    await expect(facade.appendAssistant({ message: { role: "assistant", content: "forbidden fake success" }, guard: {
+      throughSeq: 0, validate: async () => {}, commit: async () => ({ id: "fake" } as never),
+    } })).rejects.toThrow("MEMORY_CONTEXT_STREAM_SINK_OPERATION_DENIED");
+    expect(commit).not.toHaveBeenCalled(); expect((await store.read("c1")).entries).toHaveLength(0);
+  });
+});
+
+describe("TranscriptSink immutable guarded payloads", () => {
+  it.each(["guard-selection", "commit"])("pins a tool-result payload before awaited %s", async phase => {
+    const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+    const assistantEntryId = await sink.appendAssistant({ message: { role: "assistant", content: "tool", toolCalls: [{ id: "call-1", name: "lookup", arguments: "{}" }] } });
+    let entered!: () => void, release!: () => void;
+    const ready = new Promise<void>(resolve => { entered = resolve; }), hold = new Promise<void>(resolve => { release = resolve; });
+    const input = { assistantEntryId, message: { role: "tool" as const, toolCallId: "call-1", content: "original" }, outcome: "success" as ToolCallOutcome,
+      fileRead: { path: "a.txt", canonicalPath: "/synthetic/a.txt", sha256: "a".repeat(64), startLine: 1, endLine: 1, totalLines: 1 } };
+    let owned: any;
+    const facade = wrapTranscriptSink(sink, { guard: async (_method, value) => {
+      owned = value;
+      if (phase === "guard-selection") { entered(); await hold; }
+      return { throughSeq: 1, validate: async () => {}, commit: async write => {
+        if (phase === "commit") { entered(); await hold; }
+        return write();
+      } };
+    } });
+    const pending = facade.appendToolResult(input);
+    await ready;
+    input.message.content = "mutated after guard proof"; input.outcome = "unknown"; input.fileRead.sha256 = "b".repeat(64);
+    release(); await pending;
+    expect(Object.isFrozen(owned)).toBe(true); expect(Object.isFrozen(owned.message)).toBe(true); expect(Object.isFrozen(owned.fileRead)).toBe(true);
+    expect((await store.read("c1")).entries.at(-1)).toMatchObject({ kind: "tool_result", payload: {
+      message: { content: "original" }, outcome: "success", fileRead: { sha256: "a".repeat(64) },
+    } });
+  });
+
+  it("pins caller guard functions before an asynchronous guard hook", async () => {
+    const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+    let entered!: () => void, release!: () => void;
+    const ready = new Promise<void>(resolve => { entered = resolve; }), hold = new Promise<void>(resolve => { release = resolve; });
+    const callerGuard: TranscriptAppendGuard = { throughSeq: 0, validate: async () => { throw Error("original guard denied"); }, commit: async write => write() };
+    const facade = wrapTranscriptSink(sink, { guard: async () => { entered(); await hold; return undefined; } });
+    const pending = facade.appendAssistant({ message: { role: "assistant", content: "guarded" }, guard: callerGuard });
+    const rejected = expect(pending).rejects.toThrow("original guard denied");
+    await ready; callerGuard.validate = async () => {}; release(); await rejected;
+    expect((await store.read("c1")).entries).toHaveLength(0);
+  });
+});
+it("reads immutable identity only from a genuine sink and matching canonical store",async()=>{
+ const {readTranscriptSinkBinding}=await import("./transcript-sink"),store=makeStore();
+ const sink=createTranscriptSink({store,conversationId:"session-a",runId:"run-a",assistantTurnId:"assistant-a"});
+ const identity=readTranscriptSinkBinding(sink,store);expect(identity).toEqual({conversationId:"session-a",runId:"run-a",assistantTurnId:"assistant-a"});expect(Object.isFrozen(identity)).toBe(true);
+ expect(()=>readTranscriptSinkBinding({...sink},store)).toThrow("MEMORY_CONTEXT_STREAM_SINK_DENIED");
+ expect(()=>readTranscriptSinkBinding(sink,makeStore())).toThrow("MEMORY_CONTEXT_STREAM_SINK_DENIED");
+});
+
+it("closes canonical declared calls that crashed before planned persistence without inventing starts", async () => {
+  const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+  const call = { id: "declared-only", name: "write_file", arguments: '{"path":"fixture.txt"}' };
+  await sink.appendAssistant({ message: { role: "assistant", content: "", toolCalls: [call] }, roundId: "round-1" });
+  await sink.closeInterruption({ reason: "user_cancel", runSession: makeRunSession([]) });
+  await sink.closeInterruption({ reason: "user_cancel", runSession: makeRunSession([]) });
+  const entries = (await store.read("c1")).entries, results = entries.filter(entry => entry.kind === "tool_result");
+  expect(results).toHaveLength(1); expect(results[0].kind === "tool_result" && results[0].payload.outcome).toBe("not_executed");
+  expect(entries.filter(entry => entry.kind === "interruption")).toHaveLength(1);
+});
+
+it("fences every interruption append and drains already started IO without starting the next closure write", async () => {
+  const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+  const calls = [{ id: "started", name: "write_file", arguments: "{}" }, { id: "planned", name: "write_file", arguments: "{}" }];
+  await sink.appendAssistant({ message: { role: "assistant", content: "", toolCalls: calls }, roundId: "round-1" });
+  let entered!: () => void, release!: () => void, stopped = false;
+  const started = new Promise<void>(resolve => { entered = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+  const original = fs.promises.appendFile.bind(fs.promises);
+  vi.spyOn(fs.promises, "appendFile").mockImplementationOnce(async (...args) => { entered(); await held; return original(...args); });
+  const pending = sink.closeInterruption({ reason: "user_cancel", runSession: makeRunSession(calls.map((call, index) => ({ toolCallId: call.id, toolName: call.name,
+    sideEffect: "idempotent_mutation", status: index === 0 ? "started" : "planned", updatedAt: 1 }))),
+    createGuard: throughSeq => ({ throughSeq, validate: async () => { if (stopped) throw Error("owner stopped"); }, commit: async write => { if (stopped) throw Error("owner stopped"); return write(); } }),
+  });
+  const rejected = expect(pending).rejects.toThrow("owner stopped");
+  await started; stopped = true; release(); await rejected;
+  const entries = (await store.read("c1")).entries;
+  expect(entries.filter(entry => entry.kind === "tool_result")).toHaveLength(1);
+  expect(entries.filter(entry => entry.kind === "interruption")).toHaveLength(0);
+});
+
+it("refuses missing or foreign run evidence and committed calls with missing canonical results", async () => {
+  const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+  await sink.appendAssistant({ message: { role: "assistant", content: "", toolCalls: [{ id: "unresolved", name: "write_file", arguments: "{}" }] }, roundId: "round-1" });
+  const before = await store.read("c1");
+  await expect(sink.closeInterruption({ reason: "user_cancel", runSession: null })).rejects.toThrow("TRANSCRIPT_RUN_EVIDENCE_MISSING");
+  await expect(sink.closeInterruption({ reason: "user_cancel", runSession: { ...makeRunSession([]), conversationId: "foreign" } })).rejects.toThrow("TRANSCRIPT_RUN_EVIDENCE_MISMATCH");
+  await expect(sink.closeInterruption({ reason: "user_cancel", runSession: makeRunSession([{ toolCallId: "unresolved", toolName: "write_file", sideEffect: "idempotent_mutation", status: "committed", updatedAt: 1 }]) })).rejects.toThrow("TRANSCRIPT_TOOL_RESULT_MISSING");
+  expect(await store.read("c1")).toEqual(before);
+});
+
+it("validates a matching committed interruption marker read-only with a current Main fence", async () => {
+  const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" }), runSession = makeRunSession([]);
+  await sink.closeInterruption({ reason: "user_cancel", runSession });
+  const before = await store.read("c1"), append = vi.spyOn(store, "append");
+  let validations = 0, stopped = false;
+  const input = { reason: "user_cancel" as const, runSession, assertCurrent: () => { validations++; if (stopped) throw Error("owner stopped"); },
+    createGuard: (_throughSeq: number): TranscriptAppendGuard => { throw Error("existing marker must not enter a write gate"); } };
+  await sink.closeInterruption(input); expect(validations).toBeGreaterThan(0); expect(append).not.toHaveBeenCalled();
+  expect(await store.read("c1")).toEqual(before);
+  stopped = true; await expect(sink.closeInterruption(input)).rejects.toThrow("owner stopped"); expect(append).not.toHaveBeenCalled();
+});
+
+it("refuses a mismatched existing interruption marker without overwriting it", async () => {
+  const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" });
+  await store.append("c1", { id: "run-1:interruption:user_cancel", kind: "interruption", runId: "foreign-run", payload: { reason: "user_cancel" } });
+  const before = await store.read("c1"), append = vi.spyOn(store, "append");
+  await expect(sink.closeInterruption({ reason: "user_cancel", runSession: makeRunSession([]), assertCurrent: () => undefined })).rejects.toThrow("TRANSCRIPT_IDEMPOTENCY_CONFLICT");
+  expect(await store.read("c1")).toEqual(before); expect(append).not.toHaveBeenCalled();
+});
+
+it("rechecks owner lifetime after an awaited existing-marker read lease", async () => {
+  const store = makeStore(), sink = createTranscriptSink({ store, conversationId: "c1", runId: "run-1" }), runSession = makeRunSession([]);
+  await sink.closeInterruption({ reason: "user_cancel", runSession });
+  let ready!: () => void, release!: () => void, stopped = false;
+  const entered = new Promise<void>(resolve => { ready = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+  const original = store.withReadLease.bind(store);
+  vi.spyOn(store, "withReadLease").mockImplementation((id, operation) => original(id, read => operation(async () => { const snapshot = await read(); ready(); await held; return snapshot; })));
+  const append = vi.spyOn(store, "append");
+  const pending = sink.closeInterruption({ reason: "user_cancel", runSession, assertCurrent: () => { if (stopped) throw Error("owner stopped"); },
+    createGuard: () => { throw Error("existing marker must not enter a write gate"); } });
+  const rejected = expect(pending).rejects.toThrow("owner stopped");
+  await entered; stopped = true; release(); await rejected; expect(append).not.toHaveBeenCalled();
 });

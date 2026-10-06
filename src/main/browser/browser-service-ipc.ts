@@ -10,6 +10,9 @@ type Service<S extends object> = ReturnType<typeof createBrowserService<S>>;
 export const BROWSER_SERVICE_CHANNELS = Object.freeze({ command: IPC.BROWSER_COMMAND, changed: IPC.BROWSER_CHANGED });
 export function registerBrowserServiceIpc<S extends object>(scope: Pick<IpcScope, "handle">, service: Service<S>): void {
   registerBrowserAvailabilityIpc(scope, () => service.isEnabled() ? { available: true } : getOfflineBrowserAvailability());
+  scope.handle(IPC.BROWSER_PERMISSION, async (event, command) => {
+    try { return await service.dispatchPermission(event, command); } catch { return { ok: false, code: "permission_denied" }; }
+  });
   scope.handle(IPC.BROWSER_COMMAND, async (event, command) => {
     try { return await service.dispatch(event, command); } catch { return { ok: false, code: "permission_denied" }; }
   });

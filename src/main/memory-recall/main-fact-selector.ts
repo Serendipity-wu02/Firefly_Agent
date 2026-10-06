@@ -1,3 +1,4 @@
+import {assertContextSecretFree} from "../memory-context/source-secret-screen";
 import type {BoundSourceRef,FactView} from "../../shared/memory-contracts";
 import {objectFields} from "../memory-core/command-validation";
 import type {MainActorAuthority} from "../memory-core/main-actor-authority";
@@ -46,7 +47,7 @@ export function createMainFactSelector(options:{actorAuthority:MainActorAuthorit
    const fields=objectFields(limits,["maxFacts"]);
    if(!Number.isSafeInteger(fields.maxFacts)||(fields.maxFacts as number)<1||(fields.maxFacts as number)>200)throw new Error("MEMORY_RECALL_INPUT_INVALID");
    const query=await options.registry.readEvidence(actor.access,actor.adapter,sourceRef);cancelled();
-   if(extractMaintenance(query).kind==="rejected")throw new Error("MEMORY_POLICY_SECRET");
+   try{assertContextSecretFree(query)}catch(error){if(error instanceof Error&&error.message==="MEMORY_CONTEXT_TRANSCRIPT_SECRET")throw new Error("MEMORY_POLICY_SECRET");throw error}
    const rank=await options.recall.rank(actorToken);cancelled();
    const matches=rank.items.flatMap(item=>{
     const claim=claimFor(actor.actorKey,item.fact),category=claim?relevance(query,claim):0;

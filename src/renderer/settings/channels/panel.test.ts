@@ -161,6 +161,21 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+it("keeps initialization retryable when the settings bridge is unavailable", async () => {
+  vi.resetModules();
+  delete window.settings;
+  const panel = await import("./panel");
+  const { channelsState } = await import("./state");
+
+  await expect(panel.loadChannelsPanel()).resolves.toBeUndefined();
+  expect(channelsState.initialized).toBe(false);
+
+  stubSettings({ ok: true, requiresAccessToken: false });
+  await panel.loadChannelsPanel();
+  expect(channelsState.initialized).toBe(true);
+  expect(window.settings?.channelsGetConfig).toHaveBeenCalledOnce();
+});
+
 describe("QQ 保存时消费主进程的鉴权判定", () => {
   it("需要 token 且未配置：自动生成、提示实际监听地址、且不落盘", async () => {
     const h = stubSettings({

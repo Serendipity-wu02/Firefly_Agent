@@ -78,30 +78,23 @@ function bindUserProfileSave(input: HTMLInputElement | null, field: string, live
 bindUserProfileSave(userNicknameInput, "nickname", true);
 bindUserProfileSave(userCallPrefInput, "callPreference");
 bindUserProfileSave(userBirthdayInput, "birthday");
-// 默认城市复用上面的 saveCity（保持原逻辑）
-if (userDefaultCityInput) {
-  const saveCity = (): void => {
-    const value = userDefaultCityInput.value.trim();
-    void window.user?.saveProfile({ defaultCity: value });
-  };
-  userDefaultCityInput.addEventListener("change", saveCity);
-  userDefaultCityInput.addEventListener("blur", saveCity);
-}
+bindUserProfileSave(userDefaultCityInput, "defaultCity");
 
 // 时区：白名单填充 options；保存只接受白名单 value（select 只能选白名单项，天然受限）
 if (userTimezoneSelect) {
+  const select = userTimezoneSelect;
   for (const opt of TIMEZONE_OPTIONS) {
     const o = document.createElement("option");
     o.value = opt.value;
     o.textContent = opt.label;
-    userTimezoneSelect.appendChild(o);
+    select.appendChild(o);
   }
-  userTimezoneSelect.addEventListener("change", () => {
-    const raw = userTimezoneSelect.value;
+  select.addEventListener("change", () => {
+    const raw = select.value;
     // 防御性二次校验：即便有人手动改 DOM，保存路径也只放行白名单 value
     const safe = normalizeTimezoneOptionValue(raw);
     if (safe !== raw) {
-      userTimezoneSelect.value = safe;
+      select.value = safe;
       return; // 不发保存请求，等用户重新选
     }
     void window.user?.saveProfile({ timezone: safe });
@@ -110,11 +103,12 @@ if (userTimezoneSelect) {
 
 // 性别：三档按钮，点击切换并原子保存
 if (userGenderGroup) {
-  userGenderGroup.querySelectorAll(".gender-select__btn").forEach((btn) => {
+  const group = userGenderGroup;
+  group.querySelectorAll(".gender-select__btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const value = (btn as HTMLElement).dataset.gender;
       if (!value) return;
-      userGenderGroup.querySelectorAll(".gender-select__btn").forEach((b) => b.classList.remove("is-active"));
+      group.querySelectorAll(".gender-select__btn").forEach((b) => b.classList.remove("is-active"));
       btn.classList.add("is-active");
       void window.user?.saveProfile({ gender: value });
     });

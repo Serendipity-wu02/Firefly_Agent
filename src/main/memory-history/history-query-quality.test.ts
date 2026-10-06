@@ -62,6 +62,22 @@ it('compatibility folding is nonexpanding at the accepted document length bound'
  expect(()=>t.tokens('A'.repeat(65536+128))).toThrow('MEMORY_HISTORY_INPUT_INVALID');
 });
 
+it.each([
+ ['ABC',['abc']],
+ ['XMLHttpRequest',['xmlhttprequest','xml','http','request']],
+ ['HTTPServerURL',['httpserverurl','http','server','url']],
+ ['ABcDEf',['abcdef','a','bc','d','ef']],
+ ['ABcDeFGhIj',['abcdefghij','a','bc','de','f','gh','ij']],
+ ['v2HTTPServer99URL',['v2httpserver99url','v2','http','server99','url']],
+ ['FooBarFooBar',['foobarfoobar','foo','bar','foo','bar']],
+ ['XMLHttpRequest XMLHttpRequest',['xmlhttprequest','xml','http','request','xmlhttprequest','xml','http','request']],
+] as const)('preserves acronym, numeric and consecutive camel boundaries for %s',(text,expected)=>{
+ expect(createHistoryTokenizer().tokens(text)).toEqual(expected);
+});
+it('keeps a full-length all-uppercase identifier as one unexpanded token',()=>{
+ expect(createHistoryTokenizer().tokens('A'.repeat(65536))).toEqual(['a'.repeat(65536)]);
+});
+
 it('sign punctuation cannot collapse contradictory numeric records as duplicates',()=>{
  expect(ids(rankHistory([doc('a','gain -1',1000),doc('b','gain +1',1000)],'gain'))).toEqual(['a','b']);
 });

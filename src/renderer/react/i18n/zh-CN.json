@@ -268,7 +268,9 @@
     "errListFailed": "目录读取失败",
     "errReadFailed": "文件读取失败",
     "previewLoading": "正在读取文件…",
-    "previewLinesHint": "文件较大，仅显示前 {{count}} 行"
+    "previewLinesHint": "文件较大，仅显示前 {{count}} 行",
+    "refresh": "刷新文件列表",
+    "refreshPreview": "重新读取文件"
   },
   "modelPanel": {
     "title": "模型",
@@ -716,16 +718,74 @@
     "reload": "刷新",
     "close": "关闭浏览器",
     "checking": "正在检查浏览器状态…",
-    "unavailable": "浏览器暂不可用：网络安全验证尚未完成。",
+    "unavailable": "浏览器服务当前不可用。",
     "closed": "浏览器已关闭。",
     "viewport": "网页预览",
-    "empty": "网页加载暂不可用。"
+    "empty": "网页加载暂不可用。",
+    "permission": "浏览器授权",
+    "permissionRequired": "启用当前会话的浏览器",
+    "permissionGranted": "当前会话已获授权",
+    "permissionScope": "将打开系统确认框。授权仅限下列域名及操作；关闭页面、撤销或切换会话后失效。",
+    "permissionDenied": "你已拒绝本次授权，可在需要时重新开启。",
+    "permissionFailed": "当前会话没有有效的浏览器授权。",
+    "permissionPending": "等待确认…",
+    "revoke": "撤销授权",
+    "enable": "启用浏览器"
   },
   "workspace": {
     "resizeSidebar": "调整会话侧栏宽度",
     "tasks": "任务与项目",
     "chooseFolder": "选择工作目录",
     "chooseProject": "选择项目目录，开始工作。",
-    "pendingFiles": "已选择 {{name}}。开始会话后显示文件。"
+    "pendingFiles": "已选择 {{name}}。开始会话后显示文件。",
+    "results": "运行结果",
+    "noResults": "本会话尚无工具或子任务结果。",
+    "runResult": "第 {{index}} 次运行结果",
+    "resultCounts": "{{files}} 个文件变更 · {{tools}} 项工具结果",
+    "changedFiles": "已变更文件",
+    "openFile": "打开文件",
+    "openDiff": "查看差异",
+    "childResult": "子任务结果",
+    "emptyResult": "此项没有返回文本。",
+    "resultTruncated": "此处显示前 64,000 个字符，完整结果保留在原工具记录中。",
+    "toolSummary": "工具返回摘要",
+    "diffUnavailable": "这次工具结果未提供行级差异。",
+    "writeEvidence": "写入证据",
+    "writeEvidenceUnavailable": "此项子任务没有可用的写入证据。",
+    "noRecordedWrites": "此项子运行没有记录写入。",
+    "versionUnavailable": "不可用",
+    "fileVersion": "版本",
+    "beforeWrite": "写入前",
+    "afterWrite": "写入后",
+    "writeTool": "工具调用",
+    "writeEvents": "工具事件",
+    "eventsUnavailable": "不可用",
+    "executionEvidence": "模型执行事件",
+    "executionClock": "单调时钟",
+    "writeState": {
+      "applied": "已应用",
+      "partially_applied": "部分已应用",
+      "unknown": "效果未知",
+      "not_applied": "未应用"
+    },
+    "childStatus": {
+      "running": "进行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "interrupted": "已中断"
+    },
+    "executionPhase": {
+      "start": "开始",
+      "end": "结束",
+      "terminal": "终态"
+    },
+    "toolStatus": {
+      "running": "进行中",
+      "success": "成功",
+      "failed": "失败",
+      "error": "失败",
+      "cancelled": "已取消"
+    }
   }
 }

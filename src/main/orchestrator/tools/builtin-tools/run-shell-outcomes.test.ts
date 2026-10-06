@@ -54,7 +54,7 @@ function round(toolContext = context, ledger = new ExecutionLedger()) {
       signal: toolContext.signal, toolContext, onEvent: event => events.push(event), onToolFinished: event => finished.push(event) },
     config: DEFAULT_HARNESS_CONFIG, state, clock: new TimeoutClock(0, 0), streamController: new StreamController(),
     allToolSpecs: [], messages: [], toolOutputs: [], cache: { ...INITIAL_HARNESS_CACHE_STATE }, rounds: 0,
-    askDispatchContext: toolDispatchContext, toolDispatchContext, toolCallStartedAt: new Map(),
+    askDispatchContext: toolDispatchContext, toolDispatchContext, toolCallStartedAt: new Map(), checkpoint: vi.fn(),
   };
   return { run, events, finished, ledger };
 }
@@ -125,6 +125,29 @@ describe("R3 actual shell through shared executor, scheduler and ledger", () => 
     });
   }
 
+  it("foreground result can finish kill grace while retained actual close is still pending", async () => {
+    vi.useFakeTimers();
+    const process = child();
+    mocks.spawn.mockReturnValue(process);
+    let retained: Promise<unknown> | undefined;
+    const execution = {
+      coordinator: { assertPermit: () => ({}), retainUntil: (_permit: unknown, completion: Promise<unknown>) => { retained = completion; }, getWriteEvidence: () => [] },
+      scope: { workspaceId: "workspace", parentRunId: "parent", groupId: "group", agentId: "a", childRunId: "child", toolCallId: "shell" },
+      permit: {},
+    } as unknown as NonNullable<ToolContext["execution"]>;
+    const result = runShellTool.execute({ ...args, timeout_ms: 1000 }, { ...context, execution });
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledTimes(1));
+    expect(retained).toBeInstanceOf(Promise);
+    let closed = false;
+    void retained!.then(() => { closed = true; });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(JSON.parse(await result).timedOut).toBe(true);
+    expect(closed).toBe(false);
+    process.emit("close", 1);
+    await retained;
+    expect(closed).toBe(true);
+  });
+
   it("cancelled before execution is not an applied timeout or success", async () => {
     const controller = new AbortController(); controller.abort();
     const result = await executeToolDefinition(runShellTool, args, { ...context, signal: controller.signal });
@@ -169,12 +192,19 @@ describe("R4 delayed cancellation and R2 live guards", () => {
         fixture.run.toolDispatchContext.tools = [{ ...runShellTool, execute }];
         const running = runToolRound(fixture.run, [{ ...call, arguments: JSON.stringify({ ...args, run_in_background: background }) }, { ...call, id: "shell-never-dispatched" }]);
         await entered.promise; controller.abort();
-        expect(await running).toBe("cancelled");
+        let roundSettled = false;
+        void running.then(() => { roundSettled = true; });
+        await Promise.resolve();
+        expect(roundSettled).toBe(false);
         release.resolve();
-        await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+        expect(await running).toBe("cancelled");
         if (phase === "permission") {
-          expect(JSON.parse(await execution as string)).toMatchObject({ success: false, errorCode: "E_ABORTED" });
-        } else await expect(execution).rejects.toMatchObject({ name: "AbortError" });
+          expect(execute).not.toHaveBeenCalled();
+          expect(execution).toBeUndefined();
+        } else {
+          expect(execute).toHaveBeenCalledTimes(1);
+          await expect(execution).rejects.toMatchObject({ name: "AbortError" });
+        }
         expect(mocks.spawn).not.toHaveBeenCalled(); expect(mocks.background).not.toHaveBeenCalled();
         expect(fixture.finished).not.toContainEqual(expect.objectContaining({ status: "success" }));
       });

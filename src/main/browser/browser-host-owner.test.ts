@@ -14,6 +14,7 @@ describe("native host owner from the existing Main active target and real sessio
     targets.setActive({ sender: contents as unknown as WebContents, sessionId: "a", mode: "chat", rendererTargetId: "renderer" }); binding.refresh();
     const owner = binding.resolveOwner({ sender: contents, senderFrame: frame }); expect(owner?.conversationId).toBe("a"); expect(owner?.profile).toBe(profile); expect(owner?.topFrame).toBe(frame);
     expect(binding.resolveOwner({ sender: contents, senderFrame: frame })).toBe(owner);
+    expect((binding as any).getCurrentOwner).toBeTypeOf("function"); expect((binding as any).getCurrentOwner()).toBe(owner);
     expect(binding.resolveOwner({ sender: contents, senderFrame: {} })).toBeNull();
     targets.setActive({ sender: contents as unknown as WebContents, sessionId: "b", mode: "chat", rendererTargetId: "renderer" }); binding.refresh();
     expect(owner?.signal.aborted).toBe(true); const next = binding.resolveOwner({ sender: contents, senderFrame: frame }); expect(next?.conversationId).toBe("b"); expect(next?.generation).toBeGreaterThan(owner?.generation ?? 0); expect(next?.ownerSessionId).not.toBe(owner?.ownerSessionId);

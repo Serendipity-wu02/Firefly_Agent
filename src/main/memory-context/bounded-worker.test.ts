@@ -11,9 +11,10 @@ import {MemoryClient} from "../memory-core/worker-client";
 import {sealPayload,openPayload} from "../memory-core/payload-codec";
 import {createOpenRouterExpense} from "./openrouter-bounded";
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-bounded-worker-")),workerPath=path.join(root,"worker.cjs"),wrapping=randomBytes(32);let worker:MemoryClient|undefined;
-beforeAll(async()=>{await build({entryPoints:["src/main/memory-core/worker.ts"],outfile:workerPath,bundle:true,platform:"node",target:"node24",format:"cjs"})});
+beforeAll(async()=>{if(process.platform==="win32")await build({entryPoints:["src/main/memory-core/worker.ts"],outfile:workerPath,bundle:true,platform:"node",target:"node24",format:"cjs"})});
 afterAll(async()=>{try{await worker?.close()}finally{wrapping.fill(0);fs.rmSync(root,{recursive:true,force:true})}});
-it("one real Worker persists a pending funding permit across close/reopen and denies generic access",async()=>{
+// The real MemoryClient requires Windows ownership and protected-key leases.
+it.runIf(process.platform==="win32")("one real Worker persists a pending funding permit across close/reopen and denies generic access",async()=>{
  const isolation=path.join(root,"isolated"),production=path.join(root,"synthetic-production");fs.mkdirSync(isolation);fs.mkdirSync(production);
  const storage=createStorageContext(resolveRuntimeProfile({argv:["--firefly-profile=test","--firefly-isolation-root="+isolation],env:{},isPackaged:false,productionAppData:production})),binding={recordType:"synthetic-wrap",id:"bounded-worker",schemaVersion:1,keyVersion:1};
  const options={storage,keyProtection:{protect:async(value:Uint8Array)=>sealPayload(wrapping,binding,value),unprotect:async(value:Uint8Array)=>openPayload(wrapping,binding,value)},workerFactory:(data:any)=>new Worker(workerPath,{workerData:data,execArgv:[]})};

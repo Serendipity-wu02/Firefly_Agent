@@ -16,8 +16,7 @@ import {
   loadChannelsSettings,
   saveChannelsSettings,
 } from "./settings-store";
-import { channelManager } from "./manager";
-import type { MessageHandler } from "./types";
+import { channelManager, type DispatchFn } from "./manager";
 import { getChannelConversationBindingStore } from "./conversation-binding-store";
 import { listSessions, getSession } from "../chats/chats-store";
 import {
@@ -54,7 +53,7 @@ let qqBotAdapter: QqBotAdapter | null = null;
 
 export interface InitializeChannelsOptions {
   ipc?: IpcScope;
-  handleIncoming: MessageHandler;
+  handleIncoming: DispatchFn;
   reloadDispatcherSettings: () => void;
 }
 
@@ -81,11 +80,11 @@ export function initializeChannels(options: InitializeChannelsOptions): void {
   reloadLogFromDisk();
 
   // 将当前子系统的消息入口注入渠道管理器。
-  channelManager.setDispatcher(async (msg) => {
+  channelManager.setDispatcher(async (msg, ingress) => {
     conversationLifecycle?.onUserMessage();
     conversationLifecycle?.onConversationStarted();
     try {
-      return await options.handleIncoming(msg);
+      return await options.handleIncoming(msg, ingress);
     } finally {
       conversationLifecycle?.onConversationEnded();
     }

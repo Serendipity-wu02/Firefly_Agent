@@ -5,6 +5,8 @@ import { IPC } from "../../shared/ipc-channels";
 import type { PluginPromptMode, PluginTurnStatus } from "../../plugins/api";
 import { loadGeneralSettings } from "../settings/settings-facade";
 import { loadModelSettings, resolveModelSettingsProfile } from "../settings/model-settings";
+import { resolveDefaultModelProfile } from "../settings/model-catalog";
+import { requireChannelMemoryIngress, type ChannelsMemoryHost } from "../memory-context/channel-memory-ingress";
 import type { LifecyclePublisher } from "../plugin-host/lifecycle-publisher";
 import { FireflyAgent } from "../orchestrator/firefly-agent";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
@@ -56,6 +58,8 @@ export interface ChannelsSubsystem {
 
 export interface ChannelsSubsystemDeps {
   agentRuntime: AgentRuntime;
+  /** Main-only shared owner; no renderer opt-in or independent channel Worker. */
+  memory?: ChannelsMemoryHost;
 
   getReactChatWindow: () => BrowserWindow | null;
   /** 共享 IPC scope；传入后 channels IPC 由组合根统一注销。 */
@@ -139,7 +143,11 @@ export function createChannelsSubsystem(
     msg,
     sessionId,
     priorMessages,
+    ingress,
   ) => {
+    if (deps.memory && !ingress) throw Error("MEMORY_CHANNEL_ACCOUNT_UNAVAILABLE");
+    const memoryBinding = deps.memory ? requireChannelMemoryIngress(ingress, msg) : undefined;
+    if (memoryBinding && memoryBinding.sessionId !== sessionId) throw Error("MEMORY_CHANNEL_INGRESS_DENIED");
     const channelResult: { text: string; sticker: string | null } = { text: "", sticker: null };
 
     const sandbox = loadChannelsSettings().toolSandbox;
@@ -154,7 +162,7 @@ export function createChannelsSubsystem(
       `msg.channel=${msg.channel} sandbox=${sandbox} tools=${exposedTools.length}/${allTools.length} priorMsgs=${priorMessages?.length ?? 0}`,
     );
 
-    const historyMessages = (priorMessages ?? [])
+    const historyMessages = (deps.memory ? [] : priorMessages ?? [])
       .filter((m) => typeof m.content === "string" && m.content.trim().length > 0)
       .map((m) => ({
         role: m.role as "user" | "assistant" | "system",
@@ -162,93 +170,110 @@ export function createChannelsSubsystem(
       }));
 
     // 图片路由统一收口在 image-router（基于解析后的默认档案——顶层镜像可能是空壳）
-    const channelModelSettings = resolveModelSettingsProfile(loadModelSettings());
-    const channelImageRoute = resolveImageRoute("channel", channelModelSettings);
-    const attachmentInputs = await buildChannelAttachmentInputs(msg, {
-      // reject 时走 caption 分支：每张图会拿到路由的人话错误并诚实告知用户
-      imageMode: channelImageRoute.mode === "direct" ? "direct" : "caption",
-      captionImage: async (filePath: string) => {
-        const settings = resolveModelSettingsProfile(loadModelSettings());
-        const vision = resolveCaptionVisionConfig(settings);
-        if (!vision.ok) return { ok: false, error: vision.error };
-        return captionImageSafe(filePath, IMAGE_CAPTION_PROMPT, vision.config);
-      },
-    });
+    const savedModelSettings = loadModelSettings();
+    const modelProfileId = deps.memory ? resolveDefaultModelProfile(savedModelSettings.modelProfiles ?? [], savedModelSettings.defaultModelProfileId)?.id : undefined;
+    if (deps.memory && !modelProfileId) throw Error("MEMORY_RUN_PROFILE_DENIED");
     const agentUserText = formatChannelUserText(msg);
-    const { options } = await deps.agentRuntime.buildOptions({
-      messages: [
-        ...historyMessages,
-        { role: "user", content: agentUserText },
-      ],
-      styleId: "default",
-      sessionId,
-      // 渠道绑定只共享文字上下文，不继承桌面对话的工作区权限。
-      workspaceBindingSessionId: null,
-      attachments: attachmentInputs.attachments,
-      imageAttachments: attachmentInputs.imageAttachments,
-      channel: msg.channel,
-      executionMode: policy.executionMode,
-      ...(policy.executionMode === "chat" ? {
-        userTurnId: `${msg.channel}:${msg.senderId}:${msg.at.toISOString()}:user`,
-        assistantTurnId: `${msg.channel}:${msg.senderId}:${msg.at.toISOString()}:assistant`,
-      } : {}),
-    });
-    options.tools = policy.exposeTools
-      ? [...(options.capabilities?.tools ?? exposedTools)]
-      : [];
-    enforceChannelAgentPolicy(options, policy);
-
-    const threadId = `thread-${sessionId}-${Date.now()}`;
-    const agent = new FireflyAgent({ threadId, description: `bot:${msg.channel}:${msg.senderId}` });
-    // 轮次事件只带渠道会话标识，不提供桌面消息边界；绑定消息由 dispatcher 镜像写入。
-    const mode: PluginPromptMode = options.conversationMode
-      ?? (options.executionMode === "chat" ? "chat" : "work");
-    const runId = randomUUID();
-    const runStartedAt = Date.now();
-    deps.publishLifecycle?.publishTurnStarted({
-      source: "channel",
-      channel: msg.channel,
-      conversationId: sessionId,
-      runId,
-      mode,
-    });
-    let lifecycleStatus: PluginTurnStatus = "runtime_error";
+    const runId = randomUUID(), userTurnId = deps.memory ? randomUUID() : `${msg.channel}:${msg.senderId}:${msg.at.toISOString()}:user`;
+    const assistantTurnId = deps.memory ? randomUUID() : `${msg.channel}:${msg.senderId}:${msg.at.toISOString()}:assistant`;
+    // Authorize and commit the canonical event before any file/caption preparation.
+    const memoryRun = deps.memory ? await deps.memory.prepareRun({ ingress: ingress!, message: msg, userText: agentUserText,
+      modelProfileId: modelProfileId!, runId, userTurnId, assistantTurnId, signal: memoryBinding!.signal }) : undefined;
     try {
-      const reply = await new Promise<string>((resolve, reject) => {
-        agent.runWithEvents(options).subscribe({
-          complete: () => {
-            resolve(agent.lastResult?.reply ?? "");
-          },
-          error: (err) => reject(err instanceof Error ? err : new Error(String(err))),
-        });
+      if (memoryRun && (memoryRun.sessionId !== sessionId || memoryRun.signal.aborted)) throw Error("MEMORY_CHANNEL_INGRESS_DENIED");
+      const channelModelSettings = resolveModelSettingsProfile(savedModelSettings);
+      const channelImageRoute = resolveImageRoute("channel", channelModelSettings);
+      // The canonical route materializes only the owner's opaque attachment grant.
+      // Keep the existing adapter media path solely for standalone legacy callers.
+      const attachmentInputs = deps.memory ? {} : await buildChannelAttachmentInputs(msg, {
+        // reject 时走 caption 分支：每张图会拿到路由的人话错误并诚实告知用户
+        imageMode: channelImageRoute.mode === "direct" ? "direct" : "caption",
+        captionImage: async (filePath: string) => {
+          const settings = resolveModelSettingsProfile(loadModelSettings());
+          const vision = resolveCaptionVisionConfig(settings);
+          if (!vision.ok) return { ok: false, error: vision.error };
+          return captionImageSafe(filePath, IMAGE_CAPTION_PROMPT, vision.config);
+        },
       });
-      lifecycleStatus = agent.lastResult?.terminal?.status ?? "success";
-      channelResult.text = reply;
-      // Observable 在超时终态下也会正常 complete；只有成功终态才能进入记忆、表情等成功收尾。
-      const terminalStatus = agent.lastResult?.terminal?.status;
-      if (agent.lastResult && (terminalStatus === undefined || terminalStatus === "success")) {
-        const finished = await deps.agentRuntime.onRunFinished(agent.lastResult, agentUserText, {
-          source: "channel",
-          mode,
-          conversationId: sessionId,
-          channel: msg.channel,
-        });
-        channelResult.sticker = finished.sticker;
+      const buildInput: Parameters<AgentRuntime["buildOptions"]>[0] = {
+        messages: [
+          ...historyMessages,
+          { role: "user", content: agentUserText },
+        ],
+        styleId: "default",
+        sessionId,
+        ...(modelProfileId ? { modelProfileId } : {}),
+        // 渠道绑定只共享文字上下文，不继承桌面对话的工作区权限。
+        workspaceBindingSessionId: null,
+        attachments: attachmentInputs.attachments,
+        imageAttachments: attachmentInputs.imageAttachments,
+        channel: msg.channel,
+        executionMode: policy.executionMode,
+        ...(deps.memory || policy.executionMode === "chat" ? { userTurnId, assistantTurnId } : {}),
+      };
+      const { options } = memoryRun
+        ? await deps.agentRuntime.buildOptions(buildInput, { attachmentGrant: memoryRun.attachmentGrant })
+        : await deps.agentRuntime.buildOptions(buildInput);
+      options.tools = policy.exposeTools
+        ? [...(options.capabilities?.tools ?? exposedTools)]
+        : [];
+      enforceChannelAgentPolicy(options, policy);
+      if (memoryRun) {
+        Object.assign(options, { runId, conversationId: sessionId, userTurnId, assistantTurnId,
+          signal: memoryRun.signal, transcriptSink: memoryRun.transcriptSink, openMemoryRun: memoryRun.openMemoryRun });
       }
-      void indexConversationTurn(sessionId, agentUserText, reply);
-      return channelResult;
-    } finally {
-      // 无论成功、超时还是异常退出，轮次结束事件都要发布一次
-      deps.publishLifecycle?.publishTurnFinished({
+
+      const threadId = `thread-${sessionId}-${Date.now()}`;
+      const agent = new FireflyAgent({ threadId, description: `bot:${msg.channel}:${msg.senderId}` });
+      // 轮次事件只带渠道会话标识，不提供桌面消息边界；绑定消息由 dispatcher 镜像写入。
+      const mode: PluginPromptMode = options.conversationMode
+        ?? (options.executionMode === "chat" ? "chat" : "work");
+      const runStartedAt = Date.now();
+      deps.publishLifecycle?.publishTurnStarted({
         source: "channel",
         channel: msg.channel,
         conversationId: sessionId,
         runId,
         mode,
-        status: lifecycleStatus,
-        durationMs: Date.now() - runStartedAt,
       });
-    }
+      let lifecycleStatus: PluginTurnStatus = "runtime_error";
+      try {
+        const reply = await new Promise<string>((resolve, reject) => {
+          agent.runWithEvents(options).subscribe({
+            complete: () => {
+              resolve(agent.lastResult?.reply ?? "");
+            },
+            error: (err) => reject(err instanceof Error ? err : new Error(String(err))),
+          });
+        });
+        lifecycleStatus = agent.lastResult?.terminal?.status ?? "success";
+        channelResult.text = reply;
+        // Observable 在超时终态下也会正常 complete；只有成功终态才能进入记忆、表情等成功收尾。
+        const terminalStatus = agent.lastResult?.terminal?.status;
+        if (agent.lastResult && (terminalStatus === undefined || terminalStatus === "success")) {
+          const finished = await deps.agentRuntime.onRunFinished(agent.lastResult, agentUserText, {
+            source: "channel",
+            mode,
+            conversationId: sessionId,
+            channel: msg.channel,
+          });
+          channelResult.sticker = finished.sticker;
+        }
+        if (!deps.memory) void indexConversationTurn(sessionId, agentUserText, reply);
+        return channelResult;
+      } finally {
+        // 无论成功、超时还是异常退出，轮次结束事件都要发布一次
+        deps.publishLifecycle?.publishTurnFinished({
+          source: "channel",
+          channel: msg.channel,
+          conversationId: sessionId,
+          runId,
+          mode,
+          status: lifecycleStatus,
+          durationMs: Date.now() - runStartedAt,
+        });
+      }
+    } finally { await memoryRun?.close(); }
   };
 
   const broadcastChat: DispatcherDeps["broadcastChat"] = (event) => {
@@ -295,6 +320,7 @@ export function createChannelsSubsystem(
     composer,
     delivery: createChannelDeliveryService(channelManager),
     buildAndRunAgent,
+    memoryEnabled: !!deps.memory,
     loadSettings: loadChannelsSettings,
     loadGeneralSettings,
     observeExternalChat,
@@ -305,7 +331,7 @@ export function createChannelsSubsystem(
   const defaultLifecycle: ChannelsLifecycleAdapter = {
     initialize: () => initializeChannels({
       ipc: deps.ipc,
-      handleIncoming: (msg) => dispatcher.handleIncoming(msg),
+      handleIncoming: (msg, ingress) => dispatcher.handleIncoming(msg, ingress),
       reloadDispatcherSettings: () => dispatcher.reloadSettings(),
     }),
     start: (signal?: AbortSignal) => startChannels(signal),

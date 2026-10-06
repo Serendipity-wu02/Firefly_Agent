@@ -108,6 +108,7 @@ interface PendingApproval {
   rebroadcastTimer: NodeJS.Timeout;
   /** 关联的 canonical runId，用于 cancelPendingApprovalsForRun。 */
   runId?: string;
+  removeAbortListener?: () => void;
 }
 
 const pendingApprovals = new Map<string, PendingApproval>();
@@ -138,6 +139,7 @@ function settlePendingApproval(
   if (!pending) return;
   clearInterval(pending.rebroadcastTimer);
   pendingApprovals.delete(id);
+  pending.removeAbortListener?.();
   broadcastToAllWindows(IPC.PERMISSION_APPROVAL_SETTLED, {
     id,
     runId: pending.runId,
@@ -152,8 +154,9 @@ function settlePendingApproval(
  * 向用户发起一次审批请求，等用户点同意/拒绝。
  * 不设超时，无限等待直到用户回应或所属 run 终态取消。
  */
-export function requestApproval(request: Omit<ApprovalRequest, "id">): Promise<boolean> {
+export function requestApproval(request: Omit<ApprovalRequest, "id">, signal?: AbortSignal): Promise<boolean> {
   return new Promise<boolean>((resolve, reject) => {
+    if (signal?.aborted) { reject(createAbortError()); return; }
     const id = "approve-" + (++approvalCounter) + "-" + Date.now();
     const payload: ApprovalRequest = { id, ...request };
     console.log(LOG_PREFIX, "向渲染端发送审批请求:", id, request.toolId);
@@ -170,7 +173,12 @@ export function requestApproval(request: Omit<ApprovalRequest, "id">): Promise<b
     }, APPROVAL_REBROADCAST_INTERVAL_MS);
     if (typeof rebroadcastTimer.unref === "function") rebroadcastTimer.unref();
 
-    pendingApprovals.set(id, { resolve, reject, rebroadcastTimer, runId: request.runId });
+    const onAbort = () => settlePendingApproval(id, "cancelled", pending => pending.reject(createAbortError()));
+    pendingApprovals.set(id, { resolve, reject, rebroadcastTimer, runId: request.runId,
+      ...(signal ? { removeAbortListener: () => signal.removeEventListener("abort", onAbort) } : {}),
+    });
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) { onAbort(); return; }
 
     // 首次广播给所有窗口（chat 窗口会优先显示卡片）
     broadcastToAllWindows(IPC.PERMISSION_APPROVAL_REQUEST, payload);
@@ -260,7 +268,7 @@ export async function checkPermission(input: {
     args: input.args,
     risk: input.risk,
     runId: input.runId,
-  });
+  }, input.signal);
   if (input.signal?.aborted) throw createAbortError();
   if (approved) {
     // A pending approval does not preserve permissions that were revoked while waiting.

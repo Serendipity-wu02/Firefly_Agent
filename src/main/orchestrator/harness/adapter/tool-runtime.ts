@@ -14,13 +14,18 @@ import { loadModelSettings } from "../../../settings/model-settings";
 import { FileToolOutputStore } from "../tool-output/file-tool-output-store";
 import { sendTaskLifecycleAsAgui } from "./event-mapper";
 import type { PreparedHarnessRun } from "./run-preparation";
+import { getWorkspaceExecutionCoordinator } from "../execution-coordinator";
 import type { FireflyRunOptions } from "../../firefly-agent";
 
 /**
  * 为一次 Harness run 构造工具运行时（tool runtime）。
- * signal、runId 和 permissionCheck 从父 run 原样下传，避免子任务或权限检查产生第二套生命周期。
+ * Main owns one internal stop controller. Its composite signal preserves external
+ * cancellation and is shared by Harness, tools, approvals and delegated children.
  */
 export interface PreparedToolRuntime {
+  signal: AbortSignal;
+  /** Stop only this Main execution's owned work before error/cancellation drain. */
+  quiesceExecution: () => void;
   toolContext: ToolContext;
   checkPermission: NonNullable<HarnessInput["checkPermission"]>;
   toolOutputStore: FileToolOutputStore;
@@ -34,13 +39,17 @@ export function prepareToolRuntime(input: {
   prepared: PreparedHarnessRun;
   sendBaseEvent: (event: BaseEvent) => void;
 }): PreparedToolRuntime {
-  const { options, signal, prepared } = input;
+  const { options, prepared } = input;
+  const owner = new AbortController();
+  const signal = AbortSignal.any([input.signal, owner.signal]);
+  const quiesceExecution = () => owner.abort();
   const { threadId, runId, systemPrompt, vendorConfig, tools } = prepared;
   // 会话权限由可信设置捕获一次；随后全局档位只能进一步限制，不能扩大该快照。
   const fileAccessLevel = options.permissionMode === "allow_all" ? "full" : getCurrentLevel();
   const permissionCheck: NonNullable<HarnessInput["checkPermission"]> = async (
     toolId: string,
     args: Record<string, unknown>,
+    invocationSignal?: AbortSignal,
   ): Promise<boolean> => {
     const tool = toolRegistry.getById(toolId);
     if (!tool) return false;
@@ -61,13 +70,24 @@ export function prepareToolRuntime(input: {
       args,
       risk,
       runId,
-      signal,
+      signal: invocationSignal && invocationSignal !== signal ? AbortSignal.any([signal, invocationSignal]) : signal,
       level: fileAccessLevel,
     });
     // 等待用户审批期间也可能进入计划讨论，批准单次工具不能解除计划限制。
     return decision.allowed && !blockedByPlan();
   };
 
+  const executionCoordinator = options.resolvedWorkspaceRoot
+    ? getWorkspaceExecutionCoordinator(options.resolvedWorkspaceRoot) : undefined;
+  const revalidateToolPermission: NonNullable<ToolContext["revalidateToolPermission"]> = (toolId, _args, approvalRequired) => {
+    const tool = tools.find(candidate => candidate.id === toolId) ?? toolRegistry.getById(toolId);
+    if (!tool) return false;
+    const risk = tool.risk ?? "safe";
+    if (isPlanReadOnly(threadId) && (risk === "shell" || policyFor("read-only", risk) !== "allow")) return false;
+    if (options.permissionMode === "allow_all") return true;
+    const policies = [policyFor(fileAccessLevel, risk), policyFor(getCurrentLevel(), risk)];
+    return !policies.includes("deny") && (!policies.includes("ask") || approvalRequired);
+  };
   const toolContext: ToolContext = {
     userQuery: extractLastUserQuery(options.messages),
     conversationId: options.conversationId ?? "default",
@@ -80,6 +100,11 @@ export function prepareToolRuntime(input: {
     allowedSkillIds: options.capabilities?.skillIds,
     permissionMode: options.permissionMode,
     fileAccessLevel,
+    revalidateToolPermission,
+    ...(executionCoordinator ? { execution: { coordinator: executionCoordinator, scope: {
+      workspaceId: executionCoordinator.workspaceId, parentRunId: runId, groupId: runId,
+      agentId: "main", childRunId: runId, toolCallId: runId,
+    } } } : {}),
   };
   const toolOutputStore = new FileToolOutputStore(app.getPath("userData"));
   // 只有 work/code 模式允许派生任务；chat 模式不创建 TaskSession，避免出现不可见的后台执行。
@@ -89,6 +114,8 @@ export function prepareToolRuntime(input: {
       profiles,
       modelSettings: loadModelSettings(),
       parent: {
+        backgroundMemory: options.backgroundMemory,
+        memoryRun: options.memoryRun,
         parentConversationId: threadId,
         parentRunId: runId,
         mode: options.conversationMode,
@@ -104,12 +131,15 @@ export function prepareToolRuntime(input: {
         fileAccessLevel,
         toolOutputStore,
         workReadScopes: options.workReadScopes,
+        executionCoordinator,
+        revalidateToolPermission,
       },
       store: getTaskSessionStore(app.getPath("userData")),
+      runStore: prepared.runStore,
       onLifecycle: (event) => sendTaskLifecycleAsAgui(event, threadId, runId, input.sendBaseEvent),
     })
     : undefined;
 
-  return { toolContext, checkPermission: permissionCheck, toolOutputStore, agentExecutor,
+  return { signal, quiesceExecution, toolContext, checkPermission: permissionCheck, toolOutputStore, agentExecutor,
     agentDefinitions: profiles.map(({ id, nickname, description }) => ({ id, nickname, description })) };
 }

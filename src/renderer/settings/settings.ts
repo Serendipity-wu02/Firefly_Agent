@@ -1,3 +1,6 @@
+import type {} from "../global";
+import { bindUiColorControls } from "./appearance/colors";
+import { DEFAULT_UI_COLORS } from "../../shared/ui-colors";
 import { renderProviderRows } from "./api/provider-rows";
 import { applyProviderEditorLayout } from "./api/provider-editor";
 import { bindSettingsNavigation, resolveSettingsSection, updateSettingsNavigation } from "./shared/navigation";
@@ -59,8 +62,7 @@ import { musicToggle, musicAccordionCard, musicAccordionBody } from "./music/dom
 import { channelsState } from "./channels/state";
 import { mountPluginPanels } from "./plugin-panels";
 import { channelsWechatEnabledEl, channelsFeishuEnabledEl, channelsWechatStatusEl, channelsFeishuStatusEl, channelsRateUserEl, channelsRateChannelEl, channelsStickerEl, channelsMirrorEl, channelsToolSandboxOffEl, channelsToolSandboxAllEl, channelsFeishuAppIdEl, channelsFeishuAppSecretEl, channelsFeishuAppSecretRevealBtn, channelsFeishuSaveBtn, channelsWechatLoginBtn, channelsWechatRestartBtn, channelsWechatFeedbackEl, channelsFeishuFeedbackEl, channelsLogListEl, channelsLogRefreshBtn, channelsLogClearBtn } from "./channels/dom";
-import { memoryState } from "./memory/state";
-import { memoryL0NameInput, memoryL0OccupationInput, memoryL0InterestsInput, memoryL0LanguageInput, memoryL0NoteInput, memoryL1GoalsInput, memoryL1PreferencesInput, memoryL1ProjectInput, memoryL2SearchInput, memoryL2List, memoryImportedList, memoryReflectionList, memoryL0EditBtn, memoryL0CancelBtn, memoryL1EditBtn, memoryL1CancelBtn } from "./memory/dom";
+import { memoryImportedList } from "./memory/dom";
 import { schedulerState } from "./scheduler/state";
 import { schedulerNewBtn, schedulerEmpty, schedulerList, schedulerEditor, schedulerEditorTitle, schedulerEditorClose, schedulerTitleInput, schedulerPromptInput, schedulerEnabledInput, schedulerKindInput, schedulerOnceRunAtInput, schedulerTimeOfDayInput, schedulerDayOfWeekInput, schedulerIntervalEveryInput, schedulerIntervalUnitInput, schedulerToolLimitInput, schedulerToolPicker, schedulerToolEmptyHint, schedulerSaveStatus, schedulerCancelBtn, schedulerSaveBtn } from "./scheduler/dom";
 import { tokensState } from "./tokens/state";
@@ -96,13 +98,7 @@ import {
 } from "./shared/save-status";
 import { renderEmptyState, renderInfoList } from "./shared/render";
 import { shallowEqual, safeGet } from "./shared/utils";
-import {
-  loadMemoryPanel,
-  enterL0EditMode, exitL0EditMode, saveL0, cancelL0Edit,
-  enterL1EditMode, exitL1EditMode, saveL1, cancelL1Edit,
-  renderImportedDocs,
-} from "./memory/panel";
-import { initObsidianVaultUI } from "./memory/obsidian-vault-ui";
+import { loadMemoryPanel } from "./memory/panel";
 import {
   setSchedulerStatus, renderSchedulerTools, renderSchedulerList,
   loadSchedulerPanel, openSchedulerEditor, closeSchedulerEditor,
@@ -140,7 +136,6 @@ import { t, subscribeLocaleChanged } from "./i18n";
 
 declare global {
   interface Window {
-    settings?: SettingsApi;
     fireflyScheduler?: SchedulerApi;
     user?: UserApi;
     memoryPanel?: MemoryPanelApi;
@@ -184,9 +179,11 @@ if (!window.settings) {
       chatParaSpacing: 0.5,
       sidebarVisible: true,
       tasksVisible: true,
+      toastSoundEnabled: true,
       launchAtLogin: false,
       language: "zh-CN",
       uiTheme: "pearl-white",
+      uiColors: { ...DEFAULT_UI_COLORS },
       uiThemeRadius: false,
       uiFont: DEFAULT_UI_FONT,
       uiIcon: "firefly",
@@ -200,6 +197,23 @@ if (!window.settings) {
       proactiveDeliveryTarget: "local",
       chatSocialContextEnabled: false,
       screenshotHotkey: "Alt+Shift+S",
+      weatherSource: "open-meteo",
+      weatherEnabled: false,
+      amapKey: "",
+      travelEnabled: false,
+      playwrightMcpEnabled: false,
+      searchEngine: "off",
+      searchBochaKey: "",
+      searchTavilyKey: "",
+      searchMinimaxKey: "",
+      searchAnySearchKey: "",
+      emailEnabled: false,
+      emailSmtpHost: "",
+      emailSmtpPort: 465,
+      emailSmtpSecure: true,
+      emailSmtpUser: "",
+      emailSmtpPass: "",
+      emailFromName: "",
     }),
     saveGeneral: (c) => Promise.resolve(c as GeneralSettings),
     openCustomStylePrompt: async () => ({ ok: false, error: "settings api unavailable" }),
@@ -306,6 +320,8 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
 
 minBtn.addEventListener("click", () => window.settings?.minimize());
 closeBtn.addEventListener("click", () => window.settings?.close());
+
+const uiColorControls = bindUiColorControls(appearanceForm, colors => window.settings!.saveGeneral({ uiColors: colors }));
 
 async function saveAppearancePatch(patch: Partial<GeneralSettings>, successText = t("settings.status.applied")): Promise<void> {
   try {
@@ -975,6 +991,7 @@ async function loadConfig(): Promise<void> {
 async function loadGeneralSettings(): Promise<void> {
   try {
     const cfg = await window.settings!.getGeneral();
+    uiColorControls.load(cfg.uiColors);
     const cita = getCitaUiState({ enabled: cfg.citaEnabled, semanticEngine: cfg.citaSemanticEngine });
     citaEnabledInput.checked = cita.enabled;
     chatSocialContextEnabledInput.checked = normalizeChatSocialContextEnabled(cfg.chatSocialContextEnabled);
@@ -1618,23 +1635,6 @@ switchSection(initialSection);
 window.settings?.onSwitchSection?.((section) => {
   switchSection(section);
 });
-// --- L0/L1 editable logic ---
-
-// Bind edit button events
-memoryL0EditBtn?.addEventListener("click", () => {
-  if (memoryState.l0Editing) { saveL0(); } else { enterL0EditMode(); }
-});
-memoryL0CancelBtn?.addEventListener("click", cancelL0Edit);
-
-memoryL1EditBtn?.addEventListener("click", () => {
-  if (memoryState.l1Editing) { saveL1(); } else { enterL1EditMode(); }
-});
-memoryL1CancelBtn?.addEventListener("click", cancelL1Edit);
-
-// ── Obsidian Vault 绑定 UI（逻辑抽离至 ./memory/obsidian-vault-ui）──
-
-initObsidianVaultUI();
-
 memoryImportedList?.addEventListener("click", async (event) => {
   const target = event.target as HTMLElement | null;
   const deleteBtn = target?.closest(".memory-record__delete") as HTMLElement | null;

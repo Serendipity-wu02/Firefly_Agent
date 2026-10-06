@@ -13,6 +13,7 @@
 // 状态查询协议（shell_job 工具消费）：快照必带输出尾部（最后 8KB）+ 累计字节数，
 // 调用方对比两次查询的 totalBytes 增量即可区分"真在跑 / 已就绪 / 卡死"。
 
+import type { ExecutionScope } from "../../harness/execution-coordinator";
 import { spawn, type ChildProcess } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
@@ -66,6 +67,10 @@ interface ShellJob {
   startedAtIso: string;
   /** 终态达成时唤醒所有 waitForShellJob 等待者 */
   terminalWaiters: Set<() => void>;
+  /** Actual close + log flush, independent of early terminal status. */
+  completion: Promise<void>;
+  processSettled: boolean;
+  executionScope?: Readonly<ExecutionScope>;
 }
 
 export interface ShellJobSnapshot {
@@ -73,6 +78,8 @@ export interface ShellJobSnapshot {
   /** 主进程 PID（停止/调试用；进程未拿到 pid 时为 null） */
   pid: number | null;
   status: ShellJobStatus;
+  /** Status may be terminal before process close and log flush. */
+  processSettled: boolean;
   exitCode: number | null;
   reason: string | null;
   totalBytes: number;
@@ -203,6 +210,7 @@ function snapshotJob(job: ShellJob): ShellJobSnapshot {
     jobId: job.jobId,
     pid: job.child?.pid ?? null,
     status: job.status,
+    processSettled: job.processSettled,
     exitCode: job.exitCode,
     reason: job.reason,
     totalBytes: job.totalBytes,
@@ -218,7 +226,8 @@ function snapshotJob(job: ShellJob): ShellJobSnapshot {
 
 /**
  * 启动一个后台任务：spawn 后立即返回，输出流式写日志文件。
- * 任务生命周期由内部状态机管理，与本轮 agent 调用解耦（取消本轮不杀后台任务）。
+ * 任务生命周期由内部状态机管理。仅 Main-owned 协调运行随其父/子信号停止；
+ * 无 executionScope 的旧独立后台任务仍与本轮取消解耦。
  */
 export function startShellJob(opts: {
   spec: ShellSpawnSpec;
@@ -231,7 +240,11 @@ export function startShellJob(opts: {
   logDir?: string;
   /** 单任务日志上限（测试注入用）；缺省 64MB 生产常量 */
   logMaxBytes?: number;
-}): { jobId: string; logFile: string } {
+  /** Main-owned identity only; never supplied by model arguments. */
+  executionScope?: Readonly<ExecutionScope>;
+  /** Cancel only this trusted owned job; standalone jobs keep legacy independence. */
+  signal?: AbortSignal;
+}): { jobId: string; logFile: string; completion: Promise<void> } {
   const jobsDir = opts.logDir ?? defaultJobsDir();
   fs.mkdirSync(jobsDir, { recursive: true });
   ensureLifecycle(jobsDir);
@@ -248,6 +261,15 @@ export function startShellJob(opts: {
     logger.warn(LogTag.BuiltinTools, `[shell_job] 日志写入失败 ${jobId}: ${err.message}`);
   });
 
+  let resolveCompletion!: () => void;
+  const completion = new Promise<void>((resolve) => { resolveCompletion = resolve; });
+  let processClosed = false;
+  let logClosed = false;
+  const completeIfClosed = () => {
+    if (processClosed && logClosed) { job.processSettled = true; resolveCompletion(); }
+  };
+  logStream.once("close", () => { logClosed = true; completeIfClosed(); });
+
   const now = Date.now();
   const job: ShellJob = {
     jobId,
@@ -263,6 +285,9 @@ export function startShellJob(opts: {
     startedAtMs: now,
     startedAtIso: new Date(now).toISOString(),
     terminalWaiters: new Set(),
+    completion,
+    processSettled: false,
+    executionScope: opts.executionScope ? Object.freeze({ ...opts.executionScope }) : undefined,
   };
   jobs.set(jobId, job);
 
@@ -294,10 +319,21 @@ export function startShellJob(opts: {
   child.on("close", (code) => {
     // 被 stop/超时/超限终止的进程 close 会迟到：settleJob 内部守卫保证终态不被覆盖
     settleJob(job, "exited", { exitCode: code });
+    processClosed = true;
+    completeIfClosed();
   });
 
+  if (opts.executionScope && opts.signal) {
+    const signal = opts.signal;
+    const onAbort = () => { stopShellJob(jobId); };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+    const removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+    void completion.then(removeAbortListener, removeAbortListener);
+  }
+
   logger.info(LogTag.BuiltinTools, `[shell_job] started ${jobId}: ${opts.command}`);
-  return { jobId, logFile };
+  return { jobId, logFile, completion };
 }
 
 /** wait_ms 钳制：缺省/非数字/负数归 0（立即返回），上限 60s，四舍五入 */
@@ -356,4 +392,9 @@ export function disposeAllShellJobs(): void {
       killTree(job.child);
     }
   }
+}
+/** Trusted status/stop control may pass its own held workspace permit. */
+export function isShellJobControlAuthorized(jobId: string, scope: Readonly<ExecutionScope>): boolean {
+  const owner = jobs.get(jobId)?.executionScope;
+  return Boolean(owner && owner.workspaceId === scope.workspaceId && owner.parentRunId === scope.parentRunId);
 }

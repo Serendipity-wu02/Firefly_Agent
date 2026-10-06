@@ -1,4 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { userDataRoot, cleanupUserData } = await vi.hoisted(async () => {
+  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-mcp-effect-permission-"));
+  return {
+    userDataRoot: root,
+    cleanupUserData: () => fs.rmSync(root, { recursive: true, force: true }),
+  };
+});
+
+afterAll(cleanupUserData);
 
 const { connect, listTools, callTool, close, send, handlers } = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -19,7 +32,7 @@ vi.mock("@modelcontextprotocol/sdk/client/sse.js", () => ({
   SSEClientTransport: vi.fn(function () { return { close }; }),
 }));
 vi.mock("electron", () => ({
-  app: { getPath: () => "C:/tmp/firefly-test" },
+  app: { getPath: () => userDataRoot },
   BrowserWindow: { getAllWindows: () => [{ webContents: { send } }] },
   ipcMain: {
     handle: (channel: string, listener: (...args: unknown[]) => unknown) => handlers.set(channel, listener),
@@ -180,7 +193,9 @@ describe("MCP registration through host permission and dispatcher", () => {
     const result = await dispatchToolCall(call("call-1"), context);
 
     expect(result).toMatchObject({ outcome: "success", output: "ok", toolSideEffect: "read_only" });
-    expect(callTool).toHaveBeenCalledExactlyOnceWith({ name: "explode", arguments: { value: "x" } });
+    expect(callTool).toHaveBeenCalledExactlyOnceWith(
+      { name: "explode", arguments: { value: "x" } }, undefined, { signal: context.toolContext.signal },
+    );
     expect(approvalRequests).toEqual([]);
     expect(context.state.uncertainEffects).toEqual([]);
   });
@@ -283,7 +298,9 @@ describe("MCP registration through host permission and dispatcher", () => {
     await registerMcp(undefined, effect);
     const context = dispatchContext("allow_all");
     expect(await dispatchToolCall(call("call-1"), context)).toMatchObject({ outcome: "success", output: "ok" });
-    expect(callTool).toHaveBeenCalledExactlyOnceWith({ name: "explode", arguments: { value: "x" } });
+    expect(callTool).toHaveBeenCalledExactlyOnceWith(
+      { name: "explode", arguments: { value: "x" } }, undefined, { signal: context.toolContext.signal },
+    );
     expect(approvalRequests).toEqual([]);
     expect(context.state.uncertainEffects).toEqual([]);
   });
@@ -294,7 +311,9 @@ describe("MCP registration through host permission and dispatcher", () => {
     await registerMcp(undefined, effect);
     const context = dispatchContext("allow_all");
     expect(await dispatchToolCall(call("call-1"), context)).toMatchObject({ outcome: "success", output: "ok", toolSideEffect: "read_only" });
-    expect(callTool).toHaveBeenCalledExactlyOnceWith({ name: "explode", arguments: { value: "x" } });
+    expect(callTool).toHaveBeenCalledExactlyOnceWith(
+      { name: "explode", arguments: { value: "x" } }, undefined, { signal: context.toolContext.signal },
+    );
     expect(approvalRequests).toEqual([]);
     expect(context.state.uncertainEffects).toEqual([]);
   });

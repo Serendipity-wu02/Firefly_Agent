@@ -76,3 +76,16 @@ it("request identity/body digests differ for cache, tools and transport",async()
  const {selectBudget}=await import("./token-budget"),input=fixture(),a=await selectBudget(input),b=await selectBudget({...input,prepare:(u:any[])=>({...input.prepare(u),body:{...input.prepare(u).body,tools:[{name:"x"}],cache:"v2"}})});
  expect(a.requestDigest).not.toBe(b.requestDigest);
 });
+it("freezes without changing the prepared serializer's property order", async () => {
+ const {freezeRequest,requestDigest}=await import("./token-budget");
+ const original={...identity,inputTypes:["text"],body:{model:"synthetic-model",messages:[{role:"user",content:"保留顺序"}],stream:true}};
+ const frozen=freezeRequest(original);
+ expect(JSON.stringify(frozen.body)).toBe(JSON.stringify(original.body));
+ expect(Object.isFrozen(frozen.body.messages[0])).toBe(true);
+ expect(requestDigest(frozen)).toBe(requestDigest(original));
+});
+it("keeps established history metadata valid through its own authoritative parser",async()=>{
+ const {parseHistoryDocument}=await import("../memory-history/history-repository");
+ const document={id:"history-a",incarnation:"incarnation-a",revision:1,origin:"synthetic-import",sourceDeps:[],messages:[{id:"history-message-a",role:"user",text:"history evidence",occurredAt:1000,timeZone:"Etc/UTC"}],vector:null};
+ expect(parseHistoryDocument(document)).toEqual(document);
+});

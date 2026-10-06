@@ -159,7 +159,7 @@ describe("persistent specialist runtime", () => {
     const { store, parent } = setup();
     const controller = new AbortController();
     const cancelled = vi.fn(async (input: HarnessInput): Promise<HarnessResult> => {
-      expect(input.signal).toBe(controller.signal);
+      expect(input.signal?.aborted).toBe(false);
       controller.abort();
       return { finalAnswer: "", finalState: { todoItems: [], uncertainEffects: [] }, terminated: false,
         rounds: 0, terminal: { status: "cancelled", externalEffectsMayContinue: false } };
@@ -171,4 +171,166 @@ describe("persistent specialist runtime", () => {
     const next = createAgentExecutor({ parent, store, profiles: [profile], modelSettings: models, runHarness: complete });
     expect((await next({ agentId: profile.id, prompt: "resume fixture" })).status).toBe("completed");
   });
+});
+
+it("late_settlement_keeps_lease_and_evidence_before_child_terminal", async () => {
+  const { RunExecutionCoordinator } = await import("./harness/execution-coordinator");
+  const { store, parent } = setup(), coordinator = new RunExecutionCoordinator(parent.resolvedWorkspaceRoot!);
+  let release!: () => void, entered!: () => void, leaseReleased = false;
+  const actual = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
+  const controller = new AbortController();
+  const execute = createAgentExecutor({ parent: { ...parent, executionCoordinator: coordinator, signal: controller.signal }, store,
+    profiles: [profile], modelSettings: models, characterPool: { acquire: () => ({ nickname: "fixture", assetFileName: "fixture.png", release: () => { leaseReleased = true; } }) } as any,
+    runHarness: async input => {
+      const scope = input.toolContext!.execution?.scope ?? { workspaceId: coordinator.workspaceId, parentRunId: parent.parentRunId, groupId: "group", agentId: profile.id, childRunId: input.runId!, toolCallId: "delegate" };
+      void coordinator.runLeaf({ ...scope, toolCallId: "slow-write" }, "exclusive", input.signal, async permit => {
+        entered(); await actual;
+        coordinator.recordWriteEvidence(permit, { path: "fixture.txt", canonicalPath: path.join(parent.resolvedWorkspaceRoot!, "fixture.txt"),
+          agentId: profile.id, childRunId: scope.childRunId, toolCallId: "slow-write", state: "applied", after: { sha256: "a".repeat(64) }, eventIds: ["settled-write"] });
+      }).catch(() => undefined);
+      await started; controller.abort();
+      return { finalAnswer: "", finalState: { todoItems: [], uncertainEffects: [] }, terminated: true, rounds: 0,
+        terminal: { status: "cancelled", externalEffectsMayContinue: true } };
+    } });
+  const pending = execute({ agentId: profile.id, prompt: "write fixture" }, { groupId: "group", toolCallId: "delegate" });
+  await started; await new Promise<void>(setImmediate);
+  try {
+    expect(leaseReleased).toBe(false);
+    expect(store.listForParent(parent.parentConversationId)[0].status).toBe("running");
+  } finally { release(); }
+  const result = await pending;
+  expect(leaseReleased).toBe(true); expect(result.status).toBe("cancelled");
+  expect(result.writes).toEqual([expect.objectContaining({ state: "applied", toolCallId: "slow-write" })]);
+});
+
+it("conflict_returns_failed_child_with_prior_writes_and_preserves_sibling_success", async () => {
+  const { RunExecutionCoordinator } = await import("./harness/execution-coordinator");
+  const { store, parent } = setup(), coordinator = new RunExecutionCoordinator(parent.resolvedWorkspaceRoot!);
+  const sibling = { ...profile, id: "sibling-agent", nickname: "卡芙卡" };
+  let conflictSignal: AbortSignal | undefined;
+  const execute = createAgentExecutor({ parent: { ...parent, executionCoordinator: coordinator }, store,
+    profiles: [profile, sibling], modelSettings: models, runHarness: async input => {
+      const execution = input.toolContext!.execution!, scope = execution.scope;
+      if (scope.agentId === sibling.id) return complete(input);
+      conflictSignal = input.signal;
+      await coordinator.runLeaf({ ...scope, toolCallId: "prior-write" }, "exclusive", input.signal, async permit => {
+        coordinator.recordWriteEvidence(permit, { path: "prior.txt", canonicalPath: path.join(parent.resolvedWorkspaceRoot!, "prior.txt"), agentId: profile.id,
+          childRunId: scope.childRunId, toolCallId: "prior-write", state: "applied", eventIds: ["prior-event"] });
+      });
+      coordinator.terminateChild(scope.childRunId, "AGENT_WRITE_CONFLICT");
+      return { finalAnswer: "prior write remains", finalState: { todoItems: [], uncertainEffects: [] }, terminated: true, rounds: 0,
+        terminal: { status: "cancelled", externalEffectsMayContinue: false } };
+    } });
+  const [failed, completed] = await Promise.all([
+    execute({ agentId: profile.id, prompt: "conflict" }, { groupId: "group", toolCallId: "delegate-A" }),
+    execute({ agentId: sibling.id, prompt: "finish sibling" }, { groupId: "group", toolCallId: "delegate-B" }),
+  ]);
+  expect(conflictSignal?.aborted).toBe(true);
+  expect(failed).toMatchObject({ status: "failed", error: { code: "AGENT_WRITE_CONFLICT" }, writes: [{ state: "applied", toolCallId: "prior-write" }] });
+  expect(store.get(failed.sessionId)).toMatchObject({ status: "failed", error: { code: "AGENT_WRITE_CONFLICT" } });
+  expect(completed).toMatchObject({ status: "completed", text: "fixture result" });
+});
+
+it("restart_preserves_unknown_without_replay_before_a_tool_result_checkpoint", async () => {
+  const { HarnessRunStore } = await import("./harness/run-store");
+  const { AgentSessionRegistry } = await import("../tasks/agent-session-registry");
+  const { store, parent } = setup(), root = parent.resolvedWorkspaceRoot!, runStore = new HarnessRunStore(root);
+  const session = new AgentSessionRegistry(store).acquire({ agentId: profile.id, modelProfile: profile.modelProfile, savedModelProfileId: "saved-code",
+    parentConversationId: parent.parentConversationId, parentRunId: "old-parent", mode: "code", resolvedWorkspaceRoot: root, description: "fixture", prompt: "write fixture" });
+  const call = { id: "crashed-write", name: "write_file", arguments: JSON.stringify({ path: "unknown.txt", content: "same invocation" }) };
+  const messages = [{ role: "user" as const, content: "write fixture" }, { role: "assistant" as const, content: "", toolCalls: [call] }];
+  const legacy = [{ role: "user", content: "legacy exact audit" }, { role: "assistant", content: "legacy assistant", rawAssistant: [{ type: "text", text: "legacy assistant" }] }];
+  store.checkpoint(session.id, { messages: [...legacy, ...messages], uncertainEffects: [], writes: [{ path: "unknown.txt", canonicalPath: path.join(root, "unknown.txt"), agentId: profile.id,
+    childRunId: session.childRunId, toolCallId: call.id, state: "unknown", eventIds: ["started-write"] }] });
+  runStore.create({ conversationId: session.id, runId: session.childRunId, messages, state: { todoItems: [], uncertainEffects: [] },
+    request: { provider: "fixture", model: "fixture-model", contextWindowTokens: 64000, mode: "code", promptFingerprint: "fixture", toolSchemaFingerprint: "fixture", workspaceRoot: root } });
+  runStore.recordTool(session.childRunId, { toolCallId: call.id, toolName: call.name, sideEffect: "idempotent_mutation", status: "started" });
+  const restartedStore = new TaskSessionStore(root), restartedRunStore = new HarnessRunStore(root);
+  let writes = 0, observed: HarnessInput | undefined;
+  const write: ToolDefinition = { id: "write_file", name: "fixture write", enabled: true, description: "fixture", inputSchema: { type: "object" },
+    effectKind: "mutation", risk: "fs-write", execute: async () => { writes++; return "unexpected replay"; } };
+  const result = await createAgentExecutor({ parent: { ...parent, parentRunId: "new-parent", tools: [write] }, store: restartedStore, runStore: restartedRunStore,
+    profiles: [{ ...profile, allowedToolIds: [write.id] }], modelSettings: models, runHarness: async input => {
+      observed = input;
+      const dispatched = await dispatchToolCall(call, { tools: input.tools, state: { todoItems: [], uncertainEffects: input.initialState?.uncertainEffects ?? [] }, toolContext: input.toolContext });
+      expect(dispatched.outcome).toBe("not_executed"); return complete(input);
+    } })({ agentId: profile.id, prompt: "Continue carefully" });
+  expect(writes).toBe(0); expect(observed?.initialState?.uncertainEffects).toEqual([expect.objectContaining({ toolCallId: call.id, toolName: "write_file" })]);
+  const repaired = restartedStore.get(result.sessionId)!;
+  expect(repaired.messages.slice(0, legacy.length)).toEqual(legacy);
+  expect(repaired.writes?.[0].state).toBe("unknown");
+  expect(repaired.messages.filter(message => message.toolCallId === call.id)).toHaveLength(1);
+  expect(repaired.messages.find(message => message.toolCallId === call.id)?.content).toContain("unknown_after_interruption");
+});
+
+it("quiesces_a_failed_child_before_draining_a_retained_operation_and_releasing_its_lease", async () => {
+  const { RunExecutionCoordinator } = await import("./harness/execution-coordinator");
+  const { store, parent } = setup(), coordinator = new RunExecutionCoordinator(parent.resolvedWorkspaceRoot!), parentController = new AbortController();
+  let entered!: () => void, closeOperation!: () => void, leaseReleased = false, childAborted = false;
+  const started = new Promise<void>(resolve => { entered = resolve; }), processClosed = new Promise<void>(resolve => { closeOperation = resolve; });
+  const running = createAgentExecutor({ parent: { ...parent, executionCoordinator: coordinator, signal: parentController.signal }, store,
+    profiles: [profile], modelSettings: models, characterPool: { acquire: () => ({ nickname: "fixture", assetFileName: "fixture.png", release: () => { leaseReleased = true; } }) },
+    runHarness: async input => {
+      const execution = input.toolContext!.execution!;
+      input.signal!.addEventListener("abort", () => { childAborted = true; closeOperation(); }, { once: true });
+      await coordinator.runLeaf({ ...execution.scope, toolCallId: "background-process" }, "exclusive", input.signal, async permit => { coordinator.retainUntil(permit, processClosed); entered(); });
+      input.quiesceExecution?.();
+      await coordinator.whenChildSettled(execution.scope.childRunId);
+      return { finalAnswer: "synthetic model rejection", finalState: { todoItems: [], uncertainEffects: [] }, terminated: true, terminateReason: "error", rounds: 1 };
+    } })({ agentId: profile.id, prompt: "synthetic background operation" }, { groupId: "group", toolCallId: "delegate" });
+  await started; await new Promise<void>(setImmediate);
+  let assertionError: unknown;
+  try { expect(childAborted).toBe(true); expect(parentController.signal.aborted).toBe(false); } catch (error) { assertionError = error; }
+  finally { parentController.abort(); closeOperation(); }
+  const result = await running; if (assertionError) throw assertionError;
+  expect(result.status).toBe("failed"); expect(leaseReleased).toBe(true);
+});
+
+it("shutdown_during_recovery_preserves_exact_old_target_for_the_next_continuation", async () => {
+  const { HarnessRunStore } = await import("./harness/run-store");
+  const { AgentSessionRegistry } = await import("../tasks/agent-session-registry");
+  const { ConversationTranscriptStore } = await import("./conversation-transcript-store");
+  const { createTranscriptSink } = await import("./transcript-sink");
+  const { requireBackgroundMemoryIngress } = await import("../memory-context/background-memory-ingress");
+  const { store, parent } = setup(), root = parent.resolvedWorkspaceRoot!, runs = new HarnessRunStore(root), transcripts = new ConversationTranscriptStore(root);
+  const old = new AgentSessionRegistry(store).acquire({ agentId: profile.id, modelProfile: profile.modelProfile, savedModelProfileId: "saved-code", parentConversationId: parent.parentConversationId,
+    parentRunId: "old-parent", mode: "code", resolvedWorkspaceRoot: root, description: "fixture", prompt: "old interrupted instruction" });
+  const call = { id: "old-write", name: "write_file", arguments: '{"path":"old.txt","content":"same"}' }, messages = [{ role: "user" as const, content: "old interrupted instruction" }, { role: "assistant" as const, content: "", toolCalls: [call] }];
+  store.checkpoint(old.id, { messages });
+  runs.create({ conversationId: old.id, runId: old.childRunId, messages, request: { provider: "fixture", model: "fixture-model", contextWindowTokens: 64000, promptFingerprint: "fixture", toolSchemaFingerprint: "fixture", workspaceRoot: root } });
+  runs.recordTool(old.childRunId, { toolCallId: call.id, toolName: call.name, sideEffect: "idempotent_mutation", status: "started" });
+  await transcripts.append(old.id, { id: old.childRunId + "-instruction", turnId: old.childRunId + "-instruction", revision: 1, kind: "user", payload: { text: "old interrupted instruction" } });
+  await createTranscriptSink({ store: transcripts, conversationId: old.id, runId: old.childRunId, assistantTurnId: old.childRunId + "-assistant" }).appendAssistant({ message: messages[1], roundId: "round-1" });
+  const restartedStore = new TaskSessionStore(root), restartedRuns = new HarnessRunStore(root), controller = new AbortController(), targets: string[] = [];
+  let first = true;
+  const host: import("../memory-context/background-memory-ingress").BackgroundMemoryHost = { async prepareBackgroundRun(input) {
+    const context = requireBackgroundMemoryIngress(input.ingress); targets.push(input.recoverRunId!);
+    if (first) { first = false; controller.abort(); throw new DOMException("synthetic owner shutdown during recovery", "AbortError"); }
+    await createTranscriptSink({ store: transcripts, conversationId: old.id, runId: input.recoverRunId!, assistantTurnId: input.recoverRunId! + "-assistant" }).closeInterruption({ reason: "user_cancel", runSession: restartedRuns.get(input.recoverRunId!) });
+    await transcripts.append(context.sessionId, { id: input.userTurnId, turnId: input.userTurnId, revision: 1, kind: "user", payload: { text: input.instructionText } });
+    const sink = createTranscriptSink({ store: transcripts, conversationId: context.sessionId, runId: input.runId, assistantTurnId: input.assistantTurnId });
+    return { sessionId: context.sessionId, signal: context.signal, transcriptSink: sink, openMemoryRun: async () => ({ call: async () => ({ text: "fixture" }), bindSink: sink => sink, close: async () => undefined }), close: async () => undefined };
+  } };
+  const firstResult = await createAgentExecutor({ parent: { ...parent, backgroundMemory: host, signal: controller.signal }, store: restartedStore, runStore: restartedRuns,
+    profiles: [profile], modelSettings: models, runHarness: complete })({ agentId: profile.id, prompt: "first continuation" });
+  expect(firstResult.status).toBe("cancelled"); expect(restartedStore.get(old.id)?.recoveryRunId).toBe(old.childRunId);
+  const secondResult = await createAgentExecutor({ parent: { ...parent, parentRunId: "new-parent", backgroundMemory: host }, store: restartedStore, runStore: restartedRuns,
+    profiles: [profile], modelSettings: models, runHarness: complete })({ agentId: profile.id, prompt: "next continuation" });
+  expect(targets).toEqual([old.childRunId, old.childRunId]); expect(secondResult.status).toBe("completed"); expect(restartedStore.get(old.id)?.recoveryRunId).toBeUndefined();
+  const closed = (await transcripts.read(old.id)).entries.filter(entry => entry.kind === "tool_result" && entry.payload.toolCallId === call.id);
+  expect(closed).toHaveLength(1); expect(closed[0].kind === "tool_result" && closed[0].payload.outcome).toBe("unknown");
+});
+
+it("rejects_a_tampered_foreign_pending_recovery_target_before_acquire_or_execution", async () => {
+  const { HarnessRunStore } = await import("./harness/run-store");
+  const { AgentSessionRegistry } = await import("../tasks/agent-session-registry");
+  const { store, parent } = setup(), runs = new HarnessRunStore(parent.resolvedWorkspaceRoot!);
+  const session = new AgentSessionRegistry(store).acquire({ agentId: profile.id, modelProfile: profile.modelProfile, savedModelProfileId: "saved-code", parentConversationId: parent.parentConversationId,
+    parentRunId: "old-parent", mode: "code", resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot!, description: "fixture", prompt: "fixture" });
+  store.checkpoint(session.id, { status: "cancelled", recoveryRunId: "foreign-old-run" });
+  runs.create({ conversationId: "foreign-private-session", runId: "foreign-old-run", messages: [{ role: "user", content: "foreign instruction" }],
+    request: { provider: "fixture", model: "fixture-model", contextWindowTokens: 64000, promptFingerprint: "fixture", toolSchemaFingerprint: "fixture" } });
+  const before = store.get(session.id), runHarness = vi.fn(complete);
+  await expect(createAgentExecutor({ parent, store, runStore: runs, profiles: [profile], modelSettings: models, runHarness })({ agentId: profile.id, prompt: "Continue" })).rejects.toThrow("AGENT_RECOVERY_EVIDENCE_MISMATCH");
+  expect(store.get(session.id)).toEqual(before); expect(runHarness).not.toHaveBeenCalled();
 });

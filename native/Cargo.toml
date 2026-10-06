@@ -15,7 +15,7 @@ windows-numerics = "0.3.1"
 serial_test = "3.5.0"
 
 [features]
-# Dormant: neither screenshot builds nor production Main activate history-read.
+# Enabled explicitly when packaging both history helpers; screenshot builds leave it off.
 history-read = ["windows/Wdk_Foundation", "windows/Wdk_Storage_FileSystem", "windows/Wdk_System_SystemServices", "windows/Win32_Security", "windows/Win32_System_IO"]
 
 [[bin]]

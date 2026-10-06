@@ -158,17 +158,62 @@ describe("harness tool runtime", () => {
       sendBaseEvent: vi.fn(),
     });
 
-    expect(runtime.toolContext.signal).toBe(controller.signal);
+    expect(runtime.toolContext.signal).toBe(runtime.signal);
+    expect(runtime.signal).not.toBe(controller.signal);
     await runtime.checkPermission("read_file", { path: "x" });
     expect(checkPermission).toHaveBeenCalledWith(expect.objectContaining({
       runId: "run-1",
-      signal: controller.signal,
+      signal: runtime.signal,
     }));
     expect(runtime.agentExecutor).toBeDefined();
     expect(runtime).not.toHaveProperty("taskExecutor");
     expect(createAgentExecutor).toHaveBeenCalledWith(expect.objectContaining({
-      parent: expect.objectContaining({ signal: controller.signal }),
+      parent: expect.objectContaining({ signal: runtime.signal }),
     }));
     expect(createAgentExecutor.mock.calls[0][0].profiles).toHaveLength(12);
   });
+});
+
+it("uses the canonical Main registry and injects the same coordinator into the child parent contract", async () => {
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = mkdtempSync(join(tmpdir(), "firefly-runtime-coordinator-"));
+  try {
+    const prepare = (resolvedWorkspaceRoot: string, runId: string) => prepareToolRuntime({
+      options: { conversationId: "synthetic-main", conversationMode: "work", resolvedWorkspaceRoot,
+        settings: {}, messages: [] } as never,
+      signal: new AbortController().signal,
+      prepared: { threadId: "synthetic-main", runId, systemPrompt: "synthetic", vendorConfig: {}, tools: [], runStore: {} } as never,
+      sendBaseEvent: vi.fn(),
+    });
+    const first = prepare(root, "main-a");
+    const second = prepare(join(root, "."), "main-b");
+    expect(second.toolContext.execution?.coordinator).toBe(first.toolContext.execution?.coordinator);
+    expect(first.toolContext.execution?.scope).toMatchObject({ parentRunId: "main-a", childRunId: "main-a", agentId: "main" });
+    expect(createAgentExecutor).toHaveBeenLastCalledWith(expect.objectContaining({ parent: expect.objectContaining({
+      executionCoordinator: first.toolContext.execution?.coordinator,
+      revalidateToolPermission: second.toolContext.revalidateToolPermission,
+    }) }));
+    expect(prepareRuntime("chat").agentExecutor).toBeUndefined();
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+it("Main owner quiescence stops only its composite and external cancellation still propagates", () => {
+  const external = new AbortController();
+  const prepare = (runId: string) => prepareToolRuntime({
+    options: { conversationMode: "work", messages: [], settings: {} } as never,
+    signal: external.signal,
+    prepared: { threadId: "synthetic-owner", runId, systemPrompt: "synthetic", vendorConfig: {}, tools: [], runStore: {} } as never,
+    sendBaseEvent: vi.fn(),
+  });
+  const first = prepare("main-one");
+  const second = prepare("main-two");
+  first.quiesceExecution();
+  expect(first.signal.aborted).toBe(true);
+  expect(first.toolContext.signal).toBe(first.signal);
+  expect(second.signal.aborted).toBe(false);
+  expect(external.signal.aborted).toBe(false);
+  external.abort();
+  expect(second.signal.aborted).toBe(true);
 });

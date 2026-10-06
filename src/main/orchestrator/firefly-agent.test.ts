@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { firstValueFrom } from "rxjs";
-import { FireflyAgent, classifyRunError, toAguiEvent } from "./firefly-agent";
+import { FireflyAgent, classifyRunError, toAguiEvent, type FireflyRunOptions } from "./firefly-agent";
 import { AgentRuntimeError } from "./agent-runtime-error";
 import { AgentExecutionError } from "./run-execution-status";
 import { requestUserClarification } from "../user-choice";
@@ -621,6 +621,27 @@ describe("FireflyAgent transcript sink wiring", () => {
     mockedRunChatLoop.mockClear();
   });
 
+  it.each(["plain-chat", "chat-tools", "work", "code"])("passes the Main memory run and guarded sink into %s", async mode => {
+    const agent = new FireflyAgent({ threadId: "thread-memory" });
+    const sink = fakeSink(), guardedSink = fakeSink();
+    const memoryRun = { call: vi.fn(), bindSink: vi.fn(() => guardedSink), close: vi.fn(async () => undefined) };
+    mockedRunHarnessWithAdapter.mockClear();
+    if (mode !== "plain-chat") mockedRunHarnessWithAdapter.mockResolvedValueOnce({ reply: "done", toolResults: [], completionReason: "no_tool" });
+    await new Promise<void>((resolve, reject) => {
+      agent.runWithEvents({
+        settings: { provider: "test", baseUrl: "", model: "fixture", apiKey: "", contextWindowTokens: 256000 },
+        messages: [{ role: "user", content: "hi" }], timeoutMs: 60000, toolSystemContent: "", soulSystemBaseContent: "",
+        executionMode: mode.startsWith("chat") || mode === "plain-chat" ? "chat" : "work",
+        conversationMode: mode === "work" || mode === "code" ? mode : "chat",
+        tools: mode === "chat-tools" ? [{ id: "fixture-tool", name: "fixture", description: "fixture", enabled: true, inputSchema: { type: "object", properties: {} } }] : [],
+        runId: "run-memory", transcriptSink: sink, memoryRun,
+      }).subscribe({ error: reject, complete: resolve });
+    });
+    expect(memoryRun.bindSink).toHaveBeenCalledWith(sink);
+    if (mode === "plain-chat") expect(mockedRunChatLoop).toHaveBeenCalledWith(expect.objectContaining({ memoryRun, transcriptSink: guardedSink }));
+    else expect(mockedRunHarnessWithAdapter).toHaveBeenCalledWith(expect.objectContaining({ memoryRun, transcriptSink: guardedSink }), expect.any(AbortSignal), expect.any(Function));
+  });
+
   it("passes the transcript sink into runChatLoop for plain chat turns", async () => {
     const agent = new FireflyAgent({ threadId: "thread-chat-sink" });
     const sink = fakeSink();
@@ -729,5 +750,155 @@ describe("FireflyAgent transcript sink wiring", () => {
     expect(runFinished?.result?.status).toBe("runtime_error");
     expect(runFinished?.result?.reason).toBe("transcript_interruption_closure_failed");
     sub.unsubscribe();
+  });
+});
+
+
+describe("FireflyAgent Main memory factory lifecycle", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+    return { promise, resolve, reject };
+  }
+  function options(overrides: Partial<FireflyRunOptions> = {}): FireflyRunOptions {
+    return {
+      settings: { provider: "test", baseUrl: "", model: "fixture", apiKey: "", contextWindowTokens: 256000 },
+      messages: [{ role: "user", content: "hi" }], timeoutMs: 60000,
+      toolSystemContent: "", soulSystemBaseContent: "", executionMode: "chat", tools: [],
+      conversationId: "memory-conversation", ...overrides,
+    };
+  }
+  function memoryRun(close = async () => undefined) {
+    return { call: vi.fn(), bindSink: vi.fn((sink: TranscriptSink) => sink), close: vi.fn(close) };
+  }
+  function observe(input: FireflyRunOptions) {
+    const events: Array<{ type: string; [key: string]: unknown }> = [];
+    const errors: unknown[] = [];
+    let completed = false;
+    const subscription = new FireflyAgent({ threadId: "memory-lifecycle" }).runWithEvents(input).subscribe({
+      next: event => events.push(event), error: error => errors.push(error), complete: () => { completed = true; },
+    });
+    return { events, errors, subscription, get completed() { return completed; } };
+  }
+  const terminal = (state: ReturnType<typeof observe>) => state.events.filter(event => event.type === EventType.RUN_FINISHED);
+  beforeEach(() => {
+    mockedRunChatLoop.mockReset().mockResolvedValue({ reply: "done", toolResults: [], completionReason: "no_tool" });
+    mockedRunHarnessWithAdapter.mockReset().mockResolvedValue({ reply: "done", toolResults: [], completionReason: "no_tool" });
+  });
+
+  it.each(["chat", "work"] as const)("opens %s memory with the canonical run, sink and linked signal before entering its loop", async executionMode => {
+    const opening = deferred<ReturnType<typeof memoryRun>>();
+    const drain = deferred<void>();
+    const owned = memoryRun(() => drain.promise);
+    const external = new AbortController();
+    const sink = { appendAssistant: vi.fn(), appendToolResult: vi.fn(), closeInterruption: vi.fn(), checkpoint: vi.fn() };
+    const guarded = { ...sink };
+    owned.bindSink.mockReturnValue(guarded);
+    const factory = vi.fn((_input: FireflyRunOptions) => opening.promise);
+    const original = options({ executionMode, transcriptSink: sink, signal: external.signal, openMemoryRun: factory });
+    const state = observe(original);
+    await vi.waitFor(() => expect(factory).toHaveBeenCalledOnce());
+    const opened = factory.mock.calls[0][0];
+    expect(opened.runId).toBeTruthy(); expect(opened.conversationId).toBe("memory-conversation");
+    expect(opened.transcriptSink).toBe(sink); expect(opened.signal).toBeInstanceOf(AbortSignal);
+    expect(opened.signal).not.toBe(external.signal); expect(opened.signal?.aborted).toBe(false);
+    expect(mockedRunChatLoop).not.toHaveBeenCalled(); expect(mockedRunHarnessWithAdapter).not.toHaveBeenCalled();
+    expect(original.runId).toBeUndefined(); expect(original.memoryRun).toBeUndefined();
+    opening.resolve(owned);
+    await vi.waitFor(() => expect(owned.close).toHaveBeenCalledOnce());
+    const loop = executionMode === "chat" ? mockedRunChatLoop.mock.calls[0][0] : mockedRunHarnessWithAdapter.mock.calls[0][0];
+    expect(loop).toMatchObject({ memoryRun: owned, transcriptSink: guarded });
+    expect(executionMode === "chat" ? loop.signal : mockedRunHarnessWithAdapter.mock.calls[0][1]).toBe(opened.signal);
+    expect(terminal(state)).toEqual([]); expect(state.completed).toBe(false);
+    external.abort(); expect(opened.signal?.aborted).toBe(true);
+    drain.resolve();
+    await vi.waitFor(() => expect(state.completed).toBe(true));
+    expect(terminal(state)).toHaveLength(1); expect(terminal(state)[0].runId).toBe(opened.runId);
+    expect(state.errors).toEqual([]); expect(owned.close).toHaveBeenCalledOnce();
+  });
+
+  it("fails closed when opening memory rejects", async () => {
+    const factory = vi.fn(async () => { throw new Error("MEMORY_RUN_DENIED"); });
+    const state = observe(options({ openMemoryRun: factory }));
+    await vi.waitFor(() => expect(state.errors).toHaveLength(1));
+    expect(mockedRunChatLoop).not.toHaveBeenCalled(); expect(mockedRunHarnessWithAdapter).not.toHaveBeenCalled();
+    expect(terminal(state)).toEqual([]); expect(state.completed).toBe(false);
+  });
+
+  it("fails closed if the Main factory returns no run", async () => {
+    const state = observe(options({ openMemoryRun: async () => undefined as never }));
+    await vi.waitFor(() => expect(state.errors).toHaveLength(1));
+    expect(mockedRunChatLoop).not.toHaveBeenCalled(); expect(terminal(state)).toEqual([]);
+  });
+
+  it("drains its owned run before reporting a loop error", async () => {
+    const drain = deferred<void>(); const owned = memoryRun(() => drain.promise);
+    mockedRunChatLoop.mockRejectedValueOnce(new Error("MEMORY_CONTEXT_SEND_UNKNOWN"));
+    const state = observe(options({ openMemoryRun: async () => owned }));
+    await vi.waitFor(() => expect(owned.close).toHaveBeenCalledOnce());
+    expect(state.errors).toEqual([]); expect(terminal(state)).toEqual([]); expect(state.completed).toBe(false);
+    drain.resolve();
+    await vi.waitFor(() => expect(state.errors).toHaveLength(1));
+    expect(terminal(state)).toEqual([]); expect(owned.close).toHaveBeenCalledOnce();
+  });
+
+  it("closes a newly opened run after cancellation while opening without calling a model", async () => {
+    const opening = deferred<ReturnType<typeof memoryRun>>(); const owned = memoryRun();
+    const external = new AbortController(); const factory = vi.fn(() => opening.promise);
+    const state = observe(options({ signal: external.signal, openMemoryRun: factory }));
+    await vi.waitFor(() => expect(factory).toHaveBeenCalledOnce());
+    external.abort(); opening.resolve(owned);
+    await vi.waitFor(() => expect(state.completed).toBe(true));
+    expect(mockedRunChatLoop).not.toHaveBeenCalled(); expect(owned.close).toHaveBeenCalledOnce();
+    expect(terminal(state)[0]?.result).toMatchObject({ status: "cancelled" });
+  });
+
+  it("waits for real provider settlement and run draining after cancellation", async () => {
+    const provider = deferred<{ reply: string; toolResults: []; completionReason: "no_tool" }>();
+    const drain = deferred<void>(); const owned = memoryRun(() => drain.promise);
+    const external = new AbortController();
+    mockedRunChatLoop.mockImplementationOnce(async () => {
+      await provider.promise;
+      throw new DOMException("cancelled after settlement", "AbortError");
+    });
+    const state = observe(options({ signal: external.signal, openMemoryRun: async () => owned }));
+    await vi.waitFor(() => expect(mockedRunChatLoop).toHaveBeenCalledOnce());
+    external.abort(); await Promise.resolve();
+    expect(owned.close).not.toHaveBeenCalled(); expect(terminal(state)).toEqual([]);
+    provider.resolve({ reply: "", toolResults: [], completionReason: "no_tool" });
+    await vi.waitFor(() => expect(owned.close).toHaveBeenCalledOnce());
+    expect(terminal(state)).toEqual([]); expect(state.completed).toBe(false);
+    drain.resolve(); await vi.waitFor(() => expect(state.completed).toBe(true));
+    expect(terminal(state)[0]?.result).toMatchObject({ status: "cancelled" });
+  });
+
+  it("closes an owned run after unsubscribe without reporting a terminal event", async () => {
+    const provider = deferred<{ reply: string; toolResults: []; completionReason: "no_tool" }>();
+    const owned = memoryRun();
+    mockedRunChatLoop.mockImplementationOnce(() => provider.promise);
+    const state = observe(options({ openMemoryRun: async () => owned }));
+    await vi.waitFor(() => expect(mockedRunChatLoop).toHaveBeenCalledOnce());
+    state.subscription.unsubscribe();
+    expect(mockedRunChatLoop.mock.calls[0][0].signal?.aborted).toBe(true);
+    expect(owned.close).not.toHaveBeenCalled();
+    provider.resolve({ reply: "late", toolResults: [], completionReason: "no_tool" });
+    await vi.waitFor(() => expect(owned.close).toHaveBeenCalledOnce());
+    expect(terminal(state)).toEqual([]); expect(state.completed).toBe(false); expect(state.errors).toEqual([]);
+  });
+
+  it("reports a close failure rather than a successful terminal", async () => {
+    const owned = memoryRun(async () => { throw new Error("MEMORY_CONTEXT_CLOSE_FAILED"); });
+    const state = observe(options({ openMemoryRun: async () => owned }));
+    await vi.waitFor(() => expect(state.errors).toHaveLength(1));
+    expect(owned.close).toHaveBeenCalledOnce(); expect(terminal(state)).toEqual([]); expect(state.completed).toBe(false);
+  });
+
+  it("does not open or close a caller-owned memory run", async () => {
+    const external = memoryRun(); const factory = vi.fn(async () => memoryRun());
+    const state = observe(options({ memoryRun: external, openMemoryRun: factory }));
+    await vi.waitFor(() => expect(state.completed).toBe(true));
+    expect(factory).not.toHaveBeenCalled(); expect(external.close).not.toHaveBeenCalled();
+    expect(mockedRunChatLoop.mock.calls[0][0].memoryRun).toBe(external);
   });
 });

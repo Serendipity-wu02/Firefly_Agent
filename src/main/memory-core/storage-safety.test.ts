@@ -27,7 +27,8 @@ it("rejects cross-record ciphertext substitution rather than returning the other
  try{const payload=db.prepare("SELECT payload FROM sources WHERE id='source-a'").get()!.payload;db.prepare("UPDATE sources SET payload=? WHERE id='source-b'").run(payload)}finally{db.close()}
  expect(()=>f.repo.readRows("sources","scope-a")).toThrow();
 });
-it.each(["auth-write","auth-fsync","directory-publish"])("does not publish a partial backup after %s failure",async kind=>{
+// Publication uses the production Windows-only directory rename contract.
+it.runIf(process.platform==="win32").each(["auth-write","auth-fsync","directory-publish"])("does not publish a partial backup after %s failure",async kind=>{
  const f=fixture(),before=snapshot(f.root),backupId="failed-"+kind;
  const spy=kind==="auth-write"?vi.spyOn(fs,"writeFileSync").mockImplementationOnce(()=>{throw Error("INJECTED_WRITE")}):
   kind==="auth-fsync"?vi.spyOn(fs,"fsyncSync").mockImplementationOnce(()=>{throw Error("INJECTED_SYNC")}):
@@ -62,7 +63,7 @@ function expectReadMarkOnly(before:ReturnType<typeof snapshot>,after:ReturnType<
   expect(normalized).toEqual(old.bytes);
  }
 }
-it.each(["backup","read-only-schema"])("causal %s control changes only the read-mark to the existing mxFrame",async action=>{
+for(const action of ["backup","read-only-schema"])it.runIf(action!=="backup"||process.platform==="win32")(`causal ${action} control changes only the read-mark to the existing mxFrame`,async()=>{
  const f=fixture();
  if(action==="read-only-schema"){const db=new DatabaseSync(f.databasePath);db.exec("PRAGMA user_version=99");db.close()}
  const before=snapshot(f.root);

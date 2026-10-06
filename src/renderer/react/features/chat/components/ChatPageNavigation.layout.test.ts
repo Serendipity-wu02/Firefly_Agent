@@ -54,6 +54,24 @@ describe("workspace navigation layout", () => {
     expect(aside.hasAttribute("inert")).toBe(true);
     expect(props.onToggleCollapsed).not.toHaveBeenCalled();
   });
+  it("resizes a hover overlay without pinning it or hiding during the drag", () => {
+    render({ collapsed: true });
+    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    const handle = host.querySelector<HTMLElement>('[role="separator"]');
+    expect(handle).not.toBeNull();
+    const pointer = (type: string, x: number) => Object.assign(new Event(type, { bubbles: true, cancelable: true }), { pointerId: 7, clientX: x, button: 0 });
+    act(() => handle!.dispatchEvent(pointer("pointerdown", 240)));
+    act(() => aside.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    act(() => document.body.dispatchEvent(pointer("pointermove", 280)));
+    expect(aside.hasAttribute("inert")).toBe(false);
+    expect(aside.style.width).toBe("280px");
+    expect(props.onToggleCollapsed).not.toHaveBeenCalled();
+    act(() => window.dispatchEvent(pointer("pointerup", 280)));
+    expect(aside.hasAttribute("inert")).toBe(true);
+    expect(localStorage.getItem("firefly.chat.sidebar-width")).toBe("280");
+  });
   it("holds the floating context while its menu owns focus and releases after focus leaves", () => {
     render({ collapsed: true });
     const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;

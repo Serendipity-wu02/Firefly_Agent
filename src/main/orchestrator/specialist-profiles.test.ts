@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as path from "node:path";
+import { SkillRegistry } from "../skills/skill-registry";
 import { scanSkills } from "../skills/skill-scanner";
 import { TASK_CHARACTERS } from "../../shared/task-characters";
 import { createSpecialistProfiles, buildSkillOwnership } from "./specialist-profiles";
@@ -69,5 +70,80 @@ describe("production specialist profiles", () => {
       expect(profile.allowedToolIds).toEqual(["read_file"]);
       expect(resolveAgentCapabilities(profile, "work", tools, skills).tools.map(tool => tool.id)).toEqual(["read_file"]);
     }
+  });
+});
+
+const roleAlignedOwnership = {
+  "as-planning-and-task-breakdown": "strategy-planning",
+  "ecc-plan-canvas": "strategy-planning",
+  "sp-writing-plans": "strategy-planning",
+  "as-api-and-interface-design": "architecture",
+  "as-spec-driven-development": "architecture",
+  "tob-property-based-testing": "implementation",
+  "as-code-simplification": "implementation",
+  "as-incremental-implementation": "implementation",
+  "ecc-tdd-workflow": "implementation",
+  "as-source-driven-development": "research",
+  "as-doubt-driven-development": "research",
+  "sp-brainstorming": "research",
+  "knowledge-workspace": "knowledge",
+  "as-context-engineering": "knowledge",
+  "ecc-code-tour": "knowledge",
+  "ecc-codebase-onboarding": "knowledge",
+  "self-improving-agent": "knowledge",
+  "as-code-review-and-quality": "review",
+  "ecc-ai-regression-testing": "review",
+  "sp-requesting-code-review": "review",
+  "sp-verification-before-completion": "review",
+  "as-security-and-hardening": "security-governance",
+  "ecc-coding-standards": "security-governance",
+  "ecc-security-review": "security-governance",
+  "diagram": "ui-visual",
+  "as-frontend-ui-engineering": "ui-visual",
+  "office-design": "ui-visual",
+  "document-reader-validation": "documents-data",
+  "docx": "documents-data",
+  "pdf": "documents-data",
+  "pptx-generator": "documents-data",
+  "xlsx": "documents-data",
+  "plugin-development": "tooling-skills",
+  "as-using-agent-skills": "tooling-skills",
+  "skill-creator": "tooling-skills",
+  "sp-using-superpowers": "tooling-skills",
+  "as-debugging-and-error-recovery": "tooling-skills",
+  "ecc-agent-introspection-debugging": "tooling-skills",
+  "sp-systematic-debugging": "tooling-skills",
+  "ecc-production-audit": "ops-release",
+  "as-git-workflow-and-versioning": "ops-release",
+  "sp-using-git-worktrees": "ops-release",
+  "write-expense-report": "ops-release",
+  "sp-dispatching-parallel-agents": "coordination-debug",
+  "sp-subagent-driven-development": "coordination-debug"
+} as const;
+
+describe("role-aligned complete Skill allocation", () => {
+  it("matches all 45 unique primary owners across the twelve roles", () => {
+    const ownership = buildSkillOwnership(skills);
+    expect(Object.fromEntries(ownership.map(row => [row.skillId, row.primaryAgent]))).toEqual(roleAlignedOwnership);
+    expect(new Set(ownership.map(row => row.primaryAgent)).size).toBe(12);
+    for (const row of ownership) {
+      expect(row.sharedAgents).not.toContain(row.primaryAgent);
+      expect(new Set(row.sharedAgents).size).toBe(row.sharedAgents.length);
+    }
+  });
+  it("keeps office themes with visual design and expense ownership with operations", () => {
+    const ownership = buildSkillOwnership(skills);
+    expect(ownership.find(row => row.skillId === "office-design")).toMatchObject({ primaryAgent: "ui-visual", sharedAgents: expect.arrayContaining(["documents-data"]) });
+    expect(ownership.find(row => row.skillId === "write-expense-report")).toMatchObject({ primaryAgent: "ops-release", sharedAgents: expect.arrayContaining(["documents-data"]) });
+  });
+  it("shares common protocols without enabling delegation or changing Skill modes", () => {
+    const ownership = buildSkillOwnership(skills);
+    for (const row of ownership.filter(row => row.globalProtocol)) expect(row.sharedAgents).toHaveLength(11);
+    const registry = new SkillRegistry();
+    for (const skill of skills) registry.register(skill);
+    const parentSkills = registry.getEnabledForMode("code");
+    const profiles = createSpecialistProfiles("code", [], parentSkills);
+    const ops = profiles.find(profile => profile.id === "ops-release")!;
+    expect(resolveAgentCapabilities(ops, "code", [], parentSkills).skills.some(skill => skill.id === "write-expense-report")).toBe(false);
   });
 });

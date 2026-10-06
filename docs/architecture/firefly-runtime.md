@@ -86,12 +86,12 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 | `memory`、`rag` | memory-store/工作记忆；rag/index与embedding、document-index队列 | 原始记忆与可重建索引分离；未配置向量服务不等于原始历史不存在 |
 | `knowledge` | 绑定 Work Vault 的 Obsidian 工具与进度；`knowledge-workspace.ts` 判定资格，build-options/AGUI 消费 | 显式初始化，保存原 `learn/progress.md` 数据路径；每个运行捕获自己的工作区 |
 | `code-git`、`lsp` | GitService、工作区watcher、Git IPC；LspManager供工具调用 | 外部Git/LSP运行时明确，watcher生命周期按工作区关闭 |
-| `services` | llm、tts、embedding、cita、social-context的宿主服务适配 | services/cita包装cita领域实现，不是重复语义引擎 |
+| `services` | llm、embedding、cita、social-context的宿主服务适配 | services/cita包装cita领域实现，不是重复语义引擎 |
 | `cita`、`runtime-policy` | cita上下文结构/语义引擎；统一token/timeout政策供运行层消费 | 领域逻辑与服务配置分开 |
 | `channels`、`scheduler` | 各自bootstrap构造适配器/定时任务 → 同一AgentRuntime；由background显式start | 不自动启用渠道、发消息或补跑任务 |
 | `plugin-host`、`plugin-panel` | 宿主服务/生命周期；面板桥脚本；根级plugin-runtime衔接src/plugins | 同一插件运行时的宿主侧与嵌入页，不建立第二套加载器 |
 | `proactive`、`social-context`、`relationship` | proactive-lifecycle、上下文提取/检索、relationship-log | 各类上下文来源；默认开关和用户偏好不在结构整理中变更 |
-| `tts`、`asr`、`mossland` | TTS session、ASR dispatcher、Mossland api-client；Call 专用窗口与循环已退役 | 外部服务适配保留真实协议/供应者名，不伪造服务配置 |
+| `asr`、`mossland` | ASR dispatcher 与 Mossland api-client；TTS 合成、朗读和 Call 专用窗口与循环已退役 | 外部服务适配保留真实协议/供应者名，不伪造服务配置 |
 | `music`、`audio` | music/bootstrap与QQ GSMTC；audio/mpv-binary供飞书audio-transcode探测 | mpv是通用转码依赖，不是被删除的网易云播放器 |
 | `screenshot`、`protocols`、`toast` | 截图lifecycle/原生helper，协议bootstrap，toast-service/window | 各自资源按application受控退出，不新增全局循环 |
 | `prompts` | prompt-loader读取有效外部内容路径 | 不恢复旧YAML人设解析链 |
@@ -132,7 +132,7 @@ Firefly 当前工作树是唯一产品实现基线。后续修改从本文件列
 
 Work 会话显式绑定目录，通过“添加学习结构”确认后调用 `initKnowledgeWorkspace`，只补缺失文件。已绑定的目录含 `.obsidian` 或 `learn/progress.md` 时，`build-options.ts` 注入 `prompts/knowledge_workflow.md` 并按用户工具开关开放六个 Obsidian 工具；普通 Work 不自动初始化或更新进度。`obsidian_edit` 继续走 fs-write 审批；只读和逐次审批不会静默更新进度。入口及数据结构见 [知识工作区指南](../user-guide/knowledge-workspace.md)。
 
-Call 独立窗口、循环及 IPC 已退役；共享 ASR/TTS、Chat 语音播放/取消和渠道语音保留。插件语音输入只支持 `active-chat`；`active-call` 在取得租约前明确拒绝，不建立替代通话循环。
+TTS 合成与朗读、Call 独立窗口、循环及 IPC 已退役；ASR 语音转文字、提示音、内部音频文件和渠道语音处理保留。插件语音输入只支持 `active-chat`；`active-call` 在取得租约前明确拒绝，不建立替代通话循环。
 
 ## 持久 Agent 基础与接线状态
 
@@ -176,7 +176,7 @@ P2 后续事项：`skills/skill-tools.ts` 的 `readRefs` 是进程级 Set，当�
 
 面板使用 `firefly-plugin`、`firefly-panel/1` 与 `FireflyPanel`。来源窗口、origin、版本、启用状态和资源真实路径校验继续有效；已移除旧面板协议、scheme 与桥别名；不双发事件。
 
-朋友圈的 Main/preload/shared、媒体协议、后台反应扫描和提示词来源已退役。读取应用设置时忽略废弃键，不因升级改写已有配置；历史动态、媒体和会话数据不删除、不迁移。共享 social context、贴图与 embedding、RAG/Worldbook、渠道、ASR/TTS、Work 学习进度及调度事件 threadId 继续保留。Renderer 的入口与面板由独立 UI 批次清理，联动前不得发布。
+朋友圈的 Main/preload/shared、媒体协议、后台反应扫描和提示词来源已退役。读取应用设置时忽略废弃键，不因升级改写已有配置；历史动态、媒体和会话数据不删除、不迁移。共享 social context、贴图与 embedding、RAG/Worldbook、渠道、ASR、提示音与内部音频、Work 学习进度及调度事件 threadId 继续保留。Renderer 的入口与面板由独立 UI 批次清理，联动前不得发布。
 
 ## 文档替代范围
 

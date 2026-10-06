@@ -1,0 +1,19 @@
+.cy-workspace-task-panel { height: 100%; overflow: auto; }
+.cy-workspace-task-panel > .cy-todo.cy-todo--docked, .cy-workspace-task-panel > .cy-code-git.cy-code-git--docked { height: auto; }
+.cy-workspace-results-index, .cy-workspace-run-results, .cy-workspace-change-diff { padding: 12px; color: var(--cy-text); overflow: auto; overflow-wrap: anywhere; }
+.cy-workspace-run-results, .cy-workspace-change-diff { height: 100%; box-sizing: border-box; }
+.cy-workspace-results-index h3, .cy-workspace-run-results h3 { margin: 0 0 8px; font-size: 13px; }
+.cy-workspace-results-index button, .cy-workspace-run-results button { border: 1px solid var(--cy-border); border-radius: 12px; background: var(--cy-bg-page, #fff); color: inherit; cursor: pointer; padding: 6px 10px; }
+.cy-workspace-results-index > button { display: flex; justify-content: space-between; gap: 8px; width: 100%; margin-top: 6px; text-align: left; }
+.cy-workspace-results-index small, .cy-workspace-run-results small { color: var(--cy-text-muted); }
+.cy-workspace-run-results__file { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--cy-border); }
+.cy-workspace-run-results__file > span { flex: 1 1 100%; }
+.cy-workspace-run-results__tool { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--cy-border); }
+.cy-workspace-run-results__tool header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.cy-workspace-run-results__tool p { font-size: 12px; color: var(--cy-text-muted); }
+.cy-workspace-run-results pre, .cy-workspace-change-diff pre { font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cy-workspace-change-diff header { padding-bottom: 10px; border-bottom: 1px solid var(--cy-border); }
+.cy-workspace-change-diff .is-add { background: #e6f4ea; }
+.cy-workspace-change-diff .is-remove { background: #fce8e6; }
+.cy-workspace-change-diff .is-hunk { color: #456893; background: #eef3f8; }
+.cy-workspace-change-diff pre span { padding-right: 8px; user-select: none; }

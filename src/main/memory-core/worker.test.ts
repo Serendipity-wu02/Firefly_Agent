@@ -6,11 +6,13 @@ import {EventEmitter} from "node:events";
 import {randomBytes} from "node:crypto";
 import {Worker} from "node:worker_threads";
 import {build} from "esbuild";
-import {afterEach,beforeAll,it,expect,vi} from "vitest";
+import {afterEach,beforeAll,describe,it,expect,vi} from "vitest";
 import {resolveRuntimeProfile} from "../runtime-profile";
 import {createStorageContext} from "../storage-context";
 import {sealPayload,openPayload} from "./payload-codec";
 import {MemoryClient} from "./worker-client";
+// Both real and fake Workers acquire the real Windows protected-key publication lease.
+describe.runIf(process.platform==="win32")("Windows protected-key and writer lease integration",()=>{
 const dirs:string[]=[],scopes:ReturnType<typeof clientScope>[]=[];
 const owned=new WeakMap<object,ReturnType<typeof clientScope>>();
 const verifiedSyntheticCleanupFailures=new WeakSet<MemoryClient>();
@@ -174,4 +176,6 @@ it("validates a streamed claimed context through the real Worker without reusing
  const permit=await context.validateForDispatch(actor,snapshot),send=vi.fn(()=>"synthetic handle");await context.dispatch(actor,permit,send);await context.validateResponse(actor,snapshot);
  await expect(context.dispatch(actor,permit,send)).rejects.toThrow("MEMORY_CONTEXT_PERMIT_USED");expect(send).toHaveBeenCalledTimes(1);
  await registry.prepareChange(access,provider.adapter,ref);await expect(context.validateResponse(actor,snapshot)).rejects.toThrow();
+});
+
 });

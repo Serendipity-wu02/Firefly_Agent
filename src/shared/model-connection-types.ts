@@ -29,8 +29,14 @@ export interface PublicModelConfig {
   rerankerMode: "standard" | "none";
 }
 
+/** Main 的 model:get-install-status 返回的安装状态快照。 */
+export interface ModelInstallStatus {
+  embedding: { bgem3: boolean };
+  reranker: { standard: boolean };
+}
+
 export interface ModelConfigApi extends ModelConnectionApi {
   get(): Promise<PublicModelConfig>;
   onChanged(callback: (config: PublicModelConfig) => void): () => void;
-  getModelInstallStatus(): Promise<unknown>;
+  getModelInstallStatus(): Promise<ModelInstallStatus>;
 }

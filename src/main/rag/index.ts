@@ -20,6 +20,14 @@ let store: JsonVectorStore | null = null;
 let retriever: HybridRetriever | null = null;
 let worldbook: WorldbookManager | null = null;
 let provider: EmbeddingProvider | null = null;
+let personalMemoryMode: "legacy" | "smh" = "legacy";
+const LEGACY_PERSONAL_SOURCES = new Set(["user_memory", "chat_history"]);
+
+function assertSourceAvailable(source: string | undefined): void {
+  if (personalMemoryMode === "smh" && source && LEGACY_PERSONAL_SOURCES.has(source)) {
+    throw new Error("MEMORY_LEGACY_RETIRED");
+  }
+}
 // 每轮对话递增，用于 DMAE repeatWindow 统计（worldbook 状态不持久化，重启回 0 可接受）
 let worldbookTurnCounter = 0;
 
@@ -34,9 +42,12 @@ export async function initRAG(
   cloudApiKey?: string,
   embeddingModel?: string,
   cloudDimensions?: number,
+  options: { personalMemoryMode?: "legacy" | "smh" } = {},
 ): Promise<void> {
+  personalMemoryMode = options.personalMemoryMode ?? "legacy";
   const dataDir = getDataDir();
   provider = getEmbeddingProvider(ragMode, cloudBaseUrl, cloudApiKey, embeddingModel, cloudDimensions);
+  // 历史混合文件仍整读/整写；旧个人条目保持原值，不搜索、维护、删除或迁移。
   store = new JsonVectorStore(dataDir);
   // 只有 provider 存在时才创建 retriever（向量检索依赖 embedding）
   if (provider) {
@@ -50,7 +61,7 @@ export async function initRAG(
 
   // 把实体图谱中的已有实体名灌入 jieba 自定义词典
   // 防止 "流萤"、"小鹿" 等 AI 伴侣核心名词被错误切分
-  await feedEntityNamesToJieba();
+  if (personalMemoryMode !== "smh") await feedEntityNamesToJieba();
 
   logger.info(
     LogTag.RAG,
@@ -113,10 +124,13 @@ export async function switchEmbeddingModel(modelKey: string): Promise<{ ok: bool
     // Check existing entries for dimension mismatch
     let clearedEntries = 0;
     if (store) {
-      const entries = (store as any).entries as Array<{ embedding: number[] }> | undefined;
+      const entries = (store as any).entries as Array<{ embedding: number[]; source: string }> | undefined;
       if (entries && entries.length > 0) {
         const oldDims = entries[0].embedding.length;
         if (oldDims !== newDims) {
+          if (personalMemoryMode === "smh" && entries.some((entry) => LEGACY_PERSONAL_SOURCES.has(entry.source))) {
+            return { ok: false, clearedEntries: 0, error: "MEMORY_LEGACY_RETIRED" };
+          }
           clearedEntries = entries.length;
           // 清空内存与磁盘（含取消防抖中的待写落盘），防止旧维度向量被写回刚清空的文件
           store.clearForRebuild();
@@ -159,6 +173,8 @@ export async function addMemory(
   source = "user_memory",
   metadata?: Record<string, unknown>
 ): Promise<string> {
+  // 空 source 在旧存储中表示全库去重，SMH 禁止它触碰退休记录。
+  assertSourceAvailable(source || "user_memory");
   if (!store || !provider) throw new Error("RAG not initialized");
   const entry = await store.add(text, source, provider, metadata);
   return entry.id;
@@ -169,6 +185,7 @@ export async function addL2MemoryVector(
   l2Id: string,
   metadata?: Record<string, unknown>,
 ): Promise<string> {
+  assertSourceAvailable("user_memory");
   if (!store || !provider) throw new Error("RAG not initialized");
   if (!l2Id.trim()) throw new Error("l2Id is required");
   const entry = await store.addUnique(text, "user_memory", provider, { ...metadata, l2Id });
@@ -192,8 +209,14 @@ export async function searchMemoryEntries(
   topK = 5,
   options?: { recordRecall?: boolean }
 ): Promise<Array<{ id: string; text: string; createdAt: number; score: number; metadata?: Record<string, unknown> }>> {
+  assertSourceAvailable(source);
   if (!retriever) return [];
   let allowedEntryIds: string[] | undefined;
+  if (personalMemoryMode === "smh" && !source) {
+    allowedEntryIds = ((store as unknown as { entries: MemoryEntry[] }).entries)
+      .filter((entry) => !LEGACY_PERSONAL_SOURCES.has(entry.source))
+      .map((entry) => entry.id);
+  }
   if (source === "user_memory") {
     try {
       const { memoryStore } = await import("../memory/memory-store");
@@ -214,7 +237,7 @@ export async function searchMemoryEntries(
     }
   }
   const results = await retriever.retrieve(query, source, topK, { allowedEntryIds });
-  if (options?.recordRecall !== false) {
+  if (personalMemoryMode !== "smh" && options?.recordRecall !== false) {
     await recordUserMemoryRecalls(results);
   }
   return results.map((r) => ({
@@ -249,6 +272,7 @@ export async function searchHistoryEntries(
   query: string,
   topK = 5
 ): Promise<Array<{ text: string; createdAt: number; score: number; metadata?: Record<string, unknown> }>> {
+  assertSourceAvailable("chat_history");
   if (!retriever) return [];
   const results = await retriever.retrieve(query, "chat_history", topK);
   return results.map((r) => ({
@@ -436,6 +460,7 @@ export function resetRAG(): void {
   retriever = null;
   worldbook = null;
   provider = null;
+  personalMemoryMode = "legacy";
   resetEmbeddingProvider();
 }
 
@@ -444,7 +469,7 @@ export function getRAGStats() {
 }
 
 export function isUserMemoryVectorStoreReady(): boolean {
-  return store !== null && provider !== null;
+  return personalMemoryMode !== "smh" && store !== null && provider !== null;
 }
 
 /**
@@ -452,6 +477,7 @@ export function isUserMemoryVectorStoreReady(): boolean {
  * 返回浅拷贝，调用方不应修改返回的 embedding。
  */
 export function getEntriesBySource(source: string): Array<{ id: string; text: string; embedding: number[]; createdAt: number; weight: number; metadata?: Record<string, unknown> }> {
+  assertSourceAvailable(source);
   if (!store) return [];
   return ((store as any).entries as MemoryEntry[])
     .filter((e) => e.source === source)
@@ -459,6 +485,7 @@ export function getEntriesBySource(source: string): Array<{ id: string; text: st
 }
 
 export function deleteUserMemoryVectors(ragIds: string[]): number {
+  assertSourceAvailable("user_memory");
   if (!store) throw new Error("RAG not initialized");
   return store.deleteEntriesByIds(ragIds, "user_memory");
 }

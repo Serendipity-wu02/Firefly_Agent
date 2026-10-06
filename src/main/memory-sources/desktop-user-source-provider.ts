@@ -61,6 +61,13 @@ export function createDesktopUserSourceProvider(options:Options){
    if(options.readUser(identity)!==null||receipts.has(key(identity))||admitted.has(key(identity)))return denied();
    const ticket=Object.freeze({});admitted.add(key(identity));admissions.set(ticket,{grant,identity});return ticket;
   },
+  /** Release a failed preparation only while no user bytes or receipt were committed.
+   * Never undoes persisted metadata, finished receipts, or a consumed/unknown outcome. */
+  cancelUserCommit(ticket:object):void {
+   const admission=ticket&&typeof ticket==="object"?admissions.get(ticket):undefined;if(!admission)return denied();
+   if(options.readUser(admission.identity)!==null||receipts.has(key(admission.identity)))return denied();
+   admissions.delete(ticket);admitted.delete(key(admission.identity));
+  },
   finishUserCommit(ticket:object):void {
    const admission=ticket&&typeof ticket==="object"?admissions.get(ticket):undefined;if(!admission)return denied();
    admissions.delete(ticket);options.authority.require(admission.grant,admission.identity.sessionId);

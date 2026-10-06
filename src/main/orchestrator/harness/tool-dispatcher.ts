@@ -26,6 +26,13 @@ import { executeToolDefinition } from "../tools/registry/tool-executor";
 import type { ToolOutputStore } from "./tool-output/tool-output-store";
 import { ToolOutputPersistenceError } from "./tool-output/file-tool-output-store";
 import { getCurrentLevel } from "../../permission";
+import { isPlanReadOnly } from "../plan-mode";
+import { classifyToolExecutionMode } from "./tool-call-scheduler";
+import { isShellJobControlAuthorized } from "../tools/builtin-tools/shell-job-manager";
+import { shellJobTool } from "../tools/builtin-tools/shell-job-tool";
+import type { DelegationScope } from "../child-session-types";
+import { isAbortError, raceWithSignal } from "../../abort-utils";
+import type { LeafPermit } from "./execution-coordinator";
 import { policyFor } from "../../permission-policy";
 
 // ── 工具输出截断 ─────────────────────────────────────────
@@ -78,7 +85,7 @@ export interface ToolDispatchContext {
   onEvent?: (event: HarnessEvent) => void;
   requestUserClarification?: (card: unknown) => Promise<unknown>;
   includeInteractiveTools?: boolean;
-  checkPermission?: (toolId: string, args: Record<string, unknown>) => Promise<boolean>;
+  checkPermission?: (toolId: string, args: Record<string, unknown>, signal?: AbortSignal) => Promise<boolean>;
   toolContext?: import("../tools/registry/tool-context").ToolContext;
   truncation?: TruncationConfig;
   /** 完整工具输出持久化；生产 Harness 必须注入。 */
@@ -88,6 +95,9 @@ export interface ToolDispatchContext {
   executionLedger?: ExecutionLedger;
   agentExecutor?: import("./types").HarnessInput["agentExecutor"];
   allowedBuiltinToolIds?: ReadonlySet<string>;
+  delegationScope?: DelegationScope;
+  /** Emitted only when execution actually enters, after approval and leaf acquisition. */
+  onExecutionStarted?: () => void;
 }
 
 export interface ToolDispatchResult extends ToolObservation {
@@ -105,6 +115,7 @@ export async function dispatchToolCall(
   call: ToolCall,
   ctx: ToolDispatchContext,
 ): Promise<ToolDispatchResult> {
+  if (ctx.toolContext?.signal?.aborted) return cancelledBeforeDispatch(call);
   // ── 内置工具 ──
   if (isHarnessBuiltin(call.name)) {
     if (ctx.allowedBuiltinToolIds && !ctx.allowedBuiltinToolIds.has(call.name)) {
@@ -118,7 +129,21 @@ export async function dispatchToolCall(
         message: "当前渠道不支持交互式工具",
       };
     }
-    const result = await executeHarnessBuiltin(call, ctx);
+    const execution = ctx.toolContext?.execution;
+    const run = async (): Promise<ToolDispatchResult> => {
+      if (ctx.toolContext?.signal?.aborted) return cancelledBeforeDispatch(call);
+      if (call.name !== DELEGATE_AGENT_TOOL_ID) ctx.onExecutionStarted?.();
+      return executeHarnessBuiltin(call, ctx);
+    };
+    // Delegation is orchestration, never a leaf lease held while waiting for a child.
+    const result = execution && call.name !== DELEGATE_AGENT_TOOL_ID && !isInteractiveHarnessBuiltin(call.name)
+      ? await execution.coordinator.runLeaf(
+          { ...execution.scope, toolCallId: call.id },
+          classifyToolExecutionMode(call, ctx.tools) === "parallel" ? "shared" : "exclusive",
+          ctx.toolContext?.signal,
+          run,
+        )
+      : await run();
     return ctx.deferOutputPersistence ? result : persistToolDispatchResult(call, result, ctx);
   }
 
@@ -158,7 +183,17 @@ export async function dispatchToolCall(
     approvalRequired = ctx.toolContext?.permissionMode !== "allow_all"
       && (policyFor(currentLevel, risk) === "ask"
         || policyFor(ctx.toolContext?.fileAccessLevel ?? currentLevel, risk) === "ask");
-    const allowed = await ctx.checkPermission(tool.id, args);
+    let allowed: boolean;
+    try {
+      // Approval has no actual operation to drain. Its abandoned wait must not
+      // hold child/parent terminal settlement, and late answers cannot execute.
+      const callSignal = ctx.toolContext?.signal;
+      const approval = callSignal ? ctx.checkPermission(tool.id, args, callSignal) : ctx.checkPermission(tool.id, args);
+      allowed = await raceWithSignal(approval, callSignal);
+    } catch (error) {
+      if (isAbortError(error) || ctx.toolContext?.signal?.aborted) return cancelledBeforeDispatch(call);
+      throw error;
+    }
     if (!allowed) {
       return {
         outcome: "failure",
@@ -169,40 +204,52 @@ export async function dispatchToolCall(
     }
   }
 
-  // 执行工具
-  ctx.onEvent?.({
-    type: "tool_start",
-    toolCallId: call.id,
-    toolName: call.name,
-    args,
-    displayName: tool.name,
-  });
+  if (ctx.toolContext?.signal?.aborted) return cancelledBeforeDispatch(call);
 
   let result: ToolCallResult;
-  // 提取 targetRefs 从 args（path / file / url / id 等常见字段）
   const targetRefs = args.path !== undefined ? [String(args.path)]
     : args.file !== undefined ? [String(args.file)]
-    : args.url !== undefined ? [String(args.url)]
-    : [];
-
-  const invocationContext = ctx.toolContext ? {
-    ...ctx.toolContext,
-    authorizedToolCall: ctx.checkPermission ? { toolId: tool.id, args, approvalRequired } : undefined,
-  } : undefined;
-  const run = async (): Promise<ToolExecutionOutcome> => executeToolDefinition(tool, args, invocationContext);
+    : args.url !== undefined ? [String(args.url)] : [];
+  const execution = ctx.toolContext?.execution;
+  const scope = execution ? { ...execution.scope, toolCallId: call.id } : undefined;
+  const denied = (): ToolCallResult => ({
+    toolId: tool.id, args, status: "failed", output: `工具 "${tool.id}" 当前策略不再允许执行`,
+    category: "permission_denied", errorCode: "E_PERMISSION_CHANGED", effectState: "not_applied",
+  });
+  const run = async (permit?: LeafPermit): Promise<ToolExecutionOutcome> => {
+    if (ctx.toolContext?.signal?.aborted) {
+      return { status: "failed", output: "aborted_before_dispatch", category: "runtime_safety", effectState: "not_applied" };
+    }
+    if (!revalidateToolPermission(ctx, tool, args, approvalRequired)) return denied();
+    const invocationContext = ctx.toolContext ? {
+      ...ctx.toolContext,
+      ...(execution && scope ? { execution: { coordinator: execution.coordinator, scope, ...(permit ? { permit } : {}) } } : {}),
+      authorizedToolCall: ctx.checkPermission ? { toolId: tool.id, args, approvalRequired } : undefined,
+    } : undefined;
+    ctx.onExecutionStarted?.();
+    ctx.onEvent?.({ type: "tool_start", toolCallId: call.id, toolName: call.name, args, displayName: tool.name });
+    return executeToolDefinition(tool, args, invocationContext);
+  };
+  const coordinate = (): Promise<ToolExecutionOutcome> => {
+    if (!execution || !scope) return run();
+    // Only the exact Main builtin and a manager-owned, scope-bound job may control
+    // an already leased process. A plugin merely named shell_job gets no exemption.
+    const jobId = typeof args.job_id === "string" ? args.job_id.trim() : "";
+    const isControl = tool === shellJobTool && (args.action === undefined || args.action === "status" || args.action === "stop")
+      && isShellJobControlAuthorized(jobId, scope);
+    return isControl ? run() : execution.coordinator.runLeaf(
+      scope, classifyToolExecutionMode(call, ctx.tools) === "parallel" ? "shared" : "exclusive",
+      ctx.toolContext?.signal, run,
+    );
+  };
   if (ctx.executionLedger) {
     const ledgerResult = await ctx.executionLedger.execute(
       { logicalInvocationId: `${ctx.toolContext?.runId ?? "unknown"}:${call.id}`, capability: tool.id, targetRefs, args },
-      run,
+      coordinate,
     );
-    result = {
-      toolId: tool.id,
-      args,
-      ...ledgerResult.outcome,
-      ...(ledgerResult.cached ? { deduplicated: true } : {}),
-    };
+    result = { toolId: tool.id, args, ...ledgerResult.outcome, ...(ledgerResult.cached ? { deduplicated: true } : {}) };
   } else {
-    result = { toolId: tool.id, args, ...await run() };
+    result = { toolId: tool.id, args, ...await coordinate() };
   }
 
   // 截断输出（长输出按预算截断，只把可消费的 preview 交给模型）
@@ -329,7 +376,7 @@ async function executeHarnessBuiltin(
     case WRITE_PLAN_TOOL_ID:
       return executeWritePlan(call, ctx.toolContext, ctx.onEvent);
     case DELEGATE_AGENT_TOOL_ID:
-      return executeDelegateAgent(call, ctx.agentExecutor);
+      return executeDelegateAgent(call, ctx.agentExecutor, ctx.delegationScope, ctx.onExecutionStarted);
     case READ_TOOL_RESULT_TOOL_ID:
       return executeReadToolResult(call, ctx.toolOutputStore, ctx.toolContext);
 
@@ -341,4 +388,28 @@ async function executeHarnessBuiltin(
         message: `未知的 Harness 内置工具: ${call.name}`,
       };
   }
+}
+
+function cancelledBeforeDispatch(call: ToolCall): ToolDispatchResult {
+  return { outcome: "not_executed", category: "runtime_safety", tool: call.name, message: "aborted_before_dispatch" };
+}
+
+function revalidateToolPermission(
+  ctx: ToolDispatchContext,
+  tool: ToolDefinition,
+  args: Record<string, unknown>,
+  approvalRequired: boolean,
+): boolean {
+  if (ctx.toolContext?.revalidateToolPermission) {
+    return ctx.toolContext.revalidateToolPermission(tool.id, args, approvalRequired);
+  }
+  const risk = tool.risk ?? "safe";
+  if (ctx.toolContext?.conversationId && isPlanReadOnly(ctx.toolContext.conversationId)
+    && (risk === "shell" || policyFor("read-only", risk) !== "allow")) return false;
+  if (ctx.toolContext?.permissionMode === "allow_all") return true;
+  // Legacy ungated fixtures keep their existing contract. Main production always gates.
+  if (!ctx.checkPermission) return true;
+  const current = getCurrentLevel();
+  const policies = [policyFor(current, risk), policyFor(ctx.toolContext?.fileAccessLevel ?? current, risk)];
+  return !policies.includes("deny") && (!policies.includes("ask") || approvalRequired);
 }

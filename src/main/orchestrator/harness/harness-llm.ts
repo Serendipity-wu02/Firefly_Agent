@@ -19,6 +19,7 @@ import type {
   VendorConfig,
 } from "../vendors/types";
 import type { HarnessConfig } from "./types";
+import type { MainMemoryRun } from "../../memory-context/main-memory-runtime";
 import { AGENT_COMPACTION_PROMPT } from "./compaction";
 import { isExplicitStreamUnsupported } from "../vendors/stream-support";
 import {
@@ -57,6 +58,7 @@ export async function callLLM(
   signal?: AbortSignal,
   onReasoningDelta?: (delta: string) => void,
   onTextDelta?: (delta: string) => void,
+  memoryRun?: MainMemoryRun,
 ): Promise<ChatResponse> {
   const adapter = getAdapterForConfig(vendorConfig);
   const composed = composePromptLayers(promptLayers, messages);
@@ -88,24 +90,35 @@ export async function callLLM(
     return response;
   };
   try {
-    return recordResponseUsage(await streamChatWithSdk({
+    return recordResponseUsage(await (memoryRun ? (input: Parameters<MainMemoryRun["call"]>[0]) => memoryRun.call(input) : streamChatWithSdk)({
       adapter,
       request: chatRequest,
       config: vendorConfig,
       timeoutMs: config.totalTimeoutMs,
       signal,
       onDelta: (delta) => {
-        receivedStreamDelta = true;
+        if (delta.type !== "usage" && (!("delta" in delta) || delta.delta.length > 0)) {
+          receivedStreamDelta = true;
+        }
         if (delta.type === "reasoning_delta" && delta.delta) onReasoningDelta?.(delta.delta);
         if (delta.type === "text_delta" && delta.delta) onTextDelta?.(delta.delta);
       },
     }));
   } catch (error) {
-    if (receivedStreamDelta || !isExplicitStreamUnsupported(error)) throw error;
+    if (receivedStreamDelta || !(isExplicitStreamUnsupported(error)
+      || memoryRun && error instanceof Error && error.message === "MEMORY_CONTEXT_STREAM_UNSUPPORTED")) throw error;
   }
 
   // 非流式兜底
   const fallbackRequest: ChatRequest = { ...chatRequest, stream: false };
+  if (memoryRun) {
+    // A fallback changes the serialized request: never reuse the first call's
+    // prepared handle or permit. Main performs a fresh capture and validation.
+    return recordResponseUsage(await memoryRun.call({
+      adapter, request: fallbackRequest, config: vendorConfig,
+      timeoutMs: config.totalTimeoutMs, signal,
+    }));
+  }
   const http = adapter.buildRequest(fallbackRequest, vendorConfig);
   const response = await fetch(http.url, {
     method: "POST",

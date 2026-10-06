@@ -152,8 +152,10 @@ export function renderChannelsLog(entries: LogEntry[]): void {
 }
 
 export async function refreshChannelsLog(): Promise<void> {
+  const settings = window.settings;
+  if (!settings) return;
   try {
-    const entries = (await window.settings.channelsLogGet(100)) as LogEntry[];
+    const entries = (await settings.channelsLogGet(100)) as LogEntry[];
     renderChannelsLog(entries);
   } catch (err) {
     console.warn("[Channels] refreshChannelsLog 失败:", err);
@@ -252,6 +254,8 @@ export async function refreshContextBindings(): Promise<void> {
 }
 
 export async function loadChannelsPanel(): Promise<void> {
+  const settings = window.settings;
+  if (!settings) return;
   if (channelsState.initialized) {
     await refreshContextBindings();
     return;
@@ -262,7 +266,7 @@ export async function loadChannelsPanel(): Promise<void> {
   // （该路径此前没有任何测试覆盖，所以一直没暴露）。
   let hadQqToken = false;
   try {
-    const cfg = await window.settings.channelsGetConfig();
+    const cfg = await settings.channelsGetConfig();
     if (channelsWechatEnabledEl) channelsWechatEnabledEl.checked = !!cfg.wechat.enabled;
     if (channelsFeishuEnabledEl) channelsFeishuEnabledEl.checked = !!cfg.feishu.enabled;
     if (channelsQqEnabledEl) channelsQqEnabledEl.checked = !!cfg.qq?.enabled;
@@ -307,7 +311,7 @@ export async function loadChannelsPanel(): Promise<void> {
     if (channelsQqBotGroupAllowlistEl) channelsQqBotGroupAllowlistEl.value = (cfg.qqbot?.allowedGroupOpenids ?? []).join("\n");
 
     // 拉一次渠道状态
-    const status = (await window.settings.channelsGetStatus()) as Record<string, { phase: string; message?: string; detail?: Record<string, unknown> }>;
+    const status = (await settings.channelsGetStatus()) as Record<string, { phase: string; message?: string; detail?: Record<string, unknown> }>;
     renderProactiveDeliveryAvailability(status);
     renderChannelStatus(channelsWechatStatusEl, status.wechat?.phase ?? "offline", status.wechat?.message);
     renderChannelStatus(channelsFeishuStatusEl, status.feishu?.phase ?? "offline", status.feishu?.message);
@@ -326,7 +330,7 @@ export async function loadChannelsPanel(): Promise<void> {
   const scheduleSave = () => {
     if (channelsState.saveTimer != null) window.clearTimeout(channelsState.saveTimer);
     channelsState.saveTimer = window.setTimeout(() => {
-      void window.settings.channelsSaveConfig({
+      void settings.channelsSaveConfig({
         wechat: { enabled: channelsWechatEnabledEl?.checked ?? false },
         feishu: { enabled: channelsFeishuEnabledEl?.checked ?? false },
         qq: { enabled: channelsQqEnabledEl?.checked ?? false },
@@ -365,7 +369,7 @@ export async function loadChannelsPanel(): Promise<void> {
     }
     setContextFeedback("info", "绑定中...");
     try {
-      const result = await window.settings!.channelsContextBind({ sessionId, conversationId });
+      const result = await settings.channelsContextBind({ sessionId, conversationId });
       if (!result.ok) throw new Error(result.error ?? "绑定失败");
       setContextFeedback("ok", "上下文绑定已保存");
       await refreshContextBindings();
@@ -375,11 +379,11 @@ export async function loadChannelsPanel(): Promise<void> {
   });
 
   // 监听安装进度（渠道运行时安装进行时才会收到）
-  window.settings.onChannelsInstallProgress((progress) => {
+  settings.onChannelsInstallProgress((progress) => {
     const target = progress.channel === "wechat" ? channelsWechatStatusEl : progress.channel === "feishu" ? channelsFeishuStatusEl : progress.channel === "qq" ? channelsQqStatusEl : null;
     if (target) renderChannelStatus(target, "starting", `${progress.phase} ${progress.pct}%`);
   });
-  window.settings.onChannelsStatusChanged((status) => {
+  settings.onChannelsStatusChanged((status) => {
     const s = status as Record<string, { phase: string; message?: string; detail?: Record<string, unknown> }>;
     renderProactiveDeliveryAvailability(s);
     renderChannelStatus(channelsWechatStatusEl, s.wechat?.phase ?? "offline", s.wechat?.message);
@@ -413,9 +417,9 @@ export async function loadChannelsPanel(): Promise<void> {
       (patch.feishu as Record<string, unknown>).appSecret = channelsFeishuAppSecretEl.value;
     }
     try {
-      await window.settings.channelsSaveConfig(patch);
+      await settings.channelsSaveConfig(patch);
       // 保存后立即触发飞书 adapter 重建 + 重连长连接
-      await window.settings.channelsRestart();
+      await settings.channelsRestart();
       setFeishuFeedback("ok", "已保存，飞书长连接正在建立…");
       // 清空输入框（已落盘），并把 placeholder 切到"已保存"
       if (channelsFeishuAppSecretEl) {
@@ -469,13 +473,13 @@ export async function loadChannelsPanel(): Promise<void> {
   });
 
   // 订阅 Main 推送的二维码（每次登录会推一次）
-  window.settings.onChannelsWechatQrcode((dataUrl) => {
+  settings.onChannelsWechatQrcode((dataUrl) => {
     console.log("[WechatSettings] QR event received, dataUrl prefix:", dataUrl?.slice(0, 40), "len:", dataUrl?.length);
     showWechatQr(dataUrl);
     setWechatFeedback("info", "请用微信扫描二维码");
   });
   // 订阅 Main 推送的登录结果（成功 / 失败 / 二维码过期）
-  window.settings.onChannelsWechatLoginDone((payload) => {
+  settings.onChannelsWechatLoginDone((payload) => {
     hideWechatQr();
     if (payload.ok) {
       setWechatFeedback("ok", `已登录（botId=${payload.botId ?? "?"}）`);
@@ -488,7 +492,7 @@ export async function loadChannelsPanel(): Promise<void> {
     hideWechatQr();
     setWechatFeedback("info", "正在启动扫码…");
     try {
-      const result = await window.settings.channelsWechatLoginStart();
+      const result = await settings.channelsWechatLoginStart();
       if (result.ok) {
         // 二维码由 onChannelsWechatQrcode 推过来并显示；这里只刷个轻提示
         setWechatFeedback("info", "等待二维码推送…");
@@ -504,7 +508,7 @@ export async function loadChannelsPanel(): Promise<void> {
   channelsWechatRestartBtn?.addEventListener("click", async () => {
     setWechatFeedback("info", "重启连接中…");
     try {
-      await window.settings.channelsRestart();
+      await settings.channelsRestart();
       setWechatFeedback("ok", "已重启");
     } catch (err) {
       setWechatFeedback("err", err instanceof Error ? err.message : String(err));
@@ -512,8 +516,8 @@ export async function loadChannelsPanel(): Promise<void> {
   });
 
   // ===== QQ / NapCat OneBot 11 反向 WebSocket =====
-  channelsQqListenModeEl?.addEventListener("change", () => {
-    if (channelsQqCustomHostEl) channelsQqCustomHostEl.disabled = channelsQqListenModeEl.value !== "custom";
+  channelsQqListenModeEl?.addEventListener("change", function () {
+    if (channelsQqCustomHostEl) channelsQqCustomHostEl.disabled = this.value !== "custom";
   });
   if (channelsQqCustomHostEl && channelsQqListenModeEl) {
     channelsQqCustomHostEl.disabled = channelsQqListenModeEl.value !== "custom";
@@ -549,7 +553,7 @@ export async function loadChannelsPanel(): Promise<void> {
     if (qqEnabled) {
       let requirement: QqListenAuthRequirement;
       try {
-        requirement = await window.settings.channelsQqResolveAuthRequirement({ listenMode, customHost });
+        requirement = await settings.channelsQqResolveAuthRequirement({ listenMode, customHost });
       } catch (error) {
         setQqFeedback("err", error instanceof Error ? error.message : String(error));
         return;
@@ -581,10 +585,10 @@ export async function loadChannelsPanel(): Promise<void> {
     };
     if (channelsQqTokenEl?.value) qq.accessToken = channelsQqTokenEl.value;
     try {
-      await window.settings.channelsSaveConfig({ qq });
+      await settings.channelsSaveConfig({ qq });
       if (qq.accessToken) hadQqToken = true;
-      await window.settings.channelsRestart();
-      const status = await window.settings.channelsGetStatus() as Record<string, { phase?: string; message?: string; detail?: Record<string, unknown> }>;
+      await settings.channelsRestart();
+      const status = await settings.channelsGetStatus() as Record<string, { phase?: string; message?: string; detail?: Record<string, unknown> }>;
       renderQqDetail(status.qq);
       if (channelsQqTokenEl) {
         channelsQqTokenEl.value = "";
@@ -599,7 +603,7 @@ export async function loadChannelsPanel(): Promise<void> {
   channelsQqTestBtn?.addEventListener("click", async () => {
     setQqFeedback("info", "正在检查 NapCat 连接…");
     try {
-      const result = await window.settings.channelsQqTestConnection();
+      const result = await settings.channelsQqTestConnection();
       setQqFeedback(result.ok ? "ok" : "err", result.ok
         ? `连接正常：${result.detail?.nickname ? `${String(result.detail.nickname)} (` : "QQ "}${String(result.detail?.selfId ?? "")}${result.detail?.nickname ? ")" : ""}${result.detail?.appVersion ? ` · NapCat ${String(result.detail.appVersion)}` : ""} · Stream ${result.detail?.supportsStream ? "可用" : "不可用"}`
         : result.error ?? "连接失败");
@@ -627,9 +631,9 @@ export async function loadChannelsPanel(): Promise<void> {
     // secret 不回显：留空表示沿用已存值
     if (channelsQqBotAppSecretEl?.value) qqbot.appSecret = channelsQqBotAppSecretEl.value;
     try {
-      await window.settings.channelsSaveConfig({ qqbot });
-      await window.settings.channelsRestart();
-      const status = await window.settings.channelsGetStatus() as Record<string, { phase?: string; message?: string }>;
+      await settings.channelsSaveConfig({ qqbot });
+      await settings.channelsRestart();
+      const status = await settings.channelsGetStatus() as Record<string, { phase?: string; message?: string }>;
       if (channelsQqBotAppSecretEl) {
         channelsQqBotAppSecretEl.value = "";
         channelsQqBotAppSecretEl.placeholder = "已保存（输入新值会覆盖）";
@@ -648,7 +652,7 @@ export async function loadChannelsPanel(): Promise<void> {
   channelsQqBotTestBtn?.addEventListener("click", async () => {
     setQqBotFeedback("info", "正在校验 AppID / AppSecret…");
     try {
-      const result = await window.settings.channelsQqBotTestConnection();
+      const result = await settings.channelsQqBotTestConnection();
       setQqBotFeedback(result.ok ? "ok" : "err", result.ok
         ? "凭证有效，可以正常连接 QQ 开放平台。"
         : result.error ?? "连接失败");
@@ -668,7 +672,7 @@ export async function loadChannelsPanel(): Promise<void> {
       dangerous: true,
     });
     if (!confirmed) return;
-    await window.settings.channelsLogClear();
+    await settings.channelsLogClear();
     await refreshChannelsLog();
   });
 }

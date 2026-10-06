@@ -83,17 +83,21 @@ describe("runHarnessWithAdapter cancellation context", () => {
     } as never, signal, vi.fn());
 
     const input = runHarness.mock.calls[0]?.[0] as HarnessInput;
-    expect(input.signal).toBe(signal);
-    expect(input.toolContext?.signal).toBe(signal);
+    expect(input.signal).not.toBe(signal);
+    expect(input.toolContext?.signal).toBe(input.signal);
+    expect(input.quiesceExecution).toEqual(expect.any(Function));
 
     await input.checkPermission?.("read_file", { path: "x" });
     expect(permissionCheck).toHaveBeenCalledWith(expect.objectContaining({
       runId: "run-signal",
-      signal,
+      signal: input.signal,
     }));
 
     await input.requestUserClarification?.({ question: "continue?" });
-    expect(clarify).toHaveBeenCalledWith({ question: "continue?" }, signal);
+    expect(clarify).toHaveBeenCalledWith({ question: "continue?" }, input.signal);
+    input.quiesceExecution?.();
+    expect(input.signal?.aborted).toBe(true);
+    expect(signal.aborted).toBe(false);
   });
 
   it("passes the mobile non-interactive policy and allows tools without approval", async () => {

@@ -55,7 +55,7 @@ it("rejects missing or damaged auth without changing DB/WAL/SHM",()=>{
  fs.writeFileSync(auth,Buffer.from("damaged"));before=snapshot(path.dirname(auth));
  expect(()=>openMemoryRepository(f)).toThrow("MEMORY_AUTH_INVALID");expect(snapshot(path.dirname(auth))).toEqual(before);fs.writeFileSync(auth,valid);
 });
-it("produces a consistent SQLite backup that can be reopened with the same auth",async()=>{
+it.runIf(process.platform==="win32")("produces a consistent SQLite backup that can be reopened with the same auth",async()=>{
  const f=fixture(),repo=openMemoryRepository(f);repos.push(repo);repo.writeBatch(batch);
  const result=await repo.backup("restorable-backup");const dest=path.join(path.dirname(f.databasePath),"backups",result.backupId,"memory.sqlite");
  const restored=openMemoryRepository({...f,databasePath:dest});repos.push(restored);expect(restored.readRows("sources","scope-a")[0].payload).toEqual(source.payload);
@@ -78,20 +78,25 @@ it("stores a keyed receipt digest instead of a publicly enumerable plaintext has
   expect(Buffer.from(digest as Uint8Array)).not.toEqual(createHash("sha256").update(canonicalJson(batch)).digest());
  }finally{db.close()}
 });
-it("rejects arbitrary backup paths and preserves existing backup directories",async()=>{
+// Backup publication relies on Windows no-replace directory rename semantics.
+// Identifier validation and the non-Windows denial remain cross-platform checks.
+it("rejects arbitrary backup paths before platform-specific publication",async()=>{
  const f=fixture(),repo=openMemoryRepository(f);repos.push(repo);repo.writeBatch(batch);
  const external=path.join(path.dirname(f.databasePath),"uncontrolled.sqlite");
  await expect(repo.backup(external)).rejects.toThrow("MEMORY_BACKUP_INVALID");expect(fs.existsSync(external)).toBe(false);
+});
+it.runIf(process.platform==="win32")("preserves existing backup directories",async()=>{
+ const f=fixture(),repo=openMemoryRepository(f);repos.push(repo);repo.writeBatch(batch);
  const existing=path.join(path.dirname(f.databasePath),"backups","owned-id");fs.mkdirSync(existing,{recursive:true});fs.writeFileSync(path.join(existing,"sentinel"),"keep");
  await expect(repo.backup("owned-id")).rejects.toThrow("MEMORY_BACKUP_EXISTS");expect(fs.readFileSync(path.join(existing,"sentinel"),"utf8")).toBe("keep");
 });
-it("rejects a backup root junction without writing through it",async()=>{
+it.runIf(process.platform==="win32")("rejects a backup root junction without writing through it",async()=>{
  const f=fixture(),repo=openMemoryRepository(f);repos.push(repo);repo.writeBatch(batch);
  const elsewhere=fs.mkdtempSync(path.join(os.tmpdir(),"memory-backup-elsewhere-"));dirs.push(elsewhere);
  fs.symlinkSync(elsewhere,path.join(path.dirname(f.databasePath),"backups"),"junction");
  await expect(repo.backup("junction-attempt")).rejects.toThrow("MEMORY_BACKUP_INVALID");expect(fs.readdirSync(elsewhere)).toEqual([]);
 });
-it("preserves a raced backup destination and leaves no published partial backup",async()=>{
+it.runIf(process.platform==="win32")("preserves a raced backup destination and leaves no published partial backup",async()=>{
  const f=fixture(),repo=openMemoryRepository(f);repos.push(repo);repo.writeBatch(batch);
  const rename=fs.renameSync.bind(fs);
  const spy=vi.spyOn(fs,"renameSync").mockImplementationOnce((from,to)=>{
@@ -101,4 +106,11 @@ it("preserves a raced backup destination and leaves no published partial backup"
  try{await expect(repo.backup("race-id")).rejects.toThrow();
   expect(fs.readFileSync(path.join(path.dirname(f.databasePath),"backups","race-id","sentinel"),"utf8")).toBe("race");
  }finally{spy.mockRestore()}
+});
+
+it.runIf(process.platform!=="win32")("rejects backup publication on non-Windows without creating files or changing live storage",async()=>{
+ const f=fixture(),repo=openMemoryRepository(f);repos.push(repo);repo.writeBatch(batch);
+ const before=snapshot(path.dirname(f.databasePath));
+ await expect(repo.backup("native-backup")).rejects.toThrow("MEMORY_WINDOWS_REQUIRED");
+ expect(snapshot(path.dirname(f.databasePath))).toEqual(before);
 });

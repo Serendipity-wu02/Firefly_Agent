@@ -1,3 +1,4 @@
+import {readMainAttachmentGrant,type MainAttachmentGrant} from "./memory-context/main-attachment-projection";
 import type {MainDesktopMemory} from "./memory-context/main-desktop-memory";
 // AG-UI IPC 桥：按会话模式选择执行链并把事件透传给渲染进程。
 //
@@ -37,7 +38,7 @@ import type { PendingTurnLifecycle } from "./plugin-host/pending-turn-lifecycle"
 import * as chatsStore from "./chats/chats-store";
 import { createRunAdjustmentPoller } from "./chats/pending-adjustment";
 import { broadcastChatsChanged } from "./chats/chats-ipc";
-import type { ConversationMode } from "../shared/chat-types";
+import type { ConversationMode, PendingChatAttachment } from "../shared/chat-types";
 import { prepareTranscriptDispatch, type TranscriptRewindRequest } from "./orchestrator/conversation-transcript-coordinator";
 import { isWorkReadScopeCurrent } from "./chats/work-read-scope";
 import { evaluateWorkFileEvidence } from "./chats/work-file-evidence";
@@ -136,7 +137,8 @@ export interface AguiRunInput {
 }
 
 /** 调用方（index.ts）注入：把输入转成 agent 需要的 options（含 system prompt 拼接）。 */
-export type BuildOptionsFn = ((input: AguiRunInput) => Promise<{
+export interface MainBuildOptionsContext {attachmentGrant?:MainAttachmentGrant}
+export type BuildOptionsFn = ((input: AguiRunInput, mainContext?:MainBuildOptionsContext) => Promise<{
   options: FireflyRunOptions;
   /** 跑完后副作用需要的信息。 */
   latestUserText: string;
@@ -228,6 +230,12 @@ function releaseSessionGuardEntry(sessionId: string, runId: string, resolveSettl
 /** 测试专用：读取会话当前 active run 的 runId。 */
 export function __getSessionActiveRunForTest(sessionId: string): string | undefined {
   return sessionActiveRuns.get(sessionId)?.runId;
+}
+
+/** Main-owned, read-only admission for tools acting on a current conversation. */
+export function isActiveConversationRun(sessionId: string, runId: string): boolean {
+  const run = activeRuns.get(runId);
+  return sessionActiveRuns.get(sessionId)?.runId === runId && !!run && !run.abortController.signal.aborted;
 }
 
 /** 后台派生任务用：任一主会话运行期间避免并发占用模型配置。 */
@@ -366,7 +374,10 @@ export function registerAgUiIpc(
   lifecycle?: AguiConversationLifecycle,
   ipcOption?: IpcScope,
   pendingTurns?: PendingTurnLifecycle,
-  memory?:Pick<MainDesktopMemory,"authorizeRun"|"afterTranscript">,
+  memory?:Pick<MainDesktopMemory,"authorizeRun"|"afterTranscript"> & {
+    readonly usesCanonicalUserContent?:boolean;
+    prepareAttachmentGrant?:(event:Electron.IpcMainInvokeEvent,sessionId:string,input:{userTurnId:string})=>Promise<MainAttachmentGrant|undefined>;
+  },
 ): void {
   const ipc = ipcOption ?? createIpcScope();
   buildOptionsFn = buildOptions;
@@ -453,10 +464,10 @@ export function registerAgUiIpc(
     const currentUserMessage = input.userTurnId
       ? session.messages.find((message) => message.id === input.userTurnId && message.role === "user")
       : undefined;
-    const workDocuments = mode === "work"
+    let workDocuments:PendingChatAttachment[] = mode === "work"
       ? (currentUserMessage?.attachments ?? []).filter((attachment) => attachment.kind === "document")
       : [];
-    const requiredWorkReads = workDocuments.flatMap((attachment) => attachment.kind === "document" && attachment.readScope ? [attachment.readScope] : []);
+    let requiredWorkReads = workDocuments.flatMap((attachment) => attachment.kind === "document" && attachment.readScope ? [attachment.readScope] : []);
     if ((mode === "work" || mode === "code") && !session.workspaceBinding?.workspaceRoot) {
       lifecycle?.onConversationEnded();
       throw new Error(`${mode} 模式需要先绑定项目工作区`);
@@ -518,7 +529,7 @@ export function registerAgUiIpc(
     } catch(error){releaseSessionGuard?.();releaseSessionGuard=null;lifecycle?.onConversationEnded();throw error}
 
     // ── 轨迹派发（CTA Phase 1）：模型请求启动前原子提交 user / rewind ──
-    if (requiredWorkReads.some((scope) => !isWorkReadScopeCurrent(scope))) {
+    if (!memory?.prepareAttachmentGrant && requiredWorkReads.some((scope) => !isWorkReadScopeCurrent(scope))) {
       releaseSessionGuard?.();
       releaseSessionGuard = null;
       lifecycle?.onConversationEnded();
@@ -539,6 +550,7 @@ export function registerAgUiIpc(
           assistantTurnId: input.assistantTurnId,
           runId,
           rewind: input.transcriptRewind,
+          ...(memory?.usesCanonicalUserContent===true?{forceUserContent:true}:{}),
         });
         await memory?.afterTranscript(sessionId,input);
       } catch (error) {
@@ -560,7 +572,21 @@ export function registerAgUiIpc(
     const agentExecutionMode: AgentExecutionMode = mode === "chat" ? "chat" : "work";
     let built;
     try {
-    built = await perf.track("build_options", () => buildOptionsFn!({
+    const mainContext:MainBuildOptionsContext|undefined=memory?.prepareAttachmentGrant&&input.userTurnId
+      ?{attachmentGrant:await memory.prepareAttachmentGrant(event,sessionId,{userTurnId:input.userTurnId})}:undefined;
+    // Work scope validation reads actual bytes, so it must follow authenticated attachment admission.
+    if(memory?.prepareAttachmentGrant){
+      if(requiredWorkReads.length&&!mainContext?.attachmentGrant)throw Error("MEMORY_ATTACHMENT_DENIED");
+      if(mainContext?.attachmentGrant){
+        const bound=readMainAttachmentGrant(mainContext.attachmentGrant);
+        if(bound.sessionId!==sessionId||bound.userTurnId!==input.userTurnId)throw Error("MEMORY_ATTACHMENT_DENIED");
+        workDocuments=mode==="work"?bound.attachments.filter(attachment=>attachment.kind==="document"):[];
+        requiredWorkReads=workDocuments.flatMap(attachment=>attachment.readScope?[attachment.readScope]:[]);
+        if(requiredWorkReads.some(scope=>!isWorkReadScopeCurrent(scope)))throw Error("WORK_READ_SCOPE_CHANGED:所选文件已变化，请重新发送并确认读取范围");
+      }
+    }
+    const buildWithContext=(value:AguiRunInput)=>mainContext?buildOptionsFn!(value,mainContext):buildOptionsFn!(value);
+    built = await perf.track("build_options", () => buildWithContext({
       ...input,
       workDocuments: workDocuments.map((attachment) => ({
         name: attachment.name,
@@ -955,11 +981,14 @@ export function registerAgUiIpc(
             }
             // 历史召回用：把这轮对话存入向量库（异步，不阻塞，失败不影响主流程）
             // 放在 onFinished 之后，确保记忆/sticker 等副作用先跑完
-            void indexConversationTurn(
-              input.sessionId || "default",
-              latestUserText,
-              lastResult.reply,
-            );
+            // 受控 S/M/H 运行由自己的记忆链路负责，不能旁路写入旧历史索引。
+            if (!controlledRun) {
+              void indexConversationTurn(
+                input.sessionId || "default",
+                latestUserText,
+                lastResult.reply,
+              );
+            }
 
             // Learn 模式：静默更新学习进度（异步，不阻塞，失败不影响主流程）
             if (knowledgeWorkspace) {

@@ -1,3 +1,4 @@
+import type { BackgroundMemoryHost } from "../memory-context/background-memory-ingress";
 import type { BrowserWindow } from "electron";
 import type { IpcScope } from "../application/ipc-scope";
 import type { AgentRuntime } from "../orchestrator/agent-runtime";
@@ -11,6 +12,7 @@ import { createSchedulerRunner } from "./scheduler-runner";
 
 export interface SchedulerSubsystemDeps {
   agentRuntime: AgentRuntime;
+  memoryHost?: BackgroundMemoryHost;
   getReactChatWindow(): BrowserWindow | null;
   store?: ReturnType<typeof getSchedulerStore>;
   createEngine?: (deps: SchedulerEngineDeps) => SchedulerEngine;
@@ -31,7 +33,7 @@ export interface SchedulerSubsystem {
   engine: SchedulerEngine;
   initialize(): void;
   start(): void;
-  stop(): void;
+  stop(): Promise<void>;
 }
 
 /**
@@ -42,6 +44,7 @@ export function createSchedulerSubsystem(deps: SchedulerSubsystemDeps): Schedule
   const store = deps.store ?? getSchedulerStore();
 
   const runner = createSchedulerRunner({
+    memoryHost: deps.memoryHost,
     buildOptions: (task) => deps.agentRuntime.buildSchedulerOptions(task),
     getChatWebContents: () => {
       const win = deps.getReactChatWindow();
@@ -79,8 +82,9 @@ export function createSchedulerSubsystem(deps: SchedulerSubsystemDeps): Schedule
       engine.start();
     },
     /** 只停止 engine 定时器。 */
-    stop(): void {
+    async stop(): Promise<void> {
       engine.stop();
+      await runner.close();
     },
   };
 }

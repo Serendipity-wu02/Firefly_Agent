@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import {expect,it} from "vitest";
+import {expect,it,vi} from "vitest";
+vi.mock("electron",()=>({app:{getPath:()=>""},shell:{openPath:vi.fn()}}));
+import {createRunAdjustmentPoller,bindRunAdjustmentPoller} from "../chats/pending-adjustment";
+import type {PendingChatMessage} from "../../shared/chat-types";
 import os from "node:os";
 import {randomBytes} from "node:crypto";
 import {afterEach} from "vitest";
@@ -13,6 +16,7 @@ import {SyntheticSourceProvider} from "../../../scripts/verify/memory-sources/sy
 
 import {ConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
 import {createConversationTranscriptAdapter} from "./conversation-transcript-adapter";
+import {createMainAttachmentProjectionAuthority,prepareMainAttachmentProjection} from "./main-attachment-projection";
 import type {TranscriptAppendInput} from "../orchestrator/conversation-transcript-types";
 
 
@@ -48,10 +52,10 @@ async function contextFixture(){
 }
 
 const user=(id="u1",text="synthetic user"):TranscriptAppendInput=>({id,at:1000,kind:"user",turnId:id,revision:1,payload:{text}});
-async function fixture(){
+async function fixture(beforeMutation?:Parameters<typeof createConversationTranscriptAdapter>[0]["beforeMutation"],attachmentProjection?:object){
  const f=await contextFixture(),store=new ConversationTranscriptStore(path.join(f.root,"conversation"));
  await store.append("session-a",user());
- const adapter=createConversationTranscriptAdapter({enabled:true,store,context:f.context,actorAuthority:f.actorAuthority,actorToken:f.actor})!;
+ const adapter=createConversationTranscriptAdapter({enabled:true,store,context:f.context,actorAuthority:f.actorAuthority,actorToken:f.actor,beforeMutation,attachmentProjection})!;
  const capture=()=>adapter.capture();
  const assemble=async()=>f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:[await capture()]});
  return {...f,store,adapter,capture,assemble};
@@ -87,10 +91,12 @@ it("refuses missing tool results instead of inventing executed results",async()=
  await f.store.append("session-a",{id:"a1",at:1001,kind:"assistant",payload:{role:"assistant",content:"",toolCalls:[{id:"call-a",name:"read_file",arguments:"{}"}]}});
  await expect(f.capture()).rejects.toThrow("MEMORY_CONTEXT_TOOL_PAIR_INVALID");
 });
-it("does not silently drop rich provider payloads",async()=>{
- const f=await fixture();
- await f.store.append("session-a",{id:"a1",at:1001,kind:"assistant",payload:{role:"assistant",content:"text",rawAssistant:[{type:"thinking",thinking:"opaque"}]}});
- await expect(f.capture()).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_FORMAT_UNSUPPORTED");
+it("preserves actual provider reasoning and local metadata without promoting M",async()=>{
+ const f=await fixture(),rawAssistant=[{type:"thinking",thinking:"opaque",signature:"synthetic-signature"},{type:"text",text:"text"}],internal={kind:"state_delta" as const,revision:1,digest:"synthetic-digest",id:"internal-1",runId:"run-a",createdAt:1001};
+ await f.store.append("session-a",{id:"a1",at:1001,kind:"assistant",payload:{role:"assistant",content:"text",thinking:"opaque",rawAssistant,visibility:"internal",internal}});
+ const snapshot=await f.assemble();
+ expect(snapshot.request.body.messages).toEqual([{role:"user",text:"synthetic user"},{role:"assistant",text:"text",thinking:"opaque",rawAssistant,visibility:"internal",internal}]);
+ expect(await f.policy.recall(f.actor)).toEqual([]);
 });
 it("binds the adapter to the Main actor session",async()=>{
  const f=await fixture();
@@ -162,8 +168,8 @@ it.each([
  await f.store.append("session-a",origin==="original"
   ?{...user("u2"),payload}
   :{id:"rewind-rich",at:1001,kind:"turn_rewind",turnId:"u1",revision:2,payload:{anchorUserTurnId:"u1",disposition:"replace_user",reason:"edit",replacementUser:payload}});
- await expect(f.capture()).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_FORMAT_UNSUPPORTED");
- await expect(f.assemble()).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_FORMAT_UNSUPPORTED");
+ await expect(f.capture()).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");
+ await expect(f.assemble()).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");
  expect(fs.existsSync(payload.attachments[0].filePath)).toBe(false);
 });
 it("preserves replacement text with an explicitly empty attachment list",async()=>{
@@ -217,4 +223,158 @@ it("early observation never grants current epochs to historical backfill after f
   const snapshot=await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:await adapter.captureTurns()});
   expect(snapshot.request.body.messages).toEqual([{role:"user",text:"fresh ordinary question"}]);expect(await f.policy.recall(f.actor)).toEqual([]);
  }finally{await adapter.close()}
+});
+
+
+it("preserves supported content blocks and canonical call-result authority",async()=>{
+ const f=await fixture(),content=[{type:"text" as const,text:"图像结果"},{type:"image_url" as const,image_url:{url:"data:image/png;base64,c3ludGhldGlj"}}],calls=[{id:"call-a",name:"inspect_image",arguments:"{}"}];
+ await f.store.append("session-a",{id:"a1",runId:"run-a",at:1001,kind:"assistant",payload:{role:"assistant",content,toolCalls:calls}});
+ await f.store.append("session-a",{id:"t1",runId:"run-a",at:1002,kind:"tool_result",payload:{assistantEntryId:"a1",toolCallId:"call-a",outcome:"success",message:{role:"tool",content,toolCallId:"call-a",name:"inspect_image"}}});
+ const snapshot=await f.assemble();
+ expect(snapshot.request.body.messages).toEqual([{role:"user",text:"synthetic user"},{role:"assistant",text:"图像结果",content,toolCalls:calls,toolCallIds:["call-a"]},{role:"tool",text:"图像结果",content,toolCallId:"call-a",name:"inspect_image"}]);
+ expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it.each([
+ {thinking:"api_key=SECRET_CANARY_1234567890"},
+ {rawAssistant:[{type:"thinking",thinking:"api_key=SECRET_CANARY_1234567890"}]},
+ {rawAssistant:[{type:"tool_use",id:"call-a",name:"read_file",input:{password:"SECRET_CANARY_1234567890"}}],toolCalls:[{id:"call-a",name:"read_file",arguments:'{"password":"SECRET_CANARY_1234567890"}'}]},
+ {content:[{type:"text",text:"api_key=SECRET_CANARY_1234567890"}]}
+])("rejects secrets in all rich message fields: %j",async fields=>{
+ const f=await fixture();
+ await f.store.append("session-a",{id:"a1",at:1001,kind:"assistant",payload:{role:"assistant",content:"public text",...fields} as any});
+ if(fields.toolCalls)await f.store.append("session-a",{id:"t1",at:1002,kind:"tool_result",payload:{assistantEntryId:"a1",toolCallId:"call-a",outcome:"success",message:{role:"tool",content:"result",toolCallId:"call-a"}}});
+ await expect(f.capture()).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_SECRET");
+ expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("does not treat code field names as persisted secrets or user facts",async()=>{
+ const f=await fixture();
+ await f.store.append("session-a",user("u2","Explain the api_key, password, and access_token fields."));
+ expect(JSON.stringify((await f.assemble()).request.body)).toContain("access_token");
+ expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("requires an explicitly opened same-run continuation and preserves old run reuse rejection",async()=>{
+ const f=await fixture();
+ await expect(f.adapter.captureRunRound("run-a")).rejects.toThrow("MEMORY_CONTEXT_STREAM_RUN_REUSED");
+ await f.adapter.captureRun("run-a");
+ await f.store.append("session-a",{id:"a1",runId:"run-a",at:1001,kind:"assistant",payload:{role:"assistant",content:"checking",toolCalls:[{id:"call-a",name:"read_file",arguments:"{}"}]}});
+ await f.store.append("session-a",{id:"t1",runId:"run-a",at:1002,kind:"tool_result",payload:{assistantEntryId:"a1",toolCallId:"call-a",outcome:"success",message:{role:"tool",content:"result",toolCallId:"call-a"}}});
+ await expect(f.adapter.captureRun("run-a")).rejects.toThrow("MEMORY_CONTEXT_STREAM_RUN_REUSED");
+ const second=await f.adapter.captureRunRound("run-a");
+ expect(second.userTurnId).toBe("u1");expect(second.throughSeq).toBe(3);
+ await f.store.append("session-a",{id:"a2",runId:"run-a",at:1003,kind:"assistant",payload:{role:"assistant",content:"checking again",toolCalls:[{id:"call-b",name:"read_file",arguments:"{}"}]}});
+ await f.store.append("session-a",{id:"t2",runId:"run-a",at:1004,kind:"tool_result",payload:{assistantEntryId:"a2",toolCallId:"call-b",outcome:"success",message:{role:"tool",content:"second result",toolCallId:"call-b"}}});
+ const third=await f.adapter.captureRunRound("run-a");
+ expect(third.throughSeq).toBe(5);
+ const snapshot=await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:third.transcriptTokens});
+ expect((snapshot.request.body.messages as any[]).map(message=>message.role)).toEqual(["user","assistant","tool","assistant","tool"]);
+});
+it.each(["new-user","edit","delete","interruption"] as const)("rejects same-run continuation after %s",async kind=>{
+ const f=await fixture();await f.adapter.captureRun("run-a");
+ if(kind==="new-user")await f.store.append("session-a",user("u2"));
+ else if(kind==="edit")await f.store.append("session-a",{id:"rewind-round",at:1001,kind:"turn_rewind",turnId:"u1",revision:2,payload:{anchorUserTurnId:"u1",disposition:"replace_user",reason:"edit",replacementUser:{text:"edited"}}});
+ else if(kind==="delete"){await f.store.deleteConversation("session-a");await f.store.append("session-a",user())}
+ else await f.store.append("session-a",{id:"interruption",at:1001,runId:"run-a",kind:"interruption",payload:{reason:"user_cancel"}});
+ await expect(f.adapter.captureRunRound("run-a")).rejects.toThrow("MEMORY_CONTEXT_STREAM_RUN_REUSED");
+});
+
+
+async function adjustmentFixture(beforeMutation?:Parameters<typeof createConversationTranscriptAdapter>[0]["beforeMutation"],assertCurrent?:()=>void) {
+ const f=await fixture(beforeMutation);await f.adapter.captureRun("run-a");
+ await f.store.append("session-a",{id:"a1",runId:"run-a",at:1001,kind:"assistant",payload:{role:"assistant",content:"checking",toolCalls:[{id:"call-a",name:"read_file",arguments:"{}"}]}});
+ await f.store.append("session-a",{id:"t1",runId:"run-a",at:1002,kind:"tool_result",payload:{assistantEntryId:"a1",toolCallId:"call-a",outcome:"success",message:{role:"tool",content:"result",toolCallId:"call-a"}}});
+ const boundary=await f.adapter.captureRunRound("run-a");
+ let queue:PendingChatMessage[]=[{id:"adjust-1",rawContent:"also include detail",visibleContent:"also include detail",enqueuedAt:1003,adjustRunId:"run-a"}],failCommit=false,commits=0;
+ const poll=createRunAdjustmentPoller("session-a","run-a",{
+  getPendingMessages:()=>queue,
+  commitPendingAdjust:(_session,id)=>{commits++;if(failCommit)return {ok:false,error:"write-failed"};queue=[];return {ok:true,userMessage:{id},remainingQueue:[]}},
+ });
+ bindRunAdjustmentPoller(poll,{sessionId:"session-a",runId:"run-a"},(permit,commit)=>f.adapter.commitRunAdjustment("run-a",permit,{throughSeq:boundary.throughSeq,mutationRevision:boundary.mutationRevision,...(assertCurrent?{assertCurrent}:{})},commit));
+ return {...f,boundary,poll,get queue(){return queue},get commits(){return commits},failCommit:(value:boolean)=>{failCommit=value}};
+}
+it("transfers a complete run to a genuine marked adjustment without reviving its prior frame",async()=>{
+ const f=await adjustmentFixture();
+ expect(await f.poll()).toEqual([{id:"adjust-1",rawContent:"also include detail"}]);
+ expect(f.queue).toEqual([]);expect(f.commits).toBe(1);
+ const current=await f.adapter.captureRunRound("run-a");
+ expect(current.userTurnId).toBe("adjust-1");expect(current.userRevision).toBe(1);
+ const snapshot=await f.context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[],transcriptTokens:current.transcriptTokens});
+ expect((snapshot.request.body.messages as any[]).map(message=>message.role)).toEqual(["user","assistant","tool","user"]);
+ expect(()=>f.boundary.assertCurrent()).toThrow("MEMORY_CONTEXT_TRANSCRIPT_STALE");
+ await f.store.append("session-a",user("untrusted-user"));
+ await expect(f.adapter.captureRunRound("run-a")).rejects.toThrow("MEMORY_CONTEXT_STREAM_RUN_REUSED");
+});
+it("retries only its exact partial canonical adjustment after a history commit failure",async()=>{
+ const f=await adjustmentFixture();f.failCommit(true);
+ await expect(f.poll()).rejects.toThrow("PENDING_ADJUST_COMMIT_FAILED");
+ expect(f.queue).toHaveLength(1);
+ expect((await f.store.read("session-a")).entries.filter(entry=>entry.turnId==="adjust-1")).toHaveLength(1);
+ await expect(f.adapter.captureRunRound("run-a")).rejects.toThrow("MEMORY_CONTEXT_STREAM_RUN_REUSED");
+ f.failCommit(false);expect(await f.poll()).toHaveLength(1);
+ expect((await f.store.read("session-a")).entries.filter(entry=>entry.turnId==="adjust-1")).toHaveLength(1);
+ expect((await f.adapter.captureRunRound("run-a")).userTurnId).toBe("adjust-1");
+ expect(f.queue).toEqual([]);expect(f.commits).toBe(2);
+});
+it.each(["append","edit","delete"] as const)("rejects a partial adjustment retry after unrelated %s without consuming pending",async kind=>{
+ const f=await adjustmentFixture();f.failCommit(true);await expect(f.poll()).rejects.toThrow("PENDING_ADJUST_COMMIT_FAILED");
+ if(kind==="append")await f.store.append("session-a",user("external-user"));
+ else if(kind==="delete")await f.store.deleteConversation("session-a");
+ else await f.store.append("session-a",{id:"edit",at:1004,kind:"turn_rewind",turnId:"adjust-1",revision:2,payload:{anchorUserTurnId:"adjust-1",disposition:"replace_user",reason:"edit",replacementUser:{text:"edited"}}});
+ f.failCommit(false);await expect(f.poll()).rejects.toThrow("MEMORY_CONTEXT_ADJUSTMENT_STALE");
+ expect(f.queue).toHaveLength(1);expect(f.commits).toBe(1);
+});
+it("rejects forged adjustment permits before canonical or history writes",async()=>{
+ const f=await adjustmentFixture(),before=await f.store.read("session-a"),commit=vi.fn();
+ await expect(f.adapter.commitRunAdjustment("run-a",{} as never,f.boundary,commit)).rejects.toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
+ expect(await f.store.read("session-a")).toEqual(before);expect(commit).not.toHaveBeenCalled();
+});
+it("rejects an obsolete adjustment boundary before queue commit",async()=>{
+ const f=await adjustmentFixture();await f.store.append("session-a",user("external-user"));
+ await expect(f.poll()).rejects.toThrow("MEMORY_CONTEXT_ADJUSTMENT_STALE");
+ expect(f.queue).toHaveLength(1);expect(f.commits).toBe(0);
+ expect((await f.store.read("session-a")).entries.some(entry=>entry.turnId==="adjust-1")).toBe(false);
+});
+
+it("revalidates Main lifecycle after async mutation work before writing an adjustment",async()=>{
+ const controller=new AbortController();let armed=false;
+ const f=await adjustmentFixture(async()=>{if(armed)controller.abort()},()=>{if(controller.signal.aborted)throw new Error("MEMORY_CONTEXT_CANCELLED")});
+ const before=await f.store.read("session-a");armed=true;
+ await expect(f.poll()).rejects.toThrow("MEMORY_CONTEXT_CANCELLED");
+ expect(await f.store.read("session-a")).toEqual(before);expect(f.queue).toHaveLength(1);expect(f.commits).toBe(0);
+});
+
+it.each(["original","replacement"])("projects authorized %s attachment blocks while current user text stays original",async origin=>{
+ const authority=createMainAttachmentProjectionAuthority(),f=await fixture(undefined,authority.token);
+ const attachments=[{kind:"document" as const,name:"synthetic.txt",filePath:"/synthetic/not-read.txt"}],text="I prefer PowerShell",revision=origin==="original"?1:2,turnId=origin==="original"?"u2":"u1";
+ const grant=authority.issue({sessionId:"session-a",userTurnId:turnId,userRevision:revision,userText:text,attachments,assertCurrent(){}});
+ await prepareMainAttachmentProjection(grant,async()=>[{type:"text",text:"I prefer attachment-only-zsh"}]);
+ await f.store.append("session-a",origin==="original"?{...user(turnId,text),payload:{text,attachments}}:{id:"authorized-edit",kind:"turn_rewind",at:1001,turnId,revision,payload:{anchorUserTurnId:turnId,disposition:"replace_user",reason:"edit",replacementUser:{text,attachments}}});
+ const current=await f.adapter.captureRun("authorized-run");expect(current.userText).toBe(text);
+ const snapshot=await f.assemble();expect(JSON.stringify(snapshot.request.body)).toContain("attachment-only-zsh");
+ expect(await f.policy.recall(f.actor)).toEqual([]);authority.revokeTurn("session-a",turnId);expect(current.assertCurrent).toThrow("MEMORY_ATTACHMENT_DENIED");
+ await expect(f.context.validateForDispatch(f.actor,snapshot)).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");
+});
+it("retains an explicit unavailable historical attachment notice without reading any file",async()=>{
+ const f=await fixture();await f.store.append("session-a",{...user("old","old human text"),payload:{text:"old human text",attachments:[{kind:"image",name:"unread.png",filePath:"/unread-history.png"}]}});
+ await f.store.append("session-a",user("new","new question"));
+ const snapshot=await f.assemble();expect(JSON.stringify(snapshot.request.body)).toContain("old human text");expect(JSON.stringify(snapshot.request.body)).toContain("MEMORY_ATTACHMENT_HISTORY_UNAVAILABLE");
+ expect((await f.adapter.captureRun()).userText).toBe("new question");
+});
+
+it("retires only projected S versions for caption fallback while canonical user bytes and revisions stay unchanged",async()=>{
+ const {reprepareMainAttachmentProjection}=await import("./main-attachment-projection");
+ const authority=createMainAttachmentProjectionAuthority(),f=await fixture(undefined,authority.token),attachments=[{kind:"image" as const,name:"bound.png",filePath:"/synthetic/bound.png"}];
+ const grant=authority.issue({sessionId:"session-a",userTurnId:"image-user",userRevision:1,userText:"human image question",attachments,assertCurrent(){}});
+ await prepareMainAttachmentProjection(grant,async()=>[{type:"image_url",image_url:{url:"data:image/png;base64,c3ludGhldGlj"}}]);
+ await f.store.append("session-a",{...user("image-user","human image question"),payload:{text:"human image question",attachments}});
+ const raw=JSON.stringify(await f.store.read("session-a")),current=await f.adapter.captureRun("image-run"),first=await f.assemble(),oldPermit=await f.context.validateForDispatch(f.actor,first);
+ await reprepareMainAttachmentProjection(grant,async()=>[{type:"text",text:"authorized caption"}]);
+ expect(current.assertCurrent).toThrow();const next=await f.adapter.captureRunRound("image-run");expect(next).toMatchObject({userRevision:1,userText:"human image question"});
+ let sends=0;await expect(f.context.dispatch(f.actor,oldPermit,()=>{sends++;return "old image"})).rejects.toThrow();expect(sends).toBe(0);
+ const fresh=await f.assemble();expect(JSON.stringify(fresh.request.body)).toContain("authorized caption");expect(JSON.stringify(fresh.request.body)).not.toContain("data:image");expect(fresh.snapshotId).not.toBe(first.snapshotId);
+ expect(JSON.stringify(await f.store.read("session-a"))).toBe(raw);
+ // A subsequent genuine edit advances physical user provenance, without confusing it with projection versions.
+ const edited=authority.issue({sessionId:"session-a",userTurnId:"image-user",userRevision:2,userText:"edited human",attachments,assertCurrent(){}});
+ await prepareMainAttachmentProjection(edited,async()=>[{type:"text",text:"new authorized attachment"}]);
+ await f.store.append("session-a",{id:"image-edit",at:1002,kind:"turn_rewind",turnId:"image-user",revision:2,payload:{anchorUserTurnId:"image-user",disposition:"replace_user",reason:"edit",replacementUser:{text:"edited human",attachments}}});
+ expect(JSON.stringify((await f.assemble()).request.body)).toContain("edited human");
 });

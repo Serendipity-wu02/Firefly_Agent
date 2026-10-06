@@ -1,3 +1,4 @@
+import { DEFAULT_UI_COLORS, normalizeUiColors } from "../../shared/ui-colors";
 import * as fs from "fs";
 import * as path from "path";
 import { logger, LogTag } from "../logger";
@@ -51,6 +52,7 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   launchAtLogin: false,
   language: "zh-CN",
   uiTheme: "pearl-white",
+  uiColors: { ...DEFAULT_UI_COLORS },
   windowCornerRadius: DEFAULT_WINDOW_CORNER_RADIUS,
   uiThemeRadius: false,
   uiFont: DEFAULT_UI_FONT,
@@ -177,6 +179,7 @@ export function normalizeGeneralSettings(
     launchAtLogin: Boolean(input?.launchAtLogin),
     language: "zh-CN",
     uiTheme: normalizeUiTheme(input?.uiTheme),
+    uiColors: normalizeUiColors(input?.uiColors),
     windowCornerRadius: normalizeWindowCornerRadius(input?.windowCornerRadius),
     uiThemeRadius: input?.uiThemeRadius ?? true,
     uiFont: normalizeUiFont(input?.uiFont),

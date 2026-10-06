@@ -746,3 +746,19 @@ describe("ChatLoop transcript cross-loop continuity", () => {
     }
   });
 });
+
+describe("Main-authorized image caption fallback",()=>{
+ it("retries only the explicit Main image-capability refusal through the memory port",async()=>{
+  const adapter=new FakeAdapter(),caption=vi.fn(async()=>[{role:"user" as const,content:"authorized caption"}]);let calls=0;
+  const call=vi.fn(async()=>{calls++;if(calls===1)throw Error("MEMORY_CONTEXT_IMAGE_UNSUPPORTED");return adapter.parseResponse({text:"caption answer"})});
+  const result=await runChatLoop({settings:{provider:"test",baseUrl:"https://test",model:"m",apiKey:"k",contextWindowTokens:256000},adapter,messages:[{role:"user",content:"original"}],soulSystemBaseContent:"SOUL",timeoutMs:30000,
+   memoryRun:{call,bindSink:sink=>sink,close:async()=>{}},imageCaptionFallback:caption});
+  expect(result.reply).toBe("caption answer");expect(call).toHaveBeenCalledTimes(2);expect(caption).toHaveBeenCalledTimes(1);expect(JSON.stringify(call.mock.calls[1])).toContain("authorized caption");expect(fetch).not.toHaveBeenCalled();
+ });
+ it.each(["MEMORY_CONTEXT_SEND_UNKNOWN","MEMORY_RUN_DENIED","MEMORY_CONTEXT_CANCELLED","E_MODEL_REQUEST_TIMEOUT"])("does not caption-retry %s",async code=>{
+  const adapter=new FakeAdapter(),caption=vi.fn(async()=>[{role:"user" as const,content:"must not read"}]),call=vi.fn(async()=>{throw Error(code)});
+  await expect(runChatLoop({settings:{provider:"test",baseUrl:"https://test",model:"m",apiKey:"k",contextWindowTokens:256000},adapter,messages:[{role:"user",content:"original"}],soulSystemBaseContent:"SOUL",timeoutMs:30000,
+   memoryRun:{call,bindSink:sink=>sink,close:async()=>{}},imageCaptionFallback:caption})).rejects.toThrow(code);
+  expect(call).toHaveBeenCalledTimes(1);expect(caption).not.toHaveBeenCalled();
+ });
+});

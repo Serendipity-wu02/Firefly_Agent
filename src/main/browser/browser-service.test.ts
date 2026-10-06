@@ -5,7 +5,7 @@ import type { BrowserSessionPort } from "./browser-network-binding";
 import type { ConnectProxy } from "./authenticated-connect-proxy";
 
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
-function fixture(gateOpen = true) {
+function fixture(gateOpen = true, confirmPermission?: () => Promise<boolean>) {
   const profile = {}, abort = new AbortController(), effects: string[] = [], frames = new EventEmitter();
   const topFrame = {}, hostEvents = new EventEmitter();
   const host: BrowserHostPort = Object.assign(hostEvents, { webContents: Object.assign(frames, { id: 10, mainFrame: topFrame, isDestroyed: () => false }),
@@ -16,7 +16,9 @@ function fixture(gateOpen = true) {
   const callbacks: Parameters<BrowserGuestPort<object>["installCallbacks"]>[0][] = [];
   let nextLoad = async () => {};
   let nextProxy = async () => {};
-  const service = createBrowserService({ profile, gateOpen, onChanged: (_owner, state) => changed.push(state),
+  let nextObservation = async () => {};
+  let nextAction = async () => {};
+  const service = createBrowserService({ profile, gateOpen, ...(confirmPermission ? { permissionPolicy: { hosts: ["example.com", "github.com"], actions: ["navigate", "observe", "click", "type"] }, confirmPermission } : {}), onChanged: (_owner, state) => changed.push(state),
     createSession: () => {
       const session = {}; sessions.push(session); effects.push("session");
       const port: BrowserSessionPort<object> = { session, persistent: false,
@@ -30,6 +32,8 @@ function fixture(gateOpen = true) {
       effects.push("view"); let destroyed = false, url = "";
       const contents = { id: 20 + guests.length, session, isDestroyed: () => destroyed };
       const guest: BrowserGuestPort<object> = { contents,
+        observe: async () => { effects.push("observe"); await nextObservation(); return { snapshotId: "observed", url, title: "Example", text: "Public text", elements: [{ ref: "1", tag: "button", role: "button", name: "Count" }] }; },
+        act: async input => { effects.push(input.kind + ":" + ("ref" in input ? input.ref : "")); await nextAction(); return true; },
         loadURL: async (target) => { effects.push("load:" + target); await nextLoad(); url = target; },
         history: async action => { effects.push(action); }, snapshot: () => ({ url, canGoBack: true, canGoForward: false }),
         stop: () => { effects.push("stop"); }, attach: () => { effects.push("attach"); }, detach: () => { effects.push("detach"); },
@@ -43,6 +47,8 @@ function fixture(gateOpen = true) {
   service.registerHost(host, () => owner);
   return { service, host, sender, profile, abort, effects, guests, sessions, changed, callbacks, owner: () => owner,
     swap: () => { owner = Object.freeze({ ...owner, conversationId: "b", ownerSessionId: "manual-b", generation: 2 }); },
+    delayAction: (operation: () => Promise<void>) => { nextAction = operation; },
+    delayObservation: (operation: () => Promise<void>) => { nextObservation = operation; },
     delayLoad: (operation: () => Promise<void>) => { nextLoad = operation; }, delayProxy: (operation: () => Promise<void>) => { nextProxy = operation; } };
 }
 
@@ -189,4 +195,165 @@ describe("Main browser service using the real Session/epoch controller", () => {
     await f.service.dispatch(f.sender, { kind: "layout", browserId: opened.value.browserId, bounds: { x: -20, y: -30, width: 100, height: 100 } });
     expect(f.effects).toContain('bounds:{"x":0,"y":0,"width":80,"height":70}'); await f.service.dispose();
   });
+});
+
+const scope = { hosts: ["example.com"], actions: ["navigate", "observe", "click", "type"] };
+describe("Main-owned bounded session permission", () => {
+  it("does not allocate before confirmation and opens the exact scope after native approval", async () => {
+    const approved = deferred<boolean>(), f = fixture(false, () => approved.promise), service = f.service as any;
+    expect(service.dispatchPermission).toBeTypeOf("function");
+    expect(await service.dispatchPermission(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { status: "required" } });
+    const pending = service.dispatchPermission(f.sender, { kind: "request", scope });
+    await Promise.resolve(); await Promise.resolve();
+    expect(f.effects).toEqual([]);
+    expect(await service.dispatchPermission(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { status: "pending" } });
+    expect(await service.dispatch(f.sender, { kind: "open", url: "https://example.com/" })).toEqual({ ok: false, code: "permission_denied" });
+    approved.resolve(true);
+    expect(await pending).toMatchObject({ ok: true, value: { status: "granted", scope } });
+    expect((await service.dispatch(f.sender, { kind: "open", url: "https://example.com/" })).ok).toBe(true);
+    expect(await service.dispatch(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { url: "https://example.com/" } });
+    await service.dispose();
+  });
+  it("denial, forged grant fields and unlisted scopes never grant or allocate", async () => {
+    const confirm = vi.fn(async () => false), f = fixture(false, confirm), service = f.service as any;
+    expect(service.dispatchPermission).toBeTypeOf("function");
+    expect(await service.dispatchPermission(f.sender, { kind: "request", scope: { ...scope, hosts: ["evil.example"] }, allow: true })).toEqual({ ok: false, code: "permission_denied" });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(await service.dispatchPermission(f.sender, { kind: "request", scope, allow: true })).toMatchObject({ ok: true, value: { status: "denied" } });
+    expect(await service.dispatch(f.sender, { kind: "open", url: "https://example.com/", allow: true })).toEqual({ ok: false, code: "permission_denied" });
+    expect(f.effects).toEqual([]); await service.dispose();
+  });
+  it("repeated pending requests share one native decision; revoke fences a late approval and allows a new prompt", async () => {
+    const first = deferred<boolean>(), second = deferred<boolean>();
+    const confirm = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise), f = fixture(false, confirm), service = f.service as any;
+    expect(service.dispatchPermission).toBeTypeOf("function");
+    const one = service.dispatchPermission(f.sender, { kind: "request", scope });
+    const two = service.dispatchPermission(f.sender, { kind: "request", scope });
+    for (let i=0;i<8;i++) await Promise.resolve();
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(await service.dispatchPermission(f.sender, { kind: "revoke" })).toMatchObject({ ok: true, value: { status: "required" } });
+    expect(await one).toEqual({ ok: false, code: "cancelled" }); expect(await two).toEqual({ ok: false, code: "cancelled" });
+    const newer = service.dispatchPermission(f.sender, { kind: "request", scope });
+    for (let i=0;i<8;i++) await Promise.resolve();
+    first.resolve(true); await Promise.resolve();
+    expect(await service.dispatchPermission(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { status: "pending" } });
+    second.resolve(true); expect(await newer).toMatchObject({ ok: true, value: { status: "granted" } });
+    await service.dispose();
+  });
+  it("scope is checked for navigation and login destinations and close consumes the grant", async () => {
+    const f = fixture(false, async () => true), service = f.service as any;
+    expect(service.dispatchPermission).toBeTypeOf("function");
+    await service.dispatchPermission(f.sender, { kind: "request", scope });
+    expect(await service.dispatch(f.sender, { kind: "open", url: "https://github.com/" })).toEqual({ ok: false, code: "blocked_url" });
+    const open = await service.dispatch(f.sender, { kind: "open", url: "https://example.com/" });
+    expect(open.ok).toBe(true);
+    expect(await service.dispatch(f.sender, { kind: "navigate", browserId: open.value.browserId, url: "https://example.com/login" })).toEqual({ ok: false, code: "blocked_url" });
+    expect(f.callbacks[0].allowsNavigation("https://github.com/")).toBe(false);
+    await service.dispatch(f.sender, { kind: "close", browserId: open.value.browserId });
+    expect(await service.dispatchPermission(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { status: "required" } });
+    await service.dispose();
+  });
+  it("session switching invalidates a pending native result without resurrecting the old owner", async () => {
+    const decision = deferred<boolean>(), f = fixture(false, () => decision.promise), service = f.service as any;
+    expect(service.dispatchPermission).toBeTypeOf("function");
+    const pending = service.dispatchPermission(f.sender, { kind: "request", scope });
+    for (let i=0;i<6;i++) await Promise.resolve();
+    f.swap();
+    expect(await service.dispatchPermission(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { status: "required", conversationId: "b" } });
+    decision.resolve(true); expect(await pending).toEqual({ ok: false, code: "cancelled" });
+    expect(f.effects).toEqual([]); await service.dispose();
+  });
+});
+
+describe("trusted current run controls the same browser page", () => {
+  it("requires user permission, blocks self-authorization and returns actual guest observation", async () => {
+    const f = fixture(false, async () => true), service = f.service as any, abort = new AbortController();
+    expect(service.executeAgent).toBeTypeOf("function");
+    await service.dispatchPermission(f.sender, { kind: "get" });
+    const run = { conversationId: "a", runId: "run-one", signal: abort.signal, isCurrent: () => true };
+    expect(await service.executeAgent(f.owner(), { operation: "open", url: "https://example.com/" }, run)).toEqual({ ok: false, code: "permission_denied" });
+    expect(await service.executeAgent(f.owner(), { operation: "requestPermission", scope }, run)).toEqual({ ok: false, code: "permission_denied" });
+    await service.dispatchPermission(f.sender, { kind: "request", scope });
+    const page = await service.executeAgent(f.owner(), { operation: "open", url: "https://example.com/" }, run);
+    expect(page).toMatchObject({ ok: true, value: { url: "https://example.com/" } });
+    const observation = await service.executeAgent(f.owner(), { operation: "observe" }, run);
+    expect(observation).toMatchObject({ ok: true, value: { text: "Public text", snapshotId: "observed" } });
+    expect(await service.executeAgent(f.owner(), { operation: "click", ref: "1", snapshotId: "observed" }, run)).toMatchObject({ ok: true });
+    expect(f.effects).toContain("click:1"); await service.dispose();
+  });
+  it("rejects other sessions, inactive runs, stale observations and extra authority fields", async () => {
+    const f = fixture(false, async () => true), service = f.service as any;
+    expect(service.executeAgent).toBeTypeOf("function");
+    await service.dispatchPermission(f.sender, { kind: "request", scope });
+    const run = { conversationId: "a", runId: "one", signal: new AbortController().signal, isCurrent: () => true };
+    await service.executeAgent(f.owner(), { operation: "open", url: "https://example.com/" }, run);
+    for (const badRun of [{ ...run, conversationId: "b" }, { ...run, isCurrent: () => false }])
+      expect(await service.executeAgent(f.owner(), { operation: "observe" }, badRun)).toEqual({ ok: false, code: "owner_mismatch" });
+    expect(await service.executeAgent(f.owner(), { operation: "observe", owner: f.owner(), allow: true }, run)).toEqual({ ok: false, code: "permission_denied" });
+    await service.executeAgent(f.owner(), { operation: "observe" }, run);
+    expect(await service.executeAgent(f.owner(), { operation: "click", snapshotId: "observed", ref: "1" }, { ...run, runId: "two" })).toEqual({ ok: false, code: "permission_denied" });
+    await service.executeAgent(f.owner(), { operation: "navigate", url: "https://example.com/next" }, run);
+    expect(await service.executeAgent(f.owner(), { operation: "click", snapshotId: "observed", ref: "1" }, run)).toEqual({ ok: false, code: "permission_denied" });
+    expect(f.effects).not.toContain("click:1"); await service.dispose();
+  });
+  it("run abort closes outstanding DOM work and a late observation cannot publish or be used", async () => {
+    const f = fixture(false, async () => true), service = f.service as any, abort = new AbortController(), wait = deferred<void>();
+    expect(service.executeAgent).toBeTypeOf("function");
+    await service.dispatchPermission(f.sender, { kind: "request", scope });
+    const run = { conversationId: "a", runId: "one", signal: abort.signal, isCurrent: () => !abort.signal.aborted };
+    await service.executeAgent(f.owner(), { operation: "open", url: "https://example.com/" }, run);
+    f.delayObservation(() => wait.promise);
+    const pending = service.executeAgent(f.owner(), { operation: "observe" }, run);
+    await Promise.resolve(); abort.abort();
+    expect(await pending).toEqual({ ok: false, code: "cancelled" });
+    wait.resolve(); await Promise.resolve();
+    expect(await service.dispatchPermission(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { status: "required" } });
+    expect(f.effects).toContain("destroy"); await service.dispose();
+  });
+});
+
+it("native dialog failures reset pending permission and a later request can be retried", async () => {
+  const confirm = vi.fn().mockRejectedValueOnce(new Error("dialog unavailable")).mockResolvedValueOnce(true), f = fixture(false, confirm), service = f.service as any;
+  expect(await service.dispatchPermission(f.sender, { kind: "request", scope })).toEqual({ ok: false, code: "permission_denied" });
+  expect(await service.dispatchPermission(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { status: "required" } });
+  expect(await service.dispatchPermission(f.sender, { kind: "request", scope })).toMatchObject({ ok: true, value: { status: "granted" } });
+  await service.dispose();
+});
+it("revoking permission promptly settles a never-resolving observation", async () => {
+  const f = fixture(false, async () => true), service = f.service as any, wait = deferred<void>();
+  await service.dispatchPermission(f.sender, { kind: "request", scope });
+  const run = { conversationId: "a", runId: "one", signal: new AbortController().signal, isCurrent: () => true };
+  await service.executeAgent(f.owner(), { operation: "open", url: "https://example.com/" }, run);
+  f.delayObservation(() => wait.promise);
+  const pending = service.executeAgent(f.owner(), { operation: "observe" }, run);
+  await Promise.resolve(); await service.dispatchPermission(f.sender, { kind: "revoke" });
+  const result = await Promise.race([pending, new Promise(resolve => setTimeout(() => resolve("hung"), 100))]);
+  expect(result).toEqual({ ok: false, code: "cancelled" });
+  wait.resolve(); await service.dispose();
+});
+
+it("late action completion after a session change does not return success or regain permission", async () => {
+  const f = fixture(false, async () => true), service = f.service as any, wait = deferred<void>();
+  await service.dispatchPermission(f.sender, { kind: "request", scope });
+  const run = { conversationId: "a", runId: "one", signal: new AbortController().signal, isCurrent: () => true };
+  await service.executeAgent(f.owner(), { operation: "open", url: "https://example.com/" }, run);
+  await service.executeAgent(f.owner(), { operation: "observe" }, run); f.delayAction(() => wait.promise);
+  const pending = service.executeAgent(f.owner(), { operation: "click", ref: "1", snapshotId: "observed" }, run);
+  await Promise.resolve(); f.swap();
+  expect(await service.dispatchPermission(f.sender, { kind: "get" })).toMatchObject({ ok: true, value: { conversationId: "b", status: "required" } });
+  expect(await pending).toEqual({ ok: false, code: "owner_mismatch" });
+  wait.resolve(); await Promise.resolve();
+  expect(await service.dispatch(f.sender, { kind: "get" })).toEqual({ ok: true, value: null }); await service.dispose();
+});
+it("a late action after run abort settles cancelled and cannot continue", async () => {
+  const f = fixture(false, async () => true), service = f.service as any, wait = deferred<void>(), abort = new AbortController();
+  await service.dispatchPermission(f.sender, { kind: "request", scope });
+  const run = { conversationId: "a", runId: "one", signal: abort.signal, isCurrent: () => !abort.signal.aborted };
+  await service.executeAgent(f.owner(), { operation: "open", url: "https://example.com/" }, run);
+  await service.executeAgent(f.owner(), { operation: "observe" }, run); f.delayAction(() => wait.promise);
+  const pending = service.executeAgent(f.owner(), { operation: "click", ref: "1", snapshotId: "observed" }, run);
+  await Promise.resolve(); abort.abort(); expect(await pending).toEqual({ ok: false, code: "cancelled" });
+  wait.resolve(); await Promise.resolve();
+  expect(await service.executeAgent(f.owner(), { operation: "observe" }, run)).toEqual({ ok: false, code: "cancelled" });
+  await service.dispose();
 });

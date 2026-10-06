@@ -76,6 +76,9 @@ export interface HarnessRun {
   /** 已完成的工具执行轮数（最终无工具的回复轮不计入；LLM 请求轮数 = rounds + 最终回复轮）。 */
   rounds: number;
   checkpointFailure?: string;
+  checkpoint(): void;
+  /** Infrastructure failure recorded before owned cancellation starts. */
+  toolExecutionFailure?: { error: unknown };
   /** ask_user 等交互内置工具的 dispatch 上下文。 */
   askDispatchContext: ToolDispatchContext;
   /** 普通工具的 dispatch 上下文（延迟输出持久化，重试收敛后统一落盘）。 */
@@ -84,6 +87,8 @@ export interface HarnessRun {
   toolCallStartedAt: Map<string, number>;
   /** 当前轮 assistant 的轨迹条目 ID（appendAssistant 返回；工具结果提交的锚点）。 */
   currentAssistantEntryId?: string;
+  /** One idempotent drain shared by all terminal and unexpected-throw exits. */
+  executionSettlement?: Promise<void>;
 }
 
 // ═══ 主入口 ═══════════════════════════════════════════════
@@ -94,10 +99,28 @@ export interface HarnessRun {
  * 主循环每一轮：压缩检查 → LLM 调用 → 工具执行 或 最终回复。
  */
 export async function runFireflyHarness(input: HarnessInput): Promise<HarnessResult> {
+  if (input.memoryRun && input.transcriptSink) {
+    input = { ...input, transcriptSink: input.memoryRun.bindSink(input.transcriptSink) };
+  }
   const run = createRun(input);
   run.clock.startActive();
   materializeInitialContext(run);
 
+  let loopReturned = false;
+  try {
+    const result = await runHarnessLoop(run);
+    loopReturned = true;
+    return result;
+  } finally {
+    // Failure must stop this child's owned work before waiting for process close.
+    // Waiting first would prevent the runtime's later abort from ever being reached.
+    try { if (!loopReturned) input.quiesceExecution?.(); }
+    finally { await drainRunExecution(run); }
+  }
+}
+
+async function runHarnessLoop(run: HarnessRun): Promise<HarnessResult> {
+  const { input } = run;
   while (!run.clock.isExecutionTimeout()) {
     if (run.checkpointFailure) {
       return finishRun(run, `执行状态保存失败：${run.checkpointFailure}`, true, "error");
@@ -202,13 +225,20 @@ export async function runFireflyHarness(input: HarnessInput): Promise<HarnessRes
     // ── Tool Call Processing ──
     const toolCalls = response.toolCalls ?? [];
     if (toolCalls.length > 0) {
+      // Keep the exact canonical declaration/arguments in the existing run snapshot
+      // before any planned/approval/execution event can be persisted separately.
+      checkpoint(run);
+      if (run.checkpointFailure) {
+        return finishRun(run, `执行状态保存失败：${run.checkpointFailure}`, true, "error");
+      }
       let outcome: ToolRoundOutcome;
       try {
         outcome = await runToolRound(run, toolCalls);
       } catch (error) {
         // 调度器已闭合 transcript（合成失败结果 + not_executed）后上抛的
         // 非取消错误：统一走 finishRun 终态结算，不得冲出 runFireflyHarness。
-        if (input.signal?.aborted) return cancelledResult(run);
+        if (!run.toolExecutionFailure && input.signal?.aborted) return cancelledResult(run);
+        error = run.toolExecutionFailure ? run.toolExecutionFailure.error : error;
         console.error(`${LOG_PREFIX} tool round failed:`, error);
         const errorMsg = error instanceof Error ? error.message : String(error);
         return finishRun(run, `工具执行异常：${errorMsg}`, true, "error");
@@ -319,6 +349,7 @@ function createRun(input: HarnessInput): HarnessRun {
     toolOutputs: [],
     cache: input.initialCache ? { ...input.initialCache } : { ...INITIAL_HARNESS_CACHE_STATE },
     rounds: 0,
+    checkpoint() { checkpoint(this); },
     askDispatchContext,
     toolDispatchContext: {
       ...askDispatchContext,
@@ -377,6 +408,9 @@ function buildRoundPromptLayers(input: HarnessInput): PromptLayers {
  * 保证主循环到首次 LLM fetch 之间保持同步直达。
  */
 function compactIfNeeded(run: HarnessRun, promptLayers: PromptLayers): Promise<void> | undefined {
+  // Main S owns canonical selection/summary provenance. Legacy compaction would
+  // create an ungoverned model call and unverified replacement history.
+  if (run.input.memoryRun) return undefined;
   const { config } = run;
   const roundSystemPrompt = buildStableSystemPrefix(promptLayers);
   const budget = computeTokenBudget(
@@ -447,6 +481,7 @@ async function callRoundLLM(run: HarnessRun, promptLayers: PromptLayers, roundId
         const visibleDelta = candidateFilter.push(delta);
         if (visibleDelta) run.input.onEvent?.({ type: "candidate_text_delta", roundId, delta: visibleDelta });
       },
+      run.input.memoryRun,
     );
   } finally {
     const tail = candidateFilter.finish();
@@ -481,15 +516,28 @@ function checkpoint(run: HarnessRun): void {
 /** 终态统一结算（所有终态共享）：停表 → terminal 快照 → checkpoint。
  *  cancelled / error / timeout / success 一律经过此处，
  *  保证上下文环 UI 拿到终态数据、可恢复状态落盘。 */
-function settleRun(run: HarnessRun): void {
+function drainRunExecution(run: HarnessRun): Promise<void> {
+  if (run.executionSettlement) return run.executionSettlement;
+  const execution = run.input.toolContext?.execution;
+  run.executionSettlement = execution
+    ? execution.scope.childRunId === execution.scope.parentRunId
+      ? execution.coordinator.closeGroup(execution.scope.groupId)
+      : execution.coordinator.whenChildSettled(execution.scope.childRunId)
+    : Promise.resolve();
+  return run.executionSettlement;
+}
+
+async function settleRun(run: HarnessRun): Promise<void> {
+  await drainRunExecution(run);
   run.clock.stopActive();
   emitContextUsage(run, "terminal");
   checkpoint(run);
 }
 
 /** 用户取消的统一出口：settleRun 后返回空 finalAnswer 的 cancelled 结果。 */
-function cancelledResult(run: HarnessRun): HarnessResult {
-  settleRun(run);
+async function cancelledResult(run: HarnessRun): Promise<HarnessResult> {
+  run.input.quiesceExecution?.();
+  await settleRun(run);
   if (run.checkpointFailure) {
     return buildResult(`执行状态保存失败：${run.checkpointFailure}`, run.state, true, "error", run.rounds);
   }
@@ -504,15 +552,20 @@ function cancelledResult(run: HarnessRun): HarnessResult {
 }
 
 /** 终态统一出口：settleRun → checkpointFailure 降级 error → 构造结果。 */
-function finishRun(
+async function finishRun(
   run: HarnessRun,
   finalAnswer: string,
   terminated: boolean,
   terminateReason: HarnessResult["terminateReason"],
-): HarnessResult {
-  settleRun(run);
+): Promise<HarnessResult> {
+  if (terminated) run.input.quiesceExecution?.();
+  await settleRun(run);
   if (run.checkpointFailure) {
-    return buildResult(`执行状态保存失败：${run.checkpointFailure}`, run.state, true, "error", run.rounds);
+    const checkpointError = `执行状态保存失败：${run.checkpointFailure}`;
+    const message = run.toolExecutionFailure
+      ? finalAnswer + (finalAnswer.includes(checkpointError) ? "" : `\n${checkpointError}`)
+      : checkpointError;
+    return buildResult(message, run.state, true, "error", run.rounds);
   }
   return buildResult(finalAnswer, run.state, terminated, terminateReason, run.rounds);
 }

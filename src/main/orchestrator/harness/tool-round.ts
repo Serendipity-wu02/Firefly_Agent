@@ -29,6 +29,8 @@ import { decideRetry, getRetryParams, sleepWithJitter } from "./retry-policy";
 import { isToolBreakerTripped, nextToolFailureStreak, toolBreakerMessage } from "./tool-breaker";
 import { isCancellationError, raceWithSignal } from "../../abort-utils";
 import type { HarnessRun } from "./firefly-harness";
+import type { ToolCallExecution } from "./tool-call-scheduler";
+import { extractTaskResult } from "./task-result-evidence";
 
 /** 工具轮结果：completed = 结果已全部写回，继续下一轮；cancelled = 用户取消。 */
 export type ToolRoundOutcome = "completed" | "cancelled";
@@ -65,6 +67,15 @@ function notifyToolFinished(
  */
 export async function runToolRound(run: HarnessRun, toolCalls: ToolCall[]): Promise<ToolRoundOutcome> {
   const { input } = run;
+  // The canonical assistant declaration is already durable. Persist every planned
+  // call before approval or queuing so a crash cannot mistake waiting for execution.
+  for (const call of toolCalls) {
+    let toolSideEffect: SideEffectKind = "non_idempotent_side_effect";
+    try {
+      toolSideEffect = resolveSideEffect(input.tools.find(tool => tool.id === call.name), parseToolCallArgs(call));
+    } catch { /* Unknown or failing classifiers remain conservative. */ }
+    input.onToolLifecycle?.({ toolCallId: call.id, toolName: call.name, toolSideEffect, status: "planned" });
+  }
   const exclusiveToolNames = input.includeInteractiveTools === false
     ? new Set<string>()
     : new Set(["ask_user", "confirm_uncertain_effect"]);
@@ -99,8 +110,17 @@ export async function runToolRound(run: HarnessRun, toolCalls: ToolCall[]): Prom
       calls: otherCalls,
       maxParallel: run.config.maxParallelToolCalls,
       signal: input.signal,
-      classify: (call) => classifyToolExecutionMode(call, input.tools),
-      execute: ({ call }) => executeToolCallWithRetry(run, call),
+      onFailure: error => {
+        run.toolExecutionFailure ??= { error };
+        input.quiesceExecution?.();
+      },
+      classify: (call) => {
+        const mode = classifyToolExecutionMode(call, input.tools);
+        // Rootless legacy runs cannot parallelize agents without a shared workspace guard.
+        return mode === "delegation" && !input.toolContext?.execution ? "exclusive" : mode;
+      },
+      execute: (execution) => executeToolCallWithRetry(run, execution),
+      closeGroup: (groupId) => input.toolContext?.execution?.coordinator.closeGroup(groupId) ?? Promise.resolve(),
       commit: ({ call }, result) => commitToolResult(run, call, result),
       notExecuted: async ({ call }, reason): Promise<ToolDispatchResult> =>
         reason === "execution_error"
@@ -120,7 +140,7 @@ export async function runToolRound(run: HarnessRun, toolCalls: ToolCall[]): Prom
             },
     });
   } catch (error) {
-    if (isCancellationError(error, input.signal)) return "cancelled";
+    if (!run.toolExecutionFailure && isCancellationError(error, input.signal)) return "cancelled";
     throw error;
   }
   if (schedule.cancelled || input.signal?.aborted) return "cancelled";
@@ -154,8 +174,8 @@ function preserveUncertainEffectIfNeeded(run: HarnessRun, call: ToolCall, toolSi
 }
 
 /**
- * 工具结果统一提交：先内存 push，再权威轨迹落盘，最后才发布生命周期终态。
- * committed 不得先于轨迹落盘（否则崩溃恢复看到"已提交"却无协议结果）。
+ * 工具结果统一提交：先内存 push，再权威轨迹与恢复快照落盘，最后才发布生命周期终态。
+ * committed 不得先于轨迹与恢复快照落盘（否则崩溃恢复看到"已提交"却无协议结果）。
  * 轨迹写失败：非幂等副作用先入 uncertainEffects，再以 TranscriptWriteError 上抛（fail-closed）。
  * toolSideEffect 按 registry 解析；合成 not_executed 未派发的场景走保守方向（仅双失败时出现）。
  */
@@ -181,6 +201,10 @@ async function commitToolResultMessage(
       ...(input.fileRead ? { fileRead: input.fileRead } : {}),
       roundId: input.roundId,
     });
+    // The recoverable run/session snapshot is a separate durable boundary from
+    // the canonical transcript. Both must contain the result before committed.
+    run.checkpoint();
+    if (run.checkpointFailure) throw new Error(`执行状态保存失败：${run.checkpointFailure}`);
   } catch (error) {
     preserveUncertainEffectIfNeeded(run, input.call, input.toolSideEffect);
     throw new TranscriptWriteError("tool_result", error);
@@ -271,7 +295,8 @@ async function runAskUserRound(
  * 一次 logical invocation 的执行与重试，可在安全池内与其他调用重叠。
  * 输出持久化延后到重试收敛后的最终结果，确保一次调用只对应一条记录。
  */
-async function executeToolCallWithRetry(run: HarnessRun, call: ToolCall): Promise<ToolDispatchResult> {
+async function executeToolCallWithRetry(run: HarnessRun, execution: ToolCallExecution): Promise<ToolDispatchResult> {
+  const { call } = execution;
   // 熔断拦截：同工具连续失败达到阈值 → 不再 dispatch，直接合成 not_executed。
   // 拦截必须在 dispatch 之前；合成结果流回 commitToolResult 时 not_executed 不改计数，
   // 熔断不会被自己合成的结果解除。
@@ -287,11 +312,33 @@ async function executeToolCallWithRetry(run: HarnessRun, call: ToolCall): Promis
 
   const { input } = run;
   const toolSideEffect = resolveSideEffect(input.tools.find((tool) => tool.id === call.name), parseToolCallArgs(call));
-  input.onToolLifecycle?.({ toolCallId: call.id, toolName: call.name, toolSideEffect, status: "started" });
-  run.toolCallStartedAt.set(call.id, Date.now());
-
-  let result = await raceWithSignal(dispatchToolCall(call, run.toolDispatchContext), input.signal);
-  if (result.outcome === "failure") {
+  const dispatchContext = {
+    ...run.toolDispatchContext,
+    delegationScope: execution.delegationScope,
+    checkPermission: run.toolDispatchContext.checkPermission
+      ? (toolId: string, args: Record<string, unknown>) => raceWithSignal(
+          run.toolDispatchContext.checkPermission!(toolId, args, input.signal), input.signal,
+        ) : undefined,
+    onExecutionStarted: () => {
+      if (run.toolCallStartedAt.has(call.id)) return;
+      input.onToolLifecycle?.({ toolCallId: call.id, toolName: call.name, toolSideEffect, status: "started" });
+      run.toolCallStartedAt.set(call.id, Date.now());
+    },
+  };
+  const dispatch = async (): Promise<ToolDispatchResult> => {
+    try {
+      // This is the original dispatch promise, not an abort race. Actual settlement
+      // owns lifetime; ToolContext.signal still cancels approvals, waiters and tools.
+      return await dispatchToolCall(call, dispatchContext);
+    } catch (error) {
+      if (isCancellationError(error, input.signal) && !run.toolCallStartedAt.has(call.id)) {
+        return { outcome: "not_executed", category: "runtime_safety", tool: call.name, message: "aborted_before_dispatch" };
+      }
+      throw error;
+    }
+  };
+  let result = await dispatch();
+  if (!input.signal?.aborted && result.outcome === "failure") {
     const category = result.category ?? classifyToolResultError(
       result.rawResult ?? { toolId: call.name, args: {}, output: "", status: "failed" } as ToolCallResult,
     );
@@ -299,7 +346,8 @@ async function executeToolCallWithRetry(run: HarnessRun, call: ToolCall): Promis
       const retryParams = getRetryParams(category);
       for (let attempt = 0; attempt < retryParams.maxRetries; attempt++) {
         await sleepWithJitter(retryParams.backoffMs[attempt] ?? 1000, input.signal);
-        result = await raceWithSignal(dispatchToolCall(call, run.toolDispatchContext), input.signal);
+        if (input.signal?.aborted) break;
+        result = await dispatch();
         if (result.outcome !== "failure") break;
       }
     }
@@ -337,6 +385,7 @@ async function commitToolResult(
     preview: (result.preview ?? result.message).slice(0, 200),
     // Diff Review 卡片证据走独立字段，不受 preview 截断影响
     changes: extractFileChangesFromOutput(result.output),
+    taskResult: extractTaskResult(call.name, result.output, input.toolContext?.execution?.scope.parentRunId ?? input.runId),
   });
   const message = toolResultMessage(call, result);
   let fileRead: { path: string; canonicalPath: string; sha256: string; startLine: number; endLine: number; totalLines: number } | undefined;

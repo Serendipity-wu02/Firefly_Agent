@@ -7,6 +7,7 @@ import { ContextRefRegistry } from "../../context-ref-registry";
 import type { ConversationMode } from "../../../../shared/chat-types";
 import type { WorkReadScope } from "../../../../shared/chat-types";
 import type { AgentFileAccessLevel } from "../../../permission-policy";
+import type { ExecutionScope, LeafPermit, RunExecutionCoordinator } from "../../harness/execution-coordinator";
 
 export const contextRefRegistry = new ContextRefRegistry();
 
@@ -47,6 +48,10 @@ export interface ToolContext {
   fileAccessLevel?: AgentFileAccessLevel;
   /** Main dispatcher-owned permission decision, bound to this exact parsed call. */
   authorizedToolCall?: { toolId: string; args: Record<string, unknown>; approvalRequired: boolean };
+  /** Main-owned synchronous policy check after queueing; cannot request or widen approval. */
+  revalidateToolPermission?: (toolId: string, args: Record<string, unknown>, approvalRequired: boolean) => boolean;
+  /** Main-only workspace coordination. Opaque permits are never serialized or model-supplied. */
+  execution?: { coordinator: RunExecutionCoordinator; scope: ExecutionScope; permit?: LeafPermit };
   /** 未来扩展兜底；当前为空对象，不预设字段。遵循"地基通用，上层克制"。 */
   metadata?: Record<string, unknown>;
 }

@@ -1,3 +1,6 @@
+import {createAttachmentDocumentMaterializer} from "../memory-context/attachment-document-materializer";
+import type {BackgroundMemoryHost} from "../memory-context/background-memory-ingress";
+import type {MainMemoryRun} from "../memory-context/main-memory-runtime";
 import { app } from "electron";
 import {copyControlledStreamTarget} from "./controlled-responses";
 import type {ChatRequest} from "./vendors/types";
@@ -5,7 +8,7 @@ import type {AgentLoopResult} from "./firefly-agent";
 import {copyMainResponsesRequest} from "./vendors/response-request-snapshot";
 import type {MainSRuntimePort,MainSRuntimeInput,MainSRuntimeResult} from "../memory-context/main-s-runtime-port";
 import { loadPromptFile } from "../prompts/prompt-loader";
-import type { AguiRunInput, BuildOptionsFn } from "../agui-bridge";
+import type { AguiRunInput, BuildOptionsFn, MainBuildOptionsContext } from "../agui-bridge";
 import type { ScheduledTask } from "../scheduler/types";
 import type { ChannelId } from "../channels/types";
 import type { ModelSettings } from "../settings/model-settings";
@@ -13,13 +16,13 @@ import type { GeneralSettings } from "../settings/general-settings";
 import type { UserProfile } from "../settings-store";
 import { resolveCaptionVisionConfig } from "./image-router";
 import { getTimeoutSettings } from "../timeout-manager";
-import { resolveModelSettingsProfile } from "../settings/model-settings";
+import { resolveModelSettingsProfile, getDefaultModelProfile } from "../settings/model-settings";
 import { normalizeChatMessages } from "../chat-api-utils";
 import { parseObserverFeeling } from "../chat-stream-utils";
 import { captionImageSafe, IMAGE_CAPTION_PROMPT } from "../chat/image-caption";
 import { buildEnvironmentContext } from "./environment";
 import { buildToneInjection } from "./tone-injector";
-import { buildAlwaysOnContext, scheduleMemoryWrite } from "./index";
+import { buildAlwaysOnContext, buildWorldbookContext, scheduleMemoryWrite } from "./index";
 import { matchSticker } from "../sticker-embedder";
 import { buildRelationshipContext, recordRelationshipTurn } from "../relationship/relationship-log";
 import { compileSocialContextBlock } from "../social-context/context";
@@ -74,6 +77,8 @@ type EnqueueLLMTask = <T>(
 ) => Promise<T>;
 
 export interface AgentRuntimeDeps {
+  /** Main composition only. Run identity and sink are finalized before invocation. */
+  defaultMemory?:{openRun:(input:FireflyRunOptions)=>Promise<MainMemoryRun>;prepareBackgroundRun?:BackgroundMemoryHost["prepareBackgroundRun"]};
   /** Main-only opt-in injection. No product registration or initialization by default. */
   sContext?: {enabled?:boolean;isControlledSession?:(conversationId:string)=>boolean;createPort:(scope?:Readonly<{conversationId:string}>)=>MainSRuntimePort|Promise<MainSRuntimePort>;streamRequest?:(options:FireflyRunOptions)=>ChatRequest};
   runtimeStateService: RuntimeStateService;
@@ -121,6 +126,12 @@ export interface AgentRuntime {
 
 export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
   const runtimeStateService = rawDeps.runtimeStateService;
+  const backgroundMemory:BackgroundMemoryHost|undefined=rawDeps.defaultMemory?.prepareBackgroundRun?{prepareBackgroundRun:input=>rawDeps.defaultMemory!.prepareBackgroundRun!(input)}:undefined;
+  const legacyPersonalTools=new Set(["user_memory","read_memory","write_memory","recall_history"]);
+  const toolRegistry=rawDeps.defaultMemory?{
+    getEnabledTools:()=>rawDeps.toolRegistry.getEnabledTools().filter(tool=>!legacyPersonalTools.has(tool.id)),
+    getEnabledToolsForMode:(mode:ConversationMode,overrides?:ToolModeOverrides)=>rawDeps.toolRegistry.getEnabledToolsForMode(mode,overrides).filter(tool=>!legacyPersonalTools.has(tool.id)),
+  }:rawDeps.toolRegistry;
   const sPorts=new Map<string|undefined,Promise<MainSRuntimePort>>();
   function provisionSPort(conversationId?:string):Promise<MainSRuntimePort> {
     const injection=rawDeps.sContext;
@@ -258,7 +269,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
         resolveSlashActivation(messages as any, mode, overrides)) as BuildOptionsDeps["resolveSlashActivation"],
       buildToneInjection: (() => buildToneInjection()) as BuildOptionsDeps["buildToneInjection"],
       buildAlwaysOnContext: ((userText, messages) =>
-        buildAlwaysOnContext(userText, messages as any)) as BuildOptionsDeps["buildAlwaysOnContext"],
+        (rawDeps.defaultMemory?buildWorldbookContext:buildAlwaysOnContext)(userText, messages as any)) as BuildOptionsDeps["buildAlwaysOnContext"],
       buildRelationshipContext,
       buildModePrompt,
       buildToolSystemPrompt: ((mode, enabledTools) =>
@@ -266,15 +277,15 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
       buildSoulSystemBasePrompt,
       resolveRunCapabilities: ({ mode, activeSearchBackend, toolModeOverrides, skillModeOverrides, chatToolsEnabled }) => resolveRunCapabilities({
         mode, activeSearchBackend, toolModeOverrides, skillModeOverrides, chatToolsEnabled,
-        toolRegistry: rawDeps.toolRegistry,
+        toolRegistry,
         skillRegistry: rawDeps.skillRegistry,
       }),
       readStylePrompt,
       resolveSoulSampling: resolveSoulSamplingForStyle,
       toolRegistry: {
-        getEnabled: () => rawDeps.toolRegistry.getEnabledTools() as unknown[],
+        getEnabled: () => toolRegistry.getEnabledTools() as unknown[],
         getEnabledToolsForMode: (mode: ConversationMode, overrides?: ToolModeOverrides) =>
-          rawDeps.toolRegistry.getEnabledToolsForMode(mode, overrides) as unknown[],
+          toolRegistry.getEnabledToolsForMode(mode, overrides) as unknown[],
       },
       normalizeChatMessages: ((raw) =>
         normalizeChatMessages(raw as any)) as BuildOptionsDeps["normalizeChatMessages"],
@@ -314,6 +325,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     return {
       loadModelSettings: () => resolveModelSettingsProfile(rawDeps.loadModelSettings(), modelProfileId),
       scheduleMemoryWrite,
+      ...(rawDeps.defaultMemory?{personalMemoryMode:"smh" as const}:{}),
       scheduleSocialAtomExtraction: (input) => rawDeps.socialContextScheduler.schedule(input),
       inferRuntimeState: ((userText, reply, flag) =>
         runtimeStateService.inferFromText(userText, reply, flag)) as OnRunFinishedDeps["inferRuntimeState"],
@@ -343,7 +355,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
 
   return {
     runSContext,
-    buildOptions: Object.assign(async (input:AguiRunInput) => {
+    buildOptions: Object.assign(async (input:AguiRunInput, mainContext?:MainBuildOptionsContext) => {
       // Capture the controlled Main scope and builder before the existing asynchronous options build.
       const injection=rawDeps.sContext;
       let controlled:{scope:{conversationId?:string;userTurnId?:string;assistantTurnId?:string};buildRequest:(options:FireflyRunOptions)=>ChatRequest}|undefined;
@@ -361,6 +373,14 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
         }
       }
       const buildOptionsDeps = buildBuildOptionsDeps();
+      if(rawDeps.defaultMemory){
+        buildOptionsDeps.requireAttachmentGrant=true;
+        buildOptionsDeps.attachmentGrant=mainContext?.attachmentGrant;
+        buildOptionsDeps.materializeAttachmentDocument=createAttachmentDocumentMaterializer();
+        buildOptionsDeps.buildRelationshipContext=async()=>"";
+        buildOptionsDeps.buildChatSocialContext=undefined;
+        buildOptionsDeps.prepareCitaTurn=undefined;
+      }
       if(controlled){
         buildOptionsDeps.buildAlwaysOnContext=async()=>"";
         buildOptionsDeps.buildRelationshipContext=async()=>"";
@@ -368,7 +388,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
         buildOptionsDeps.prepareCitaTurn=undefined;
       }
       const { options, latestUserText } = await buildAgentRunOptions(input, buildOptionsDeps);
-      const next:FireflyRunOptions={...options,onToolFinished};
+      const next:FireflyRunOptions={...options,onToolFinished,...(backgroundMemory?{backgroundMemory}:{}),...(rawDeps.defaultMemory?{openMemoryRun:(current:FireflyRunOptions)=>rawDeps.defaultMemory!.openRun(current)}:{})};
       if(controlled){
         const {scope,buildRequest}=controlled;
         next.controlledResponses=async(current,signal,onEvent)=>{
@@ -418,7 +438,9 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
     buildSchedulerOptions: async (task) => {
       // 与 channel bot / 聊天路径同策略：先展开默认模型档案再取顶层镜像，
       // 否则用户只在档案里配模型时顶层 baseUrl/apiKey 可能为空，定时任务会调不到 LLM。
-      const settings = resolveModelSettingsProfile(rawDeps.loadModelSettings());
+      const savedSettings=rawDeps.loadModelSettings(),modelProfile=getDefaultModelProfile(savedSettings);
+      if(rawDeps.defaultMemory&&!modelProfile)throw Error("MEMORY_RUN_PROFILE_DENIED");
+      const settings = resolveModelSettingsProfile(savedSettings,modelProfile?.id);
       const profile = rawDeps.loadUserProfile();
       const generalSettings = rawDeps.loadGeneralSettings();
       // 会话模式取任务冻结字段（旧任务默认 work）：skill 过滤、模式提示词
@@ -434,7 +456,7 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
         buildModePrompt(mode),
         buildEnvironmentContext({ provider: settings.provider, model: settings.model }, profile),
         buildSkillCatalog(scheduledSkills),
-        await buildAlwaysOnContext(task.prompt, messages),
+        await (rawDeps.defaultMemory?buildWorldbookContext:buildAlwaysOnContext)(task.prompt, messages),
         await rawDeps.buildPluginPromptContext({
           source: "scheduler",
           mode,
@@ -442,6 +464,8 @@ export function createAgentRuntime(rawDeps: AgentRuntimeDeps): AgentRuntime {
         }),
       ].join("\n\n---\n\n");
       return {
+        ...(modelProfile?{modelProfileId:modelProfile.id}:{}),
+        ...(backgroundMemory?{backgroundMemory}:{}),
         settings: {
           provider: settings.provider,
           baseUrl: settings.baseUrl,

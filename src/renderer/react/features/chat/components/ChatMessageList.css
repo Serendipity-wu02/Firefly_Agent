@@ -1345,3 +1345,28 @@
     animation: none;
   }
 }
+
+/* Custom palettes must keep text paired with the surface it is drawn on. */
+:root[data-ui-colors] .cy-message--user .ant-bubble-content,
+:root[data-ui-colors] .cy-message--user .cy-message-markdown a {
+  color: var(--rb-text-on-pink);
+}
+:root[data-ui-colors] .cy-message-markdown [data-streamdown="table-wrapper"] {
+  background: var(--cy-bg-workspace);
+  border-color: var(--cy-border);
+}
+:root[data-ui-colors] .cy-message-markdown [data-streamdown="table"] th,
+:root[data-ui-colors] .cy-mermaid--fallback .cy-mermaid__source,
+:root[data-ui-colors] .cy-svg-card--fallback .cy-svg-card__source,
+:root[data-ui-colors] .cy-message-markdown-fallback,
+:root[data-ui-colors] .cy-tool-executions__result,
+:root[data-ui-colors] .cy-ask-user-qa__row {
+  background: var(--cy-bg-page);
+  border-color: var(--cy-border);
+}
+:root[data-ui-colors] .cy-message-markdown [data-streamdown="table"] th {
+  color: var(--cy-text);
+}
+:root[data-ui-colors] .cy-message-markdown input[type="checkbox"]:checked::after {
+  border-color: var(--rb-text-on-pink);
+}

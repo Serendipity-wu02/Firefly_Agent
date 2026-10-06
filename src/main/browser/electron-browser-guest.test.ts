@@ -87,3 +87,20 @@ describe("real Electron WebContentsView adapter boundary", () => {
     finally { guest.stop(); await pending; guest.destroy(); }
   });
 });
+
+  it("runs only fixed DOM scripts in an isolated world and rejects navigation-invalidated observations", async () => {
+    const f = nativeFixture(), guest = createElectronBrowserGuest(f.session as any) as any;
+    expect(guest.observe).toBeTypeOf("function"); expect(guest.act).toBeTypeOf("function");
+    guest.installCallbacks({ allowsNavigation: () => true, started: () => {}, changed: () => {}, failed: () => {}, destroyed: () => {} });
+    await guest.loadURL("https://example.com/");
+    const execute = vi.fn(async (world: number, scripts: {code: string}[], gesture: boolean) => {
+      expect(world).toBe(999); expect(gesture).toBe(false); expect(scripts).toHaveLength(1);
+      const match = scripts[0].code.match(/\(({"kind":"observe".*})\)$/);
+      const data = JSON.parse(match![1]);
+      return { snapshotId: data.snapshotId, url: data.url, title: "fixture", text: "real page", elements: [] };
+    });
+    (f.contents as any).executeJavaScriptInIsolatedWorld = execute;
+    const result = await guest.observe(["example.com"]); expect(result.text).toBe("real page");
+    execute.mockImplementationOnce(async () => { await guest.loadURL("https://example.com/next"); return result; });
+    await expect(guest.observe(["example.com"])).rejects.toThrow(); guest.destroy();
+  });

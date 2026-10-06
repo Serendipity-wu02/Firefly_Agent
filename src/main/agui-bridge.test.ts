@@ -6,6 +6,7 @@ import { Observable } from "rxjs";
 import { IPC } from "../shared/ipc-channels";
 
 const mocks = vi.hoisted(() => ({
+  fileReads: [] as unknown[],
   handlers: new Map<string, (...args: any[]) => unknown>(),
   listeners: new Map<string, (...args: any[]) => void>(),
   getSession: vi.fn(),
@@ -28,6 +29,13 @@ const mocks = vi.hoisted(() => ({
   // 轨迹派发测试：主进程 app.getPath("userData") 的可替换根目录
   userDataRoot: "",
 }));
+
+vi.mock("fs", async()=>{
+ const actual=await vi.importActual<typeof import("fs")>("fs");
+ return {...actual,readFileSync:(...args:Parameters<typeof actual.readFileSync>)=>{
+  mocks.fileReads.push(args[0]);return actual.readFileSync(...args);
+ }};
+});
 
 vi.mock("electron", () => ({
   ipcMain: {
@@ -1340,6 +1348,10 @@ describe("agui-bridge session run guard", () => {
       { messages: [{ role: "user", content: "run1" }], sessionId: "guard-1" },
     ) as { runId: string };
     expect(bridge.__getSessionActiveRunForTest("guard-1")).toBe(ack1.runId);
+    expect((bridge as any).isActiveConversationRun).toBeTypeOf("function");
+    expect((bridge as any).isActiveConversationRun("guard-1", ack1.runId)).toBe(true);
+    expect((bridge as any).isActiveConversationRun("other", ack1.runId)).toBe(false);
+    expect((bridge as any).isActiveConversationRun("guard-1", "stale")).toBe(false);
 
     // 不带 takeoverFromRunId 的同会话第二个 run → 拒绝，错误带稳定前缀 + active runId
     await expect(runHandler(
@@ -2133,4 +2145,117 @@ it("Main memory sender admission fails before prepareTranscript/canonical writes
  const {registerAgUiIpc,__getSessionActiveRunForTest}=await import('./agui-bridge'),prepare=vi.fn(),build=Object.assign(vi.fn(),{prepareTranscript:prepare}),authorizeRun=vi.fn(()=>{throw Error('MEMORY_DESKTOP_SESSION_DENIED')});
  registerAgUiIpc(build as any,vi.fn(),()=>null,undefined,undefined,undefined,{authorizeRun,afterTranscript:vi.fn()} as any);
  await expect(mocks.handlers.get(IPC.AGUI_RUN)!({sender:{isDestroyed:()=>false,send:()=>{}}},{sessionId:'memory-denied',userTurnId:'u',assistantTurnId:'a'})).rejects.toThrow('MEMORY_DESKTOP_SESSION_DENIED');expect(prepare).not.toHaveBeenCalled();expect(build).not.toHaveBeenCalled();expect(__getSessionActiveRunForTest('memory-denied')).toBeUndefined();
+});
+
+describe("agui-bridge legacy history indexing boundary", () => {
+  let root: string;
+
+  beforeEach(() => {
+    vi.resetModules();
+    mocks.handlers.clear();
+    mocks.runFireflyAgent.mockReset();
+    mocks.agentEvents = [];
+    mocks.runFinishedResult = undefined;
+    mocks.emitDuplicateRunFinished = false;
+    mocks.errorAfterRunFinished = null;
+    mocks.skipDefaultRunFinished = false;
+    mocks.neverComplete = false;
+    mocks.completeOnAbort = false;
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-bridge-history-"));
+    mocks.userDataRoot = root;
+    mocks.getSession.mockReturnValue({
+      id: "history-boundary",
+      mode: "chat",
+      messages: [
+        { id: "user", role: "user", content: "synthetic question", at: 1 },
+        { id: "assistant", role: "model", content: "", at: 2, answersUserMessageId: "user" },
+      ],
+    });
+  });
+
+  afterEach(() => {
+    mocks.runFireflyAgent.mockReset();
+    mocks.userDataRoot = "";
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it.each([false, true].flatMap((controlled) => [
+    { controlled, status: "success", bareCompletion: false },
+    { controlled, status: "success", bareCompletion: true },
+    { controlled, status: "cancelled", bareCompletion: false },
+    { controlled, status: "timeout", bareCompletion: false },
+    { controlled, status: "runtime_error", bareCompletion: false },
+  ]))("indexes only ordinary successful runs (controlled=$controlled, status=$status, bareCompletion=$bareCompletion)", async ({ controlled, status, bareCompletion }) => {
+    const { registerAgUiIpc, __getSessionActiveRunForTest } = await import("./agui-bridge");
+    const { controlledSettlement } = await import("./orchestrator/controlled-responses");
+    const { indexConversationTurn } = await import("./orchestrator/tools/history-tools");
+    vi.mocked(indexConversationTurn).mockClear();
+    mocks.skipDefaultRunFinished = bareCompletion;
+    mocks.runFinishedResult = { status, externalEffectsMayContinue: status !== "success" };
+    // Simulate the agent's confirmed S settlement on the actual bridge-bound sink.
+    // Without this, a controlled "success" is rejected before reaching the indexing boundary.
+    mocks.runFireflyAgent.mockImplementationOnce((options) => {
+      if (!controlled) return;
+      const settlement = controlledSettlement(options.transcriptSink);
+      const result = status === "success" ? "success" : "interrupted";
+      expect(settlement.reserve(result)).toBe(true);
+      expect(settlement.confirm(result)).toBe(true);
+    });
+    const onFinished = vi.fn(async () => ({}));
+    registerAgUiIpc(async () => ({
+      options: {
+        settings: { provider: "test", baseUrl: "", model: "", apiKey: "", contextWindowTokens: 256000 },
+        messages: [],
+        timeoutMs: 1000,
+        toolSystemContent: "TOOL",
+        soulSystemBaseContent: "SOUL",
+        ...(controlled ? { controlledResponses: vi.fn() } : {}),
+      },
+      latestUserText: "synthetic question",
+    }), onFinished, () => null);
+    const send = vi.fn();
+    await mocks.handlers.get(IPC.AGUI_RUN)!({ sender: { isDestroyed: () => false, send } }, {
+      sessionId: "history-boundary",
+      userTurnId: "user",
+      assistantTurnId: "assistant",
+      messages: [],
+    });
+    // Wait for the entire async completion callback, not just the early run acknowledgement.
+    await vi.waitFor(() => expect(__getSessionActiveRunForTest("history-boundary")).toBeUndefined());
+
+    if (status === "success") {
+      expect(onFinished).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledWith(IPC.AGUI_EVENT, expect.objectContaining({
+        type: "RUN_FINISHED",
+        result: { status: "success", externalEffectsMayContinue: false },
+      }));
+    } else {
+      expect(onFinished).not.toHaveBeenCalled();
+    }
+    if (!controlled && status === "success") {
+      expect(indexConversationTurn).toHaveBeenCalledExactlyOnceWith("history-boundary", "synthetic question", "抱抱你");
+    } else {
+      expect(indexConversationTurn).not.toHaveBeenCalled();
+    }
+  });
+});
+it.each(["denied","revoked"])("does not inspect Work attachment bytes for a %s Main attachment grant",async state=>{
+ vi.resetModules();mocks.handlers.clear();mocks.runFireflyAgent.mockClear();
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"work-attachment-denied-"));mocks.userDataRoot=root;
+ try{
+  const selected=path.join(root,"synthetic.txt");fs.writeFileSync(selected,"synthetic document");
+  const {inspectWorkReadFile}=await import("./chats/work-read-scope");const scope=inspectWorkReadFile(selected);fs.writeFileSync(selected,"changed document");
+  mocks.getSession.mockReturnValue({id:"work-grant-denied",mode:"work",workspaceBinding:{workspaceRoot:root,displayName:"fixture",boundAt:1},messages:[{id:"u",role:"user",content:"read",at:1,attachments:[{kind:"document",name:"synthetic.txt",filePath:selected,status:"pending",readScope:scope}]},{id:"a",role:"model",content:"",at:2,answersUserMessageId:"u"}]});
+  const {registerAgUiIpc}=await import("./agui-bridge");const build=vi.fn();
+  const {createMainAttachmentProjectionAuthority}=await import("./memory-context/main-attachment-projection");
+  const projection=createMainAttachmentProjectionAuthority();
+  const grant=projection.issue({sessionId:"work-grant-denied",userTurnId:"u",userRevision:1,userText:"read",attachments:mocks.getSession().messages[0].attachments,assertCurrent(){}});
+  registerAgUiIpc(build,async()=>{},()=>null,undefined,undefined,undefined,{
+   usesCanonicalUserContent:true,authorizeRun:()=>({signal:new AbortController().signal,release(){}}),afterTranscript:async()=>{},
+   prepareAttachmentGrant:async()=>{if(state==="denied")throw Error("MEMORY_ATTACHMENT_DENIED");projection.revokeTurn("work-grant-denied","u");return grant},
+  } as any);
+  expect(mocks.fileReads.filter(value=>value===selected)).toHaveLength(1);mocks.fileReads=[];
+  await expect(mocks.handlers.get(IPC.AGUI_RUN)!({sender:{isDestroyed:()=>false,send(){}}},{sessionId:"work-grant-denied",userTurnId:"u",assistantTurnId:"a",messages:[{role:"user",content:"read"}]})).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");
+  expect(mocks.fileReads.filter(value=>value===selected)).toHaveLength(0);expect(build).not.toHaveBeenCalled();expect(mocks.runFireflyAgent).not.toHaveBeenCalled();
+ }finally{fs.rmSync(root,{recursive:true,force:true})}
 });

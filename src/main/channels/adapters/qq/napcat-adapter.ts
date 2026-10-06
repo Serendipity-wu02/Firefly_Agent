@@ -1,4 +1,4 @@
-import type { ChannelAdapter } from "../base";
+import { createChannelMemoryAccountIdentity, type ChannelAdapter, type ChannelMemoryAccountIdentity } from "../base";
 import type {
   ChannelCapability,
   ChannelStatus,
@@ -83,7 +83,10 @@ export class NapCatAdapter implements ChannelAdapter {
   readonly displayName = "QQ（NapCat）";
   readonly capability = CAPABILITY;
   onMessage: MessageHandler | null = null;
+  private readonly memoryAccount = createChannelMemoryAccountIdentity();
 
+  private generation = 0;
+  private connectionGeneration = 0;
   private server: OneBotReverseWsServer | null = null;
   private client: OneBotActionClient | null = null;
   private media = new OneBotMediaManager(() => this.client, undefined, () => {
@@ -106,6 +109,11 @@ export class NapCatAdapter implements ChannelAdapter {
   constructor(private readonly onStatusChanged?: () => void) {}
 
   async start(): Promise<void> {
+    const generation = ++this.generation;
+    this.connectionGeneration++;
+    this.memoryAccount.revoke();
+    this.client = null;
+    this.selfId = "";
     const config = loadChannelsSettings().qq;
     if (!config.enabled) {
       this.setStatus({ enabled: false, phase: "offline", message: "未启用" });
@@ -113,14 +121,22 @@ export class NapCatAdapter implements ChannelAdapter {
     }
     this.setStatus({ enabled: true, phase: "starting", message: "正在启动 OneBot 监听" });
     await this.media.start();
+    if (generation !== this.generation) return;
     this.server = new OneBotReverseWsServer({
       listenMode: config.listenMode,
       customHost: config.customHost,
       port: config.port,
       accessToken: config.accessToken,
-      onEvent: (event, client) => this.handleEvent(event, client),
-      onClientConnected: (client, info) => this.handleConnected(client, info.headerSelfId),
+      onEvent: (event, client) => {
+        if (generation === this.generation) return this.handleEvent(event, client);
+      },
+      onClientConnected: (client, info) => {
+        if (generation === this.generation) return this.handleConnected(client, info.headerSelfId);
+      },
       onClientDisconnected: () => {
+        if (generation !== this.generation) return;
+        this.connectionGeneration++;
+        this.memoryAccount.revoke();
         this.client = null;
         this.selfId = "";
         this.setStatus({
@@ -131,6 +147,7 @@ export class NapCatAdapter implements ChannelAdapter {
         });
       },
       onError: (error) => {
+        if (generation !== this.generation) return;
         this.setStatus({
           enabled: true,
           phase: "error",
@@ -139,8 +156,14 @@ export class NapCatAdapter implements ChannelAdapter {
         });
       },
     });
+    const server = this.server;
     try {
-      this.listeningInfo = await this.server.start();
+      const listeningInfo = await server.start();
+      if (generation !== this.generation) {
+        await server.stop();
+        return;
+      }
+      this.listeningInfo = listeningInfo;
       this.setStatus({
         enabled: true,
         phase: "starting",
@@ -148,6 +171,8 @@ export class NapCatAdapter implements ChannelAdapter {
         detail: this.statusDetail(),
       });
     } catch (error) {
+      if (generation !== this.generation) return;
+      this.memoryAccount.revoke();
       this.media.stop();
       this.server = null;
       const message = error instanceof Error ? error.message : String(error);
@@ -157,8 +182,11 @@ export class NapCatAdapter implements ChannelAdapter {
   }
 
   async stop(): Promise<void> {
+    this.generation++;
+    this.connectionGeneration++;
+    this.memoryAccount.revoke();
     this.media.stop();
-    await this.server?.stop();
+    const server = this.server;
     this.server = null;
     this.client = null;
     this.selfId = "";
@@ -168,6 +196,12 @@ export class NapCatAdapter implements ChannelAdapter {
     this.listeningInfo = null;
     this.dedupe.clear();
     this.setStatus({ enabled: false, phase: "offline", message: "已停止" });
+    await server?.stop();
+  }
+
+  getMemoryAccountIdentity(): ChannelMemoryAccountIdentity | null {
+    if (!loadChannelsSettings().qq.enabled || !this.client || !this.selfId) this.memoryAccount.revoke();
+    return this.memoryAccount.read();
   }
 
   getStatus(): ChannelStatus {
@@ -237,13 +271,21 @@ export class NapCatAdapter implements ChannelAdapter {
   }
 
   private async handleConnected(client: OneBotActionClient, headerSelfId?: string): Promise<void> {
+    const generation = this.generation;
+    const connectionGeneration = ++this.connectionGeneration;
+    this.memoryAccount.revoke();
+    this.client = null;
+    this.selfId = "";
     const login = await client.call<OneBotLoginInfo>("get_login_info");
+    if (generation !== this.generation || connectionGeneration !== this.connectionGeneration) return;
     const version = await client.call<OneBotVersionInfo>("get_version_info");
+    if (generation !== this.generation || connectionGeneration !== this.connectionGeneration) return;
     const selfId = oneBotId(login.user_id);
     if (!selfId) throw new Error("NapCat get_login_info 未返回 user_id");
     if (headerSelfId && headerSelfId !== selfId) throw new Error("NapCat X-Self-ID 与 get_login_info 不一致");
     this.client = client;
     this.selfId = selfId;
+    this.memoryAccount.authenticate(`qq:${selfId}`);
     this.nickname = login.nickname ?? "";
     this.appVersion = version.app_version ?? "";
     this.supportsStream = versionAtLeast(this.appVersion, ONEBOT_STREAM_MIN_VERSION);
@@ -256,6 +298,7 @@ export class NapCatAdapter implements ChannelAdapter {
   }
 
   private async handleEvent(event: OneBotEvent, client: OneBotActionClient): Promise<void> {
+    if (client !== this.client) return;
     if (!isOneBotMessageEvent(event) || event.post_type !== "message") return;
     if (!this.selfId || oneBotId(event.self_id) !== this.selfId || oneBotId(event.user_id) === this.selfId) return;
 
@@ -271,6 +314,7 @@ export class NapCatAdapter implements ChannelAdapter {
     if (this.dedupe.has(dedupeKey)) return;
     this.dedupe.set(dedupeKey, now + DEDUPE_TTL_MS);
 
+    const connectionGeneration = this.connectionGeneration;
     try {
       const incoming = await normalizeOneBotMessage(event, {
         selfId: this.selfId,
@@ -278,6 +322,7 @@ export class NapCatAdapter implements ChannelAdapter {
         media: this.media,
         supportsStream: this.supportsStream,
       });
+      if (client !== this.client || connectionGeneration !== this.connectionGeneration) return;
       await this.onMessage?.(incoming);
     } catch (error) {
       console.warn("[NapCatAdapter] QQ 消息处理失败:", error instanceof Error ? error.message : String(error));

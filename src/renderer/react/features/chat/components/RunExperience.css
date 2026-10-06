@@ -661,3 +661,34 @@ button.cy-file-change-card__row:hover { background: #f7f4f6; }
   .cy-composer-slot__composer,
   .cy-composer-slot__interaction { transition: none; }
 }
+
+/* Keep interactive cards readable on both light and dark custom palettes. */
+:root[data-ui-colors] .cy-task-plan-card,
+:root[data-ui-colors] .cy-run-outcome,
+:root[data-ui-colors] .cy-interaction-panel__custom-answer input,
+:root[data-ui-colors] .cy-interaction-panel__actions button,
+:root[data-ui-colors] .cy-quiz-short-answer {
+  background: var(--cy-bg-workspace);
+  color: var(--cy-text);
+  border-color: var(--cy-border);
+}
+:root[data-ui-colors] .cy-interaction-panel,
+:root[data-ui-colors] .cy-interaction-panel__heading code,
+:root[data-ui-colors] .cy-quiz-graded__explanation {
+  background: var(--cy-bg-page);
+  border-color: var(--cy-border);
+}
+:root[data-ui-colors] .cy-interaction-panel__options button:hover,
+:root[data-ui-colors] .cy-interaction-panel__options button.is-selected,
+:root[data-ui-colors] .cy-interaction-panel__pager button:hover:not(:disabled),
+:root[data-ui-colors] .cy-interaction-panel__question-index button:hover:not(:disabled),
+:root[data-ui-colors] .cy-interaction-panel__question-index button.is-current {
+  background: var(--cy-bg-active);
+  color: var(--cy-text);
+  border-color: var(--cy-accent);
+}
+:root[data-ui-colors] .cy-interaction-panel__actions button.is-primary {
+  background: var(--cy-accent);
+  color: var(--rb-text-on-pink);
+  border-color: var(--cy-accent);
+}

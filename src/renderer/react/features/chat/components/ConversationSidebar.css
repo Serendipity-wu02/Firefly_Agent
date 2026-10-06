@@ -305,3 +305,33 @@
   color: #ff7875;
   background: #fff1f0;
 }
+
+/* Preserve the existing palette unless custom colors are explicitly enabled. */
+:root[data-ui-colors] .cy-conversation-list .ant-conversations-item,
+:root[data-ui-colors] .cy-conversation-list .ant-conversations-group-title,
+:root[data-ui-colors] .cy-project-card__details dd {
+  color: var(--cy-text);
+}
+:root[data-ui-colors] .cy-conversation-sidebar__title,
+:root[data-ui-colors] .cy-project-card__details dt,
+:root[data-ui-colors] .cy-project-card__open:disabled {
+  color: var(--cy-text-muted);
+}
+:root[data-ui-colors] .cy-conversation-list .ant-conversations-item-active,
+:root[data-ui-colors] .cy-session-rename-input,
+:root[data-ui-colors] .cy-session-rename-input input,
+:root[data-ui-colors] .cy-project-popover .ant-popover-inner,
+:root[data-ui-colors] .cy-project-card__open,
+:root[data-ui-colors] .cy-session-context-menu,
+:root[data-ui-colors] .cy-session-context-menu .ant-menu {
+  background: var(--cy-bg-workspace);
+  color: var(--cy-text);
+  border-color: var(--cy-border);
+}
+:root[data-ui-colors] .cy-project-card__open:hover:not(:disabled) {
+  background: var(--cy-bg-hover);
+  color: var(--cy-text);
+}
+:root[data-ui-colors] .cy-project-card__open:disabled {
+  color: var(--cy-text-muted);
+}

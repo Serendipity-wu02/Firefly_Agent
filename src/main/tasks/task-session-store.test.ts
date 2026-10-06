@@ -109,3 +109,38 @@ describe("Firefly agent session store", () => {
     expect(restarted.get(sessionId)?.todoItems).toHaveLength(1);
   });
 });
+
+it("restart_preserves_unknown_write_and_exact_execution_evidence_without_fabricating_legacy_data", () => {
+  const { root, store } = fixture();
+  create(store);
+  const writes = [{ path: "fixture.txt", canonicalPath: path.join(workspace, "fixture.txt"), agentId: agent.id,
+    childRunId: "child-run-1", toolCallId: "write-1", state: "unknown" as const, before: { sha256: "a".repeat(64) }, eventIds: ["write-start"] }];
+  const executionEvents = [{ id: "event-1", seq: 1, monotonicMs: 2, clockDomainId: "synthetic-clock", agentId: agent.id,
+    parentRunId: "run-1", childRunId: "child-run-1", executionId: "request-1", phase: "start" as const }];
+  store.checkpoint(sessionId, { writes, executionEvents });
+  writes[0].eventIds.push("forged"); executionEvents[0].agentId = "forged";
+  const restarted = new TaskSessionStore(root);
+  expect(restarted.get(sessionId)).toMatchObject({ status: "interrupted", writes: [{ eventIds: ["write-start"], state: "unknown" }], executionEvents: [{ agentId: agent.id }] });
+  const resumed = restarted.resumeAgent(sessionId, { agent, parentConversationId: "conversation-1", parentRunId: "run-2", prompt: "Continue safely", mode: "code", resolvedWorkspaceRoot: workspace });
+  expect(resumed.writes?.[0].state).toBe("unknown");
+  expect(resumed.executionEvents?.[0].parentRunId).toBe("run-1");
+  const file = path.join(root, "firefly-tasks", "sessions", `${sessionId}.json`);
+  const legacy = JSON.parse(fs.readFileSync(file, "utf8")); delete legacy.writes; delete legacy.executionEvents;
+  fs.writeFileSync(file, JSON.stringify(legacy));
+  expect(store.get(sessionId)?.writes).toBeUndefined();
+  expect(store.get(sessionId)?.executionEvents).toBeUndefined();
+});
+
+it("rejects malformed and foreign task execution evidence without rewriting it", () => {
+  const { root, store } = fixture(); create(store);
+  const file = path.join(root, "firefly-tasks", "sessions", `${sessionId}.json`);
+  const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+  for (const invalid of [
+    { writes: [{ state: "applied" }] },
+    { executionEvents: [{ id: "e", seq: 1, monotonicMs: 1, clockDomainId: "clock", agentId: "foreign", parentRunId: "run", childRunId: "c", executionId: "x", phase: "start" }] },
+  ]) {
+    const malformed = JSON.stringify({ ...saved, ...invalid }); fs.writeFileSync(file, malformed);
+    expect(() => store.get(sessionId)).toThrow("TASK_SESSION_READ_FAILED");
+    expect(fs.readFileSync(file, "utf8")).toBe(malformed);
+  }
+});

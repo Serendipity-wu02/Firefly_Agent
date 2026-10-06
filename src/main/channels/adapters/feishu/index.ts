@@ -32,7 +32,7 @@ import {
   type SendInput,
   type EventName,
 } from "@larksuiteoapi/node-sdk";
-import type { ChannelAdapter } from "../base";
+import { createChannelMemoryAccountIdentity, type ChannelAdapter, type ChannelMemoryAccountIdentity } from "../base";
 import type {
   ChannelCapability,
   ChannelStatus,
@@ -255,8 +255,11 @@ export class FeishuAdapter implements ChannelAdapter {
   readonly displayName = "飞书";
   readonly capability = FEISHU_CAPABILITY;
   onMessage: MessageHandler | null = null;
+  private readonly memoryAccount = createChannelMemoryAccountIdentity();
 
   private channel: LarkChannel | null = null;
+  private generation = 0;
+  private memoryAppId = "";
   private status: ChannelStatus = { enabled: false, phase: "config_missing" };
   /** connect() 失败后的定时重建句柄；连接成功、停用或手动 rebuild 时清除 */
   private connectRetryTimer: NodeJS.Timeout | null = null;
@@ -281,8 +284,10 @@ export class FeishuAdapter implements ChannelAdapter {
       return null;
     }
 
+    const appId = settings.appId;
+    this.memoryAppId = appId;
     const ch = createLarkChannel({
-      appId: settings.appId,
+      appId,
       appSecret: settings.appSecret,
       domain: Domain.Feishu,
       loggerLevel: LoggerLevel.warn,
@@ -295,6 +300,7 @@ export class FeishuAdapter implements ChannelAdapter {
 
     // 绑定入站消息
     ch.on("message" as EventName, async (msg: NormalizedMessage) => {
+      if (this.channel !== ch) return;
       // 私聊 only（方案决策）
       if (msg.chatType !== "p2p") {
         console.log(LOG, `忽略 ${msg.chatType} 消息 (私聊优先)`);
@@ -302,7 +308,7 @@ export class FeishuAdapter implements ChannelAdapter {
       }
       try {
         const inMsg = await normalizeLarkMessage(ch, msg);
-        if (this.onMessage) {
+        if (this.channel === ch && this.onMessage) {
           await this.onMessage(inMsg);
         }
       } catch (err) {
@@ -312,15 +318,20 @@ export class FeishuAdapter implements ChannelAdapter {
 
     // 错误/重连事件
     ch.on("error" as EventName, (err: unknown) => {
+      if (this.channel !== ch) return;
       const msg = err instanceof Error ? err.message : String(err);
       console.error(LOG, "channel error:", msg);
       this.status = { enabled: true, phase: "error", message: msg };
     });
     ch.on("reconnecting" as EventName, () => {
+      if (this.channel !== ch) return;
+      this.memoryAccount.revoke();
       console.log(LOG, "reconnecting…");
       this.status = { enabled: true, phase: "starting", message: "重新连接中" };
     });
     ch.on("reconnected" as EventName, () => {
+      if (this.channel !== ch) return;
+      this.memoryAccount.authenticate(`feishu:${appId}`);
       console.log(LOG, "reconnected");
       this.status = { enabled: true, phase: "running", message: "已连接" };
     });
@@ -330,14 +341,26 @@ export class FeishuAdapter implements ChannelAdapter {
   }
 
   async start(): Promise<void> {
+    const generation = ++this.generation;
+    this.memoryAccount.revoke();
+    this.memoryAppId = "";
+    this.clearConnectRetryTimer();
     const ch = await this.rebuildChannel();
-    if (!ch) return;
+    if (!ch || generation !== this.generation || this.channel !== ch) return;
 
     try {
       await ch.connect();
+      if (generation !== this.generation || this.channel !== ch) {
+        // disconnect() during a pending SDK connect may finish before the connection does.
+        await ch.disconnect();
+        return;
+      }
+      this.memoryAccount.authenticate(`feishu:${this.memoryAppId}`);
       this.status = { enabled: true, phase: "running", message: "长连接已建立" };
       logger.info(LogTag.Feishu, "WS long connection ready");
     } catch (err) {
+      if (generation !== this.generation || this.channel !== ch) return;
+      this.memoryAccount.revoke();
       const msg = err instanceof Error ? err.message : String(err);
       console.error(LOG, "connect() failed:", msg);
       this.status = { enabled: true, phase: "error", message: msg };
@@ -350,10 +373,11 @@ export class FeishuAdapter implements ChannelAdapter {
   private scheduleConnectRetry(): void {
     if (this.connectRetryTimer) return;
     console.warn(LOG, "30 秒后自动重建连接");
+    const generation = this.generation;
     this.connectRetryTimer = setTimeout(() => {
       this.connectRetryTimer = null;
       // 到点时用户可能已停用飞书，停用状态下不再重建
-      if (!loadChannelsSettings().feishu.enabled) return;
+      if (generation !== this.generation || !loadChannelsSettings().feishu.enabled) return;
       void this.rebuild();
     }, 30_000);
   }
@@ -366,16 +390,31 @@ export class FeishuAdapter implements ChannelAdapter {
   }
 
   async stop(): Promise<void> {
+    this.generation++;
+    this.memoryAccount.revoke();
+    this.memoryAppId = "";
     this.clearConnectRetryTimer();
-    if (this.channel) {
+    const ch = this.channel;
+    this.channel = null;
+    this.status = { enabled: false, phase: "offline", message: "已停止" };
+    if (ch) {
       try {
-        await this.channel.disconnect();
+        await ch.disconnect();
       } catch (err) {
         console.warn(LOG, "disconnect 失败:", err);
       }
-      this.channel = null;
     }
-    this.status = { enabled: false, phase: "offline", message: "已停止" };
+  }
+
+  getMemoryAccountIdentity(): ChannelMemoryAccountIdentity | null {
+    const settings = loadChannelsSettings().feishu;
+    const state = this.channel?.getConnectionStatus?.()?.state;
+    // Ordinary message-processing errors do not invalidate a still-connected transport.
+    if (!settings.enabled || settings.appId !== this.memoryAppId || !settings.appSecret
+        || !this.channel || (state !== undefined && state !== "connected")) {
+      this.memoryAccount.revoke();
+    }
+    return this.memoryAccount.read();
   }
 
   getStatus(): ChannelStatus {
@@ -416,15 +455,9 @@ export class FeishuAdapter implements ChannelAdapter {
 
   /** 给外部：触发重建（用户改 AppID/Secret 后调用） */
   public async rebuild(): Promise<void> {
-    this.clearConnectRetryTimer();
-    if (this.channel) {
-      try {
-        await this.channel.disconnect();
-      } catch {
-        /* ignore */
-      }
-      this.channel = null;
-    }
-    await this.start();
+    const stopping = this.stop();
+    const generation = this.generation;
+    await stopping;
+    if (generation === this.generation) await this.start();
   }
 }

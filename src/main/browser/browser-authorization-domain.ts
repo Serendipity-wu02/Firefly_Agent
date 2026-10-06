@@ -66,6 +66,7 @@ function snapshotPolicy(policy?: BrowserDomainPolicy): BrowserAuthorizationDomai
 export function createBrowserAuthorizationDomainRegistry<S extends object>(options: {
   isOwnerCurrent(context: BrowserDomainContext): boolean;
   gateOpen?: boolean;
+  isContextAuthorized?(context: BrowserDomainContext): boolean;
 }): BrowserAuthorizationDomainRegistry<S> {
   const gateOpen = options.gateOpen === true;
   const verifyOwner = options.isOwnerCurrent;
@@ -73,7 +74,7 @@ export function createBrowserAuthorizationDomainRegistry<S extends object>(optio
   const live = new Set<BrowserAuthorizationDomain<S>>();
   function ownerCurrent(context: BrowserDomainContext): boolean {
     try {
-      return gateOpen && !context.signal.aborted && Number.isSafeInteger(context.generation) && context.generation >= 0
+      return (gateOpen || options.isContextAuthorized?.(context) === true) && !context.signal.aborted && Number.isSafeInteger(context.generation) && context.generation >= 0
         && !!context.conversationId && !!context.browserId && verifyOwner(context) === true;
     } catch { return false; }
   }

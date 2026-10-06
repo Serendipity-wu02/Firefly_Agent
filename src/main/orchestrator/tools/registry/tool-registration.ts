@@ -1,3 +1,5 @@
+import { registerBrowserWorkspaceTool } from "../browser-workspace-tool";
+import type { BrowserWorkspaceExecutor } from "../../../browser/browser-workspace-executor";
 import { loadGeneralSettings } from "../../../settings/settings-facade";
 import { loadModelSettings } from "../../../settings/model-settings";
 import type { GeneralSettings } from "../../../settings/general-settings";
@@ -24,7 +26,9 @@ export function syncBuiltInToolToggles(settings: GeneralSettings): void {
   toolRegistry.setEnabled("plan_trip", settings.travelEnabled);
 }
 
-export function registerAllTools(deps: { codeGitService: GitService; lspManager: LspManager }): void {
+export function registerAllTools(deps: { codeGitService: GitService; lspManager: LspManager; browserWorkspace?: BrowserWorkspaceExecutor; personalMemoryMode?: "legacy" | "smh" }): void {
+  toolRegistry.setPersonalMemoryMode(deps.personalMemoryMode ?? "legacy");
+  registerBrowserWorkspaceTool(deps.browserWorkspace ?? (async () => ({ ok: false, code: "network_unavailable" })), toolRegistry);
   registerObsidianTools();
   registerCodeGitTools(deps.codeGitService, toolRegistry);
   registerLspTool(deps.lspManager, toolRegistry);
@@ -32,7 +36,7 @@ export function registerAllTools(deps: { codeGitService: GitService; lspManager:
   registerSearchTextTool();
   registerApplyPatchTool();
   registerAstGrepTools();
-  registerRecallHistoryTool();
+  registerRecallHistoryTool({ personalMemoryMode: deps.personalMemoryMode });
   registerDocumentTools();
 
   setTranslateConfig(() => {

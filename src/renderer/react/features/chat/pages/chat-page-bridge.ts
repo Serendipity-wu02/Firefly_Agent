@@ -103,6 +103,7 @@ export interface AguiEvent {
   stepName?: string;
   status?: string;
   changes?: ToolFileChange[];
+  taskResult?: import("../../../../../shared/chat-types").ToolTaskResult;
 }
 
 /** Harness 正文候选事件：只驱动本次运行的临时预览，不代表正式消息提交。 */

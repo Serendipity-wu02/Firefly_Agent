@@ -151,3 +151,36 @@ it('local H retrieval rejects spoofed model providers before corpus access or fa
  const f=fixture(),embedding={name:'local-bge-m3',dims:1024,embed:async()=>[],embedBatch:async()=>[]},reranker={name:'bge-reranker-base',rerank:async()=>[]};
  expect(()=>createMainHistory({actorAuthority:f.authority,registry:f.registry,transport:f.transport,localRetrieval:{embedding,reranker}})).toThrow('MEMORY_HISTORY_VECTOR_DENIED');
 });
+
+async function historyAcrossSessions(){
+ const f=fixture();await capture(f,'cat current conversation');
+ const identity={...f.identity,sessionId:'session-b',messageId:'history-b'},other=f.authority.bindActor(f.access,f.provider.adapter,identity);
+ f.provider.write(identity,{text:'cat earlier conversation',role:'user',trust:'direct-user-event'});
+ const ref=await f.registry.capture(f.access,f.provider.adapter,identity);
+ await f.history.captureSource(other,ref,{documentId:'earlier-history',incarnation:'v1',revision:1});
+ return {...f,other};
+}
+it('can grant only explicitly authorized other sessions without current S in H dependencies',async()=>{
+ const f=await historyAcrossSessions(),scope=f.history.grantSessions(f.actor,[f.other],{includeCurrent:false});
+ const result=await f.history.query(f.actor,{query:'cat',scope});
+ expect(result.hits).toHaveLength(1);expect(result.hits[0].document.sessionId).toBe('session-b');
+ expect(readHistoryEvidence(f.authority,f.actor,result.evidence).dependencies.map(dependency=>dependency.partition)).toEqual([{actorKey:'actor-a',sessions:[{providerId:'synthetic',sessionId:'session-b'}]}]);
+});
+it.each([undefined,{}, {includeCurrent:true}])('keeps the default current-session grant with options %j',async options=>{
+ const f=await historyAcrossSessions(),scope=f.history.grantSessions(f.actor,[f.other],options);
+ const result=await f.history.query(f.actor,{query:'cat',scope});
+ expect(result.hits.map(hit=>hit.document.sessionId).sort()).toEqual(['session-a','session-b']);
+ for(const dependency of readHistoryEvidence(f.authority,f.actor,result.evidence).dependencies)expect(dependency.partition.sessions).toEqual([{providerId:'synthetic',sessionId:'session-a'},{providerId:'synthetic',sessionId:'session-b'}]);
+});
+it('rejects an explicitly empty historical session scope before querying the worker',()=>{
+ const f=fixture();expect(()=>f.history.grantSessions(f.actor,[],{includeCurrent:false})).toThrow('MEMORY_HISTORY_ACCESS_DENIED');
+});
+it('other-session-only grants keep scope, actor, temporary and opaque capability checks',async()=>{
+ const f=fixture(),crossScope=await secondScope(f),temporary=f.authority.bindActor(f.access,f.provider.adapter,{...f.identity,sessionId:'temporary'},{sessionMode:'temporary'});
+ expect(()=>f.history.grantSessions(f.actor,[crossScope.actor],{includeCurrent:false})).toThrow('MEMORY_HISTORY_ACCESS_DENIED');
+ expect(()=>f.history.grantSessions(f.actor,[temporary],{includeCurrent:false})).toThrow('MEMORY_HISTORY_TEMPORARY_DENIED');
+ expect(()=>f.history.grantSessions(f.actor,[{...f.actor}],{includeCurrent:false})).toThrow('MEMORY_ACTOR_DENIED');
+ const authority=createMainActorAuthority({resolveActor:(_scope,identity)=>identity.sessionId==='session-a'?'actor-a':'actor-b'}),registry=createMainSourceRegistry(f.transport,{coordinate:authority.coordinate}),access=registry.authority.access('scope-a');
+ const history=createMainHistory({actorAuthority:authority,registry,transport:f.transport}),owner=authority.bindActor(access,f.provider.adapter,f.identity),foreign=authority.bindActor(access,f.provider.adapter,{...f.identity,sessionId:'session-b'});
+ expect(()=>history.grantSessions(owner,[foreign],{includeCurrent:false})).toThrow('MEMORY_HISTORY_ACCESS_DENIED');
+});

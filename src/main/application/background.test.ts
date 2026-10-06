@@ -122,3 +122,18 @@ describe("startBackground", () => {
     expect(deps.readiness.getPhase()).toBe("stopped");
   });
 });
+it("waits for asynchronous proactive and scheduler teardown before final shutdown",async()=>{
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ const deps=makeBackgroundDeps([],{startProactiveTrigger:async()=>({dispose:async()=>{started();await gate}})});
+ let schedulerRelease!:()=>void,schedulerStarted!:()=>void;const schedulerGate=new Promise<void>(r=>schedulerRelease=r),schedulerReady=new Promise<void>(r=>schedulerStarted=r);
+ deps.scheduler.stop.mockImplementation(async()=>{schedulerStarted();await schedulerGate});
+ const background=startBackground(deps);await background.settled;const finalAction=vi.fn(),stopping=deps.shutdown.requestControlledShutdown({reason:"test",finalAction});
+ await ready;await new Promise<void>(r=>setImmediate(r));expect(finalAction).not.toHaveBeenCalled();release();await schedulerReady;await new Promise<void>(r=>setImmediate(r));expect(finalAction).not.toHaveBeenCalled();schedulerRelease();await stopping;expect(finalAction).toHaveBeenCalledOnce();
+});
+it("drains an asynchronously disposed late resource before runner.stop resolves",async()=>{
+ let finishTask!:(value:{dispose():Promise<void>})=>void,release!:()=>void,started!:()=>void;
+ const task=new Promise<{dispose():Promise<void>}>(r=>finishTask=r),gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ const runner=createBackgroundTaskRunner(),running=runner.run("late-async",async()=>task);let stopped=false;
+ const closing=runner.stop().then(()=>{stopped=true});finishTask({dispose:async()=>{started();await gate}});await ready;
+ await new Promise<void>(r=>setImmediate(r));expect(stopped).toBe(false);release();await running;await closing;expect(stopped).toBe(true);
+});

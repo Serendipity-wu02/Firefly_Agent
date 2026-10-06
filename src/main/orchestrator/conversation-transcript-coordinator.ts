@@ -23,8 +23,8 @@ export interface TranscriptRewindRequest {
 }
 
 /** UI 消息的模型侧文本：优先 modelContext（拼入模型上下文的版本），兜底气泡文本。 */
-function modelText(message: UiChatMessage): string {
-  return message.modelContext?.trim() || message.content;
+function modelText(message: UiChatMessage, forceUserContent = false): string {
+  return forceUserContent ? message.content : message.modelContext?.trim() || message.content;
 }
 
 /** UI 附件只保留稳定元数据；previewUrl / status 等瞬态字段不落轨迹。 */
@@ -48,6 +48,8 @@ export async function prepareTranscriptDispatch(input: {
   assistantTurnId?: string;
   runId: string;
   rewind?: TranscriptRewindRequest;
+  /** Main default S: renderer modelContext is never a direct user event. */
+  forceUserContent?: boolean;
 }): Promise<void> {
   const { store, session, userTurnId, runId, rewind } = input;
   const currentUser = session.messages.find(
@@ -97,13 +99,13 @@ export async function prepareTranscriptDispatch(input: {
             kind: "user",
             turnId: message.id,
             revision: 1,
-            payload: { text: modelText(message), attachments: stableAttachments(message) },
+            payload: { text: modelText(message, input.forceUserContent), attachments: stableAttachments(message) },
           }
         : {
             id: entryId,
             at: message.at,
             kind: "assistant",
-            payload: { role: "assistant", content: modelText(message) },
+            payload: { role: "assistant", content: modelText(message, input.forceUserContent) },
           };
       const appended = await store.append(session.id, draft);
       seenIds.add(appended.id);
@@ -142,7 +144,7 @@ export async function prepareTranscriptDispatch(input: {
             disposition: "replace_user",
             reason: "edit",
             replacementUser: {
-              text: modelText(currentUser),
+              text: modelText(currentUser, input.forceUserContent),
               attachments: stableAttachments(currentUser),
             },
           },
@@ -175,6 +177,6 @@ export async function prepareTranscriptDispatch(input: {
     kind: "user",
     turnId: userTurnId,
     revision: 1,
-    payload: { text: modelText(currentUser), attachments: stableAttachments(currentUser) },
+    payload: { text: modelText(currentUser, input.forceUserContent), attachments: stableAttachments(currentUser) },
   });
 }

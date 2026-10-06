@@ -1,3 +1,4 @@
+import {assertContextSecretFree} from "./source-secret-screen";
 import {readHistoryEvidence,validateHistoryEvidence,claimHistoryResponseEvidence,type HistoryResponseBinding,type HistoryResponseEvidence} from "../memory-history/main-history";
 import {createHash,randomUUID} from "node:crypto";
 import {canonicalJson} from "../memory-core/repository-types";
@@ -8,13 +9,15 @@ import type {MainActorAuthority,MainActorContext} from "../memory-core/main-acto
 import type {createMainSourceRegistry} from "../memory-sources/source-registry";
 import {extractMaintenance} from "../memory-policy/maintenance-extractor";
 import {policySubjectKey} from "../memory-policy/policy-repository";
-import {ContextError,contextFail,CONTEXT_CLAIM_WINDOW_MS,type ContextBudget,type TokenCounter,type ContextUnit,type PreparedRequest,type BudgetResult,type ContextTransport,type SourceDependency,type FactDependency,type TranscriptDependency,type StoredSummary,type SummaryReceipt,type SummarySegment} from "./context-contracts";
-import {selectBudget,requestDigest,freezeRequest,countPrepared} from "./token-budget";
+import {ContextError,contextFail,CONTEXT_CLAIM_WINDOW_MS,type ContextBudget,type TokenCounter,type ContextUnit,type PreparedRequest,type BudgetResult,type ContextTransport,type SourceDependency,type FactDependency,type TranscriptDependency,type StoredSummary,type SummaryReceipt,type SummaryCounting,type SummarySegment} from "./context-contracts";
+import {selectBudget,requestDigest,freezeRequest,countPrepared,countPreparedForAdmission} from "./token-budget";
 import {parseCanonicalTranscript,requireMainTranscriptProvider,type TranscriptEventSource} from "./main-transcript-provider";
 import type {TranscriptEntry} from "../orchestrator/conversation-transcript-types";
 import type {ContextFact} from "./context-contracts";
 
 interface ContextOptions {
+ /** Main run grant must authorize each source before source-provider I/O. */
+ authorizeSourceRead?:(actor:MainActorContext,ref:BoundSourceRef)=>void;
  clock?:()=>number;
  /** Set only when prepare serializes exact support provenance into the counted body. */
  includeFactSupportMetadata?:boolean;
@@ -30,7 +33,7 @@ interface SnapshotState {actorToken:object;actor:MainActorContext;units:ContextU
 interface HistoryContinuation {cap:object;state:SnapshotState;binding:HistoryResponseBinding;evidence:HistoryResponseEvidence[];phase:number;active:boolean;ticket?:object;observed:boolean;receipt?:object}
 interface PermitState {snapshot:SnapshotState;id:string;used:boolean}
 interface TranscriptState {actorToken:object;ref:TranscriptDependency;unit:ContextUnit;sourceRefs:BoundSourceRef[];adapter:object;locator:string;guardRefs:TranscriptDependency[];provenance?:TranscriptEventSource[];firstSeq?:number;lastSeq?:number}
-interface LeaseState {actorToken:object;id:string;summaryId:string;commandId:string;inputRefs:BoundSourceRef[];transcripts?:TranscriptState[];inputTranscriptRefs?:TranscriptDependency[];beforeUnits?:ContextUnit[]}
+interface LeaseState {actorToken:object;id:string;summaryId:string;commandId:string;inputRefs:BoundSourceRef[];transcripts?:TranscriptState[];inputTranscriptRefs?:TranscriptDependency[];beforeUnits?:ContextUnit[];signal?:AbortSignal;includeCounting?:boolean}
 /** Isolated Main seam; no IPC, product caller, account request or prompt dump. */
 export function createMainContext(options:ContextOptions){
  if(options.registry.coordinator!==options.actorAuthority.coordinate)contextFail("MEMORY_CONTEXT_COORDINATOR_REQUIRED");
@@ -46,7 +49,7 @@ export function createMainContext(options:ContextOptions){
   const ref=parseSourceRef(value);if(!ref.binding||ref.span||ref.binding.providerId!==a.providerId||ref.binding.sessionId!==a.sessionId)contextFail("MEMORY_CONTEXT_ACCESS_DENIED");requireMainAccess(a.access).verifySource(ref);return ref as BoundSourceRef;
  }
  async function readSource(a:MainActorContext,ref:BoundSourceRef):Promise<string>{
-  try{return await options.registry.readEvidence(a.access,a.adapter,ref)}catch(error){if(error instanceof Error&&/^MEMORY_[A-Z0-9_]{1,100}$/.test(error.message))throw error;contextFail("MEMORY_CONTEXT_SOURCE_READ_FAILED")}
+  try{options.authorizeSourceRead?.(a,ref);return await options.registry.readEvidence(a.access,a.adapter,ref)}catch(error){if(error instanceof Error&&/^MEMORY_[A-Z0-9_]{1,100}$/.test(error.message))throw error;contextFail("MEMORY_CONTEXT_SOURCE_READ_FAILED")}
  }
  async function readFactSupports(a:MainActorContext,facts:ContextFact[]):Promise<void>{
   if(!includeFactSupportMetadata)return;
@@ -64,7 +67,8 @@ export function createMainContext(options:ContextOptions){
   async function read(ref:BoundSourceRef):Promise<void>{
    const existing=deps.find(d=>d.sourceRef.sourceId===ref.sourceId);if(existing){if(canonicalJson(existing.sourceRef)!==canonicalJson(ref))contextFail("MEMORY_SOURCE_STALE");return}if(deps.length>=1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
    const text=await readSource(a,ref),verified=options.registry.resolveVerifiedSource(ref),parsed=extractMaintenance(text),origins=options.resolveDerivedRefs?.(ref)??null;
-   deps.push({sourceRef:ref,subjectKeys:parsed.kind==="claims"?parsed.claims.map(c=>policySubjectKey(a.actorKey,c.attribute,c.context,c.cardinality,c.value)):null,derivedRefs:origins?origins.map(v=>checkedRef(a,v)):null,...(parsed.kind==="rejected"?{excludeReason:"secret" as const}:{})});messages.set(ref.sourceId,{role:verified.kind,text});
+   let secret=false;try{assertContextSecretFree(text)}catch(error){if(error instanceof Error&&error.message==="MEMORY_CONTEXT_TRANSCRIPT_SECRET")secret=true;else throw error}
+   deps.push({sourceRef:ref,subjectKeys:parsed.kind==="claims"?parsed.claims.map(c=>policySubjectKey(a.actorKey,c.attribute,c.context,c.cardinality,c.value)):null,derivedRefs:origins?origins.map(v=>checkedRef(a,v)):null,...(secret?{excludeReason:"secret" as const}:{})});messages.set(ref.sourceId,{role:verified.kind,text});
    for(const origin of origins??[])await read(checkedRef(a,origin));
   }
   for(const ref of refs)await read(ref);return {deps,messages};
@@ -79,27 +83,73 @@ export function createMainContext(options:ContextOptions){
    if(state.firstSeq===undefined||state.lastSeq===undefined||state.firstSeq<=seq)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");seq=state.lastSeq;
   }
  }
- async function prepareTranscriptSummary(token:object,input:{sessionId:string;transcriptTokens?:object[];summaryIds?:string[];inputRefs?:BoundSourceRef[];leaseMs:number}):Promise<object>{
-  if(options.budget.admissionMode==="bounded")contextFail("MEMORY_CONTEXT_BOUNDED_SUMMARY_UNSUPPORTED");
+ /** Recheck persisted summary dependencies after canonical recapture, without issuing a new lease. */
+ async function validateSummaryIds(token:object,ids:string[],signal?:AbortSignal):Promise<{availableIds:string[];excluded:Array<{sourceId:string;reason:string}>}>{
+  const a=actor(token);if(!Array.isArray(ids)||ids.length>1000||new Set(ids).size!==ids.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+  const availableIds:string[]=[],excluded:Array<{sourceId:string;reason:string}>=[];
+  for(const id of ids){
+   if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+   const result=await command<{available:boolean;reason?:string;summary?:StoredSummary}>(a,"summaryGet",{summaryId:parseInternalId(id)});
+   if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+   if(!result.available){excluded.push({sourceId:id,reason:result.reason??"MEMORY_CONTEXT_SOURCE_UNAVAILABLE"});continue}
+   const summary=result.summary!;
+   if(!summary.transcriptRefs?.length||!summary.transcriptSegments?.length)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");
+   try{statesForSummary(token,summary)}catch(error){
+    if(!(error instanceof Error)||!/^MEMORY_CONTEXT_TRANSCRIPT_(DENIED|STALE)$/.test(error.message))throw error;
+    excluded.push({sourceId:id,reason:error.message});continue;
+   }
+   availableIds.push(id);
+  }
+  actor(token);return {availableIds,excluded};
+ }
+ async function prepareTranscriptSummary(token:object,input:{sessionId:string;transcriptTokens?:object[];summaryIds?:string[];inputRefs?:BoundSourceRef[];leaseMs:number},signal?:AbortSignal):Promise<object>{
+  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
   const a=actor(token);if(input.sessionId!==a.sessionId)contextFail("MEMORY_ACTOR_DENIED");
   if(input.inputRefs?.length||!Array.isArray(input.transcriptTokens)||input.transcriptTokens.length>1000||!Array.isArray(input.summaryIds??[])||(input.summaryIds??[]).length>1000)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");
   const prior:StoredSummary[]=[];
   for(const id of input.summaryIds??[]){const result=await command<{available:boolean;summary?:StoredSummary}>(a,"summaryGet",{summaryId:parseInternalId(id)});if(!result.available)contextFail("MEMORY_CONTEXT_SOURCE_UNAVAILABLE");if(!result.summary!.transcriptSegments?.length)contextFail("MEMORY_CONTEXT_ORDER_REQUIRED");prior.push(result.summary!)}
-  const earlier=prior.flatMap(s=>statesForSummary(token,s)),recent=input.transcriptTokens.map(cap=>transcriptState(token,cap));
+  const earlier=prior.flatMap(s=>statesForSummary(token,s)),covered=new Map(earlier.map(state=>[state.ref.headId,state.ref]));
+  const recent=input.transcriptTokens.map(cap=>transcriptState(token,cap)).filter(state=>{const old=covered.get(state.ref.headId);if(!old)return true;if(canonicalJson(old)!==canonicalJson(state.ref))contextFail("MEMORY_CONTEXT_TRANSCRIPT_STALE");return false});
   const all=[...earlier,...recent];if(!all.length||all.length>1000||new Set(all.map(s=>s.ref.headId)).size!==all.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");ordered(all);
   const selectable=[...prior.flatMap(s=>s.transcriptSegments!.map(ref=>earlier.find(state=>canonicalJson(state.ref)===canonicalJson(ref))!)),...recent];ordered(selectable);
   const refs=[...new Map(all.flatMap(s=>s.sourceRefs).map(ref=>[ref.sourceId,ref])).values()],transcriptRefs=all.map(s=>s.ref),guardRefs=[...new Map(all.flatMap(s=>s.guardRefs).map(ref=>[ref.headId,ref])).values()];
   const baseline=await command<{generation:number}>(a,"baseline",{sourceRefs:refs,factRefs:[],transcriptRefs,guardRefs}),data=await corpus(a,refs);
   if(data.deps.some(d=>d.excludeReason))contextFail("MEMORY_CONTEXT_SUMMARY_SECRET");
-  const id=randomUUID();await options.actorAuthority.coordinate(()=>command(a,"summaryLease",{leaseId:id,generation:baseline.generation,sourceDeps:data.deps,inputRefs:[],transcriptRefs,inputTranscriptRefs:selectable.map(s=>s.ref),guardRefs,leaseMs:input.leaseMs},randomUUID()));
-  const cap=Object.freeze({});leases.set(cap,{actorToken:token,id,summaryId:randomUUID(),commandId:randomUUID(),inputRefs:[],transcripts:all,inputTranscriptRefs:selectable.map(s=>s.ref),beforeUnits:[...prior.map(summary=>({id:summary.id,kind:"summary" as const,messages:summary.transcriptSegments!.flatMap(ref=>structuredClone(earlier.find(s=>canonicalJson(s.ref)===canonicalJson(ref))!.unit.messages))})),...recent.map(s=>structuredClone(s.unit))]});return cap;
+  const id=randomUUID();await options.actorAuthority.coordinate(()=>{if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");return command(a,"summaryLease",{leaseId:id,generation:baseline.generation,sourceDeps:data.deps,inputRefs:[],transcriptRefs,inputTranscriptRefs:selectable.map(s=>s.ref),guardRefs,leaseMs:input.leaseMs,counterIdentity:options.counter.capability,...(options.budget.admissionMode==="bounded"?{admissionMode:"bounded"}:{})},randomUUID())});
+  const cap=Object.freeze({});leases.set(cap,{actorToken:token,id,summaryId:randomUUID(),commandId:randomUUID(),inputRefs:[],signal,transcripts:all,inputTranscriptRefs:selectable.map(s=>s.ref),beforeUnits:[...prior.map(summary=>({id:summary.id,kind:"summary" as const,messages:summary.transcriptSegments!.flatMap(ref=>structuredClone(earlier.find(s=>canonicalJson(s.ref)===canonicalJson(ref))!.unit.messages))})),...recent.map(s=>structuredClone(s.unit))]});return cap;
  }
- async function readSummaryInput(token:object,value:object):Promise<Array<{transcriptRef:TranscriptDependency;messages:ContextUnit["messages"]}>>{
+ async function readSummaryInput(token:object,value:object,signal?:AbortSignal):Promise<Array<{transcriptRef:TranscriptDependency;messages:ContextUnit["messages"]}>>{
   const a=actor(token),lease=leases.get(value);if(!lease||lease.actorToken!==token||!lease.transcripts)contextFail("MEMORY_CONTEXT_LEASE_DENIED");
-  await command(a,"summaryLeaseRead",{leaseId:lease.id});
+  checkSummaryCancellation(lease,signal);await command(a,"summaryLeaseRead",{leaseId:lease.id});checkSummaryCancellation(lease,signal);
   return lease.inputTranscriptRefs!.map(ref=>({transcriptRef:structuredClone(ref),messages:structuredClone(lease.transcripts!.find(s=>canonicalJson(s.ref)===canonicalJson(ref))!.unit.messages)}));
  }
- async function commitTranscriptSummary(token:object,lease:LeaseState,proposal:unknown):Promise<SummaryReceipt>{
+ function checkSummaryCancellation(lease:LeaseState,signal?:AbortSignal):void {if(lease.signal?.aborted||signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED")}
+ function summaryCounting(before:number,after:number):SummaryCounting {
+  const framingVersion=options.counter.capability.framingVersion;
+  return options.budget.admissionMode==="bounded"?{mode:"estimate",framingVersion,estimatedBeforeTokens:before,estimatedAfterTokens:after}:{mode:"exact",framingVersion,beforeTokens:before,afterTokens:after};
+ }
+ async function selectSummaryInput(token:object,value:object,signal?:AbortSignal):Promise<{segments:Array<{transcriptRef:TranscriptDependency}>|null;counting:SummaryCounting}>{
+  const input=await readSummaryInput(token,value,signal),lease=leases.get(value)!;
+  lease.includeCounting=true;
+  const initialConfiguration=configuration(),budget=structuredClone(options.budget);
+  if(!Number.isSafeInteger(budget.maxSTokens)||budget.maxSTokens<0||!Number.isSafeInteger(budget.minRecentCompleteTurns)||budget.minRecentCompleteTurns<0)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
+  const count=(units:ContextUnit[])=>countPreparedForAdmission(options.counter,options.prepareS(structuredClone(units)),budget,signal??lease.signal);
+  const before=await count(lease.beforeUnits!);
+  let selected=input,after=before;
+  if(before>budget.maxSTokens){
+   const minimum=Math.max(1,budget.minRecentCompleteTurns);
+   while(selected.length>minimum){
+    selected=selected.slice(1);
+    after=await count([{id:lease.summaryId,kind:"summary",messages:selected.flatMap(unit=>unit.messages)}]);
+    if(after<before&&after<=budget.maxSTokens)break;
+   }
+  }
+  checkSummaryCancellation(lease,signal);
+  if(configuration()!==initialConfiguration)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
+  await readSummaryInput(token,value,signal);
+  return {segments:after<before&&after<=budget.maxSTokens?selected.map(unit=>({transcriptRef:unit.transcriptRef})):null,counting:summaryCounting(before,after)};
+ }
+ async function commitTranscriptSummary(token:object,lease:LeaseState,proposal:unknown,signal?:AbortSignal):Promise<SummaryReceipt>{
   const a=actor(token),parsed=objectFields(proposal,["segments"]);if(!Array.isArray(parsed.segments)||parsed.segments.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");let previous=-1;
   const selected=parsed.segments.map(raw=>{const segment=objectFields(raw,["transcriptRef"]),index=lease.inputTranscriptRefs!.findIndex(ref=>canonicalJson(ref)===canonicalJson(segment.transcriptRef));if(index<0||index<=previous)contextFail("MEMORY_CONTEXT_SUMMARY_ORDER_INVALID");previous=index;return lease.inputTranscriptRefs![index]});
   const intent=createHash("sha256").update(canonicalJson(selected)).digest("hex"),state=await command<{receipt?:SummaryReceipt}>(a,"summaryLeaseState",{leaseId:lease.id,intent});if(state.receipt)return state.receipt;
@@ -107,25 +157,28 @@ export function createMainContext(options:ContextOptions){
   await refresh();
   const beforeUnits=lease.beforeUnits!,afterUnits:ContextUnit[]=selected.length?[{id:lease.summaryId,kind:"summary",messages:selected.flatMap(ref=>structuredClone(lease.transcripts!.find(s=>canonicalJson(s.ref)===canonicalJson(ref))!.unit.messages))}]:[];
   const initialConfiguration=configuration(),beforeRequest=freezeRequest(options.prepareS(structuredClone(beforeUnits))),afterRequest=freezeRequest(options.prepareS(structuredClone(afterUnits)));
-  const beforeTokens=await countPrepared(options.counter,beforeRequest),afterTokens=await countPrepared(options.counter,afterRequest);
-  await refresh();
+  const beforeTokens=await countPreparedForAdmission(options.counter,beforeRequest,options.budget,signal??lease.signal),afterTokens=await countPreparedForAdmission(options.counter,afterRequest,options.budget,signal??lease.signal);
+  checkSummaryCancellation(lease,signal);await refresh();
   const result=await options.actorAuthority.coordinate(()=>{
+   checkSummaryCancellation(lease,signal);
    if(configuration()!==initialConfiguration||requestDigest(freezeRequest(options.prepareS(structuredClone(beforeUnits))))!==requestDigest(beforeRequest)||requestDigest(freezeRequest(options.prepareS(structuredClone(afterUnits))))!==requestDigest(afterRequest))contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
-   return command<{receipt:SummaryReceipt}>(a,"summaryCommit",{leaseId:lease.id,intent,summaryId:lease.summaryId,segments:[],transcriptSegments:selected,beforeTokens,afterTokens,summaryLimit:options.budget.maxSTokens},lease.commandId)
+   return command<{receipt:SummaryReceipt}>(a,"summaryCommit",{leaseId:lease.id,intent,summaryId:lease.summaryId,segments:[],transcriptSegments:selected,counterIdentity:options.counter.capability,...(options.budget.admissionMode==="bounded"?{admissionMode:"bounded",estimates:{estimatedBeforeTokens:beforeTokens,estimatedAfterTokens:afterTokens}}:{beforeTokens,afterTokens}),...(lease.includeCounting?{includeCounting:true}:{}),summaryLimit:options.budget.maxSTokens},lease.commandId)
   });return result.receipt;
  }
- async function prepareSummary(token:object,input:{sessionId:string;inputRefs?:BoundSourceRef[];transcriptTokens?:object[];summaryIds?:string[];leaseMs:number}):Promise<object>{
+ async function prepareSummary(token:object,input:{sessionId:string;inputRefs?:BoundSourceRef[];transcriptTokens?:object[];summaryIds?:string[];leaseMs:number},signal?:AbortSignal):Promise<object>{
+  if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+  if(input.transcriptTokens!==undefined||input.summaryIds?.length)return prepareTranscriptSummary(token,input,signal);
   if(options.budget.admissionMode==="bounded")contextFail("MEMORY_CONTEXT_BOUNDED_SUMMARY_UNSUPPORTED");
-  if(input.transcriptTokens!==undefined||input.summaryIds?.length)return prepareTranscriptSummary(token,input);
   const a=actor(token);if(input.sessionId!==a.sessionId)contextFail("MEMORY_ACTOR_DENIED");if(!Array.isArray(input.inputRefs)||!input.inputRefs.length||input.inputRefs.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const refs=input.inputRefs!.map(v=>checkedRef(a,v));if(new Set(refs.map(r=>r.sourceId)).size!==refs.length)contextFail("MEMORY_CONTEXT_INPUT_INVALID");
   const baseline=await command<{generation:number}>(a,"baseline",{sourceRefs:refs,factRefs:[]}),data=await corpus(a,refs);if(data.deps.some(d=>d.excludeReason))contextFail("MEMORY_CONTEXT_SUMMARY_SECRET");
   const id=randomUUID();await options.actorAuthority.coordinate(()=>command(a,"summaryLease",{leaseId:id,generation:baseline.generation,sourceDeps:data.deps,inputRefs:refs,leaseMs:input.leaseMs},randomUUID()));
   const cap=Object.freeze({});leases.set(cap,{actorToken:token,id,summaryId:randomUUID(),commandId:randomUUID(),inputRefs:refs});return cap;
  }
- async function commitSummary(token:object,value:object,proposal:unknown):Promise<SummaryReceipt>{
+ async function commitSummary(token:object,value:object,proposal:unknown,signal?:AbortSignal):Promise<SummaryReceipt>{
   const a=actor(token),lease=leases.get(value);if(!lease||lease.actorToken!==token)contextFail("MEMORY_CONTEXT_LEASE_DENIED");
-  if(lease.transcripts)return commitTranscriptSummary(token,lease,proposal);
+  checkSummaryCancellation(lease,signal);
+  if(lease.transcripts)return commitTranscriptSummary(token,lease,proposal,signal);
   const parsed=objectFields(proposal,["segments"]);if(!Array.isArray(parsed.segments)||parsed.segments.length>1000)contextFail("MEMORY_CONTEXT_INPUT_INVALID");let previous=-1;
   const requested=parsed.segments.map(raw=>{const s=objectFields(raw,["sourceRef","span"]),ref=parseSourceRef(s.sourceRef),span=objectFields(s.span,["start","end"]),index=lease.inputRefs.findIndex(r=>canonicalJson(r)===canonicalJson(ref));if(index<0||index<=previous)contextFail("MEMORY_CONTEXT_SUMMARY_ORDER_INVALID");previous=index;if(!Number.isSafeInteger(span.start)||!Number.isSafeInteger(span.end)||(span.start as number)<0||(span.end as number)<=(span.start as number))contextFail("MEMORY_SOURCE_SPAN_INVALID");return {sourceRef:ref as BoundSourceRef,span:{start:span.start as number,end:span.end as number}}});
   const intent=createHash("sha256").update(canonicalJson(requested)).digest("hex"),state=await command<{receipt?:SummaryReceipt}>(a,"summaryLeaseState",{leaseId:lease.id,intent});if(state.receipt)return state.receipt;
@@ -146,8 +199,7 @@ export function createMainContext(options:ContextOptions){
    await options.actorAuthority.coordinate(()=>command(a,"transcriptReserve",{generation:baseline.generation,headId,operationId,expectedRef:null},randomUUID()));
    const first=parseCanonicalTranscript(await read()),snapshot=parseCanonicalTranscript(await read());
    if(canonicalJson(first)!==canonicalJson(snapshot))contextFail("MEMORY_CONTEXT_TRANSCRIPT_CHANGED");
-   const strings=snapshot.unit.messages.flatMap(message=>[message.text,message.name??"",...(message.toolCalls??[]).flatMap(call=>[call.name,call.arguments])]);
-   if(strings.some(text=>extractMaintenance(text).kind==="rejected"))contextFail("MEMORY_CONTEXT_TRANSCRIPT_SECRET");
+   assertContextSecretFree(snapshot.unit.messages);
    const {view,...content}=snapshot;
    const refs=snapshot.sourceRefs.map(ref=>checkedRef(a,ref)),digest=createHash("sha256").update(canonicalJson(content)).digest("hex"),guardRefs:TranscriptDependency[]=[];
    if(view){
@@ -327,6 +379,25 @@ export function createMainContext(options:ContextOptions){
    return write();
   });
  }
+ const networkAttempts=new WeakSet<object>();
+ /** Final network invocation, after SDK serialization. Never hold the queue for I/O settlement. */
+ async function invokeClaimedRequest<T>(token:object,value:object,send:()=>Promise<T>,signal:AbortSignal|undefined,check:()=>void):Promise<T>{
+  const state=snapshotState(token,value);
+  // A synchronous SDK callback may enter before dispatch records claimed=true.
+  // Wait for that admission operation and its durable confirmation to settle.
+  await options.actorAuthority.coordinate(()=>undefined);
+  if(!state.claimed)contextFail("MEMORY_CONTEXT_PERMIT_DENIED");
+  if(networkAttempts.has(value))contextFail("MEMORY_CONTEXT_PERMIT_USED");
+  networkAttempts.add(value);
+  await validateResponse(token,value,signal);
+  const admitted=await options.actorAuthority.coordinate(async()=>{
+   await command(state.actor,"validateResponse",responseBody(state));
+   if(configuration()!==state.configuration||requestDigest(freezeRequest(options.prepare(structuredClone(state.units),structuredClone(state.facts))))!==state.snapshot.requestDigest)contextFail("MEMORY_CONTEXT_REQUEST_CHANGED");
+   check();if(signal?.aborted)contextFail("MEMORY_CONTEXT_CANCELLED");
+   const pending=Promise.resolve(send());void pending.catch(()=>{});return {pending};
+  });
+  return admitted.pending;
+ }
  // "sent" means the local sender callback completed successfully; neither this
  // result nor the durable invocation ticket proves remote delivery.
  async function dispatch<T>(token:object,value:object,send:(request:PreparedRequest)=>Promise<T>|T,signal?:AbortSignal):Promise<{status:"sent";requestDigest:string;result:T}|{status:"result-unknown";requestDigest:string}>{
@@ -354,5 +425,5 @@ export function createMainContext(options:ContextOptions){
   if(sent.result===null)return {status:"result-unknown",requestDigest:result.requestDigest};
   try{return {status:"sent",requestDigest:result.requestDigest,result:await sent.result}}catch{return {status:"result-unknown",requestDigest:result.requestDigest}};
  }
- return {beginHistoryResponse,prepareHistoryResponseStep,validateHistoryResponseStep,observeResponseMutation,endHistoryResponse,assemble,validateForDispatch,validateResponse,commitResponse,bindResponseProgress,dispatch,captureTranscript,prepareTranscriptChange,prepareTranscriptChanges,transcriptGeneration,deleteTranscript,prepareSummary,commitSummary,readSummaryInput};
+ return {invokeClaimedRequest,beginHistoryResponse,prepareHistoryResponseStep,validateHistoryResponseStep,observeResponseMutation,endHistoryResponse,assemble,validateForDispatch,validateResponse,commitResponse,bindResponseProgress,dispatch,captureTranscript,prepareTranscriptChange,prepareTranscriptChanges,transcriptGeneration,deleteTranscript,prepareSummary,commitSummary,readSummaryInput,selectSummaryInput,validateSummaryIds};
 }

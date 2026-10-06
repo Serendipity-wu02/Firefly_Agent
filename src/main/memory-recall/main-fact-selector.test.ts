@@ -93,3 +93,9 @@ it("cancellation after reading the current question dispatches no rank",async()=
  try{await expect(f.selectFactRefs(f.actor,q.ref,{maxFacts:3},controller.signal)).rejects.toThrow("MEMORY_RECALL_CANCELLED");
  expect(f.commands.some(c=>(c as {kind:string}).kind==="rank")).toBe(false)}finally{spy.mockRestore()}
 });
+it.each(["type Login = { api_key: string; password: string }","Explain api_key and password field validation","The token is a unit of text."])("does not reject ordinary context as a secret during read-only selection: %s",async text=>{
+ const f=fixture();await expect(select(f,text)).resolves.toEqual([]);expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("continues rejecting an actual synthetic secret before ranking memory",async()=>{
+ const f=fixture(),rank=vi.spyOn(f.recall,"rank");await expect(select(f,"api_key=SYNTHETIC_ONLY_SECRET_VALUE")).rejects.toThrow("MEMORY_POLICY_SECRET");expect(rank).not.toHaveBeenCalled();
+});

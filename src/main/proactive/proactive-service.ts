@@ -21,18 +21,20 @@ export interface ProactiveCommitInput {
   source: "model" | "fallback";
   fallbackPayload?: unknown;
   generationEpoch: number;
+  /** The actual generation lifetime also governs every delivery boundary. */
+  signal: AbortSignal;
 }
 
 export type ProactiveCommitResult =
   | { kind: "committed" }
-  | { kind: "cancelled"; reason: string };
+  | { kind: "cancelled"; reason: string; deliveryCommitted?: true };
 
 export interface ProactiveChatServiceDeps {
   loadState: () => ProactiveState;
   saveState: (state: ProactiveState) => void;
   getSnapshot: () => ProactiveRuntimeSnapshot;
-  buildMessages: (candidate: ProactiveCandidate, state: ProactiveState) => Promise<ChatMessage[]>;
-  runModel: (messages: ChatMessage[]) => Promise<ProactiveModelResult>;
+  buildMessages: (candidate: ProactiveCandidate, state: ProactiveState, signal: AbortSignal) => Promise<ChatMessage[]>;
+  runModel: (messages: ChatMessage[], signal: AbortSignal) => Promise<ProactiveModelResult>;
   getFallback: (candidate: ProactiveCandidate) => Promise<ProactiveFallback | null>;
   commitMessage: (input: ProactiveCommitInput) => Promise<ProactiveCommitResult>;
   canStartDelivery?: () => boolean;
@@ -46,10 +48,14 @@ export interface ProactiveChatService {
   normalConversationEnded(now?: number): void;
   invalidate(): void;
   isGenerating(): boolean;
+  close(): Promise<void>;
 }
 
 export function createProactiveChatService(deps: ProactiveChatServiceDeps): ProactiveChatService {
-  let generating = false;
+  let generating = false, closed = false;
+  let activeController: AbortController | undefined;
+  let pending: Promise<void> | undefined;
+  const abort = () => activeController?.abort(Error("MEMORY_CONTEXT_CANCELLED"));
 
   const persistMutation = (mutate: (state: ProactiveState) => void): void => {
     const state = deps.loadState();
@@ -59,6 +65,7 @@ export function createProactiveChatService(deps: ProactiveChatServiceDeps): Proa
 
   return {
     async evaluateCandidate(candidate): Promise<void> {
+      if (closed) return;
       const initialState = deps.loadState();
       const rawInitialSnapshot = deps.getSnapshot();
       const initialSnapshot = { ...rawInitialSnapshot, generationBusy: rawInitialSnapshot.generationBusy || generating };
@@ -73,10 +80,15 @@ export function createProactiveChatService(deps: ProactiveChatServiceDeps): Proa
       }
 
       generating = true;
+      const controller = new AbortController(); activeController = controller;
+      let settled!: () => void;
+      pending = new Promise<void>(resolve => { settled = resolve; });
       const generationEpoch = initialState.proactiveEpoch;
       try {
-        const messages = await deps.buildMessages(candidate, initialState);
-        const result = await deps.runModel(messages);
+        const messages = await deps.buildMessages(candidate, initialState, controller.signal);
+        if (controller.signal.aborted) return;
+        const result = await deps.runModel(messages, controller.signal);
+        if (controller.signal.aborted) return;
         const stateAfterModel = deps.loadState();
         if (stateAfterModel.proactiveEpoch !== generationEpoch) {
           deps.log?.("generation_discarded", { scene: candidate.sceneId, reason: "stale_epoch" });
@@ -111,6 +123,7 @@ export function createProactiveChatService(deps: ProactiveChatServiceDeps): Proa
           source = "fallback";
         }
 
+        if (closed || controller.signal.aborted) return;
         const commitState = deps.loadState();
         const commitSnapshot = deps.getSnapshot();
         const commitDecision = canCommitProactiveMessage(
@@ -124,13 +137,20 @@ export function createProactiveChatService(deps: ProactiveChatServiceDeps): Proa
           return;
         }
 
-        const commitResult = await deps.commitMessage({ candidate, text, source, fallbackPayload, generationEpoch });
-        if (commitResult.kind === "cancelled") {
-          deps.log?.("commit_cancelled", {
-            scene: candidate.sceneId,
-            reason: commitResult.reason,
-            source,
-          });
+        const commitResult = await deps.commitMessage({ candidate, text, source, fallbackPayload, generationEpoch, signal: controller.signal });
+        if (closed || controller.signal.aborted || commitResult.kind === "cancelled") {
+          // Preserve the factual cooldown of any already-delivered part, without
+          // advancing the unanswered count or claiming a complete active delivery.
+          if (commitResult.kind === "committed" || commitResult.deliveryCommitted) {
+            const latestState = deps.loadState();
+            latestState.lastProactiveAt = commitSnapshot.now;
+            latestState.lastProactiveScene = candidate.sceneId;
+            latestState.lastFiredAt[candidate.sceneId] = commitSnapshot.now;
+            latestState.globalDesire = 0;
+            deps.saveState(latestState);
+          }
+          deps.log?.("commit_cancelled", { scene: candidate.sceneId,
+            reason: commitResult.kind === "cancelled" ? commitResult.reason : closed ? "closed" : "generation_cancelled", source });
           return;
         }
         const latestState = deps.loadState();
@@ -147,15 +167,18 @@ export function createProactiveChatService(deps: ProactiveChatServiceDeps): Proa
         deps.saveState(latestState);
         deps.log?.("message_committed", { scene: candidate.sceneId, source });
       } finally {
+        activeController = undefined; pending = undefined; settled();
         generating = false;
       }
     },
 
     invalidateForUserMessage(): void {
+      abort();
       persistMutation(markUserActivity);
     },
 
     normalConversationStarted(): void {
+      abort();
       persistMutation(markNormalConversationStarted);
     },
 
@@ -164,7 +187,12 @@ export function createProactiveChatService(deps: ProactiveChatServiceDeps): Proa
     },
 
     invalidate(): void {
+      abort();
       persistMutation((state) => { state.proactiveEpoch += 1; });
+    },
+
+    async close(): Promise<void> {
+      closed = true; abort(); await pending;
     },
 
     isGenerating(): boolean {

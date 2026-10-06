@@ -38,6 +38,8 @@ extraFiles:
 extraResources:
   - from: native/target/release/firefly-history-read.exe
     to: bin/firefly-history-read.exe
+  - from: native/target/release/firefly-history-presence.exe
+    to: bin/firefly-history-presence.exe
   - from: models
     to: models
     filter:

@@ -47,3 +47,24 @@ it('an explicit authorized canonical edit admits a new revision; raw history edi
  await edited.commitUserEdit(f.grant,'session-a','u1');const fresh=await f.registry.capture(f.access,edited.token,f.id);
  expect(fresh.binding.contentRevision).toBe(2);expect(fresh.binding.generation).not.toBe(old.binding.generation);expect(await f.registry.readEvidence(f.access,edited.token,fresh)).toBe('I prefer PowerShell');f.authority.dispose();
 });
+
+it('releases only a genuine still-uncommitted ticket so a definite failed append can retry',async()=>{
+ const f=await fixture(),first=f.source.prepareUserCommit(f.grant,'session-a','u1');
+ expect(()=>f.source.cancelUserCommit({...first})).toThrow('MEMORY_USER_SOURCE_DENIED');
+ f.source.cancelUserCommit(first);
+ expect(()=>f.source.finishUserCommit(first)).toThrow('MEMORY_USER_SOURCE_DENIED');
+ const retry=f.source.prepareUserCommit(f.grant,'session-a','u1');
+ f.users.set('u1',{role:'user',text:'I prefer bash'});f.source.finishUserCommit(retry);
+ expect(await f.capture()).toMatchObject({binding:{messageId:'u1',contentRevision:1}});
+ f.authority.dispose();
+});
+it('does not cancel a written, finished, foreign, or already consumed user ticket',async()=>{
+ const f=await fixture(),ticket=f.source.prepareUserCommit(f.grant,'session-a','u1'),foreign=f.make();
+ expect(()=>foreign.cancelUserCommit(ticket)).toThrow('MEMORY_USER_SOURCE_DENIED');
+ f.users.set('u1',{role:'user',text:'I prefer bash'});
+ expect(()=>f.source.cancelUserCommit(ticket)).toThrow('MEMORY_USER_SOURCE_DENIED');
+ f.source.finishUserCommit(ticket);f.users.delete('u1');
+ expect(()=>f.source.cancelUserCommit(ticket)).toThrow('MEMORY_USER_SOURCE_DENIED');
+ expect(()=>f.source.prepareUserCommit(f.grant,'session-a','u1')).toThrow('MEMORY_USER_SOURCE_DENIED');
+ f.authority.dispose();
+});

@@ -19,14 +19,15 @@ vi.mock("../token-usage-store", () => ({ recordUsage: vi.fn(), recordRequest: vi
 import { prepareToolRuntime } from "./harness/adapter/tool-runtime";
 import { saveModelSettings } from "../settings/model-settings";
 import { getTaskSessionStore, TaskSessionStore } from "../tasks/task-session-store";
+import { SPECIALIST_AGENTS } from "../../shared/specialist-agents";
 import { getHarnessBuiltinToolSpecs } from "./harness/builtin-tools";
 
 afterEach(() => { if (fixture.root) fs.rmSync(fixture.root, { recursive: true, force: true }); fixture.requests.length = 0; });
 
-it("uses Main's real factory, shared store and child Harness for four identities and persistent resume", async () => {
+it("uses Main's real factory, shared store and child Harness for all twelve identities and persistent resume", async () => {
   fixture.root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-specialist-main-"));
   saveModelSettings({ modelProfiles: [{ id: "fixture-saved", provider: "fixture", baseUrl: "http://127.0.0.1:12345", model: "offline-fixture", apiKey: "" }],
-    agentModelProfiles: { reasoning: "fixture-saved", coding: "fixture-saved", document: "fixture-saved" } });
+    agentModelProfiles: { reasoning: "fixture-saved", coding: "fixture-saved", document: "fixture-saved", research: "fixture-saved", vision: "fixture-saved", fast: "fixture-saved" } });
   const runtime = prepareToolRuntime({
     options: { conversationId: "public-conversation", conversationMode: "work", messages: [],
       settings: {}, resolvedWorkspaceRoot: fixture.root, capabilities: { tools: [], toolIds: new Set(), skills: [], skillIds: new Set(), mode: "work" } } as never,
@@ -37,12 +38,12 @@ it("uses Main's real factory, shared store and child Harness for four identities
   const spec = getHarnessBuiltinToolSpecs({ includeAgent: true, agentDefinitions: runtime.agentDefinitions });
   expect(spec.find(tool => tool.name === "delegate_agent")?.description).toContain("strategy-planning（艾利欧）");
   const sessions = new Map<string, string>();
-  for (const id of ["strategy-planning", "implementation", "review", "documents-data"]) {
+  for (const id of SPECIALIST_AGENTS.map(agent => agent.id)) {
     const result = await runtime.agentExecutor!({ agentId: id, prompt: `Public ${id} fixture` });
     expect(result.status).toBe("completed");
     sessions.set(id, result.sessionId);
   }
-  expect(new Set(sessions.values()).size).toBe(4);
+  expect(new Set(sessions.values()).size).toBe(12);
   const again = await runtime.agentExecutor!({ agentId: "review", prompt: "Public follow-up" });
   expect(again.sessionId).toBe(sessions.get("review"));
   const store = getTaskSessionStore(fixture.root);

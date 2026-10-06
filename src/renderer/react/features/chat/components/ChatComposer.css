@@ -542,3 +542,20 @@
 .cy-model-selector__menu button { border: 0; background: transparent; text-align: left; padding: 8px; border-radius: 12px; cursor: pointer; display: grid; gap: 2px; }
 .cy-model-selector__menu button:hover { background: #e6e9ef; }
 .cy-model-selector__menu small { color: #6c6f85; }
+
+/* Pair custom foregrounds with custom surfaces; keep the default theme unchanged. */
+:root[data-ui-colors] .cy-composer-shell { background: var(--cy-bg-page); }
+:root[data-ui-colors] .cy-composer.ant-sender,
+:root[data-ui-colors] .cy-queue-dock__editor {
+  background: var(--cy-surface);
+  border-color: var(--cy-border);
+  color: var(--cy-text);
+}
+:root[data-ui-colors] .cy-composer .ant-sender-input::placeholder { color: var(--cy-text-muted); }
+:root[data-ui-colors] .cy-composer .ant-sender-actions-btn { color: var(--rb-text-on-pink); }
+:root[data-ui-colors] .cy-composer .ant-sender-actions-btn:disabled {
+  color: var(--cy-text-muted);
+  background: var(--cy-bg-hover);
+}
+:root[data-ui-colors] .cy-queue-dock { background: var(--cy-bg-page); color: var(--cy-text); border-color: var(--cy-border); }
+:root[data-ui-colors] .cy-composer__attachment { background: var(--cy-bg-page); }

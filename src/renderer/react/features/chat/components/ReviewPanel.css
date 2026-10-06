@@ -185,6 +185,13 @@
 .cy-review-panel__restore-btn.is-confirming:hover {
   background: #ffebe9;
 }
+
+:root[data-ui-colors] .cy-review-panel__restore-btn {
+  background: var(--cy-bg-workspace);
+}
+:root[data-ui-colors] .cy-review-panel__restore-btn:hover {
+  background: var(--cy-bg-hover);
+}
 .cy-review-panel__restore-btn:disabled {
   opacity: 0.55;
   cursor: default;

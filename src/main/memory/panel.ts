@@ -48,6 +48,22 @@ export async function loadMemoryPanelData(): Promise<{
     memoryStore.getReflectionLogs(),
   ]);
 
+  const { importedDocs } = await loadImportedDocumentPanelData();
+
+  return {
+    l0,
+    l1,
+    l2: l2.sort((a, b) => b.createdAt - a.createdAt),
+    importedDocs,
+    reflections: reflectionLogs
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map(formatReflectionItem),
+  };
+}
+
+/** 文档管理独立入口。混合 JSON 会被解析，但只选择 imported_doc，不访问旧个人记忆库。 */
+export async function loadImportedDocumentPanelData(): Promise<{ importedDocs: ImportedDocItem[] }> {
   let importedDocs: ImportedDocItem[] = [];
   const ragStorePath = getRagStorePath();
 
@@ -87,14 +103,5 @@ export async function loadMemoryPanelData(): Promise<{
     console.warn("[settings] load imported docs failed:", error);
   }
 
-  return {
-    l0,
-    l1,
-    l2: l2.sort((a, b) => b.createdAt - a.createdAt),
-    importedDocs,
-    reflections: reflectionLogs
-      .slice()
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .map(formatReflectionItem),
-  };
+  return { importedDocs };
 }

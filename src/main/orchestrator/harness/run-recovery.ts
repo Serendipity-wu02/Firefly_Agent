@@ -37,29 +37,32 @@ export function prepareHarnessRecovery(
     for (const call of message.toolCalls ?? []) callById.set(call.id, call);
   }
 
-  for (const persisted of session.toolCalls) {
-    if (resolvedCallIds.has(persisted.toolCallId) || persisted.status === "committed" || persisted.status === "not_executed") continue;
-    const isUnknown = persisted.sideEffect === "non_idempotent_side_effect";
-    const call = callById.get(persisted.toolCallId);
-    if (isUnknown) {
-      const args = call ? parseToolCallArgs(call) : {};
-      const fingerprint = toolCallFingerprint(persisted.toolName, args);
-      if (!state.uncertainEffects.some((effect) => effect.toolCallId === persisted.toolCallId)) {
+  const persistedById = new Map(session.toolCalls.map(call => [call.toolCallId, call]));
+  for (const call of callById.values()) {
+    if (resolvedCallIds.has(call.id)) continue;
+    const persisted = persistedById.get(call.id);
+    // Match canonical materialization: queued/planned is not dispatched, irrespective
+    // of side-effect category. A started/unknown invocation has no confirmed result.
+    const isUnknown = persisted?.status === "started" || persisted?.status === "unknown";
+    if (isUnknown && persisted?.sideEffect !== "read_only") {
+      const args = parseToolCallArgs(call);
+      const fingerprint = toolCallFingerprint(call.name, args);
+      if (!state.uncertainEffects.some((effect) => effect.toolCallId === call.id)) {
         state.uncertainEffects.push({
-          id: `${session.runId}:${persisted.toolCallId}`,
-          toolCallId: persisted.toolCallId,
+          id: `${session.runId}:${call.id}`,
+          toolCallId: call.id,
           fingerprint,
-          toolName: persisted.toolName,
+          toolName: call.name,
           message: "该外部副作用在应用中断时尚未确认结果",
         });
       }
     }
     messages.push({
       role: "tool",
-      toolCallId: persisted.toolCallId,
+      toolCallId: call.id,
       content: JSON.stringify({
         outcome: isUnknown ? "unknown_after_interruption" : "not_executed_after_interruption",
-        tool: persisted.toolName,
+        tool: call.name,
         message: isUnknown
           ? "应用在该副作用完成前中断；不得自动重放，先查证或询问用户。"
           : "应用在工具执行完成前中断；请根据当前任务自行决定是否重新读取。",

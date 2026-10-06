@@ -43,13 +43,15 @@ vi.mock("pdfkit", () => ({
   },
 }));
 
+import type { ToolContext } from "./registry/tool-context";
+import { getWorkspaceExecutionCoordinator } from "../harness/execution-coordinator";
 import { registerDocumentTools } from "./document-tools";
 
 registerDocumentTools();
 
 function getTool(id: string) {
   const tool = registry.get(id) as
-    | { execute: (args: Record<string, unknown>, ctx?: { runId?: string; resolvedWorkspaceRoot?: string }) => Promise<string> }
+    | { execute: (args: Record<string, unknown>, ctx?: ToolContext) => Promise<string> }
     | undefined;
   if (!tool) throw new Error(`工具未注册：${id}`);
   return tool;
@@ -145,5 +147,35 @@ describe("Review 基线捕获（写盘前）", () => {
       size: original.length, hash: createHash("sha256").update(original).digest("hex"),
     });
     expect(fs.readFileSync(outputPath)).toEqual(original);
+  });
+});
+
+
+describe("document actual bytes and validated write ownership", () => {
+  it.each([
+    ["write_excel", "actual.xlsx", { sheets: [{ name: "Data", headers: ["value"], rows: [[1]] }] }],
+    ["write_word", "actual.docx", { title: "Synthetic", paragraphs: ["Temporary evidence"] }],
+  ])("%s records actual generated output bytes", async (id, filename, args) => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: id };
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      await getTool(id).execute({ ...args, filename }, { userQuery: "", resolvedWorkspaceRoot: tmpDir, execution: { coordinator, scope, permit } });
+    });
+    const file = path.join(tmpDir, filename);
+    const sha256 = createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+    expect(coordinator.getWriteEvidence()[0]).toMatchObject({ path: file, before: { version: "absent" }, after: { sha256 }, state: "applied" });
+    await coordinator.closeGroup("g");
+  });
+
+  it("invalid filename and pre-render failure do not claim output paths", async () => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: "invalid" };
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      const context = { userQuery: "", resolvedWorkspaceRoot: tmpDir, execution: { coordinator, scope, permit } };
+      expect(await getTool("write_excel").execute({ filename: "../escape.xlsx", sheets: [] }, context)).toContain("[错误]");
+      await expect(getTool("write_pdf").execute({ filename: "report.pdf", title: "synthetic", paragraphs: [] }, context)).rejects.toThrow("PDF_GENERATION_FAILED");
+    });
+    expect(coordinator.getWriteEvidence()).toEqual([]);
+    await coordinator.closeGroup("g");
   });
 });

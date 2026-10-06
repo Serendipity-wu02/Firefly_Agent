@@ -17,6 +17,7 @@ import type {
 import { parseToolCallArgs } from "./types";
 import { isAbortError } from "../../abort-utils";
 import { resolveUncertainEffect } from "./uncertain-effect-guard";
+import type { DelegationScope } from "../child-session-types";
 import type { AgentExecuteRequest, AgentExecuteResult } from "../persistent-agent-runtime";
 import { READ_TOOL_RESULT_TOOL_ID, readToolResultToolSpec } from "./tool-output/read-tool-result";
 import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, enterPlanModeToolSpec, writePlanToolSpec } from "./plan-tools";
@@ -42,7 +43,9 @@ export const delegateAgentToolSpec = {
 
 export async function executeDelegateAgent(
   call: ToolCall,
-  executor: ((request: AgentExecuteRequest) => Promise<AgentExecuteResult>) | undefined,
+  executor: ((request: AgentExecuteRequest, scope?: DelegationScope) => Promise<AgentExecuteResult>) | undefined,
+  scope?: DelegationScope,
+  onExecutionStarted?: () => void,
 ): Promise<ToolObservation> {
   if (!executor) return { outcome: "failure", category: "runtime_safety", tool: DELEGATE_AGENT_TOOL_ID, message: "当前运行未配置持久 Agent 委托" };
   const args = parseToolCallArgs(call);
@@ -54,7 +57,16 @@ export async function executeDelegateAgent(
   if (!agentId || !prompt || Object.keys(args).some(key => key !== "agent_id" && key !== "prompt")) {
     return { outcome: "failure", category: "invalid_arguments", tool: DELEGATE_AGENT_TOOL_ID, message: "delegate_agent 仅接受非空 agent_id 与 prompt" };
   }
-  const result = await executor({ agentId, prompt });
+  let result: AgentExecuteResult;
+  try {
+    onExecutionStarted?.();
+    result = scope ? await executor({ agentId, prompt }, scope) : await executor({ agentId, prompt });
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    // Role lease/model configuration failures are local delegation observations.
+    const message = error instanceof Error ? error.message : String(error);
+    return { outcome: "failure", category: "runtime_safety", tool: DELEGATE_AGENT_TOOL_ID, message };
+  }
   return {
     outcome: result.status === "completed" ? "success" : "failure", tool: DELEGATE_AGENT_TOOL_ID,
     message: `Agent ${result.agentId}: ${result.status}`, output: JSON.stringify(result),

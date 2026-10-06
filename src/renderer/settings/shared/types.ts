@@ -1,3 +1,5 @@
+import type { MemoryPolicyPanelApi } from "../../../shared/memory-panel-contracts";
+import type { UiColors } from "../../../shared/ui-colors";
 // Settings 公共类型定义
 // 从 settings.ts 抽离的跨面板共享类型。
 // 注意路径深度：本文件位于 src/renderer/settings/shared/，
@@ -120,6 +122,7 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   launchAtLogin: boolean;
   language: "zh-CN";
   uiTheme: UiTheme;
+  uiColors: UiColors;
   windowCornerRadius: number;
   uiThemeRadius: boolean;
   uiFont: UiFont;
@@ -134,6 +137,24 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   /** 聊天段落间距（em）。目前仅设置窗口 UI 使用，主进程归一化尚未持久化该字段。 */
   chatParaSpacing?: number;
   screenshotHotkey?: string;
+  // 与 Main 的 getGeneral/saveGeneral 配置字段保持一致。
+  weatherSource: "open-meteo" | "amap";
+  weatherEnabled: boolean;
+  amapKey: string;
+  travelEnabled: boolean;
+  playwrightMcpEnabled: boolean;
+  searchEngine: "off" | "bocha" | "tavily" | "minimax" | "anySearch";
+  searchBochaKey: string;
+  searchTavilyKey: string;
+  searchMinimaxKey: string;
+  searchAnySearchKey: string;
+  emailEnabled: boolean;
+  emailSmtpHost: string;
+  emailSmtpPort: number;
+  emailSmtpSecure: boolean;
+  emailSmtpUser: string;
+  emailSmtpPass: string;
+  emailFromName: string;
 }
 
 export interface UserApi {
@@ -185,7 +206,7 @@ export interface ObsidianVaultConfig {
   lastSyncAt: number;
 }
 
-export interface MemoryPanelApi {
+export interface MemoryPanelApi extends MemoryPolicyPanelApi {
   getData: () => Promise<MemoryPanelPayload>;
   deleteImportedDoc: (importId: string, fileName?: string) => Promise<{ ok: boolean; deleted: number }>;
   saveL0: (patch: Record<string, unknown>) => Promise<{ ok: boolean }>;

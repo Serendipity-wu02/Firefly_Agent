@@ -20,3 +20,14 @@ describe("Main desktop memory session grants",()=>{
  it.each(['navigation','destroyed','delete','dispose','window-replaced','policy-drift'])('revokes and aborts a %s grant',kind=>{const f=fixture(),grant=f.authority.bind(f.event as any,'session-a'),binding=f.authority.require(grant,'session-a');if(kind==='navigation')f.sender.emit('did-start-navigation',{},'synthetic://next',false,true);if(kind==='destroyed')f.sender.emit('destroyed');if(kind==='delete')f.targets.notifySessionDeleted('session-a');if(kind==='dispose')f.authority.dispose();if(kind==='window-replaced')f.setWindow({webContents:{...f.sender},isDestroyed:()=>false});if(kind==='policy-drift')f.sessions.get('session-a')!.modelProfileId='ordinary';expect(()=>f.authority.require(grant,'session-a')).toThrow('MEMORY_DESKTOP_SESSION_DENIED');expect(binding.signal.aborted).toBe(true);f.authority.dispose()});
  it("switching away and back never revives an old grant",()=>{const f=fixture(),old=f.authority.bind(f.event as any,'session-a');f.select('session-b');f.authority.refresh();f.select('session-a');f.authority.refresh();expect(()=>f.authority.require(old,'session-a')).toThrow('MEMORY_DESKTOP_SESSION_DENIED');expect(f.authority.bind(f.event as any,'session-a')).not.toBe(old);f.authority.dispose()});
 });
+it.each(["work","code"] as const)("permits a Main-enabled %s target only when stored session and live target agree",mode=>{
+ const sender=Object.assign(new EventEmitter(),{id:7,mainFrame:{},isDestroyed:()=>false}),targets=createActiveChatTargetRegistry();
+ targets.setActive({sender:sender as any,sessionId:"session-a",mode,rendererTargetId:"renderer-a"});
+ const session={id:"session-a",mode:mode as string,modelProfileId:"saved"};
+ const input={enabled:true,scopeKey:"profile-a",actorKey:"local-user",getChatWindow:()=>({webContents:sender,isDestroyed:()=>false}) as any,targets,getSession:()=>session,isControlledSession:()=>true};
+ const legacy=createMainDesktopSessionAuthority(input)!;
+ expect(()=>legacy.bind({sender,senderFrame:sender.mainFrame} as any,"session-a")).toThrow("MEMORY_DESKTOP_SESSION_DENIED");legacy.dispose();
+ const authority=createMainDesktopSessionAuthority({...input,allowedModes:["chat","work","code"]})!;
+ const grant=authority.bind({sender,senderFrame:sender.mainFrame} as any,"session-a");expect(authority.require(grant,"session-a").signal.aborted).toBe(false);
+ session.mode="chat";expect(()=>authority.require(grant,"session-a")).toThrow("MEMORY_DESKTOP_SESSION_DENIED");authority.dispose();
+});

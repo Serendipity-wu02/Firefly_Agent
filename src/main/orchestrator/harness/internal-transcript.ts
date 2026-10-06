@@ -1,6 +1,14 @@
 import { createHash } from "node:crypto";
 import type { ChatMessage } from "../vendors/types";
 
+const trustedInternal = new WeakMap<object,string>();
+export function isTrustedInternalTranscriptMessage(message: ChatMessage): boolean {
+ const serialized=trustedInternal.get(message);
+ if(serialized===undefined)return false;
+ if(serialized!==JSON.stringify(message))throw new Error("MEMORY_CONTEXT_PROMPT_CHANGED");
+ return true;
+}
+
 export type InternalTranscriptKind = NonNullable<ChatMessage["internal"]>["kind"];
 
 export function createInternalTranscriptMessage(input: {
@@ -12,7 +20,7 @@ export function createInternalTranscriptMessage(input: {
 }): ChatMessage {
   const content = input.content.trim();
   const digest = createHash("sha256").update(`${input.kind}\n${content}`).digest("hex");
-  return {
+  const message:ChatMessage = {
     role: "user",
     content,
     visibility: "internal",
@@ -25,6 +33,8 @@ export function createInternalTranscriptMessage(input: {
       createdAt: input.now ?? Date.now(),
     },
   };
+  trustedInternal.set(message,JSON.stringify(message));
+  return message;
 }
 
 /** 仅对同类、相同事实去重；不同类型的同文本上下文仍保留各自语义。 */

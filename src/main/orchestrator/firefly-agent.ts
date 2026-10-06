@@ -1,3 +1,4 @@
+import type { BackgroundMemoryHost } from "../memory-context/background-memory-ingress";
 // FireflyAgent —— 把两条 Agent 循环包进 AG-UI 的 AbstractAgent。
 //
 // - 持有 runWithEvents 入口：Chat 使用 chat-loop，其余模式使用 FireflyHarness。
@@ -23,6 +24,7 @@ import { contextRefRegistry, extractLastUserQuery, type ToolContext } from "./to
 import { runChatLoop } from "./chat-loop";
 import type { RunCapabilities } from "./run-capabilities";
 import { runHarnessWithAdapter } from "./harness-adapter";
+import type { MainMemoryRun } from "../memory-context/main-memory-runtime";
 
 /** Skill 路由条目（类型本地定义，不再依赖 task-router 模块） */
 export interface SkillRouteInfo {
@@ -93,6 +95,12 @@ export type AgentExecutionMode = "work" | "chat";
 
 /** FireflyAgent.run() 需要的输入——桥层构造好后塞进 input.state 或 forwardedProps。 */
 export interface FireflyRunOptions {
+  /** Main-owned S/M/H boundary shared by every model round and canonical commit. */
+  memoryRun?: MainMemoryRun;
+  /** Main-only host used to prepare scoped child instructions. */
+  backgroundMemory?: BackgroundMemoryHost;
+  /** Main-only late factory: receives the canonical run/sink and the linked abort signal. */
+  openMemoryRun?: (input: FireflyRunOptions) => Promise<MainMemoryRun>;
   /** Main-only default-absent S stream injection; never rebuilds through legacy loops. */
   controlledResponses?:import("./controlled-responses").ControlledResponsesRun;
   isControlledRunCurrent?:()=>boolean;
@@ -434,7 +442,19 @@ export class FireflyAgent extends AbstractAgent {
       }
 
       (async () => {
+        let ownedMemoryRun: MainMemoryRun | undefined;
+        let terminalEvent: BaseEvent | undefined;
+        let terminalError: Error | undefined;
         try {
+          if (!runOptions.memoryRun && runOptions.openMemoryRun) {
+            ownedMemoryRun = await runOptions.openMemoryRun({ ...runOptions, signal: abortController.signal });
+            if (!ownedMemoryRun) throw new Error("MEMORY_CONTEXT_RUN_UNAVAILABLE");
+            runOptions.memoryRun = ownedMemoryRun;
+            if (abortController.signal.aborted) throw new Error("MEMORY_CONTEXT_CANCELLED");
+          }
+          if (runOptions.memoryRun && runOptions.transcriptSink) {
+            runOptions.transcriptSink = runOptions.memoryRun.bindSink(runOptions.transcriptSink);
+          }
           subscriber.next({ type: EventType.RUN_STARTED, threadId, runId });
 
           const adapterTimer = perf.begin("get_adapter");
@@ -477,7 +497,8 @@ export class FireflyAgent extends AbstractAgent {
               onEvent,
               signal: abortController.signal,
               mode: options.conversationMode,
-              transcriptSink: options.transcriptSink,
+              transcriptSink: runOptions.transcriptSink,
+              memoryRun: runOptions.memoryRun,
             }));
           } else {
             const executeTool = (tc: Parameters<typeof executeToolCall>[0], runnableToolIds: Set<string>) => executeToolCall(tc, runnableToolIds, {
@@ -518,15 +539,12 @@ export class FireflyAgent extends AbstractAgent {
           if (cancelled) return;
           // success / timeout 都通过 RUN_FINISHED.result 上报 canonical 终态。
           // Bridge 据此决定是否跑 sticker / memory 等成功收尾副作用。
-          subscriber.next({
+          terminalEvent = {
             type: EventType.RUN_FINISHED,
             threadId,
             runId,
             result: this.lastResult.terminal,
-          });
-          finished = true;
-          detachExternalAbort();
-          subscriber.complete();
+          };
         } catch (err) {
           if (cancelled) return;
           // 从 AgentExecutionError 提取真实执行状态
@@ -542,11 +560,11 @@ export class FireflyAgent extends AbstractAgent {
             // ChatLoop 无工具调用，runSession 传空只写 interruption 边界；
             // Harness 路径已在 adapter 内按 runStore 状态闭合，这里幂等不重复。
             try {
-              await options.transcriptSink?.closeInterruption({ reason: "user_cancel", runSession: null });
+              await runOptions.transcriptSink?.closeInterruption({ reason: "user_cancel", runSession: null });
             } catch (closureError) {
               // 闭合失败不得伪装成取消成功：按运行时错误上报
               console.error(LOG_PREFIX, "transcript interruption closure failed:", closureError);
-              subscriber.next({
+              terminalEvent = {
                 type: EventType.RUN_FINISHED,
                 threadId,
                 runId,
@@ -555,15 +573,12 @@ export class FireflyAgent extends AbstractAgent {
                   reason: "transcript_interruption_closure_failed",
                   externalEffectsMayContinue: true,
                 },
-              });
-              finished = true;
-              detachExternalAbort();
-              subscriber.complete();
+              };
               return;
             }
             // 取消走 RUN_FINISHED + result.status="cancelled"，
             // 不伪装成 AG-UI interrupt，也不写 outcome。
-            subscriber.next({
+            terminalEvent = {
               type: EventType.RUN_FINISHED,
               threadId,
               runId,
@@ -572,16 +587,31 @@ export class FireflyAgent extends AbstractAgent {
                 reason: "user_cancelled",
                 externalEffectsMayContinue: true,
               },
-            });
-            finished = true;
-            detachExternalAbort();
-            subscriber.complete();
+            };
             return;
           }
-          const safeErr = new Error(classification.userMessage);
+          terminalError = new Error(classification.userMessage);
+        } finally {
+          // The factory's owner must finish real provider/canonical operations
+          // before the bridge sees any terminal event or releases this run.
+          // A run injected by the caller remains that caller's responsibility.
+          try {
+            await ownedMemoryRun?.close();
+          } catch (closeError) {
+            const classification = classifyRunError(closeError, undefined, runId, conversationId, "unknown", false);
+            console.error(LOG_PREFIX, "memory run closure failed:", classification.diagnostics);
+            terminalEvent = undefined;
+            terminalError = new Error(classification.userMessage);
+          }
           finished = true;
           detachExternalAbort();
-          subscriber.error(safeErr);
+          if (!cancelled) {
+            if (terminalError) subscriber.error(terminalError);
+            else {
+              if (terminalEvent) subscriber.next(terminalEvent);
+              subscriber.complete();
+            }
+          }
         }
       })();
 

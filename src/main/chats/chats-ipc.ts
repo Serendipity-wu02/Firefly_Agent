@@ -1,4 +1,6 @@
 import type {MainDesktopMemory} from "../memory-context/main-desktop-memory";
+import {mainAttachmentReferences} from "../memory-context/main-attachment-projection";
+import {canonicalJson} from "../memory-core/repository-types";
 // 聊天会话 IPC 桥接：把 chats-store 的纯数据 API 暴露给渲染进程。
 //
 // 写操作成功后会向渲染窗口广播 `chats:changed`，以便：
@@ -18,7 +20,7 @@ import { app, BrowserWindow, type WebContents, dialog, shell } from "electron";
 import { randomUUID } from "crypto";
 import { IPC } from "../../shared/ipc-channels";
 import { createIpcScope, type IpcScope } from "../application/ipc-scope";
-import type { ChatMessage, ConversationMode, ConversationWorkspaceBinding } from "../../shared/chat-types";
+import type { ChatMessage, ConversationMode, ConversationWorkspaceBinding, PendingChatMessage } from "../../shared/chat-types";
 import * as chatsStore from "./chats-store";
 import * as fs from "fs";
 import * as path from "path";
@@ -67,6 +69,14 @@ function visibleUserText(content: string): string {
   return content.replace(/\[sticker:[^\]]+\]/gi, "").trim();
 }
 function stripSProjection(message:ChatMessage):ChatMessage {const {sSettlement:_projection,...stored}=message;return stored}
+/** Project the same stable payload as claimPendingMessage without reading attachment bytes. */
+function pendingUserMessage(head: PendingChatMessage): ChatMessage {
+ return { id: head.id, role: "user", content: head.rawContent, at: Date.now(),
+  ...(head.userSticker ? { sticker: head.userSticker } : {}),
+  ...(head.attachments?.length ? { attachments: head.attachments.map(attachment => attachment.kind === "image"
+   ? { kind: "image" as const, name: attachment.name, filePath: attachment.filePath, mime: attachment.mime ?? "application/octet-stream", caption: attachment.caption, status: "pending" as const, ...(attachment.hasAnnotations ? { hasAnnotations: true } : {}) }
+   : { kind: "document" as const, name: attachment.name, filePath: attachment.filePath, status: "pending" as const, ...(attachment.readScope ? { readScope: attachment.readScope } : {}) }) } : {}) };
+}
 
 export function registerChatsIpc(
   ipcOption?: IpcScope,
@@ -74,7 +84,7 @@ export function registerChatsIpc(
     titleService?: ConversationTitleService;
     llmClient?: LlmClient;
     isPrimaryModelBusy?: () => boolean;
-    memory?:Pick<MainDesktopMemory,"appendUser"|"mutate"|"ownsSession">;
+    memory?:Pick<MainDesktopMemory,"appendUser"|"mutate"|"ownsSession"> & { readonly usesCanonicalUserContent?: boolean };
   } = {},
 ): void {
   const ipc = ipcOption ?? createIpcScope();
@@ -197,7 +207,13 @@ export function registerChatsIpc(
       const before=chatsStore.getSession(payload.id)?.messages??[],next=before.slice(0,payload.startIndex).concat(payload.messages);
       if(options.memory?.ownsSession?.(payload.id)&&changedUsers(payload.id,next).length){
         const lastUser=before.map(message=>message.role).lastIndexOf("user"),old=before[lastUser],replacement=payload.messages.filter(message=>message.role==="user");
-        if(payload.startIndex!==lastUser||!old||replacement.length!==1||replacement[0].id!==old.id||replacement[0].modelContext||replacement[0].attachments?.length)throw Error("MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED");
+        if(payload.startIndex!==lastUser||!old||replacement.length!==1||replacement[0].id!==old.id||replacement[0].modelContext)throw Error("MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED");
+        if(replacement[0].attachments?.length){
+          const attachments=replacement[0].attachments;
+          if(options.memory.usesCanonicalUserContent!==true||!old.attachments?.length
+            ||canonicalJson(mainAttachmentReferences(attachments))!==canonicalJson(mainAttachmentReferences(old.attachments))
+            ||canonicalJson(attachments.map(item=>item.kind==="document"?item.readScope??null:null))!==canonicalJson(old.attachments.map(item=>item.kind==="document"?item.readScope??null:null)))throw Error("MEMORY_ATTACHMENT_DENIED");
+        }
       }
       const session = await mutate(event,payload.id,changedUsers(payload.id,next),()=>chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages.map(stripSProjection)));
       if (session) broadcastChanged(event.sender);
@@ -439,22 +455,38 @@ export function registerChatsIpc(
     },
   );
 
+  const pendingClaims = new Map<string, Promise<chatsStore.ClaimPendingResult>>();
   // 认领队首：单次会话文件写入完成待发条目 → 正式用户消息 + 派发状态。
   // 认领产生真实历史消息，广播刷新；队列空/认领冲突原样透传。
   ipc.handle(IPC.CHATS_PENDING_CLAIM, (event, sessionId: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId) {
-      return { ok: false, error: "invalid-payload" };
-    }
-    const result = chatsStore.claimPendingMessage(sessionId);
-    if (result.ok && result.claimed) {
-      broadcastChanged(event.sender);
-      titleService?.schedule({
-        sessionId,
-        userMessageId: result.userMessage.id,
-        text: result.visibleContent,
-      });
-    }
-    return result;
+    if (typeof sessionId !== "string" || !sessionId) return { ok: false, error: "invalid-payload" };
+    const operation = async (): Promise<chatsStore.ClaimPendingResult> => {
+      const session = chatsStore.getSession(sessionId), head = session?.pendingMessages?.[0];
+      let result: chatsStore.ClaimPendingResult;
+      if (options.memory && session && !session.pendingDispatch && head) {
+        const expected = JSON.stringify(head); let stale = false, claimed: chatsStore.ClaimPendingResult | undefined;
+        await options.memory.appendUser(event, sessionId, pendingUserMessage(head), () => {
+          // The queue can change while Main authorizes. Only this exact head may receive its receipt.
+          const current = chatsStore.getSession(sessionId);
+          if (!current || current.pendingDispatch || JSON.stringify(current.pendingMessages?.[0]) !== expected) { stale = true; return false; }
+          claimed = chatsStore.claimPendingMessage(sessionId);
+          return claimed.ok && claimed.claimed ? claimed : false;
+        });
+        if (stale) throw Error("MEMORY_SOURCE_STALE");
+        if (!claimed) throw Error("MEMORY_USER_SOURCE_DENIED");
+        result = claimed;
+      } else result = chatsStore.claimPendingMessage(sessionId);
+      if (result.ok && result.claimed) {
+        broadcastChanged(event.sender);
+        if (!options.memory?.ownsSession?.(sessionId)) titleService?.schedule({ sessionId, userMessageId: result.userMessage.id, text: result.visibleContent });
+      }
+      return result;
+    };
+    // Duplicate IPC claims must not race source admission for one user identity.
+    const previous = pendingClaims.get(sessionId), pending = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(operation);
+    pendingClaims.set(sessionId, pending);
+    void pending.then(() => { if (pendingClaims.get(sessionId) === pending) pendingClaims.delete(sessionId); }, () => { if (pendingClaims.get(sessionId) === pending) pendingClaims.delete(sessionId); });
+    return pending;
   });
 
   // 派发确认：run 被主进程接受后清除认领状态；纯簿记，不广播。

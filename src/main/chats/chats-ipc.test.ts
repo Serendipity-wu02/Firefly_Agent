@@ -395,4 +395,61 @@ describe("chats IPC mode filtering", () => {
   registerChatsIpc(undefined,{memory:{ownsSession:()=>true,appendUser:vi.fn(),mutate} as any});const session=cache.createSession({mode:'chat'});cache.appendMessage(session.id,{id:'u',role:'user',content:'synthetic',at:1});
   await expect(mocks.handlers.get(IPC.CHATS_REPLACE_MESSAGES)!({sender:{}},{id:session.id,messages:[]})).rejects.toThrow('MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED');expect(cache.getSession(session.id)?.messages.map(m=>m.id)).toEqual(['u']);expect(mutate).not.toHaveBeenCalled();
  });
+ it("admits a queued user through Main before changing metadata and preserves document readScope",async()=>{
+  const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");
+  const event={sender:{}},seen:any[]=[];
+  const appendUser=vi.fn(async(e,id,message,commit)=>{expect(e).toBe(event);expect(cache.getSession(id)?.messages).toEqual([]);seen.push(message);return commit()});
+  registerChatsIpc(undefined,{memory:{appendUser,mutate:vi.fn()} as any});const session=cache.createSession({mode:"work"});
+  const scope={name:"synthetic.txt",path:"/synthetic/no-read.txt",sha256:"a".repeat(64),totalLines:4,endLine:2,partialAccepted:true};
+  cache.enqueuePendingMessage(session.id,{id:"queued",rawContent:"human original",visibleContent:"human visible",attachments:[{kind:"document",name:"synthetic.txt",filePath:scope.path,readScope:scope}]});
+  const claimed=await mocks.handlers.get(IPC.CHATS_PENDING_CLAIM)!(event,session.id) as any;
+  expect(claimed).toMatchObject({ok:true,claimed:true,userMessage:{id:"queued",content:"human original",attachments:[{readScope:scope}]}});
+  expect(seen).toHaveLength(1);expect(seen[0]).toMatchObject({id:"queued",role:"user",content:"human original",attachments:[{readScope:scope}]});
+ });
+ it("does not consume a queued user when authenticated Main denies the append",async()=>{
+  const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");
+  const appendUser=vi.fn(async()=>{throw Error("MEMORY_DESKTOP_SESSION_DENIED")});registerChatsIpc(undefined,{memory:{appendUser,mutate:vi.fn()} as any});
+  const session=cache.createSession({mode:"chat"});cache.enqueuePendingMessage(session.id,{id:"queued",rawContent:"human original",visibleContent:"human visible"});
+  await expect(mocks.handlers.get(IPC.CHATS_PENDING_CLAIM)!({sender:{}},session.id)).rejects.toThrow("MEMORY_DESKTOP_SESSION_DENIED");
+  expect(cache.getSession(session.id)?.messages).toEqual([]);expect(cache.getPendingMessages(session.id)?.map(item=>item.id)).toEqual(["queued"]);
+ });
+ it("does not promote a different pending head if the queue changes while Main authorizes",async()=>{
+  const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");
+  let release!:()=>void,entered!:()=>void;const waiting=new Promise<void>(resolve=>{release=resolve}),started=new Promise<void>(resolve=>{entered=resolve});
+  const outcomes:any[]=[];const appendUser=vi.fn(async(_event,_id,_message,commit)=>{entered();await waiting;const result=commit();outcomes.push(result);return result});
+  registerChatsIpc(undefined,{memory:{appendUser,mutate:vi.fn()} as any});const session=cache.createSession({mode:"chat"});
+  cache.enqueuePendingMessage(session.id,{id:"first",rawContent:"first human",visibleContent:"first human"});cache.enqueuePendingMessage(session.id,{id:"second",rawContent:"second human",visibleContent:"second human"});
+  const pending=Promise.resolve(mocks.handlers.get(IPC.CHATS_PENDING_CLAIM)!({sender:{}},session.id));const rejected=expect(pending).rejects.toThrow("MEMORY_SOURCE_STALE");await started;
+  cache.removePendingMessage(session.id,"first");release();await rejected;expect(outcomes).toEqual([false]);expect(cache.getSession(session.id)?.messages).toEqual([]);expect(cache.getPendingMessages(session.id)?.map(item=>item.id)).toEqual(["second"]);
+ });
+
+ it("publishes the actual queued human text as a genuine direct-user source receipt",async()=>{
+  const {EventEmitter}=await import("node:events"),{registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");
+  const {createMainDesktopSessionAuthority}=await import("../memory-context/main-desktop-session-authority"),{createActiveChatTargetRegistry}=await import("../plugin-host/active-chat-target");
+  const {createDesktopUserSourceProvider}=await import("../memory-sources/desktop-user-source-provider"),{requireMainSourceProvider}=await import("../memory-sources/main-source-provider");
+  const sender=Object.assign(new EventEmitter(),{id:73,mainFrame:{},isDestroyed:()=>false}),targets=createActiveChatTargetRegistry(),event={sender,senderFrame:sender.mainFrame};
+  cache.initialize();const session=cache.createSession({mode:"chat"});targets.setActive({sender:sender as any,sessionId:session.id,mode:"chat",rendererTargetId:"synthetic-target"});
+  const authority=createMainDesktopSessionAuthority({enabled:true,scopeKey:"scope-a",actorKey:"actor-a",getChatWindow:()=>({webContents:sender,isDestroyed:()=>false}) as any,targets,getSession:id=>cache.getSession(id),isControlledSession:()=>true})!;
+  const source=createDesktopUserSourceProvider({authority,providerId:"synthetic",scopeKey:"scope-a",clock:()=>1000,readUser:id=>{const user=cache.getSession(id.sessionId)?.messages.find(item=>item.id===id.messageId);return user?.role==="user"?{role:user.role,text:user.content}:null}});
+  const memory={ownsSession:()=>true,mutate:async(_event:any,_id:string,_users:string[],commit:()=>unknown)=>commit(),appendUser:async(received:any,id:string,message:any,commit:()=>unknown)=>{
+   const grant=authority.bind(received,id);return source.mutate(()=>{const ticket=source.prepareUserCommit(grant,id,message.id),result=commit();if(result===false)source.cancelUserCommit(ticket);else source.finishUserCommit(ticket);return result});
+  }};
+  registerChatsIpc(undefined,{memory:memory as any});
+  try{
+   cache.enqueuePendingMessage(session.id,{id:"genuine",rawContent:"I prefer PowerShell",visibleContent:"I prefer PowerShell",attachments:[{kind:"document",name:"not-read.txt",filePath:"/synthetic/not-read.txt"}]});
+   await mocks.handlers.get(IPC.CHATS_PENDING_CLAIM)!(event,session.id);
+   const identity={providerId:"synthetic",sessionId:session.id,messageId:"genuine"},provider=requireMainSourceProvider(source.token,"scope-a",identity);
+   const receipt=await provider.withLease(identity,read=>read());expect(receipt).toMatchObject({text:"I prefer PowerShell",role:"user",trust:"direct-user-event",contentRevision:1});
+   expect(JSON.stringify(receipt)).not.toContain("not-read.txt");
+  }finally{authority.dispose()}
+ });
+ it("allows a default-owner text edit retaining authorized attachment references and scopes",async()=>{
+  const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");let mutations=0;
+  registerChatsIpc(undefined,{memory:{usesCanonicalUserContent:true,ownsSession:()=>true,appendUser:vi.fn(),mutate:async(_e:any,_id:string,ids:string[],commit:()=>unknown)=>{expect(ids).toEqual(["u"]);mutations++;return commit()}} as any});
+  const session=cache.createSession({mode:"work"}),attachment={kind:"document" as const,name:"same.txt",filePath:"/synthetic/same.txt",status:"pending" as const,readScope:{name:"same.txt",path:"/synthetic/same.txt",sha256:"a".repeat(64),endLine:2,totalLines:4,partialAccepted:true}};
+  const user={id:"u",role:"user" as const,content:"before",at:1,attachments:[attachment]};cache.appendMessage(session.id,user);
+  await expect(mocks.handlers.get(IPC.CHATS_REPLACE_TAIL)!({sender:{}},{id:session.id,startIndex:0,messages:[{...user,content:"after"}]})).resolves.toMatchObject({messages:[{content:"after",attachments:[{readScope:attachment.readScope}]}]});expect(mutations).toBe(1);
+  await expect(mocks.handlers.get(IPC.CHATS_REPLACE_TAIL)!({sender:{}},{id:session.id,startIndex:0,messages:[{...user,content:"other",attachments:[{...attachment,filePath:"/synthetic/new.txt"}]}]})).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");expect(mutations).toBe(1);
+ });
+
 });

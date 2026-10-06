@@ -92,7 +92,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   const leave = (event: React.PointerEvent) => {
     if (owns(event.relatedTarget)) return;
     pointerWithin.current = false;
-    if (!moreOpen && !holdFocus()) setPeeking(false);
+    if (!sidebar.isResizing && !moreOpen && !holdFocus()) setPeeking(false);
   };
   useEffect(() => { setPeeking(false); }, [collapsed]);
   useEffect(() => {
@@ -104,7 +104,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
     const pointerMove = (event: globalThis.PointerEvent) => {
       if (owns(event.target)) return;
       pointerWithin.current = false;
-      if (!moreOpen && !holdFocus()) setPeeking(false);
+      if (!sidebar.isResizing && !moreOpen && !holdFocus()) setPeeking(false);
     };
     const shortcut = (event: KeyboardEvent) => {
       keyboardInteraction.current = true;
@@ -125,16 +125,27 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
       window.removeEventListener("keydown", shortcut);
       window.removeEventListener("blur", blur);
     };
-  }, [collapsed, moreOpen, onToggleCollapsed]);
+  }, [collapsed, moreOpen, onToggleCollapsed, sidebar.isResizing]);
   useEffect(() => {
-    if (!moreOpen && !pointerWithin.current && !holdFocus()) setPeeking(false);
-  }, [moreOpen]);
-  const hidden = collapsed && !peeking;
+    if (!sidebar.isResizing && !moreOpen && !pointerWithin.current && !holdFocus()) setPeeking(false);
+  }, [moreOpen, sidebar.isResizing]);
+  const hidden = collapsed && !peeking && !sidebar.isResizing;
   const chooseMorePanel = (panel: ChatPagePanel) => {
     setMoreOpen(false);
     onTogglePanel(panel);
     moreRef.current?.focus();
   };
+
+  const resizeHandle = <div className={`cy-sidebar-resizer ${sidebar.isResizing ? "is-resizing" : ""}`} role="separator" tabIndex={0}
+        aria-label={t("workspace.resizeSidebar")} aria-orientation="vertical"
+        aria-controls="firefly-context-sidebar" aria-valuemin={sidebar.min}
+        aria-valuemax={sidebar.max} aria-valuenow={sidebar.width}
+        onPointerDown={sidebar.beginResize}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          sidebar.resizeBy(event.key === "ArrowRight" ? 16 : -16);
+        }} />;
 
   return (
     <>
@@ -198,17 +209,9 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
           />
         </div>
         <AppUpdateEntry />
+        {collapsed && !hidden && resizeHandle}
       </aside>
-      {!collapsed && <div className={`cy-sidebar-resizer ${sidebar.isResizing ? "is-resizing" : ""}`} role="separator" tabIndex={0}
-        aria-label={t("workspace.resizeSidebar")} aria-orientation="vertical"
-        aria-controls="firefly-context-sidebar" aria-valuemin={sidebar.min}
-        aria-valuemax={sidebar.max} aria-valuenow={sidebar.width}
-        onPointerDown={sidebar.beginResize}
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-          event.preventDefault();
-          sidebar.resizeBy(event.key === "ArrowRight" ? 16 : -16);
-        }} />}
+      {!collapsed && resizeHandle}
 
     </>
   );

@@ -27,6 +27,7 @@ vi.mock("electron", () => ({
 
 import {
   clampWaitMs,
+  isShellJobControlAuthorized,
   disposeAllShellJobs,
   startShellJob,
   stopShellJob,
@@ -34,6 +35,7 @@ import {
   type ShellJobSnapshot,
   type ShellSpawnSpec,
 } from "./shell-job-manager";
+import { getWorkspaceExecutionCoordinator } from "../../harness/execution-coordinator";
 import { toolRegistry } from "../registry/tool-registry";
 import { isPidExecuting as isPidAlive } from "../../../../../scripts/testing/process-liveness.mjs";
 
@@ -123,6 +125,63 @@ describe("clampWaitMs（纯函数）", () => {
 });
 
 describe("shell-job-manager 状态机与护栏（真实进程）", () => {
+  it("actual completion stays pending after stop until process close and logs flush", async () => {
+    const script = writeScript("completion-lifetime.cjs", "setInterval(() => {}, 1000);");
+    const launched = start(script, { totalMs: 60_000 });
+    expect(launched.completion).toBeInstanceOf(Promise);
+    let completed = false;
+    void launched.completion.then(() => { completed = true; });
+    const before = await waitForShellJob(launched.jobId, 0);
+    expect(completed).toBe(false);
+    const stopped = stopShellJob(launched.jobId);
+    expect(stopped?.status).toBe("stopped");
+    expect(stopped?.processSettled).toBe(false);
+    expect(completed).toBe(false);
+    await launched.completion;
+    expect((await waitForShellJob(launched.jobId, 0))?.processSettled).toBe(true);
+    expect(isPidAlive(before?.pid ?? null)).toBe(false);
+  }, 15_000);
+
+  it("allows queue-free lifecycle control only for the exact bound workspace and parent", async () => {
+    const scope = { workspaceId: "synthetic-workspace", parentRunId: "parent", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: "shell" };
+    const script = writeScript("scoped-control.cjs", "setInterval(() => {}, 1000);");
+    const launched = startShellJob({ spec: nodeSpec([script]), command: "synthetic", shell: "cmd", executionScope: scope });
+    expect(isShellJobControlAuthorized(launched.jobId, scope)).toBe(true);
+    expect(isShellJobControlAuthorized(launched.jobId, { ...scope, childRunId: "parent-tool" })).toBe(true);
+    expect(isShellJobControlAuthorized(launched.jobId, { ...scope, parentRunId: "foreign" })).toBe(false);
+    expect(isShellJobControlAuthorized(launched.jobId, { ...scope, workspaceId: "foreign" })).toBe(false);
+    expect(isShellJobControlAuthorized("unknown", scope)).toBe(false);
+    stopShellJob(launched.jobId);
+    await launched.completion;
+  });
+
+  it("owned background cancellation stops the actual Node process before another same-workspace leaf enters", async () => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g-cancel", agentId: "a", childRunId: "ca", toolCallId: "shell-cancel" };
+    const controller = new AbortController();
+    const script = writeScript("coordinated-cancel.cjs", "setInterval(() => {}, 1000);");
+    const launched = await coordinator.runLeaf(scope, "exclusive", controller.signal, async (permit) => {
+      const job = startShellJob({ spec: nodeSpec([script]), command: "synthetic", shell: "cmd", executionScope: scope, signal: controller.signal });
+      coordinator.retainUntil(permit, job.completion);
+      return job;
+    });
+    const before = await waitForShellJob(launched.jobId, 0);
+    let entered = false;
+    const reader = coordinator.runLeaf({ ...scope, agentId: "b", childRunId: "cb", toolCallId: "after-close" }, "shared", undefined, async () => {
+      entered = true;
+      expect(isPidAlive(before?.pid ?? null)).toBe(false);
+      expect((await waitForShellJob(launched.jobId, 0))?.processSettled).toBe(true);
+    });
+    await Promise.resolve();
+    expect(entered).toBe(false);
+    controller.abort();
+    expect((await waitForShellJob(launched.jobId, 0))?.status).toBe("stopped");
+    await launched.completion;
+    await reader;
+    expect(entered).toBe(true);
+    await coordinator.closeGroup("g-cancel");
+  }, 15_000);
+
   it("启动即返回：running + pid + 日志文件已创建", async () => {
     const script = writeScript("sleeper-01.cjs", "setInterval(() => {}, 1000);");
     const { jobId, logFile } = start(script, { totalMs: 60_000 });

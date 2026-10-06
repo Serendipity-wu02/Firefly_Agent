@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PluginManager, type PluginManagerOptions } from "./manager";
+import { PLUGIN_ACTIVATION_TIMEOUT_MS, PluginManager, type PluginManagerOptions } from "./manager";
 import { PLUGIN_CLEANUP_TIMEOUT_MS, type PluginRuntime } from "./context";
 import { createPluginPromptRegistry } from "./prompts";
 import * as installer from "./installer";
@@ -77,6 +77,62 @@ function harness(overrides: Partial<PluginManagerOptions> = {}) {
     ...overrides,
   };
   return { options, tools, ipc, promptRegistry, getEnabledMap: () => ({ ...enabledMap }) };
+}
+
+/** Synthetic plugin whose registration can be resumed after the host stops waiting. */
+function pendingActivationFixture(): void {
+  writeFileSync(
+    path.join(tmp, "demo", "index.cjs"),
+    `module.exports = { async register(ctx) {
+      let finish;
+      let complete;
+      const pending = new Promise(resolve => { finish = resolve; });
+      const completed = new Promise(resolve => { complete = resolve; });
+      ctx.registerIpc("control", () => ({ signal: ctx.signal, finish, completed }));
+      await pending;
+      try {
+        ctx.registerIpc("late", () => "late");
+      } finally {
+        complete();
+      }
+    } };`,
+    "utf8",
+  );
+}
+
+function activationControl(h: ReturnType<typeof harness>): {
+  signal: AbortSignal;
+  finish: () => void;
+  completed: Promise<void>;
+} {
+  return h.ipc.get("plugin:demo:control")!() as ReturnType<typeof activationControl>;
+}
+
+function pendingImportFixture(): {
+  entered: Promise<void>;
+  loaded: Promise<void>;
+  finish: () => void;
+  registered: boolean;
+} {
+  // Keep the bridge outside the plugin directory so loader cache eviction does not replace it.
+  const bridgePath = path.join(tmp, "import-control.cjs");
+  writeFileSync(bridgePath, `const bridge = { registered: false };
+    bridge.entered = new Promise(resolve => { bridge.enter = resolve; });
+    bridge.pending = new Promise(resolve => { bridge.finish = resolve; });
+    bridge.loaded = new Promise(resolve => { bridge.didLoad = resolve; });
+    module.exports = bridge;`, "utf8");
+  const manifestPath = path.join(tmp, "demo", "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  writeFileSync(manifestPath, JSON.stringify({ ...manifest, entry: "index.mjs" }), "utf8");
+  writeFileSync(path.join(tmp, "demo", "index.mjs"), `import bridge from "../import-control.cjs";
+    bridge.enter();
+    await bridge.pending;
+    bridge.didLoad();
+    export default { register(ctx) {
+      bridge.registered = true;
+      ctx.registerIpc("late", () => "late import");
+    } };`, "utf8");
+  return require(bridgePath) as ReturnType<typeof pendingImportFixture>;
 }
 
 describe("PluginManager", () => {
@@ -417,6 +473,149 @@ describe("PluginManager", () => {
       status: "failed",
       error: "partial activation failed",
     });
+  });
+
+  it("register 永不完成时激活超时，取消 signal 并继续启动其他插件", async () => {
+    const h = harness();
+    pendingActivationFixture();
+    fixturePlugin("healthy");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+    const mgr = new PluginManager(h.options);
+    let started = false;
+    const starting = mgr.start().then(() => { started = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    const control = activationControl(h);
+
+    await vi.advanceTimersByTimeAsync(PLUGIN_ACTIVATION_TIMEOUT_MS);
+
+    expect(started).toBe(true);
+    await starting;
+    expect(control.signal.aborted).toBe(true);
+    expect(mgr.list().find((plugin) => plugin.id === "demo")).toMatchObject({
+      configuredEnabled: true,
+      status: "failed",
+      error: expect.stringContaining("激活超时"),
+    });
+    expect(h.ipc.has("plugin:demo:control")).toBe(false);
+    expect(mgr.isRunning("healthy")).toBe(true);
+    await mgr.stop();
+  });
+
+  it.each(["disable", "stop"] as const)("%s 请求立即取消未完成的 register，串行清理能结束", async (operation) => {
+    const h = harness();
+    pendingActivationFixture();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+    const mgr = new PluginManager(h.options);
+    const starting = mgr.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const control = activationControl(h);
+
+    let finished = false;
+    const stopping = (operation === "disable" ? mgr.setEnabled("demo", false) : mgr.stop())
+      .then(() => { finished = true; });
+
+    expect(control.signal.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(finished).toBe(true);
+    await Promise.all([starting, stopping]);
+    expect(mgr.isRunning("demo")).toBe(false);
+    expect(h.ipc.has("plugin:demo:control")).toBe(false);
+    if (operation === "disable") {
+      expect(mgr.list()[0].status).toBe("disabled");
+      expect(h.getEnabledMap().demo).toBe(false);
+      await mgr.stop();
+    } else {
+      expect(mgr.list()).toEqual([]);
+      expect(h.ipc.size).toBe(0);
+    }
+  });
+
+  it("激活超时后的迟到 register 不能恢复 running 或重新登记 IPC", async () => {
+    const h = harness();
+    pendingActivationFixture();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+    const mgr = new PluginManager(h.options);
+    const changes: boolean[] = [];
+    mgr.onRunningStateChange((_id, running) => { changes.push(running); });
+    let started = false;
+    const starting = mgr.start().then(() => { started = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    const control = activationControl(h);
+    await vi.advanceTimersByTimeAsync(PLUGIN_ACTIVATION_TIMEOUT_MS);
+    expect(started).toBe(true);
+    await starting;
+
+    control.finish();
+    await control.completed;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(mgr.isRunning("demo")).toBe(false);
+    expect(mgr.list()[0].status).toBe("failed");
+    expect(h.ipc.has("plugin:demo:late")).toBe(false);
+    expect(changes).toEqual([]);
+    await mgr.stop();
+  });
+
+  it.each(["timeout", "disable", "stop"] as const)("%s 中断 ESM 顶层 await，迟到 import 不调用 register", async (operation) => {
+    const h = harness();
+    const control = pendingImportFixture();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+    const mgr = new PluginManager(h.options);
+    let started = false;
+    const starting = mgr.start().then(() => { started = true; });
+    await control.entered;
+
+    let stopped = operation === "timeout";
+    const stopping = operation === "timeout"
+      ? Promise.resolve()
+      : (operation === "disable" ? mgr.setEnabled("demo", false) : mgr.stop())
+        .then(() => { stopped = true; });
+    await vi.advanceTimersByTimeAsync(operation === "timeout" ? PLUGIN_ACTIVATION_TIMEOUT_MS : 0);
+    expect(started).toBe(true);
+    expect(stopped).toBe(true);
+    await Promise.all([starting, stopping]);
+
+    control.finish();
+    await control.loaded;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(control.registered).toBe(false);
+    expect(mgr.isRunning("demo")).toBe(false);
+    expect(h.ipc.has("plugin:demo:late")).toBe(false);
+    await mgr.stop();
+  });
+
+  it("取消后重新启用仍串行完成，旧 register 迟到不能夺走新实例的 IPC", async () => {
+    const h = harness({ loadEnabledMap: () => ({ demo: false }) });
+    pendingActivationFixture();
+    vi.useFakeTimers();
+    const mgr = new PluginManager(h.options);
+    await mgr.start();
+    const enabling = mgr.setEnabled("demo", true);
+    await vi.advanceTimersByTimeAsync(0);
+    const control = activationControl(h);
+    const disabling = mgr.setEnabled("demo", false);
+    writeFileSync(path.join(tmp, "demo", "index.cjs"), `module.exports = {
+      async register(ctx) { await Promise.resolve(); ctx.registerIpc("late", () => "new instance"); }
+    };`, "utf8");
+    const reenabling = mgr.setEnabled("demo", true);
+
+    expect((await enabling).ok).toBe(false);
+    expect(await disabling).toEqual({ ok: true });
+    expect(await reenabling).toEqual({ ok: true });
+    control.finish();
+    await control.completed;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(mgr.isRunning("demo")).toBe(true);
+    expect(h.getEnabledMap().demo).toBe(true);
+    expect(h.ipc.get("plugin:demo:late")?.()).toBe("new instance");
+    expect(vi.getTimerCount()).toBe(0);
+    await mgr.stop();
   });
 
   it("用户插件首次发现时忽略作者的 defaultEnabled，等待用户确认", async () => {

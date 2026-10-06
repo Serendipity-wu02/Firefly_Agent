@@ -10,9 +10,17 @@ use std::{
 fn fixture() -> PathBuf {
     let base =
         PathBuf::from(std::env::var_os("FF_HISTORY_TEST_ROOT").expect("E fixture root required"));
-    assert_eq!(
-        base,
-        PathBuf::from(r"E:\Codex\2026-10-03\task-10\h-presence-synthetic-20261004")
+    assert!(
+        base.is_absolute()
+            && base.components().any(|c| matches!(c, std::path::Component::Normal(_)))
+            && matches!(base.components().next(), Some(std::path::Component::Prefix(p)) if matches!(p.kind(), std::path::Prefix::Disk(d) if d.eq_ignore_ascii_case(&b'E')))
+            && !base.components().any(|c| matches!(c, std::path::Component::ParentDir)),
+        "configure an existing isolated absolute E root via FF_HISTORY_TEST_ROOT"
+    );
+    let canonical = fs::canonicalize(&base).expect("isolated test root must already exist");
+    assert!(
+        matches!(canonical.components().next(), Some(std::path::Component::Prefix(p)) if matches!(p.kind(), std::path::Prefix::VerbatimDisk(d) | std::path::Prefix::Disk(d) if d.eq_ignore_ascii_case(&b'E'))),
+        "test root must resolve on E"
     );
     let result = base.join(uuid::Uuid::new_v4().to_string());
     fs::create_dir(&result).unwrap();

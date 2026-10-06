@@ -1,3 +1,5 @@
+import type { MemoryPanelAction, MemoryPanelOutcome, MemoryPanelSourceAudit, MemoryPanelState } from "../shared/memory-panel-contracts";
+import type { UiColors } from "../shared/ui-colors";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC } from "../shared/ipc-channels";
 import type { BrowserAvailabilityApi } from "../shared/browser-availability";
@@ -245,6 +247,12 @@ const toastApi: import("../shared/toast-types").ToastRendererApi = {
 contextBridge.exposeInMainWorld("toast", toastApi);
 
 const fireflyThemeApi = {
+  getColors: () => ipcRenderer.invoke(IPC.UI_COLORS_GET) as Promise<UiColors>,
+  onColorsChanged: (callback: (colors: UiColors) => void) => {
+    const listener = (_e: unknown, colors: UiColors) => callback(colors);
+    ipcRenderer.on(IPC.UI_COLORS_CHANGED, listener);
+    return () => ipcRenderer.removeListener(IPC.UI_COLORS_CHANGED, listener);
+  },
   get: () => ipcRenderer.invoke(IPC.UI_THEME_GET) as Promise<UiTheme>,
   onChanged: (callback: (theme: UiTheme) => void) => {
     const listener = (_e: unknown, theme: UiTheme) => callback(theme);
@@ -552,6 +560,9 @@ const modelConfigApi = {
 
 contextBridge.exposeInMainWorld("modelConfig", modelConfigApi);
 const manualBrowser: BrowserAvailabilityApi = {
+  getPermission: () => ipcRenderer.invoke(IPC.BROWSER_PERMISSION, { kind: "get" }),
+  requestPermission: scope => ipcRenderer.invoke(IPC.BROWSER_PERMISSION, { kind: "request", scope }),
+  revokePermission: () => ipcRenderer.invoke(IPC.BROWSER_PERMISSION, { kind: "revoke" }),
   getAvailability: () => ipcRenderer.invoke(IPC.BROWSER_AVAILABILITY),
   execute: (command) => ipcRenderer.invoke(IPC.BROWSER_COMMAND, command),
   onChanged: (callback) => {
@@ -588,6 +599,9 @@ const userApi = {
 };
 
 const memoryPanelApi = {
+  getState: (): Promise<MemoryPanelState> => ipcRenderer.invoke(IPC.MEMORY_PANEL_GET_STATE),
+  applyAction: (action: MemoryPanelAction): Promise<MemoryPanelOutcome> => ipcRenderer.invoke(IPC.MEMORY_PANEL_APPLY_ACTION, action),
+  auditSource: (factId: string): Promise<MemoryPanelSourceAudit> => ipcRenderer.invoke(IPC.MEMORY_PANEL_AUDIT_SOURCE, factId),
   getData: () => ipcRenderer.invoke(IPC.MEMORY_PANEL_GET_DATA),
   deleteImportedDoc: (importId: string, fileName?: string) => ipcRenderer.invoke(IPC.MEMORY_PANEL_DELETE_IMPORTED_DOC, { importId, fileName }),
   saveL0: (patch: Record<string, unknown>) => ipcRenderer.invoke(IPC.MEMORY_PANEL_SAVE_L0, patch),

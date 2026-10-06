@@ -457,3 +457,184 @@ describe("scheduleToolCalls", () => {
     expect(skipped).toEqual(["a:execution_error", "b:not_executed_after_error"]);
   });
 });
+
+describe("independent delegation pool", () => {
+  it("classifies delegation separately from safe leaf reads", () => {
+    expect(classifyToolExecutionMode(call("delegate_agent"), [])).toBe("delegation");
+  });
+
+  it.each([1, 2, 4])("distinct_roles_have_separate_pool (maxParallel=%s)", async maxParallel => {
+    const calls = ["role-a", "role-b", "role-c", "role-d"].map(agentId => ({
+      id: `${agentId}-call`, name: "delegate_agent", arguments: JSON.stringify({ agent_id: agentId, prompt: "synthetic" }),
+    }));
+    const gates = calls.map(() => deferred<string>());
+    let active = 0;
+    let peak = 0;
+    const started: number[] = [];
+    const scopes: unknown[] = [];
+    const scheduled = scheduleToolCalls({
+      calls, maxParallel,
+      classify: entry => classifyToolExecutionMode(entry, []),
+      execute: async execution => {
+        started.push(execution.toolCallIndex);
+        scopes.push(execution.delegationScope);
+        peak = Math.max(peak, ++active);
+        const result = await gates[execution.toolCallIndex].promise;
+        active--;
+        return result;
+      },
+      commit: async () => "continue",
+      notExecuted: async () => "skipped",
+    });
+    try {
+      await expect.poll(() => started.length).toBe(Math.min(3, maxParallel));
+    } finally {
+      for (let index = 0; index < calls.length; index++) gates[index].resolve("done");
+      await scheduled;
+    }
+    expect(peak).toBe(Math.min(3, maxParallel));
+    expect(scopes).toEqual(calls.map(entry => ({ groupId: expect.any(String), toolCallId: entry.id })));
+    expect(new Set(scopes.map(scope => (scope as { groupId: string }).groupId)).size).toBe(1);
+  });
+
+  it("launches reads beyond a saturated delegation pool and never double-closes noncontiguous launches on halt", async () => {
+    const calls = [call("role-a"), call("role-b"), call("role-c"), call("read-a"), call("read-b"), call("barrier")];
+    const gates = calls.map(() => deferred<string>());
+    const started: number[] = [];
+    const committed: number[] = [];
+    const skipped: number[] = [];
+    const scheduled = scheduleToolCalls({
+      calls, maxParallel: 2,
+      classify: entry => entry.name === "barrier" ? "exclusive" : entry.name.startsWith("role-") ? "delegation" : "parallel",
+      execute: execution => { started.push(execution.toolCallIndex); return gates[execution.toolCallIndex].promise; },
+      commit: async execution => { committed.push(execution.toolCallIndex); return execution.toolCallIndex === 0 ? "halt" : "continue"; },
+      notExecuted: async execution => { skipped.push(execution.toolCallIndex); return "skipped"; },
+    });
+    await expect.poll(() => started).toEqual([0, 1, 3, 4]);
+    gates[0].resolve("halt");
+    await expect.poll(() => committed).toEqual([0]);
+    for (const index of [1, 3, 4]) gates[index].resolve("done");
+    await scheduled;
+    expect(started).toEqual([0, 1, 3, 4]);
+    expect(skipped).toEqual([2, 5]);
+    expect(committed).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it("closes the trusted delegation group only after every original child promise settles", async () => {
+    const first = deferred<string>();
+    const second = deferred<string>();
+    const trace: string[] = [];
+    const scheduled = scheduleToolCalls({
+      calls: [call("role-a"), call("role-b"), call("barrier")], maxParallel: 3,
+      classify: entry => entry.name === "barrier" ? "exclusive" : "delegation",
+      execute: async ({ call: entry }) => {
+        trace.push(`start:${entry.name}`);
+        if (entry.name === "role-a") return first.promise;
+        if (entry.name === "role-b") return second.promise;
+        return "barrier";
+      },
+      commit: async () => "continue",
+      notExecuted: async () => "skipped",
+      closeGroup: async () => { trace.push("closed"); },
+    });
+    await expect.poll(() => trace).toEqual(["start:role-a", "start:role-b"]);
+    first.resolve("a");
+    await Promise.resolve();
+    expect(trace).not.toContain("closed");
+    second.resolve("b");
+    await scheduled;
+    expect(trace).toEqual(["start:role-a", "start:role-b", "closed", "start:barrier"]);
+  });
+});
+
+it("cancelled mixed pools close each never-launched index once and preserve already-launched results", async () => {
+  const calls = [call("role-a"), call("role-b"), call("role-c"), call("read-a"), call("read-b"), call("barrier")];
+  const gates = calls.map(() => deferred<string>());
+  const controller = new AbortController();
+  const started: number[] = [];
+  const skipped: number[] = [];
+  const committed: Array<[number, string]> = [];
+  const scheduled = scheduleToolCalls({
+    calls, maxParallel: 2, signal: controller.signal,
+    classify: entry => entry.name === "barrier" ? "exclusive" : entry.name.startsWith("role-") ? "delegation" : "parallel",
+    execute: execution => { started.push(execution.toolCallIndex); return gates[execution.toolCallIndex].promise; },
+    commit: async (execution, result) => { committed.push([execution.toolCallIndex, result]); return "continue"; },
+    notExecuted: async execution => { skipped.push(execution.toolCallIndex); return "skipped"; },
+  });
+  await expect.poll(() => started).toEqual([0, 1, 3, 4]);
+  controller.abort();
+  gates[0].reject(new Error("aborted"));
+  gates[1].reject(new Error("aborted"));
+  gates[3].resolve("read-a");
+  gates[4].resolve("read-b");
+  expect(await scheduled).toEqual({ cancelled: true, halted: false });
+  expect(skipped).toEqual([2, 5]);
+  expect(committed).toEqual([[2, "skipped"], [3, "read-a"], [4, "read-b"], [5, "skipped"]]);
+});
+
+it("quiesces a synthesis failure before the finally drain and closes its group only after actual settlement", async () => {
+  const owner = new AbortController();
+  const release = deferred<string>();
+  const boom = new Error("synthetic notExecuted persistence failure");
+  const trace: string[] = [];
+  let returned = false;
+  const scheduled = scheduleToolCalls({
+    calls: [call("role-a"), call("role-b"), call("read")], maxParallel: 1, signal: owner.signal,
+    classify: entry => entry.name === "read" ? "parallel" : "delegation",
+    execute: async ({ call: entry }) => {
+      trace.push(`start:${entry.name}`);
+      if (entry.name !== "read") return entry.name;
+      await new Promise<void>(resolve => {
+        if (owner.signal.aborted) resolve();
+        else owner.signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      trace.push("abort observed");
+      const result = await release.promise;
+      trace.push("actually settled");
+      return result;
+    },
+    commit: async () => "halt",
+    notExecuted: async () => { throw boom; },
+    onFailure: error => { expect(error).toBe(boom); trace.push("quiesce"); owner.abort(); },
+    closeGroup: async () => { trace.push("group closed"); },
+  }).then(result => { returned = true; return { result }; }, error => { returned = true; return { error }; });
+  try {
+    await expect.poll(() => trace.includes("abort observed")).toBe(true);
+    expect(trace).toEqual(["start:role-a", "start:read", "quiesce", "abort observed"]);
+    expect(returned).toBe(false);
+    release.resolve("real read result");
+    expect(await scheduled).toEqual({ error: boom });
+    expect(trace.slice(-2)).toEqual(["actually settled", "group closed"]);
+  } finally {
+    owner.abort(); release.resolve("cleanup"); await scheduled;
+  }
+});
+
+it.each(["parallel", "exclusive"] as const)("preserves the first %s execute error through owned abort and failed synthesis", async mode => {
+  const owner = new AbortController();
+  const boom = new Error("original infrastructure failure");
+  const failures: unknown[] = [];
+  const scheduled = scheduleToolCalls({
+    calls: [call("first"), call("unstarted")], maxParallel: 1, signal: owner.signal,
+    classify: () => mode,
+    execute: async () => { throw boom; },
+    commit: async () => "continue",
+    notExecuted: async () => { throw new Error("secondary synthesis failure"); },
+    onFailure: error => { failures.push(error); owner.abort(); },
+  });
+  await expect(scheduled).rejects.toBe(boom);
+  expect(failures).toEqual([boom]);
+});
+
+it("preserves the first failure when delegation group cleanup also fails", async () => {
+  const boom = new Error("original delegation infrastructure failure");
+  const failures: unknown[] = [];
+  const scheduled = scheduleToolCalls({
+    calls: [call("role")], maxParallel: 1, classify: () => "delegation",
+    execute: async () => { throw boom; }, commit: async () => "continue", notExecuted: async () => "failure result",
+    onFailure: error => { failures.push(error); },
+    closeGroup: async () => { throw new Error("secondary group cleanup failure"); },
+  });
+  await expect(scheduled).rejects.toBe(boom);
+  expect(failures).toEqual([boom]);
+});

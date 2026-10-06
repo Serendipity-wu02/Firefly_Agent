@@ -1,6 +1,10 @@
+import {createMainDefaultMemory} from "../memory-context/main-default-memory";
+import {registerMemorySettingsIpc} from "../memory-policy/memory-settings-ipc";
+import { createBrowserWorkspaceExecutor } from "../browser/browser-workspace-executor";
 import {createMainDesktopMemory} from "../memory-context/main-desktop-memory";
 import {openDesktopMemoryBackend,desktopMemoryAdmissionMode} from "../memory-context/desktop-memory-backend";
 import {getConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
+import {getHarnessRunStore} from "../orchestrator/harness/run-store";
 import { getStorageContext } from "../storage-context";
 /**
  * 默认应用依赖装配（真正的组合根胶水层）：
@@ -35,7 +39,7 @@ import {
   settingsWindow,
   tasksWindow,
 } from "../windows/window-state";
-import { getDefaultModelProfile, getCachedSavedModelProfile, listCachedSavedModelProfileIds, loadModelSettings, saveModelSettings } from "../settings/model-settings";
+import { getDefaultModelProfile, getCachedSavedModelProfile, listCachedSavedModelProfileIds, loadModelSettings, saveModelSettings, onModelConnectionChanged } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
 import {
   applyGeneralSettings,
@@ -102,7 +106,7 @@ import { flush as flushTokenUsage } from "../token-usage-store";
 
 import { loadUserProfile } from "../settings-store";
 import { getAppIconPath } from "../app-icon";
-import { hasActiveConversationRun, registerAgUiIpc } from "../agui-bridge";
+import { hasActiveConversationRun, isActiveConversationRun, registerAgUiIpc } from "../agui-bridge";
 import { updateLocaleContext } from "../locale-context";
 import { initSkills, skillRegistry } from "../skills";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
@@ -207,11 +211,19 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
   const memoryAdmissionMode=desktopMemoryAdmissionMode(name=>app.commandLine?.hasSwitch(name)===true,getStorageContext().profile.kind);
   const memoryEnabled=app.commandLine?.hasSwitch("firefly-memory-controlled")===true;
   const memoryProfileId=()=>getDefaultModelProfile(loadModelSettings())?.id;
-  const desktopMemory=memoryEnabled?createMainDesktopMemory({enabled:true,getChatWindow:()=>reactChatWindow,targets:activeChatTargetRegistry,
+  const controlledMemory=memoryEnabled?createMainDesktopMemory({enabled:true,getChatWindow:()=>reactChatWindow,targets:activeChatTargetRegistry,
     getSession:chatsStore.getSession,listSessionIds:()=>chatsStore.listSessions({mode:"chat"}).map(session=>session.id),
     isControlledSession:session=>session.modelProfileId===memoryProfileId(),
     store:getConversationTranscriptStore(getStorageContext().dataRoot),openBackend:()=>openDesktopMemoryBackend({profileId:memoryProfileId,...(memoryAdmissionMode?{admissionMode:memoryAdmissionMode}:{})}),
   }):null;
+  const defaultMemory=memoryEnabled?null:createMainDefaultMemory({getChatWindow:()=>reactChatWindow,getSettingsWindow:()=>settingsWindow,
+    targets:activeChatTargetRegistry,getSession:chatsStore.getSession,listSessionIds:()=>chatsStore.listSessions().map(session=>session.id),
+    store:getConversationTranscriptStore(getStorageContext().dataRoot),settings:loadModelSettings,
+    runReader:{get:runId=>getHarnessRunStore(getStorageContext().dataRoot).get(runId)},
+  });
+  const desktopMemory=defaultMemory??controlledMemory;
+  const releaseMemoryModelRefresh=onModelConnectionChanged(()=>defaultMemory?.refreshModels());
+  shutdown.register({id:"memory-model-refresh",phase:"quiesce",dispose:releaseMemoryModelRefresh});
   if(desktopMemory){
     shutdown.register({id:"desktop-memory-admission",phase:"quiesce",dispose:()=>desktopMemory.quiesce()});
     shutdown.register({id:"desktop-memory-resources",phase:"stopLocalResources",dispose:()=>desktopMemory.close()});
@@ -339,7 +351,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         const embeddingIndexService = createEmbeddingIndexService();
         const citaService = createCitaService({ llmClient });
         const socialContextService = createSocialContextService({ llmClient, enqueueLLMTask });
-        const proactiveLifecycle = createProactiveLifecycle({ loadGeneralSettings });
+        const proactiveLifecycle = createProactiveLifecycle({ loadGeneralSettings, memoryHost:defaultMemory?.backgroundHost });
         // 主动聊天服务初始化是纯装配；触发器由 background 阶段启动
         proactiveLifecycle.initializeProactiveChatService();
 
@@ -433,11 +445,14 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
 
       // 工具注册：集中到一个显式入口（依赖沙箱/Git/LSP 就绪）
-      registerAllTools: (services) => registerAllTools({ codeGitService: services.git, lspManager: services.lsp }),
+      registerAllTools: (services) => registerAllTools({ personalMemoryMode:defaultMemory?"smh":"legacy", codeGitService: services.git, lspManager: services.lsp,
+        browserWorkspace: createBrowserWorkspaceExecutor({ currentOwner: () => browserHost?.binding.getCurrentOwner() ?? null,
+          service: getBrowserService, isRunCurrent: isActiveConversationRun }),
+      }),
 
       initRag: async () => {
         const modelSettings = loadModelSettings();
-        await initRAG("auto", undefined, undefined, modelSettings.embeddingModel, modelSettings.embeddingDimensions);
+        await initRAG("auto", undefined, undefined, modelSettings.embeddingModel, modelSettings.embeddingDimensions,{personalMemoryMode:defaultMemory?"smh":"legacy"});
         // 注册 RAG 落盘：受控退出在 flushPersistence 阶段刷盘；
         // Windows 会话结束（断电/强制关机）走同步紧急落盘兜底
         shutdown.register({
@@ -450,7 +465,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
 
       createRuntime: (services) => createAgentRuntime({
-        ...(desktopMemory?{sContext:desktopMemory.sContext}:{}),
+        ...(controlledMemory?{sContext:controlledMemory.sContext}:{}),
+        ...(defaultMemory?{defaultMemory:defaultMemory}:{}),
         runtimeStateService: services.runtimeState,
         llmClient: services.llm,
         enqueueLLMTask,
@@ -477,6 +493,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
       createChannels: (runtime, services) => createChannelsSubsystem({
         agentRuntime: runtime,
+        memory:defaultMemory?.channelHost,
 
         getReactChatWindow: () => reactChatWindow,
         ipc: shell.ipc,
@@ -500,6 +517,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
       createScheduler: (runtime) => createSchedulerSubsystem({
         agentRuntime: runtime,
+        memoryHost:defaultMemory?.backgroundHost,
         getReactChatWindow: () => reactChatWindow,
         ipc: shell.ipc,
         publishLifecycle: lifecyclePublisher,
@@ -527,17 +545,19 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           getGeneralSettings: loadGeneralSettings,
           saveGeneralSettings,
           getModelSettings: loadModelSettings,
-          saveModelSettings,
+          saveModelSettings:input=>{const saved=saveModelSettings(input);defaultMemory?.refreshModels();return saved},
           runtimeStateService: services.runtimeState,
           proactiveLifecycle: services.proactive,
-          reconcileUserMemoryIndex,
+          reconcileUserMemoryIndex:defaultMemory?async()=>{}:reconcileUserMemoryIndex,
           embeddingIndexService: services.embedding,
           syncVolcanoSearchMcp,
           syncPlaywrightMcp,
         });
         shutdown.register({ id: "model-connection-listener", phase: "quiesce", dispose: disposeSettingsConnections });
 
+        registerMemorySettingsIpc({ipc,getSettingsWindow:()=>settingsWindow,host:defaultMemory?.settingsHost??null});
         registerMemoryUserToolIpc({
+          personalMemoryMode:defaultMemory?"smh":"legacy",
           ipc,
           windowManager: shell.windowManager,
           embeddingIndexService: services.embedding,
@@ -678,7 +698,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
       restoreMcp: (signal) => initMcpManager({ signal }),
       reconcileMemory: async (signal) => {
-        if (signal.aborted) return;
+        if (signal.aborted || defaultMemory) return;
         try {
           await reconcileUserMemoryIndex();
         } catch (err) {
@@ -709,7 +729,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
       startProactiveTrigger: async () => {
         core.services.proactive.initializeProactiveTrigger();
-        return { dispose: () => core.services.proactive.stopProactiveTrigger() };
+        return { dispose: () => core.services.proactive.close() };
       },
     }),
 

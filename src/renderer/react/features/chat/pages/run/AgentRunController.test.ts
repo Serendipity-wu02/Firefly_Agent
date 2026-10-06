@@ -1140,3 +1140,45 @@ describe("AgentRunController", () => {
     await promise;
   });
 });
+
+
+it("keeps the complete structured child result through the owning run checkpoint", async () => {
+  const api = createFakeApi({ success: true, runId: "run-1" });
+  const store = createFakeStore(); const { host } = createRecordingHost();
+  const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
+  await flush(); api.emit(RUN_STARTED_EVENT);
+  const taskResult = { agentId: "reviewer", sessionId: "child-1", status: "completed" as const, text: "Complete child result: " + "x".repeat(1200) };
+  api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "delegate-1", toolCallName: "delegate_agent" });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "foreign-run", toolCallId: "delegate-1", status: "success", content: "foreign", taskResult: { ...taskResult, text: "foreign result" } });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "run-1", toolCallId: "delegate-1", status: "success", content: "200-character preview", taskResult });
+  api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "success" } });
+  await promise;
+  expect(store.upsert.mock.calls.at(-1)?.[1].toolExecutions).toEqual([expect.objectContaining({ id: "delegate-1", result: "200-character preview", taskResult })]);
+  expect(host.patchMessage.mock.calls.some(([, , patch]) => patch.toolExecutions?.some((tool: { taskResult?: { text: string } }) => tool.taskResult?.text === "foreign result"))).toBe(false);
+});
+
+it("foreign_run_and_malformed_evidence_rejected inside otherwise owning tool events", async () => {
+  const api = createFakeApi({ success: true, runId: "run-1" });
+  const store = createFakeStore(); const { host } = createRecordingHost();
+  const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
+  await flush(); api.emit(RUN_STARTED_EVENT);
+  const taskResult = { agentId: "reviewer", sessionId: "child-1", status: "failed" as const, text: "foreign evidence", executionEvents: [{ id: "event", seq: 1, monotonicMs: 0, clockDomainId: "synthetic", parentRunId: "other-run", agentId: "reviewer", childRunId: "child-run", executionId: "execution", phase: "start" as const }] };
+  api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "delegate-1", toolCallName: "delegate_agent" });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "run-1", toolCallId: "delegate-1", status: "failed", taskResult });
+  api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "delegate-2", toolCallName: "delegate_agent" });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "run-1", toolCallId: "delegate-2", status: "failed", taskResult: { ...taskResult, executionEvents: undefined, text: 3 } as never });
+  api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "success" } }); await promise;
+  expect(store.upsert.mock.calls.at(-1)?.[1].toolExecutions.map((tool: { taskResult?: unknown }) => tool.taskResult)).toEqual([undefined, undefined]);
+});
+it("long_result_does_not_truncate_write_ledger through cancellation checkpoint", async () => {
+  const api = createFakeApi({ success: true, runId: "run-1" });
+  const store = createFakeStore(); const { host } = createRecordingHost();
+  const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
+  await flush(); api.emit(RUN_STARTED_EVENT);
+  const writes = Array.from({ length: 1000 }, (_, index) => ({ path: `${index}.md`, canonicalPath: `/synthetic/${index}.md`, agentId: "reviewer", childRunId: "child-run", toolCallId: "write-child", state: "applied" as const, eventIds: ["actual-write-event"] }));
+  const taskResult = { agentId: "reviewer", sessionId: "child-1", status: "cancelled" as const, text: "x".repeat(64001), writes };
+  api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "delegate-1", toolCallName: "delegate_agent" });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "run-1", toolCallId: "delegate-1", status: "failed", taskResult });
+  api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "cancelled" } }); await promise;
+  expect(store.upsert.mock.calls.at(-1)?.[1].toolExecutions[0].taskResult).toMatchObject({ writes, text: "x".repeat(64000), truncated: true });
+});

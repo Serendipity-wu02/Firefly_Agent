@@ -1,3 +1,4 @@
+import type { SettingsApi } from "./settings/shared/types";
 import type { ModelConfigApi } from "../shared/model-connection-types";
 import type { BrowserAvailabilityApi } from "../shared/browser-availability";
 // Global type augmentations for renderer
@@ -51,21 +52,6 @@ interface ChatWindowApi {
   }>;
 }
 
-/** 设置窗口通过 contextBridge 暴露的 window.settings（对应 preload 的 settingsApi）。
- *  只声明聊天页技能/工具模式面板用到的子集，完整实现见 src/preload/index.ts。 */
-interface SettingsWindowApi {
-  getSkillCatalog: () => Promise<unknown>;
-  getSkillModeOverrides: () => Promise<unknown>;
-  /** 重新扫描技能目录；失败返回 ok=false + error */
-  rescanSkills: () => Promise<{ ok: boolean; error?: string }>;
-  setSkillModeOverride: (skillId: string, mode: string, next: boolean) => Promise<unknown>;
-  getToolCatalog: () => Promise<unknown>;
-  getToolModeOverrides: () => Promise<unknown>;
-  getGeneral: () => Promise<unknown>;
-  setToolModeOverride: (toolId: string, mode: string, next: boolean) => Promise<unknown>;
-  saveGeneral: (payload: Record<string, unknown>) => Promise<unknown>;
-}
-
 declare global {
   interface Window {
     manualBrowser?: BrowserAvailabilityApi;
@@ -80,7 +66,7 @@ declare global {
     toast?: ToastRendererApi;
     chat?: ChatWindowApi;
     stickerManager?: StickerManagerApi;
-    settings?: SettingsWindowApi;
+    settings?: SettingsApi;
   }
 }
 

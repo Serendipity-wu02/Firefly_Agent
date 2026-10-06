@@ -187,3 +187,12 @@
   .setting-row { gap: 12px; }
   .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+.ui-color-controls { border: 1px solid var(--rb-border-soft); border-radius: 12px; padding: 18px; margin: 20px 0; min-width: 0; }
+.ui-color-controls legend { padding: 0 8px; font-weight: 600; }
+.ui-color-controls p { color: var(--rb-text-muted); font-size: 12px; line-height: 1.6; }
+.ui-color-row { display: grid; grid-template-columns: minmax(70px, 1fr) 44px minmax(100px, 150px); align-items: center; gap: 12px; margin: 12px 0; }
+.ui-color-row input[type=color] { width: 44px; height: 32px; padding: 2px; border: 1px solid var(--rb-border-soft); background: var(--rb-input-bg); cursor: pointer; }
+.ui-color-row input[type=text] { width: 100%; min-width: 0; box-sizing: border-box; padding: 7px; background: var(--rb-input-bg); color: var(--rb-input-text); border: 1px solid var(--rb-input-border); border-radius: 6px; }
+.ui-color-row input[aria-invalid=true] { outline: 2px solid #c42b1c; }
+#ui-colors-reset { color: #171717; background: #fff; border: 1px solid #999; padding: 7px 12px; border-radius: 6px; cursor: pointer; }

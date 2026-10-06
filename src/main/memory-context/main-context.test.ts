@@ -262,3 +262,39 @@ it("response validation requires claimed dispatch and never restores a one-use p
  await f.registry.prepareChange(f.access,f.provider.adapter,source.ref);
  await expect(f.context.validateResponse(f.actor,snapshot)).rejects.toThrow();
 });
+it("run-scoped source authorization rejects cross-session M support before source I/O",async()=>{
+ const f=await contextFixture(),active=await f.active(),{createMainContext}=await import("./main-context");
+ const other=f.actorAuthority.bindActor(f.access,f.provider.adapter,{...f.identity,sessionId:"session-b"});
+ const read=vi.spyOn(f.registry,"readEvidence");
+ const authorizeSourceRead=vi.fn((actor:any,ref:any)=>{
+  if(ref.binding.sessionId!==actor.sessionId)throw new Error("MEMORY_RUN_READ_DENIED");
+ });
+ const context=createMainContext({...f.options,includeFactSupportMetadata:true,authorizeSourceRead});
+ await expect(context.assemble(other,{sessionId:"session-b",sourceRefs:[],factRefs:[{factId:active.factId!,revision:1}]})).rejects.toThrow("MEMORY_RUN_READ_DENIED");
+ expect(authorizeSourceRead).toHaveBeenCalled();expect(read).not.toHaveBeenCalled();
+});
+it("run-scoped source authorization is rechecked before dispatch evidence reads",async()=>{
+ const f=await contextFixture(),s=await f.source("I prefer English"),{createMainContext}=await import("./main-context");let allowed=true;
+ const context=createMainContext({...f.options,authorizeSourceRead:()=>{if(!allowed)throw new Error("MEMORY_RUN_READ_DENIED")}});
+ const snapshot=await context.assemble(f.actor,{sessionId:"session-a",sourceRefs:[s.ref]});
+ const read=vi.spyOn(f.registry,"readEvidence");allowed=false;
+ await expect(context.validateForDispatch(f.actor,snapshot)).rejects.toThrow("MEMORY_RUN_READ_DENIED");expect(read).not.toHaveBeenCalled();
+});
+it("source context may discuss credential field names without promoting them into facts",async()=>{
+ const f=await contextFixture(),s=await f.source("Explain api_key and password field validation");
+ expect((await f.assemble([s.ref])).request.body.messages).toContainEqual({role:"user",text:"Explain api_key and password field validation"});
+ await f.policy.ingest(f.actor,s.ref);expect(await f.policy.recall(f.actor)).toEqual([]);
+});
+it("revalidates the claimed request at the final network boundary and releases the queue before response settlement",async()=>{
+ const f=await contextFixture(),s=await f.source("I prefer English"),snapshot=await f.assemble([s.ref]),permit=await f.context.validateForDispatch(f.actor,snapshot);
+ let release!:()=>void,started!:()=>void;const pending=new Promise<string>(resolve=>release=()=>resolve("ok")),ready=new Promise<void>(resolve=>started=resolve);
+ const request=f.context.dispatch(f.actor,permit,()=>f.context.invokeClaimedRequest(f.actor,snapshot,()=>{started();return pending},undefined,()=>{}));
+ await ready;await f.actorAuthority.coordinate(()=>undefined);release();expect(await request).toMatchObject({status:"sent",result:"ok"});
+ await expect(f.context.invokeClaimedRequest(f.actor,snapshot,()=>Promise.resolve("again"),undefined,()=>{})).rejects.toThrow("MEMORY_CONTEXT_PERMIT_USED");
+});
+it("an edit after SDK admission but before actual fetch causes zero network sends",async()=>{
+ const f=await contextFixture(),s=await f.source("I prefer English"),snapshot=await f.assemble([s.ref]),permit=await f.context.validateForDispatch(f.actor,snapshot);
+ let proceed!:()=>void;const ready=new Promise<void>(resolve=>proceed=resolve);let sends=0;
+ const request=f.context.dispatch(f.actor,permit,async()=>{await ready;return f.context.invokeClaimedRequest(f.actor,snapshot,()=>{sends++;return Promise.resolve("bad")},undefined,()=>{})});
+ await f.registry.prepareChange(f.access,f.provider.adapter,s.ref);proceed();await request.catch(()=>{});expect(sends).toBe(0);
+});

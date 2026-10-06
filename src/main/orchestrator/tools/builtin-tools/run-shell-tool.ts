@@ -253,6 +253,7 @@ function executePlan(
   signal?: AbortSignal,
   timeoutPolicy: ShellTimeoutPolicy = DEFAULT_TIMEOUT_POLICY,
   assertAllowed?: () => void,
+  retainActualCompletion?: (completion: Promise<void>) => void,
 ): Promise<ShellResult> {
   return new Promise((resolve, reject) => {
     (async () => {
@@ -278,6 +279,12 @@ function executePlan(
         // 不再卡在"等 stdin 输入"上耗满超时。stdout/stderr 仍 pipe 来收集输出。
         stdio: ["ignore", "pipe", "pipe"],
       });
+      // A timeout/error/grace response is not proof the OS process has closed.
+      // Keep the workspace permit until real close even if the tool returns first.
+      const actualCompletion = new Promise<void>((resolveClose) => {
+        child.once("close", () => resolveClose());
+      });
+      retainActualCompletion?.(actualCompletion);
       // Buffer 原样累积（每流 2MB 上限），进程结束时按 UTF-8→GBK 顺序解码（见 decodeShellOutput）
       const stdoutChunks: Buffer[] = [];
       const stderrChunks: Buffer[] = [];
@@ -422,6 +429,14 @@ function executePlan(
   });
 }
 
+function retainShellCompletion(context: ToolContext | undefined, completion: Promise<void>): void {
+  const execution = context?.execution;
+  if (execution) {
+    if (!execution.permit) throw new Error("Shell process requires an active leaf permit");
+    execution.coordinator.retainUntil(execution.permit, completion);
+  }
+}
+
 function resolveShellAccess(context: ToolContext | undefined, args: Record<string, unknown>): AgentFileAccessLevel {
   if (context?.conversationId && isPlanReadOnly(context.conversationId)) {
     throw new ToolExecutionError("E_PLAN_READ_ONLY", "计划讨论与审阅期间不能执行 Shell 命令。", "permission_denied");
@@ -488,6 +503,10 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
 
   const level = resolveShellAccess(context, args);
   const assertAllowed = (): void => {
+    if (context?.execution) {
+      if (!context.execution.permit) throw new Error("Shell process requires an active leaf permit");
+      context.execution.coordinator.assertPermit(context.execution.permit, "exclusive");
+    }
     if (resolveShellAccess(context, args) !== level) {
       throw new ToolExecutionError("E_PERMISSION_CHANGED", "命令准备期间权限已变化，请重新授权此次调用。", "permission_denied");
     }
@@ -509,7 +528,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
 
   // 后台执行：spawn 后立即返回 jobId，输出流式写日志文件（状态机与护栏见 shell-job-manager）。
   // 后台任务不做"无输出判卡死"检测，执行上限沿用 timeout_ms（未传则 30 分钟）；
-  // 与本轮 agent 调用解耦——取消本轮不杀后台任务，由用户 stop / 执行上限 / 应用退出控制。
+  // Main-owned 协调运行随父/子任务取消而停止；旧独立后台任务仍与本轮取消解耦。
   if (args.run_in_background === true || args.run_in_background === "true") {
     const plan: ExecutionPlan = level === "full"
       ? { kind: "direct", command, cwd, requestedShell }
@@ -526,9 +545,12 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
     }
     const spec = buildSpawnSpec(plan, resolvedShell);
     assertAllowed();
-    const { jobId, logFile } = startShellJob({
+    const { jobId, logFile, completion } = startShellJob({
       spec, command, shell: requestedShell, totalMs: timeoutPolicy.totalMs,
+      executionScope: context?.execution?.scope,
+      signal: context?.execution ? context.signal : undefined,
     });
+    retainShellCompletion(context, completion);
     logger.info(LogTag.BuiltinTools, `[run_shell] background ${jobId} started: command="${command}" totalMs=${timeoutPolicy.totalMs}`);
     return JSON.stringify({
       success: true,
@@ -546,7 +568,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
   // full 档位：直接 spawn，不走沙箱（用户已选择完全信任）
   if (level === "full") {
     logger.info(LogTag.BuiltinTools, `[run_shell] full level → direct ${requestedShell} (no sandbox)`);
-    const result = await executePlan({ kind: "direct", command, cwd, requestedShell }, resolvedShell, context?.signal, timeoutPolicy, assertAllowed);
+    const result = await executePlan({ kind: "direct", command, cwd, requestedShell }, resolvedShell, context?.signal, timeoutPolicy, assertAllowed, (completion) => retainShellCompletion(context, completion));
     logger.info(LogTag.BuiltinTools, `[run_shell] [full] done: exitCode=${result.exitCode} timedOut=${result.timedOut} stdout.len=${result.stdout.length} stderr.len=${result.stderr.length}`);
     // 字段顺序契约：stdout 排最后（command/cwd 等短字段之后），保证下游截断的
     // 尾窗始终覆盖 stdout 末尾——测试/构建命令的汇总行（Test Files/Tests passed）就在那里。
@@ -578,7 +600,7 @@ async function executeRunShell(args: Record<string, unknown>, context?: ToolCont
     });
   }
 
-  const result = await executePlan(plan, resolvedShell, context?.signal, timeoutPolicy, assertAllowed);
+  const result = await executePlan(plan, resolvedShell, context?.signal, timeoutPolicy, assertAllowed, (completion) => retainShellCompletion(context, completion));
   logger.info(LogTag.BuiltinTools, `[run_shell] [${level}] done: exitCode=${result.exitCode} timedOut=${result.timedOut} stdout.len=${result.stdout.length} stderr.len=${result.stderr.length} sandboxed=${result.ranViaSandbox}`);
   // 字段顺序契约同 full 档位：stdout 置尾，保证尾窗覆盖汇总行
   return JSON.stringify({

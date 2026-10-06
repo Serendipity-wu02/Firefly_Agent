@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import type { TaskWriteEvidence, ModelExecutionEvent } from "../../shared/agent-execution-evidence";
 import { fireflyDataDirectory } from "../firefly-data-paths";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -52,11 +53,14 @@ export interface ResumeAgentSessionInput {
 export interface TaskSessionCheckpoint {
   parentRunId?: string;
   childRunId?: string;
+  recoveryRunId?: string | null;
   status?: TaskSessionStatus;
   messages?: TaskTranscriptMessage[];
   trace?: TaskTraceRecord[];
   todoItems?: TodoItem[];
   uncertainEffects?: TaskUncertainEffect[];
+  writes?: TaskWriteEvidence[];
+  executionEvents?: ModelExecutionEvent[];
   resultText?: string;
   error?: { code: string; message: string };
   completedAt?: number;
@@ -119,6 +123,50 @@ function cloneUncertainEffects(value: unknown): TaskUncertainEffect[] {
       toolName: effect.toolName, message: effect.message,
       ...(effect.repeatAuthorization ? { repeatAuthorization: { ...effect.repeatAuthorization } } : {}),
     };
+  });
+}
+
+
+function evidenceFailure(): never { throw new Error("TASK_SESSION_READ_FAILED"); }
+function evidenceId(value: unknown): value is string {
+  return typeof value === "string" && !!value.trim() && value.length <= 2048 && !/[\u0000-\u001f\u007f]/.test(value);
+}
+function cloneWriteEvidence(value: unknown, agentId: string): TaskWriteEvidence[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return evidenceFailure();
+  return value.map(entry => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return evidenceFailure();
+    const item = entry as Partial<TaskWriteEvidence>;
+    if (!evidenceId(item.path) || !evidenceId(item.canonicalPath) || item.agentId !== agentId
+      || !evidenceId(item.childRunId) || !evidenceId(item.toolCallId)
+      || !["applied", "partially_applied", "unknown", "not_applied"].includes(item.state ?? "")
+      || !Array.isArray(item.eventIds) || !item.eventIds.every(evidenceId)) return evidenceFailure();
+    const version = (input: unknown): { sha256?: string; version?: string } | undefined => {
+      if (input === undefined) return undefined;
+      if (!input || typeof input !== "object" || Array.isArray(input)) return evidenceFailure();
+      const data = input as { sha256?: unknown; version?: unknown };
+      if (data.sha256 !== undefined && (typeof data.sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(data.sha256))) return evidenceFailure();
+      if (data.version !== undefined && !evidenceId(data.version)) return evidenceFailure();
+      return { ...(typeof data.sha256 === "string" ? { sha256: data.sha256 } : {}), ...(typeof data.version === "string" ? { version: data.version } : {}) };
+    };
+    const before = version(item.before), after = version(item.after);
+    return { path: item.path, canonicalPath: item.canonicalPath, agentId, childRunId: item.childRunId, toolCallId: item.toolCallId,
+      state: item.state!, ...(before ? { before } : {}), ...(after ? { after } : {}), eventIds: [...item.eventIds] };
+  });
+}
+function cloneExecutionEvents(value: unknown, agentId: string): ModelExecutionEvent[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return evidenceFailure();
+  return value.map(entry => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return evidenceFailure();
+    const item = entry as Partial<ModelExecutionEvent>;
+    if (!evidenceId(item.id) || !evidenceId(item.clockDomainId) || item.agentId !== agentId
+      || !evidenceId(item.parentRunId) || !evidenceId(item.childRunId) || !evidenceId(item.executionId)
+      || !Number.isSafeInteger(item.seq) || item.seq! < 1 || !Number.isFinite(item.monotonicMs) || item.monotonicMs! < 0
+      || !["start", "end", "terminal"].includes(item.phase ?? "")
+      || item.terminal !== undefined && (!["completed", "failed", "cancelled"].includes(item.terminal) || item.phase === "start")) return evidenceFailure();
+    return { id: item.id, seq: item.seq!, monotonicMs: item.monotonicMs!, clockDomainId: item.clockDomainId, agentId,
+      parentRunId: item.parentRunId, childRunId: item.childRunId, executionId: item.executionId, phase: item.phase!, ...(item.terminal ? { terminal: item.terminal } : {}) };
   });
 }
 
@@ -249,11 +297,18 @@ export class TaskSessionStore {
     const session = this.require(taskId);
     if (patch.parentRunId !== undefined) session.parentRunId = patch.parentRunId;
     if (patch.childRunId !== undefined) session.childRunId = patch.childRunId;
+    if (patch.recoveryRunId !== undefined) {
+      if (patch.recoveryRunId === null) delete session.recoveryRunId;
+      else if (evidenceId(patch.recoveryRunId)) session.recoveryRunId = patch.recoveryRunId;
+      else evidenceFailure();
+    }
     if (patch.status !== undefined) session.status = patch.status;
     if (patch.messages !== undefined) session.messages = cloneSession({ ...session, messages: patch.messages }).messages;
     if (patch.trace !== undefined) session.trace = patch.trace.slice(-TRACE_LIMIT);
     if (patch.todoItems !== undefined) session.todoItems = cloneTodoItems(patch.todoItems);
     if (patch.uncertainEffects !== undefined) session.uncertainEffects = cloneUncertainEffects(patch.uncertainEffects);
+    if (patch.writes !== undefined) session.writes = cloneWriteEvidence(patch.writes, session.agent.id);
+    if (patch.executionEvents !== undefined) session.executionEvents = cloneExecutionEvents(patch.executionEvents, session.agent.id);
     if (patch.resultText !== undefined) session.resultText = patch.resultText;
     if (patch.error !== undefined) session.error = { ...patch.error };
     if (patch.completedAt !== undefined) session.completedAt = patch.completedAt;
@@ -302,11 +357,13 @@ export class TaskSessionStore {
     if (!fs.existsSync(file)) return null;
     try {
       const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
-      if (!isTaskSession(parsed)) throw new Error("TASK_SESSION_READ_FAILED");
+      if (!isTaskSession(parsed) || parsed.recoveryRunId !== undefined && !evidenceId(parsed.recoveryRunId)) throw new Error("TASK_SESSION_READ_FAILED");
       return {
         ...parsed,
         todoItems: cloneTodoItems(parsed.todoItems),
         uncertainEffects: cloneUncertainEffects(parsed.uncertainEffects),
+        ...(parsed.writes === undefined ? {} : { writes: cloneWriteEvidence(parsed.writes, parsed.agent.id) }),
+        ...(parsed.executionEvents === undefined ? {} : { executionEvents: cloneExecutionEvents(parsed.executionEvents, parsed.agent.id) }),
       };
     } catch {
       throw new Error("TASK_SESSION_READ_FAILED: 原文件已保留");

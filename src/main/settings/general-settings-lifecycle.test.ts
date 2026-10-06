@@ -1,3 +1,4 @@
+import { IPC } from "../../shared/ipc-channels";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GeneralSettings } from "./general-settings";
 import type { WindowManager } from "../windows/window-manager";
@@ -23,6 +24,7 @@ function createHarness(petVisible = true) {
   } as GeneralSettings;
   let visible = petVisible;
   const windowManager = {
+    broadcast: vi.fn(),
     showPetWindow: vi.fn(() => { visible = true; }),
     hidePetWindow: vi.fn(() => { visible = false; }),
     setPetWindowAlwaysOnTop: vi.fn(),
@@ -40,6 +42,17 @@ function createHarness(petVisible = true) {
 
 describe("general settings window lifecycle", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("broadcasts changed colors once and leaves identical colors quiet", () => {
+    const h = createHarness();
+    const uiColors = { enabled: true, accent: "#0285ff", background: "#ffffff", foreground: "#0d0d0d" };
+    const after = { ...h.settings, uiColors };
+    handleGeneralSettingsChanged(h.settings, after, h.deps);
+    expect(h.windowManager.broadcast).toHaveBeenCalledWith(IPC.UI_COLORS_CHANGED, uiColors);
+    h.windowManager.broadcast.mockClear();
+    handleGeneralSettingsChanged(after, { ...after, uiColors: { ...uiColors } }, h.deps);
+    expect(h.windowManager.broadcast).not.toHaveBeenCalled();
+  });
 
   it("keeps a pet hidden from the tray hidden when changing ASR provider (#85)", () => {
     const h = createHarness();

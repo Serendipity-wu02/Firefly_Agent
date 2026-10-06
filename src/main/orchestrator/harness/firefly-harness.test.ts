@@ -474,6 +474,19 @@ describe("FireflyHarness completion", () => {
     vi.unstubAllGlobals();
   });
 
+  it("publishes full structured delegate output independently from the short preview", async () => {
+    const taskResult = { agentId: "reviewer", sessionId: "child-1", status: "completed", text: "Full report " + "x".repeat(400) };
+    const { fn: fetchMock } = fakeFetchSequencer([
+      assistantResponse({ toolCalls: [{ id: "delegate-1", name: "delegate_agent", arguments: JSON.stringify({ agent_id: "reviewer", prompt: "review" }) }] }),
+      assistantResponse({ text: "Reviewed" }),
+    ]);
+    vi.stubGlobal("fetch", fetchMock);
+    mockedDispatch.mockResolvedValue({ ...successDispatchResult(), tool: "delegate_agent", output: JSON.stringify(taskResult), preview: "Agent reviewer: completed" });
+    const events: HarnessEvent[] = [];
+    await runFireflyHarness({ systemPrompt: "test", messages: [{ role: "user", content: "review" }], tools: [], vendorConfig, onEvent: event => events.push(event) });
+    expect(events.find(event => event.type === "tool_end")).toMatchObject({ toolCallId: "delegate-1", preview: "Agent reviewer: completed", taskResult });
+  });
+
   it("accepts model final immediately after a mutation tool succeeds, without runtime_feedback", async () => {
     const { fn: fetchMock } = fakeFetchSequencer([
       assistantResponse({ toolCalls: [mutationToolCall("call-1")] }),
@@ -946,7 +959,7 @@ describe("FireflyHarness completion", () => {
       assistantResponse({ text: "完成。" }),
     ]);
     vi.stubGlobal("fetch", fetchMock);
-    mockedDispatch.mockResolvedValue(successDispatchResult("durable-call"));
+    mockedDispatch.mockImplementation(async (_call, context) => { context.onExecutionStarted?.(); return successDispatchResult("durable-call"); });
     const lifecycle: Array<{ toolCallId: string; status: string }> = [];
 
     await runFireflyHarness({
@@ -958,6 +971,7 @@ describe("FireflyHarness completion", () => {
     });
 
     expect(lifecycle).toEqual([
+      expect.objectContaining({ toolCallId: "durable-call", status: "planned", toolSideEffect: "idempotent_mutation" }),
       expect.objectContaining({ toolCallId: "durable-call", status: "started", toolSideEffect: "idempotent_mutation" }),
       expect.objectContaining({ toolCallId: "durable-call", status: "committed", toolSideEffect: "idempotent_mutation" }),
     ]);
@@ -969,7 +983,7 @@ describe("FireflyHarness completion", () => {
       assistantResponse({ text: "完成。" }),
     ]);
     vi.stubGlobal("fetch", fetchMock);
-    mockedDispatch.mockResolvedValue(successDispatchResult("obs-call"));
+    mockedDispatch.mockImplementation(async (_call, context) => { context.onExecutionStarted?.(); return successDispatchResult("obs-call"); });
     const finished: HarnessToolFinishedEvent[] = [];
 
     await runFireflyHarness({
@@ -1623,14 +1637,10 @@ describe("FireflyHarness transcript sink", () => {
       assistantResponse({ text: "不应到达" }),
     ]);
     vi.stubGlobal("fetch", modelFetch);
-    mockedDispatch.mockResolvedValue({
-      outcome: "success",
-      tool: "send_email",
-      target: "x@y",
-      message: "sent",
-      output: "sent",
-      truncated: false,
-      preview: "sent",
+    mockedDispatch.mockImplementation(async (_call, context) => {
+      context.onExecutionStarted?.();
+      return { outcome: "success", tool: "send_email", target: "x@y", message: "sent",
+        output: "sent", truncated: false, preview: "sent" };
     });
 
     const lifecycle: HarnessToolLifecycleEvent[] = [];
@@ -1648,4 +1658,181 @@ describe("FireflyHarness transcript sink", () => {
     expect(result.finalState.uncertainEffects).toContainEqual(expect.objectContaining({ toolName: "send_email" }));
     expect(result.terminateReason).toBe("error");
   });
+});
+
+describe("workspace execution terminal boundaries", () => {
+  beforeEach(() => {
+    mockedDispatch.mockReset();
+    fakeStreamChatWithSdk.mockReset();
+    recordUsage.mockReset();
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("drains the Main group before terminal checkpoint and return", async () => {
+    fakeStreamChatWithSdk.mockResolvedValueOnce(assistantResponse({ text: "done" }));
+    let release!: () => void;
+    const drain = new Promise<void>(resolve => { release = resolve; });
+    const closeGroup = vi.fn(async () => drain);
+    const onCheckpoint = vi.fn();
+    let returned = false;
+    const pending = runFireflyHarness({
+      systemPrompt: "synthetic", messages: [], tools: [], vendorConfig,
+      toolContext: { userQuery: "synthetic", execution: { coordinator: { closeGroup } as never, scope: {
+        workspaceId: "workspace", parentRunId: "main-run", groupId: "main-run", agentId: "main", childRunId: "main-run", toolCallId: "main-run",
+      } } },
+      onCheckpoint,
+    }).then(result => { returned = true; return result; });
+    await expect.poll(() => closeGroup.mock.calls.length).toBe(1);
+    expect(onCheckpoint).not.toHaveBeenCalled();
+    expect(returned).toBe(false);
+    release();
+    expect((await pending).finalAnswer).toBe("done");
+    expect(onCheckpoint).toHaveBeenCalledOnce();
+    expect(closeGroup).toHaveBeenCalledWith("main-run");
+  });
+
+  it("child terminal drains only its own leaves without closing the shared sibling group", async () => {
+    fakeStreamChatWithSdk.mockResolvedValueOnce(assistantResponse({ text: "child done" }));
+    const whenChildSettled = vi.fn(async () => undefined);
+    const closeGroup = vi.fn(async () => undefined);
+    await runFireflyHarness({
+      systemPrompt: "synthetic", messages: [], tools: [], vendorConfig,
+      toolContext: { userQuery: "synthetic", execution: { coordinator: { whenChildSettled, closeGroup } as never, scope: {
+        workspaceId: "workspace", parentRunId: "main-run", groupId: "siblings", agentId: "role-a", childRunId: "child-a", toolCallId: "child-a",
+      } } },
+    });
+    expect(whenChildSettled).toHaveBeenCalledOnce();
+    expect(whenChildSettled).toHaveBeenCalledWith("child-a");
+    expect(closeGroup).not.toHaveBeenCalled();
+  });
+
+  it("keeps actual rootless delegation serial without inventing a workspace", async () => {
+    const calls = ["role-a", "role-b"].map((role, index) => ({ id: String(index), name: "delegate_agent", arguments: JSON.stringify({ agent_id: role, prompt: "inspect" }) }));
+    fakeStreamChatWithSdk.mockResolvedValueOnce(assistantResponse({ toolCalls: calls }))
+      .mockResolvedValueOnce(assistantResponse({ text: "done" }));
+    let release!: () => void;
+    const first = new Promise<void>(resolve => { release = resolve; });
+    const started: string[] = [];
+    mockedDispatch.mockImplementation(async (entry, context) => {
+      context.onExecutionStarted?.();
+      started.push(entry.id);
+      if (entry.id === "0") await first;
+      return { outcome: "success", tool: entry.name, message: "done" };
+    });
+    const pending = runFireflyHarness({
+      systemPrompt: "synthetic", messages: [], tools: [], vendorConfig,
+      agentExecutor: async () => ({ agentId: "fixture", sessionId: "fixture", status: "completed", text: "" }),
+      config: { maxParallelToolCalls: 4 },
+    });
+    await expect.poll(() => started).toEqual(["0"]);
+    release();
+    await pending;
+    expect(started).toEqual(["0", "1"]);
+    expect(mockedDispatch.mock.calls[0][1].toolContext?.execution).toBeUndefined();
+  });
+});
+
+it("records planned before dispatch, and cancellation drains original started dispatch before terminal", async () => {
+  mockedDispatch.mockReset();
+  fakeStreamChatWithSdk.mockReset();
+  fakeStreamChatWithSdk.mockResolvedValueOnce(assistantResponse({ toolCalls: [mutationToolCall("late-settlement")] }));
+  const controller = new AbortController();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const lifecycle: HarnessToolLifecycleEvent[] = [];
+  const checkpoint = vi.fn();
+  let entered = false;
+  let returned = false;
+  mockedDispatch.mockImplementation(async (_call, context) => {
+    expect(lifecycle).toEqual([expect.objectContaining({ status: "planned", toolCallId: "late-settlement" })]);
+    context.onExecutionStarted?.();
+    entered = true;
+    await gate;
+    return successDispatchResult("late-settlement");
+  });
+  const pending = runFireflyHarness({
+    systemPrompt: "synthetic", messages: [], tools: [mutationTool()], vendorConfig, signal: controller.signal,
+    onToolLifecycle: event => lifecycle.push(event), onCheckpoint: checkpoint,
+  }).then(result => { returned = true; return result; });
+  await expect.poll(() => entered).toBe(true);
+  controller.abort();
+  await Promise.resolve();
+  expect(returned).toBe(false);
+  // Only the predispatch declaration snapshot exists; no terminal snapshot yet.
+  expect(checkpoint).toHaveBeenCalledOnce();
+  release();
+  expect((await pending).terminateReason).toBe("cancelled");
+  expect(lifecycle.map(event => event.status)).toEqual(["planned", "started", "committed"]);
+});
+
+it.each(["cancelled", "unexpected throw"])("Main %s exit waits for the same single actual group drain", async exit => {
+  mockedDispatch.mockReset();
+  fakeStreamChatWithSdk.mockReset();
+  const controller = new AbortController();
+  if (exit === "cancelled") controller.abort();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const closeGroup = vi.fn(async () => gate);
+  const checkpoint = vi.fn();
+  const boom = new Error("synthetic callback error");
+  let returned = false;
+  const outcome = runFireflyHarness({
+    systemPrompt: "synthetic", messages: [], tools: [], vendorConfig, signal: controller.signal,
+    toolContext: { userQuery: "synthetic", execution: { coordinator: { closeGroup } as never, scope: {
+      workspaceId: "workspace", parentRunId: "main-exit", groupId: "main-exit", agentId: "main", childRunId: "main-exit", toolCallId: "main-exit",
+    } } },
+    onEvent: event => { if (exit === "unexpected throw" && event.type === "round_start") throw boom; },
+    onCheckpoint: checkpoint,
+  }).then(result => { returned = true; return { result }; }, error => { returned = true; return { error }; });
+  await expect.poll(() => closeGroup.mock.calls.length).toBe(1);
+  expect(returned).toBe(false);
+  expect(checkpoint).not.toHaveBeenCalled();
+  release();
+  const settled = await outcome;
+  if (exit === "cancelled") expect(settled).toMatchObject({ result: { terminateReason: "cancelled" } });
+  else expect(settled).toEqual({ error: boom });
+  expect(closeGroup).toHaveBeenCalledOnce();
+});
+
+it("checkpoints exact declared call arguments after canonical assistant and before planned or actual dispatch", async () => {
+  mockedDispatch.mockReset(); fakeStreamChatWithSdk.mockReset();
+  const call = mutationToolCall("durable-args-before-start");
+  fakeStreamChatWithSdk.mockResolvedValueOnce(assistantResponse({ toolCalls: [call] }))
+    .mockResolvedValueOnce(assistantResponse({ text: "done" }));
+  const trace: string[] = [];
+  let snapshot: HarnessCheckpoint | undefined;
+  let snapshotAtDispatch: HarnessCheckpoint | undefined;
+  const sink = { appendAssistant: vi.fn(async () => { trace.push("canonical"); return "entry"; }),
+    appendToolResult: vi.fn(async () => "result") } as unknown as TranscriptSink;
+  mockedDispatch.mockImplementation(async (_call, context) => {
+    snapshotAtDispatch = snapshot ? structuredClone(snapshot) : undefined;
+    context.onExecutionStarted?.();
+    trace.push("dispatch");
+    return successDispatchResult(call.id);
+  });
+  await runFireflyHarness({
+    systemPrompt: "synthetic", messages: [], tools: [mutationTool()], vendorConfig, transcriptSink: sink,
+    onCheckpoint: value => { snapshot = structuredClone(value); trace.push("checkpoint"); },
+    onToolLifecycle: event => trace.push(event.status),
+  });
+  expect(snapshotAtDispatch?.messages.at(-1)).toMatchObject({ role: "assistant", toolCalls: [call] });
+  expect(trace.slice(0, 5)).toEqual(["canonical", "checkpoint", "planned", "started", "dispatch"]);
+});
+
+it("predispatch snapshot failure runs zero tools after the canonical assistant is persisted", async () => {
+  mockedDispatch.mockReset(); fakeStreamChatWithSdk.mockReset();
+  fakeStreamChatWithSdk.mockResolvedValueOnce(assistantResponse({ toolCalls: [mutationToolCall("snapshot-denied")] }));
+  mockedDispatch.mockResolvedValue(successDispatchResult("snapshot-denied"));
+  const appendAssistant = vi.fn(async () => "entry");
+  const lifecycle = vi.fn();
+  const result = await runFireflyHarness({
+    systemPrompt: "synthetic", messages: [], tools: [mutationTool()], vendorConfig,
+    transcriptSink: { appendAssistant } as unknown as TranscriptSink,
+    onCheckpoint: () => { throw new Error("synthetic snapshot failure"); }, onToolLifecycle: lifecycle,
+  });
+  expect(appendAssistant).toHaveBeenCalledOnce();
+  expect(mockedDispatch).not.toHaveBeenCalled();
+  expect(lifecycle).not.toHaveBeenCalled();
+  expect(result.terminateReason).toBe("error");
+  expect(result.finalAnswer).toContain("执行状态保存失败");
 });

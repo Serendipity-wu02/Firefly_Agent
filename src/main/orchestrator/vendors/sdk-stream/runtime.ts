@@ -22,13 +22,13 @@ import {
 } from "./types";
 
 export interface OpenAIStreamFactoryInput {
-  client: OpenAIClientConfig;
+  client: OpenAIClientConfig & { fetch?: typeof fetch; logLevel?: "off" };
   body: Record<string, unknown>;
   signal: AbortSignal;
 }
 
 export interface AnthropicStreamFactoryInput {
-  client: AnthropicClientConfig;
+  client: AnthropicClientConfig & { logLevel?: "off" };
   body: Record<string, unknown>;
   signal: AbortSignal;
 }
@@ -50,6 +50,13 @@ export interface SdkStreamRunInput {
   signal?: AbortSignal;
   onDelta?: (delta: UnifiedStreamDelta) => void;
   onDiagnostic?: (diagnostic: StreamDiagnostic) => void;
+}
+
+/** Already serialized input. Used by the Main prepared-call boundary without rebuilding a prompt. */
+export interface SdkPreparedStreamRunInput extends Omit<SdkStreamRunInput, "request"> {
+  model: string;
+  prepared: { endpoint: string; body: Record<string, unknown> };
+  fetch: typeof fetch;
 }
 
 const defaultDeps: SdkStreamRuntimeDeps = {
@@ -119,9 +126,26 @@ function responsesTerminalResponse(event: unknown): Record<string, unknown> | un
   return response as Record<string, unknown>;
 }
 
-export async function streamChatWithSdk(
+export function streamChatWithSdk(
   input: SdkStreamRunInput,
   deps: SdkStreamRuntimeDeps = defaultDeps,
+): Promise<ChatResponse> {
+  return runSdkStream({ ...input, model: input.request.model },
+    () => requestBody(input.adapter, input.request, input.config), deps);
+}
+
+export function streamPreparedChatWithSdk(
+  input: SdkPreparedStreamRunInput,
+  deps: SdkStreamRuntimeDeps = defaultDeps,
+): Promise<ChatResponse> {
+  return runSdkStream(input, () => input.prepared, deps, input.fetch);
+}
+
+async function runSdkStream(
+  input: Omit<SdkStreamRunInput, "request"> & { model: string },
+  prepare: () => { endpoint: string; body: Record<string, unknown> },
+  deps: SdkStreamRuntimeDeps,
+  preparedFetch?: typeof fetch,
 ): Promise<ChatResponse> {
   const controller = new AbortController();
   let timedOut = false;
@@ -141,10 +165,13 @@ export async function streamChatWithSdk(
   let traceId = "";
   // 本次请求的完整地址 —— 失败日志要带上；catch 块读不到 try 内的局部变量，提升到外层。
   let requestEndpoint = "";
+  const assertActive = () => { if (controller.signal.aborted) throw cancellationError(controller.signal); };
   const commitDelta = (delta: UnifiedStreamDelta) => {
+    assertActive();
     if (delta.type === "finish"
       && (input.adapter.transport === "openai" || input.adapter.transport === "responses")) {
       for (const toolCall of accumulator.snapshot().toolCalls) {
+        assertActive();
         if (!toolCall.ended) {
           const end: UnifiedStreamDelta = {
             type: "tool_call_end",
@@ -156,6 +183,7 @@ export async function streamChatWithSdk(
         }
       }
     }
+    assertActive();
     accumulator.apply(delta);
     input.onDelta?.(delta);
   };
@@ -178,7 +206,8 @@ export async function streamChatWithSdk(
   };
 
   try {
-    const prepared = requestBody(input.adapter, input.request, input.config);
+    if (controller.signal.aborted) throw cancellationError(controller.signal);
+    const prepared = prepare();
     requestEndpoint = prepared.endpoint;
     traceId = dumpRequest({
       transport: input.adapter.transport,
@@ -187,7 +216,8 @@ export async function streamChatWithSdk(
     });
     if (input.adapter.transport === "openai") {
       const chunks = await deps.openAI({
-        client: deriveOpenAIClientConfig(prepared.endpoint, input.config.apiKey),
+        client: { ...deriveOpenAIClientConfig(prepared.endpoint, input.config.apiKey),
+          ...(preparedFetch ? { fetch: preparedFetch, logLevel: "off" as const } : {}) },
         body: prepared.body,
         signal: controller.signal,
       });
@@ -196,6 +226,7 @@ export async function streamChatWithSdk(
         lastChunk = chunk;
         for (const delta of normalizeOpenAIChunk(chunk)) dispatch(delta);
       }
+      assertActive();
       flushTaggedThink();
       const openaiFinal = accumulator.finalize(lastChunk);
       dumpResponse(traceId, {
@@ -212,7 +243,8 @@ export async function streamChatWithSdk(
 
     if (input.adapter.transport === "responses") {
       const chunks = await deps.responses({
-        client: deriveResponsesClientConfig(prepared.endpoint, input.config.apiKey),
+        client: { ...deriveResponsesClientConfig(prepared.endpoint, input.config.apiKey),
+          ...(preparedFetch ? { fetch: preparedFetch, logLevel: "off" as const } : {}) },
         body: prepared.body,
         signal: controller.signal,
       });
@@ -222,6 +254,7 @@ export async function streamChatWithSdk(
         if (terminal) finalResponse = terminal;
         for (const delta of normalizeResponsesEvent(event)) dispatch(delta);
       }
+      assertActive();
       flushTaggedThink();
       const finalized = accumulator.finalize(finalResponse);
       // rawAssistant 补挂：完整 output items 是 Responses 多轮保真的核心（accumulator 不产出该字段）。
@@ -248,17 +281,28 @@ export async function streamChatWithSdk(
     }
 
     const authStyle = input.adapter.capability.anthropicAuthStyle ?? input.adapter.capability.authStyle;
+    const anthropicClient = deriveAnthropicClientConfig(prepared.endpoint, input.config.apiKey, authStyle, preparedFetch);
     const stream = await deps.anthropic({
-      client: deriveAnthropicClientConfig(prepared.endpoint, input.config.apiKey, authStyle),
+      client: { ...anthropicClient,
+        ...(preparedFetch ? { fetch: anthropicClient.fetch ?? preparedFetch, logLevel: "off" as const } : {}) },
       body: prepared.body,
       signal: controller.signal,
     });
     const normalizer = new AnthropicEventNormalizer();
-    for await (const event of stream.events) {
-      for (const delta of normalizer.normalize(event)) dispatch(delta);
+    try {
+      for await (const event of stream.events) {
+        for (const delta of normalizer.normalize(event)) dispatch(delta);
+      }
+      flushTaggedThink();
+    } catch (error) {
+      // MessageStream.iterator.return() only aborts; its background reader may still
+      // be settling. Keep ownership until finalMessage/done settles, preserving the
+      // original parser/sink/cancellation error rather than replacing it.
+      try { await stream.finalMessage(); } catch { /* Original error remains authoritative. */ }
+      throw error;
     }
-    flushTaggedThink();
     const finalMessage = await stream.finalMessage();
+    assertActive();
     const reconciled = reconcileAnthropicTerminal(
       accumulator.snapshot(),
       finalMessage,
@@ -276,20 +320,26 @@ export async function streamChatWithSdk(
     });
     return reconciled;
   } catch (error) {
-    // [image-send] 链路日志④（流式）：失败时带上模型名、请求地址、错误码，
-    // 排查"谁挂了、挂在哪"不用再翻设置或记账文件。
-    console.error(
+    // Prepared/Main requests can contain private sources. Never copy provider
+    // messages (which may echo inputs or credentials) into their diagnostics.
+    const safeReason = timedOut ? "E_MODEL_REQUEST_TIMEOUT"
+      : input.signal?.aborted ? "MEMORY_CONTEXT_CANCELLED"
+      : error instanceof ProviderProtocolError || error instanceof AgentRuntimeError ? error.code
+      : "E_MODEL_REQUEST_FAILED";
+    const diagnostic = preparedFetch ? safeReason : describeModelError(error);
+    if (preparedFetch) console.error("[model-request] 流式请求失败:", safeReason);
+    else console.error(
       "[image-send] 流式请求失败:",
-      `\n  model id: ${input.request.model}`,
+      `\n  model id: ${input.model}`,
       `\n  baseUrl: ${requestEndpoint || "请求未发出"}`,
-      `\n  error: ${describeModelError(error)}`,
+      `\n  error: ${diagnostic}`,
     );
     if (traceId) {
       dumpResponse(traceId, {
         transport: input.adapter.transport,
         ok: false,
         raw: null,
-        error: describeModelError(error),
+        error: diagnostic,
       });
     }
     if (timedOut) {

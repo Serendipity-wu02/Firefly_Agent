@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ToolExecutionError } from "./tool-execution-error";
 import { executeToolDefinition } from "./tool-executor";
+import type { ToolContext } from "./tool-context";
 import type { ToolDefinition } from "./tool-registry";
 
 function fakeTool(execute: ToolDefinition["execute"]): ToolDefinition {
@@ -88,6 +89,22 @@ describe("executeToolDefinition", () => {
   it("preserves structured evidence when explicit failure has no error message", async () => {
     const output = JSON.stringify({ success: false, errorCode: "E_EXIT", category: "semantic_failure", effectState: "unknown", exitCode: 7, stdout: "partial" });
     expect(await executeToolDefinition(fakeTool(async () => output), {})).toMatchObject({ status: "failed", output, errorCode: "E_EXIT", effectState: "unknown" });
+  });
+
+  it("preserves independently recorded partial writes through legacy failure conversion", async () => {
+    const writes = [{ path: "/synthetic/a", canonicalPath: "/synthetic/a", agentId: "a", childRunId: "child", toolCallId: "call", state: "partially_applied", before: { sha256: "before" }, after: { sha256: "after" }, eventIds: ["write-event"] }];
+    const execution = {
+      coordinator: { getWriteEvidence: () => structuredClone(writes) },
+      scope: { workspaceId: "workspace", parentRunId: "parent", groupId: "group", agentId: "a", childRunId: "child", toolCallId: "call" },
+    } as unknown as NonNullable<ToolContext["execution"]>;
+    const outcome = await executeToolDefinition(fakeTool(async () => JSON.stringify({ success: false, error: "second write failed", writes: [{ state: "applied", path: "forged" }] })), {}, { userQuery: "", execution });
+    expect(outcome.output).toBe("second write failed");
+    expect(outcome.writes).toEqual(writes);
+  });
+
+  it("never trusts write evidence in returned model-controlled JSON", async () => {
+    const outcome = await executeToolDefinition(fakeTool(async () => JSON.stringify({ success: false, error: "failed", writes: [{ state: "applied", path: "forged" }] })), {});
+    expect(outcome.writes).toBeUndefined();
   });
 
   it("rethrows AbortError instead of converting cancellation to a tool failure", async () => {

@@ -6,14 +6,18 @@ import type { BrowserPageDto, ManualBrowserCommand } from "../../../../../shared
 vi.mock("../../../i18n", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 import { ManualBrowserTab } from "./ManualBrowserTab";
 const page = (id = "b", requestId = 1): BrowserPageDto => ({ browserId: id, conversationId: "s", requestId, closed: false, loading: false, url: "https://example.com/", pendingUrl: null, canGoBack: true, canGoForward: false, error: null });
+const permission = (status: "required" | "pending" | "granted" | "denied") => ({ conversationId: "s", status, scope: { hosts: ["example.com", "github.com", "github.githubassets.com", "avatars.githubusercontent.com"], actions: ["navigate", "observe", "click", "type"] as const }, requestId: null });
 let changed: (p: BrowserPageDto) => void, host: HTMLDivElement, root: ReturnType<typeof createRoot>;
+let requestPermission: ReturnType<typeof vi.fn>, revokePermission: ReturnType<typeof vi.fn>;
 let execute: ReturnType<typeof vi.fn>, off: ReturnType<typeof vi.fn>, resize: (() => void) | undefined;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", class { constructor(fn: () => void) { resize = fn; } observe() {} disconnect() {} });
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ x: 300, y: 80, left: 300, top: 80, width: 400, height: 300, right: 700, bottom: 380, toJSON() {} });
   off = vi.fn(); execute = vi.fn(async (command: ManualBrowserCommand) => ({ ok: true, value: command.kind === "open" ? page() : null }));
-  window.manualBrowser = { getAvailability: async () => ({ available: true }), execute, onChanged: fn => { changed = fn; return off; } };
+  requestPermission = vi.fn(async () => ({ ok: true, value: permission("granted") }));
+  revokePermission = vi.fn(async () => ({ ok: true, value: permission("required") }));
+  window.manualBrowser = { getAvailability: async () => ({ available: true }), getPermission: async () => ({ ok: true, value: permission("granted") }), requestPermission, revokePermission, execute, onChanged: fn => { changed = fn; return off; } };
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
 afterEach(() => { act(() => root.unmount()); host.remove(); delete window.manualBrowser; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -30,7 +34,7 @@ describe("manual browser Main bridge and viewport lifecycle", () => {
     await render("closed-gate"); await navigate(); expect(execute).not.toHaveBeenCalled();
     expect(host.querySelector("iframe, webview, a[href]")).toBeNull();
   });
-  it("adopts Main IDs only during open, ignores foreign/older updates, detaches inactive viewport, and resends on focus/resize", async () => {
+  it("adopts Main IDs, ignores foreign/older updates, detaches inactive viewport, and resends on focus/resize", async () => {
     await render(); await navigate();
     expect(execute).toHaveBeenCalledWith({ kind: "open", url: "https://example.com/" });
     expect(execute).toHaveBeenCalledWith({ kind: "layout", browserId: "b", bounds: { x: 300, y: 80, width: 400, height: 300 } });
@@ -59,5 +63,66 @@ describe("manual browser Main bridge and viewport lifecycle", () => {
     await act(async () => changed(page("b", 4)));
     expect(host.textContent).toContain("browserWorkspace.cleanupFailed");
     expect(host.querySelector<HTMLButtonElement>('[aria-label="browserWorkspace.go"]')!.disabled).toBe(true);
+  });
+});
+
+
+describe("manual browser permission and current page", () => {
+  it("shows exact scope, requests Main approval once and never navigates before Main grants", async () => {
+    window.manualBrowser!.getPermission = async () => ({ ok: true, value: permission("required") });
+    let approve!: (value: unknown) => void;
+    requestPermission.mockImplementation(() => new Promise(resolve => { approve = resolve; }));
+    await render(); await navigate();
+    expect(execute.mock.calls.some(([c]) => c.kind === "open")).toBe(false);
+    const enable = host.querySelector<HTMLButtonElement>('[data-browser-enable]')!;
+    expect(enable).not.toBeNull();
+    expect(host.textContent).toContain("github.githubassets.com");
+    expect(host.textContent).toContain("observe");
+    await act(async () => { enable.click(); enable.click(); });
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+    expect(requestPermission).toHaveBeenCalledWith(permission("required").scope);
+    await navigate(); expect(execute.mock.calls.some(([c]) => c.kind === "open")).toBe(false);
+    await act(async () => approve({ ok: true, value: permission("granted") }));
+    await navigate(); expect(execute).toHaveBeenCalledWith({ kind: "open", url: "https://example.com/" });
+  });
+  it("keeps Main denial closed and exposes a retry", async () => {
+    window.manualBrowser!.getPermission = async () => ({ ok: true, value: permission("required") });
+    requestPermission.mockResolvedValue({ ok: true, value: permission("denied") });
+    await render();
+    await act(async () => host.querySelector<HTMLButtonElement>('[data-browser-enable]')!.click());
+    await navigate();
+    expect(host.textContent).toContain("browserWorkspace.permissionDenied");
+    expect(host.querySelector<HTMLButtonElement>('[data-browser-enable]')!.disabled).toBe(false);
+    expect(execute.mock.calls.some(([c]) => c.kind === "open")).toBe(false);
+  });
+  it("adopts the first agent event without a manual open and rejects stale recovery", async () => {
+    let recover!: (value: unknown) => void;
+    execute.mockImplementation((c: ManualBrowserCommand) => c.kind === "get" ? new Promise(resolve => { recover = resolve; }) : Promise.resolve({ ok: true, value: null }));
+    await render();
+    await act(async () => changed({ ...page("agent", 2), url: "https://github.com/" }));
+    expect(host.querySelector<HTMLInputElement>("input")!.value).toBe("https://github.com/");
+    await act(async () => recover({ ok: true, value: page("old", 1) }));
+    expect(host.querySelector<HTMLInputElement>("input")!.value).toBe("https://github.com/");
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ kind: "layout", browserId: "agent" }));
+  });
+  it("recovers a current Main page and remains alive while hidden", async () => {
+    execute.mockImplementation(async (c: ManualBrowserCommand) => ({ ok: true, value: c.kind === "get" ? page("restored", 7) : null }));
+    await render();
+    expect(host.querySelector<HTMLInputElement>("input")!.value).toBe("https://example.com/");
+    await render("s", false);
+    expect(execute).toHaveBeenCalledWith({ kind: "layout", browserId: "restored", bounds: null });
+    expect(execute.mock.calls.some(([c]) => c.kind === "close")).toBe(false);
+    await render("s", true);
+    expect(execute).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "layout", browserId: "restored", bounds: expect.any(Object) }));
+  });
+  it("ignores a permission reply from a previous session", async () => {
+    window.manualBrowser!.getPermission = async () => ({ ok: true, value: permission("required") });
+    let approve!: (value: unknown) => void;
+    requestPermission.mockImplementation(() => new Promise(resolve => { approve = resolve; }));
+    await render(); await act(async () => host.querySelector<HTMLButtonElement>('[data-browser-enable]')!.click());
+    await render("other");
+    await act(async () => approve({ ok: true, value: permission("granted") }));
+    await navigate();
+    expect(execute.mock.calls.some(([c]) => c.kind === "open")).toBe(false);
   });
 });
