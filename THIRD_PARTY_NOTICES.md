@@ -1,5 +1,16 @@
 # Third-party notices
 
+## node-forge security backport
+
+The original `node-forge@1.4.0` package remains a Digital Bazaar dependency under
+its BSD/GPL dual license; Firefly uses the BSD option. Firefly's hash-checked
+installer applies the nested DigestAlgorithm validation correction from
+upstream PR #1152, fixed commit `ceba34402e329f0365134f23fe19898756527d65`.
+The correction and public regression inputs retain their attribution and BSD
+terms in [the source record](vendor/security/node-forge/SOURCE.md) and
+[complete BSD license](vendor/security/node-forge/LICENSE). This is a local
+backport, not an upstream released version or a claim that npm audit is clear.
+
 ## Upstream source
 
 Portions of this project derive from [Cyrene-Agent](https://github.com/Playa-0v0/Cyrene-Agent). Original MIT copyright: `Copyright (c) 2026 Playa`. The original MIT notice is preserved in [LICENSE](./LICENSE). Firefly_Agent is independently maintained; retaining this provenance does not claim original authorship of upstream work.
@@ -38,6 +49,8 @@ The 21 current Firefly stickers were supplied by the repository owner for this r
 Retired design notes identified BiliNote (`https://github.com/JefferyHcool/BiliNote`, recorded there as MIT), moesnow/March7thAssistant (recorded there as GPL-3.0), and SnowLuma as external research or integration references. Removing those obsolete plans does not claim authorship of these projects or grant redistribution rights. The original GameBot research boundary prohibited copying March7thAssistant code, templates, images, configuration and artwork. The SnowLuma proposal did not include its binary and left its distribution license for separate verification. No such implementation or binary is added by this documentation cleanup. These are provenance records, not a new license audit or a claim that a proposed integration is available.
 
 ## Git for Windows MinGit 2.55.0.3
+
+Simple-git 4 uses `@simple-git/argv-parser@2.0.1`, MIT, Copyright (c) 2025 Steve King. Firefly maintains a narrow Windows null-device compatibility adaptation, documented with exact input/output hashes and its complete license in [vendor/security/argv-parser](./vendor/security/argv-parser/SOURCE.md). This preserves bundled Git's configuration isolation without enabling unsafe configuration paths or inherited pager execution; it is not an upstream release. The package's original identity and license remain unchanged.
 
 The Windows packaging configuration includes [Git for Windows MinGit 2.55.0.3](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.3) as a fallback when the user's system Git is unavailable. `vendor/mingit-manifest.json` records the source archive and SHA-256; `scripts/packaging/prepare-mingit.mjs` performs preparation and verification. This describes the configured input, not a newly verified installer or release.
 
