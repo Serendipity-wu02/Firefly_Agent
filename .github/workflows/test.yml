@@ -44,6 +44,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build and select native history helpers
+        shell: pwsh
+        run: |
+          npm run build:history-helpers
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $helper = (Resolve-Path -LiteralPath 'native/target/release/firefly-history-presence.exe').Path
+          "FIREFLY_HISTORY_PRESENCE_TEST_HELPER=$helper" >> $env:GITHUB_ENV
+
       # 插件清单契约检查：源码类型与 manifest.schema.json 保持一致
       - name: Check plugin schema contract
         run: npm run check:plugin-schema

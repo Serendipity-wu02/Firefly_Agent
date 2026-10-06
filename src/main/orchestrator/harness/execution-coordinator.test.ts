@@ -174,10 +174,14 @@ describe("workspace leaf execution coordinator (synthetic)", () => {
 
   it("keeps_distinct_actual_paths_for_one_canonical_target_and_updates_same_path_in_place", async () => {
     const coordinator = getWorkspaceExecutionCoordinator(root());
-    const target = path.join(coordinator.workspaceId, "real.txt");
-    const alias = path.join(coordinator.workspaceId, "alias.txt");
+    const directory = path.join(coordinator.workspaceId, "real");
+    const aliasDirectory = path.join(coordinator.workspaceId, "alias");
+    fs.mkdirSync(directory);
+    fs.symlinkSync(directory, aliasDirectory, "junction");
+    const target = path.join(directory, "real.txt");
+    const alias = path.join(aliasDirectory, "real.txt");
     fs.writeFileSync(target, "original");
-    fs.symlinkSync(target, alias);
+    expect(fs.realpathSync.native(alias)).toBe(fs.realpathSync.native(target));
     const originalHash = "0".repeat(64);
     const updatedHash = "1".repeat(64);
     await coordinator.runLeaf(scope(coordinator.workspaceId, "patch"), "exclusive", undefined, async permit => {

@@ -13,3 +13,16 @@ for (const [file, runner] of [["test.yml", "windows-latest"], ["plugin-sdk.yml",
     assert.equal(Object.values(workflow.jobs)[0]["runs-on"], runner);
   });
 }
+
+test("Windows Test builds and selects the verified native history helper before running the suite", () => {
+  const workflow = YAML.parse(fs.readFileSync(".github/workflows/test.yml", "utf8"));
+  const steps = workflow.jobs.test.steps;
+  const buildIndex = steps.findIndex((step: { run?: string }) => step.run?.includes("npm run build:history-helpers"));
+  const testIndex = steps.findIndex((step: { run?: string }) => step.run === "./scripts/ci/run-vitest.ps1");
+  assert.ok(buildIndex >= 0);
+  assert.ok(buildIndex < testIndex);
+  assert.match(steps[buildIndex].run, /FIREFLY_HISTORY_PRESENCE_TEST_HELPER/);
+  assert.match(steps[buildIndex].run, /native\/target\/release\/firefly-history-presence\.exe/);
+  assert.match(steps[buildIndex].run, /GITHUB_ENV/);
+  assert.equal(steps[buildIndex]["continue-on-error"], undefined);
+});

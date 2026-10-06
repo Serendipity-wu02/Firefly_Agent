@@ -19,6 +19,7 @@ import { TaskSessionStore } from "../tasks/task-session-store";
 import { createAgentExecutor } from "./persistent-agent-runtime";
 import { scheduleToolCalls } from "./harness/tool-call-scheduler";
 import { RunExecutionCoordinator } from "./harness/execution-coordinator";
+import { canonicalWriteIdentity } from "./harness/write-ownership";
 import { createModelExecutionRecorder } from "./harness/model-execution-evidence";
 import type { ModelExecutionEvent } from "../../shared/agent-execution-evidence";
 import type { AgentProfile } from "../../shared/agent-profile";
@@ -180,7 +181,7 @@ it("parent_harness_delegation_bridge_preserves_real_prior_writes_and_failed_chil
   const releases: Array<() => void> = [];
   releases.push(f.recorder.subscribe(event => {
     if (event.agentId === "role-A" && event.phase === "start") releases.push(f.coordinator.onChildWrites(event.childRunId, writes => {
-      if (writes.some(item => item.state === "applied" && item.canonicalPath === path.join(f.root, "shared.txt"))) releaseB.resolve();
+      if (writes.some(item => item.state === "applied" && item.canonicalPath === canonicalWriteIdentity(path.join(f.root, "shared.txt")))) releaseB.resolve();
     }));
   }));
   const source = {}, issuer = createBackgroundMemoryIngressIssuer({ entry: "scheduler", isCurrent: candidate => candidate === source });

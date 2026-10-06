@@ -148,7 +148,8 @@ describe("canonical path write ownership (synthetic)", () => {
 
   it("canonical_identity_is_not_a_path_authorization_or_a_writer", () => {
     const outside = root();
-    expect(canonicalWriteIdentity(path.join(outside, "missing.txt"))).toBe(path.join(fs.realpathSync.native(outside), "missing.txt"));
+    const expected = path.join(fs.realpathSync.native(outside), "missing.txt");
+    expect(canonicalWriteIdentity(path.join(outside, "missing.txt"))).toBe(process.platform === "win32" ? expected.toLowerCase() : expected);
     expect(fs.readdirSync(outside)).toEqual([]);
   });
 

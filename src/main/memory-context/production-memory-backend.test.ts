@@ -30,7 +30,7 @@ async function open(options?: ProductionMemoryBackendOptions): Promise<Productio
   return backend;
 }
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-production-memory-"));
+  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-production-memory-")));
   roots.push(root);
   const storage = storageContext.createStorageContext({
     kind: "test", applicationName: "Firefly-test", appData: root,

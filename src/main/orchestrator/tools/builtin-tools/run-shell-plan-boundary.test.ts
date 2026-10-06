@@ -164,7 +164,7 @@ describe.runIf(process.platform === "win32")("actual run_shell plan and workspac
         toolContext: { userQuery: "synthetic", conversationId: id, resolvedWorkspaceRoot: rootA, fileAccessLevel: "scoped" },
       });
       noExecution(); expect(permission).toHaveBeenCalledTimes(1); expect(outcome.outcome).toBe("failure");
-      expect(outcome.rawResult).toMatchObject({ errorCode: "E_PERMISSION_APPROVAL_REQUIRED", effectState: "not_applied" });
+      expect(outcome.rawResult).toMatchObject({ errorCode: phase === "permission" ? "E_PERMISSION_CHANGED" : "E_PERMISSION_APPROVAL_REQUIRED", effectState: "not_applied" });
       expect(fs.existsSync(path.join(rootA, "marker.txt"))).toBe(false);
     });
   }
