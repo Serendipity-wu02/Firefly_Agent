@@ -225,13 +225,14 @@ body {
 }
 
 .win-btn--close {
-  background: rgba(219, 39, 119, 0.16);
-  color: var(--rb-pink-200);
+  background: transparent;
+  color: var(--rb-text-muted);
 }
 
 .win-btn--close:hover {
-  background: var(--rb-grad-pink-hot);
-  color: var(--rb-text-on-pink);
+  background: var(--rb-danger);
+  border-color: transparent;
+  color: #ffffff;
 }
 
 .settings-content {
@@ -969,7 +970,7 @@ body {
   flex-shrink: 0;
 }
 .theme-swatch--classic {
-  background: linear-gradient(135deg, #08070f 0%, #221c46 60%, var(--rb-pink-500) 100%);
+  background: linear-gradient(135deg, var(--rb-bg-1) 0%, var(--rb-bg-2) 60%, var(--rb-pink-500) 100%);
 }
 .theme-swatch--white {
   background: linear-gradient(135deg, #ffffff 0%, #f5f5f7 100%);

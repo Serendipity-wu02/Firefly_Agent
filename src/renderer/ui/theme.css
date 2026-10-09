@@ -60,6 +60,12 @@
 
   --rb-accent-rgb: 77, 78, 105;
   --rb-accent-hover: #5d5e7b;
+  --rb-grad-pink: linear-gradient(135deg, #4d4e69 0%, #5d5e7b 100%);
+  --rb-grad-pink-hot: linear-gradient(135deg, #4d4e69 0%, #5d5e7b 100%);
+  --rb-grad-bg: linear-gradient(180deg, #f5f6f9 0%, #eff1f5 100%);
+  --rb-violet-400: #a9aabc;
+  --rb-violet-500: #6a6b86;
+  --rb-violet-600: #4d4e69;
   --rb-accent-deep: #3d3e55;
   --rb-danger: #b42338;
   --rb-danger-strong: #9a1c30;
@@ -156,6 +162,12 @@
 
   --rb-accent-rgb: 123, 216, 174;
   --rb-accent-hover: #8fe0bc;
+  --rb-grad-pink: linear-gradient(135deg, #3b9a76 0%, #7bd8ae 100%);
+  --rb-grad-pink-hot: linear-gradient(135deg, #3b9a76 0%, #7bd8ae 100%);
+  --rb-grad-bg: radial-gradient(ellipse at top, #1a2a24 0%, #0f1513 60%);
+  --rb-violet-400: #a9ead0;
+  --rb-violet-500: #7bd8ae;
+  --rb-violet-600: #3b9a76;
   --rb-accent-deep: #3b9a76;
   --rb-danger: #f28b82;
   --rb-danger-strong: #f6a8a1;

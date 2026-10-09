@@ -55,6 +55,41 @@ describe("workspace navigation layout", () => {
     expect(aside.hasAttribute("inert")).toBe(true);
     expect(props.onToggleCollapsed).not.toHaveBeenCalled();
   });
+  it("lets the more button own the hover: the conversation sidebar never unfolds over it", () => {
+    render({ collapsed: true });
+    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    const more = button(t("ui.more"));
+    const workbench = button(t("ui.workbench"));
+    const move = (from: HTMLElement, to: HTMLElement) => {
+      // A browser reports a move as pointerout on the old element followed by pointerover on the new one.
+      act(() => from.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: to })));
+      act(() => to.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: from })));
+    };
+    // Into the rail from outside, then straight onto the more button.
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: document.body })));
+    expect(aside.classList.contains("is-peeking")).toBe(true);
+    move(rail, more);
+    expect(aside.classList.contains("is-peeking")).toBe(false);
+    expect(aside.hasAttribute("inert")).toBe(true);
+    // Off the rail and back in over another button: the sidebar peeks as it always did.
+    move(more, workbench);
+    act(() => workbench.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: document.body })));
+    expect(aside.classList.contains("is-peeking")).toBe(true);
+  });
+
+  it("opens the more menu on click and keeps the sidebar folded while it is open", () => {
+    render({ collapsed: true });
+    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: document.body })));
+    expect(aside.classList.contains("is-peeking")).toBe(true);
+    act(() => button(t("ui.more")).click());
+    expect(document.querySelector(".cy-page-more")).toBeTruthy();
+    expect(aside.classList.contains("is-peeking")).toBe(false);
+  });
+
   it("keeps the floating sidebar open while crossing its owned hover corridor", () => {
     render({ collapsed: true });
     const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;

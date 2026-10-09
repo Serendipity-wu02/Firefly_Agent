@@ -73,6 +73,6 @@
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #23654e, #1e5a45);
+  background: linear-gradient(135deg, var(--rb-accent-hover), var(--rb-accent-deep));
   box-shadow: 0 8px 18px rgba(var(--rb-accent-rgb), 0.28);
 }

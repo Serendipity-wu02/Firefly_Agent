@@ -50,7 +50,7 @@
 .usage-bar__fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #48bb78, var(--rb-pink-500), #1e5a45);
+  background: linear-gradient(90deg, #48bb78, var(--rb-pink-500), var(--rb-accent-deep));
   box-shadow: 0 0 10px rgba(var(--rb-accent-rgb), 0.35);
 }
 
@@ -83,7 +83,7 @@
   font-weight: 800;
   letter-spacing: 0.2px;
   color: var(--rb-text-on-pink);
-  background: linear-gradient(135deg, var(--rb-pink-500), #1e5a45);
+  background: linear-gradient(135deg, var(--rb-pink-500), var(--rb-accent-deep));
   box-shadow: 0 4px 10px rgba(var(--rb-accent-rgb), 0.22);
   white-space: nowrap;
 }

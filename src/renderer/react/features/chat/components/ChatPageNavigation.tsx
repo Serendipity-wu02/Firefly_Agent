@@ -83,12 +83,14 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   const contextRef = useRef<HTMLElement>(null);
   const [peeking, setPeeking] = useState(false);
   const pointerWithin = useRef(false);
+  // The pointer is on the "more" button: it owns the hover, so the conversation sidebar must not unfold over it.
+  const overMore = useRef(false);
   const keyboardInteraction = useRef(false);
   const owns = (target: EventTarget | null) => target instanceof Node &&
     Boolean(railRef.current?.contains(target) || contextRef.current?.contains(target));
   const holdFocus = () => owns(document.activeElement) &&
     (keyboardInteraction.current || Boolean(document.activeElement?.closest('[role="menu"], .cy-rail-user__menu, .ant-popover')));
-  const enter = () => { pointerWithin.current = true; if (collapsed) setPeeking(true); };
+  const enter = () => { pointerWithin.current = true; if (collapsed && !overMore.current && !moreOpen) setPeeking(true); };
   const leave = (event: React.PointerEvent) => {
     if (owns(event.relatedTarget)) return;
     pointerWithin.current = false;
@@ -97,7 +99,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   useEffect(() => { setPeeking(false); }, [collapsed]);
   useEffect(() => {
     const focus = (event: FocusEvent) => {
-      if (collapsed && owns(event.target)) setPeeking(true);
+      if (collapsed && owns(event.target) && !overMore.current && !moreOpen) setPeeking(true);
       else if (!pointerWithin.current && !moreOpen) setPeeking(false);
     };
     const pointerDown = () => { keyboardInteraction.current = false; };
@@ -129,6 +131,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   useEffect(() => {
     if (!sidebar.isResizing && !moreOpen && !pointerWithin.current && !holdFocus()) setPeeking(false);
   }, [moreOpen, sidebar.isResizing]);
+  useEffect(() => { if (moreOpen) setPeeking(false); }, [moreOpen]);
   const hidden = collapsed && !peeking && !sidebar.isResizing;
   const chooseMorePanel = (panel: ChatPagePanel) => {
     setMoreOpen(false);
@@ -172,7 +175,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
           <LayoutDashboard size={20} aria-hidden="true" />
         </button>
         <PluginModeButton active={activePanel === "plugin"} onClick={() => onTogglePanel("plugin")} />
-        <Popover trigger="click" placement="rightTop" open={moreOpen} onOpenChange={setMoreOpen} getPopupContainer={() => railRef.current!}
+        <Popover trigger={["hover", "click"]} mouseEnterDelay={0.08} mouseLeaveDelay={0.2} placement="rightTop" open={moreOpen} onOpenChange={setMoreOpen} getPopupContainer={() => railRef.current!}
           content={(
             <div className="cy-page-more" onKeyDown={(event) => {
               if (event.key === "Escape") {
@@ -185,6 +188,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
             </div>
           )}>
           <button ref={moreRef} type="button" className={`cy-rail-button ${moreOpen ? "is-active" : ""}`}
+            onPointerEnter={() => { overMore.current = true; setPeeking(false); }} onPointerLeave={() => { overMore.current = false; }}
             title={t("ui.more")} aria-label={t("ui.more")} aria-expanded={moreOpen}>
             <Ellipsis size={20} aria-hidden="true" />
           </button>

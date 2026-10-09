@@ -39,6 +39,7 @@
   /* Semantic neutrals and statuses (the dark theme re-declares every one of these). */
   --cy-bg-subtle: #f0f2f6;
   --cy-rail: #f3f3f5;
+  --cy-shadow-popover: 0 8px 24px rgb(31 35 48 / 10%);
   --cy-accent-solid: #4d4e69;
   --cy-accent-rgb: 77, 78, 105;
   --cy-on-accent: #ffffff;
@@ -61,6 +62,7 @@
   --cy-bg-workspace: #141c19;
   --cy-bg-subtle: #1e2b26;
   --cy-rail: #0c1210;
+  --cy-shadow-popover: 0 14px 36px rgba(0, 0, 0, 0.55);
   --cy-bg-hover: #21302a;
   --cy-bg-active: #293b34;
   --cy-surface: #19231f;
@@ -203,7 +205,7 @@ html, body {
   border: 1px solid var(--cy-border);
   border-radius: 12px;
   background: var(--cy-bg-page);
-  box-shadow: 0 8px 24px rgb(31 35 48 / 10%);
+  box-shadow: var(--cy-shadow-popover);
   opacity: 0;
   pointer-events: none;
   visibility: hidden;

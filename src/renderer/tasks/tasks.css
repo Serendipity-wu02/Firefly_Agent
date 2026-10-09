@@ -124,13 +124,14 @@ body {
 }
 
 .tasks__winbtn--close {
-  background: var(--rb-glow-soft);
-  color: var(--rb-pink-200);
+  background: transparent;
+  color: var(--rb-text-muted);
 }
 
 .tasks__winbtn--close:hover {
-  background: var(--rb-grad-pink-hot);
-  color: var(--rb-text-on-pink);
+  background: var(--rb-danger);
+  border-color: transparent;
+  color: #ffffff;
 }
 
 .tasks__body {
