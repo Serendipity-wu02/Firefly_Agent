@@ -2,6 +2,7 @@ import type { View } from "electron";
 import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { isPublicNetworkAddress, parseConnectAuthority } from "./public-network-target";
+import { localAuthorityFromUrl, localAuthorityKey, parseLocalAuthority, parseLocalBrowserUrl, sameLocalHost } from "../../shared/local-network-target";
 import { createBrowserAuthorizationDomainRegistry } from "./browser-authorization-domain";
 import { createBrowserNetworkController, type BrowserNetworkBinding, type BrowserNetworkReply } from "./browser-network-binding";
 import type { ProxyChallenge } from "./authenticated-connect-proxy";
@@ -84,7 +85,14 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
     const pending = owner.pending; owner.pending = undefined; pending?.cancel.abort();
   }
   function permits(owner: Owner, action: BrowserAction): boolean { return gateOpen || owner.grant?.actions.includes(action) === true; }
+  /** Private-network grants are manual-only, name one exact host:port, and are never an Agent scope. */
+  function localGrant(owner: Owner): boolean { return owner.grant?.mode === "manual" && parseLocalAuthority(owner.grant.hosts[0]) !== null; }
   function allowedUrl(owner: Owner, input: unknown): string | null {
+    const local = parseLocalBrowserUrl(input);
+    if (local) return owner.grant?.mode === "manual" && owner.grant.hosts.includes(local.key) ? local.url : null;
+    if (localGrant(owner)) return null;
+    // Ordinary browsing: any public HTTPS page, including sign-in pages. Network class never changes from inside a page.
+    if (owner.grant?.mode === "manual" && owner.grant.web === true) return validatePublicBrowserUrl(input);
     const url = validatePublicBrowserUrl(input); if (!url) return null;
     const parsed = new URL(url);
     let pathname: string; try { pathname = decodeURIComponent(parsed.pathname); } catch { return null; }
@@ -102,8 +110,15 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
   function parseScope(input: unknown, owner: Owner): BrowserPermissionScope | null {
     if (!policy || !input || typeof input !== "object") return null;
     const value = input as Record<string, unknown>;
+    if (value.mode === "manual" && value.web === true) {
+      // Ordinary browsing belongs to the window workspace only. No lists, no provenance, no Agent action.
+      if (!manualBrowsing || owner.value.workspaceId === undefined || value.sourceBrowserId !== undefined || value.sourceRequestId !== undefined
+        || !Array.isArray(value.hosts) || value.hosts.length !== 0 || !Array.isArray(value.actions) || value.actions.length !== 1 || value.actions[0] !== "navigate"
+        || (value.resourceHosts !== undefined && (!Array.isArray(value.resourceHosts) || value.resourceHosts.length !== 0))) return null;
+      return Object.freeze({ mode: "manual", web: true, hosts: Object.freeze([]), resourceHosts: Object.freeze([]), actions: Object.freeze(["navigate"] as BrowserAction[]) });
+    }
     if (value.mode === "manual") {
-      if (!manualBrowsing || !Array.isArray(value.hosts) || value.hosts.length !== 1
+      if (!manualBrowsing || value.web !== undefined || !Array.isArray(value.hosts) || value.hosts.length !== 1
         || !Array.isArray(value.actions) || value.actions.length !== 1 || value.actions[0] !== "navigate"
         || !Array.isArray(value.resourceHosts) || value.resourceHosts.length > 16) return null;
       const validHost = (host: unknown): host is string => {
@@ -111,7 +126,13 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
         const url = validatePublicBrowserUrl(`https://${host}/`);
         return !!url && new URL(url).hostname === host;
       };
-      if (!value.hosts.every(validHost) || !value.resourceHosts.every(validHost)) return null;
+      const primaryLocal = parseLocalAuthority(value.hosts[0]);
+      if (primaryLocal) {
+        // Private network: one canonical host:port; extra resource ports only on that same host.
+        const canonical = localAuthorityKey(primaryLocal);
+        if (value.hosts[0] !== canonical || value.resourceHosts.length > 8
+          || !value.resourceHosts.every(host => typeof host === "string" && parseLocalAuthority(host) !== null && sameLocalHost(host, canonical) && host === localAuthorityKey(parseLocalAuthority(host)!))) return null;
+      } else if (!value.hosts.every(validHost) || !value.resourceHosts.every(validHost)) return null;
       const primary = value.hosts[0] as string;
       const resourceHosts = [...new Set(value.resourceHosts as string[])].filter(host => host !== primary).sort();
       if (resourceHosts.length) {
@@ -163,10 +184,24 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
     const cell = cells.get(context.browserId);
     if (!cell || cell.context.signal !== context.signal || !usable(cell) || cell.owner.grant?.mode !== "manual") return;
     if (request.webContentsId !== undefined && request.webContentsId !== cell.guest?.contents.id) return;
-    const url = validatePublicBrowserUrl(request.url);
-    if (url && ['mainFrame', 'subFrame'].includes(request.resourceType)) { blockedNavigation(cell, url); return; }
-    const host = url ? new URL(url).hostname : undefined;
-    const supported = ["stylesheet", "script", "image", "font", "media", "xhr"].includes(request.resourceType);
+    if (cell.owner.grant.web === true) {
+      // Every public HTTPS host is already allowed; a block here means an unsupported scheme, port or private target.
+      if (!cell.page.blockedRequest) { cell.page = { ...cell.page, blockedRequest: true }; publish(cell); }
+      return;
+    }
+    const privateGrant = localGrant(cell.owner);
+    // A private grant is offered only extra ports of its own host; any other destination is refused silently.
+    let url: string | null = null, host: string | undefined;
+    if (privateGrant) {
+      try { host = localAuthorityFromUrl(new URL(request.url)) ?? undefined; } catch { host = undefined; }
+      if (host && !sameLocalHost(host, cell.owner.grant.hosts[0])) host = undefined;
+      if (['mainFrame', 'subFrame'].includes(request.resourceType)) { blockedNavigation(cell, request.url); return; }
+    } else {
+      url = validatePublicBrowserUrl(request.url);
+      if (url && ['mainFrame', 'subFrame'].includes(request.resourceType)) { blockedNavigation(cell, url); return; }
+      host = url ? new URL(url).hostname : undefined;
+    }
+    const supported = ["stylesheet", "script", "image", "font", "media", "xhr", ...(privateGrant ? ["webSocket"] : [])].includes(request.resourceType);
     if (host && supported && ["GET", "HEAD"].includes(request.method) && !cell.owner.grant.hosts.includes(host)
       && !cell.owner.grant.resourceHosts?.includes(host)) {
       const blocked = cell.page.blockedResourceHosts ?? [];
@@ -185,7 +220,9 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
   function usable(cell: Cell): boolean { return !cell.closing && !cell.abort.signal.aborted && current(cell.owner) && cell.binding?.isCurrent() === true; }
   function blockedNavigation(cell: Cell, input: string): void {
     if (!usable(cell) || cell.owner.grant?.mode !== "manual") return;
-    const url = validatePublicBrowserUrl(input);
+    // Switching between public and private networks is possible only from the address bar,
+    // never by a link, redirect or script inside a page. Cross-class attempts only set blockedRequest.
+    const url = localGrant(cell.owner) || parseLocalBrowserUrl(input) ? null : validatePublicBrowserUrl(input);
     const origin = url && !cell.owner.grant.hosts.includes(new URL(url).hostname) ? `${new URL(url).origin}/` : undefined;
     if (cell.page.error === "blocked_url" && cell.page.blockedNavigationUrl === origin) return;
     cell.page = { ...cell.page, error: "blocked_url", ...(origin ? { blockedNavigationUrl: origin } : { blockedRequest: true }) }; publish(cell);
@@ -277,7 +314,7 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
         page: { browserId, ...identity, requestId: 0, closed: false, loading: true, url: "", pendingUrl: url, canGoBack: false, canGoForward: false, error: null } as BrowserPageDto,
         onAbort: () => { terminate(cell); void cleanup(cell); } };
       cells.set(browserId, cell); owner.cells.add(cell); ownerValue.signal.addEventListener("abort", cell.onAbort, { once: true });
-      cell.preparing = network.prepare(context, owner.grant ? { hosts: owner.grant.hosts, resourceHosts: owner.grant.resourceHosts } : undefined); publish(cell);
+      cell.preparing = network.prepare(context, owner.grant?.web === true ? { web: true } : owner.grant ? { hosts: owner.grant.hosts, resourceHosts: owner.grant.resourceHosts } : undefined); publish(cell);
       let cancelPrepare!: () => void;
       let prepared: BrowserNetworkReply<BrowserNetworkBinding<S>>;
       try {

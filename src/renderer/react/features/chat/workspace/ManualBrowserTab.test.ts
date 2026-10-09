@@ -308,6 +308,35 @@ describe("manual public HTTPS site consent", () => {
     expect(requestPermission).toHaveBeenCalledWith({ mode: "manual", hosts: ["other.example"], resourceHosts: [], actions: ["navigate"] });
     expect(navCalls().at(-1)).toEqual({ kind: "open", url: "https://other.example/new" });
   });
+  it.each([
+    ["http://localhost:5173/app", "localhost:5173"],
+    ["localhost:5173", "localhost:5173"],
+    ["192.168.1.5:3000/dash", "192.168.1.5:3000"],
+    ["http://127.0.0.1:8080", "127.0.0.1:8080"],
+  ])("proposes exactly one private-network authority for %s and opens it only after approval", async (typed, key) => {
+    useManualPermission();
+    let approve!: (reply: unknown) => void;
+    requestPermission.mockImplementation(() => new Promise(resolve => { approve = resolve; }));
+    await render(); await navigate(typed);
+    expect(requestPermission).toHaveBeenCalledExactlyOnceWith({ mode: "manual", hosts: [key], resourceHosts: [], actions: ["navigate"] });
+    expect(navCalls()).toEqual([]);
+    await act(async () => approve({ ok: true, value: manualPermission("granted", [key]) }));
+    expect(navCalls()).toHaveLength(1);
+    expect(navCalls()[0]).toMatchObject({ kind: "open" });
+  });
+  it.each(["http://169.254.169.254/", "http://nas.local/", "http://localhost.evil.com/", "ws://localhost:5173/","http://[::ffff:127.0.0.1]/", "http://user@localhost:3000/"])("rejects private-network look-alike %s without permission or execution", async url => {
+    useManualPermission(); await render(); await navigate(url);
+    expect(requestPermission).not.toHaveBeenCalled(); expect(navCalls()).toEqual([]);
+  });
+  it("treats a different port on the same private host as a new proposal", async () => {
+    useManualPermission("granted", ["localhost:5173"]); await render(); await navigate("http://localhost:5173/");
+    expect(requestPermission).not.toHaveBeenCalled();
+    await navigate("http://localhost:5173/next");
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(navCalls().at(-1)).toMatchObject({ kind: "navigate", url: "http://localhost:5173/next" });
+    await navigate("http://localhost:3000/");
+    expect(requestPermission).toHaveBeenCalledWith({ mode: "manual", hosts: ["localhost:3000"], resourceHosts: [], actions: ["navigate"] });
+  });
   it("leaves no usable old history on denial and can retry the same address", async () => {
     useManualPermission("granted", ["example.com"]); await render(); await navigate();
     requestPermission.mockResolvedValueOnce({ ok: true, value: manualPermission("denied", ["other.example"]) });

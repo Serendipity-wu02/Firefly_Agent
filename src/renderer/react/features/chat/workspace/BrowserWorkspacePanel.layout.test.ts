@@ -46,6 +46,26 @@ it("keeps the committed URL compact and long addresses inside the inspector", ()
   expect(property(".cy-browser-workspace__toolbar", "background")).toBe("var(--cy-bg-workspace, #fff)");
 });
 
+const tabsCss = readFileSync(new URL("./BrowserWorkspaceTabs.css", import.meta.url), "utf8");
+function tabsProperty(selector: string, name: string): string {
+  const dom = new JSDOM(`<style>${tabsCss}</style>`);
+  const rules = [...dom.window.document.styleSheets[0].cssRules] as CSSStyleRule[];
+  const value = rules.filter(rule => rule.selectorText?.split(",").map(part => part.trim()).includes(selector))
+    .map(rule => rule.style.getPropertyValue(name)).filter(Boolean).at(-1) ?? "";
+  dom.window.close(); return value;
+}
+it("keeps tabs in one scrollable row and the close control reachable by hover, focus and selection", () => {
+  expect(tabsProperty(".cy-browser-window__tabs", "flex-wrap")).toBe("nowrap");
+  expect(tabsProperty(".cy-browser-window__tabs", "overflow-x")).toBe("auto");
+  expect(tabsProperty(".cy-browser-window__tab > button[data-browser-close-tab]", "opacity")).toBe("0");
+  expect(tabsProperty(".cy-browser-window__tab:focus-within > button[data-browser-close-tab]", "opacity")).toBe("1");
+});
+it("shows load progress without removing the committed address row", () => {
+  expect(property(".cy-browser-workspace__toolbar[data-browser-busy]::after", "animation")).toContain("cy-browser-load");
+  expect(property(".cy-browser-workspace__location", "display")).not.toBe("none");
+  expect(property(".cy-browser-workspace__address:focus-within", "outline")).toContain("var(--cy-accent");
+});
+
 it("uses the user's contrast tokens for browser error and keyboard-focus surfaces", () => {
   expect(property(":root[data-ui-colors] .cy-browser-workspace__notice.is-error", "color")).toBe("var(--cy-text)");
   expect(property(":root[data-ui-colors] .cy-browser-workspace__notice.is-error", "background")).toBe("var(--cy-bg-hover)");

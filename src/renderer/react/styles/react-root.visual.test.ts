@@ -19,8 +19,8 @@ describe("chat workspace surface", () => {
     const emptyPattern = rules.find((rule) => rule.selectorText === ".cy-workspace::before");
     const filledPattern = rules.find((rule) => rule.selectorText === ".cy-workspace.has-messages::before");
 
-    expect(rootStyle.getPropertyValue("--cy-bg-page").trim()).toBe("#f7f7f8");
-    expect(rootStyle.getPropertyValue("--cy-bg-workspace").trim()).toBe("#ffffff");
+    expect(rootStyle.getPropertyValue("--cy-bg-page").trim()).toBe("#eff1f5");
+    expect(rootStyle.getPropertyValue("--cy-bg-workspace").trim()).toBe("#f5f6f9");
     expect(emptyPattern).toBeUndefined();
     expect(filledPattern).toBeUndefined();
   });

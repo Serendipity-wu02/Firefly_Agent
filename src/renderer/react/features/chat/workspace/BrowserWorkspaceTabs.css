@@ -1,8 +1,75 @@
-.cy-browser-window { display: flex; flex-direction: column; min-height: 0; height: 100%; }
-.cy-browser-window__tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--cy-border); }
-.cy-browser-window__tab { display: inline-flex; max-width: 160px; }
-.cy-browser-window__tabs button { background: var(--cy-bg-elevated); color: inherit; border: 1px solid var(--cy-border); border-radius: 4px; padding: 4px 7px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
-.cy-browser-window__tabs button[aria-selected="true"] { border-color: var(--cy-accent); }
+.cy-browser-window { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--cy-bg-page, #f4f4f6); }
+
+/* Card tabs, as in the ChatGPT/Codex desktop browser: one scrollable row, an active card, quiet neighbours. */
+.cy-browser-window__tabs {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  background: var(--cy-bg-page, #f4f4f6);
+  app-region: no-drag;
+}
+.cy-browser-window__tabs::-webkit-scrollbar { display: none; }
+
+.cy-browser-window__tab { position: relative; display: inline-flex; flex: 0 1 168px; align-items: center; min-width: 72px; max-width: 200px; }
+.cy-browser-window__tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cy-text-muted, inherit);
+  font: 500 12.5px/1 var(--rb-font-sans, sans-serif);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.cy-browser-window__tab > button[role="tab"] { flex: 1 1 auto; padding-right: 30px; text-align: left; }
+.cy-browser-window__tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cy-browser-window__tabs button svg { flex: none; }
+.cy-browser-window__tabs button:hover:enabled { background: var(--cy-bg-hover, rgb(0 0 0 / 5%)); color: var(--cy-text, inherit); }
+.cy-browser-window__tabs button[aria-selected="true"] {
+  background: var(--cy-bg-workspace, #fff);
+  color: var(--cy-text, inherit);
+  border-color: var(--cy-border);
+  box-shadow: 0 1px 3px rgb(31 35 48 / 7%);
+}
 .cy-browser-window__tabs button:disabled { opacity: .5; cursor: default; }
+.cy-browser-window__tabs button:focus-visible { outline: 2px solid var(--cy-accent, #44464f); outline-offset: 1px; }
+
+/* Close sits inside the card; it shows on the active tab and on hover or keyboard focus. */
+.cy-browser-window__tab > button[data-browser-close-tab] {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  justify-content: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  opacity: 0;
+}
+.cy-browser-window__tab:hover > button[data-browser-close-tab],
+.cy-browser-window__tab:focus-within > button[data-browser-close-tab],
+.cy-browser-window__tab:has(> button[aria-selected="true"]) > button[data-browser-close-tab] { opacity: 1; }
+.cy-browser-window__tabs button[data-browser-close-tab]:hover:enabled { background: var(--cy-bg-active, rgb(0 0 0 / 9%)); }
+
+.cy-browser-window__tabs button[data-browser-new-tab] { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; justify-content: center; border-radius: 50%; }
+
+/* The Agent page is a separate, conversation-owned tab and stays visibly marked. */
+.cy-browser-window__tabs > button[role="tab"] { flex: 0 0 auto; margin-left: auto; }
+.cy-browser-window__tabs > button[role="tab"]::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--cy-accent, #44464f); }
+
 .cy-browser-window__page { min-height: 0; flex: 1; }
 .cy-browser-window__page[hidden] { display: none; }

@@ -560,6 +560,36 @@
 :root[data-ui-colors] .cy-queue-dock { background: var(--cy-bg-page); color: var(--cy-text); border-color: var(--cy-border); }
 :root[data-ui-colors] .cy-composer__attachment { background: var(--cy-bg-page); }
 
+/* One rounded card, like the ChatGPT and Codex desktop composers: the controls sit inside it, not on a grey strip below. */
+.cy-composer-stack.is-centered,
+.cy-composer-stack.is-centered .cy-composer-shell { transform: none; }
+.cy-composer-shell {
+  border: 1px solid var(--cy-border, rgba(31, 35, 48, 0.09));
+  border-radius: 22px;
+  background: var(--cy-surface, #fff);
+  box-shadow: 0 2px 16px rgba(31, 35, 48, 0.06);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.cy-composer-shell:hover { border-color: rgba(31, 35, 48, 0.16); }
+.cy-composer-shell:focus-within { border-color: rgba(31, 35, 48, 0.24); box-shadow: 0 6px 26px rgba(31, 35, 48, 0.1); }
+.cy-composer.ant-sender,
+.cy-composer.ant-sender:hover,
+.cy-composer.ant-sender:focus-within { border: 0; border-radius: 22px 22px 0 0; background: transparent; box-shadow: none; }
+/* Text first, full width; attach/screenshot/sticker and send share the row beneath it. */
+.cy-composer .ant-sender-content { flex-wrap: wrap; align-items: center; min-height: 84px; padding: 16px 18px 4px; row-gap: 2px; }
+.cy-composer .ant-sender-input { order: 0; flex: 1 0 100%; width: 100%; min-height: 56px; padding-inline: 0; font-size: 15px; }
+.cy-composer .ant-sender-prefix { order: 1; margin-right: auto; }
+.cy-composer .ant-sender-actions-list { order: 2; align-self: center; }
+.cy-composer__footer { min-height: 0; margin-top: 0; padding: 2px 14px 10px; gap: 4px 6px; }
+.cy-composer__footer-button,
+.cy-composer__agent-button { padding: 0 8px; border-radius: 8px; color: var(--cy-text-secondary, #5f5f5f); font-weight: 500; }
+.cy-composer__footer-button:hover:not(:disabled),
+.cy-composer__agent-button:hover { background: var(--cy-bg-hover, rgba(0, 0, 0, 0.05)); }
+.cy-composer__icon-button { border-radius: 8px; }
+.cy-composer .ant-sender-actions-btn { width: 34px; height: 34px; }
+:root[data-ui-colors] .cy-composer-shell { background: var(--cy-surface); border-color: var(--cy-border); }
+:root[data-ui-colors] .cy-composer.ant-sender { background: transparent; border-color: transparent; }
+
 /* Dictation is explicit and writes only to the draft. */
 .cy-composer__dictation { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
 .cy-composer__dictation-error { color: var(--color-danger, #bf3d3d); font-size: 12px; max-width: 260px; overflow-wrap: anywhere; }

@@ -203,7 +203,7 @@ body {
   letter-spacing: -1px;
   color: var(--rb-text-strong);
   /* 粉色光晕收紧到 8px 模糊，避免在 40px 字符上糊成白光 */
-  text-shadow: 0 0 8px rgba(45, 122, 95, 0.5);
+  text-shadow: 0 0 8px rgba(77, 78, 105, 0.5);
 }
 
 .schedule-count__unit {

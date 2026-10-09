@@ -20,57 +20,57 @@
   color-scheme: light;
 
   /* Surfaces — pure white */
-  --rb-bg-0: #ffffff;
-  --rb-bg-1: #f7f7f8;
-  --rb-bg-2: #ededef;
-  --rb-bg-3: #ffffff;
-  --rb-bg-elevated: #ffffff;
+  --rb-bg-0: #f5f6f9;
+  --rb-bg-1: #eff1f5;
+  --rb-bg-2: #e6e8ee;
+  --rb-bg-3: #f5f6f9;
+  --rb-bg-elevated: #fafbfc;
 
   /* Text — near-black */
-  --rb-text-strong:  #242424;
-  --rb-text-default: #242424;
-  --rb-text-muted:   #6b6b70;
-  --rb-text-faint:   #6f6876;
+  --rb-text-strong:  #3d3e55;
+  --rb-text-default: #3d3e55;
+  --rb-text-muted:   #828396;
+  --rb-text-faint:   #8e8fa3;
   --rb-text-on-pink: #ffffff;
 
   /* Borders / dividers */
   --rb-border-faint: rgba(0, 0, 0, 0.06);
-  --rb-border-soft:  #e5e5ea;
-  --rb-border-strong:#d2d2d7;
+  --rb-border-soft:  #dfe1e8;
+  --rb-border-strong:#cfd2dc;
   --rb-border-grid:  rgba(0, 0, 0, 0.04);
 
   /* Glows / shadows — soft black, no color cast */
-  --rb-glow-pink:   0 0 12px rgba(68, 70, 79, 0.18);
+  --rb-glow-pink:   0 0 12px rgba(77, 78, 105, 0.18);
   --rb-glow-soft:   0 0 6px  rgba(0, 0, 0, 0.06);
   --rb-glow-violet: 0 0 10px rgba(0, 0, 0, 0.04);
   --rb-shadow-card:    0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
   --rb-shadow-elevated:0 8px 32px rgba(0, 0, 0, 0.10);
-  --rb-shadow-pink:    0 4px 16px rgba(68, 70, 79, 0.20);
+  --rb-shadow-pink:    0 4px 16px rgba(77, 78, 105, 0.20);
 
   /* Firefly colors from the original theme, retaining selector compatibility. */
-  --rb-pink-50:  #f7f7f8;
-  --rb-pink-100: #ededef;
-  --rb-pink-200: #e1e1e5;
-  --rb-pink-300: #a7a8af;
-  --rb-pink-400: #44464f;
-  --rb-pink-500: #44464f;
-  --rb-pink-600: #616675;
-  --rb-pink-700: #53555b;
-  --rb-pink-glow: #a7a8af;
+  --rb-pink-50:  #f3f4f8;
+  --rb-pink-100: #e6e8ee;
+  --rb-pink-200: #dfe1e8;
+  --rb-pink-300: #a9aabc;
+  --rb-pink-400: #4d4e69;
+  --rb-pink-500: #4d4e69;
+  --rb-pink-600: #6a6b86;
+  --rb-pink-700: #3d3e55;
+  --rb-pink-glow: #a9aabc;
 
   /* Light-mode component primitives */
-  --rb-card-bg:        #ffffff;
+  --rb-card-bg:        #fafbfc;
   --rb-divider-light:  rgba(0, 0, 0, 0.08);
-  --rb-hover-light:    rgba(0, 0, 0, 0.04);
-  --rb-active-light:   rgba(0, 0, 0, 0.08);
-  --rb-input-bg:       #ffffff;
-  --rb-input-border:   #d2d2d7;
-  --rb-input-text:     #1d1d1f;
-  --rb-input-placeholder: #6f6876;
+  --rb-hover-light:    rgba(77, 78, 105, 0.06);
+  --rb-active-light:   rgba(77, 78, 105, 0.11);
+  --rb-input-bg:       #fafbfc;
+  --rb-input-border:   #cfd2dc;
+  --rb-input-text:     #3d3e55;
+  --rb-input-placeholder: #8e8fa3;
   --rb-slider-track:   rgba(0, 0, 0, 0.08);
   --rb-slider-fill:    var(--rb-pink-500);
   --rb-slider-thumb:   #ffffff;
-  --rb-toggle-off:     #e5e5ea;
+  --rb-toggle-off:     #d5d8e1;
   --rb-toggle-on:      var(--rb-pink-500);
   --rb-scroll-thumb:   rgba(0, 0, 0, 0.18);
   --rb-scroll-thumb-hover: rgba(0, 0, 0, 0.32);
@@ -83,7 +83,7 @@
   --rb-weather-text-default: #7a6888;
   --rb-weather-text-muted:  #9d8bab;
   --rb-weather-text-faint:  #bdaecf;
-  --rb-weather-accent:      #44464f;
+  --rb-weather-accent:      #4d4e69;
   --rb-weather-detail-bg:   rgba(255, 255, 255, 0.55);
   --rb-weather-detail-border: rgba(255, 255, 255, 0.9);
   --rb-weather-icon-bg:     linear-gradient(135deg, var(--rb-pink-100), var(--rb-pink-200));
@@ -310,7 +310,7 @@
 }
 
 [data-ui-theme="pearl-white"] input[type="range"] {
-  accent-color: #44464f;
+  accent-color: #4d4e69;
 }
 
 [data-ui-theme="pearl-white"] .range-row input[type="range"],
@@ -362,7 +362,7 @@
 [data-ui-theme="pearl-white"] .tts-field input[type="range"]::-moz-range-progress {
   height: 7px;
   border-radius: 12px;
-  background: #44464f;
+  background: #4d4e69;
 }
 
 [data-ui-theme="pearl-white"] .range-row input[type="range"]::-moz-range-thumb,

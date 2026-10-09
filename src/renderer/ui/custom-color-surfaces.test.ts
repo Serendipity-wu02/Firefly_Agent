@@ -48,7 +48,8 @@ const surfaces: [string, string, string][] = [
   ["ReviewPanel", ".cy-review-panel__restore-btn", "--cy-bg-workspace"],
   ["root", ".cy-compressing-context", "--cy-bg-workspace"],
   ["root", ".cy-workspace-empty button", "--cy-bg-workspace"],
-  ["ChatComposer", ".cy-composer.ant-sender", "--cy-surface"],
+  // The rounded card is the surface the typed text sits on; the inner sender is transparent.
+  ["ChatComposer", ".cy-composer-shell", "--cy-surface"],
   ["ChatComposer", ".cy-queue-dock__editor", "--cy-surface"],
   ["ChatComposer", ".cy-composer__attachment", "--cy-bg-page"],
   ["ChatComposer", ".cy-composer .ant-sender-actions-btn:disabled", "--cy-bg-hover"],

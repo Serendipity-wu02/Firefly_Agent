@@ -1621,6 +1621,10 @@ export function ChatPage() {
           />
         )}
         <ContextCompressionNotice visible={isCompressingContext} />
+        {!hasMessages && <div className="cy-workspace-greeting">
+          <h2 className="cy-workspace-greeting__title">{t("chatPage.emptyGreeting")}</h2>
+          <p className="cy-workspace-greeting__hint">{t(`chatPage.emptyHint.${mode}`)}</p>
+        </div>}
         <div className="cy-workspace-composer">
           {scrollToBottomVisible && (
             <button

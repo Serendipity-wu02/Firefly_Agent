@@ -306,6 +306,25 @@
   background: #fff1f0;
 }
 
+/* Softer list: larger type, 8px rows and a quiet active state instead of a floating white card. */
+.cy-conversation-sidebar__title { padding: 6px 12px 4px; color: var(--cy-text-muted, #8b8b8b); font: 600 11px/1.2 var(--rb-font-sans, sans-serif); letter-spacing: .06em; }
+.cy-conversation-list { padding: 0 6px 8px; }
+.cy-conversation-list .ant-conversations-item {
+  margin-block: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--cy-text-secondary, #5f5f5f);
+  font: 500 13px/1.35 var(--rb-font-sans, sans-serif);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.cy-conversation-list .ant-conversations-item:hover { background: var(--cy-bg-hover); color: var(--cy-text); }
+.cy-conversation-list .ant-conversations-item-active { background: var(--cy-bg-hover); color: var(--cy-text); box-shadow: none; font-weight: 600; }
+.cy-conversation-list .ant-conversations-group-title { padding: 6px 8px; color: var(--cy-text-muted, #6a6a6a); font-size: 12px; }
+.cy-conversation-sidebar__empty { padding: 18px 14px; color: var(--cy-text-muted); font: 400 12.5px/1.6 var(--rb-font-sans, sans-serif); text-align: center; }
+.cy-conversation-list-wrapper::-webkit-scrollbar { width: 6px; }
+.cy-conversation-list-wrapper::-webkit-scrollbar-thumb { background: transparent; }
+.cy-conversation-list-wrapper:hover::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.16); }
+
 /* Preserve the existing palette unless custom colors are explicitly enabled. */
 :root[data-ui-colors] .cy-conversation-list .ant-conversations-item,
 :root[data-ui-colors] .cy-conversation-list .ant-conversations-group-title,

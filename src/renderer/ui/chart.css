@@ -30,7 +30,7 @@
   letter-spacing: -0.2px;
   color: var(--rb-text-strong);
   /* 光晕收紧，避免 20px 字符叠 32px 大光晕糊成白光 */
-  text-shadow: 0 0 6px rgba(45, 122, 95, 0.4);
+  text-shadow: 0 0 6px rgba(77, 78, 105, 0.4);
 }
 
 .usage-total {
@@ -50,8 +50,8 @@
 .usage-bar__fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #48bb78, #2d7a5f, #1e5a45);
-  box-shadow: 0 0 10px rgba(45, 122, 95, 0.35);
+  background: linear-gradient(90deg, #48bb78, #4d4e69, #1e5a45);
+  box-shadow: 0 0 10px rgba(77, 78, 105, 0.35);
 }
 
 /* 7 天柱状图 */
@@ -83,8 +83,8 @@
   font-weight: 800;
   letter-spacing: 0.2px;
   color: var(--rb-text-on-pink);
-  background: linear-gradient(135deg, #2d7a5f, #1e5a45);
-  box-shadow: 0 4px 10px rgba(45, 122, 95, 0.22);
+  background: linear-gradient(135deg, #4d4e69, #1e5a45);
+  box-shadow: 0 4px 10px rgba(77, 78, 105, 0.22);
   white-space: nowrap;
 }
 
@@ -117,8 +117,8 @@
   width: 100%;
   max-width: 24px;
   border-radius: var(--rb-radius-full);
-  background: linear-gradient(180deg, #2d7a5f 0%, #48bb78 100%);
-  box-shadow: 0 0 10px rgba(45, 122, 95, 0.22);
+  background: linear-gradient(180deg, #4d4e69 0%, #48bb78 100%);
+  box-shadow: 0 0 10px rgba(77, 78, 105, 0.22);
 }
 
 /* Token 面板动态柱子用的真实 fill div（高度由 JS 设像素值）。
@@ -127,8 +127,8 @@
   width: 100%;
   max-width: 24px;
   border-radius: var(--rb-radius-full);
-  background: linear-gradient(180deg, #2d7a5f 0%, #48bb78 100%);
-  box-shadow: 0 0 10px rgba(45, 122, 95, 0.22);
+  background: linear-gradient(180deg, #4d4e69 0%, #48bb78 100%);
+  box-shadow: 0 0 10px rgba(77, 78, 105, 0.22);
   flex: 0 0 auto;
 }
 
@@ -149,7 +149,7 @@
   border-radius: 50%;
   background: #fff;
   border: 1.5px solid #48bb78;
-  box-shadow: 0 0 8px rgba(45, 122, 95, 0.32);
+  box-shadow: 0 0 8px rgba(77, 78, 105, 0.32);
 }
 
 .chart-bar span {

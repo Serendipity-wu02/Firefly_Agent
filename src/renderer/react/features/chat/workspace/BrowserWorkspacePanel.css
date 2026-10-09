@@ -145,6 +145,67 @@
   color: var(--cy-text-muted);
   background: var(--cy-bg-page);
 }
+/* Codex-style chrome: address pill, thin load indicator, slim permission bar. */
+.cy-browser-workspace__toolbar { position: relative; gap: 2px; padding: 6px 8px; align-items: center; }
+.cy-browser-workspace__address {
+  align-items: center;
+  height: 30px;
+  padding-inline: 10px 2px;
+  border: 1px solid var(--cy-border, #e5e9e6);
+  border-radius: 15px;
+  background: var(--cy-bg-page, #f6f6f6);
+}
+.cy-browser-workspace__address:focus-within { border-color: var(--cy-accent, #6b9982); outline: 2px solid var(--cy-accent, #6b9982); outline-offset: 1px; }
+.cy-browser-workspace__address input,
+.cy-browser-workspace__address input:focus-visible { padding-inline: 0; border: 0; border-radius: 0; background: transparent; outline: none; font-size: 13px; }
+.cy-browser-workspace__address button { height: 24px; border-radius: 12px; color: var(--cy-text-muted, #777); }
+.cy-browser-workspace__toolbar[data-browser-busy]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cy-accent, #6b9982), transparent) 0 0 / 40% 100% no-repeat;
+  animation: cy-browser-load 1.1s ease-in-out infinite;
+}
+@keyframes cy-browser-load { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@media (prefers-reduced-motion: reduce) { .cy-browser-workspace__toolbar[data-browser-busy]::after { animation: none; background: var(--cy-accent, #6b9982); opacity: .5; } }
+.cy-browser-workspace__location { padding-block: 3px; border-bottom-color: transparent; }
+.cy-browser-permission { padding: 4px 12px; background: var(--cy-bg-workspace, #fff); }
+.cy-browser-permission details:not([open]) > summary { color: var(--cy-text-muted); }
+.cy-browser-permission__mode { color: var(--cy-accent, #6b9982); border-color: currentColor; }
+/* Codex-style toolbar: a rounded nav group, a tall pill address field, quiet circular close. */
+.cy-browser-workspace { background: var(--cy-bg-page, #f4f4f6); }
+.cy-browser-workspace__toolbar { display: flex; gap: 8px; padding: 4px 10px 8px; background: var(--cy-bg-workspace, #fff); border-bottom: 0; }
+.cy-browser-workspace__nav {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--cy-border);
+  border-radius: 999px;
+  background: var(--cy-bg-workspace, #fff);
+}
+.cy-browser-workspace__nav button { min-width: 30px; min-height: 30px; padding: 0; border-radius: 50%; }
+.cy-browser-workspace__nav-divider { width: 1px; height: 16px; margin: 0 2px; background: var(--cy-border); }
+.cy-browser-workspace__address { flex: 1 1 0; height: 36px; padding-inline: 14px 4px; border-radius: 18px; border-color: transparent; background: var(--cy-bg-hover, #eceef2); }
+.cy-browser-workspace__address:hover { border-color: var(--cy-border); }
+.cy-browser-workspace__address:focus-within { background: var(--cy-bg-workspace, #fff); }
+.cy-browser-workspace__address input { text-overflow: ellipsis; }
+.cy-browser-workspace__address input:placeholder-shown { text-align: center; }
+.cy-browser-workspace__address button { width: 28px; height: 28px; padding: 0; border-radius: 50%; opacity: .75; }
+.cy-browser-workspace__address button:disabled { opacity: .25; }
+.cy-browser-workspace__toolbar > button[aria-label] { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; }
+.cy-browser-workspace__empty { color: var(--cy-text-muted); }
+
+/* Window browser: a single slim bar for private-network grants and actionable notices. */
+.cy-browser-permission--compact { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 10px; font-size: 12px; }
+.cy-browser-permission--compact p { margin: 2px 0; }
+.cy-browser-permission--compact button { margin-top: 0; padding: 3px 10px; }
+.cy-browser-chip { display: inline-flex; align-items: center; min-width: 0; gap: 6px; }
+.cy-browser-chip .cy-browser-permission__mode { margin-right: 0; }
+.cy-browser-chip code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; color: var(--cy-text); }
+.cy-browser-chip__extra { color: var(--cy-text-muted); }
 .cy-browser-agent-consent { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--cy-border); }
 .cy-browser-permission button:focus-visible,
 .cy-browser-permission summary:focus-visible,

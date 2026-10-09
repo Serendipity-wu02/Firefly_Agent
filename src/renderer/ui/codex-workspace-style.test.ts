@@ -22,12 +22,14 @@ function value(file: keyof typeof sources, selector: string, property: string, m
 function channels(hex: string) { return [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16)); }
 
 describe("Codex-reference workbench presentation", () => {
-  it("defaults to a neutral light palette in both React and shared theme tokens", () => {
+  it("defaults to a cool blue-grey light palette in both React and shared theme tokens", () => {
+    // Tinted but restrained: no channel spread beyond a slate cast, and text stays dark on a light ground.
     for (const key of ["--cy-accent", "--cy-text", "--cy-text-muted", "--cy-border"]) {
       const rgb = channels(value("root", ":root", key));
-      expect(Math.max(...rgb) - Math.min(...rgb), key).toBeLessThanOrEqual(16);
+      expect(Math.max(...rgb) - Math.min(...rgb), key).toBeLessThanOrEqual(40);
     }
-    expect(Math.min(...channels(value("root", ":root", "--cy-bg-page")))).toBeGreaterThanOrEqual(240);
+    expect(Math.min(...channels(value("root", ":root", "--cy-bg-page")))).toBeGreaterThanOrEqual(232);
+    expect(Math.max(...channels(value("root", ":root", "--cy-text")))).toBeLessThanOrEqual(100);
     expect(value("theme", '[data-ui-theme="pearl-white"]', "--rb-pink-500")).toBe(value("root", ":root", "--cy-accent"));
   });
   it("uses adjacent flat columns while retaining the 12px outer and content corners", () => {
@@ -78,10 +80,13 @@ describe("Codex-reference workbench presentation", () => {
     expect(value("inspector", ".cy-right-inspector__tabs .ant-tabs-tab.ant-tabs-tab-active", "box-shadow")).toBe("none");
     expect(sources.inspector).not.toContain("transform: translateX");
   });
-  it("anchors the empty-state composer near the bottom without changing its component lifetime", () => {
+  it("centres the empty-state greeting and composer as one group without changing the composer's component lifetime", () => {
     expect(value("root", ".cy-workspace.is-empty .cy-workspace-composer", "flex")).toBe("0 0 auto");
-    expect(value("root", ".cy-workspace.is-empty .cy-workspace-composer", "margin-top")).toBe("auto");
-    expect(value("root", ".cy-workspace.is-empty .cy-workspace-composer", "align-items")).toBe("flex-end");
+    // auto margins above the greeting and below the composer split the free space around the pair
+    expect(value("root", ".cy-workspace.is-empty .cy-workspace-greeting", "margin-top")).toBe("auto");
+    expect(value("root", ".cy-workspace.is-empty .cy-workspace-composer", "margin-top")).toBe("0px");
+    expect(value("root", ".cy-workspace.is-empty .cy-workspace-composer", "margin-bottom")).toBe("auto");
+    expect(value("root", ".cy-workspace-greeting", "display")).toBe("none"); // hidden once the conversation has messages
   });
   it("does not paint an accent box behind a sticker-only user message", () => {
     expect(value("messages", ":root[data-ui-colors] .cy-message--user:has(.cy-message__sticker:only-child) .ant-bubble-content", "background")).toBe("transparent");

@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import type { BrowserReply, BrowserWorkspaceStateDto } from "../../../../../shared/manual-browser";
+import { Globe, Plus, X } from "lucide-react";
 import { useTranslation } from "../../../i18n";
 import { ManualBrowserTab, type ManualBrowserTabHandle } from "./ManualBrowserTab";
 import "./BrowserWorkspaceTabs.css";
@@ -78,12 +79,15 @@ export function BrowserWorkspaceTabs({ sessionId, active = true, onClose, ref }:
     <div className="cy-browser-window__tabs" role="tablist" aria-label={t("browserWorkspace.tabs")}>
       {state?.tabs.map((tab, index) => <div className="cy-browser-window__tab" key={tab.tabId}>
         <button type="button" role="tab" aria-selected={!agent && state.activeTabId === tab.tabId} disabled={pending} data-browser-select-tab={tab.tabId}
-          onClick={() => api && void mutate(() => api.selectTab(tab.tabId))}>{tab.page?.url ? new URL(tab.page.url).hostname : `${t("browserWorkspace.tab")} ${index + 1}`}</button>
+          title={tab.page?.url || undefined} onClick={() => api && void mutate(() => api.selectTab(tab.tabId))}>
+          <Globe size={14} aria-hidden="true" />
+          <span className="cy-browser-window__tab-title">{tab.page?.url ? new URL(tab.page.url).hostname : index === 0 && state.tabs.length === 1 ? t("browserWorkspace.newTabTitle") : `${t("browserWorkspace.newTabTitle")} ${index + 1}`}</span>
+        </button>
         <button type="button" aria-label={t("browserWorkspace.closeTab")} disabled={pending} data-browser-close-tab={tab.tabId}
-          onClick={() => api && void mutate(() => api.closeTab(tab.tabId))}>×</button>
+          onClick={() => api && void mutate(() => api.closeTab(tab.tabId))}><X size={13} aria-hidden="true" /></button>
       </div>)}
       <button type="button" aria-label={t("browserWorkspace.newTab")} data-browser-new-tab disabled={pending || !api || !state || state.tabs.length >= 8}
-        onClick={() => api && void mutate(() => api.newTab())}>+</button>
+        onClick={() => api && void mutate(() => api.newTab())}><Plus size={15} aria-hidden="true" /></button>
       {sessionId && <button type="button" role="tab" aria-selected={agent} disabled={pending} onClick={() => setAgent(true)}>{t("browserWorkspace.agentMode")}</button>}
     </div>
     {error && <p role="alert">{t(error === "tab_limit" ? "browserWorkspace.tabLimit" : error === "cleanup_failed" ? "browserWorkspace.cleanupFailed" : "browserWorkspace.stateUnavailable")}</p>}

@@ -4,11 +4,14 @@ import type { BrowserAuthorizationDomain, BrowserAuthorizationDomainRegistry, Br
 import { BrowserProxyCleanupError, startBrowserDomainProxy, type BrowserDomainProxy, type BrowserProxyFactory } from "./browser-domain-proxy";
 import type { BrowserRequestDetails } from "./browser-request-policy";
 import type { ConnectProxy } from "./authenticated-connect-proxy";
+import { parseLocalAuthority } from "../../shared/local-network-target";
 export interface BrowserSessionPort<S extends object> {
   session: S; persistent: boolean;
   installRequestHandler(handler: (request: BrowserRequestDetails) => boolean): void;
   denyPermissions(): void;
   setProxy(endpoint: ConnectProxy["endpoint"]): Promise<void>;
+  /** Private-network grants only. Absent means such a grant cannot be prepared. */
+  setDirect?(): Promise<void>;
   closeAllConnections(): Promise<void>; clearStorageData(): Promise<void>; clearCache(): Promise<void>;
   clearAuthCache(): Promise<void>; clearHostResolverCache(): Promise<void>; runningWorkerCount(): number;
 }
@@ -60,6 +63,7 @@ export function createElectronBrowserSessionPort<S extends ElectronSessionOperat
       session.on("will-download", (event) => event.preventDefault());
     },
     setProxy: (endpoint) => session.setProxy({ mode: "fixed_servers", proxyRules: `http://${endpoint.host}:${endpoint.port}`, proxyBypassRules: "<-loopback>" }),
+    setDirect: () => session.setProxy({ mode: "direct" }),
     closeAllConnections: () => session.closeAllConnections(),
     clearStorageData: () => session.clearStorageData(),
     clearCache: () => session.clearCache(),
@@ -166,7 +170,7 @@ export function createBrowserNetworkController<S extends object>(registry: Brows
     if (stopped) return failure("closed");
     if (!registry.canPrepare(context, policy)) return failure(context.signal.aborted ? "cancelled" : "permission_denied");
     const copiedContext = Object.freeze({ ...context });
-    const copiedPolicy = policy?.hosts === undefined ? undefined : Object.freeze({ hosts: Object.freeze([...policy.hosts]),
+    const copiedPolicy: BrowserDomainPolicy | undefined = policy?.web === true ? Object.freeze({ web: true }) : policy?.hosts === undefined ? undefined : Object.freeze({ hosts: Object.freeze([...policy.hosts]),
       ...(policy.resourceHosts === undefined ? {} : { resourceHosts: Object.freeze([...policy.resourceHosts]) }) });
     let ownerSlots = slots.get(copiedContext.owner);
     if (!ownerSlots) { ownerSlots = new Map(); slots.set(copiedContext.owner, ownerSlots); }
@@ -198,9 +202,18 @@ export function createBrowserNetworkController<S extends object>(registry: Brows
       port.denyPermissions(); ensureCurrent(cell);
       cell.view = dependencies.createView(port.session); ensureCurrent(cell);
       if (!cell.domain.registerContents(cell.view.contents)) throw "owner_mismatch";
-      cell.proxy = await startBrowserDomainProxy(cell.domain, cell.view.contents, dependencies.proxyFactory);
-      ensureCurrent(cell);
-      await port.setProxy(cell.proxy.endpoint); ensureCurrent(cell);
+      if (parseLocalAuthority(copiedPolicy?.hosts?.[0]) !== null) {
+        // Private-network grant: the public CONNECT proxy refuses non-public addresses by design,
+        // so this session connects directly. The request handler above still admits only the
+        // granted `host:port` (plus same-host resource ports), and DNS is never involved: the
+        // policy accepts `localhost` and IP literals only.
+        if (!port.setDirect) throw new Error("direct mode unavailable");
+        await port.setDirect(); ensureCurrent(cell);
+      } else {
+        cell.proxy = await startBrowserDomainProxy(cell.domain, cell.view.contents, dependencies.proxyFactory);
+        ensureCurrent(cell);
+        await port.setProxy(cell.proxy.endpoint); ensureCurrent(cell);
+      }
       await port.closeAllConnections(); ensureCurrent(cell);
       if (!cell.domain.activate()) throw "owner_mismatch";
       const domain = cell.domain;

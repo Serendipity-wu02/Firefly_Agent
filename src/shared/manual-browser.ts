@@ -20,6 +20,8 @@ export interface ManualBrowserApi {
 export type BrowserAction = "navigate" | "observe" | "click" | "type";
 export interface BrowserPermissionScope { readonly hosts: readonly string[]; readonly actions: readonly BrowserAction[];
   readonly mode?: "manual" | "agent"; readonly resourceHosts?: readonly string[];
+  /** Manual only: ordinary web browsing of any public HTTPS site. Carries no host lists and never an Agent action. */
+  readonly web?: boolean;
   /** Request-only identity for adding resources discovered by this exact live page. Never part of a grant. */
   readonly sourceBrowserId?: string;
   readonly sourceRequestId?: number;

@@ -1,7 +1,9 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { type BrowserPermissionScope, type BrowserOwnedPageDto, type BrowserOwnedPermissionDto, type ManualBrowserApi, type BrowserReply, type ManualBrowserCommand } from "../../../../../shared/manual-browser";
+import { manualBrowserTarget, parseLocalAuthority, resolveAddressInput } from "../../../../../shared/local-network-target";
 import { useTranslation } from "../../../i18n";
 import { BrowserWorkspacePanel, type BrowserWorkspaceLabels } from "./BrowserWorkspacePanel";
+import { BrowserNewTab, rememberVisitedSite } from "./BrowserNewTab";
 import { createBrowserPageState, type BrowserPageState } from "./browser-page-state";
 
 type ViewApi = Omit<ManualBrowserApi, "getPermission" | "requestPermission" | "revokePermission" | "execute" | "onChanged"> & {
@@ -68,6 +70,7 @@ export function ManualBrowserTab({ sessionId, workspaceId, tabId, active = true,
           ? dto.requestId < current.requestId || (current.closed && !dto.closed)
           : !current.closed)) return;
         scope.page = dto;
+        if (!dto.closed && !dto.loading && dto.url && !dto.error) rememberVisitedSite(dto.url);
         if (dto.closed && scope.permission?.scope.mode === "manual") {
           setPage(emptyPage(scope.sessionId, scope.workspaceId, scope.tabId));
         } else setPage({ ...dto, error: dto.error === null ? null : dto.error === "blocked_url" || dto.error === "network_unavailable" ? "blocked" : "load_failed" });
@@ -189,14 +192,14 @@ export function ManualBrowserTab({ sessionId, workspaceId, tabId, active = true,
   async function proposeSite(url: string, requested?: BrowserPermissionScope, preserveAddress = false) {
     const scope = scopeRef.current;
     if (!scope?.api || !scope.ownerKey || scope.disposed || scope.closed || !available || scope.permission?.scope.mode !== "manual") return;
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-      // Syntax for a proposal only. Main remains the public-network/security authority.
-      if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password || (parsed.port && parsed.port !== "443")) throw new Error("blocked");
-    } catch { rejectAddress(scope); return; }
+    // Syntax for a proposal only. Main remains the network/security authority for public and private targets.
+    const target = manualBrowserTarget(url);
+    if (!target) { rejectAddress(scope); return; }
     const addressRevision = scope.addressRevision;
-    const proposal: BrowserPermissionScope = requested ?? { mode: "manual", hosts: [parsed.hostname], resourceHosts: [], actions: ["navigate"] };
+    // The window workspace browses the public web as one ordinary grant; only private networks name an authority.
+    const proposal: BrowserPermissionScope = requested ?? (target.network === "public" && scope.workspaceId
+      ? { mode: "manual", web: true, hosts: [], resourceHosts: [], actions: ["navigate"] }
+      : { mode: "manual", hosts: [target.key], resourceHosts: [], actions: ["navigate"] });
     const revision = ++scope.permissionRevision;
     scope.commandRevision++; scope.commandPending = false; setCommandPending(false); setStateBusy(false); scope.opening = false; scope.permissionBusy = true;
     setPermissionBusy(true); setFailure(null); setScopeReloaded(false);
@@ -217,15 +220,14 @@ export function ManualBrowserTab({ sessionId, workspaceId, tabId, active = true,
     } catch { if (isCurrent()) await recoverPermission(scope, isCurrent, "permission_denied"); }
     finally { if (isCurrent()) { scope.permissionBusy = false; setPermissionBusy(false); } }
   }
-  function navigate(url: string) {
+  function navigate(typed: string) {
+    const url = resolveAddressInput(typed);
     const scope = scopeRef.current;
     if (scope?.permission?.scope.mode === "manual") {
-      let parsed: URL;
-      try {
-        parsed = new URL(url);
-        if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password || (parsed.port && parsed.port !== "443")) throw new Error("blocked");
-      } catch { rejectAddress(scope); return; }
-      if (scope.permissionBusy || scope.permission.status !== "granted" || !scope.permission.scope.hosts.includes(parsed.hostname)) {
+      const target = manualBrowserTarget(url);
+      if (!target) { rejectAddress(scope); return; }
+      const covered = scope.permission.scope.hosts.includes(target.key) || (target.network === "public" && scope.permission.scope.web === true);
+      if (scope.permissionBusy || scope.permission.status !== "granted" || !covered) {
         void proposeSite(url); return;
       }
     }
@@ -321,12 +323,19 @@ export function ManualBrowserTab({ sessionId, workspaceId, tabId, active = true,
   const candidates = manual && !scopeRef.current?.page?.closed ? scopeRef.current?.page?.blockedResourceHosts ?? [] : [];
   const selected = selectedResources.browserId === page.browserId && selectedResources.requestId === page.requestId ? selectedResources.hosts.filter(host => candidates.includes(host)) : [];
   const blockedNavigationUrl = manual && !scopeRef.current?.page?.closed ? scopeRef.current?.page?.blockedNavigationUrl : undefined;
+  // The window browser behaves like an ordinary browser: the public web needs no consent panel at all.
+  // Only a private-network grant, a pending or failed request, or an actionable block earns screen space.
+  const compact = !!workspaceId && manual;
+  const localHost = compact ? permission?.scope.hosts.find(host => parseLocalAuthority(host) !== null) : undefined;
+  const attention = !compact || !!localHost || permission?.status === "pending" || permission?.status === "denied" || permissionBusy
+    || failure === "permission_denied" || failure === "cancelled" || failure === "cleanup_failed" || scopeReloaded
+    || !!candidates.length || !!blockedNavigationUrl;
   const labels: BrowserWorkspaceLabels = {
     panel: t("browserWorkspace.title"), address: t("browserWorkspace.address"), go: t("browserWorkspace.go"),
     back: t("browserWorkspace.back"), forward: t("browserWorkspace.forward"), reload: t("browserWorkspace.reload"), stop: t("browserWorkspace.stop"), close: t("browserWorkspace.close"),
     loading: t("browserWorkspace.loading"), blocked: t(available ? "browserWorkspace.blocked" : checked ? "browserWorkspace.unavailable" : "browserWorkspace.checking"),
     loadFailed: t("browserWorkspace.loadFailed"), closed: t(closing ? "browserWorkspace.closing" : failure === "cleanup_failed" ? "browserWorkspace.cleanupFailed" : "browserWorkspace.closed"),
-    committedUrl: t("browserWorkspace.currentPage"), addressHint: t("browserWorkspace.addressHint"),
+    committedUrl: t("browserWorkspace.currentPage"), addressHint: t("browserWorkspace.addressHint"), addressPlaceholder: t("browserWorkspace.addressPlaceholder"),
     viewport: t("browserWorkspace.viewport"), empty: t(ownerKey ? "browserWorkspace.ready" : "browserWorkspace.sessionRequired"),
   };
   return <div className="cy-browser-tab">
@@ -334,8 +343,11 @@ export function ManualBrowserTab({ sessionId, workspaceId, tabId, active = true,
       <p>{t(stateFailure ? "browserWorkspace.stateUnavailable" : "browserWorkspace.checking")}</p>
       {stateFailure && <button type="button" data-browser-retry-state disabled={stateBusy} onClick={() => scopeRef.current?.refresh()}>{t("browserWorkspace.retryState")}</button>}
     </div>}
-    {available && ownerKey && permission && !scopeRef.current?.closed && <section className="cy-browser-permission" aria-label={t("browserWorkspace.permission")}>
-      <details open={!granted}>
+    {available && ownerKey && permission && !scopeRef.current?.closed && attention && <section className={`cy-browser-permission${compact ? " cy-browser-permission--compact" : ""}`} aria-label={t("browserWorkspace.permission")}>
+      {compact ? localHost && <div className="cy-browser-chip">
+        <span className="cy-browser-permission__mode">{t("browserWorkspace.localBadge")}</span><code>{localHost}</code>
+        {!!permission?.scope.resourceHosts?.length && <span className="cy-browser-chip__extra">+{permission.scope.resourceHosts.length}</span>}
+      </div> : <details open={!granted}>
         <summary><span className="cy-browser-permission__mode">{t(manual ? "browserWorkspace.manualMode" : "browserWorkspace.agentMode")}</span>{t(granted ? "browserWorkspace.permissionGranted" : "browserWorkspace.permissionRequired")}</summary>
         <p>{t(manual ? "browserWorkspace.manualScope" : "browserWorkspace.permissionScope")}</p>
         <p className="cy-browser-permission__scope">{permission?.scope.hosts.join(", ")}<br />{permission?.scope.actions.join(", ")}</p>
@@ -344,7 +356,7 @@ export function ManualBrowserTab({ sessionId, workspaceId, tabId, active = true,
         </p>}
         {manual && <p>{t("browserWorkspace.manualLimits")}</p>}
         {!manual && permission?.scope.mode === "agent" && <p>{t("browserWorkspace.agentScope")}</p>}
-      </details>
+      </details>}
       {permission?.status === "denied" && <p role="status">{t("browserWorkspace.permissionDenied")}</p>}
       {(failure === "permission_denied" || failure === "cancelled") && <p role="alert">{t(manual ? "browserWorkspace.permissionRequestFailed" : "browserWorkspace.permissionFailed")}</p>}
       {(granted || permissionBusy || permission?.status === "pending" || !manual) && <button type="button" data-browser-enable={!granted && !permissionBusy || undefined} data-browser-revoke={granted || permissionBusy || permission?.status === "pending" || undefined}
@@ -386,6 +398,7 @@ export function ManualBrowserTab({ sessionId, workspaceId, tabId, active = true,
     <BrowserWorkspacePanel page={!available ? { ...page, error: "blocked" } : page}
       address={address} labels={labels} navigationAvailable={available && granted && !permissionBusy && !stateFailure && !!ownerKey && !page.closed}
       addressAvailable={manual ? available && !!ownerKey && !scopeRef.current?.closed && !stateFailure && failure !== "cleanup_failed" : undefined}
+      emptyContent={<BrowserNewTab available={available && !!ownerKey && !stateFailure} onOpen={url => { setAddress(url); navigate(url); }} />}
       viewportRef={viewport} onAddressChange={editAddress} onAddressReset={resetAddress} onNavigate={navigate}
       commandPending={commandPending} closeAvailable={!closing && !scopeRef.current?.cleanupFailed && !page.closed}
       onCommand={action => { const id = scopeRef.current?.page?.browserId; if (id) void command(action === "stop" ? { kind: "stop", browserId: id } : { kind: "history", browserId: id, action }); }} onClose={() => { void close(); }} />

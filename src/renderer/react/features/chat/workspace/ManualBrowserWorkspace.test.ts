@@ -26,11 +26,26 @@ async function go() {
   act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "https://example.com/"); input.dispatchEvent(new Event("input", { bubbles: true })); });
   await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
 }
-it("enables welcome-page Go through the workspace bridge and exact tab consent", async () => {
+it("enables welcome-page Go through the workspace bridge as one ordinary web grant", async () => {
   await render(); expect(host.querySelector<HTMLInputElement>("input")!.disabled).toBe(false); await go();
-  expect(request).toHaveBeenCalledWith({ mode: "manual", hosts: ["example.com"], resourceHosts: [], actions: ["navigate"] }, "a");
+  expect(request).toHaveBeenCalledWith({ mode: "manual", web: true, hosts: [], resourceHosts: [], actions: ["navigate"] }, "a");
   expect(execute).toHaveBeenCalledWith({ kind: "open", url: "https://example.com/" }, "a");
   expect(host.querySelector<HTMLInputElement>("input")!.value).toBe("https://example.com/");
+});
+it("shows no consent panel for ordinary web browsing, and only a slim bar for a private-network grant", async () => {
+  const web = { ...permission("granted"), scope: { mode: "manual" as const, web: true, hosts: [], resourceHosts: [], actions: ["navigate" as const] } };
+  window.manualBrowserWorkspace!.getPermission = async () => ({ ok: true, value: web });
+  await render();
+  expect(host.querySelector(".cy-browser-permission")).toBeNull();
+  expect(host.textContent).not.toContain("navigate");
+  const local = { ...permission("granted"), scope: { mode: "manual" as const, hosts: ["localhost:5173"], resourceHosts: ["localhost:3000"], actions: ["navigate" as const] } };
+  window.manualBrowserWorkspace!.getPermission = async () => ({ ok: true, value: local });
+  await act(async () => root.unmount()); root = createRoot(host); await render();
+  const bar = host.querySelector(".cy-browser-permission--compact");
+  expect(bar?.querySelector(".cy-browser-chip code")?.textContent).toBe("localhost:5173");
+  expect(bar?.querySelector(".cy-browser-chip__extra")?.textContent).toBe("+1");
+  expect(bar?.querySelector("details")).toBeNull();
+  expect(bar?.querySelector("[data-browser-revoke]")).not.toBeNull();
 });
 it("keeps window browsing mounted across conversation changes and rejects other window/tab events", async () => {
   await render("chat-a"); await go(); await render("chat-b");

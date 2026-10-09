@@ -105,6 +105,18 @@ export function parseComposerMessage(mode: string, content: string): {
   };
 }
 
+/** Separates what the user typed from recognised `[sticker:id]` markers. Re-appending the markers after the typed
+ * text restores the original message content, and typed text round-trips exactly, trailing spaces included. */
+export function splitStickerMarkers(value: string, knownIds: ReadonlySet<string>): { visible: string; markers: string[] } {
+  const markers: string[] = [];
+  const visible = value.replace(/\[sticker:([^\]]+)\]/gi, (marker, rawId: string) => {
+    if (!knownIds.has(rawId.trim())) return marker;
+    markers.push(marker);
+    return "";
+  });
+  return { visible, markers };
+}
+
 function stickerUrl(src: string): string {
   return src.startsWith("/stickers/") ? resolveAsset(src) : src;
 }
@@ -256,6 +268,14 @@ export function ChatComposer({
     };
   }).filter((item): item is { id: string; occurrence: number; sticker: EnabledSticker } => Boolean(item.sticker));
 
+  // The draft string stays the message content, so it keeps its `[sticker:id]` markers. The text box shows only
+  // what the user typed; recognised stickers appear once, as removable thumbnails above it. Unrecognised markers
+  // stay visible so they can never become hidden text.
+  const { visible: visibleValue, markers: hiddenMarkers } = supportsStickers
+    ? splitStickerMarkers(value, new Set(enabledStickers.map((item) => item.id)))
+    : { visible: value, markers: [] as string[] };
+  const withStickerMarkers = (typed: string) => `${typed}${hiddenMarkers.join("")}`;
+
   useEffect(() => {
     let active = true;
     void window.chat?.getEnabledStickers?.().then((items) => {
@@ -335,25 +355,29 @@ export function ChatComposer({
         />
         <Sender
         rootClassName="cy-composer"
-        value={value}
+        value={visibleValue}
         placeholder={modelBusy ? t("composer.placeholderBusy") : placeholder}
         // 忙态使用 Sender 自带的停止按钮；Enter 入队由 onKeyDown 在内建提交前处理。
         loading={modelBusy}
         disabled={!modelBusy && requiresWorkspace && !workspaceName}
         autoSize={{ minRows: 3, maxRows: 7 }}
-        onChange={onChange}
+        onChange={(next) => onChange(withStickerMarkers(next))}
         onCancel={onCancel}
         onPaste={handlePaste}
         onKeyDown={handleSenderKeyDown}
         onSubmit={(submitValue) => {
-          if (!submitValue.trim()) return;
-          onSubmit(submitValue);
+          const full = withStickerMarkers(submitValue);
+          if (!full.trim()) return;
+          onSubmit(full);
         }}
         suffix={(actionNode, { components }) => modelBusy ? (
           <components.LoadingButton
             title={t("composer.stopRun")}
             aria-label={t("composer.stopRun")}
           />
+        ) : hiddenMarkers.length > 0 && !visibleValue.trim() ? (
+          // A sticker alone is a complete message even though the text box is empty.
+          <span className="cy-composer__send-sticker"><components.SendButton disabled={false} /></span>
         ) : actionNode}
         header={hasComposerHeader ? (
           <div className="cy-composer__attachments" aria-label={t("composer.attachmentsLabel")}>
