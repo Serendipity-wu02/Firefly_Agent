@@ -5,7 +5,8 @@ import { AliyunAsrStream } from "./aliyun-asr-engine";
 export interface AsrStreamSession {
   start(): Promise<void>;
   sendAudio(frame: Buffer): void;
-  stop(): void | Promise<string>;
+  stop(): Promise<string>;
+  cancel(): void;
 }
 
 export function createAsrStream(
@@ -27,5 +28,6 @@ export function createAsrStream(
     ),
     sendAudio: (frame) => stream.sendAudio(frame),
     stop: () => stream.stop(),
+    cancel: () => stream.cancel(),
   };
 }

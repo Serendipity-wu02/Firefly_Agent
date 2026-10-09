@@ -1,0 +1,5291 @@
+[
+  {
+    "path": "E:\\Codex\\2026-09-18",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 5,
+    "children": [
+      {
+        "name": "codex-codex-is-ignoring-1-unrecognized",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "realtime-voice-chat",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "realtime-voice-chat-2",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "realtime-voice-chat-3",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "realtime-voice-chat-4",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-09-19",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 1,
+    "children": [
+      {
+        "name": "realtime-voice-chat",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-09-25",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 1,
+    "children": [
+      {
+        "name": "qi",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-09-26",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 2,
+    "children": [
+      {
+        "name": "plugins",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "plugins-2",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-09-30",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 1,
+    "children": [
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-10-01",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 1,
+    "children": [
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-10-02",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 2,
+    "children": [
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-2",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-10-03",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 13,
+    "children": [
+      {
+        "name": "new-chat",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-10",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-11",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-12",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-2",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-3",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-4",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-5",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-6",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-7",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-8",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-9",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-10-04",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 6,
+    "children": [
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-2",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-3",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-4",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-5",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-6",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-10-05",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 1,
+    "children": [
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-10-06",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 1,
+    "children": [
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-10-07",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 19,
+    "children": [
+      {
+        "name": "c-users-w1558-codex-sandbox-sandbox",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "cho",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "codex-skills-firefly-agent-skills-ci",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "https-github-com-yushua0808-cpu-dragon",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-10",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-2",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-3",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-4",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-5",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-6",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-7",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-8",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "new-chat-9",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-2",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-3",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-4",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "x20-https-github-com-yushua0808-cpu",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\2026-10-08",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 10,
+    "children": [
+      {
+        "name": "e-codex-download-start",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-2",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-3",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-4",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-5",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-6",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-7",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-8",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "task-9",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Batch3-Public-Fixtures",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 5,
+    "children": [
+      {
+        "name": "batch3-export.md",
+        "directory": false,
+        "bytes": 777,
+        "reparse": false
+      },
+      {
+        "name": "full.txt",
+        "directory": false,
+        "bytes": 33,
+        "reparse": false
+      },
+      {
+        "name": "partial.txt",
+        "directory": false,
+        "bytes": 32912,
+        "reparse": false
+      },
+      {
+        "name": "unreadable.txt",
+        "directory": false,
+        "bytes": 32,
+        "reparse": false
+      },
+      {
+        "name": "work-task.md",
+        "directory": false,
+        "bytes": 1058,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\build-firefly-review-pack.py",
+    "directory": false,
+    "reparse": false,
+    "bytes": 9182
+  },
+  {
+    "path": "E:\\Codex\\CODING_AGENT_HANDOFF.md",
+    "directory": false,
+    "reparse": false,
+    "bytes": 4289
+  },
+  {
+    "path": "E:\\Codex\\download",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 1,
+    "children": [
+      {
+        "name": "start",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\ff",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 36,
+    "children": [
+      {
+        "name": "00-\u5148\u8bfb\u6211-\u8d44\u6599\u76ee\u5f55\u8bf4\u660e.md",
+        "directory": false,
+        "bytes": 7919,
+        "reparse": false
+      },
+      {
+        "name": "archive",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "browser-review-fixes-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "docs-merge-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "docs-three-way-review-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "external-market-merge-preparation-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "external-skills-apply-20261008-01.cjs",
+        "directory": false,
+        "bytes": 8983,
+        "reparse": false
+      },
+      {
+        "name": "external-skills-build-20261008-01.cjs",
+        "directory": false,
+        "bytes": 11694,
+        "reparse": false
+      },
+      {
+        "name": "external-skills-compatibility-fixes-20261008-01.cjs",
+        "directory": false,
+        "bytes": 7520,
+        "reparse": false
+      },
+      {
+        "name": "external-skills-green-20261008-01.cjs",
+        "directory": false,
+        "bytes": 2046,
+        "reparse": false
+      },
+      {
+        "name": "external-skills-integration-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "external-skills-verify-20261008-01.cjs",
+        "directory": false,
+        "bytes": 4165,
+        "reparse": false
+      },
+      {
+        "name": "external-skills-verify-final-20261008-01.cjs",
+        "directory": false,
+        "bytes": 4231,
+        "reparse": false
+      },
+      {
+        "name": "Firefly-development-docs-normalization-20261007",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Firefly-externalSkills-increment-20261008-r1",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Firefly-externalSkills-increment-20261008-r3",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Firefly_Agent-browser-permission-increment",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Firefly_Agent-marketplace-increment",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Firefly_Agent-own-computer-candidate-911d057",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Firefly_Agent-ui-source-increment-20261007",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Firefly_Agent-ui-workspace-increment-20261008 (7)",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "full-verification-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "integration-backup-20261007-234618",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "library-docs-transfer-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "login-isolation-fix-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "marketplace-integration-20261007-105053",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "reconcile-911d057",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "sim-package-boundary-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "ui-gui-qa-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "ui-gui-qa-20261008-170915-9bcb06ad3dba408b8cea8f7bcc3dd915",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "ui-gui-qa-20261008-170930-b2b911a20dae4ac1a8f148c1fd26d86b",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "ui-runtime-build-refresh-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "ui-runtime-build-refresh-20261008-02",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "ui-runtime-refresh-build-20261008-01.cjs",
+        "directory": false,
+        "bytes": 13491,
+        "reparse": false
+      },
+      {
+        "name": "ui-runtime-refresh-build-20261008-02.cjs",
+        "directory": false,
+        "bytes": 13645,
+        "reparse": false
+      },
+      {
+        "name": "ui-workspace-integration-20261008-01",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Firefly-Agent-git-backup-20260925-220146",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 11,
+    "children": [
+      {
+        "name": "Firefly_Agent-all-refs.bundle",
+        "directory": false,
+        "bytes": 199504752,
+        "reparse": false
+      },
+      {
+        "name": "Firefly_Agent-final-all-refs.bundle",
+        "directory": false,
+        "bytes": 199533222,
+        "reparse": false
+      },
+      {
+        "name": "full-test-output-with-bash.txt",
+        "directory": false,
+        "bytes": 16687,
+        "reparse": false
+      },
+      {
+        "name": "full-test-output.txt",
+        "directory": false,
+        "bytes": 17865,
+        "reparse": false
+      },
+      {
+        "name": "main-test-failed-actions.txt",
+        "directory": false,
+        "bytes": 898412,
+        "reparse": false
+      },
+      {
+        "name": "refs-before-mainline.txt",
+        "directory": false,
+        "bytes": 727,
+        "reparse": false
+      },
+      {
+        "name": "refs-final.txt",
+        "directory": false,
+        "bytes": 1807,
+        "reparse": false
+      },
+      {
+        "name": "remote-heads-before-mainline.txt",
+        "directory": false,
+        "bytes": 203,
+        "reparse": false
+      },
+      {
+        "name": "remote-heads-final.txt",
+        "directory": false,
+        "bytes": 1197,
+        "reparse": false
+      },
+      {
+        "name": "remote-tags-before-mainline.txt",
+        "directory": false,
+        "bytes": 605,
+        "reparse": false
+      },
+      {
+        "name": "verified-branch-deletions.txt",
+        "directory": false,
+        "bytes": 494,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-audit.cjs",
+    "directory": false,
+    "reparse": false,
+    "bytes": 8064
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-audit.json",
+    "directory": false,
+    "reparse": false,
+    "bytes": 345202
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-before.txt",
+    "directory": false,
+    "reparse": false,
+    "bytes": 93230
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-build-20260927.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 62465
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-links.cjs",
+    "directory": false,
+    "reparse": false,
+    "bytes": 2906
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-links.json",
+    "directory": false,
+    "reparse": false,
+    "bytes": 132
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-renderer-20260927.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 75
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-source-exact.txt",
+    "directory": false,
+    "reparse": false,
+    "bytes": 18466
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-tests-20260927.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 16800
+  },
+  {
+    "path": "E:\\Codex\\firefly-attribution-zip-20260927.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 1101
+  },
+  {
+    "path": "E:\\Codex\\Firefly-avatar-originals-2026-09-25",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 13,
+    "children": [
+      {
+        "name": "compare.html",
+        "directory": false,
+        "bytes": 2928,
+        "reparse": false
+      },
+      {
+        "name": "\u4e09\u6708\u4e03.png",
+        "directory": false,
+        "bytes": 1743010,
+        "reparse": false
+      },
+      {
+        "name": "\u4e39\u6052.png",
+        "directory": false,
+        "bytes": 1751035,
+        "reparse": false
+      },
+      {
+        "name": "\u5203.png",
+        "directory": false,
+        "bytes": 1659307,
+        "reparse": false
+      },
+      {
+        "name": "\u5361\u592b\u5361.png",
+        "directory": false,
+        "bytes": 1689515,
+        "reparse": false
+      },
+      {
+        "name": "\u5927\u9ed1\u5854.png",
+        "directory": false,
+        "bytes": 1853529,
+        "reparse": false
+      },
+      {
+        "name": "\u59ec\u5b50.png",
+        "directory": false,
+        "bytes": 1714644,
+        "reparse": false
+      },
+      {
+        "name": "\u5e15\u59c6.png",
+        "directory": false,
+        "bytes": 1538555,
+        "reparse": false
+      },
+      {
+        "name": "\u661f\u671f\u65e5.png",
+        "directory": false,
+        "bytes": 1809351,
+        "reparse": false
+      },
+      {
+        "name": "\u74e6\u5c14\u7279.png",
+        "directory": false,
+        "bytes": 1647693,
+        "reparse": false
+      },
+      {
+        "name": "\u77e5\u66f4\u9e1f.png",
+        "directory": false,
+        "bytes": 1709899,
+        "reparse": false
+      },
+      {
+        "name": "\u827e\u5229\u6b27.png",
+        "directory": false,
+        "bytes": 1588047,
+        "reparse": false
+      },
+      {
+        "name": "\u94f6\u72fc.png",
+        "directory": false,
+        "bytes": 1736900,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Firefly-CI-36154013900-attempt1.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 848593
+  },
+  {
+    "path": "E:\\Codex\\Firefly-CI-36154013900-attempt2.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 845827
+  },
+  {
+    "path": "E:\\Codex\\firefly-copy-resources.py",
+    "directory": false,
+    "reparse": false,
+    "bytes": 2082
+  },
+  {
+    "path": "E:\\Codex\\firefly-current-tray-preview.png",
+    "directory": false,
+    "reparse": false,
+    "bytes": 503158
+  },
+  {
+    "path": "E:\\Codex\\Firefly-doc-security-review-20260926",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 201,
+    "children": [
+      {
+        "name": "agent-skills-clone.log",
+        "directory": false,
+        "bytes": 105,
+        "reparse": false
+      },
+      {
+        "name": "agent-skills-source.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "anthropic-clone.log",
+        "directory": false,
+        "bytes": 109,
+        "reparse": false
+      },
+      {
+        "name": "anthropic-plugins-source.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "anthropic-skills-source.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "archive-anchor-red.log",
+        "directory": false,
+        "bytes": 1543,
+        "reparse": false
+      },
+      {
+        "name": "audit-all-final-deduped.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "audit-all-final.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "audit-all.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "audit-prod-final-deduped.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "audit-prod-final.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "audit-prod.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "build-final-deduped.log",
+        "directory": false,
+        "bytes": 62466,
+        "reparse": false
+      },
+      {
+        "name": "build-final.log",
+        "directory": false,
+        "bytes": 4980,
+        "reparse": false
+      },
+      {
+        "name": "check-external-links.mjs",
+        "directory": false,
+        "bytes": 1729,
+        "reparse": false
+      },
+      {
+        "name": "check-markdown-links.mjs",
+        "directory": false,
+        "bytes": 3153,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-build-20260927.log",
+        "directory": false,
+        "bytes": 62465,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-decisions-table.md",
+        "directory": false,
+        "bytes": 16192,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-final-archive-20260927.log",
+        "directory": false,
+        "bytes": 1523,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-final-delta-20260927.json",
+        "directory": false,
+        "bytes": 231800,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-final-main-20260927.log",
+        "directory": false,
+        "bytes": 454,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-final-targeted-20260927.log",
+        "directory": false,
+        "bytes": 354,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-governance.patch",
+        "directory": false,
+        "bytes": 22181,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-renderer-20260927.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-review",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-start-20260927.json",
+        "directory": false,
+        "bytes": 226973,
+        "reparse": false
+      },
+      {
+        "name": "compatibility-targeted-20260927.log",
+        "directory": false,
+        "bytes": 353,
+        "reparse": false
+      },
+      {
+        "name": "copy-current-tree.mjs",
+        "directory": false,
+        "bytes": 1565,
+        "reparse": false
+      },
+      {
+        "name": "cyrene-clone.log",
+        "directory": false,
+        "bytes": 107,
+        "reparse": false
+      },
+      {
+        "name": "cyrene-source-history.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "document-check.json",
+        "directory": false,
+        "bytes": 32398,
+        "reparse": false
+      },
+      {
+        "name": "ecc-clone.log",
+        "directory": false,
+        "bytes": 96,
+        "reparse": false
+      },
+      {
+        "name": "ecc-source.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "electron-isolated-smoke.cjs",
+        "directory": false,
+        "bytes": 3356,
+        "reparse": false
+      },
+      {
+        "name": "electron-path-probe.cjs",
+        "directory": false,
+        "bytes": 391,
+        "reparse": false
+      },
+      {
+        "name": "electron-version-final.log",
+        "directory": false,
+        "bytes": 11,
+        "reparse": false
+      },
+      {
+        "name": "examples-final.log",
+        "directory": false,
+        "bytes": 1429,
+        "reparse": false
+      },
+      {
+        "name": "external-links-closeout.json",
+        "directory": false,
+        "bytes": 35526,
+        "reparse": false
+      },
+      {
+        "name": "external-links.json",
+        "directory": false,
+        "bytes": 34715,
+        "reparse": false
+      },
+      {
+        "name": "final-git-status.txt",
+        "directory": false,
+        "bytes": 4122,
+        "reparse": false
+      },
+      {
+        "name": "finish-compatibility-review.mjs",
+        "directory": false,
+        "bytes": 3360,
+        "reparse": false
+      },
+      {
+        "name": "host-semantics-inventory.json",
+        "directory": false,
+        "bytes": 457175,
+        "reparse": false
+      },
+      {
+        "name": "host-semantics-inventory.mjs",
+        "directory": false,
+        "bytes": 2057,
+        "reparse": false
+      },
+      {
+        "name": "inherited-all-content-pages.log",
+        "directory": false,
+        "bytes": 276,
+        "reparse": false
+      },
+      {
+        "name": "inherited-audit-production.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "inherited-audit.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "inherited-before-adaptation.zip",
+        "directory": false,
+        "bytes": 813602,
+        "reparse": false
+      },
+      {
+        "name": "inherited-build.log",
+        "directory": false,
+        "bytes": 62465,
+        "reparse": false
+      },
+      {
+        "name": "inherited-copy-red.txt",
+        "directory": false,
+        "bytes": 281,
+        "reparse": false
+      },
+      {
+        "name": "inherited-diff-check-stderr.txt",
+        "directory": false,
+        "bytes": 10717,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-copy.txt",
+        "directory": false,
+        "bytes": 281,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-delta-summary.json",
+        "directory": false,
+        "bytes": 1079,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-delta.json",
+        "directory": false,
+        "bytes": 232080,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-delta.mjs",
+        "directory": false,
+        "bytes": 2674,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-inspection.json",
+        "directory": false,
+        "bytes": 207478,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-main-v2.log",
+        "directory": false,
+        "bytes": 454,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-main-v3.log",
+        "directory": false,
+        "bytes": 454,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-main-v6.log",
+        "directory": false,
+        "bytes": 454,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-repack-v2.log",
+        "directory": false,
+        "bytes": 826,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-repack-v3.log",
+        "directory": false,
+        "bytes": 826,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-repack-v4.log",
+        "directory": false,
+        "bytes": 1626,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-repack-v5.log",
+        "directory": false,
+        "bytes": 903,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-repack.log",
+        "directory": false,
+        "bytes": 742,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-tests-v2.log",
+        "directory": false,
+        "bytes": 578,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-tests-v3.log",
+        "directory": false,
+        "bytes": 579,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-tests-v4.log",
+        "directory": false,
+        "bytes": 579,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-tests-v6.log",
+        "directory": false,
+        "bytes": 579,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-tests.log",
+        "directory": false,
+        "bytes": 578,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-types-v3.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "inherited-final-types-v6.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "inherited-functional-red.log",
+        "directory": false,
+        "bytes": 5056,
+        "reparse": false
+      },
+      {
+        "name": "inherited-green.log",
+        "directory": false,
+        "bytes": 500,
+        "reparse": false
+      },
+      {
+        "name": "inherited-integration.log",
+        "directory": false,
+        "bytes": 244,
+        "reparse": false
+      },
+      {
+        "name": "inherited-main-types.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "inherited-original-rebuild.log",
+        "directory": false,
+        "bytes": 634,
+        "reparse": false
+      },
+      {
+        "name": "inherited-preload-types.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "inherited-prepare-v4.log",
+        "directory": false,
+        "bytes": 941,
+        "reparse": false
+      },
+      {
+        "name": "inherited-prepare-v5.log",
+        "directory": false,
+        "bytes": 942,
+        "reparse": false
+      },
+      {
+        "name": "inherited-prepare.log",
+        "directory": false,
+        "bytes": 942,
+        "reparse": false
+      },
+      {
+        "name": "inherited-red.log",
+        "directory": false,
+        "bytes": 1410,
+        "reparse": false
+      },
+      {
+        "name": "inherited-renderer-types.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "inherited-repository-links.json",
+        "directory": false,
+        "bytes": 24260,
+        "reparse": false
+      },
+      {
+        "name": "inherited-skills-start.json",
+        "directory": false,
+        "bytes": 214149,
+        "reparse": false
+      },
+      {
+        "name": "inspect-documents.mjs",
+        "directory": false,
+        "bytes": 1851,
+        "reparse": false
+      },
+      {
+        "name": "inspect-inherited-final.mjs",
+        "directory": false,
+        "bytes": 6105,
+        "reparse": false
+      },
+      {
+        "name": "inspect-skill-archive.mjs",
+        "directory": false,
+        "bytes": 3752,
+        "reparse": false
+      },
+      {
+        "name": "isolated-ci-20260926",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "isolated-final-20260927",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ci-final-deduped.log",
+        "directory": false,
+        "bytes": 1842,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ci-final-rxjs.log",
+        "directory": false,
+        "bytes": 1842,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ci-final.log",
+        "directory": false,
+        "bytes": 1842,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ci-revised.log",
+        "directory": false,
+        "bytes": 2248,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ci.log",
+        "directory": false,
+        "bytes": 2248,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ls-final-deduped.log",
+        "directory": false,
+        "bytes": 120422,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ls-final.log",
+        "directory": false,
+        "bytes": 120453,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ls-revised.log",
+        "directory": false,
+        "bytes": 755,
+        "reparse": false
+      },
+      {
+        "name": "isolated-npm-ls.json",
+        "directory": false,
+        "bytes": 413478,
+        "reparse": false
+      },
+      {
+        "name": "legacy-product-evidence.json",
+        "directory": false,
+        "bytes": 564,
+        "reparse": false
+      },
+      {
+        "name": "legacy-product-manifest.json",
+        "directory": false,
+        "bytes": 1623,
+        "reparse": false
+      },
+      {
+        "name": "legacy-product.zip",
+        "directory": false,
+        "bytes": 813602,
+        "reparse": false
+      },
+      {
+        "name": "license-delivery-verification.json",
+        "directory": false,
+        "bytes": 1960,
+        "reparse": false
+      },
+      {
+        "name": "license-document-links.json",
+        "directory": false,
+        "bytes": 586,
+        "reparse": false
+      },
+      {
+        "name": "license-document-links.mjs",
+        "directory": false,
+        "bytes": 2006,
+        "reparse": false
+      },
+      {
+        "name": "license-family-matches-summary.jsonl",
+        "directory": false,
+        "bytes": 5753,
+        "reparse": false
+      },
+      {
+        "name": "license-family-matches.json",
+        "directory": false,
+        "bytes": 22825,
+        "reparse": false
+      },
+      {
+        "name": "license-file-matches-summary.jsonl",
+        "directory": false,
+        "bytes": 3018,
+        "reparse": false
+      },
+      {
+        "name": "license-file-matches.json",
+        "directory": false,
+        "bytes": 103979,
+        "reparse": false
+      },
+      {
+        "name": "license-final-delta.json",
+        "directory": false,
+        "bytes": 226456,
+        "reparse": false
+      },
+      {
+        "name": "license-final-delta.mjs",
+        "directory": false,
+        "bytes": 2251,
+        "reparse": false
+      },
+      {
+        "name": "license-finish-materials.mjs",
+        "directory": false,
+        "bytes": 10657,
+        "reparse": false
+      },
+      {
+        "name": "license-finish-materials.patch",
+        "directory": false,
+        "bytes": 372629,
+        "reparse": false
+      },
+      {
+        "name": "license-git-diff-check.log",
+        "directory": false,
+        "bytes": 10638,
+        "reparse": false
+      },
+      {
+        "name": "license-inspect.mjs",
+        "directory": false,
+        "bytes": 2005,
+        "reparse": false
+      },
+      {
+        "name": "license-legacy-fixture.mjs",
+        "directory": false,
+        "bytes": 1462,
+        "reparse": false
+      },
+      {
+        "name": "license-local-inventory.json",
+        "directory": false,
+        "bytes": 58580,
+        "reparse": false
+      },
+      {
+        "name": "license-match-files.mjs",
+        "directory": false,
+        "bytes": 3374,
+        "reparse": false
+      },
+      {
+        "name": "license-match-history.mjs",
+        "directory": false,
+        "bytes": 3043,
+        "reparse": false
+      },
+      {
+        "name": "license-materials-evidence.json",
+        "directory": false,
+        "bytes": 39113,
+        "reparse": false
+      },
+      {
+        "name": "license-materials.mjs",
+        "directory": false,
+        "bytes": 3724,
+        "reparse": false
+      },
+      {
+        "name": "license-materials.patch",
+        "directory": false,
+        "bytes": 42896,
+        "reparse": false
+      },
+      {
+        "name": "license-public-provenance.json",
+        "directory": false,
+        "bytes": 126711,
+        "reparse": false
+      },
+      {
+        "name": "license-public-provenance.mjs",
+        "directory": false,
+        "bytes": 2234,
+        "reparse": false
+      },
+      {
+        "name": "license-real-legacy-test-corrected.log",
+        "directory": false,
+        "bytes": 43169,
+        "reparse": false
+      },
+      {
+        "name": "license-real-legacy-test-final.log",
+        "directory": false,
+        "bytes": 41771,
+        "reparse": false
+      },
+      {
+        "name": "license-real-legacy-test.log",
+        "directory": false,
+        "bytes": 373637,
+        "reparse": false
+      },
+      {
+        "name": "license-report-update.patch",
+        "directory": false,
+        "bytes": 117877,
+        "reparse": false
+      },
+      {
+        "name": "license-specialist-start.json",
+        "directory": false,
+        "bytes": 239709,
+        "reparse": false
+      },
+      {
+        "name": "license-specific-review.mjs",
+        "directory": false,
+        "bytes": 1414,
+        "reparse": false
+      },
+      {
+        "name": "license-update-report.mjs",
+        "directory": false,
+        "bytes": 12203,
+        "reparse": false
+      },
+      {
+        "name": "lock-dryrun.json",
+        "directory": false,
+        "bytes": 138,
+        "reparse": false
+      },
+      {
+        "name": "lock-dryrun.stderr",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "managed-backup-red.log",
+        "directory": false,
+        "bytes": 1353,
+        "reparse": false
+      },
+      {
+        "name": "markdown-links-closeout.json",
+        "directory": false,
+        "bytes": 23128,
+        "reparse": false
+      },
+      {
+        "name": "markdown-links-final.json",
+        "directory": false,
+        "bytes": 22601,
+        "reparse": false
+      },
+      {
+        "name": "markdown-links.json",
+        "directory": false,
+        "bytes": 22601,
+        "reparse": false
+      },
+      {
+        "name": "match-superpowers-history.mjs",
+        "directory": false,
+        "bytes": 2949,
+        "reparse": false
+      },
+      {
+        "name": "mingit-final.log",
+        "directory": false,
+        "bytes": 894,
+        "reparse": false
+      },
+      {
+        "name": "minimax-clone.log",
+        "directory": false,
+        "bytes": 107,
+        "reparse": false
+      },
+      {
+        "name": "minimax-skills-source.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "office-design--scripts--validate_theme.py.current",
+        "directory": false,
+        "bytes": 1617,
+        "reparse": false
+      },
+      {
+        "name": "office-design--scripts--validate_theme.py.diff",
+        "directory": false,
+        "bytes": 819,
+        "reparse": false
+      },
+      {
+        "name": "office-design--scripts--validate_theme.py.upstream",
+        "directory": false,
+        "bytes": 1616,
+        "reparse": false
+      },
+      {
+        "name": "office-smoke-7d76a5a8-bb4f-46ae-8dc7-e4b74a8b8a5c",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "original-skill-source-proof.json",
+        "directory": false,
+        "bytes": 2374,
+        "reparse": false
+      },
+      {
+        "name": "prepare-compatibility-review.mjs",
+        "directory": false,
+        "bytes": 3193,
+        "reparse": false
+      },
+      {
+        "name": "prepare-compatible-upgrades.mjs",
+        "directory": false,
+        "bytes": 8456,
+        "reparse": false
+      },
+      {
+        "name": "prompt-final-text-tests.log",
+        "directory": false,
+        "bytes": 260,
+        "reparse": false
+      },
+      {
+        "name": "pskoett-clone.log",
+        "directory": false,
+        "bytes": 100,
+        "reparse": false
+      },
+      {
+        "name": "pskoett-source.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "received-upstream-kit",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "record-compatibility-decisions.mjs",
+        "directory": false,
+        "bytes": 15190,
+        "reparse": false
+      },
+      {
+        "name": "refresh-final-evidence.mjs",
+        "directory": false,
+        "bytes": 5942,
+        "reparse": false
+      },
+      {
+        "name": "repack-green.log",
+        "directory": false,
+        "bytes": 742,
+        "reparse": false
+      },
+      {
+        "name": "repack-red.log",
+        "directory": false,
+        "bytes": 1645,
+        "reparse": false
+      },
+      {
+        "name": "sdk-final.log",
+        "directory": false,
+        "bytes": 1220,
+        "reparse": false
+      },
+      {
+        "name": "sdk-pack-files-final.json",
+        "directory": false,
+        "bytes": 1874,
+        "reparse": false
+      },
+      {
+        "name": "self-improving-clone.log",
+        "directory": false,
+        "bytes": 107,
+        "reparse": false
+      },
+      {
+        "name": "self-improving-source.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "skill-archive-content-review.json",
+        "directory": false,
+        "bytes": 166085,
+        "reparse": false
+      },
+      {
+        "name": "skill-archive-external-links.json",
+        "directory": false,
+        "bytes": 1486,
+        "reparse": false
+      },
+      {
+        "name": "skill-body-effects-red.log",
+        "directory": false,
+        "bytes": 1285,
+        "reparse": false
+      },
+      {
+        "name": "skill-creator--SKILL.md.current",
+        "directory": false,
+        "bytes": 34198,
+        "reparse": false
+      },
+      {
+        "name": "skill-creator--SKILL.md.diff",
+        "directory": false,
+        "bytes": 5702,
+        "reparse": false
+      },
+      {
+        "name": "skill-creator--SKILL.md.upstream",
+        "directory": false,
+        "bytes": 32370,
+        "reparse": false
+      },
+      {
+        "name": "skill-pages-red.log",
+        "directory": false,
+        "bytes": 8378,
+        "reparse": false
+      },
+      {
+        "name": "smoke-5a94c45e-6824-46c9-8e37-33c9f2bbcefb",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke-b0258514-2430-4c06-8f40-76f9c62de679",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke-final-20260927",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke-final2-20260927",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke-final3-20260927",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke-final4-20260927",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "superpowers-history-match-errors.txt",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "superpowers-history-matches-summary.json",
+        "directory": false,
+        "bytes": 470,
+        "reparse": false
+      },
+      {
+        "name": "superpowers-history-matches.json",
+        "directory": false,
+        "bytes": 10158,
+        "reparse": false
+      },
+      {
+        "name": "superpowers-source-history.git",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "targeted-tests-final-deduped.log",
+        "directory": false,
+        "bytes": 563,
+        "reparse": false
+      },
+      {
+        "name": "targeted-tests-final.log",
+        "directory": false,
+        "bytes": 563,
+        "reparse": false
+      },
+      {
+        "name": "third-party-followup-start.json",
+        "directory": false,
+        "bytes": 214149,
+        "reparse": false
+      },
+      {
+        "name": "tsc-main-final-deduped.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "tsc-main-final.log",
+        "directory": false,
+        "bytes": 4267,
+        "reparse": false
+      },
+      {
+        "name": "tsc-preload-final-deduped.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "tsc-preload-final.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "tsc-renderer-final-deduped.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "tsc-renderer-final.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "upstream-22-body-comparison.json",
+        "directory": false,
+        "bytes": 4394,
+        "reparse": false
+      },
+      {
+        "name": "upstream-archive-tests.log",
+        "directory": false,
+        "bytes": 1524,
+        "reparse": false
+      },
+      {
+        "name": "upstream-audit.json",
+        "directory": false,
+        "bytes": 390,
+        "reparse": false
+      },
+      {
+        "name": "upstream-build.log",
+        "directory": false,
+        "bytes": 62465,
+        "reparse": false
+      },
+      {
+        "name": "upstream-diff-check-warnings.txt",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "upstream-final-archive.log",
+        "directory": false,
+        "bytes": 1522,
+        "reparse": false
+      },
+      {
+        "name": "upstream-final-self.log",
+        "directory": false,
+        "bytes": 259,
+        "reparse": false
+      },
+      {
+        "name": "upstream-renderer-types.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "upstream-targeted-tests.log",
+        "directory": false,
+        "bytes": 354,
+        "reparse": false
+      },
+      {
+        "name": "upstream-unified-final-delta.json",
+        "directory": false,
+        "bytes": 11307,
+        "reparse": false
+      },
+      {
+        "name": "upstream-unified-map.json",
+        "directory": false,
+        "bytes": 65730,
+        "reparse": false
+      },
+      {
+        "name": "upstream-unified-map.mjs",
+        "directory": false,
+        "bytes": 4698,
+        "reparse": false
+      },
+      {
+        "name": "upstream-unified-map.patch",
+        "directory": false,
+        "bytes": 69850,
+        "reparse": false
+      },
+      {
+        "name": "upstream-unified-start.json",
+        "directory": false,
+        "bytes": 223853,
+        "reparse": false
+      },
+      {
+        "name": "upstream-unified-start.mjs",
+        "directory": false,
+        "bytes": 1334,
+        "reparse": false
+      },
+      {
+        "name": "verify-license-delivery.mjs",
+        "directory": false,
+        "bytes": 4828,
+        "reparse": false
+      },
+      {
+        "name": "verify-original-skill-source.mjs",
+        "directory": false,
+        "bytes": 2153,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Firefly-expression-preview",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 21,
+    "children": [
+      {
+        "name": "default-parameter.png",
+        "directory": false,
+        "bytes": 2007,
+        "reparse": false
+      },
+      {
+        "name": "expression00-1790348510424.png",
+        "directory": false,
+        "bytes": 83629,
+        "reparse": false
+      },
+      {
+        "name": "expression00-1790348513269.png",
+        "directory": false,
+        "bytes": 84127,
+        "reparse": false
+      },
+      {
+        "name": "expression00.png",
+        "directory": false,
+        "bytes": 2007,
+        "reparse": false
+      },
+      {
+        "name": "expression1.png",
+        "directory": false,
+        "bytes": 2007,
+        "reparse": false
+      },
+      {
+        "name": "expression10.png",
+        "directory": false,
+        "bytes": 83866,
+        "reparse": false
+      },
+      {
+        "name": "expression2.png",
+        "directory": false,
+        "bytes": 83764,
+        "reparse": false
+      },
+      {
+        "name": "expression3-1790348511851.png",
+        "directory": false,
+        "bytes": 84103,
+        "reparse": false
+      },
+      {
+        "name": "expression3.png",
+        "directory": false,
+        "bytes": 83727,
+        "reparse": false
+      },
+      {
+        "name": "expression4.png",
+        "directory": false,
+        "bytes": 83671,
+        "reparse": false
+      },
+      {
+        "name": "expression5.png",
+        "directory": false,
+        "bytes": 83811,
+        "reparse": false
+      },
+      {
+        "name": "expression6.png",
+        "directory": false,
+        "bytes": 83841,
+        "reparse": false
+      },
+      {
+        "name": "expression7.png",
+        "directory": false,
+        "bytes": 83863,
+        "reparse": false
+      },
+      {
+        "name": "expression8.png",
+        "directory": false,
+        "bytes": 83862,
+        "reparse": false
+      },
+      {
+        "name": "expression9.png",
+        "directory": false,
+        "bytes": 83769,
+        "reparse": false
+      },
+      {
+        "name": "isolated-user-data",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Param-parameter.png",
+        "directory": false,
+        "bytes": 83912,
+        "reparse": false
+      },
+      {
+        "name": "Param2-parameter.png",
+        "directory": false,
+        "bytes": 83975,
+        "reparse": false
+      },
+      {
+        "name": "Param40-parameter.png",
+        "directory": false,
+        "bytes": 83792,
+        "reparse": false
+      },
+      {
+        "name": "preview-errors.log",
+        "directory": false,
+        "bytes": 28645,
+        "reparse": false
+      },
+      {
+        "name": "preview.cjs",
+        "directory": false,
+        "bytes": 1979,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-final-smoke-302d2e93bc4846779d81ca1810f09101",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 5,
+    "children": [
+      {
+        "name": "Firefly",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "first-stderr.log",
+        "directory": false,
+        "bytes": 562,
+        "reparse": false
+      },
+      {
+        "name": "first-stdout.log",
+        "directory": false,
+        "bytes": 3238,
+        "reparse": false
+      },
+      {
+        "name": "second-stderr.log",
+        "directory": false,
+        "bytes": 562,
+        "reparse": false
+      },
+      {
+        "name": "second-stdout.log",
+        "directory": false,
+        "bytes": 3234,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Firefly-history-message-backup-20260926-000647",
+    "directory": true,
+    "reparse": false,
+    "status": "protected_user_data_do_not_inspect_or_recycle"
+  },
+  {
+    "path": "E:\\Codex\\Firefly-independent-baseline-20260927",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 77,
+    "children": [
+      {
+        "name": "access-guard.jsonl",
+        "directory": false,
+        "bytes": 12771,
+        "reparse": false
+      },
+      {
+        "name": "build-final.log",
+        "directory": false,
+        "bytes": 62466,
+        "reparse": false
+      },
+      {
+        "name": "build-results.json",
+        "directory": false,
+        "bytes": 55,
+        "reparse": false
+      },
+      {
+        "name": "build.log",
+        "directory": false,
+        "bytes": 2866,
+        "reparse": false
+      },
+      {
+        "name": "commit-1.log",
+        "directory": false,
+        "bytes": 6931,
+        "reparse": false
+      },
+      {
+        "name": "commit-2.log",
+        "directory": false,
+        "bytes": 842,
+        "reparse": false
+      },
+      {
+        "name": "commit-3.log",
+        "directory": false,
+        "bytes": 134,
+        "reparse": false
+      },
+      {
+        "name": "commit-groups.cjs",
+        "directory": false,
+        "bytes": 4289,
+        "reparse": false
+      },
+      {
+        "name": "commit-message-1.txt",
+        "directory": false,
+        "bytes": 831,
+        "reparse": false
+      },
+      {
+        "name": "commit-message-2.txt",
+        "directory": false,
+        "bytes": 553,
+        "reparse": false
+      },
+      {
+        "name": "commit-message-3.txt",
+        "directory": false,
+        "bytes": 458,
+        "reparse": false
+      },
+      {
+        "name": "current-delta.json",
+        "directory": false,
+        "bytes": 2704,
+        "reparse": false
+      },
+      {
+        "name": "deny-originals.cjs",
+        "directory": false,
+        "bytes": 3413,
+        "reparse": false
+      },
+      {
+        "name": "diff-check-stderr.txt",
+        "directory": false,
+        "bytes": 10717,
+        "reparse": false
+      },
+      {
+        "name": "diff-check.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "examples.log",
+        "directory": false,
+        "bytes": 1429,
+        "reparse": false
+      },
+      {
+        "name": "final-state.json",
+        "directory": false,
+        "bytes": 14664,
+        "reparse": false
+      },
+      {
+        "name": "final-vitest.log",
+        "directory": false,
+        "bytes": 271,
+        "reparse": false
+      },
+      {
+        "name": "format-snapshot-final.log",
+        "directory": false,
+        "bytes": 824,
+        "reparse": false
+      },
+      {
+        "name": "format-snapshot.log",
+        "directory": false,
+        "bytes": 918,
+        "reparse": false
+      },
+      {
+        "name": "format-source-green.log",
+        "directory": false,
+        "bytes": 807,
+        "reparse": false
+      },
+      {
+        "name": "format-source-red.log",
+        "directory": false,
+        "bytes": 1514,
+        "reparse": false
+      },
+      {
+        "name": "harness-realpath-failure.log",
+        "directory": false,
+        "bytes": 3476,
+        "reparse": false
+      },
+      {
+        "name": "head-skills.zip",
+        "directory": false,
+        "bytes": 813602,
+        "reparse": false
+      },
+      {
+        "name": "independent-node.log",
+        "directory": false,
+        "bytes": 3348,
+        "reparse": false
+      },
+      {
+        "name": "independent-vitest-final.log",
+        "directory": false,
+        "bytes": 271,
+        "reparse": false
+      },
+      {
+        "name": "independent-vitest.log",
+        "directory": false,
+        "bytes": 3476,
+        "reparse": false
+      },
+      {
+        "name": "main-upgrade.log",
+        "directory": false,
+        "bytes": 454,
+        "reparse": false
+      },
+      {
+        "name": "map.cjs",
+        "directory": false,
+        "bytes": 1861,
+        "reparse": false
+      },
+      {
+        "name": "mingit.log",
+        "directory": false,
+        "bytes": 622,
+        "reparse": false
+      },
+      {
+        "name": "native-build.log",
+        "directory": false,
+        "bytes": 1344,
+        "reparse": false
+      },
+      {
+        "name": "old-attachment-hashes.json",
+        "directory": false,
+        "bytes": 1439,
+        "reparse": false
+      },
+      {
+        "name": "package-inputs.json",
+        "directory": false,
+        "bytes": 271,
+        "reparse": false
+      },
+      {
+        "name": "packaging-green.log",
+        "directory": false,
+        "bytes": 757,
+        "reparse": false
+      },
+      {
+        "name": "packaging-red.log",
+        "directory": false,
+        "bytes": 3494,
+        "reparse": false
+      },
+      {
+        "name": "pr-body.md",
+        "directory": false,
+        "bytes": 5869,
+        "reparse": false
+      },
+      {
+        "name": "precommit-start-stat.txt",
+        "directory": false,
+        "bytes": 5370,
+        "reparse": false
+      },
+      {
+        "name": "precommit-start-status.txt",
+        "directory": false,
+        "bytes": 9917,
+        "reparse": false
+      },
+      {
+        "name": "precommit.cjs",
+        "directory": false,
+        "bytes": 3668,
+        "reparse": false
+      },
+      {
+        "name": "prepare-skills.log",
+        "directory": false,
+        "bytes": 918,
+        "reparse": false
+      },
+      {
+        "name": "prior-adapted-files.json",
+        "directory": false,
+        "bytes": 1073,
+        "reparse": false
+      },
+      {
+        "name": "project",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "real-upgrade-green.log",
+        "directory": false,
+        "bytes": 529,
+        "reparse": false
+      },
+      {
+        "name": "real-upgrade-red.log",
+        "directory": false,
+        "bytes": 17604,
+        "reparse": false
+      },
+      {
+        "name": "real-upgrade.cjs",
+        "directory": false,
+        "bytes": 3455,
+        "reparse": false
+      },
+      {
+        "name": "renderer.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "retained-identifiers.txt",
+        "directory": false,
+        "bytes": 3263,
+        "reparse": false
+      },
+      {
+        "name": "sdk.log",
+        "directory": false,
+        "bytes": 1220,
+        "reparse": false
+      },
+      {
+        "name": "smoke-final.log",
+        "directory": false,
+        "bytes": 494,
+        "reparse": false
+      },
+      {
+        "name": "smoke-user",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke-user-final",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke.cjs",
+        "directory": false,
+        "bytes": 2577,
+        "reparse": false
+      },
+      {
+        "name": "smoke.log",
+        "directory": false,
+        "bytes": 482,
+        "reparse": false
+      },
+      {
+        "name": "source-edges.json",
+        "directory": false,
+        "bytes": 936988,
+        "reparse": false
+      },
+      {
+        "name": "start.json",
+        "directory": false,
+        "bytes": 308827,
+        "reparse": false
+      },
+      {
+        "name": "structure-files.json",
+        "directory": false,
+        "bytes": 107558,
+        "reparse": false
+      },
+      {
+        "name": "submission-check.cjs",
+        "directory": false,
+        "bytes": 3230,
+        "reparse": false
+      },
+      {
+        "name": "submission-check.json",
+        "directory": false,
+        "bytes": 993,
+        "reparse": false
+      },
+      {
+        "name": "submission-commits.json",
+        "directory": false,
+        "bytes": 523,
+        "reparse": false
+      },
+      {
+        "name": "submission-inventory.json",
+        "directory": false,
+        "bytes": 57222,
+        "reparse": false
+      },
+      {
+        "name": "submission-inventory.md",
+        "directory": false,
+        "bytes": 14870,
+        "reparse": false
+      },
+      {
+        "name": "submission-node-final.log",
+        "directory": false,
+        "bytes": 2682,
+        "reparse": false
+      },
+      {
+        "name": "submission-node-frozen.log",
+        "directory": false,
+        "bytes": 2687,
+        "reparse": false
+      },
+      {
+        "name": "submission-node.log",
+        "directory": false,
+        "bytes": 2603,
+        "reparse": false
+      },
+      {
+        "name": "submission-real-upgrade-final.log",
+        "directory": false,
+        "bytes": 529,
+        "reparse": false
+      },
+      {
+        "name": "submission-real-upgrade-frozen.log",
+        "directory": false,
+        "bytes": 529,
+        "reparse": false
+      },
+      {
+        "name": "submission-snapshot-frozen.log",
+        "directory": false,
+        "bytes": 268,
+        "reparse": false
+      },
+      {
+        "name": "submission-upgrade-isolated.log",
+        "directory": false,
+        "bytes": 821,
+        "reparse": false
+      },
+      {
+        "name": "submission-vitest-final.log",
+        "directory": false,
+        "bytes": 452,
+        "reparse": false
+      },
+      {
+        "name": "submission-vitest-serial.log",
+        "directory": false,
+        "bytes": 452,
+        "reparse": false
+      },
+      {
+        "name": "submission-vitest.log",
+        "directory": false,
+        "bytes": 1393,
+        "reparse": false
+      },
+      {
+        "name": "upgrade-green.log",
+        "directory": false,
+        "bytes": 250,
+        "reparse": false
+      },
+      {
+        "name": "upgrade-public-qFGzRz",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "upgrade-public-vaPNrj",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "upgrade-public-WlVoYC",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "upgrade-public-xNZvWB",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "upgrade-red.log",
+        "directory": false,
+        "bytes": 2386,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-active-matches.txt",
+    "directory": false,
+    "reparse": false,
+    "bytes": 5190
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-approved-paths.json",
+    "directory": false,
+    "reparse": false,
+    "bytes": 4854
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-build-final.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 62465
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-build.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 62465
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-cyrene-final.txt",
+    "directory": false,
+    "reparse": false,
+    "bytes": 17566
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-cyrene.txt",
+    "directory": false,
+    "reparse": false,
+    "bytes": 17546
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-examples.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 1429
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-fetch-tests.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 3700
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-files.txt",
+    "directory": false,
+    "reparse": false,
+    "bytes": 11491
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-full-test-final.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 16800
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-full-test.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 16800
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-moves.json",
+    "directory": false,
+    "reparse": false,
+    "bytes": 5948
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-node-tests-final.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 3470
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-node-tests.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 6658
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-renderer-final.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 75
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-renderer.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 75
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-sdk.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 1220
+  },
+  {
+    "path": "E:\\Codex\\firefly-layout-structure-test.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 213
+  },
+  {
+    "path": "E:\\Codex\\firefly-new-stickers-preview.png",
+    "directory": false,
+    "reparse": false,
+    "bytes": 1294680
+  },
+  {
+    "path": "E:\\Codex\\Firefly-npm-audit-20260926",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 65,
+    "children": [
+      {
+        "name": "@hono--node-server-registry.json",
+        "directory": false,
+        "bytes": 284955,
+        "reparse": false
+      },
+      {
+        "name": "@jimp--core-registry.json",
+        "directory": false,
+        "bytes": 813205,
+        "reparse": false
+      },
+      {
+        "name": "@jimp--custom-registry.json",
+        "directory": false,
+        "bytes": 1162364,
+        "reparse": false
+      },
+      {
+        "name": "@larksuiteoapi--node-sdk-registry.json",
+        "directory": false,
+        "bytes": 396630,
+        "reparse": false
+      },
+      {
+        "name": "@nut-tree-fork--nut-js-registry.json",
+        "directory": false,
+        "bytes": 16324,
+        "reparse": false
+      },
+      {
+        "name": "@nut-tree-fork--provider-interfaces-registry.json",
+        "directory": false,
+        "bytes": 14222,
+        "reparse": false
+      },
+      {
+        "name": "@nut-tree-fork--shared-registry.json",
+        "directory": false,
+        "bytes": 14516,
+        "reparse": false
+      },
+      {
+        "name": "@xenova--transformers-registry.json",
+        "directory": false,
+        "bytes": 283224,
+        "reparse": false
+      },
+      {
+        "name": "@xmldom--xmldom-registry.json",
+        "directory": false,
+        "bytes": 178126,
+        "reparse": false
+      },
+      {
+        "name": "after-upgrade-all.json",
+        "directory": false,
+        "bytes": 4901,
+        "reparse": false
+      },
+      {
+        "name": "analyze.cjs",
+        "directory": false,
+        "bytes": 3496,
+        "reparse": false
+      },
+      {
+        "name": "axios-registry.json",
+        "directory": false,
+        "bytes": 793903,
+        "reparse": false
+      },
+      {
+        "name": "bash-recheck.log",
+        "directory": false,
+        "bytes": 226,
+        "reparse": false
+      },
+      {
+        "name": "before-all.json",
+        "directory": false,
+        "bytes": 77330,
+        "reparse": false
+      },
+      {
+        "name": "before-lock.json",
+        "directory": false,
+        "bytes": 697336,
+        "reparse": false
+      },
+      {
+        "name": "before-package.json",
+        "directory": false,
+        "bytes": 6528,
+        "reparse": false
+      },
+      {
+        "name": "brace-expansion-registry.json",
+        "directory": false,
+        "bytes": 128514,
+        "reparse": false
+      },
+      {
+        "name": "build.log",
+        "directory": false,
+        "bytes": 62465,
+        "reparse": false
+      },
+      {
+        "name": "ci-36234170118-audit",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "ci-sdk-36234170095.log",
+        "directory": false,
+        "bytes": 36290,
+        "reparse": false
+      },
+      {
+        "name": "ci-sdk-watch.log",
+        "directory": false,
+        "bytes": 1049,
+        "reparse": false
+      },
+      {
+        "name": "ci-test-36234170118.log",
+        "directory": false,
+        "bytes": 1998732,
+        "reparse": false
+      },
+      {
+        "name": "ci-test-watch.log",
+        "directory": false,
+        "bytes": 8183,
+        "reparse": false
+      },
+      {
+        "name": "concurrently-registry.json",
+        "directory": false,
+        "bytes": 228352,
+        "reparse": false
+      },
+      {
+        "name": "current-all-audit.json",
+        "directory": false,
+        "bytes": 1738,
+        "reparse": false
+      },
+      {
+        "name": "current-all-audit.stderr.txt",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "current-prod-audit.json",
+        "directory": false,
+        "bytes": 1738,
+        "reparse": false
+      },
+      {
+        "name": "current-prod-audit.stderr.txt",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "dompurify-registry.json",
+        "directory": false,
+        "bytes": 762789,
+        "reparse": false
+      },
+      {
+        "name": "exceljs-registry.json",
+        "directory": false,
+        "bytes": 556144,
+        "reparse": false
+      },
+      {
+        "name": "extract-zip-registry.json",
+        "directory": false,
+        "bytes": 47715,
+        "reparse": false
+      },
+      {
+        "name": "fast-uri-registry.json",
+        "directory": false,
+        "bytes": 137534,
+        "reparse": false
+      },
+      {
+        "name": "file-type-registry.json",
+        "directory": false,
+        "bytes": 570528,
+        "reparse": false
+      },
+      {
+        "name": "final-all.json",
+        "directory": false,
+        "bytes": 1738,
+        "reparse": false
+      },
+      {
+        "name": "final-prod.json",
+        "directory": false,
+        "bytes": 1738,
+        "reparse": false
+      },
+      {
+        "name": "full-tests.log",
+        "directory": false,
+        "bytes": 17840,
+        "reparse": false
+      },
+      {
+        "name": "hono-registry.json",
+        "directory": false,
+        "bytes": 6209629,
+        "reparse": false
+      },
+      {
+        "name": "install.log",
+        "directory": false,
+        "bytes": 1693,
+        "reparse": false
+      },
+      {
+        "name": "installed-top-level.log",
+        "directory": false,
+        "bytes": 2731,
+        "reparse": false
+      },
+      {
+        "name": "ip-address-registry.json",
+        "directory": false,
+        "bytes": 221104,
+        "reparse": false
+      },
+      {
+        "name": "jimp-registry.json",
+        "directory": false,
+        "bytes": 1198045,
+        "reparse": false
+      },
+      {
+        "name": "js-yaml-registry.json",
+        "directory": false,
+        "bytes": 198692,
+        "reparse": false
+      },
+      {
+        "name": "mermaid-registry.json",
+        "directory": false,
+        "bytes": 1246089,
+        "reparse": false
+      },
+      {
+        "name": "mingit-tests.log",
+        "directory": false,
+        "bytes": 829,
+        "reparse": false
+      },
+      {
+        "name": "nanoid-registry.json",
+        "directory": false,
+        "bytes": 345858,
+        "reparse": false
+      },
+      {
+        "name": "nodemailer-registry.json",
+        "directory": false,
+        "bytes": 674980,
+        "reparse": false
+      },
+      {
+        "name": "onnx-proto-registry.json",
+        "directory": false,
+        "bytes": 19617,
+        "reparse": false
+      },
+      {
+        "name": "onnxruntime-web-registry.json",
+        "directory": false,
+        "bytes": 1835130,
+        "reparse": false
+      },
+      {
+        "name": "original-node-modules-link",
+        "directory": false,
+        "bytes": null,
+        "reparse": true
+      },
+      {
+        "name": "postcss-registry.json",
+        "directory": false,
+        "bytes": 766699,
+        "reparse": false
+      },
+      {
+        "name": "protobufjs-registry.json",
+        "directory": false,
+        "bytes": 760935,
+        "reparse": false
+      },
+      {
+        "name": "prune-unused.log",
+        "directory": false,
+        "bytes": 53,
+        "reparse": false
+      },
+      {
+        "name": "qs-registry.json",
+        "directory": false,
+        "bytes": 365613,
+        "reparse": false
+      },
+      {
+        "name": "renderer-types.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "review-regressions.log",
+        "directory": false,
+        "bytes": 5257,
+        "reparse": false
+      },
+      {
+        "name": "schema.log",
+        "directory": false,
+        "bytes": 140,
+        "reparse": false
+      },
+      {
+        "name": "sharp-registry.json",
+        "directory": false,
+        "bytes": 1227736,
+        "reparse": false
+      },
+      {
+        "name": "shell-quote-registry.json",
+        "directory": false,
+        "bytes": 72517,
+        "reparse": false
+      },
+      {
+        "name": "signatures.log",
+        "directory": false,
+        "bytes": 191,
+        "reparse": false
+      },
+      {
+        "name": "targeted-after.log",
+        "directory": false,
+        "bytes": 450,
+        "reparse": false
+      },
+      {
+        "name": "targeted-before.log",
+        "directory": false,
+        "bytes": 455,
+        "reparse": false
+      },
+      {
+        "name": "triage.json",
+        "directory": false,
+        "bytes": 80322,
+        "reparse": false
+      },
+      {
+        "name": "undici-registry.json",
+        "directory": false,
+        "bytes": 1558776,
+        "reparse": false
+      },
+      {
+        "name": "uuid-registry.json",
+        "directory": false,
+        "bytes": 260936,
+        "reparse": false
+      },
+      {
+        "name": "zip-red.log",
+        "directory": false,
+        "bytes": 1838,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Firefly-pr12-timeout-20260927",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 25,
+    "children": [
+      {
+        "name": "CONSTRAINTS.md",
+        "directory": false,
+        "bytes": 1225,
+        "reparse": false
+      },
+      {
+        "name": "failure-attempt1.log",
+        "directory": false,
+        "bytes": 2122423,
+        "reparse": false
+      },
+      {
+        "name": "failure-evidence",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "green-evidence",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "phase-first.log",
+        "directory": false,
+        "bytes": 1226,
+        "reparse": false
+      },
+      {
+        "name": "phase-temp",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "phase-vitest.config.mjs",
+        "directory": false,
+        "bytes": 3586,
+        "reparse": false
+      },
+      {
+        "name": "previous-green.log",
+        "directory": false,
+        "bytes": 2056964,
+        "reparse": false
+      },
+      {
+        "name": "repeat-1.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-10.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-2.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-3.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-4.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-5.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-6.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-7.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-8.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "repeat-9.log",
+        "directory": false,
+        "bytes": 714,
+        "reparse": false
+      },
+      {
+        "name": "REPORT.md",
+        "directory": false,
+        "bytes": 6772,
+        "reparse": false
+      },
+      {
+        "name": "rerun-attempt2.log",
+        "directory": false,
+        "bytes": 2120402,
+        "reparse": false
+      },
+      {
+        "name": "runner-temp",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "single.log",
+        "directory": false,
+        "bytes": 715,
+        "reparse": false
+      },
+      {
+        "name": "status-before.txt",
+        "directory": false,
+        "bytes": 181,
+        "reparse": false
+      },
+      {
+        "name": "temp",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "unmodified-results.json",
+        "directory": false,
+        "bytes": 950,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-resource-edits.py",
+    "directory": false,
+    "reparse": false,
+    "bytes": 12786
+  },
+  {
+    "path": "E:\\Codex\\firefly-resource-import-evidence.json",
+    "directory": false,
+    "reparse": false,
+    "bytes": 12398
+  },
+  {
+    "path": "E:\\Codex\\firefly-resource-report.py",
+    "directory": false,
+    "reparse": false,
+    "bytes": 8759
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-electron-probe.js",
+    "directory": false,
+    "reparse": false,
+    "bytes": 376
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-build-20260929.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 62257
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-build-20260929b.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 62257
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-exe-smoke-20260929",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 3,
+    "children": [
+      {
+        "name": "appData",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "stderr.log",
+        "directory": false,
+        "bytes": 462,
+        "reparse": false
+      },
+      {
+        "name": "stdout.log",
+        "directory": false,
+        "bytes": 5873,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-exe-ui-20260929",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 3,
+    "children": [
+      {
+        "name": "appData",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "stderr.log",
+        "directory": false,
+        "bytes": 795,
+        "reparse": false
+      },
+      {
+        "name": "stdout.log",
+        "directory": false,
+        "bytes": 5866,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-mingit.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 584
+  },
+  {
+    "path": "E:\\Codex\\Firefly-semantic-final-package",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 2,
+    "children": [
+      {
+        "name": ".icon-ico",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "builder-debug.yml",
+        "directory": false,
+        "bytes": 1067,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-package-20260929.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 24730
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-package-20260929b.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 24730
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-screenshot-build.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 275
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-test-20260929.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 456259
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-test-20260929b.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 456067
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-test-20260929c.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 456073
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-final-test-20260929d.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 456073
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-full-test-20260929.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 457721
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-package-20260929.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 84996
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-package-smoke-20260929",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 2,
+    "children": [
+      {
+        "name": "stderr.log",
+        "directory": false,
+        "bytes": 3543,
+        "reparse": false
+      },
+      {
+        "name": "stdout.log",
+        "directory": false,
+        "bytes": 10290,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-smoke-probe-20260929",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 13,
+    "children": [
+      {
+        "name": "appData",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "cache",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "probe.log",
+        "directory": false,
+        "bytes": 444,
+        "reparse": false
+      },
+      {
+        "name": "smoke-events.log",
+        "directory": false,
+        "bytes": 502,
+        "reparse": false
+      },
+      {
+        "name": "stderr.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "stderr2.log",
+        "directory": false,
+        "bytes": 1012,
+        "reparse": false
+      },
+      {
+        "name": "stderr3.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "stderr4.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "stdout.log",
+        "directory": false,
+        "bytes": 2,
+        "reparse": false
+      },
+      {
+        "name": "stdout2.log",
+        "directory": false,
+        "bytes": 2,
+        "reparse": false
+      },
+      {
+        "name": "stdout3.log",
+        "directory": false,
+        "bytes": 2,
+        "reparse": false
+      },
+      {
+        "name": "stdout4.log",
+        "directory": false,
+        "bytes": 2,
+        "reparse": false
+      },
+      {
+        "name": "temp",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-smoke-wrapper.cjs",
+    "directory": false,
+    "reparse": false,
+    "bytes": 2878
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-source-smoke-20260929",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 5,
+    "children": [
+      {
+        "name": "appData",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke-events.log",
+        "directory": false,
+        "bytes": 1437,
+        "reparse": false
+      },
+      {
+        "name": "stderr.log",
+        "directory": false,
+        "bytes": 462,
+        "reparse": false
+      },
+      {
+        "name": "stdout.log",
+        "directory": false,
+        "bytes": 2948,
+        "reparse": false
+      },
+      {
+        "name": "temp",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-semantic-source-smoke-final-20260929",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 5,
+    "children": [
+      {
+        "name": "appData",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "smoke-events.log",
+        "directory": false,
+        "bytes": 2303,
+        "reparse": false
+      },
+      {
+        "name": "stderr.log",
+        "directory": false,
+        "bytes": 462,
+        "reparse": false
+      },
+      {
+        "name": "stdout.log",
+        "directory": false,
+        "bytes": 5832,
+        "reparse": false
+      },
+      {
+        "name": "temp",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Firefly-skills-audit-20260927",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 5,
+    "children": [
+      {
+        "name": "branch-before.txt",
+        "directory": false,
+        "bytes": 34,
+        "reparse": false
+      },
+      {
+        "name": "git-status-before.txt",
+        "directory": false,
+        "bytes": 3277,
+        "reparse": false
+      },
+      {
+        "name": "head-before.txt",
+        "directory": false,
+        "bytes": 42,
+        "reparse": false
+      },
+      {
+        "name": "pr12-36329192257-failed.log",
+        "directory": false,
+        "bytes": 1962877,
+        "reparse": false
+      },
+      {
+        "name": "SKILLS_AUDIT.md",
+        "directory": false,
+        "bytes": 69676,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Firefly-skills-directory-final-frozen.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 27596
+  },
+  {
+    "path": "E:\\Codex\\Firefly-skills-directory-final-test.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 27594
+  },
+  {
+    "path": "E:\\Codex\\Firefly-skills-directory-final-verified.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 27596
+  },
+  {
+    "path": "E:\\Codex\\Firefly-skills-directory-package-final.log",
+    "directory": false,
+    "reparse": false,
+    "bytes": 84995
+  },
+  {
+    "path": "E:\\Codex\\Firefly-skills-layout-validation-20260928",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 51,
+    "children": [
+      {
+        "name": "actual-prior-zip-upgrade.cjs",
+        "directory": false,
+        "bytes": 2782,
+        "reparse": false
+      },
+      {
+        "name": "adaptation-regression.log",
+        "directory": false,
+        "bytes": 1977,
+        "reparse": false
+      },
+      {
+        "name": "baseline-Z1eYP8",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "baseline.json",
+        "directory": false,
+        "bytes": 60282,
+        "reparse": false
+      },
+      {
+        "name": "build.log",
+        "directory": false,
+        "bytes": 62465,
+        "reparse": false
+      },
+      {
+        "name": "checkout",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "checkpoint1-cr-diagnostic.log",
+        "directory": false,
+        "bytes": 410,
+        "reparse": false
+      },
+      {
+        "name": "checkpoint1-whitespace.log",
+        "directory": false,
+        "bytes": 7662470,
+        "reparse": false
+      },
+      {
+        "name": "cumulative-whitespace.log",
+        "directory": false,
+        "bytes": 7662470,
+        "reparse": false
+      },
+      {
+        "name": "current-update-green.log",
+        "directory": false,
+        "bytes": 231,
+        "reparse": false
+      },
+      {
+        "name": "current-update-red.log",
+        "directory": false,
+        "bytes": 4293,
+        "reparse": false
+      },
+      {
+        "name": "final-changed-paths.txt",
+        "directory": false,
+        "bytes": 18584,
+        "reparse": false
+      },
+      {
+        "name": "final-report.md",
+        "directory": false,
+        "bytes": 10854,
+        "reparse": false
+      },
+      {
+        "name": "full-test.log",
+        "directory": false,
+        "bytes": 16814,
+        "reparse": false
+      },
+      {
+        "name": "generator-final.log",
+        "directory": false,
+        "bytes": 2059,
+        "reparse": false
+      },
+      {
+        "name": "generator-green.log",
+        "directory": false,
+        "bytes": 1969,
+        "reparse": false
+      },
+      {
+        "name": "generator-red.log",
+        "directory": false,
+        "bytes": 2574,
+        "reparse": false
+      },
+      {
+        "name": "host-build-final.log",
+        "directory": false,
+        "bytes": 62465,
+        "reparse": false
+      },
+      {
+        "name": "host-full-test-final-with-bash.log",
+        "directory": false,
+        "bytes": 461473,
+        "reparse": false
+      },
+      {
+        "name": "host-full-test-final.log",
+        "directory": false,
+        "bytes": 464067,
+        "reparse": false
+      },
+      {
+        "name": "host-main-types.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "host-permission-audit.log",
+        "directory": false,
+        "bytes": 232,
+        "reparse": false
+      },
+      {
+        "name": "host-prior-snapshot.zip",
+        "directory": false,
+        "bytes": 819507,
+        "reparse": false
+      },
+      {
+        "name": "host-runtime-smoke-final.log",
+        "directory": false,
+        "bytes": 686,
+        "reparse": false
+      },
+      {
+        "name": "host-start-hashes.json",
+        "directory": false,
+        "bytes": 474,
+        "reparse": false
+      },
+      {
+        "name": "host-start-head.txt",
+        "directory": false,
+        "bytes": 42,
+        "reparse": false
+      },
+      {
+        "name": "host-start-status.txt",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "materialization-green.log",
+        "directory": false,
+        "bytes": 229,
+        "reparse": false
+      },
+      {
+        "name": "materialization-red.log",
+        "directory": false,
+        "bytes": 1213,
+        "reparse": false
+      },
+      {
+        "name": "npm-ci.log",
+        "directory": false,
+        "bytes": 1965,
+        "reparse": false
+      },
+      {
+        "name": "packaging-red.log",
+        "directory": false,
+        "bytes": 1733,
+        "reparse": false
+      },
+      {
+        "name": "prepare-1.log",
+        "directory": false,
+        "bytes": 709,
+        "reparse": false
+      },
+      {
+        "name": "prepare-2.log",
+        "directory": false,
+        "bytes": 709,
+        "reparse": false
+      },
+      {
+        "name": "prior-upgrade-Um2sXV",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "read-scope-green.log",
+        "directory": false,
+        "bytes": 232,
+        "reparse": false
+      },
+      {
+        "name": "read-scope-red.log",
+        "directory": false,
+        "bytes": 1592,
+        "reparse": false
+      },
+      {
+        "name": "renderer.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "roundtrip.index",
+        "directory": false,
+        "bytes": 243659,
+        "reparse": false
+      },
+      {
+        "name": "roundtrip.json",
+        "directory": false,
+        "bytes": 60,
+        "reparse": false
+      },
+      {
+        "name": "runtime-DDCuEC",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "runtime-hOBHUJ",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "runtime-Sczzw9",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "runtime-smoke-active-modes.log",
+        "directory": false,
+        "bytes": 686,
+        "reparse": false
+      },
+      {
+        "name": "runtime-smoke-first-harness-failure.log",
+        "directory": false,
+        "bytes": 324,
+        "reparse": false
+      },
+      {
+        "name": "runtime-smoke-result.json",
+        "directory": false,
+        "bytes": 819,
+        "reparse": false
+      },
+      {
+        "name": "runtime-smoke.cjs",
+        "directory": false,
+        "bytes": 4401,
+        "reparse": false
+      },
+      {
+        "name": "runtime-smoke.log",
+        "directory": false,
+        "bytes": 685,
+        "reparse": false
+      },
+      {
+        "name": "runtime-wrapper.cjs",
+        "directory": false,
+        "bytes": 586,
+        "reparse": false
+      },
+      {
+        "name": "runtime-ZaYKDz",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "skills-regression.log",
+        "directory": false,
+        "bytes": 550,
+        "reparse": false
+      },
+      {
+        "name": "skip-boundary.log",
+        "directory": false,
+        "bytes": 3062,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-source-compatibility-before.txt",
+    "directory": false,
+    "reparse": false,
+    "bytes": 26677
+  },
+  {
+    "path": "E:\\Codex\\Firefly-structure-review-20260926-123626",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 22,
+    "children": [
+      {
+        "name": "avatar-moves.csv",
+        "directory": false,
+        "bytes": 3620,
+        "reparse": false
+      },
+      {
+        "name": "baseline.txt",
+        "directory": false,
+        "bytes": 61,
+        "reparse": false
+      },
+      {
+        "name": "checklist.md",
+        "directory": false,
+        "bytes": 4084,
+        "reparse": false
+      },
+      {
+        "name": "collection.json",
+        "directory": false,
+        "bytes": 279,
+        "reparse": false
+      },
+      {
+        "name": "current-files",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "file-manifest.csv",
+        "directory": false,
+        "bytes": 7209,
+        "reparse": false
+      },
+      {
+        "name": "git-status-full.txt",
+        "directory": false,
+        "bytes": 4388,
+        "reparse": false
+      },
+      {
+        "name": "git-status-porcelain.txt",
+        "directory": false,
+        "bytes": 3415,
+        "reparse": false
+      },
+      {
+        "name": "licenses",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "move-map.csv",
+        "directory": false,
+        "bytes": 1562,
+        "reparse": false
+      },
+      {
+        "name": "README.md",
+        "directory": false,
+        "bytes": 2901,
+        "reparse": false
+      },
+      {
+        "name": "reference-source",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "references-explanation.md",
+        "directory": false,
+        "bytes": 2353,
+        "reparse": false
+      },
+      {
+        "name": "remaining-address-examples.txt",
+        "directory": false,
+        "bytes": 1544,
+        "reparse": false
+      },
+      {
+        "name": "SHA256SUMS.txt",
+        "directory": false,
+        "bytes": 13733,
+        "reparse": false
+      },
+      {
+        "name": "sticker-references.tsv",
+        "directory": false,
+        "bytes": 139666,
+        "reparse": false
+      },
+      {
+        "name": "stickers",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "stickers.csv",
+        "directory": false,
+        "bytes": 22764,
+        "reparse": false
+      },
+      {
+        "name": "structure-cleanup-2026-09-26.md",
+        "directory": false,
+        "bytes": 7483,
+        "reparse": false
+      },
+      {
+        "name": "tracked-diff-HEAD.patch",
+        "directory": false,
+        "bytes": 52214675,
+        "reparse": false
+      },
+      {
+        "name": "tracked-name-status.txt",
+        "directory": false,
+        "bytes": 2227,
+        "reparse": false
+      },
+      {
+        "name": "untracked-additions.patch",
+        "directory": false,
+        "bytes": 26035372,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\firefly-tray-frames.png",
+    "directory": false,
+    "reparse": false,
+    "bytes": 89648
+  },
+  {
+    "path": "E:\\Codex\\firefly-unused-public-preview.png",
+    "directory": false,
+    "reparse": false,
+    "bytes": 681391
+  },
+  {
+    "path": "E:\\Codex\\Firefly-Upstream-Reacquisition.patch",
+    "directory": false,
+    "reparse": false,
+    "bytes": 84111
+  },
+  {
+    "path": "E:\\Codex\\Firefly-userdata-incident-20260929",
+    "directory": true,
+    "reparse": false,
+    "status": "protected_user_data_do_not_inspect_or_recycle"
+  },
+  {
+    "path": "E:\\Codex\\Firefly-vnext-validation-20260928",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 103,
+    "children": [
+      {
+        "name": "checkpoint3-handoff-historical.md",
+        "directory": false,
+        "bytes": 7327,
+        "reparse": false
+      },
+      {
+        "name": "final-git-status.txt",
+        "directory": false,
+        "bytes": 14259,
+        "reparse": false
+      },
+      {
+        "name": "foundation-staged-whitespace.txt",
+        "directory": false,
+        "bytes": 2897,
+        "reparse": false
+      },
+      {
+        "name": "knowledge-boundary-tests.log",
+        "directory": false,
+        "bytes": 15527,
+        "reparse": false
+      },
+      {
+        "name": "packaging-tests.log",
+        "directory": false,
+        "bytes": 4250,
+        "reparse": false
+      },
+      {
+        "name": "provenance-build.log",
+        "directory": false,
+        "bytes": 62257,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-full.json",
+        "directory": false,
+        "bytes": 1578771,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-full.log",
+        "directory": false,
+        "bytes": 458177,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-1.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-10.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-2.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-3.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-4.log",
+        "directory": false,
+        "bytes": 384,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-5.log",
+        "directory": false,
+        "bytes": 384,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-6.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-7.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-8.log",
+        "directory": false,
+        "bytes": 384,
+        "reparse": false
+      },
+      {
+        "name": "provenance-final-stress-9.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-forced-failure.log",
+        "directory": false,
+        "bytes": 15434,
+        "reparse": false
+      },
+      {
+        "name": "provenance-full.json",
+        "directory": false,
+        "bytes": 1578455,
+        "reparse": false
+      },
+      {
+        "name": "provenance-full.log",
+        "directory": false,
+        "bytes": 458357,
+        "reparse": false
+      },
+      {
+        "name": "provenance-main-typecheck.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "provenance-preload-typecheck.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "provenance-red.log",
+        "directory": false,
+        "bytes": 1508,
+        "reparse": false
+      },
+      {
+        "name": "provenance-related.log",
+        "directory": false,
+        "bytes": 526,
+        "reparse": false
+      },
+      {
+        "name": "provenance-renderer-typecheck.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "provenance-review-red.log",
+        "directory": false,
+        "bytes": 3094,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-1.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-10.log",
+        "directory": false,
+        "bytes": 384,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-2.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-3.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-4.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-5.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-6.log",
+        "directory": false,
+        "bytes": 384,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-7.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-8.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "provenance-stress-9.log",
+        "directory": false,
+        "bytes": 383,
+        "reparse": false
+      },
+      {
+        "name": "runtime-evBIj0",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "runtime-Jr8w39",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "runtime-klC50w",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "runtime-O9POmx",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "runtime-r0pRn3",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "runtime-smoke-result.json",
+        "directory": false,
+        "bytes": 2140,
+        "reparse": false
+      },
+      {
+        "name": "runtime-smoke-wrapper.cjs",
+        "directory": false,
+        "bytes": 585,
+        "reparse": false
+      },
+      {
+        "name": "runtime-smoke.cjs",
+        "directory": false,
+        "bytes": 4957,
+        "reparse": false
+      },
+      {
+        "name": "specialist-build.log",
+        "directory": false,
+        "bytes": 62257,
+        "reparse": false
+      },
+      {
+        "name": "specialist-final-build.log",
+        "directory": false,
+        "bytes": 62258,
+        "reparse": false
+      },
+      {
+        "name": "specialist-final-packaging.log",
+        "directory": false,
+        "bytes": 4254,
+        "reparse": false
+      },
+      {
+        "name": "specialist-final-vitest.log",
+        "directory": false,
+        "bytes": 460835,
+        "reparse": false
+      },
+      {
+        "name": "specialist-frozen-build.log",
+        "directory": false,
+        "bytes": 62257,
+        "reparse": false
+      },
+      {
+        "name": "specialist-frozen-vitest.json",
+        "directory": false,
+        "bytes": 1577254,
+        "reparse": false
+      },
+      {
+        "name": "specialist-frozen-vitest.log",
+        "directory": false,
+        "bytes": 459167,
+        "reparse": false
+      },
+      {
+        "name": "specialist-full-vitest.log",
+        "directory": false,
+        "bytes": 459607,
+        "reparse": false
+      },
+      {
+        "name": "specialist-smoke-result.json",
+        "directory": false,
+        "bytes": 2575,
+        "reparse": false
+      },
+      {
+        "name": "specialist-smoke-wrapper.cjs",
+        "directory": false,
+        "bytes": 4048,
+        "reparse": false
+      },
+      {
+        "name": "specialist-smoke.cjs",
+        "directory": false,
+        "bytes": 5406,
+        "reparse": false
+      },
+      {
+        "name": "vitest-buffered-setup.mjs",
+        "directory": false,
+        "bytes": 602,
+        "reparse": false
+      },
+      {
+        "name": "vitest-buffered.config.mjs",
+        "directory": false,
+        "bytes": 330,
+        "reparse": false
+      },
+      {
+        "name": "vnext-build.log",
+        "directory": false,
+        "bytes": 62153,
+        "reparse": false
+      },
+      {
+        "name": "vnext-final-vitest.json",
+        "directory": false,
+        "bytes": 1570097,
+        "reparse": false
+      },
+      {
+        "name": "vnext-final-vitest.log",
+        "directory": false,
+        "bytes": 456274,
+        "reparse": false
+      },
+      {
+        "name": "vnext-full-vitest.log",
+        "directory": false,
+        "bytes": 462193,
+        "reparse": false
+      },
+      {
+        "name": "watcher-buffered-full.json",
+        "directory": false,
+        "bytes": 1578178,
+        "reparse": false
+      },
+      {
+        "name": "watcher-buffered-full.log",
+        "directory": false,
+        "bytes": 459108,
+        "reparse": false
+      },
+      {
+        "name": "watcher-buffered-probe.cjs",
+        "directory": false,
+        "bytes": 4572,
+        "reparse": false
+      },
+      {
+        "name": "watcher-buffered-results.json",
+        "directory": false,
+        "bytes": 5863,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-1.log",
+        "directory": false,
+        "bytes": 26854,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-10.log",
+        "directory": false,
+        "bytes": 26791,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-11.log",
+        "directory": false,
+        "bytes": 26807,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-12.log",
+        "directory": false,
+        "bytes": 26846,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-13.log",
+        "directory": false,
+        "bytes": 26894,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-14.log",
+        "directory": false,
+        "bytes": 26845,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-15.log",
+        "directory": false,
+        "bytes": 26822,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-16.log",
+        "directory": false,
+        "bytes": 26811,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-17.log",
+        "directory": false,
+        "bytes": 26838,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-18.log",
+        "directory": false,
+        "bytes": 26799,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-19.log",
+        "directory": false,
+        "bytes": 26837,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-2.log",
+        "directory": false,
+        "bytes": 26812,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-20.log",
+        "directory": false,
+        "bytes": 26846,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-3.log",
+        "directory": false,
+        "bytes": 26754,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-4.log",
+        "directory": false,
+        "bytes": 26793,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-5.log",
+        "directory": false,
+        "bytes": 26860,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-6.log",
+        "directory": false,
+        "bytes": 26791,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-7.log",
+        "directory": false,
+        "bytes": 26857,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-8.log",
+        "directory": false,
+        "bytes": 26768,
+        "reparse": false
+      },
+      {
+        "name": "watcher-diagnostic-9.log",
+        "directory": false,
+        "bytes": 26811,
+        "reparse": false
+      },
+      {
+        "name": "watcher-file-atime-failure.json",
+        "directory": false,
+        "bytes": 10237,
+        "reparse": false
+      },
+      {
+        "name": "watcher-file-atime-results.json",
+        "directory": false,
+        "bytes": 256,
+        "reparse": false
+      },
+      {
+        "name": "watcher-file-read-results.json",
+        "directory": false,
+        "bytes": 675,
+        "reparse": false
+      },
+      {
+        "name": "watcher-final-build.log",
+        "directory": false,
+        "bytes": 62257,
+        "reparse": false
+      },
+      {
+        "name": "watcher-final-main-typecheck.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "watcher-final-preload-typecheck.log",
+        "directory": false,
+        "bytes": 0,
+        "reparse": false
+      },
+      {
+        "name": "watcher-final-renderer-typecheck.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "watcher-final-vitest.json",
+        "directory": false,
+        "bytes": 1576824,
+        "reparse": false
+      },
+      {
+        "name": "watcher-final-vitest.log",
+        "directory": false,
+        "bytes": 483222,
+        "reparse": false
+      },
+      {
+        "name": "watcher-followup-1.log",
+        "directory": false,
+        "bytes": 1771,
+        "reparse": false
+      },
+      {
+        "name": "watcher-followup-2.log",
+        "directory": false,
+        "bytes": 1771,
+        "reparse": false
+      },
+      {
+        "name": "watcher-followup-3.log",
+        "directory": false,
+        "bytes": 1771,
+        "reparse": false
+      },
+      {
+        "name": "watcher-full-diagnostic.json",
+        "directory": false,
+        "bytes": 1577108,
+        "reparse": false
+      },
+      {
+        "name": "watcher-full-diagnostic.log",
+        "directory": false,
+        "bytes": 483237,
+        "reparse": false
+      },
+      {
+        "name": "watcher-ignored-burst-failure.json",
+        "directory": false,
+        "bytes": 6745,
+        "reparse": false
+      },
+      {
+        "name": "watcher-ignored-burst-results.json",
+        "directory": false,
+        "bytes": 259,
+        "reparse": false
+      },
+      {
+        "name": "watcher-suite-buffered-27472-1790654215161.json",
+        "directory": false,
+        "bytes": 18242,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\Firefly-windows-fixtures-20260927",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 24,
+    "children": [
+      {
+        "name": "build.log",
+        "directory": false,
+        "bytes": 62465,
+        "reparse": false
+      },
+      {
+        "name": "check-checkout.cjs",
+        "directory": false,
+        "bytes": 1962,
+        "reparse": false
+      },
+      {
+        "name": "checkout-evidence.json",
+        "directory": false,
+        "bytes": 1834,
+        "reparse": false
+      },
+      {
+        "name": "checkout-fixed-isolated",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "checkout-original",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "checkout-original-isolated",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "ci-pr-final.log",
+        "directory": false,
+        "bytes": 2109392,
+        "reparse": false
+      },
+      {
+        "name": "ci-pr-watch.log",
+        "directory": false,
+        "bytes": 1318,
+        "reparse": false
+      },
+      {
+        "name": "ci-push-final.log",
+        "directory": false,
+        "bytes": 2108133,
+        "reparse": false
+      },
+      {
+        "name": "ci-push-watch.log",
+        "directory": false,
+        "bytes": 3279,
+        "reparse": false
+      },
+      {
+        "name": "final.patch",
+        "directory": false,
+        "bytes": 1676,
+        "reparse": false
+      },
+      {
+        "name": "fixed.index",
+        "directory": false,
+        "bytes": 211239,
+        "reparse": false
+      },
+      {
+        "name": "full.log",
+        "directory": false,
+        "bytes": 1087622,
+        "reparse": false
+      },
+      {
+        "name": "original.index",
+        "directory": false,
+        "bytes": 211181,
+        "reparse": false
+      },
+      {
+        "name": "packaging.log",
+        "directory": false,
+        "bytes": 1764,
+        "reparse": false
+      },
+      {
+        "name": "path-evidence.json",
+        "directory": false,
+        "bytes": 317,
+        "reparse": false
+      },
+      {
+        "name": "path-regression.cjs",
+        "directory": false,
+        "bytes": 1381,
+        "reparse": false
+      },
+      {
+        "name": "pr-failed.log",
+        "directory": false,
+        "bytes": 1956234,
+        "reparse": false
+      },
+      {
+        "name": "push-failed.log",
+        "directory": false,
+        "bytes": 1956314,
+        "reparse": false
+      },
+      {
+        "name": "renderer.log",
+        "directory": false,
+        "bytes": 75,
+        "reparse": false
+      },
+      {
+        "name": "review.md",
+        "directory": false,
+        "bytes": 5471,
+        "reparse": false
+      },
+      {
+        "name": "skills.log",
+        "directory": false,
+        "bytes": 318,
+        "reparse": false
+      },
+      {
+        "name": "start-status.txt",
+        "directory": false,
+        "bytes": 115,
+        "reparse": false
+      },
+      {
+        "name": "targeted.log",
+        "directory": false,
+        "bytes": 242,
+        "reparse": false
+      }
+    ]
+  },
+  {
+    "path": "E:\\Codex\\SOURCE_REPORT.md",
+    "directory": false,
+    "reparse": false,
+    "bytes": 13182
+  },
+  {
+    "path": "E:\\Codex\\working",
+    "directory": true,
+    "reparse": false,
+    "rootGit": false,
+    "rootItems": 2,
+    "children": [
+      {
+        "name": "cnipa",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      },
+      {
+        "name": "Firefly-Pet",
+        "directory": true,
+        "bytes": null,
+        "reparse": false
+      }
+    ]
+  }
+]

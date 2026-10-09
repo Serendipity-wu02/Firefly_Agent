@@ -1,3 +1,7 @@
+import { createSidebarLayoutStore } from "../chats/sidebar-layout-store";
+import { registerSidebarLayoutIpc } from "../chats/sidebar-layout-ipc";
+import { SIDEBAR_LAYOUT_IPC } from "../../shared/sidebar-layout";
+import { registerDesktopAsrIpc } from "../asr/desktop-asr-ipc";
 import {createMainDefaultMemory} from "../memory-context/main-default-memory";
 import {registerMemorySettingsIpc} from "../memory-policy/memory-settings-ipc";
 import { createBrowserWorkspaceExecutor } from "../browser/browser-workspace-executor";
@@ -16,6 +20,7 @@ import { getStorageContext } from "../storage-context";
 
 import { app, BrowserWindow, dialog, screen } from "electron";
 import * as path from "path";
+import { randomBytes, randomUUID } from "node:crypto";
 import { autoUpdater } from "electron-updater";
 
 import { ensureGpuSandboxAcl } from "../gpu-sandbox-acl";
@@ -91,9 +96,11 @@ import { backupMemoryRagFiles, reconcileMemoryRag } from "../memory/memory-rag-r
 import { registerChatsIpc } from "../chats/chats-ipc";
 import { registerWorkspaceFilesIpc } from "../chats/workspace-files-ipc";
 import { createElectronBrowserService } from "../browser/electron-browser-service";
+import { createManualBrowserWorkspace } from "../browser/manual-browser-workspace";
+import { MANUAL_BROWSER_WORKSPACE_IPC } from "../../shared/manual-browser";
 import { createStartupBrowserService } from "../browser/browser-startup-config";
-import { registerBrowserHostOwner } from "../browser/browser-host-owner";
-import { registerBrowserServiceIpc, installBrowserServiceLifecycle } from "../browser/browser-service-ipc";
+import { registerBrowserHostOwner, registerManualBrowserHostOwner } from "../browser/browser-host-owner";
+import { registerBrowserServiceIpc, registerManualBrowserWorkspaceIpc, installBrowserServiceLifecycle } from "../browser/browser-service-ipc";
 import { activeChatTargetRegistry } from "../plugin-host/active-chat-target";
 import { registerOpenInAppIpc } from "../chats/open-in-app";
 import { registerChatUiIpc, getActiveChatSessionId } from "../chats/chat-ui-ipc";
@@ -108,7 +115,13 @@ import { loadUserProfile } from "../settings-store";
 import { getAppIconPath } from "../app-icon";
 import { hasActiveConversationRun, isActiveConversationRun, registerAgUiIpc } from "../agui-bridge";
 import { updateLocaleContext } from "../locale-context";
-import { initSkills, skillRegistry } from "../skills";
+import { initSkills, rescanSkills, skillRegistry } from "../skills";
+import { createExternalSkillService } from "../skills/external-service";
+import { registerExternalSkillsIpc } from "../skills/external-ipc";
+import { recoverExternalSkills } from "../skills/external-install";
+import { ExternalSkillStateStore } from "../skills/external-state";
+import { EXTERNAL_SKILL_REVIEWS } from "../skills/external-reviews";
+import type { ExternalHostSession } from "../skills/external-types";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
 import { createChannelsSubsystem } from "../channels/bootstrap";
 import { createLifecyclePublisher } from "../plugin-host/lifecycle-publisher";
@@ -178,6 +191,10 @@ async function reconcileUserMemoryIndex(): Promise<void> {
 }
 
 export function createDefaultApplicationDependencies(): ApplicationDependencies {
+  // Proof is captured only after the actual single-instance acquisition succeeds.
+  let primaryProcess = false;
+  const externalHost: ExternalHostSession = { runId: randomUUID(), isPrimaryProcess: () => primaryProcess };
+  let externalSkillsIpc: ReturnType<typeof registerExternalSkillsIpc> | undefined;
   // Explicit diagnostic launch only. Switch enables UI, never creates/rearms a budget.
   // Boot binding touches only fixed E: non-secret admission; profile lookup stays cache-only.
   const memoryOnlineEntry = createMainProbeEntry(app.commandLine?.hasSwitch("firefly-memory-online-once")===true, {
@@ -206,7 +223,10 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
   });
   const readiness = createStartupReadiness();
   const activation = createWindowActivationBroker();
-  const shutdown = createShutdownCoordinator({ readiness, timeoutMs: SHUTDOWN_TIMEOUT_MS });
+  let workspaceFiles: ReturnType<typeof registerWorkspaceFilesIpc> | undefined;
+  const shutdown = createShutdownCoordinator({ readiness, timeoutMs: SHUTDOWN_TIMEOUT_MS,
+    beforeShutdown: () => workspaceFiles?.confirmBeforeShutdown() ?? Promise.resolve(true),
+  });
   // Explicit Main startup opt-in; no Renderer flag, credentials, roots or actor tokens.
   const memoryAdmissionMode=desktopMemoryAdmissionMode(name=>app.commandLine?.hasSwitch(name)===true,getStorageContext().profile.kind);
   const memoryEnabled=app.commandLine?.hasSwitch("firefly-memory-controlled")===true;
@@ -229,10 +249,13 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
     shutdown.register({id:"desktop-memory-resources",phase:"stopLocalResources",dispose:()=>desktopMemory.close()});
   }
   let browserService: ReturnType<typeof createElectronBrowserService> | undefined;
-  let browserHost: { window: BrowserWindow; binding: ReturnType<typeof registerBrowserHostOwner> } | undefined;
+  let manualBrowserService: ReturnType<typeof createManualBrowserWorkspace> | undefined;
+  let desktopAsr: ReturnType<typeof registerDesktopAsrIpc> | undefined;
+  let browserHost: { window: BrowserWindow; binding: ReturnType<typeof registerBrowserHostOwner>; manualBinding: ReturnType<typeof registerManualBrowserHostOwner> } | undefined;
   function getBrowserService() {
-    if (!browserService) {
-      browserService = createStartupBrowserService({
+    const existing = browserService;
+    if (existing) return existing;
+    const service = createStartupBrowserService({
         profile: getStorageContext().profile,
         onChanged: (owner, page) => {
           const host = browserHost;
@@ -241,17 +264,39 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           }
         },
       });
-      const offLifecycle = installBrowserServiceLifecycle(app, browserService, shutdown);
+      browserService = service;
+      const offLifecycle = installBrowserServiceLifecycle(app, service, shutdown, "browser-service");
       app.once("will-quit", offLifecycle);
-    }
-    return browserService;
+    return service;
+  }
+  function getManualBrowserWorkspace() {
+    if (manualBrowserService) return manualBrowserService;
+    const service = createManualBrowserWorkspace({
+      createService: onChanged => createStartupBrowserService({ profile: getStorageContext().profile, onChanged }),
+      onChanged: (owner, page) => {
+        const host = browserHost;
+        if (host && host.window === owner.host && !host.window.isDestroyed() && !host.window.webContents.isDestroyed()) {
+          host.window.webContents.send(MANUAL_BROWSER_WORKSPACE_IPC.changed, page);
+        }
+      },
+    });
+    manualBrowserService = service;
+    const offLifecycle = installBrowserServiceLifecycle(app, service, shutdown, "manual-browser-service");
+    app.once("will-quit", offLifecycle);
+    return service;
   }
   function bindBrowserHost(window: BrowserWindow) {
+    externalSkillsIpc?.refreshHost();
     browserHost?.binding.dispose();
+    browserHost?.manualBinding.dispose();
     const binding = registerBrowserHostOwner({ host: window, profile: getStorageContext().profile,
       targets: activeChatTargetRegistry, service: getBrowserService(), readSession: chatsStore.getSession });
-    const host = { window, binding }; browserHost = host;
-    window.once("closed", () => { binding.dispose(); if (browserHost === host) browserHost = undefined; });
+    const manualBinding = registerManualBrowserHostOwner({ host: window, profile: getStorageContext().profile, service: getManualBrowserWorkspace() });
+    const host = { window, binding, manualBinding }; browserHost = host;
+    window.once("closed", () => {
+      externalSkillsIpc?.refreshHost();
+      binding.dispose(); manualBinding.dispose(); if (browserHost === host) browserHost = undefined;
+    });
   }
 
   // 注入应用图标路径 getter（窗口工厂统一读取，避免循环依赖）。
@@ -269,7 +314,10 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
     prepare: () => prepareBeforeReady({
       configureDocumentIndex: () => configureDocumentIndexQueue(runDocumentIndexJob),
-      installSingleInstance: (onSecondInstance) => installSingleInstanceGuard(app, onSecondInstance),
+      installSingleInstance: (onSecondInstance) => {
+        primaryProcess = installSingleInstanceGuard(app, onSecondInstance);
+        return primaryProcess;
+      },
       registerPrivilegedSchemes,
       configureGpuSwitches: () => {
         if (loadGeneralSettings().disableGpuElectron) {
@@ -309,7 +357,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       registerShellIpc: ({ ipc, windowManager, live2dWindowLifecycle }) => {
         // quit 由组合根注入：窗口系统 IPC 不直接依赖 electron app，且退出仍走受控链路。
         registerWindowSystemIpc({ ipc, windowManager, quit: () => app.quit() });
-        registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager, onActiveTargetChanged: () => {browserHost?.binding.refresh();desktopMemory?.refresh()} });
+        registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager, onActiveTargetChanged: () => {desktopAsr?.cancelAll();browserHost?.binding.refresh();desktopMemory?.refresh()} });
       },
       createTray: (input) => createTray({
         togglePetWindow: input.togglePetWindow,
@@ -337,7 +385,12 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         ...getExternalContentPaths(),
       }),
       // Skill 系统：扫描双源 skills + 注册 meta-tool
-      initSkills,
+      initSkills: async () => {
+        if (!externalHost.isPrimaryProcess()) throw new Error("STATE_INVALID");
+        const storage = getStorageContext();
+        recoverExternalSkills(storage, new ExternalSkillStateStore(storage, externalHost));
+        await initSkills(storage, externalHost);
+      },
 
       createLowCostServices: () => {
         const runtimeStateService = createRuntimeStateService();
@@ -511,6 +564,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           // 面板宿主窗口（首版=设置窗口）：settingsWindow 为 CJS live-binding，
           // 必须在请求时刻读取
           getPanelHostWebContents: () => settingsWindow?.webContents ?? null,
+          getMarketplaceHostWebContents: () => reactChatWindow?.webContents ?? null,
         });
         return pluginManager;
       },
@@ -527,7 +581,18 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       }),
 
       registerCoreIpc: ({ ipc, runtime, services }) => {
+        const externalService = createExternalSkillService({
+          storage: getStorageContext(), host: externalHost,
+          fetch: (...args) => globalThis.fetch(...args), now: Date.now,
+          diagnose: diagnostic => logger.warn(LogTag.Skills, "external-marketplace", diagnostic),
+          randomToken: () => randomBytes(32).toString("hex"), reviews: EXTERNAL_SKILL_REVIEWS, rescan: rescanSkills,
+        });
+        externalSkillsIpc = registerExternalSkillsIpc({ ipc, getHostWebContents: () => reactChatWindow && !reactChatWindow.isDestroyed() ? reactChatWindow.webContents : null, service: externalService });
+        shutdown.register({ id: "external-skills", phase: "quiesce", dispose: () => externalSkillsIpc!.dispose() });
+        desktopAsr = registerDesktopAsrIpc({ ipc, getChatContents: () => reactChatWindow?.webContents });
+        shutdown.register({ id: "desktop-asr", phase: "quiesce", dispose: () => desktopAsr?.dispose() });
         registerBrowserServiceIpc(ipc, getBrowserService());
+        registerManualBrowserWorkspaceIpc(ipc, getManualBrowserWorkspace());
         // 设置变更反应：窗口/托盘/截图热键/主动服务联动
         onGeneralSettingsChanged((before, after) =>
           handleGeneralSettingsChanged(before, after, {
@@ -569,9 +634,16 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           llmClient: services.llm,
           isPrimaryModelBusy: hasActiveConversationRun,
         });
+        registerSidebarLayoutIpc(ipc, {
+          store: createSidebarLayoutStore(getStorageContext(), () => chatsStore.listSessions()),
+          getChatContents: () => reactChatWindow?.webContents,
+          onChanged: () => {
+            if (reactChatWindow && !reactChatWindow.isDestroyed()) reactChatWindow.webContents.send(SIDEBAR_LAYOUT_IPC.changed);
+          },
+        });
         registerCodeGitIpc({ ipc, service: services.git });
         // 会话工作区只读文件（右侧面板文件树 / 预览）
-        registerWorkspaceFilesIpc(ipc);
+        workspaceFiles = registerWorkspaceFilesIpc(ipc, { getChatContents: () => reactChatWindow?.webContents });
         // 工作区右上角"打开"菜单：本机应用探测 + 打开执行
         registerOpenInAppIpc(ipc);
 

@@ -1,0 +1,11 @@
+.cy-sidebar-layout { padding: 4px 12px 8px; color: var(--cy-text-muted); font-size: 12px; }
+.cy-sidebar-layout__selectors, .cy-sidebar-layout__section, .cy-sidebar-layout__order { display: flex; gap: 5px; align-items: center; min-width: 0; }
+.cy-sidebar-layout select, .cy-sidebar-layout input:not([type="checkbox"]) { min-width: 0; flex: 1; max-width: 100%; border: 1px solid var(--cy-border); border-radius: 6px; padding: 4px; background: var(--cy-bg); color: inherit; }
+.cy-sidebar-layout button { border: 1px solid var(--cy-border); border-radius: 5px; background: var(--cy-bg); color: inherit; padding: 3px 5px; cursor: pointer; }
+.cy-sidebar-layout button:disabled { opacity: .45; cursor: default; }
+.cy-sidebar-layout summary { padding-top: 7px; cursor: pointer; }
+.cy-sidebar-layout__management { max-height: 240px; overflow: auto; display: grid; gap: 6px; padding-top: 7px; }
+.cy-sidebar-layout__project { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.cy-sidebar-layout__project span, .cy-sidebar-layout__order span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cy-sidebar-layout__order span { flex: 1; }
+.cy-sidebar-layout__error { padding: 4px 12px; color: #c42b1c; font-size: 12px; }

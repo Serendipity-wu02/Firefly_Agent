@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, { act } from "react";
+import fs from "node:fs";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { t } from "../../../i18n";
@@ -53,6 +54,77 @@ describe("workspace navigation layout", () => {
     act(() => aside.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
     expect(aside.hasAttribute("inert")).toBe(true);
     expect(props.onToggleCollapsed).not.toHaveBeenCalled();
+  });
+  it("keeps the floating sidebar open while crossing its owned hover corridor", () => {
+    render({ collapsed: true });
+    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    const corridor = aside.querySelector<HTMLElement>(".cy-sidebar-hover-corridor");
+    expect(corridor).not.toBeNull();
+    act(() => rail.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: corridor })));
+    act(() => corridor!.dispatchEvent(new MouseEvent("pointermove", { bubbles: true })));
+    expect(aside.hasAttribute("inert")).toBe(false);
+    act(() => corridor!.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: aside })));
+    act(() => aside.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: corridor })));
+    expect(aside.classList.contains("is-peeking")).toBe(true);
+    act(() => aside.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(aside.hasAttribute("inert")).toBe(true);
+    expect(props.onToggleCollapsed).not.toHaveBeenCalled();
+  });
+  it("allows a narrow floating sidebar to resize without reserving a second chat column", () => {
+    Object.defineProperty(window, "innerWidth", { value: 800, configurable: true });
+    render({ collapsed: true });
+    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+    expect(handle.getAttribute("aria-valuenow")).toBe("240");
+    expect(handle.getAttribute("aria-valuemax")).toBe("360");
+    act(() => handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(handle.getAttribute("aria-valuenow")).toBe("256");
+    expect(localStorage.getItem("firefly.chat.sidebar-width")).toBe("256");
+  });
+  it("does not let a second pointer replace a live resize and releases capture on cancel", () => {
+    render();
+    const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+    const pointer = (type: string, x: number, id: number) => Object.assign(new Event(type, { bubbles: true, cancelable: true }), { pointerId: id, clientX: x, button: 0 });
+    const capture = vi.fn(), release = vi.fn();
+    Object.assign(handle, { setPointerCapture: capture, releasePointerCapture: release, hasPointerCapture: () => true });
+    act(() => handle.dispatchEvent(pointer("pointerdown", 240, 1)));
+    act(() => handle.dispatchEvent(pointer("pointerdown", 260, 2)));
+    act(() => window.dispatchEvent(pointer("pointermove", 280, 1)));
+    expect(handle.getAttribute("aria-valuenow")).toBe("280");
+    expect(capture).toHaveBeenCalledExactlyOnceWith(1);
+    act(() => window.dispatchEvent(pointer("pointercancel", 280, 2)));
+    expect(handle.classList.contains("is-resizing")).toBe(true);
+    act(() => window.dispatchEvent(pointer("pointercancel", 280, 1)));
+    expect(handle.classList.contains("is-resizing")).toBe(false);
+    expect(release).toHaveBeenCalledExactlyOnceWith(1);
+    act(() => window.dispatchEvent(pointer("pointermove", 330, 1)));
+    expect(handle.getAttribute("aria-valuenow")).toBe("280");
+    act(() => handle.dispatchEvent(pointer("pointerdown", 280, 3)));
+    act(() => window.dispatchEvent(new Event("blur")));
+    expect(handle.classList.contains("is-resizing")).toBe(false);
+  });
+  it("ends a resize when pointer capture is lost and keeps the last width", () => {
+    render();
+    const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+    const pointer = (type: string, x: number) => Object.assign(new Event(type, { bubbles: true, cancelable: true }), { pointerId: 7, clientX: x, button: 0 });
+    act(() => handle.dispatchEvent(pointer("pointerdown", 240)));
+    act(() => window.dispatchEvent(pointer("pointermove", 260)));
+    act(() => handle.dispatchEvent(pointer("lostpointercapture", 260)));
+    expect(handle.classList.contains("is-resizing")).toBe(false);
+    act(() => window.dispatchEvent(pointer("pointermove", 320)));
+    expect(handle.getAttribute("aria-valuenow")).toBe("260");
+  });
+  it("places the resize handle inside an expanded narrow overlay", () => {
+    Object.defineProperty(window, "innerWidth", { value: 800, configurable: true });
+    render();
+    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    const handle = aside.querySelector<HTMLElement>('[role="separator"]')!;
+    expect(handle).not.toBeNull();
+    act(() => handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(aside.style.width).toBe("256px");
   });
   it("resizes a hover overlay without pinning it or hiding during the drag", () => {
     render({ collapsed: true });
@@ -299,4 +371,46 @@ describe("workspace navigation layout", () => {
     expect(more.getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(more);
   });
+});
+
+it("moves the sidebar to either bound with Home and End and restores that choice", () => {
+  render();
+  const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+  act(() => handle.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true, cancelable: true })));
+  expect(handle.getAttribute("aria-valuenow")).toBe("360");
+  act(() => handle.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true, cancelable: true })));
+  expect(handle.getAttribute("aria-valuenow")).toBe("180");
+  render({ collapsed: true }); render();
+  expect(host.querySelector('[role="separator"]')?.getAttribute("aria-valuenow")).toBe("180");
+});
+
+it("ends an in-flight resize on explicit collapse and ignores its remaining pointer moves", () => {
+  render();
+  const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+  const pointer = (type: string, x: number) => Object.assign(new Event(type, { bubbles: true, cancelable: true }), { pointerId: 9, clientX: x, button: 0 });
+  const release = vi.fn();
+  Object.assign(handle, { setPointerCapture: vi.fn(), releasePointerCapture: release, hasPointerCapture: () => true });
+  act(() => handle.dispatchEvent(pointer("pointerdown", 240)));
+  act(() => window.dispatchEvent(pointer("pointermove", 280)));
+  render({ collapsed: true });
+  expect(host.querySelector(".is-resizing")).toBeNull();
+  expect(release).toHaveBeenCalledExactlyOnceWith(9);
+  act(() => window.dispatchEvent(pointer("pointermove", 340)));
+  render();
+  expect(host.querySelector('[role="separator"]')?.getAttribute("aria-valuenow")).toBe("280");
+  expect(localStorage.getItem("firefly.chat.sidebar-width")).toBe("280");
+});
+
+it("more menu retains visible text and row layout inside its rail popup container", async () => {
+  const style = document.createElement("style");
+  style.textContent = fs.readFileSync("src/renderer/react/styles/react-root.css", "utf8"); document.head.append(style);
+  try {
+    render(); await act(async () => button(t("ui.more")).click());
+    const menu = host.querySelector<HTMLElement>(".cy-page-more"); expect(menu).not.toBeNull();
+    for (const label of menu!.querySelectorAll<HTMLElement>(".cy-side-action-label")) {
+      expect(window.getComputedStyle(label).display).not.toBe("none");
+      expect(window.getComputedStyle(label.closest(".cy-side-action")!).display).toBe("flex");
+    }
+    expect(menu!.querySelectorAll(".cy-side-action-label")).toHaveLength(3);
+  } finally { style.remove(); }
 });

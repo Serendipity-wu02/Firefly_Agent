@@ -1,11 +1,14 @@
+import { app } from "electron";
+const runtimeProfile = vi.hoisted(() => ({ kind: "production" as "production" | "development" | "test" | "smoke" }));
+vi.mock("../storage-context", () => ({ getStorageContext: () => ({ profile: { kind: runtimeProfile.kind } }) }));
 import { IPC } from "../../shared/ipc-channels";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GeneralSettings } from "./general-settings";
 import type { WindowManager } from "../windows/window-manager";
 import { applyGeneralSettings, handleGeneralSettingsChanged } from "./general-settings-lifecycle";
-import { syncLaunchAtLogin } from "./launch-at-login";
 
-vi.mock("electron", () => ({ app: {}, nativeImage: {} }));
+
+vi.mock("electron", () => ({ app: { setLoginItemSettings: vi.fn() }, nativeImage: {} }));
 vi.mock("../windows/broadcast", () => ({ broadcastToAllWindows: vi.fn() }));
 vi.mock("../windows/window-state", () => ({ setGetCurrentAppIconPath: vi.fn() }));
 vi.mock("../locale-context", () => ({ updateLocaleContext: vi.fn() }));
@@ -15,7 +18,7 @@ vi.mock("../orchestrator/mcp-manager", () => ({
 vi.mock("../app-icon", () => ({ getAppIconPath: vi.fn() }));
 vi.mock("../orchestrator/tools/registry/tool-registration", () => ({ syncBuiltInToolToggles: vi.fn() }));
 vi.mock("./model-settings", () => ({ loadModelSettings: vi.fn(), getPublicModelConfig: vi.fn() }));
-vi.mock("./launch-at-login", () => ({ syncLaunchAtLogin: vi.fn() }));
+
 
 function createHarness(petVisible = true) {
   const settings = {
@@ -41,7 +44,7 @@ function createHarness(petVisible = true) {
 }
 
 describe("general settings window lifecycle", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); runtimeProfile.kind = "production"; });
 
   it("broadcasts changed colors once and leaves identical colors quiet", () => {
     const h = createHarness();
@@ -62,7 +65,7 @@ describe("general settings window lifecycle", () => {
     expect(h.windowManager.showPetWindow).not.toHaveBeenCalled();
     expect(h.windowManager.setPetWindowAlwaysOnTop).not.toHaveBeenCalled();
     expect(h.windowManager.applyPetWindowZoom).not.toHaveBeenCalled();
-    expect(syncLaunchAtLogin).not.toHaveBeenCalled();
+    expect(app.setLoginItemSettings).not.toHaveBeenCalled();
   });
 
   it("keeps a temporarily shown pet visible when unrelated settings are saved", () => {
@@ -89,7 +92,7 @@ describe("general settings window lifecycle", () => {
     expect(h.isVisible()).toBe(false);
     expect(h.windowManager.setPetWindowAlwaysOnTop).toHaveBeenCalledWith(false);
     expect(h.windowManager.applyPetWindowZoom).toHaveBeenCalledWith(1.5);
-    expect(syncLaunchAtLogin).toHaveBeenCalledWith(true, {});
+    expect(app.setLoginItemSettings).toHaveBeenCalledExactlyOnceWith({ openAtLogin: true });
   });
 
   it.each([true, false])("fully applies startup settings with petVisible=%s", (visible) => {
@@ -98,6 +101,30 @@ describe("general settings window lifecycle", () => {
     expect(visible ? h.windowManager.showPetWindow : h.windowManager.hidePetWindow).toHaveBeenCalledOnce();
     expect(h.windowManager.setPetWindowAlwaysOnTop).toHaveBeenCalledWith(true);
     expect(h.windowManager.applyPetWindowZoom).toHaveBeenCalledWith(1);
-    expect(syncLaunchAtLogin).toHaveBeenCalledWith(false, {});
+    expect(app.setLoginItemSettings).toHaveBeenCalledExactlyOnceWith({ openAtLogin: false });
+  });
+});
+
+describe("non-production general settings login isolation", () => {
+  beforeEach(() => { vi.clearAllMocks(); runtimeProfile.kind = "production"; });
+  it.each([
+    ["development", true], ["development", false], ["test", true],
+    ["test", false], ["smoke", true], ["smoke", false],
+  ] as const)("applies startup window preferences without system login writes in %s enabled=%s", (kind, enabled) => {
+    runtimeProfile.kind = kind;
+    const h = createHarness();
+    applyGeneralSettings({ ...h.settings, launchAtLogin: enabled }, h.deps);
+    expect(app.setLoginItemSettings).not.toHaveBeenCalled();
+    expect(h.windowManager.applyPetWindowZoom).toHaveBeenCalledWith(1);
+  });
+  it.each([
+    ["development", true], ["development", false], ["test", true],
+    ["test", false], ["smoke", true], ["smoke", false],
+  ] as const)("saves changed login preference without system login writes in %s enabled=%s", (kind, enabled) => {
+    runtimeProfile.kind = kind;
+    const h = createHarness();
+    handleGeneralSettingsChanged({ ...h.settings, launchAtLogin: !enabled },
+      { ...h.settings, launchAtLogin: enabled }, h.deps);
+    expect(app.setLoginItemSettings).not.toHaveBeenCalled();
   });
 });

@@ -1,36 +1,53 @@
-# Manual browser shared integration verification
+# 手动浏览器共享接线与历史数据清理验证
 
-The manual browser is connected to shared IPC/preload, the Main chat host lifecycle, and the right inspector. Production BrowserService construction omits `gateOpen`; the default gate remains closed. Commands carry only addresses, Main-minted browser IDs, history actions and viewport bounds. Private actor/profile/top-frame/owner authority stays in Main.
+> 记录日期：2026-10-05
+> 文档整理：2026-10-07；历史证据整理，未执行当前复测。
+> 历史结论：共享接线与有限清理修复有验证记录；生产 gate 保持关闭。
+> 适用边界：以上与下文均指记录阶段，不代表当前产品状态；历史 gate/HOLD 不作为当前启用判定。
 
-Chat shell creation registers the exact host before renderer loading. Active session set/clear refreshes its private binding synchronously. Exact managed native guests are routed before the global external-link guard; retired guests remain denied without an external-browser fallback. Renderer subscribes/unsubscribes exact DTO listeners, rejects foreign/older/closed-page updates, closes pending opens and old sessions, detaches inactive tabs and resends geometry after focus/resize. Welcome pages never fabricate a conversation.
+## 1. 浏览器接线事实与责任边界
 
-Evidence from the 2026-10-05 integration is in `E:/Codex/2026-10-03/task-10/browser-integration-20261005`:
+该阶段手动浏览器连接 shared IPC/preload、Main chat host lifecycle 与右侧 inspector。生产 BrowserService 构造不传 `gateOpen`，默认关闭。命令只携带地址、Main 生成的 browser ID、历史操作和 viewport bounds；actor/profile/top-frame/owner 授权保持 Main 私有。
 
-- Behavioral RED/GREEN: navigation routing and renderer lifecycle. Focused integration: 21 files/319 passed; preload/screenshot: 6 files/34 passed.
-- Actual complete ordinary suite after verified E Git Bash and original H TEMP prerequisites: 640 files, 6417 passed/2 existing skips, exit0 (`full-recovery-bash.log`). No H assertion or skip changed. This ordinary suite is not native history zero-write acceptance.
-- Main/preload/renderer noEmit checks passed; isolated Main/preload/Vite builds passed. Existing Vite size warning retained. Production dist and12 protected source hashes unchanged before SMH merge.
-- Final no-desktop-prewarm QA:14 ordinary UI screenshots/25 cases and9 synthetic native screenshots/24 cases, all3 welcome/existing modes. Native case uses a local exact HTTPS Session protocol fixture and synthetic trusted host-state ports. Actual OS host focus remains false/0 focus events. Real WebContentsView geometry follows stable Main-clamped viewport bounds and tab/close/collapse disposal. Public network and OS foreground acceptance are not claimed.
-- Actual Codex CLI0.155.0/gpt-5.5 readonly review completed. Its only P2 was an outdated status-only preload test; the approved3-method surface, closed availability, command payload and exact unsubscribe regressions now pass, as does the ordinary full suite.
-- Existing screenshot helper build script produced matching647168-byte release/staged binaries: SHA256 `4eb9fbf628aee7052659cc7b708268f284280e669630d983d85916013badf297`. Native protocol/geometry/display/request contracts29 passed. The unchanged GDI smoke initially failed2 capture cases under restricted execution; all5 pass with normal execution permissions (`gdi-recovery-unrestricted.log`), without desktop-setting changes or saved/exported screen images. Broad native GUI/clipboard/foreground smoke is not claimed.
+Chat shell 在 renderer load 前注册精确宿主；active session set/clear 同步刷新私有 binding。精确 managed native guest 在全局 external-link guard 之前路由，退役 guest 持续拒绝且无外部浏览器回退。renderer 精确订阅/取消 DTO listener，拒绝 foreign/older/closed-page 更新；关闭 pending open 和旧 Session，detach inactive tab，在 focus/resize 后重新提交几何信息。欢迎页不伪造 conversation。
 
-`launch-ui-candidate.ps1` in that evidence directory starts an offline smoke candidate from isolated compiled artifacts and a new E profile, without OS activation or screenshot prewarm. It does not overwrite production dist, existing user input, or user data.
+## 2. 浏览器历史验证
 
-Remaining release gates: app-specific trusted DNS injection and real public HTTPS acceptance (network owner work), full native OS foreground/egress/storage gates, and complete SMH streaming/hybrid semantic integration. Do not enable production or infer those gates from synthetic and ordinary suite results.
+| 检查 | 结果与边界 |
+| --- | --- |
+| navigation routing、renderer lifecycle RED/GREEN | 定向 21 files / 319 passed；preload/screenshot 6 files / 34 passed |
+| 普通全量 | 640 files、6417 passed / 2 existing skips、exit 0；使用核验 Bash 与历史 H fixture 精确 TEMP，未改 H 断言或 skip |
+| 类型与构建 | Main/preload/renderer noEmit 通过；隔离 Main/preload/Vite build 通过；保留既有 Vite size warning |
+| no-desktop-prewarm QA | 14 张普通 UI 截图/25 cases；9 张 synthetic native 截图/24 cases，覆盖三种欢迎/已有会话模式 |
+| 原生视图几何 | local exact HTTPS Session protocol fixture、合成 trusted host-state；真实 focus=false/0 events；viewport 由 Main clamp，tab/close/collapse 释放正常 |
+| 只读代码审查 | Codex CLI 0.155.0 / gpt-5.5 实际执行；唯一 P2 为过时的 status-only preload 测试，3-method surface、closed availability、payload、精确 unsubscribe 回归及全量随后通过 |
+| screenshot helper | release/staged 二进制各 647168 bytes，SHA-256 一致；native protocol/geometry/display/request contracts 29 passed |
+| GDI smoke | 受限执行先有 2 capture cases 失败；正常进程权限下全部 5 通过；未改桌面设置或保存/导出屏幕图像 |
 
-## Dormant native-history cleanup checkpoint
+二进制 SHA-256：`4eb9fbf628aee7052659cc7b708268f284280e669630d983d85916013badf297`。
 
-The SMH core was integrated as `3d2ce62c8599bb888d218e80dad271c27553766a` without enabling a production provider. Two reproduced invalidation failures are corrected: a captured-head cleanup rejection no longer returns before pending endpoint factories/operations finish, and one rejected captured head no longer prevents cleanup of later heads. Both cleanup barriers settle every exact participant before reporting failure; only successfully cleaned exact captures are removed.
+上述普通套件不等于 native history zero-write 验收；synthetic native QA 不认证公网或 OS foreground。广泛 GUI/clipboard/foreground smoke 未执行。SMH 整合前的生产 dist 与 12 个受保护 source hashes 保持不变。
 
-The stable `npm run test:memory-history-zero-write -- --configLoader runner` entry selects only the explicit native acceptance file through `vitest.memory-history-zero-write.config.ts`. The ordinary configuration and existing quality settings are unchanged. Main excludes acceptance-only fixtures from production compilation.
+`launch-ui-candidate.ps1` 为仓库外证据目录中的历史启动脚本，使用隔离编译输出和全新专用 profile，无 OS activation/screenshot prewarm，不覆盖生产 dist、已有输入或真实数据。该引用不表示脚本已入仓库或当前可直接运行。
 
-Final evidence in the same E directory:
+## 3. Dormant native-history 清理修复
 
-- `smh-product-cleanup-red.log` and `smh-all-heads-red.log` reproduce the two failures. `smh-all-heads-green.log` passes all26 provider tests, including the held second-head cleanup and actual Worker rejection of its old ref as `MEMORY_CONTEXT_TRANSCRIPT_PENDING`.
-- `final-browser-smh-corrected-full.log` and its exit receipt:643 files,6470 passed/2 existing skips, exit0. This supersedes the earlier643-file6469-pass run for this checkpoint.
-- `smh-corrected-official-acceptance.log`:12/12 real-helper acceptance, exit0, using the exact E debug/release helpers and synthetic NTFS root. It is separate from ordinary regression.
-- `smh-corrected-main-exit.json`:official Main noEmit and isolated Main build both exit0. Previously verified unchanged preload/renderer/CLI builds and storage boundary remain in the core handoff; production dist was not overwritten.
-- `smh-corrected-preservation.json`:all protected paths match the approved core baseline, including the intentionally committed native history parser change; all7 production dist files,4 reserved streaming shared files and4 helper binaries are preserved. The existing isolated candidate remains frozen.
+SMH core 整合没有启用生产 provider。两项已复现失效问题获修复：captured-head cleanup reject 不再提前返回而遗漏 pending endpoint factories/operations；一个 captured head reject 不再阻止后续 head 清理。两个 barrier 均等待每个精确参与者 settle 后才报告失败，只有成功清理的精确 capture 被移除。
 
-The completed native Codex review raised the later-head cleanup P2; its reproduction and correction are retained. Automatic approval rejected the external post-correction re-review because it could disclose local source/tests/logs to the external CLI without explicit destination authorization. No retry or alternate remote review was used. Local review of the correction is recorded in `smh-corrected-local-review.md`; a clean external post-correction review is not claimed.
+稳定入口 `npm run test:memory-history-zero-write -- --configLoader runner` 通过 `vitest.memory-history-zero-write.config.ts` 仅选择显式 native acceptance 文件。普通配置和质量设置不变；Main 编译排除 acceptance-only fixtures。
 
-Streaming owner changes, browser trusted DNS delivery and real hybrid/model semantic validation remain separate pending batches. Production gates remain closed; no model download/cleanup, system-network change, production restart, push or PR is part of this checkpoint.
+## 4. SMH 历史验证与保留证据
+
+- 两项清理行为分别获得直接失败证据，修复后为 26 provider tests 通过，含扣住 second-head cleanup 与实际 Worker 拒绝旧 ref 为 `MEMORY_CONTEXT_TRANSCRIPT_PENDING`。
+- 修正后完整普通套件：643 files、6470 passed / 2 existing skips、exit 0，替代同阶段较早 643-file/6469-pass 结果。
+- 独立原生验收：12/12 real-helper acceptance、exit 0，使用精确 debug/release helper 与合成 NTFS root；与普通回归分开解释。
+- 类型与构建退出记录：官方 Main noEmit 与隔离 Main build 均 exit 0。未变更 preload/renderer/CLI 和 storage boundary 沿用此前验证，生产 dist 未覆盖。
+- 保留性检查：所有受保护路径符合既定 core 基线，包括既定 native history parser 变更；7 个生产 dist 文件、4 个 streaming shared 文件、4 个 helper 二进制保持，既有隔离候选未变。
+
+本页原始日志和退出记录存于当时仓库外专用证据目录，不表示已提交附件。实际 native Codex review 发现 later-head cleanup P2，复现与修正均保留。外部修正后复审因代码/测试/日志发送缺少明确目的地授权而在启动前被拒绝，没有重试或替代远程审查；本地只读审查只作补充，不能宣称外部修正后审查通过。
+
+## 5. 剩余验收与限制
+
+该阶段仍待 app-specific 可信 DNS 与真实公网 HTTPS、完整 OS foreground/egress/storage，以及 SMH streaming/hybrid/model 语义整合。后续事实分别在[可信 Resolver 共享验证](browser-resolver-shared-integration.md)等记录，不倒填为本次执行。
+
+不从合成夹具或普通全量结果推导生产可用。生产 gate 保持关闭；模型下载/清理、系统网络变更和生产重启不属于本页验收。

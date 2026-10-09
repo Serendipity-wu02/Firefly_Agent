@@ -110,9 +110,28 @@ it('a new boot can reacquire unchanged files without inheriting the old evidence
 });
 
 it('a queued acquisition deadline rejects before the held S barrier is released',async()=>{
- const f=await fixture();let entered!:()=>void,release!:()=>void;const started=new Promise<void>(r=>entered=r),hold=new Promise<void>(r=>release=r);const barrier=f.store.withReadonlyBarrier('session-a',async()=>{entered();await hold});await started;
- const native=createNativeHistoryProvider({actorAuthority:f.authority,actorToken:f.actor,store:f.store,history:f.history,endpointFactory:f.endpointFactory,deadlineMs:50});let settled=false;const capture=native.capture().catch(error=>{settled=true;throw error}),failed=expect(capture).rejects.toThrow('MEMORY_HISTORY_NATIVE_TIMEOUT');
- try{await new Promise(r=>setTimeout(r,150));expect(settled).toBe(true);expect(f.reads).toBe(0)}finally{release();await barrier;await failed;await native.close()}
+ const f=await fixture();let entered!:()=>void,release!:()=>void,queued!:()=>void;
+ const started=new Promise<void>(r=>entered=r),hold=new Promise<void>(r=>release=r),admitted=new Promise<void>(r=>queued=r);
+ const barrier=f.store.withReadonlyBarrier('session-a',async()=>{entered();await hold});await started;
+ // capture performs async preflight before starting its acquisition deadline.
+ // Observe real queue admission before advancing the same clock as that deadline.
+ vi.useFakeTimers({toFake:['setTimeout','clearTimeout','performance']});
+ const native=createNativeHistoryProvider({actorAuthority:f.authority,actorToken:f.actor,history:f.history,endpointFactory:f.endpointFactory,deadlineMs:50,
+  store:{withReadonlyBarrier:(id,run)=>{const pending=f.store.withReadonlyBarrier(id,run);queued();return pending}}});
+ let settled=false;
+ const outcome=native.capture().then(value=>{settled=true;return {value}},error=>{settled=true;return {error}});
+ try{
+  await Promise.race([admitted,outcome.then(()=>{throw Error('capture settled before queue admission')})]);
+  await vi.advanceTimersByTimeAsync(49);expect(settled).toBe(false);expect(f.reads).toBe(0);
+  await vi.advanceTimersByTimeAsync(1);expect(settled).toBe(true);
+  expect(await outcome).toMatchObject({error:expect.objectContaining({message:'MEMORY_HISTORY_NATIVE_TIMEOUT'})});
+  expect(f.reads).toBe(0);
+  release();await barrier;await f.store.waitForIdle('session-a');
+  expect(f.reads).toBe(0);expect(f.held).toBe(0);
+ }finally{
+  try{release();await barrier;await f.store.waitForIdle('session-a');await outcome;await native.close()}
+  finally{vi.useRealTimers()}
+ }
 });
 
 it('invalidation waits for an in-flight endpoint factory to finish exact cleanup',async()=>{

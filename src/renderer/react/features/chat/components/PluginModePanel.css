@@ -58,6 +58,7 @@
 
 .plugin-panel__source-switch {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 12px 28px 0;
@@ -408,4 +409,33 @@
 
 .plugin-card-ui__downloads {
   color: var(--cy-accent, #8839ef);
+}
+
+.plugin-card-ui__compatibility {
+  margin: 0;
+  padding-left: 54px;
+  color: var(--cy-text-muted, #6e6e73);
+  font-size: 11px;
+}
+
+.plugin-card-ui__compatibility.is-incompatible {
+  color: var(--cy-danger, #c9342d);
+}
+
+.plugin-card-ui__details {
+  margin-left: 54px;
+  color: var(--cy-text-muted, #6e6e73);
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.plugin-card-ui__details summary {
+  color: var(--cy-accent, #8839ef);
+  cursor: pointer;
+}
+
+.plugin-card-ui__details p {
+  margin: 6px 0 0;
 }

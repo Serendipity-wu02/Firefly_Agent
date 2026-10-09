@@ -6,16 +6,18 @@
 // 高亮：shiki 单例 + github-light 主题，按扩展名选语言；渐进式渲染（先纯文本后上色），
 // 高亮失败或语言不支持时保持纯文本，不阻塞阅读。
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Tree } from "antd";
 import type { DataNode, EventDataNode } from "antd/es/tree";
 import { FileText, RefreshCw } from "lucide-react";
 import { createHighlighter, type BundledLanguage, type Highlighter, type ThemedToken } from "shiki";
 import { useTranslation } from "../../../i18n";
-import type { WorkspaceFileEntry, WorkspaceFileErrorCode } from "../../../../../shared/workspace-files-types";
+import { uiColorContrast, uiColorTokens } from "../../../../../shared/ui-colors";
+import type { WorkspaceFileEntry, WorkspaceFileErrorCode, WorkspaceReadResult } from "../../../../../shared/workspace-files-types";
 import { MarkdownContent } from "./ChatMessageList";
 import { releaseFocusedDescendant } from "./focus-handoff";
 import { vscodeIconForFile } from "./vscodeFileIcon";
+import { WorkspaceTextEditor, workspaceEditorKey, useWorkspaceEditorState, getWorkspaceEditorState, consumeWorkspaceEditorSave } from "./WorkspaceTextEditor";
 import "./FileTreePanel.css";
 
 /** 预览最多渲染的行数：再多一次性铺 DOM 会卡 */
@@ -95,6 +97,16 @@ const ERROR_KEYS: Record<WorkspaceFileErrorCode, string> = {
   BINARY: "fileTree.errBinary",
   LIST_FAILED: "fileTree.errListFailed",
   READ_FAILED: "fileTree.errReadFailed",
+  INVALID_REQUEST: "fileTree.errInvalidRequest",
+  FORBIDDEN: "fileTree.errForbidden",
+  CANCELLED: "fileTree.errCancelled",
+  CONFLICT: "fileTree.errConflict",
+  WORKSPACE_CHANGED: "fileTree.errWorkspaceChanged",
+  LINK_READ_ONLY: "fileTree.errLinkReadOnly",
+  UNSUPPORTED_TEXT: "fileTree.errUnsupportedText",
+  READ_ONLY: "fileTree.errReadOnly",
+  WRITE_FAILED: "fileTree.errWriteFailed",
+  WRITE_BUSY: "fileTree.errWriteBusy",
 };
 
 interface TreeItem extends DataNode {
@@ -277,14 +289,27 @@ export function FileTreePanel({
   );
 }
 
+// The shared color bootstrap owns this attribute. Observing it changes only token
+// presentation; it must not trigger another file read or mutate the theme itself.
+function subscribePreviewColors(changed: () => void): () => void {
+  const observer = new MutationObserver(changed);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui-colors"] });
+  return () => observer.disconnect();
+}
+function previewColorSnapshot(): string {
+  return document.documentElement.dataset.uiColors ?? "";
+}
+
 export function FilePreviewContent({
   sessionId,
+  workspaceRoot,
   relPath,
   scrollToLine,
   lineSeq,
   refreshRevision,
 }: {
   sessionId: string;
+  workspaceRoot?: string;
   relPath: string;
   /** 从消息文件链接跳转过来时定位到该行（居中滚动）；缺省不做定位 */
   scrollToLine?: number;
@@ -297,15 +322,28 @@ export function FilePreviewContent({
   const [state, setState] = useState<
     | { phase: "loading" }
     | { phase: "error"; code: WorkspaceFileErrorCode }
-    | { phase: "ok"; content: string; size: number }
+    | ({ phase: "ok" } & Extract<WorkspaceReadResult, { ok: true }>)
   >({ phase: "loading" });
   // shiki 高亮结果（null = 未高亮/不支持，先按纯文本渲染）
   const [tokens, setTokens] = useState<ThemedToken[][] | null>(null);
+  const customColorKey = useSyncExternalStore(subscribePreviewColors, previewColorSnapshot, () => "");
+  const customPalette = useMemo(() => {
+    if (!customColorKey) return null;
+    const [accent, background, foreground] = customColorKey.split(":");
+    return uiColorTokens({ enabled: true, accent, background, foreground });
+  }, [customColorKey]);
+  const tokenColor = (color: string) => customPalette && uiColorContrast({
+    background: customPalette["--cy-bg-page"], foreground: color,
+  }) < 4.5 ? customPalette["--cy-text"] : color;
+
   // Markdown 文件的查看方式：渲染预览 / 源码（非 md 文件不用）；
   // 带行号定位跳转过来时直接进源码视图（预览视图没有行号概念）
   const isMarkdown = isMarkdownPath(relPath);
   const [mdView, setMdView] = useState<"preview" | "source">(scrollToLine === undefined ? "preview" : "source");
   const scrollHostRef = useRef<HTMLDivElement>(null);
+  const editorKey = workspaceEditorKey(sessionId, workspaceRoot, relPath);
+  const editorState = useWorkspaceEditorState(editorKey);
+  const editing = Boolean(editorState?.draft);
   const [refreshSequence, setRefreshSequence] = useState(0);
 
   useEffect(() => {
@@ -315,6 +353,11 @@ export function FilePreviewContent({
 
   useEffect(() => {
     let cancelled = false;
+    const draft = getWorkspaceEditorState(editorKey)?.draft;
+    if (draft) {
+      setState({ phase: "ok", ok: true, content: draft.original, size: draft.size, editVersion: draft.editVersion });
+      return;
+    }
     setState({ phase: "loading" });
     setTokens(null);
     const api = window.workspaceFiles;
@@ -329,18 +372,7 @@ export function FilePreviewContent({
           setState({ phase: "error", code: result.code });
           return;
         }
-        setState({ phase: "ok", content: result.content, size: result.size });
-        // 读取成功后异步上色：渐进式，失败保持纯文本
-        const lang = langForPath(relPath);
-        if (!lang) return;
-        getHighlighter()
-          .then((highlighter) => highlighter.codeToTokens(result.content, { lang, theme: HIGHLIGHT_THEME }))
-          .then((highlight) => {
-            if (!cancelled) setTokens(highlight.tokens);
-          })
-          .catch(() => {
-            // 高亮失败不影响阅读，静默保持纯文本
-          });
+        setState({ phase: "ok", ...result });
       })
       .catch(() => {
         if (!cancelled) setState({ phase: "error", code: "READ_FAILED" });
@@ -348,7 +380,25 @@ export function FilePreviewContent({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, relPath, refreshRevision, refreshSequence]);
+  }, [sessionId, relPath, editorKey, refreshRevision, refreshSequence]);
+
+  useEffect(() => {
+    if (!editorState?.saved) return;
+    setState({ phase: "ok", ...editorState.saved });
+    consumeWorkspaceEditorSave(editorKey);
+  }, [editorKey, editorState?.saved]);
+
+  const highlightedText = state.phase === "ok" ? state.content : undefined;
+  useEffect(() => {
+    let cancelled = false;
+    setTokens(null);
+    const lang = langForPath(relPath);
+    if (highlightedText !== undefined && lang) getHighlighter()
+      .then(highlighter => highlighter.codeToTokens(highlightedText, { lang, theme: HIGHLIGHT_THEME }))
+      .then(highlight => { if (!cancelled) setTokens(highlight.tokens); })
+      .catch(() => { /* Plain text remains readable when highlighting fails. */ });
+    return () => { cancelled = true; };
+  }, [editorKey, relPath, highlightedText]);
 
   // 行号定位：文件内容就绪后把目标行滚到视口中间；lineSeq 变化（同标签换行号）时重滚
   useEffect(() => {
@@ -378,12 +428,12 @@ export function FilePreviewContent({
           className="cy-file-refresh"
           aria-label={t("fileTree.refreshPreview")}
           title={t("fileTree.refreshPreview")}
-          disabled={state.phase === "loading"}
+          disabled={state.phase === "loading" || editing}
           onClick={() => setRefreshSequence((value) => value + 1)}
         >
           <RefreshCw size={14} aria-hidden="true" />
         </button>
-        {isMarkdown && (
+        {isMarkdown && !editing && (
           <span className="cy-file-preview__md-toggle" role="group" aria-label={t("rightInspector.toggle")}>
             <button
               type="button"
@@ -406,7 +456,9 @@ export function FilePreviewContent({
           </span>
         )}
       </div>
-      {state.phase !== "ok" ? (
+      <WorkspaceTextEditor editorKey={editorKey} sessionId={sessionId} relPath={relPath}
+        snapshot={state.phase === "ok" ? state : undefined} errorText={code => t(ERROR_KEYS[code])} />
+      {editing ? null : state.phase !== "ok" ? (
         <div className="cy-file-preview__state" role="status">
           {state.phase === "loading" ? t("fileTree.previewLoading") : t(ERROR_KEYS[state.code])}
         </div>
@@ -422,7 +474,7 @@ export function FilePreviewContent({
               <span className="cy-file-preview__text">
                 {line.map((token, tokenIndex) =>
                   token.color ? (
-                    <span key={tokenIndex} style={{ color: token.color }}>{token.content}</span>
+                    <span key={tokenIndex} style={{ color: tokenColor(token.color) }}>{token.content}</span>
                   ) : (
                     token.content
                   ),
@@ -432,7 +484,7 @@ export function FilePreviewContent({
           ))}
         </pre>
       )}
-      {state.phase === "ok" && totalLines > PREVIEW_MAX_LINES && (
+      {!editing && state.phase === "ok" && totalLines > PREVIEW_MAX_LINES && (
         <div className="cy-file-preview__truncated">
           {t("fileTree.previewLinesHint", { count: PREVIEW_MAX_LINES })}
         </div>

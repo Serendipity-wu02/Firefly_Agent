@@ -74,7 +74,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
 }: ChatPageNavigationProps) {
   // 性能探针：perf harness 注册后统计导航子树执行次数（阶段 1A 验收：流式期间应为 0）
   reportChatPerfRender("navigationRenders");
-  const sidebar = useSidebarWidth();
+  const sidebar = useSidebarWidth(collapsed);
   const hasOpenPanel = activePanel !== null;
   const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -142,9 +142,12 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
         aria-valuemax={sidebar.max} aria-valuenow={sidebar.width}
         onPointerDown={sidebar.beginResize}
         onKeyDown={(event) => {
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          const delta = event.key === "Home" ? sidebar.min - sidebar.width
+            : event.key === "End" ? sidebar.max - sidebar.width
+              : event.key === "ArrowRight" ? 16 : event.key === "ArrowLeft" ? -16 : null;
+          if (delta === null) return;
           event.preventDefault();
-          sidebar.resizeBy(event.key === "ArrowRight" ? 16 : -16);
+          sidebar.resizeBy(delta);
         }} />;
 
   return (
@@ -189,6 +192,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
         <div className="cy-page-rail-bottom"><RailUserMenu onOpenSettings={onOpenSettings} /></div>
       </nav>
       <aside ref={contextRef} onPointerEnter={enter} onPointerLeave={leave} id="firefly-context-sidebar" className={`cy-page-sidebar ${collapsed ? "is-floating" : ""} ${peeking ? "is-peeking" : ""}`} style={{ width: sidebar.width }} inert={hidden} aria-hidden={hidden} aria-label={t("ui.contextSidebar")}>
+        {collapsed && <span className="cy-sidebar-hover-corridor" aria-hidden="true" />}
         <div className="cy-page-context-header">Firefly</div>
         <ModeSwitch value={mode} onChange={onModeChange} />
         <div className="cy-page-newtask">
@@ -209,9 +213,9 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
           />
         </div>
         <AppUpdateEntry />
-        {collapsed && !hidden && resizeHandle}
+        {sidebar.overlay && !hidden && resizeHandle}
       </aside>
-      {!collapsed && resizeHandle}
+      {!sidebar.overlay && resizeHandle}
 
     </>
   );

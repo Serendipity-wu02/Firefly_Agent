@@ -1,14 +1,16 @@
 # Bash 集成测试超时（2026-09-26）
 
-> 历史记录：所列 CI 运行及定向修正记录；保留原结果，不代表后续提交或本轮完整套件通过。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../../README.md)。
+> **日期**：2026-09-26
+> **状态**：历史技术记录。下文描述记录时的实现、设计与验证结论，不代表当前版本复测。
+> **范围**：Bash 选择、探测时序、测试夹具与定向验证。当前维护入口见[文档导航](../../README.md)。
 
 ## 失败证据与边界
 
-- 开发分支提交 `485a09ce954e7941b4307f13f79aae076d46bc35` 的 [Test 36165783236](https://github.com/Serendipity-wu02/Firefly_Agent/actions/runs/36165783236) 唯一失败为 `run_shell shell selection > executes bash syntax with Bash instead of silently passing it to cmd.exe`，Vitest 在 5002 ms 报告默认 5000 ms 用例超时。
+- CI [Test 36165783236](https://github.com/Serendipity-wu02/Firefly_Agent/actions/runs/36165783236) 唯一失败为 `run_shell shell selection > executes bash syntax with Bash instead of silently passing it to cmd.exe`，Vitest 在 5002 ms 报告默认 5000 ms 用例超时。
 - 用例请求 `run_shell` 使用 Bash 执行 `printf 'firefly-bash-ok'`。实际执行前，`shell-runtime.ts` 顺序探测存在的 Bash，每个探测最多 3000 ms；整个解析过程没有 5000 ms 总时限契约。
-- 真正 worker 7792 的本次生命周期始于 17:20:03.681Z。子进程 7856 于 17:20:05.047Z 启动，17:20:08.052Z 被探测计时器请求 `SIGKILL`；第二个 Bash 子进程 3528 于 17:20:08.812Z 启动。测试文件于 17:20:09.141Z 结束。失败发生在解析 Bash 阶段，没有证据表明被测 `printf` 已开始，不是工具命令执行超时，也不是 worker 原生崩溃。
+- 进程证据表明：首个 Bash 探测达到 3000 ms 上限后被请求 `SIGKILL`，随后启动第二个探测；用例在 Bash 解析阶段触发 5000 ms 总预算。没有证据表明 `printf` 已开始，不能归因为命令执行超时或 worker 原生崩溃。
 - 当时记录仅有 `bash.exe` 基名，不能恢复完整执行路径，不能断言是 WSL、PATH 错误或确定第一项探测变慢的系统原因。此次修正针对集成测试未限定外部 Bash 夹具，却要求探测与执行合计五秒内结束的时序依赖。
-- 原完整日志与进程证据保存在仓库外 `E:\Codex\Firefly-vitest-investigation-20260926\dev-36165783236`。该次 505 个真实 worker 均正常停止，无异常退出或 worker error；此前 Windows 文件监视短路径修复的回归通过。
+- 原完整日志与进程证据按 CI 运行号 36165783236 保存在仓库外诊断归档。该次 505 个真实 worker 均正常停止，无异常退出或 worker error；此前 Windows 文件监视短路径修复的回归通过。
 
 ## 修正
 
@@ -20,6 +22,6 @@
 ## 定向验证
 
 - 四个相关测试文件共 18 项通过，无跳过：真实 Bash 集成、解析探测、工具超时与取消/清理边界。
-- 本地真实夹具 `E:\Git\usr\bin\bash.exe` 来自本机 Git Bash 的 `$BASH`，不是写入源码的默认配置。probe 子进程 10236 与 command 子进程 25300 均实际 exit/close 0、signal null；集成测试耗时 154 ms。
+- 本地真实夹具由 Git Bash 的 `$BASH` 提供，并通过 `cygpath -w` 转为绝对路径；源码未硬编码安装位置。probe 与 command 两阶段均实际 exit/close 0、signal null；集成测试耗时 154 ms。
 - `npx tsc -p tsconfig.main.json --noEmit`、诊断脚本 Node 语法检查、Git 差异空白检查通过。
-- 本地记录在仓库外 `E:\Codex\Firefly-vitest-investigation-20260926\bash-targeted\firefly-vitest-diagnostics`。完整 CI 结果以本次推送后的实际运行记录为准，不能用此定向验证替代。
+- 本地记录保存在仓库外 Bash 定向诊断归档。该记录仅证明上述定向验证结果，不能替代后续完整 CI 运行。

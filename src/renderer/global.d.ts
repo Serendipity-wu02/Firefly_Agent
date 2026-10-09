@@ -1,3 +1,4 @@
+import type { DesktopAsrApi } from "../shared/desktop-asr";
 import type { SettingsApi } from "./settings/shared/types";
 import type { ModelConfigApi } from "../shared/model-connection-types";
 import type { BrowserAvailabilityApi } from "../shared/browser-availability";
@@ -7,7 +8,7 @@ import type { ReviewSnapshot, ReviewRestoreOutcome } from "../shared/review-type
 import type { AppUpdateApi } from "../shared/app-update";
 import type { StickerManagerApi } from "../shared/sticker-types";
 import type { PluginManagementApi, PluginPanelApi } from "../shared/plugin-management";
-import type { WorkspaceListResult, WorkspaceReadResult } from "../shared/workspace-files-types";
+import type { WorkspaceListResult, WorkspaceReadResult, WorkspaceSaveResult } from "../shared/workspace-files-types";
 import type { OpenInAppListResult, OpenInAppOpenResult } from "../shared/open-in-app-types";
 
 interface SystemApi {
@@ -25,6 +26,8 @@ interface WorkspaceFilesApi {
   list: (sessionId: string, relPath: string) => Promise<WorkspaceListResult>;
   /** 读取工作区内某文件内容（预览用；1MB 上限、二进制拒绝） */
   read: (sessionId: string, relPath: string) => Promise<WorkspaceReadResult>;
+  /** Every save requires Main-owned native confirmation. */
+  save: (sessionId: string, relPath: string, content: string, editVersion: string) => Promise<WorkspaceSaveResult>;
 }
 
 interface OpenInAppApi {
@@ -54,7 +57,9 @@ interface ChatWindowApi {
 
 declare global {
   interface Window {
+    desktopAsr?: DesktopAsrApi;
     manualBrowser?: BrowserAvailabilityApi;
+    manualBrowserWorkspace?: import("../shared/manual-browser").ManualBrowserWorkspaceApi;
     modelConfig?: ModelConfigApi;
     system?: SystemApi;
     review?: ReviewApi;

@@ -1,4 +1,7 @@
 import { dialog } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
+import { isTrustedExternalMainFrame } from "../skills/external-ipc";
+import { isExternalSkillId } from "../skills/skill-scanner";
 import * as fs from "fs";
 import * as path from "path";
 import { IPC } from "../../shared/ipc-channels";
@@ -8,7 +11,7 @@ import { addUserSticker, deleteUserSticker } from "../sticker-storage";
 import { loadImportedDocumentPanelData, loadMemoryPanelData } from "./panel";
 import { deleteImportedDoc } from "../rag";
 import { loadUserProfile, saveUserProfile, getAvatarPath } from "../settings-store";
-import { addMcpServer, removeMcpServer, listMcpServers } from "../orchestrator/mcp-manager";
+import { registerMcpManagementIpc } from "../orchestrator/mcp-management-ipc";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 import type { ConversationMode } from "../../shared/chat-types";
 import { loadGeneralSettings, saveGeneralSettings } from "../settings/settings-facade";
@@ -266,26 +269,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
     return { avatarPath, profile };
   });
 
-  // MCP servers
-  ipc.handle(IPC.MCP_ADD_SERVER, async (_event, config: unknown) => {
-    console.log("[MCP IPC] add-server:", JSON.stringify(config).slice(0, 200));
-    const result = await addMcpServer(config as Parameters<typeof addMcpServer>[0]);
-    console.log("[MCP IPC] add-server result:", JSON.stringify(result));
-    return result;
-  });
-
-  ipc.handle(IPC.MCP_REMOVE_SERVER, async (_event, serverId: string) => {
-    console.log("[MCP IPC] remove-server:", serverId);
-    const result = await removeMcpServer(serverId);
-    console.log("[MCP IPC] remove-server result:", JSON.stringify(result));
-    return result;
-  });
-
-  ipc.handle(IPC.MCP_LIST_SERVERS, () => {
-    const servers = listMcpServers();
-    console.log("[MCP IPC] list-servers:", servers.length + " servers");
-    return servers;
-  });
+  registerMcpManagementIpc({ ipc, getSettingsWindow: () => settingsWindow });
 
   // Tool toggles
   ipc.handle(IPC.TOOL_SET_ENABLED, (_event, payload: unknown) => {
@@ -368,12 +352,20 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   // Skill toggles
   ipc.handle(IPC.SKILL_LIST, () => listSkillsForUi());
 
-  ipc.handle(IPC.SKILL_SET_ENABLED, (_event, payload: unknown) => {
-    const p = payload as { id?: string; enabled?: boolean };
-    if (!p.id) return { ok: false, error: "missing skill id" };
-    setSkillEnabled(p.id, p.enabled !== false);
-    console.log("[Skill] " + p.id + " enabled=" + (p.enabled !== false));
-    return { ok: true };
+  ipc.handle(IPC.SKILL_SET_ENABLED, (event: IpcMainInvokeEvent, payload: unknown) => {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return { ok: false, error: "Invalid Skill enable request." };
+    const p = payload as { id?: unknown; enabled?: unknown };
+    if (typeof p.id !== "string" || !p.id || typeof p.enabled !== "boolean" || !skillRegistry.getById(p.id)) return { ok: false, error: "Invalid Skill enable request." };
+    if (isExternalSkillId(p.id) && (Reflect.ownKeys(payload).some(key => key !== "id" && key !== "enabled")
+      || !isTrustedExternalMainFrame(event, reactChatWindow && !reactChatWindow.isDestroyed() ? reactChatWindow.webContents : null))) {
+      return { ok: false, error: "External Skill enable request is not permitted." };
+    }
+    try {
+      setSkillEnabled(p.id, p.enabled);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Skill state could not be saved or verified. Refresh before trying again." };
+    }
   });
 
   // Skill 目录元数据（skill 页展示用；只暴露可序列化字段）
@@ -391,6 +383,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
         modes: s.modes ?? null,
         version: s.version,
         references: s.references,
+        external: s.external,
       }));
   });
 

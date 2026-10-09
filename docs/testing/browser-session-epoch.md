@@ -1,57 +1,50 @@
-# Session / policyEpoch 隔离原型证据
+# Session/policyEpoch 隔离原型验证
 
-2026-10-04，基线`2f7fc34f43e03e017d99d440f66533afb0d91447`。用户批准综合会话授权域调查、正式设计更新、安全review与隔离原型；不默认禁Worker、不放行生产。契约及计划在[right-agent-workspace](../architecture/right-agent-workspace.md#2026-10-04-会话授权域验证契约)、[模块计划](../architecture/browser-network-modules-plan.md#会话授权域已授权的隔离原型续接计划)。本次产品源码无修改，原精确WebContentsId策略、proxy、DNS预算和R2/R3/R4均保持。
+> 证据阶段：2026-10-04
+> 文档整理：2026-10-07；仅整理既有证据，未重跑测试。
+> 适用边界：下述实现、通过项与 HOLD 均指记录阶段，不代表当前产品状态。
 
-## 原型边界与鉴权
+## 1. 背景与边界
 
-原型独立隐藏Electron43.1.0/Chromium150.0.7871.47/Node24.18.0；userData/sessionData/logs/crashDumps及TEMP/TMP/RUNNER_TEMP只在task-4专用路径。每域唯一新非persist Session，Main私有Map按原生Session对象登记，epoch及hosts/methods数组冻结；ready前统一handler持续deny，准备await后和首文档前复验注册/abort/owner。owner在本夹具是自有窗口，不宣称父实际profile/conversation/run注册已接线。
+本阶段验证会话授权域候选契约，不默认禁止 worker，不打开生产。产品源码、原 WebContentsId 策略、proxy、DNS 预算和 R2/R3/R4 不变。相关设计见[工作区设计](../architecture/right-agent-workspace.md)及[模块计划](../architecture/browser-network-modules-plan.md)。
 
-无Node/preload、sandbox/contextIsolation；权限、设备、新窗口、下载拒绝。只为固定内存`ff-epoch-fixture://fixture/`、`/shared.js`、`/sw.js`返回合成内容，例外仍检查活动域/GET/资源类型；不路由文件/目录，不新增产品scheme权限。workers在策略安装后创建，未用CSP禁Worker。网页所有HTTPS网络请求保留GET/HEAD、原资源白名单、443/userinfo检查以及原公网地址函数。
+原型环境为 Electron 43.1.0 / Chromium 150.0.7871.47 / Node 24.18.0，独立隐藏窗口/QA profile。每域使用新非 persist Session，Main 私有 Map 按原生 Session 对象注册，epoch/hosts/methods 冻结；ready 前 deny，准备 await 后和首文档前复验 owner/abort/注册。这里的 owner 是自有窗口，不证明实际 profile/conversation/run 接线。
 
-鉴权只向活动域精确注册的原生页面对象、其`contents.session`和精确proxy端点/realm/scheme发凭据，调用未改的`credentialsFor`。无contents/可信Session的app.login回调取消，不从PID、URL、realm或端点猜owner。credentials仅Main内存，不记录/入Git。页面先认证该Session代理后，原生Chromium auth cache可供该域workers使用；它们缺ID/frame不因此得到新凭据。清cache后缺归属挑战继续取消，功能受阻是真实边界，不静默重认证或共享缓存。
+无 Node/preload、sandbox/contextIsolation，拒绝权限/设备/新窗口/下载。固定 `ff-epoch-fixture://fixture/`、`/shared.js`、`/sw.js` 只供应合成内容，并检查活动域/GET/资源类型；无文件路由或产品 scheme 扩权。worker 在策略安装后创建，未用 CSP 禁止。HTTPS 仍遵守 GET/HEAD、资源白名单、443/userinfo 与既有公网分类。
 
-受控resolver/dialer沿用公网数值pin93.184.216.34→本机TLS服务的测试替换，不增加产品私网允许项。Chromium自签证书始终默认拒绝，正常GET/HEAD结果TypeError或证书错误且HTTP0；因此**不是可信公网HTTPS成功证据**。Node局部`tls.connect({ca:测试证书,rejectUnauthorized:true,servername:'example.com'})`严格验证证书，仅向自有sink发送一次合成POST，未安装系统CA/统一放行Chromium。
+## 2. 鉴权与方法边界
 
-## RED及失败记录
+凭据只发给活动域中精确注册 native contents、其 Session 及精确 proxy endpoint/realm/scheme；无 contents/可信 Session 的 app.login 取消，不从 PID/URL/realm 猜 owner。凭据只在 Main 内存。页面先认证后，Chromium auth cache 可被同域 worker 消费；缺 ID/frame 不触发新凭据授予，cache 失效后无法归属的新挑战仍拒绝。
 
-| run | PID / native退出 | 实际结果 |
-|---|---|---|
-| red-worker-r1 | 34316 / 1 | 旧策略拒绝已注册Session的SharedWorker GET，ID/frame缺失，dial0；新继承契约断言true实际false。 |
-| red-tls-r1 | 5628 / 1 | Node已验证TLS隧道中的POST抵达自有sink一次，GET/HEAD断言0实际1；证明CONNECT不解密/不能独立限制方法。 |
-| green-r1 | 10160 / 1 | 到第11记录已覆盖继承/隔离/POST，随后TLS关闭观察超时。客户端未消费响应，唯一加`resume()`后r2成功；不是降低撤销断言。 |
-| green-r2 | 29356 / 0 | 14记录/errors=[]。独立review要求增强缓存负例顺序及旧worker请求非空/实例断言，r2不能独立宣称完整隔离验收。 |
-| green-r3 | 22476 / 1 | 新增已安装SW动态新import误假定会联网。此前dedicated/shared import均实际dial，SW无hook/resolver/dial；不是认证/IP绕过。 |
-| green-r4 | 31692 / 0 | 最终19记录/errors=[]，required证据增强已覆盖；剩余自有peer0，所有六个记录PID已退出。 |
+公网 pin `93.184.216.34` 被夹具映射到自有 TLS sink，Chromium 自签证书始终拒绝、HTTP0，因此无可信公网成功证明。独立 Node `tls.connect({ca:测试证书,rejectUnauthorized:true,servername:'example.com'})` 只访问自有 sink；其 POST 实际抵达，证明 CONNECT 不解密且不能独立约束方法。它不能补齐 Chromium 已有 TLS 隧道的 POST 覆盖。
 
-SW安装完成后的importScripts只能读取已存在script resource map；未安装URL返回network error，见[W3C6.3.2](https://w3c.github.io/ServiceWorker/#importscripts)。r4断言本例实际NetworkError、hook0/dial0，标注为平台负例；不把它算SW安装/更新网络请求策略通过。r3之前未记录该命令result，只保留原始失败/无网络观测，不倒填历史数据。两次测试假设错误各纠正一次后成功；产品修复尝试0、同问题连续两次技术修复失败0，无权限拒绝/绕过。
+## 3. 最终有限结果
 
-## 最终可证的有限性质
+`green-r4`：19 记录、errors 空、native exit 0，自有剩余 peer 0。
 
-- 同源两个Session各有不同SharedWorker及SW实例UUID、SW注册各1，B的localStorage起始null、两域各自owner值，cookie相互隔离；未测跨域IndexedDB/CacheStorage全部形态。
-- 未预认证B的真实无contents挑战取消，dial0。其no-cors fetch有时返回`fulfilled`，不能当访问成功；本文按代理拨号及目标计数判断。
-- A页面原生可信Session完成proxy挑战后，dedicated/shared/SW GET各新增1个真实认证proxy数值拨号；shared/SW请求缺ID/frame，未有新的凭据授予挑战。dedicated/shared importScripts同样拨号；HEAD保留。所有三类worker POST及SW私网目标在Session gate拒绝，新增dial0。
-- **不先清B的auth cache**，让B指向A endpoint：实际无contents worker挑战取消，原生可信B页面挑战也因端点不符不发凭据，总拨号无新增。随后A shared仍用缓存新增dial1且无新挑战，排除清B可能抹掉A缓存掩盖问题的测试假设。
-- `A.clearAuthCache()+closeAllConnections()`后SW的新无contents挑战取消，dial无新增；再由可信A页面认证。旧epoch先revoke+关闭Session连接，Node已验证存量TLS客户端实际destroyed。
-- 新Session C只冻结新目标example.org；旧A的hosts仍冻结为example.com。旧shared/SW仍存活，分别给新目标发不同URL：每种有新非空记录、全部deny、返回实例等于原种子，旧域拨号无新增。C实际Main-frame导航尝试经过新域policy，随后正常`ERR_CERT_AUTHORITY_INVALID`，不是导航成功。
-- C唯一代理关闭后，实际Main-frame导航`ERR_PROXY_CONNECTION_FAILED`，resolveProxy仍PROXY，受控拨号/sink无新增。此计数不证明全协议无DIRECT/其他出口。
-- D在DNS等待时撤销，再释放resolver：无迟到dial。此为受控promise与真实本机CONNECT，不声称OS DNS可取消。
+- 同源 A/B 具有不同 SharedWorker/SW UUID，各 SW 注册1；B localStorage 初始 null，owner 值和 cookie 隔离，未覆盖所有 IDB/CacheStorage 形态。
+- 未预认证 B 的真实无 contents challenge 被取消，dial0；no-cors `fulfilled` 不等于访问成功，按 dial/sink 判断。
+- A 页面完成真实 proxy auth 后，dedicated/shared/SW GET 各新增1个真实数值 dial；shared/SW 无 ID/frame，无新的凭据授予。dedicated/shared importScripts 亦可拨号，HEAD 保留。三类 worker POST 与 SW 私网目标拒绝，新增 dial0。
+- 不先清 B auth cache而将 B 指向 A endpoint，worker 无 contents challenge 与可信 B 页面 challenge 均拒绝，无新 dial；随后 A shared 缓存仍可新增 dial1，排除清 B 顺带清 A 掩盖问题。
+- A clearAuthCache/closeAllConnections 后，无 contents SW challenge 拒绝；可信 A 页面重新认证。旧 epoch revoke/close 后存量 Node TLS client destroyed。
+- 新 Session C 只冻结 example.org，A 仍为 example.com。旧 shared/SW 各有非空、新 URL、原实例匹配记录，全部 deny、旧域 dial 不增。C main-frame 经新 policy 后因正常自签拒绝失败，不是导航成功。
+- C proxy 关闭后 main-frame 为 `ERR_PROXY_CONNECTION_FAILED`，resolveProxy 仍 PROXY，无新增受控 dial/sink；不证明所有协议无 DIRECT。
+- D 在受控 DNS Promise 等待时撤销，再释放无晚 dial；不等于 OS DNS 可取消。
 
-## 审查、复现与剩余门槛
+## 4. 技术失败条件、审查与证据
 
-独立`session_epoch_security_review`先审三文档和既有模块，无Critical，允许受限原型，要求默认deny/准备复验、缓存负例及未知挑战拒绝、存量隧道销毁、固定夹具例外和TLS证据区分。r2复审提出两项Required：不先清B缓存、旧worker请求逐种非空且匹配旧实例；r4实现并实测这些断言。最终只读复审核对r4原始记录与脚本（SHA256 `f740b686fe9abff327f6579fc20678eb0485abc39cfc06c140df081a60a62b06`）：两项Required关闭，无新增Critical/Required，可交集成者评估，生产gate仍HOLD。审查者未另跑native或改文件。
+旧策略拒绝已注册 Session 的 shared worker 无 ID/frame GET，是新继承契约的 RED；Node POST 抵达是方法边界反例。TLS 关闭观察曾因客户端未消费响应而超时，补 `resume()` 后通过，没有降低撤销断言。
 
-[脚本及manifest](fixtures/browser-session-epoch/manifest.json)保留每次原始JSON/launcher、输入脚本版本映射及SHA256；外部完整stdout/stderr仍在`E:/Codex/2026-10-04/task-4/network-modules-native`。外部sha256绑定原始字节，archivedSha256绑定Git内LF副本，内容不改；夹具目录属性保持字节。脚本为固定路径实验快照，需要现有dist/Electron及外部测试key/cert，私钥不归档。唯一原工作区/真实userData/旧进程不改，不推送/PR/合并/部署。
+已安装 SW 动态 import 新 URL 不会必然联网：script resource map 缺项返回 NetworkError，hook/dial0。这是平台负例，不算 SW 安装/更新请求策略通过，见[ServiceWorker 规范](https://w3c.github.io/ServiceWorker/#importscripts)。早期失败缺少 result 时不追填历史。
 
-`node --check`原型脚本退出0，PowerShell launcher解析错误0；六个自有记录PID均已退出。定向命令`node node_modules/vitest/vitest.mjs run src/main/browser --configLoader runner`于2026-10-04 19:49:12执行，3文件/131通过/exit0，20.80秒（TEMP/TMP/RUNNER_TEMP为task-4专用tmp）。归档哈希、脚本语法与Git diff检查再次核验。仅文档/一次性夹具变更，本阶段不重跑整仓test/build/typecheck，不能引用前阶段6190/build通过作为本阶段结果。
+独立审查要求缓存负例不先清 B、旧 worker 请求逐种非空且匹配旧实例；最终均实测满足，无新增 Critical/Required。最终输入 SHA-256：`f740b686fe9abff327f6579fc20678eb0485abc39cfc06c140df081a60a62b06`。审查未独立跑 native。
 
-**生产gate仍HOLD。** 可信Chromium已有TLS隧道上的POST正负例、公网默认numeric dial（198.18 DNS环境限制仍在）、SW安装/更新/导航预加载、完整frame/redirect/多平台特殊目标、QUIC/WebRTC/WebTransport、证书/mTLS全部路径、生产Main owner/准备取消/清理失败/ShutdownCoordinator接线均未完整验证。缓存继承只证明本机43.1.0特定有限顺序，不能保证换版本、cache失效或所有worker路径；无法可信归属的新挑战必须拒绝。NodeTLS反例不能补齐Chromium方法覆盖，不能未经这些验收开启真实浏览。
+[manifest](fixtures/browser-session-epoch/manifest.json)保留失败/最终 JSON、launcher 与输入版本。外部 sha256 绑定原始字节，archivedSha256 绑定 Git 内 LF 副本，不混同。完整 stdout/stderr 和测试 key/cert 位于仓库外历史目录；私钥未归档。
 
-DeepSeek Main lease仅设计参考，未移植代码或runtime，其workspace partition复用/存储保留政策没有采用；MIT来源声明见正式设计。官方源码/文档为语义依据，本文逐项原生记录才是实测证据。
+脚本 node --check、PowerShell 解析通过；2026-10-04 19:49:12 的定向回归为 3 files / 131 passed、exit0、20.80s。仅夹具/文档变更，未重跑整仓 test/build/types。来源参考 DeepSeek Main lease 仅设计参考，未移植 runtime/code 或采用其 workspace partition 复用/存储保留策略，许可见正式设计。
 
-## 续接：TLS与DNS限制分离（2026-10-04）
+## 5. 验收限制与后续阶段
 
-本小步基于`9e7c6a3cc51d598c7ab8ae8f986405cb9e5d661c`，[诊断脚本/原始记录及哈希](fixtures/browser-session-epoch/continuation/diagnosis-manifest.json)于12:01:29 UTC执行：系统`dns.lookup(example.com,{all:true})`返回198.18.1.171，未改产品`isPublicNetworkAddress`判false，TCP尝试0；未硬编码公网地址进行实际联网。现有测试leaf当前日期有效、自签名验证true，issuer=subject=CN=example.com；前步原生Chromium仍报ERR_CERT_AUTHORITY_INVALID。这是信任缺口，与公网DNS限制独立，不是证书过期，不用Node局部CA补称Chromium允许路径。无根证书安装、系统网络改动、验证override或权限绕过。
+缓存继承仅覆盖本机版本与有限顺序，不保证其他版本/所有 worker。可信 Chromium TLS 已有隧道方法、默认公网 dial、HTTPS 主 SW install/update/preload、持续回写、完整 frame/redirect/多平台、QUIC/WebRTC/WebTransport、mTLS 和生产 owner/shutdown 均未完整验证；当时 gate HOLD。
 
-用户已授权继续当前环境可做的SW安装/更新与退出生命周期隔离验证。下一步固定内存scheme供应SW主脚本，观察安装/更新期间的HTTPS import和fetch是否进入Session handler、proxy及TLS拒绝路径；脚本加载与安装事件fetch分别记录。实际app.quit/before-quit/will-quit验证同步域撤销、忽略不可信beforeunload等待和await清理，仅是候选夹具，不替代生产ShutdownCoordinator接线。可信Chromium TLS允许路径仍需一个系统原有信任且正常DNS通过公网策略的受控HTTPS目标；当前不能通过安装测试根或绕过198.18补齐。
-
-续接结果见[SW/退出有限证据](browser-sw-lifecycle.md)：内存v1/v2真实激活、两种HTTPS安装/更新import hook及拒绝路径可观察；最终原生退出7记录/errors=[]。保留首轮即时running快照非空的失败，未改生产接线。诊断`tcpAttempts:0`只指应用显式TCP API未调用，不能证明OS DNS内部或抓包TCP0。旧表中的SW安装/更新未验证项已补上述有限路径，HTTPS主脚本成功仍未验证；生产gate继续HOLD。
+后续[SW/退出验证](browser-sw-lifecycle.md)提供内存 v1/v2 激活及 import 拒绝有限补证，不能倒填为本阶段已验收 HTTPS 主脚本。`tcpAttempts:0` 仅应用显式 API 计数，不表示 DNS 内部或全机抓包 TCP0。

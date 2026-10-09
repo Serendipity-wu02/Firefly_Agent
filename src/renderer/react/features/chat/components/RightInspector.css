@@ -7,15 +7,15 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #eff1f5;
+  background-color: var(--cy-bg-workspace);
   background-image: none;
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
-  border: 1px solid var(--cy-border, #f2f2f2);
+  border: 0;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: -4px 0 16px rgb(44 31 38 / 5%);
+  box-shadow: none;
   animation: cy-right-inspector-slide-in 0.22s ease;
   app-region: no-drag;
 }
@@ -29,8 +29,8 @@
 }
 
 @keyframes cy-right-inspector-slide-in {
-  from { opacity: 0; transform: translateX(24px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ── 顶部：antd Tabs 标签栏（editable-card 样式全部抹平，只留底部强调线） ── */
@@ -42,12 +42,14 @@
   height: 100%;
 }
 
-/* 导航栏：38px 高、底部细分割线、与面板同色 */
+/* 与聊天标题行共用高度；标签与内容分开布局。 */
 .cy-right-inspector__tabs > .ant-tabs-nav {
   margin: 0;
-  min-height: 38px;
+  height: var(--cy-workspace-header-height);
+  min-height: var(--cy-workspace-header-height);
+  flex-shrink: 0;
   border-bottom: 1px solid var(--cy-border, #f0ebee);
-  background: rgb(230 233 239 / 92%);
+  background: var(--cy-bg-workspace);
   padding: 0 2px;
 }
 
@@ -55,14 +57,14 @@
   min-width: 0;
 }
 
-/* 标签：抹平 antd 卡片边框，hover 变深，活动标签粉线 + 提亮。
+/* 标签：抹平 antd 卡片边框，hover 变深，活动标签细边框 + 提亮。
    选择器多带一层 __tabs.ant-tabs 是为了压过 antd 运行时注入的样式（文件名字号默认会被顶回 14px） */
 .cy-right-inspector__tabs.ant-tabs .ant-tabs-tab {
-  border: 0 !important;
-  border-radius: 0;
+  border: 1px solid transparent !important;
+  border-radius: 12px;
   background: transparent;
-  padding: 7px 10px 7px 12px;
-  margin: 0;
+  padding: 6px 10px;
+  margin: 4px 2px;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
@@ -83,13 +85,14 @@
 }
 
 .cy-right-inspector__tabs .ant-tabs-tab.ant-tabs-tab-active {
-  background: rgb(239 241 245 / 96%);
+  background: var(--cy-bg-page);
   color: var(--cy-text, #2f2d31);
-  box-shadow: inset 0 -2px 0 var(--cy-accent, #8839ef);
+  border-color: var(--cy-border) !important;
+  box-shadow: none;
 }
 
 /* antd 直接给活动标签的文字上默认蓝色（选择器命中 .ant-tabs-tab-btn），
-   必须以更高优先级把文字颜色覆盖为应用深色，仅保留下划线的粉色强调 */
+   必须以更高优先级把文字颜色覆盖为应用深色，由中性文字与细边框区分活动标签 */
 .cy-right-inspector__tabs.ant-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
   color: var(--cy-text, #2f2d31);
 }
@@ -176,3 +179,20 @@
 }
 
 .cy-right-inspector[hidden] { display: none; }
+
+.cy-right-inspector__label { display: inline-flex; align-items: center; gap: 6px; max-width: 180px; vertical-align: middle; }
+.cy-right-inspector__label > svg { flex: 0 0 auto; opacity: .8; }
+.cy-right-inspector__label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cy-right-inspector__dirty { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--cy-accent); }
+.cy-right-inspector__close { min-height: 32px; border-radius: 8px; }
+.cy-right-inspector__close:focus-visible,
+.cy-right-inspector__tabs .ant-tabs-tab-remove:focus-visible,
+.cy-right-inspector__tabs .ant-tabs-tab-btn:focus-visible { outline: 2px solid var(--cy-accent); outline-offset: 2px; }
+:root[data-ui-colors] .cy-right-inspector__tabs .ant-tabs-tab:hover { background: var(--cy-bg-hover); }
+@media (prefers-reduced-motion: reduce) {
+  .cy-right-inspector, .cy-right-inspector__dot.is-executing { animation: none; }
+  .cy-right-inspector__tabs.ant-tabs .ant-tabs-tab, .cy-right-inspector__close { transition: none; }
+}
+
+.cy-right-inspector__dot.is-failed { background: #c42b1c; }
+.cy-right-inspector__dot.is-cancelled { background: var(--cy-text-muted); }

@@ -41,6 +41,7 @@ import {
 } from "./inbound-media";
 import { getAsrConfig, type AsrConfig } from "../../../asr/asr-config";
 import { createAsrStream } from "../../../asr/asr-dispatcher";
+import { createAbortError, raceWithSignal } from "../../../abort-utils";
 import type {
   ChannelAttachment,
   ChannelCapability,
@@ -496,7 +497,7 @@ export class ILinkBotAdapter implements ChannelAdapter {
     }
 
     try {
-      const transcript = (await this.transcribeVoice(voice, msg.msgId || String(Date.now()))).trim();
+      const transcript = (await this.transcribeVoice(voice, msg.msgId || String(Date.now()), signal)).trim();
       if (!transcript) {
         await this.#sendInterceptText(msg.fromUserId, msg.contextToken, buildWechatAsrFailedPrompt(username, "没有识别到文字"), signal);
         return null;
@@ -636,7 +637,9 @@ async function saveInboundWechatMedia(
 async function transcribeInboundWechatVoice(
   item: InboundMediaDescriptor,
   _messageId: string,
+  signal?: AbortSignal,
 ): Promise<string> {
+  if (signal?.aborted) throw createAbortError();
   if (!item.media) throw new Error("缺少语音下载参数");
   const cfg = getAsrConfig();
   if (!cfg
@@ -656,10 +659,10 @@ async function transcribeInboundWechatVoice(
     const decoded = await decode(source, sampleRate);
     pcm = Buffer.from(decoded.data);
   }
-  return transcribePcmWithConfiguredAsr(pcm, cfg);
+  return transcribePcmWithConfiguredAsr(pcm, cfg, signal);
 }
 
-async function transcribePcmWithConfiguredAsr(pcm: Buffer, cfg: AsrConfig): Promise<string> {
+async function transcribePcmWithConfiguredAsr(pcm: Buffer, cfg: AsrConfig, signal?: AbortSignal): Promise<string> {
   const finals: string[] = [];
   const stream = createAsrStream(
     cfg,
@@ -669,40 +672,35 @@ async function transcribePcmWithConfiguredAsr(pcm: Buffer, cfg: AsrConfig): Prom
     },
   );
 
-  if (cfg.engine === "mossland") {
-    await stream.start();
-    stream.sendAudio(pcm);
-    const completed = await stream.stop();
+  const deadline = new AbortController();
+  let timedOut = false;
+  const timeout = cfg.engine === "aliyun" ? setTimeout(() => {
+    timedOut = true;
+    deadline.abort();
+  }, 15_000) : undefined;
+  const active = signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal;
+  try {
+    if (active.aborted) throw createAbortError();
+    const completed = await raceWithSignal((async () => {
+      await stream.start(); // Aliyun resolves only after TranscriptionStarted.
+      if (active.aborted) throw createAbortError();
+      stream.sendAudio(pcm);
+      return stream.stop();
+    })(), active);
     const result = (completed || finals.join("")).trim();
     if (result) return result;
     throw new Error("没有识别到文字");
-  }
-
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      stream.stop();
+  } catch (error) {
+    if (timedOut && !signal?.aborted) {
       const result = finals.join("").trim();
-      if (result) resolve(result);
-      else reject(new Error("ASR timeout"));
-    }, 15_000);
-
-    stream.start()
-      .then(async () => {
-        await delay(500);
-        stream.sendAudio(pcm);
-        stream.stop();
-        await delay(2500);
-        clearTimeout(timeout);
-        const result = finals.join("").trim();
-        if (result) resolve(result);
-        else reject(new Error("没有识别到文字"));
-      })
-      .catch((err) => {
-        clearTimeout(timeout);
-        stream.stop();
-        reject(err instanceof Error ? err : new Error(String(err)));
-      });
-  });
+      if (result) return result;
+      throw new Error("ASR timeout");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    stream.cancel();
+  }
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {

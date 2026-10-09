@@ -121,3 +121,14 @@ describe("trusted Main resolver using actual independent Node DNS/UDP", () => {
     expect(await (await connectRequest(proxy)).response).toContain("403"); expect(dns.queries.map(q => q.family).sort()).toEqual([4, 6]);
   });
 });
+
+it("the production trusted resolver factory preserves exact host scope before native DNS", async () => {
+  // Private synthetic answers deliberately stop any allowed-host test before a TCP dial.
+  const dns = await dnsFixture(family => ({ addresses: family === 4 ? ["10.0.0.1"] : [] }));
+  const proxy = await createTrustedBrowserProxyFactory(dns.config)({ webContentsId: 77, signal: new AbortController().signal, allowedHosts: ["allowed.example"] });
+  cleanups.push(() => proxy.revoke());
+  expect(await (await connectRequest(proxy, "unapproved.example")).response).toContain("HTTP/1.1 403 Blocked\r\n");
+  expect(dns.queries).toHaveLength(0);
+  expect(await (await connectRequest(proxy, "allowed.example")).response).toContain("HTTP/1.1 403 Blocked\r\n");
+  expect(dns.queries.map(query => query.name)).toEqual(["allowed.example", "allowed.example"]);
+});

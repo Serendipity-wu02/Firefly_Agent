@@ -1,3 +1,7 @@
+import { chatStore } from "../pages/chat-page-bridge";
+import { useSidebarLayout } from "../pages/use-sidebar-layout";
+import { projectSidebar } from "../pages/sidebar-projection";
+import { SidebarLayoutControls } from "./SidebarLayoutControls";
 import { Conversations, type ConversationItemType } from "@ant-design/x";
 import { DeleteOutlined, DownloadOutlined, EditOutlined, PushpinOutlined } from "@ant-design/icons";
 import { Input, Menu, Popover } from "antd";
@@ -124,6 +128,10 @@ export const ConversationSidebar = memo(function ConversationSidebar({
   // 统一反馈入口：删除会话走危险确认
   const feedback = useFeedback();
   const supportsProjects = mode === "work" || mode === "code";
+  const layout = useSidebarLayout(typeof window === "undefined" ? undefined : chatStore()?.sidebarLayout, sessions);
+  const projection = useMemo(() => layout.snapshot ? projectSidebar(sessions, layout.snapshot, mode) : null, [sessions, layout.snapshot, mode]);
+  const groupBySession = useMemo(() => new Map(projection?.groups.flatMap(group => group.sessionIds.map(id => [id, group.groupId] as const)) ?? []), [projection]);
+  const persistedExpanded = projection?.groups.filter(group => !layout.snapshot!.layout.modes[mode].collapsedGroupIds.includes(group.groupId)).map(group => group.groupId);
   const projects = useMemo(() => {
     const result = new Map<string, ProjectSummary>();
     for (const session of sessions) {
@@ -176,13 +184,18 @@ export const ConversationSidebar = memo(function ConversationSidebar({
   }, [editing]);
 
   const sortedSessions = useMemo(
-    () =>
-      [...sessions].sort((a, b) => {
+    () => {
+      if (projection) {
+        const byId = new Map(sessions.map(session => [session.id, session]));
+        return projection.groups.flatMap(group => group.sessionIds.map(id => byId.get(id)!).filter(Boolean));
+      }
+      return [...sessions].sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
         return b.updatedAt - a.updatedAt;
-      }),
-    [sessions],
+      });
+    },
+    [sessions, projection],
   );
 
   // 阶段 1A：items 数组 useMemo——避免每次渲染重建（Conversations 拿到新数组引用即重渲染全部条目）
@@ -222,9 +235,9 @@ export const ConversationSidebar = memo(function ConversationSidebar({
             </span>
           ),
         icon: <ConversationIcon />,
-        group: supportsProjects ? session.workspaceRoot ?? `unbound:${session.id}` : session.pinned ? "pinned" : "recent",
+        group: groupBySession.get(session.id) ?? (supportsProjects ? session.workspaceRoot ?? `unbound:${session.id}` : session.pinned ? "pinned" : "recent"),
       })),
-    [sortedSessions, editing, t, supportsProjects, onRename],
+    [sortedSessions, editing, t, supportsProjects, onRename, groupBySession],
   );
 
   function openContextMenu(event: React.MouseEvent, sessionId: string) {
@@ -254,6 +267,15 @@ export const ConversationSidebar = memo(function ConversationSidebar({
         sessionId: contextMenu.sessionId,
         value: target?.title ?? "",
       });
+    } else if (key.startsWith("move-section:")) {
+      void layout.mutate({ mode, kind: "move-session", sessionId: contextMenu.sessionId, sectionId: key.slice("move-section:".length) || null });
+    } else if (key === "move-up" || key === "move-down") {
+      const group = projection?.groups.find(item => item.sessionIds.includes(contextMenu.sessionId));
+      if (!group || !layout.snapshot) return;
+      const index = group.sessionIds.indexOf(contextMenu.sessionId);
+      const beforeSessionId = key === "move-up" ? group.sessionIds[index - 1] : group.sessionIds[index + 2];
+      if ((key === "move-up" && index === 0) || (key === "move-down" && index === group.sessionIds.length - 1)) return;
+      void layout.mutate({ mode, kind: "move-session", sessionId: contextMenu.sessionId, sectionId: group.sectionId ?? null, beforeSessionId });
     } else if (key === "toggle-pin") {
       void onTogglePin(contextMenu.sessionId, !contextMenu.pinned);
     } else if (key === "export-markdown") {
@@ -292,6 +314,9 @@ export const ConversationSidebar = memo(function ConversationSidebar({
   return (
     <nav className="cy-conversation-sidebar" aria-label={supportsProjects ? t("sidebar.projectsAndConversationsAria") : t("sidebar.conversationListAria")}>
       <div className="cy-conversation-sidebar__title">{supportsProjects ? t("sidebar.projectsTitle") : t("sidebar.conversationsTitle")}</div>
+      {layout.snapshot && projection && <SidebarLayoutControls mode={mode} snapshot={layout.snapshot} groups={projection.groups}
+        projectIds={sessions.map(session => layout.snapshot!.sessionProjectIds[session.id]).filter((id): id is string => !!id)} pending={layout.pending} mutate={layout.mutate} />}
+      {layout.error && <p className="cy-sidebar-layout__error" role="alert">{t(layout.error === "conflict" ? "sidebar.layoutConflict" : "sidebar.layoutFailed")}</p>}
       {items.length === 0 ? (
         <div className="cy-conversation-sidebar__empty">
           {listStatus === "loading"
@@ -320,18 +345,33 @@ export const ConversationSidebar = memo(function ConversationSidebar({
               }}
               groupable={{
                 collapsible: true,
-                expandedKeys,
+                expandedKeys: persistedExpanded ?? expandedKeys,
                 // @ant-design/x 2.9.0 在 setState updater 内部调用 onExpand（use-collapsible.js），
                 // updater 会在渲染期执行，直接 setExpandedKeys 会触发
                 // "Cannot update a component while rendering a different component"。
                 // 用 queueMicrotask 把 setState 挪出渲染期，行为不变。
                 onExpand: (keys) => {
-                  queueMicrotask(() => setExpandedKeys(keys));
+                  queueMicrotask(() => {
+                    if (projection && layout.snapshot) {
+                      for (const group of projection.groups) {
+                        const expanded = keys.includes(group.groupId);
+                        if (expanded === layout.snapshot.layout.modes[mode].collapsedGroupIds.includes(group.groupId)) {
+                          void layout.mutate({ mode, kind: "set-expanded", groupId: group.groupId, expanded });
+                        }
+                      }
+                    } else setExpandedKeys(keys);
+                  });
                 },
                 label: (group) => {
                   if (group === "pinned") return t("sidebar.pinnedTitle");
                   if (group === "recent") return t("sidebar.recentTitle");
-                  const project = projects.get(group);
+                  const projected = projection?.groups.find(item => item.groupId === group);
+                  if (projected && !projected.projectId) return projected.sectionId ? projected.label
+                    : t(mode === "chat" || layout.snapshot?.layout.modes[mode].viewMode === "merged" ? "sidebar.recentTitle" : "sidebar.unboundProject");
+                  const storedProject = layout.snapshot?.layout.projects.find(item => item.id === projected?.projectId);
+                  const members = projected?.sessionIds.map(id => sessions.find(session => session.id === id)!).filter(Boolean);
+                  const project = storedProject ? { name: storedProject.displayName, workspaceRoot: storedProject.workspaceRoot,
+                    conversationCount: members?.length ?? 0, updatedAt: Math.max(0, ...(members?.map(session => session.updatedAt) ?? [])) } : projects.get(group);
                   if (!project) return null;
                   return (
                     <Popover
@@ -370,6 +410,12 @@ export const ConversationSidebar = memo(function ConversationSidebar({
             >
               <Menu
                 items={[
+                  ...(layout.snapshot ? [{ key: "placement", label: t("sidebar.moveToSection"), children: [
+                    { key: "move-section:", label: t("sidebar.defaultSection") },
+                    ...layout.snapshot.layout.modes[mode].sections.map(section => ({ key: "move-section:" + section.id, label: section.name })),
+                  ] }, ...(layout.snapshot.layout.modes[mode].sortMode === "manual" ? [
+                    { key: "move-up", label: t("sidebar.moveUp") }, { key: "move-down", label: t("sidebar.moveDown") },
+                  ] : [])] : []),
                   { key: "rename", label: t("sidebar.rename"), icon: <EditOutlined /> },
                   {
                     key: "toggle-pin",

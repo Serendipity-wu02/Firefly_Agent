@@ -1,3 +1,4 @@
+import { bindDesktopAsrSettings } from "./desktop-asr-settings";
 import type {} from "../global";
 import { bindUiColorControls } from "./appearance/colors";
 import { DEFAULT_UI_COLORS } from "../../shared/ui-colors";
@@ -302,6 +303,7 @@ if (!window.fireflyScheduler) {
 // 当前激活的厂商：每次 applyPreset 后更新；用于"切到下一家厂商前先把当前那家的输入框值缓存住"
 
 const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }> = {
+  asr: { emoji: "🎙", title: t("settings.desktopAsr.title"), hint: t("settings.desktopAsr.hint") },
   memory: { emoji: `<img src="../avatars/firefly-avatar.png" width="24" height="24" alt="" aria-hidden="true" style="vertical-align:-3px" />`, title: t("settings.nav.memory"), hint: t("settings.nav.memoryHint") },
   chat: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M33 38H22V30H36V22H44V38H39L36 41L33 38Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6H36V30H17L13 34L9 30H4V6Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 18H20" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M26 18H27" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M12 18H13" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>`, title: t("settings.nav.chat"), hint: t("settings.nav.chatHint") },
   user: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M44 8H4V38H19L24 43L29 38H44V8Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="19" r="5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 32C33 27.5817 28.9706 24 24 24C19.0294 24 15 27.5817 15 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: t("settings.nav.user"), hint: t("settings.nav.userHint") },
@@ -634,6 +636,72 @@ function fillModelOptions(preset: ModelPreset, preferredModel?: string): void {
 
 // ── 档案编辑（表单绑定档案，不再绑定"当前厂商"） ────────────────
 
+// Only profile fields are replaced by profile/provider navigation. Global vision,
+// timeout and override controls retain their values when the editor changes.
+// An async response belongs to the form instance that submitted it.
+function isCurrentProfilePanel(): boolean {
+  return document.getElementById("api-form") === apiForm;
+}
+
+let profileDraftBaseline = "";
+let profileTransitionPending = false;
+let profileSavePending = false;
+let profileEditorReturnProfileId: string | undefined;
+const profilePendingButtons = new Map<HTMLButtonElement, boolean>();
+
+function profileDraftSnapshot(): string {
+  return JSON.stringify([
+    apiState.activeProvider, displayNameInput.value, baseUrlInput.value,
+    modelInput.value, apiKeyInput.value, transportSelect.value,
+    contextWindowInput.value, multimodalToggle.checked,
+  ]);
+}
+
+function hasUnsavedProfileDraft(): boolean {
+  return apiState.editorOpen && profileDraftSnapshot() !== profileDraftBaseline;
+}
+
+/** Present the existing draft state without inferring connection health or saving anything. */
+function updateProfileDraftState(): void {
+  const state = document.getElementById("profile-draft-state");
+  const editor = document.getElementById("profile-editor");
+  editor?.setAttribute("aria-busy", String(profileSavePending));
+  if (profileSavePending) {
+    apiForm.querySelectorAll<HTMLButtonElement>('button[type="submit"], #close-profile-editor, #delete-profile-btn, #add-profile-btn, #empty-add-profile-btn, [data-profile-action], [data-provider-tab], .preset-card, [data-custom-endpoint-mode]').forEach(button => {
+      if (!profilePendingButtons.has(button)) profilePendingButtons.set(button, button.disabled);
+      button.disabled = true;
+    });
+  } else {
+    for (const [button, disabled] of profilePendingButtons) button.disabled = disabled;
+    profilePendingButtons.clear();
+  }
+  if (!state) return;
+  const kind = profileSavePending ? "saving" : hasUnsavedProfileDraft() ? "dirty" : apiState.editingProfileId ? "saved" : "new";
+  state.dataset.state = kind;
+  const text = t(`settings.providerUi.draftState.${kind}`);
+  if (state.textContent !== text) state.textContent = text;
+}
+
+/** Keep clean navigation synchronous; a single pending prompt owns its target. */
+function changeProfileEditor(change: () => void): void {
+  if (profileTransitionPending || profileSavePending) return;
+  if (!hasUnsavedProfileDraft()) {
+    change();
+    return;
+  }
+  profileTransitionPending = true;
+  void showConfirm({
+    title: t("settings.providerUi.discardTitle"),
+    message: t("settings.providerUi.discardMessage"),
+    confirmText: t("settings.providerUi.discardConfirm"),
+    cancelText: t("settings.providerUi.discardCancel"),
+    dangerous: true,
+  }).then(confirmed => {
+    profileTransitionPending = false;
+    if (confirmed) change();
+  });
+}
+
 /** 视觉三框是全局配置：切换档案/预设时先快照再恢复，避免被 preset 默认值覆盖。 */
 function snapshotVisionInputs(): { baseUrl: string; apiKey: string; model: string } {
   return {
@@ -668,15 +736,17 @@ function renderProfileList(): void {
     return;
   }
 
-  renderProviderRows(profileList, apiState.profiles, apiState.defaultProfileId, apiState.editingProfileId);
+  renderProviderRows(profileList, apiState.profiles, apiState.defaultProfileId, apiState.editorOpen ? apiState.editingProfileId : undefined);
 }
 
 /** 从 main 拉取档案列表并渲染。 */
 async function reloadProfiles(): Promise<void> {
+  if (!isCurrentProfilePanel()) return;
   apiState.profilesLoadState = "loading";
   renderProfileList();
   try {
     const catalog = await window.settings?.listModelProfiles?.();
+    if (!isCurrentProfilePanel()) return;
     if (!catalog) throw new Error("Model profile bridge unavailable");
     apiState.profiles = catalog.profiles as SavedProfileLite[];
     apiState.defaultProfileId = catalog.defaultModelProfileId;
@@ -685,9 +755,11 @@ async function reloadProfiles(): Promise<void> {
     const routingPanel = document.getElementById("agent-routing-panel");
     if (routingPanel && window.settings) {
       const { loadAgentRoutingPanel } = await import("./api/agent-routing");
+      if (!isCurrentProfilePanel()) return;
       await loadAgentRoutingPanel(routingPanel, window.settings);
     }
   } catch (error) {
+    if (!isCurrentProfilePanel()) return;
     apiState.profilesLoadState = "error";
     renderProfileList();
     throw error;
@@ -699,6 +771,7 @@ function applyEditingStateUI(): void {
   profileEditorTitle.textContent = apiState.editingProfileId ? t("settings.profile.editorTitle.edit") : t("settings.profile.editorTitle.new");
   deleteProfileBtn.hidden = !apiState.editingProfileId;
   document.getElementById("profile-editor")!.hidden = !apiState.editorOpen;
+  document.getElementById("profile-editor-empty")!.hidden = apiState.editorOpen;
   document.querySelector<HTMLElement>(".provider-tabs")!.hidden = Boolean(apiState.editingProfileId);
   applyProviderEditorLayout(apiForm, getCustomEndpointMode(apiState.activeProvider) ? "custom" : "preset");
 }
@@ -724,12 +797,15 @@ function editProfile(profile: SavedProfileLite, globalMultimodal: boolean, focus
   applyMultimodalUI();
   applyEditingStateUI();
   renderProfileList();
+  profileDraftBaseline = profileDraftSnapshot();
+  updateProfileDraftState();
   setSaveStatus(t("settings.profile.editing", { name: profile.displayName || profile.model }));
   if (focusEditor) (getCustomEndpointMode(profile.provider) ? displayNameInput : apiKeyInput).focus();
 }
 
 /** 开始新建草稿：preset 预填 URL/模型/协议，清空 Key 与昵称。 */
 function startNewDraft(providerName: string): void {
+  profileEditorReturnProfileId = undefined;
   const visionSnapshot = snapshotVisionInputs();
   apiState.editorOpen = true;
   apiState.editingProfileId = undefined;
@@ -742,6 +818,9 @@ function startNewDraft(providerName: string): void {
   applyMultimodalUI();
   applyEditingStateUI();
   renderProfileList();
+  profileDraftBaseline = profileDraftSnapshot();
+  updateProfileDraftState();
+  setSaveStatus(t("settings.status.waiting"));
 }
 
 /** 模式按钮已删除——模型名永远从 input 读取。保留函数名供旧调用点用，语义不变。 */
@@ -934,6 +1013,7 @@ async function loadConfig(): Promise<void> {
   try {
     fillPresetOptions();
     const cfg = await window.settings!.getConfig();
+    if (!isCurrentProfilePanel()) return;
     // 模式按钮已删除——mode 字段不再用 UI 控制，直接忽略 cfg.mode
     const vision = cfg.vision;
     applyPreset(
@@ -965,8 +1045,9 @@ async function loadConfig(): Promise<void> {
     toggleDisableThinking.checked = cfg.thinkingOverride === -1;
     toggleDisableMaxToken.checked = !!cfg.disableMaxToken;
 
-    // 载入默认配置但保持编辑器收起；只有添加/编辑操作会展开。
+    // 在右侧展示默认档案；没有档案时保留新建入口与空态。
     await reloadProfiles();
+    if (!isCurrentProfilePanel()) return;
     const defaultProfile = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
     if (defaultProfile) {
       editProfile(defaultProfile, cfg.multimodal, false);
@@ -975,11 +1056,11 @@ async function loadConfig(): Promise<void> {
       applyEditingStateUI();
     }
 
-    apiState.editorOpen = false;
     applyEditingStateUI();
     setSaveStatus(t("settings.status.waiting"));
     setFireflySaveStatus(t("settings.status.waiting"));
   } catch {
+    if (!isCurrentProfilePanel()) return;
     fillPresetOptions();
     apiState.profilesLoadState = "error";
     renderProfileList();
@@ -1344,6 +1425,7 @@ baseUrlResetBtn.addEventListener("click", () => {
       : preset.baseUrl;
     updateEndpointPreview();
     setSaveStatus(t("settings.api.baseUrlResetOk"));
+    updateProfileDraftState();
   }
 });
 
@@ -1367,6 +1449,7 @@ transportSelect.addEventListener("change", () => {
     transportHint.textContent = t("settings.api.anthropicHintMissing");
   }
   setSaveStatus(t("settings.status.dirty"));
+  updateProfileDraftState();
 });
 
 // 测试视觉模型按钮（仅在多模态开关 OFF 时可见）
@@ -1456,16 +1539,27 @@ fireflyPanel.addEventListener("submit", async (e) => {
 
 apiForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (!isCurrentProfilePanel() || profileSavePending || profileTransitionPending || !apiState.editorOpen) return;
+  const settings = window.settings!;
   const customValidationError = validateActiveCustomEndpoint();
   if (customValidationError) {
     setSaveStatus(customValidationError, "is-error");
     return;
   }
+  profileSavePending = true;
+  updateProfileDraftState();
+  const submittedDraft = profileDraftSnapshot();
+  const submittedGlobalOptions = {
+    vision: {
+      baseUrl: visionBaseUrlInput.value.trim(),
+      apiKey: visionApiKeyInput.value.trim(),
+      model: visionModelInput.value.trim(),
+    },
+    thinkingOverride: toggleEnableThinking.checked ? 1 as const : toggleDisableThinking.checked ? -1 as const : 0 as const,
+    disableMaxToken: toggleDisableMaxToken.checked,
+  };
   setSaveStatus(t("settings.status.saving"));
   try {
-    if (!await saveTimeoutSettings(true)) {
-      return;
-    }
     // 档案保存：editingProfileId 存在 = 更新（字段全量覆盖），否则新增。
     // 上下文窗口与多模态跟随档案；留空/非法按 256000 兜底。
     const isEditing = Boolean(apiState.editingProfileId);
@@ -1481,35 +1575,58 @@ apiForm.addEventListener("submit", async (e) => {
       contextWindowTokens: Math.max(4096, parseInt(contextWindowInput.value, 10) || 256000),
       multimodal: multimodalToggle.checked,
     };
-    const result = await window.settings!.saveModelProfile?.(profile);
+    if (!await saveTimeoutSettings(true) || !isCurrentProfilePanel()) return;
+    setSaveStatus(t("settings.status.saving"));
+    const result = await settings.saveModelProfile?.(profile);
+    if (!isCurrentProfilePanel()) return;
     if (!result) throw new Error(t("settings.profile.listUnavailable"));
-    // 全局选项（视觉模型/思考开关/maxToken）不随档案走，单独保存
-    await window.settings!.saveConfig({
-      vision: {
-        baseUrl: visionBaseUrlInput.value.trim(),
-        apiKey: visionApiKeyInput.value.trim(),
-        model: visionModelInput.value.trim(),
-      },
-      thinkingOverride: toggleEnableThinking.checked ? 1 : toggleDisableThinking.checked ? -1 : 0,
-      disableMaxToken: toggleDisableMaxToken.checked,
-    });
-    if (isEditing) {
-      setSaveStatus(t("settings.profile.savedUpdated"), "is-ok");
-    } else if (result.added) {
-      setSaveStatus(t("settings.profile.savedAdded"), "is-ok");
+    // Retain a successful profile write even if the subsequent global save fails.
+    // A retry must update that profile, rather than create a duplicate draft.
+    if (!isEditing && result.added) {
       // 新建成功后切到编辑态，用户可直接再改再存
       const saved = (result.profiles as SavedProfileLite[]).at(-1);
       if (saved && saved.id) {
         apiState.editingProfileId = saved.id;
         apiState.editingReasoning = saved.reasoning;
+        apiState.profiles = result.profiles as SavedProfileLite[];
+        apiState.defaultProfileId = result.defaultModelProfileId;
         applyEditingStateUI();
+        renderProfileList();
+      }
+    }
+    // 全局选项（视觉模型/思考开关/maxToken）不随档案走，单独保存
+    await settings.saveConfig(submittedGlobalOptions);
+    if (!isCurrentProfilePanel()) return;
+    await reloadProfiles();
+    if (!isCurrentProfilePanel()) return;
+    if (isEditing || result.added) {
+      // Follow the refreshed Main values only when no newer profile edit exists.
+      // The key remains the submitted input; catalog credentials are never copied here.
+      if (profileDraftSnapshot() === submittedDraft) {
+        const saved = apiState.profiles.find(profile => profile.id === apiState.editingProfileId);
+        if (saved) {
+          applyPreset(saved.provider, saved.model, apiKeyInput.value, saved.baseUrl, saved.displayName,
+            saved.explicitTransport, snapshotVisionInputs(), saved.multimodal);
+          contextWindowInput.value = saved.contextWindowTokens ? String(saved.contextWindowTokens) : "";
+          apiState.editingReasoning = saved.reasoning;
+        }
+        profileDraftBaseline = profileDraftSnapshot();
+      } else {
+        profileDraftBaseline = submittedDraft;
+      }
+      if (hasUnsavedProfileDraft()) {
+        setSaveStatus(t("settings.providerUi.savedWithChanges"));
+      } else {
+        setSaveStatus(t(isEditing ? "settings.profile.savedUpdated" : "settings.profile.savedAdded"), "is-ok");
       }
     } else {
       setSaveStatus(t("settings.profile.duplicate"), "is-error");
     }
-    await reloadProfiles();
   } catch {
-    setSaveStatus(t("settings.status.saveFailed"), "is-error");
+    if (isCurrentProfilePanel()) setSaveStatus(t("settings.status.saveFailed"), "is-error");
+  } finally {
+    profileSavePending = false;
+    if (isCurrentProfilePanel()) updateProfileDraftState();
   }
 });
 
@@ -1522,6 +1639,8 @@ function switchSection(requestedSection: string): void {
   sectionTitle.textContent = label.title;
   sectionHint.textContent = label.hint;
 
+  const isAsr = section === "asr";
+  document.getElementById("desktop-asr-form")?.classList.toggle("is-hidden", !isAsr);
   const isApi = section === "api";
   const isApiAdvanced = section === "api-advanced";
   const isAppearance = section === "appearance";
@@ -1564,10 +1683,11 @@ function switchSection(requestedSection: string): void {
   else disposeMusicPanel();
   placeholderPanel.classList.toggle(
     "is-hidden",
-    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isFirefly || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isMusic,
+    isAsr || isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isFirefly || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isMusic,
   );
 
   if (
+    !isAsr &&
     !isApi &&
     !isApiAdvanced &&
     !isAppearance &&
@@ -1604,6 +1724,7 @@ updateSchedulerConditionalFields();
 
 void loadConfig();
 void loadGeneralSettings();
+void bindDesktopAsrSettings(document, window.settings);
 // 插件设置面板挂载（已启用且声明了 settingsPanel 的插件按分区挂 iframe）
 void mountPluginPanels();
 window.settings?.onChannelsStatusChanged((status) => {
@@ -1689,8 +1810,11 @@ presetCards?.addEventListener("click", (e) => {
   const providerName = getCustomEndpointMode(cardProviderName)
     ? getCustomEndpointProvider(apiState.customEndpointMode)
     : cardProviderName;
-  startNewDraft(providerName);
-  setSaveStatus(t("settings.preset.appliedDraftHint"));
+  if (apiState.editorOpen && !apiState.editingProfileId && providerName === apiState.activeProvider) return;
+  changeProfileEditor(() => {
+    startNewDraft(providerName);
+    setSaveStatus(t("settings.preset.appliedDraftHint"));
+  });
 });
 
 // ── 自定义端点云端/本地模式切换（切换 = 换草稿厂商） ───────────
@@ -1699,12 +1823,13 @@ customEndpointControls?.addEventListener("click", (e) => {
   const nextMode = button?.dataset.customEndpointMode as CustomEndpointMode | undefined;
   if (!nextMode || nextMode === apiState.customEndpointMode) return;
 
-  apiState.customEndpointMode = nextMode;
-  const providerName = getCustomEndpointProvider(nextMode);
-  startNewDraft(providerName);
-  setSaveStatus(nextMode === "local"
-    ? t("settings.customEndpoint.localDraftHint")
-    : t("settings.customEndpoint.cloudDraftHint"));
+  changeProfileEditor(() => {
+    apiState.customEndpointMode = nextMode;
+    startNewDraft(getCustomEndpointProvider(nextMode));
+    setSaveStatus(nextMode === "local"
+      ? t("settings.customEndpoint.localDraftHint")
+      : t("settings.customEndpoint.cloudDraftHint"));
+  });
 });
 
 // ── 档案列表：点击档案载入编辑 ────────────────────────────────
@@ -1713,8 +1838,17 @@ profileList?.addEventListener("click", (e) => {
   const row = button?.closest<HTMLElement>(".provider-row");
   const profile = apiState.profiles.find(p => p.id === row?.dataset.profileId);
   if (!profile) return;
-  if (button?.dataset.profileAction === "delete") void deleteProfile(profile.id);
-  else editProfile(profile, multimodalToggle.checked);
+  if (button?.dataset.profileAction === "delete") {
+    requestDeleteProfile(profile.id);
+  } else if (apiState.editorOpen && apiState.editingProfileId === profile.id) {
+    profileEditorReturnProfileId = profile.id;
+    (getCustomEndpointMode(profile.provider) ? displayNameInput : apiKeyInput).focus();
+  } else {
+    changeProfileEditor(() => {
+      profileEditorReturnProfileId = profile.id;
+      editProfile(profile, multimodalToggle.checked);
+    });
+  }
 });
 
 // ── 删除当前编辑的档案 ────────────────────────────────────────
@@ -1745,26 +1879,51 @@ async function deleteProfile(profileId: string): Promise<void> {
   }
 }
 
+function requestDeleteProfile(profileId: string): void {
+  if (profileSavePending || profileTransitionPending) return;
+  if (apiState.editingProfileId === profileId) changeProfileEditor(() => void deleteProfile(profileId));
+  else void deleteProfile(profileId);
+}
+
 deleteProfileBtn?.addEventListener("click", () => {
-  if (apiState.editingProfileId) void deleteProfile(apiState.editingProfileId);
+  if (apiState.editingProfileId) requestDeleteProfile(apiState.editingProfileId);
 });
 
-document.getElementById("add-profile-btn")?.addEventListener("click", () => {
-  startNewDraft(MODEL_PRESETS.find(preset => !preset.disabled && !preset.customEndpointMode)!.providerName);
-  apiKeyInput.focus();
-});
+function addProfile(): void {
+  if (apiState.editorOpen && !apiState.editingProfileId) {
+    apiKeyInput.focus();
+    return;
+  }
+  changeProfileEditor(() => {
+    startNewDraft(MODEL_PRESETS.find(preset => !preset.disabled && !preset.customEndpointMode)!.providerName);
+    apiKeyInput.focus();
+  });
+}
+document.getElementById("add-profile-btn")?.addEventListener("click", addProfile);
+document.getElementById("empty-add-profile-btn")?.addEventListener("click", addProfile);
 document.getElementById("close-profile-editor")?.addEventListener("click", () => {
-  apiState.editorOpen = false;
-  applyEditingStateUI();
-  document.getElementById("add-profile-btn")?.focus();
+  changeProfileEditor(() => {
+    apiState.editorOpen = false;
+    applyEditingStateUI();
+    renderProfileList();
+    const origin = Array.from(profileList.querySelectorAll<HTMLButtonElement>('[data-profile-action="edit"]'))
+      .find(button => button.closest<HTMLElement>('[data-profile-id]')?.dataset.profileId === profileEditorReturnProfileId);
+    (origin ?? document.getElementById("add-profile-btn"))?.focus();
+  });
 });
 const providerTabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-provider-tab]"));
-function selectProviderTab(button: HTMLButtonElement): void {
+function selectProviderTab(button: HTMLButtonElement, focusTab = false): void {
   const custom = button.dataset.providerTab === "custom";
-  if (custom === Boolean(getCustomEndpointMode(apiState.activeProvider))) return;
-  startNewDraft(custom
-    ? getCustomEndpointProvider(apiState.customEndpointMode)
-    : MODEL_PRESETS.find(preset => !preset.disabled && !preset.customEndpointMode)!.providerName);
+  if (custom === Boolean(getCustomEndpointMode(apiState.activeProvider))) {
+    if (focusTab) button.focus();
+    return;
+  }
+  changeProfileEditor(() => {
+    startNewDraft(custom
+      ? getCustomEndpointProvider(apiState.customEndpointMode)
+      : MODEL_PRESETS.find(preset => !preset.disabled && !preset.customEndpointMode)!.providerName);
+    if (focusTab) button.focus();
+  });
 }
 providerTabs.forEach((button, index) => {
   button.addEventListener("click", () => selectProviderTab(button));
@@ -1774,10 +1933,15 @@ providerTabs.forEach((button, index) => {
     const next = event.key === "Home" ? providerTabs[0]
       : event.key === "End" ? providerTabs.at(-1)!
       : providerTabs[(index + 1) % providerTabs.length];
-    selectProviderTab(next);
-    next.focus();
+    selectProviderTab(next, true);
   });
 });
+
+apiForm.addEventListener("input", () => {
+  if (!profileSavePending) setSaveStatus(t("settings.status.dirty"));
+  updateProfileDraftState();
+});
+apiForm.addEventListener("change", updateProfileDraftState);
 
 function translateProviderUi(): void {
   document.querySelectorAll<HTMLElement>('[data-i18n^="settings.providerUi."]').forEach(element => {
@@ -1791,6 +1955,7 @@ subscribeLocaleChanged(() => {
   translateProviderUi();
   renderProfileList();
   applyEditingStateUI();
+  updateProfileDraftState();
 });
 
 // ── 偏好设置：聊天社交上下文 / 自定义风格 / 表单提交 ─────────

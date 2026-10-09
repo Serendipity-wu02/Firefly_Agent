@@ -53,6 +53,12 @@ export interface MarketPluginEntry {
   author: string;
   downloads: number;
   homepage?: string;
+  /** Required plugin API major version; omitted legacy entries use API 1. */
+  pluginApiVersion?: number;
+  compatible?: boolean;
+  /** Human-readable declarations, not enforced permissions or sandbox guarantees. */
+  capabilities?: string[];
+  source?: "bundled" | "remote";
 }
 
 /** 插件市场索引源的健康状态：市场面板据此展示各源（Gitee / GitHub）的实时死活 */
@@ -66,6 +72,7 @@ export interface MarketSourceStatus {
 
 export interface MarketListResult {
   ok: boolean;
+  mode?: "bundled" | "online" | "offline-fallback";
   error?: string;
   plugins: MarketPluginEntry[];
   /** 各索引源的探测结果；旧版本宿主返回的结果可能没有该字段 */

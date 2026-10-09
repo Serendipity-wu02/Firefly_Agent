@@ -1,4 +1,4 @@
-// 会话工作区只读文件接口的共享类型（主进程 IPC ↔ preload ↔ 渲染层）。
+// 会话工作区文件接口的共享类型（主进程 IPC ↔ preload ↔ 渲染层）。
 // 错误只回传 code，展示文案由渲染层按 i18n 映射；error 字段仅存放意外错误的原始信息。
 
 /** 目录列表条目 */
@@ -26,12 +26,33 @@ export type WorkspaceFileErrorCode =
   /** 列目录失败 */
   | "LIST_FAILED"
   /** 读文件失败 */
-  | "READ_FAILED";
+  | "READ_FAILED"
+  | "INVALID_REQUEST"
+  | "FORBIDDEN"
+  | "CANCELLED"
+  | "CONFLICT"
+  | "WORKSPACE_CHANGED"
+  | "LINK_READ_ONLY"
+  | "UNSUPPORTED_TEXT"
+  | "READ_ONLY"
+  | "WRITE_FAILED"
+  | "WRITE_BUSY";
 
 export type WorkspaceListResult =
   | { ok: true; entries: WorkspaceFileEntry[]; truncated?: boolean }
   | { ok: false; code: WorkspaceFileErrorCode; error?: string };
 
 export type WorkspaceReadResult =
-  | { ok: true; content: string; size: number }
+  | { ok: true; content: string; size: number; editVersion?: string; readOnlyReason?: WorkspaceFileErrorCode }
   | { ok: false; code: WorkspaceFileErrorCode; error?: string };
+
+/** Version is produced by Main from canonical file identity + complete UTF-8 bytes. */
+export interface WorkspaceSaveRequest {
+  sessionId: string;
+  relPath: string;
+  content: string;
+  editVersion: string;
+}
+export type WorkspaceSaveResult =
+  | { ok: true; content: string; size: number; editVersion: string }
+  | { ok: false; code: WorkspaceFileErrorCode };

@@ -1,88 +1,94 @@
-# Firefly Task A — implementation and verification ledger
+# 运行档案与存储边界阶段验收
 
-Status: all Task A acceptance gates and two final unpacked smoke runs passed; reviewer findings closed. Two authorized logical local commits record this work (see git log). No push, PR, merge or Task B. Manifest retirement remains intentionally paused because native installer consumers are current.
+- 记录范围：运行身份预检、集中存储路径、安全 JSON 写入及 Windows 解包 smoke
+- 状态：该阶段自动化检查与两次解包 smoke 通过；历史实现边界和未覆盖项如下
+- 当前规范：[运行档案与存储](runtime-profile-storage.md)、[运行架构](firefly-runtime.md)
 
-## Baseline and authority
+## 1. 背景
 
-Workspace E:/Codex/Firefly_Agent-skills-layout. Initial clean worktree, branch refactor/skills-source-layout, HEAD 1258af43686ce76c2665bce539e69678df117a11. Baseline HEAD was preserved until the two final local commits. Resume preserved all Task A changes; no reset/stash/checkout/history rewrite. Existing current repository architecture and approved directory Skills plan are the target, not main. No original-product source trees used by runtime/build/tests/packaging. The original Firefly conversation/thread could not be independently identified; architecture history was derived only from current repository plans, architecture and git timestamps.
+开发、测试与 smoke 实例必须在服务初始化前建立明确身份和隔离目录，防止普通启动或验证流程误写正式用户数据。存储收口还需保留安装器已有的内容迁移消费者，并提供失败时保留旧配置的写入语义。
 
-Actual skills applied: using-superpowers, context-engineering, source-driven-development, constraint-driven-development, executing-plans, test-driven-development, systematic-debugging, security-and-hardening, code-review-and-quality, requesting/receiving-code-review, differential-review, code-simplification, verification-before-completion. One fresh reviewer reviewed current worktree read-only; no parallel implementation agents.
+本记录是初次交付阶段的技术验收摘要。2026-09-29 的配置事件仅作为设计背景，不推定事件根因或可靠历史备份存在。历史只读取证未修改生产文件；检查范围内未找到可靠的事前 MCP 配置副本，这不能证明其他位置不存在备份。真实用户目录、取证文件路径、逐次执行记录和原始文件元数据不属于长期技术规范。
 
-## Incident evidence — production modification NO
+## 2. 运行身份契约
 
-Real userData C:/Users/w1558/AppData/Roaming/Firefly was only read for authorized evidence/metadata/hash. Restricted evidence directory E:/Codex/Firefly-userdata-incident-20260929 contains metadata.json, readonly restricted mcp-servers.current.readonly.json and backup-audit.json. Current source bytes and mtime are unchanged; no restoration, deletion or real secret migration.
+Main 的首个副作用导入为 identity-preflight，顺序为：解析、规范化、校验身份 → 设置 Electron appData/userData/sessionData/logs → 安装 StorageContext → 导入并初始化服务。预检不导入 logger、settings、MCP、plugin、Skills 或 Memory 写入者。
 
-| File | Size | Mtime UTC | SHA256 |
-|---|---:|---|---|
-| mcp-servers.json | 489 | 2026-09-29T13:44:26.4701683Z | D27FA954FC2607707A422DE214AEA504A991645810045720EB34D3769A7A788E |
-| content-manifest.json | 6052 | 2026-09-29T13:44:22.5624063Z | 639B8DB94964BFF3703D1608A69C84D47F99F2266C07BA06266DDD9CF1C2A6EC |
-| token-usage.json | 1078 | 2026-09-29T14:19:06.2626832Z | 8A75D269613A7326FD51A4698A6813F5CF359C571873DD1D13D5DEAFF21C4B25 |
-| logs/firefly.log | 5794 | 2026-09-29T13:44:26.7808336Z | 0240CEA526EC49E338FCC2B59994DD055550D9B82D4F7B83EA9AAF1C0C7EB70E |
+生产身份保持 appData 下的 `Firefly`，生产 sessionData 等于 userData，日志位于 `userData/logs`。命令行契约为：
 
-Creation timestamps are recorded in restricted metadata with reliability explicitly limited to filesystem creation times, not independently established incident chronology. Host timezone was Singapore Standard Time UTC+08:00; this is consistent with the requested 21:44–22:19 window, but the original incident timezone remains unconfirmed.
+- `--firefly-profile=production|development|test|smoke`
+- `--firefly-isolation-root=absolute-existing-directory`
+- 环境变量 `FIREFLY_RUNTIME_PROFILE`、`FIREFLY_ISOLATION_ROOT`
+- 兼容显式 `FIREFLY_ISOLATED_SMOKE_APPDATA`，命令行优先
 
-Backup result: NO_RELIABLE_PRE_INCIDENT_COPY. Filename inventory under real userData found other settings/relationship historical backups, but no reliable prior MCP configuration. Searches do not prove that no backup exists elsewhere. Current MCP metadata: serverId playwright-mcp; enabled ABSENT; command present; args count5; env key ELECTRON_RUN_AS_NODE. Without a reliable prior copy, changes to IDs/enabled/command/args/env keys are UNKNOWN. Sensitive values/arguments/chat content were not reported.
+格式错误、重复、未知、缺失、相对或不存在的根，以及与生产目录相等、嵌套或互为祖先的根均拒绝。开发工具必须传身份与显式根，不依赖 `NODE_OPTIONS`。Windows realpath、junction、大小写、`..` 和 `path.relative` 包含关系在设置路径前检查，随后验证 Electron 实际路径。
 
-## Implemented boundary and retained manifest
+## 3. 存储职责与兼容边界
 
-Main first side-effect import is identity-preflight. Sequence: resolve/normalize/validate -> apply Electron appData/userData/sessionData/logs -> install StorageContext -> service imports and init. Preflight imports no logger/settings/MCP/plugin/Skills/Memory writers. Production retains appData/Firefly, sessionData=userData, logs=userData/logs.
+### 3.1 集中路径与静态门禁
 
-CLI equals flags: --firefly-profile=production|development|test|smoke and --firefly-isolation-root=absolute-existing-directory. Environment equivalents FIREFLY_RUNTIME_PROFILE / FIREFLY_ISOLATION_ROOT; legacy FIREFLY_ISOLATED_SMOKE_APPDATA is supported. Arguments win; malformed/duplicate/unknown/missing/relative/nonexistent/production equal, nested or ancestor roots fail closed. Development tooling passes its identity and requires an explicit root. No NODE_OPTIONS dependency. Windows realpath/junction/case/.. and path.relative containment are checked before path application, then Electron paths verified.
+StorageContext 的 config/data/state 对应 userData，cache 为 `userData/cache`，logs/session 分别使用 profile 的对应目录。集中管理 `mcp-servers.json`、`token-usage.json`、`content-manifest.json` 和 `logs/firefly.log`。
 
-StorageContext config/data/state=userData, cache=userData/cache, logs/profile.logs, session/profile.sessionData. Central filenames: mcp-servers.json, token-usage.json, content-manifest.json, logs/firefly.log. Memory future contracts only: memory/data, memory/index, memory/temp; canonical roots must be disjoint, including junction ancestry. No existing Memory layout is relocated.
+该阶段清单包含 99 处访问、53 个文件、62 个所有权记录，其中 `BOOTSTRAP_ALLOWED` 15 处、`MIGRATE_LATER` 84 处。MCP、Token、logger 和 manifest 四个所有者完成集中路径接入，移除两个字面直接 userData 查询。AST/build gate 拒绝未批准的新源码文件、访问预算增加和动态路径查询；它是源码回归约束，不抵御任意 JavaScript 或恶意并发本地进程。
 
-Manifest retirement PAUSED: build/installer.nsh creates native .Firefly.content-preserve staging (45/48/52,102/105/109); default-dependencies passes the owner to core-bootstrap; startCore calls migrateStagedExternalContent before Skills init. Migration reads previous shipped hashes and merges native user content; packaged startup refreshes manifest. No shutdown consumer found. Existing five migration tests retained, four owner/failure/nonproduction regressions added. Nonproduction never consumes/deletes installer staging; real old files retained.
+Memory 的 `memory/data`、`memory/index`、`memory/temp` 在当时属于未来目录契约，要求规范根互不包含且识别 junction 祖先关系；没有迁移既有 Memory 布局。后续记忆实现应查阅当前规范，不能把这份历史目录测试当作完整迁移证据。
 
-Direct-access inventory: 99 call sites,53 files,62 ownership rows. BOOTSTRAP_ALLOWED15, MIGRATE_LATER84. MIGRATE_NOW completed four owners (MCP/token/logger/manifest); two literal direct userData lookups removed. The AST/build gate rejects new source files, larger call budgets and unapproved dynamic path queries. It is a source regression gate, not proof against arbitrary JavaScript or a malicious concurrent local process.
+### 3.2 安装内容清单保留
 
-AtomicJsonStore validates incoming and serialized shape plus existing JSON. ENOENT defaults remain in memory. Same-directory unique exclusive temp write, Node flush/fsync, bounded single .bak of previous valid bytes, rename without deleting primary first. Backup write/replace failure prevents primary replacement; primary replace failure preserves old valid bytes; only owned temps are cleaned. Malformed existing JSON remains unchanged and blocks replacement. Directory power-loss durability and multiprocess concurrency are not promised. MCP disconnects a newly connected server if save fails. token usage also uses the store. MCP safeStorage/OS protection and scoped secretRef are design audit only; no real secret change.
+`build/installer.nsh` 使用 `.Firefly.content-preserve` 原生暂存；`default-dependencies` 将所有者传给 core-bootstrap，`startCore` 在 Skills 初始化前调用 `migrateStagedExternalContent`。迁移读取既有分发哈希并合并用户内容，打包启动刷新 manifest。未发现退出阶段消费者。
 
-## RED/GREEN and executed gates
+因为这些原生安装器消费者仍存在，content manifest 退役暂停。五项既有迁移测试保留，并增加四项所有者、失败和非生产回归。非生产实例不消费或删除安装暂存，旧用户文件保留。
 
-RED observed before implementation: runtime13, apply/storage5, preflight2, Atomic6, MCP3, token3, logger/manifest4, manifest2, Memory2, CLI1; AST bypass and classification cases failed before fixes. Review regressions additionally demonstrated serialized-shape1, MCP disconnect1, Memory containment2 and transport type1 failures. The tests were not skipped, timeouts increased or assertions removed.
+### 3.3 安全 JSON 写入
 
-| Gate | Actual result |
-|---|---|
-| Comprehensive targeted before review | 11 files /64 passed /2.76s |
-| Latest targeted after review fixes | 9 files /56 passed /2.63s |
-| First full npm test | 540 files:538 passed2 failed;4730 tests:4727 passed2 failed1 skipped;255.97s |
-| After logger test harness repair | 540 files passed;4730 passed1 skipped;270.74s |
-| Full npm test after review fixes | 540 files passed;4738 tests:4737 passed0 failed1 pre-existing skipped;267.35s |
-| Latest full npm test, workspace TEMP/cache | 540 files passed;4738 tests:4737 passed0 failed1 pre-existing skipped;229.67s (command wall231.351s) |
-| Main noEmit | latest workspace run exit0 |
-| Preload noEmit | latest workspace run exit0 |
-| check:renderer | latest workspace run exit0 |
-| npm run build | latest workspace run exit0;1159 Main/Preload/Renderer/CLI runtime files byte-identical to final unpacked artifact |
-| check:plugin-sdk / check:plugin-schema | latest workspace runs exit0 /exit0 |
-| test:plugin-examples | latest workspace run exit0; four examples compiled and contract smoke passed |
-| packaging + AST regression | latest workspace run25 passed0 failed0 skipped;2.0856s |
-| package:win:dir | exit0 after final code fixes; release/win-unpacked/Firefly_Agent.exe |
-| storage static gate | 99 allowlisted accesses /53files PASS |
-| git diff --check | exit0; only existing CRLF normalization notices |
+AtomicJsonStore 同时校验输入、序列化形状与已有 JSON。`ENOENT` 的默认值仅留在内存。写入使用同目录独占临时文件、Node flush/fsync、单份有界 `.bak` 和不先删除主文件的 rename。
 
-First full failures were old logger tests: obsolete explicit-path API and a VM require loader treating node:fs as a relative TS file. The harness now initializes a validated profile and loads actual Node builtins; original log-content and CommonJS ordering assertions remain. Fresh final read-only review closed all1 Important and2 Minor findings and found no new code blocker; its final approval condition (latest full gates) is now met. Review found no Critical; Important Memory containment fixed with actual Windows junction RED/GREEN; Minor transport coercion fixed; backup/replace/durable-write flush fault injection added. Node's internal fsync cannot be intercepted by exported fsyncSync spy, so flush failure is injected at write boundary with flush:true asserted. Local simplification removed temporary facade exports and any wrappers.
+- 备份写入/替换失败阻止主文件替换。
+- 主文件替换失败保留原有效内容，仅清理自身临时文件。
+- 已有 JSON 损坏时保留原字节并阻止覆盖。
+- MCP 保存失败会断开刚建立的服务器连接，Token 用量也使用该存储。
+- 不承诺目录级掉电耐久性或多进程并发事务。
 
-Earlier logs are in .cache/task-a/*.log (individual log files ignored). Latest complete gate results/logs and smoke evidence/helper scripts are in ignored output/task-a/; gates-workspace.json records all10 commands with exit0. Full test FIREFLY_TEST_BASH was the verified E:/Git/bin/bash.exe.
+MCP 的 safeStorage/OS 保护及 scoped `secretRef` 当时仅完成设计审计，没有迁移真实密钥。这份存储验收不证明 MCP Main 的全部授权或输入验证边界已完成。
 
-## Executable smoke and diagnosed harness failure
+## 4. 测试覆盖与最终阶段结果
 
-Before launch: actual compiled Main entry rejected seven lost-root/invalid/production-overlap cases with0 writer calls,0 service imports and no StorageContext installation. Final asar's index/preflight/profile/storage/atomic modules matched compiled bytes exactly. Evidence: output/task-a/preflight-proof.json and packaged-entry-proof.json.
+失败先行与回归覆盖运行档案、路径应用、StorageContext、预检、Atomic JSON、MCP 保存失败、Token、logger/manifest、Memory 包含关系、CLI 及 AST 访问分类。审查补充序列化形状、连接清理、Windows junction 包含关系与 transport 类型测试，原断言和超时约束保留。
 
-Earlier attempts PID35592 and PID35096 failed at the original30s bound and were force-stopped after owned executable/arguments were verified; they are failures, not normal-exit successes. The previous inference that Main had not begun was incorrect. A workspace diagnostic build wrote safe stage markers and established the precise seam: entry/Electron/profile module loaded, then app.getPath('appData') began but did not return. Removing only the process-local USERPROFILE override from the diagnostic harness completed GET_APPDATA_END -> PROFILE_RESOLVED -> PATHS_APPLIED -> APP_READY -> WILL_QUIT, natural code0/signalnull. This isolates the harness environment override as the trigger; the internal Windows native implementation was not independently traced. No product-code workaround, timeout increase, profile weakening or retry-until-green was used. Evidence: output/task-a/smoke-root-cause.json.
+| 检查 | 最终阶段记录 |
+| --- | --- |
+| 定向回归 | 审查修正后 9 文件 / 56 项通过 |
+| 完整单元测试 | 540 文件通过；4737 项通过 / 1 项既有跳过，共 4738 项 |
+| Main、Preload no-emit 与 Renderer 类型检查 | 通过 |
+| 应用构建 | 通过；1159 个运行文件与最终解包产物字节一致 |
+| 插件 SDK 与 schema | 双入口、包检查和 schema 检查通过 |
+| 插件示例 | 四个示例编译与契约 smoke 通过 |
+| 打包与 AST 回归 | 25 项通过 |
+| Windows 解包准备 | `npm run package:win:dir` 通过，产物 `release/win-unpacked/Firefly_Agent.exe` |
+| 存储静态门禁 | 99 访问 / 53 文件通过 |
+| 代码差异空白检查 | 通过；仅既有 CRLF 规范化提示 |
+| 两次连续解包 smoke | 均自然退出，code 0 / signal null |
 
-The corrected harness preserves inherited USERPROFILE for native directory lookup. TEMP/TMP/TMPDIR, LOCALAPPDATA, XDG_CACHE_HOME/HF_HOME/npm cache remain workspace-local; formal RuntimeProfile flags redirect every Electron persistent/session/log root. No NODE_OPTIONS, global environment/config changes or production root reuse. Read-only startup model audit found no installed project/HF embedding model; actual Main provider was absent in both runs, so legacy home model cache writers were inactive. Prompt dumping was disabled. This does not claim all deferred legacy writers have been migrated.
+独立审查关闭一项 Important 和两项 Minor，没有剩余代码阻断。Windows junction 的失败先行/修正后检查验证 Memory 包含约束；transport 强制转换已修正；备份、替换和持久写故障注入保留。Node 内部 fsync 无法通过导出的 fsyncSync spy 拦截，因此在写入边界注入 flush 失败并断言 `flush: true`。
 
-Final executable release/win-unpacked/Firefly_Agent.exe ran twice consecutively in E:/Codex/Firefly_Agent-skills-layout/output/task-a/smoke-root. Run1 PID23092, run2 PID32620, both normal exit0/signalnull. Main inspector measured Firefly-smoke, packaged=true, appData=isolationRoot, userData=root/Firefly-smoke, sessionData=userData/session, logs=userData/logs, installed StorageContext kind=smoke and NODE_OPTIONS absent. Renderer bridges loaded; Chat/Work/Code switched; settings IPC returned44 unique Skills. There were39 installed vendor skill directories plus5 shipped maintained skills. Second-run installed SKILL.md hashes/mtimes matched the first run: no duplicate installation or body rewrites.
+上述数字是历史阶段结果，不是当前工作树的新测试报告，也不与其他日期或平台结果合并。
 
-Main exposed memory/data, memory/index and memory/temp below that profile, mutually disjoint. An isolated contract fixture rebuilt/deleted only index and preserved the data sentinel hash in both runs. This verifies the new future directory contract, not a migration of existing Memory storage. Production mcp-servers/content-manifest/token-usage/firefly.log hashes,size,mtime matched before and after each run. Real production modification NO. No orphan task app remains. Evidence: output/task-a/smoke-summary.json, smoke-1.json, smoke-2.json, production-before-smoke.json, production-after-smoke-1.json and production-after-smoke-2.json and production-final-exact.json (full filesystem mtime precision and original incident comparison,4/4 equal); screenshots contain only fresh isolated UI.
+## 5. Windows smoke 的事实与边界
 
-## Workspace constraint and next safe step
+实际编译 Main 入口对七类丢失/无效/生产重叠根拒绝，写入者调用和服务导入均为 0，StorageContext 未安装。最终 asar 中入口、预检、profile、storage、atomic 模块与编译内容一致。
 
-The user's later explicit workspace-only rule arrived while final tests/package commands were running. Earlier tests used os.tmpdir() on C: and tools may have used their default C: caches. This was disclosed; no extra cleanup of external locations was performed. Those commands finished before any cancellation was applied. Subsequent helper scripts, TEMP/TMP/cache and smoke Electron roots are under workspace output/task-a; only the previously authorized E:/Codex/Firefly-userdata-incident-20260929 is an external write exception. Personal skills were read, never modified.
+Windows 原生目录查询依赖正确继承的 `USERPROFILE`。诊断曾定位到测试夹具覆盖该变量后 `app.getPath('appData')` 无法返回；保留继承值即可完成路径设置和正常退出。该结论定位夹具触发条件，不宣称已追踪 Windows 内部实现，也没有采用产品代码绕过、超时放宽或弱化隔离。
 
-Smoke blocker resolved by the single-variable diagnostic above. Latest workspace-only full gates and final review passed. Authorized local commits:
+最终 smoke 用 RuntimeProfile 标志重定向所有 Electron 持久、会话和日志根，测试临时目录与缓存使用隔离位置。没有修改全局环境，未启用 `NODE_OPTIONS` 或复用生产根。启动审计中没有已安装的项目/HF embedding 模型，两个运行均未激活该旧缓存写入者；这不证明所有延后迁移的写入路径均已收口。
 
-1. refactor(storage): establish Firefly runtime profile boundary
-2. refactor(storage): centralize persistent paths and safe config writes
+两次解包运行实际身份为 `Firefly-smoke`、`packaged=true`、appData 为隔离根、userData 为其 `Firefly-smoke` 子目录、sessionData 为 `userData/session`、logs 为 `userData/logs`，StorageContext 为 smoke。Renderer bridge 加载，Chat/Work/Code 可切换；设置 IPC 返回 44 项唯一 Skills，来自 39 个 vendor 目录与五个当时随附目录。第二次 SKILL.md 哈希及 mtime 与第一次一致，没有重复安装或正文重写。
 
-Two logical commits only; no manifest retirement commit, push/PR/merge or Task B. Exact final IDs/HEAD/status are recorded in output/task-a/commits-final.json and final-git-status.txt after commit creation. No remaining Task A acceptance blocker. The known scope limits are unchanged: real model/chat depth is not exercised by smoke; Memory roots are a future contract, legacy84 accesses are explicitly deferred, Atomic writes do not promise multiprocess or directory power-loss durability, and a malicious local concurrent junction swap is outside the regression boundary. Git commit metadata uses the existing linked worktree/common git directory on E:; code and new validation artifacts remain in this workspace.
+隔离夹具仅重建/删除 index，data sentinel 哈希在两次运行保持不变；这验证目录契约，不验证既有 Memory 数据迁移。四个生产配置/日志文件的哈希、大小及 mtime 在 smoke 前后保持一致，没有遗留该次验证的应用进程。截图只包含新建隔离界面。
+
+## 6. 后续维护与验收要求
+
+1. 修改启动链时，重新验证服务导入前的身份拒绝和实际 Electron 路径。
+2. 修改持久写入时，覆盖损坏原文件、备份失败、主文件替换失败和保存失败后的连接清理。
+3. 安装器消费者退役前，保留 content manifest 与原生内容暂存兼容。
+4. 对后续 Memory、MCP 权限及遗留直接路径分别维护当前实现和验收，不能继承本记录的完成状态。
+5. 真实模型/聊天深度、完整 GUI、外部服务、安装升级和发布验收另行执行。恶意并发 junction 交换、多进程事务和目录级掉电耐久性不在本阶段承诺内。

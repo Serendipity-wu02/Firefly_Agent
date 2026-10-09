@@ -37,7 +37,7 @@ async function cancelledLookups(proxy: ConnectProxy, lookups: ReturnType<typeof 
   return rejected;
 }
 
-async function fixture(resolve: ProxyDependencies["resolve"] = vi.fn(async (_host: string) => publicAnswer), transport: { connect?: ProxyDependencies["connect"]; remoteAddress?: string } = {}) {
+async function fixture(resolve: ProxyDependencies["resolve"] = vi.fn(async (_host: string) => publicAnswer), transport: { connect?: ProxyDependencies["connect"]; remoteAddress?: string } = {}, allowedHosts?: string[]) {
   let hits = 0; const peers = new Set<Socket>(); const bytes: Buffer[] = [];
   const origin: Server = createServer((socket) => {
     hits++; peers.add(socket); socket.on("error", () => {}); socket.on("close", () => peers.delete(socket));
@@ -56,7 +56,7 @@ async function fixture(resolve: ProxyDependencies["resolve"] = vi.fn(async (_hos
     return socket;
   });
   const owner = new AbortController();
-  const binding = { webContentsId: 19, signal: owner.signal };
+  const binding = { webContentsId: 19, signal: owner.signal, ...(allowedHosts === undefined ? {} : { allowedHosts }) };
   const proxy = await startAuthenticatedConnectProxy(binding, { resolve, connect: transport.connect ?? dial });
   cleanups.push(() => proxy.revoke());
   return { proxy, owner, binding, resolve, dial, targets, bytes, hits: () => hits };
@@ -86,6 +86,51 @@ async function request(proxy: ConnectProxy, options: { auth?: string; authority?
 }
 
 describe("authenticated CONNECT proxy: actual local TCP + injected public pin", () => {
+  it.each(["foreign.example:443", "sub.example.com:443", "example.com.evil.example:443", "93.184.216.34:443"])("rejects out-of-scope authority %s before DNS or dial", async (authority) => {
+    const f = await fixture(undefined, {}, ["example.com", "assets.example.com"]);
+    const r = await request(f.proxy, { auth: authorization(f.proxy), authority });
+    expect(await r.response).toContain("403");
+    expect(f.resolve).not.toHaveBeenCalled(); expect(f.dial).not.toHaveBeenCalled(); expect(f.hits()).toBe(0);
+  });
+  it("denies all authorities when the exact-host scope is empty", async () => {
+    const f = await fixture(undefined, {}, []);
+    const r = await request(f.proxy, { auth: authorization(f.proxy) });
+    expect(await r.response).toContain("403");
+    expect(f.resolve).not.toHaveBeenCalled(); expect(f.dial).not.toHaveBeenCalled(); expect(f.hits()).toBe(0);
+  });
+  it.each(["example.com", "assets.example.com"])("permits approved exact host %s with a public numeric pin", async (host) => {
+    const f = await fixture(undefined, {}, ["example.com", "assets.example.com"]);
+    const r = await request(f.proxy, { auth: authorization(f.proxy), authority: `${host}:443` });
+    expect(await r.response).toContain("200 Connection Established");
+    expect(f.resolve).toHaveBeenCalledExactlyOnceWith(host);
+    expect(f.targets).toEqual([{ address: "93.184.216.34", family: 4, port: 443 }]); expect(f.hits()).toBe(1);
+  });
+  it("snapshots the exact-host scope against later array and input mutations", async () => {
+    const allowedHosts = ["example.com"];
+    const f = await fixture(undefined, {}, allowedHosts);
+    allowedHosts[0] = "foreign.example"; allowedHosts.push("added.example");
+    f.binding.allowedHosts = ["replacement.example"];
+    for (const host of ["foreign.example", "added.example", "replacement.example"]) {
+      const denied = await request(f.proxy, { auth: authorization(f.proxy), authority: `${host}:443` });
+      expect(await denied.response).toContain("403");
+    }
+    expect(f.resolve).not.toHaveBeenCalled(); expect(f.dial).not.toHaveBeenCalled(); expect(f.hits()).toBe(0);
+    const allowed = await request(f.proxy, { auth: authorization(f.proxy) });
+    expect(await allowed.response).toContain("200 Connection Established"); expect(f.hits()).toBe(1);
+  });
+  it("still rejects a scoped host with mixed public and private DNS answers", async () => {
+    const f = await fixture(vi.fn(async () => [...publicAnswer, { address: "10.0.0.1", family: 4 }]), {}, ["example.com"]);
+    const r = await request(f.proxy, { auth: authorization(f.proxy) });
+    expect(await r.response).toContain("403"); expect(f.dial).not.toHaveBeenCalled(); expect(f.hits()).toBe(0);
+  });
+  it("revokes an approved scoped host during DNS without a late dial", async () => {
+    const lookup = deferred<typeof publicAnswer>(); const entered = deferred<void>();
+    const f = await fixture(vi.fn(() => { entered.resolve(); return lookup.promise; }), {}, ["example.com"]);
+    const r = await request(f.proxy, { auth: authorization(f.proxy) }); const response = r.response.catch(() => "closed");
+    await entered.promise; await f.proxy.revoke(); lookup.resolve(publicAnswer);
+    expect(await response).not.toContain("HTTP/1.1 200 Connection Established\r\n"); await new Promise<void>((done) => setImmediate(done));
+    expect(f.dial).not.toHaveBeenCalled(); expect(f.hits()).toBe(0); expect(f.proxy.credentialsFor(challenge(f.proxy))).toBeNull();
+  });
   it.each([undefined, "Basic wrong", "Bearer wrong"])("rejects credentials %s without DNS or upstream socket", async (auth) => {
     const f = await fixture(); const r = await request(f.proxy, { auth });
     expect(await r.response).toContain("407"); expect(f.resolve).not.toHaveBeenCalled(); expect(f.dial).not.toHaveBeenCalled(); expect(f.hits()).toBe(0);
@@ -108,7 +153,7 @@ describe("authenticated CONNECT proxy: actual local TCP + injected public pin", 
   it("rejects duplicate authorization and conflicting Host before DNS", async () => {
     const f = await fixture(); const auth = authorization(f.proxy);
     for (const extra of [`Proxy-Authorization: ${auth}\r\n`, "Host: foreign.com:443\r\n"]) {
-      const r = await request(f.proxy, { auth, extra }); expect(await r.response).not.toContain("200");
+      const r = await request(f.proxy, { auth, extra }); expect(await r.response).not.toContain("HTTP/1.1 200 Connection Established\r\n");
     }
     expect(f.resolve).not.toHaveBeenCalled(); expect(f.hits()).toBe(0);
   });
@@ -166,7 +211,7 @@ describe("authenticated CONNECT proxy: actual local TCP + injected public pin", 
     lookups.entries[0].reject(); await new Promise<void>((done) => setImmediate(done));
     const resumed = await request(next.proxy, { auth: authorization(next.proxy) }); const resumedResponse = resumed.response.catch(() => "closed");
     await vi.waitFor(() => expect(lookups.entries).toHaveLength(33));
-    lookups.entries[32].resolve(); expect(await resumedResponse).toContain("200"); expect(next.hits()).toBe(1);
+    lookups.entries[32].resolve(); expect(await resumedResponse).toContain("HTTP/1.1 200 Connection Established\r\n"); expect(next.hits()).toBe(1);
     lookups.entries.slice(1, 32).forEach((entry) => entry.resolve()); await new Promise<void>((done) => setImmediate(done));
     expect(first.targets).toHaveLength(0); expect(next.targets).toHaveLength(1); expect(lookups.pending()).toBe(0);
   }, 15000);
@@ -193,11 +238,11 @@ describe("authenticated CONNECT proxy: actual local TCP + injected public pin", 
       expect(await r.response).toContain("403"); r.socket.destroy();
     }
     const healthy = await fixture(); const r = await request(healthy.proxy, { auth: authorization(healthy.proxy) });
-    expect(await r.response).toContain("200"); expect(healthy.hits()).toBe(1); expect(failing.hits()).toBe(0);
+    expect(await r.response).toContain("HTTP/1.1 200 Connection Established\r\n"); expect(healthy.hits()).toBe(1); expect(failing.hits()).toBe(0);
   });
   it("owner abort tears down an already established tunnel and prevents credentials reuse", async () => {
     const f = await fixture(); const r = await request(f.proxy, { auth: authorization(f.proxy) });
-    expect(await r.response).toContain("200"); const closed = once(r.socket, "close");
+    expect(await r.response).toContain("HTTP/1.1 200 Connection Established\r\n"); const closed = once(r.socket, "close");
     f.owner.abort(); await closed; await f.proxy.revoke();
     expect(f.proxy.credentialsFor(challenge(f.proxy))).toBeNull();
   });
@@ -211,7 +256,7 @@ describe("authenticated CONNECT proxy: actual local TCP + injected public pin", 
     const f = await fixture(undefined, { connect: () => { entered.resolve(); return pending; } });
     const r = await request(f.proxy, { auth: authorization(f.proxy) }); const response = r.response.catch(() => "closed");
     await entered.promise; await f.proxy.revoke(); pending.emit("connect");
-    expect(await response).not.toContain("200"); expect(pending.destroyed).toBe(true); expect(f.hits()).toBe(0);
+    expect(await response).not.toContain("HTTP/1.1 200 Connection Established\r\n"); expect(pending.destroyed).toBe(true); expect(f.hits()).toBe(0);
   });
   it("rejects a connected peer differing from the validated pin before forwarding bytes", async () => {
     const f = await fixture(undefined, { remoteAddress: "10.0.0.1" }); const r = await request(f.proxy, { auth: authorization(f.proxy) });
@@ -219,11 +264,11 @@ describe("authenticated CONNECT proxy: actual local TCP + injected public pin", 
   });
   it("recognizes equivalent IPv6 peer text using the actual Node BlockList", async () => {
     const f = await fixture(vi.fn(async () => [{ address: "2606:4700:4700:0:0:0:0:1111", family: 6 }]), { remoteAddress: "2606:4700:4700::1111" });
-    const r = await request(f.proxy, { auth: authorization(f.proxy) }); expect(await r.response).toContain("200");
+    const r = await request(f.proxy, { auth: authorization(f.proxy) }); expect(await r.response).toContain("HTTP/1.1 200 Connection Established\r\n");
   });
   it("revalidates every new CONNECT and rejects DNS that changes to private", async () => {
     let lookups = 0; const f = await fixture(vi.fn(async () => ++lookups === 1 ? publicAnswer : [{ address: "10.0.0.1", family: 4 }]));
-    const first = await request(f.proxy, { auth: authorization(f.proxy) }); expect(await first.response).toContain("200");
+    const first = await request(f.proxy, { auth: authorization(f.proxy) }); expect(await first.response).toContain("HTTP/1.1 200 Connection Established\r\n");
     const second = await request(f.proxy, { auth: authorization(f.proxy) }); expect(await second.response).toContain("403");
     expect(f.targets).toHaveLength(1); expect(f.hits()).toBe(1);
   });

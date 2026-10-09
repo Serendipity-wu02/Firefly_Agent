@@ -1,10 +1,12 @@
-# Firefly 依赖安全升级 Differential Review
+# Firefly 依赖安全升级差异审查
 
-> 历史记录：本文保留截至提交 `890bc61` 的依赖升级与差异审查结论，包括当时 `extract-zip` 的 1 high 及测试结果。后续工作树改用 `yauzl@3.4.0` 与项目落盘适配，不改写本报告；当前接入及待验证状态见 [README](../../../README.md)。本文不是当前依赖审计或安全认证。
+> **日期**：2026-09-26
+> **状态**：历史技术记录。下文描述记录时的实现、设计与验证结论，不代表当前版本复测。
+> **范围**：依赖安全更新后的差异审查；当时保留 extract-zip 的 1 项 high 告警。当前维护入口见[文档导航](../../README.md)。
 
 ## 结论
 
-基线 `d8757969ab97b49f250fdcead2be2a0723191d3d` → 本轮未提交工作树；没有新增提交。本报告按 differential-review 的历史追踪、逐差异审查、调用范围与攻击路径检查执行，不是独立第三方审计。
+审查对比依赖修补前后的源码与锁文件，覆盖历史追踪、逐项差异、调用范围及攻击路径；本报告不是独立第三方审计。
 
 **建议：CONDITIONAL。** 本轮未发现新增 critical/high 安全回归；保留 **1 项 high 依赖风险（extract-zip，无上游修复发布）**。应用入口缓解与回归已实现，不能宣称整个依赖生态零漏洞或所有平台已验证。详见 [完整逐包报告](../refactor/2026-09-26-npm-audit-remediation.md)。
 
@@ -32,12 +34,12 @@
 | src/main/skills/snapshot-zip-security.test.ts | ZIP symlink fixture + 外部 sentinel；必须观察 ZIP_SYMLINK_FORBIDDEN，不能拿 OS EPERM 代替策略证明。 |
 | src/main/dependency-security.test.ts | Sharp/Xenova API、protobufjs 静态 ONNX、ExcelJS uuidv4、代理环境解析 4 项真实库回归。无真实模型、服务凭据或公网请求。 |
 
-`packages/plugin-sdk/LICENSE` 为先前已有无内容差异标记；完整测试后 snapshot 文件亦出现无内容差异标记，均不属于安全修复的内容变更。原两个目录与用户数据未纳入 diff。
+`packages/plugin-sdk/LICENSE` 与工具 snapshot 的内容未因本次安全修复而改变。外部来源项目及真实用户数据未纳入差异范围。
 
 ## 历史与安全不变量
 
-- `git blame`：Skills 默认解压入口来自 `f1f65795`，原来没有 onEntry；本轮是加校验，不是删除既有安全保护。
-- 迁移链历史包含 `6c18981` 与 `35457af`；读取当前 hash 比对、备份及清理后确认其仍存在。本轮没有重写历史或改动迁移数据。
+- 历史源码追踪确认 Skills 默认解压入口原来没有 onEntry；该修正新增校验，未删除既有安全保护。
+- 历史源码与修正后实现对比确认：迁移链的 hash 比对、备份和清理行为均保留；迁移数据未改动。
 - 插件安装原有 `validateEntryName`、重复路径检查、链接拒绝、解压预算、assertNoLinks、staging 和身份检查均保留，没有因升级切换到缺少 onEntry 的内部解压包。
 - 不更改审批、凭据处理、模型配置、Agent Loop 或工具授权；新测试只使用临时公开数据。
 
@@ -68,4 +70,4 @@
 
 1. extract-zip 保留 high 跟踪；2026-10-03 或修复发布时重新评估，不以本轮构建通过关闭。
 2. 覆盖支持的平台与真实服务验收后再扩大发布结论；BGE-M3 未配置不下载。
-3. 本轮未暂存、提交、推送或触发 CI。工作流现有报告型 audit 策略没有作为本轮“修复”去改动。
+3. 报告未包含新增 CI 运行；既有报告型 audit 策略保持不变。

@@ -1,3 +1,4 @@
+import type { SidebarLayoutApi } from "../../../../../shared/sidebar-layout";
 import type {
   ChatMessage,
   ChatSession,
@@ -33,6 +34,7 @@ import type {
 } from "../../../../../shared/pop-quiz";
 
 export interface ChatStoreApi {
+  sidebarLayout?: SidebarLayoutApi;
   list: (options?: { mode?: ConversationMode }) => Promise<ChatSessionMeta[]>;
   get: (id: string) => Promise<ChatSession | null>;
   exportWorkMarkdown: (id: string) => Promise<{ ok: boolean; canceled?: boolean; error?: string }>;
@@ -88,6 +90,7 @@ export interface SidebarApi {
 
 export interface AguiEvent {
   type?: string;
+  threadId?: string;
   runId?: string;
   messageId?: string;
   delta?: string;

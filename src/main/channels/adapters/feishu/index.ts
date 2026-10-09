@@ -217,6 +217,16 @@ async function sendLark(channel: LarkChannel, targetId: string, part: OutgoingPa
       } as SendInput)) ?? null;
       break;
     }
+    case "file": {
+      result = await channel.send(targetId, {
+        file: { source: part.filePath, fileName: part.name || path.basename(part.filePath) },
+      });
+      break;
+    }
+    case "video": {
+      result = await channel.send(targetId, { video: { source: part.filePath } });
+      break;
+    }
     case "card": {
       result = (await channel.send(targetId, {
         card: {
@@ -246,6 +256,9 @@ async function sendLark(channel: LarkChannel, targetId: string, part: OutgoingPa
       } as SendInput)) ?? null;
       break;
     }
+  }
+  if (!result || typeof result.messageId !== "string" || !result.messageId.trim()) {
+    throw new Error("飞书发送未返回有效消息回执");
   }
   return result;
 }

@@ -1,0 +1,20 @@
+{
+  "sourceEvidenceRoots": [
+    "E:\\Codex\\Firefly-structure-review-20260926-123626\\current-files",
+    "E:\\Codex\\2026-10-02\\task-2\\firefly-local-merge",
+    "E:\\Codex\\2026-10-03\\task-12\\h-analysis-snapshot"
+  ],
+  "patches": [
+    "E:\\Codex\\Firefly-doc-security-review-20260926\\compatibility-governance.patch",
+    "E:\\Codex\\Firefly-doc-security-review-20260926\\license-finish-materials.patch",
+    "E:\\Codex\\Firefly-doc-security-review-20260926\\license-materials.patch",
+    "E:\\Codex\\Firefly-doc-security-review-20260926\\license-report-update.patch",
+    "E:\\Codex\\Firefly-doc-security-review-20260926\\office-design--scripts--validate_theme.py.diff",
+    "E:\\Codex\\Firefly-doc-security-review-20260926\\skill-creator--SKILL.md.diff",
+    "E:\\Codex\\Firefly-doc-security-review-20260926\\upstream-unified-map.patch",
+    "E:\\Codex\\Firefly-structure-review-20260926-123626\\tracked-diff-HEAD.patch",
+    "E:\\Codex\\Firefly-structure-review-20260926-123626\\untracked-additions.patch",
+    "E:\\Codex\\Firefly-Upstream-Reacquisition.patch",
+    "E:\\Codex\\Firefly-windows-fixtures-20260927\\final.patch"
+  ]
+}

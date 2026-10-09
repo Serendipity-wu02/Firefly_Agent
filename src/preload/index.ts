@@ -1,3 +1,7 @@
+import { MANUAL_BROWSER_WORKSPACE_IPC, type ManualBrowserWorkspaceApi } from "../shared/manual-browser";
+import { SIDEBAR_LAYOUT_IPC, type SidebarMutation } from "../shared/sidebar-layout";
+import type { ExternalSkillsApi } from "../shared/external-skills";
+import type { DesktopAsrApi } from "../shared/desktop-asr";
 import type { MemoryPanelAction, MemoryPanelOutcome, MemoryPanelSourceAudit, MemoryPanelState } from "../shared/memory-panel-contracts";
 import type { UiColors } from "../shared/ui-colors";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
@@ -16,7 +20,7 @@ import type { ReasoningPreference } from "../shared/reasoning";
 import type { DocumentIndexProgress } from "../shared/document-index";
 import type { AguiRunAck } from "../shared/run-terminal";
 import type { ReviewSnapshot, ReviewRestoreOutcome } from "../shared/review-types";
-import type { WorkspaceListResult, WorkspaceReadResult } from "../shared/workspace-files-types";
+import type { WorkspaceListResult, WorkspaceReadResult, WorkspaceSaveResult } from "../shared/workspace-files-types";
 import type { OpenInAppListResult, OpenInAppOpenResult } from "../shared/open-in-app-types";
 import { getLive2DIpcListenerCounts } from "./live2d-listener-diagnostics";
 import { exposeMusicApi } from "./music";
@@ -66,6 +70,14 @@ const appUpdateApi: AppUpdateApi = {
     return () => ipcRenderer.off(IPC.APP_UPDATE_STATE, listener);
   },
 };
+
+const desktopAsrApi: DesktopAsrApi = {
+  start: id => ipcRenderer.invoke(IPC.DESKTOP_ASR_START, id),
+  frame: (id, pcm) => ipcRenderer.invoke(IPC.DESKTOP_ASR_FRAME, id, pcm),
+  stop: id => ipcRenderer.invoke(IPC.DESKTOP_ASR_STOP, id),
+  cancel: id => ipcRenderer.invoke(IPC.DESKTOP_ASR_CANCEL, id),
+};
+contextBridge.exposeInMainWorld("desktopAsr", desktopAsrApi);
 
 const chatApi = {
   minimize: () => ipcRenderer.send(IPC.CHAT_MINIMIZE),
@@ -361,6 +373,13 @@ const settingsApi = {
     ipcRenderer.invoke(IPC.TOOL_SET_MODE_OVERRIDE, { toolId, mode, enabled }),
   clearToolModeOverride: (toolId: string, mode?: string) =>
     ipcRenderer.invoke(IPC.TOOL_CLEAR_MODE_OVERRIDE, { toolId, mode }),
+  externalSkills: {
+    list: (sourceId, refresh = false) => ipcRenderer.invoke(IPC.EXTERNAL_SKILLS_LIST, { sourceId, refresh }),
+    detail: (sourceId, id) => ipcRenderer.invoke(IPC.EXTERNAL_SKILLS_DETAIL, { sourceId, id }),
+    prepare: (sourceId, id) => ipcRenderer.invoke(IPC.EXTERNAL_SKILLS_PREPARE, { sourceId, id }),
+    commit: (token) => ipcRenderer.invoke(IPC.EXTERNAL_SKILLS_COMMIT, { token }),
+    cancel: () => ipcRenderer.invoke(IPC.EXTERNAL_SKILLS_CANCEL, {}),
+  } satisfies ExternalSkillsApi,
   listSkills: () => ipcRenderer.invoke(IPC.SKILL_LIST),
   setSkillEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke(IPC.SKILL_SET_ENABLED, { id, enabled }),
   // 三模适配层：skill-模式覆盖层（UI 设置面板用）
@@ -562,7 +581,7 @@ contextBridge.exposeInMainWorld("modelConfig", modelConfigApi);
 const manualBrowser: BrowserAvailabilityApi = {
   getPermission: () => ipcRenderer.invoke(IPC.BROWSER_PERMISSION, { kind: "get" }),
   requestPermission: scope => ipcRenderer.invoke(IPC.BROWSER_PERMISSION, { kind: "request", scope }),
-  revokePermission: () => ipcRenderer.invoke(IPC.BROWSER_PERMISSION, { kind: "revoke" }),
+  revokePermission: conversationId => ipcRenderer.invoke(IPC.BROWSER_PERMISSION, { kind: "revoke", ...(conversationId === undefined ? {} : { conversationId }) }),
   getAvailability: () => ipcRenderer.invoke(IPC.BROWSER_AVAILABILITY),
   execute: (command) => ipcRenderer.invoke(IPC.BROWSER_COMMAND, command),
   onChanged: (callback) => {
@@ -572,6 +591,23 @@ const manualBrowser: BrowserAvailabilityApi = {
   },
 };
 contextBridge.exposeInMainWorld("manualBrowser", manualBrowser);
+const manualBrowserWorkspace: ManualBrowserWorkspaceApi = {
+  getAvailability: () => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.availability),
+  getPermission: tabId => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.permission, { kind: "get", ...(tabId === undefined ? {} : { tabId }) }),
+  requestPermission: (scope, tabId) => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.permission, { kind: "request", scope, ...(tabId === undefined ? {} : { tabId }) }),
+  revokePermission: (workspaceId, tabId) => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.permission, { kind: "revoke", workspaceId, ...(tabId === undefined ? {} : { tabId }) }),
+  getTabs: () => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.command, { kind: "tabs" }),
+  newTab: () => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.command, { kind: "new-tab" }),
+  selectTab: tabId => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.command, { kind: "select-tab", tabId }),
+  closeTab: tabId => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.command, { kind: "close-tab", tabId }),
+  execute: (command, tabId) => ipcRenderer.invoke(MANUAL_BROWSER_WORKSPACE_IPC.command, { ...command, ...(tabId === undefined ? {} : { tabId }) }),
+  onChanged: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, page: import("../shared/manual-browser").BrowserWorkspacePageDto) => callback(page);
+    ipcRenderer.on(MANUAL_BROWSER_WORKSPACE_IPC.changed, listener);
+    return () => ipcRenderer.removeListener(MANUAL_BROWSER_WORKSPACE_IPC.changed, listener);
+  },
+};
+contextBridge.exposeInMainWorld("manualBrowserWorkspace", manualBrowserWorkspace);
 const runtimeStateApi = {
   get: () => ipcRenderer.invoke(IPC.RUNTIME_STATE_GET),
   onChanged: (callback: (state: unknown) => void) => {
@@ -636,6 +672,14 @@ contextBridge.exposeInMainWorld("live2dDiagnostics", live2dDiagnosticsApi);
 
 // 聊天会话存储（多对话历史）
 const chatStoreApi = {
+  sidebarLayout: {
+    get: () => ipcRenderer.invoke(SIDEBAR_LAYOUT_IPC.get),
+    mutate: (input: SidebarMutation) => ipcRenderer.invoke(SIDEBAR_LAYOUT_IPC.mutate, input),
+    onChanged: (callback: () => void) => {
+      const listener = () => callback(); ipcRenderer.on(SIDEBAR_LAYOUT_IPC.changed, listener);
+      return () => { ipcRenderer.removeListener(SIDEBAR_LAYOUT_IPC.changed, listener); };
+    },
+  },
   list: (options?: { mode?: "chat" | "work" | "code" }) => ipcRenderer.invoke(IPC.CHATS_LIST, options),
   get: (id: string) => ipcRenderer.invoke(IPC.CHATS_GET, id),
   exportWorkMarkdown: (id: string) => ipcRenderer.invoke(IPC.CHATS_EXPORT_WORK_MARKDOWN, id),
@@ -765,6 +809,8 @@ const workspaceFilesApi = {
     ipcRenderer.invoke(IPC.WORKSPACE_FILES_LIST, { sessionId, relPath }) as Promise<WorkspaceListResult>,
   read: (sessionId: string, relPath: string) =>
     ipcRenderer.invoke(IPC.WORKSPACE_FILES_READ, { sessionId, relPath }) as Promise<WorkspaceReadResult>,
+  save: (sessionId: string, relPath: string, content: string, editVersion: string) =>
+    ipcRenderer.invoke(IPC.WORKSPACE_FILES_SAVE, { sessionId, relPath, content, editVersion }) as Promise<WorkspaceSaveResult>,
 };
 
 contextBridge.exposeInMainWorld("workspaceFiles", workspaceFilesApi);

@@ -264,6 +264,24 @@ describe("PluginManager", () => {
     expect(h.tools).toContain("demo_tool");
   });
 
+  it.each([false, true])("保存开关失败时保留原配置与重扫行为（原值 %s）", async (previous) => {
+    const h = harness({
+      loadEnabledMap: () => ({ demo: previous }),
+      saveEnabledMap: () => { throw new Error("synthetic disk full"); },
+    });
+    const mgr = new PluginManager(h.options);
+    try {
+      await mgr.start();
+      expect(await mgr.setEnabled("demo", !previous)).toMatchObject({ ok: false });
+      expect(mgr.list()[0]).toMatchObject({ configuredEnabled: previous, enabled: previous });
+      await mgr.rescan();
+      expect(mgr.list()[0]).toMatchObject({ configuredEnabled: previous, enabled: previous });
+      expect(h.tools.includes("demo_tool")).toBe(previous);
+    } finally {
+      await mgr.stop();
+    }
+  });
+
   it("重复 id 只保留第一个扫描结果", async () => {
     const h = harness();
     fixturePlugin("demo-copy", "demo");

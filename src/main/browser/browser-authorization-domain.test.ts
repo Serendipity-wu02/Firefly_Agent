@@ -138,3 +138,21 @@ describe("Main Session authorization domain", () => {
     expect(test.registry.canPrepare(test.context, { hosts: [host] })).toBe(false);
   });
 });
+
+it("resource domains never authorize top or subframe navigation and remain immutable for workers", () => {
+  const test = setup(), resourceHosts = ["cdn.example"];
+  const domain = test.registry.create(test.context, test.session, { hosts: ["public.example"], resourceHosts });
+  expect(domain).not.toBeNull(); domain!.registerContents(test.contents); domain!.activate();
+  resourceHosts.push("injected.example");
+  for (const resourceType of ["script", "stylesheet", "image", "font", "media", "xhr"]) {
+    expect(domain!.allows({ url: "https://cdn.example/file", method: "GET", resourceType })).toBe(true);
+  }
+  for (const resourceType of ["mainFrame", "subFrame"]) {
+    expect(domain!.allows({ url: "https://cdn.example/file", method: "GET", resourceType })).toBe(false);
+    expect(domain!.allows({ url: "https://public.example/page", method: "GET", resourceType })).toBe(true);
+  }
+  for (const host of ["injected.example", "sub.cdn.example", "cdn.example.evil.example"]) {
+    expect(domain!.allows({ url: `https://${host}/file`, method: "GET", resourceType: "script" })).toBe(false);
+  }
+  expect(domain!.epoch.policy.resourceHosts).toEqual(["cdn.example"]);
+});

@@ -9,14 +9,30 @@
 import { WebSocket } from "ws";
 import { createHmac } from "node:crypto";
 import { randomUUID } from "node:crypto";
+import { createAbortError, raceWithSignal } from "../abort-utils";
 
 const LOG_PREFIX = "[AliyunASR]";
 const NLS_GATEWAY = "wss://nls-gateway.cn-shanghai.aliyuncs.com/ws/v1";
+const MAX_TRANSCRIPT_CHARS = 32_000;
+const MAX_MESSAGE_BYTES = 1024 * 1024;
 
 /** 阿里云 ASR 流式识别会话 */
 export class AliyunAsrStream {
   private ws: WebSocket | null = null;
   private stopped = false;
+  private cancelled = false;
+  private ready = false;
+  private readonly tokenAbort = new AbortController();
+  private startPromise: Promise<void> | null = null;
+  private resolveReady: (() => void) | null = null;
+  private rejectReady: ((error: Error) => void) | null = null;
+  private stopPromise: Promise<string> | null = null;
+  private resolveStop: ((text: string) => void) | null = null;
+  private rejectStop: ((error: Error) => void) | null = null;
+  private failure: Error | null = null;
+  private closeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly finals: string[] = [];
+  private transcriptChars = 0;
   private audioBuffer = Buffer.alloc(0);
   private taskId = randomUUID().replace(/-/g, "");
   private appKey = "";
@@ -27,29 +43,43 @@ export class AliyunAsrStream {
   ) {}
 
   /** 开始识别会话：获取 token → 连 WebSocket → 发 StartTranscription */
-  async start(appKey: string, accessKeyId: string, accessKeySecret: string, language: string): Promise<void> {
+  start(appKey: string, accessKeyId: string, accessKeySecret: string, language: string): Promise<void> {
+    if (this.stopped || this.cancelled) return Promise.reject(createAbortError());
+    if (!this.startPromise) this.startPromise = this.connect(appKey, accessKeyId, accessKeySecret, language);
+    return this.startPromise;
+  }
+
+  private async connect(appKey: string, accessKeyId: string, accessKeySecret: string, language: string): Promise<void> {
     this.appKey = appKey;
-    console.log(LOG_PREFIX, `获取 token... appKey=${appKey}`);
-    let token: string;
     try {
-      token = await this.getToken(accessKeyId, accessKeySecret);
+      const token = await raceWithSignal(this.getToken(accessKeyId, accessKeySecret), this.tokenAbort.signal);
+      if (this.stopped || this.cancelled) throw createAbortError();
+      const socket = new WebSocket(`${NLS_GATEWAY}?token=${encodeURIComponent(token)}`, { maxPayload: MAX_MESSAGE_BYTES });
+      this.ws = socket;
+      await new Promise<void>((resolve, reject) => {
+        this.resolveReady = () => { this.resolveReady = null; this.rejectReady = null; resolve(); };
+        this.rejectReady = (error) => { this.resolveReady = null; this.rejectReady = null; reject(error); };
+        socket.on("open", () => {
+          if (this.ws !== socket || this.stopped || this.cancelled) return;
+          this.sendStartTranscription(appKey, language);
+        });
+        socket.on("message", (raw: Buffer) => {
+          if (this.ws === socket && !this.cancelled) this.handleMessage(raw);
+        });
+        socket.on("error", (error) => {
+          if (this.ws !== socket) return;
+          this.fail(error);
+        });
+        socket.on("close", () => {
+          if (this.ws !== socket) return;
+          this.rejectReady?.(new Error("ASR connection closed before transcription started"));
+          this.finishRecognition();
+        });
+      });
     } catch (err) {
-      console.error(LOG_PREFIX, "获取 token 失败:", err);
-      return;
+      this.cancel();
+      throw err;
     }
-    console.log(LOG_PREFIX, "token 获取成功，连接 WebSocket...");
-
-    const url = `${NLS_GATEWAY}?token=${encodeURIComponent(token)}`;
-    this.ws = new WebSocket(url);
-
-    this.ws.on("open", () => {
-      console.log(LOG_PREFIX, "WS 已连接，发送 StartTranscription");
-      this.sendStartTranscription(appKey, language);
-    });
-
-    this.ws.on("message", (raw: Buffer) => this.handleMessage(raw));
-    this.ws.on("error", (err) => console.error(LOG_PREFIX, "WS 错误:", err.message));
-    this.ws.on("close", (code) => console.log(LOG_PREFIX, `WS 关闭: ${code}`));
   }
 
   /** 发送 StartTranscription 指令（JSON 文本帧） */
@@ -75,13 +105,14 @@ export class AliyunAsrStream {
     try {
       this.ws?.send(JSON.stringify(msg));
     } catch (err) {
-      console.error(LOG_PREFIX, "发送 StartTranscription 失败:", err);
+      this.rejectReady?.(err instanceof Error ? err : new Error(String(err)));
+      this.cancel();
     }
   }
 
   /** 发送一帧 PCM 音频（攒够 200ms/6400 字节再发） */
   sendAudio(pcmFrame: Buffer): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || this.stopped) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.ready || this.stopped) return;
     this.audioBuffer = Buffer.concat([this.audioBuffer, pcmFrame]);
     // 200ms = 16000 * 0.2 * 2 = 6400 字节
     while (this.audioBuffer.length >= 6400) {
@@ -92,10 +123,16 @@ export class AliyunAsrStream {
   }
 
   /** 结束识别：发剩余音频 + StopTranscription */
-  stop(): void {
-    if (this.stopped) return;
+  stop(): Promise<string> {
+    if (this.failure) return this.stopPromise ??= Promise.reject(this.failure);
+    if (this.stopPromise) return this.stopPromise;
+    if (!this.ready || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.cancel();
+      return this.stopPromise!;
+    }
     this.stopped = true;
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.stopPromise = new Promise<string>((resolve, reject) => { this.resolveStop = resolve; this.rejectStop = reject; });
+    this.closeTimer = setTimeout(() => this.finishRecognition(), 2000);
 
     // 发剩余音频
     if (this.audioBuffer.length > 0) {
@@ -113,9 +150,52 @@ export class AliyunAsrStream {
         appkey: this.appKey,
       },
     };
-    try { this.ws.send(JSON.stringify(msg)); } catch { /* ignore */ }
+    try { this.ws.send(JSON.stringify(msg)); } catch { this.finishRecognition(); }
+    return this.stopPromise;
+  }
 
-    setTimeout(() => { try { this.ws?.close(); } catch { /* ignore */ } }, 2000);
+  /** Cancel never requests a final transcript or emits text after ownership is revoked. */
+  cancel(): void {
+    if (this.cancelled) return;
+    this.cancelled = true;
+    this.stopped = true;
+    this.ready = false;
+    this.tokenAbort.abort();
+    this.rejectReady?.(createAbortError());
+    this.audioBuffer = Buffer.alloc(0);
+    this.finals.length = 0;
+    this.transcriptChars = 0;
+    if (this.closeTimer) clearTimeout(this.closeTimer);
+    this.closeTimer = null;
+    if (this.failure) this.rejectStop?.(this.failure);
+    else this.resolveStop?.("");
+    this.resolveStop = null;
+    this.rejectStop = null;
+    if (!this.failure) this.stopPromise ??= Promise.resolve("");
+    const socket = this.ws;
+    this.ws = null;
+    if (socket) { try { socket.terminate(); } catch { /* already closed */ } }
+  }
+
+  private fail(error: Error): void {
+    this.failure ??= error;
+    this.rejectReady?.(this.failure);
+    this.cancel();
+  }
+
+  private finishRecognition(): void {
+    this.stopped = true;
+    this.ready = false;
+    if (this.closeTimer) clearTimeout(this.closeTimer);
+    this.closeTimer = null;
+    const text = this.cancelled ? "" : this.finals.join("");
+    this.resolveStop?.(text);
+    this.resolveStop = null;
+    this.rejectStop = null;
+    this.stopPromise ??= Promise.resolve(text);
+    const socket = this.ws;
+    this.ws = null;
+    if (socket) { try { socket.close(); } catch { /* already closed */ } }
   }
 
   /** 解析服务端 JSON 响应 */
@@ -140,12 +220,26 @@ export class AliyunAsrStream {
       const eventName = msg.header?.name;
 
       if (status !== 20000000 && status !== undefined) {
-        console.error(LOG_PREFIX, `ASR 错误: status=${status}, msg=${msg.header?.status_text}`);
+        this.fail(new Error(`ASR 错误: status=${status}`));
         return;
       }
 
+      if (eventName === "TranscriptionResultChanged" || eventName === "SentenceEnd") {
+        const text = msg.payload?.result;
+        if (typeof text !== "string") {
+          this.fail(new Error("ASR_INVALID_TRANSCRIPT"));
+          return;
+        }
+        if (text.length > MAX_TRANSCRIPT_CHARS
+            || (eventName === "SentenceEnd" && this.transcriptChars + text.length > MAX_TRANSCRIPT_CHARS)) {
+          this.fail(new Error("ASR_TRANSCRIPT_LIMIT"));
+          return;
+        }
+      }
+
       if (eventName === "TranscriptionStarted") {
-        console.log(LOG_PREFIX, "转写已开始，可以发送音频");
+        this.ready = true;
+        this.resolveReady?.();
       } else if (eventName === "TranscriptionResultChanged") {
         // 中间结果
         const text = msg.payload?.result ?? "";
@@ -154,11 +248,13 @@ export class AliyunAsrStream {
         // 最终结果
         const text = msg.payload?.result ?? "";
         if (text) {
-          console.log(LOG_PREFIX, "最终识别:", text);
+          this.transcriptChars += text.length;
+          this.finals.push(text);
           this.onFinal(text);
         }
       } else if (eventName === "TranscriptionCompleted") {
-        console.log(LOG_PREFIX, "转写已完成");
+        this.rejectReady?.(new Error("ASR completed before transcription started"));
+        this.finishRecognition();
       }
     } catch (err) {
       console.error(LOG_PREFIX, "解析响应失败:", err);
@@ -195,7 +291,7 @@ export class AliyunAsrStream {
     // 构建完整 URL
     const url = `https://nls-meta.cn-shanghai.aliyuncs.com/?${canonicalQuery}&Signature=${encodeURIComponent(signature)}`;
 
-    const resp = await fetch(url);
+    const resp = await fetch(url, { signal: this.tokenAbort.signal });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json() as { Token?: { Id?: string }; errmsg?: string };
     if (!data.Token?.Id) throw new Error(data.errmsg || "token 获取失败");

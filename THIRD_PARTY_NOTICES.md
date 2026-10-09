@@ -26,6 +26,12 @@ Portions of this project derive from [Cyrene-Agent](https://github.com/Playa-0v0
 
 Runtime and build dependencies are declared in `package.json` and locked in `package-lock.json`; their individual package licenses remain applicable. The retired `vendor/cloud-music-mcp/` source is no longer shipped. Its provenance and license remain in repository history and historical migration records. The project-maintained SDK is now locally built as `@firefly/plugin-sdk`, with the original MIT notice included. It is not published to npm. The upstream plugin registry is no longer a default service; local ZIP installation remains available.
 
+## Skill frontmatter parsing
+
+Skill metadata uses [Eleventy's gray-matter fork](https://github.com/11ty/gray-matter/tree/v3.0.0), `@11ty/gray-matter@3.0.0`, under the MIT license, `Copyright (c) 2014-present, Jon Schlinkert`. Preserve the complete dependency LICENSE when redistributing it. The runtime YAML engine is `js-yaml@5.4.3`, MIT-licensed, `Copyright (C) 2011-2015 by Vitaly Puzrin`.
+
+The scalar grammar in `src/main/skills/skill-frontmatter.ts` adapts the safe float grammar from [js-yaml 3.15.2](https://github.com/nodeca/js-yaml/blob/3.15.2/lib/js-yaml/type/float.js); its complete [MIT license is retained](vendor/security/skill-frontmatter/js-yaml-LICENSE). Firefly maintains the data-only language allowlist and compatibility adapter, not a new YAML parser. The old unscoped gray-matter dependency is removed from this path. The installed fork still exposes a JavaScript engine; Firefly rejects that language before dispatch and supplies explicit YAML/JSON engines.
+
 ## ZIP parsing and extraction
 
 The project currently uses `yauzl@3.4.0` for ZIP parsing. It is MIT-licensed, `Copyright (c) 2014 Josh Wolfe`; the complete original license remains at `node_modules/yauzl/LICENSE` and must remain with redistributed copies of that dependency. This notice does not replace or rewrite that license.

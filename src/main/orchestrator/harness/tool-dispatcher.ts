@@ -34,6 +34,7 @@ import type { DelegationScope } from "../child-session-types";
 import { isAbortError, raceWithSignal } from "../../abort-utils";
 import type { LeafPermit } from "./execution-coordinator";
 import { policyFor } from "../../permission-policy";
+import { createToolInvocationContext } from "../tools/registry/tool-context";
 
 // ── 工具输出截断 ─────────────────────────────────────────
 
@@ -221,11 +222,10 @@ export async function dispatchToolCall(
       return { status: "failed", output: "aborted_before_dispatch", category: "runtime_safety", effectState: "not_applied" };
     }
     if (!revalidateToolPermission(ctx, tool, args, approvalRequired)) return denied();
-    const invocationContext = ctx.toolContext ? {
-      ...ctx.toolContext,
+    const invocationContext = ctx.toolContext ? createToolInvocationContext(ctx.toolContext, {
       ...(execution && scope ? { execution: { coordinator: execution.coordinator, scope, ...(permit ? { permit } : {}) } } : {}),
       authorizedToolCall: ctx.checkPermission ? { toolId: tool.id, args, approvalRequired } : undefined,
-    } : undefined;
+    }) : undefined;
     ctx.onExecutionStarted?.();
     ctx.onEvent?.({ type: "tool_start", toolCallId: call.id, toolName: call.name, args, displayName: tool.name });
     return executeToolDefinition(tool, args, invocationContext);

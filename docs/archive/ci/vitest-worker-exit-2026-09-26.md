@@ -1,17 +1,18 @@
 # Windows Vitest worker 退出：证据与修正
 
-> 历史记录：所列 Windows worker 事故及修正记录；仓库外现场未在本轮重新取证，不改写原结论。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../../README.md)。
+> **日期**：2026-09-26
+> **状态**：历史技术记录。下文描述记录时的实现、设计与验证结论，不代表当前版本复测。
+> **范围**：Windows 8.3 路径触发的 Vitest worker 原生退出及修正。当前维护入口见[文档导航](../../README.md)。
 
 ## 已确认原因
 
-基线 `d1eb82236df0d65c051e3ecec0e1ba7441f1fc51` 的失败日志并非只有汇总错误。
-运行 36163264503 完整日志第 8547 行包含：
+[CI 运行 36163264503](https://github.com/Serendipity-wu02/Firefly_Agent/actions/runs/36163264503) 的完整日志第 8547 行包含原生失败证据：
 
 ```text
 Assertion failed: !_wcsnicmp(filename, dir, dirlen), file src\win\fs-event.c, line 72
 ```
 
-首次运行 36154013900 和 main 运行 36159008085 也包含相同断言。
+运行 36154013900 和 36159008085 也包含相同断言。
 此前未从完整 stderr 提取该行，因此“仅有 worker 异常、原因未确定”的诊断现已被直接证据补充。
 
 `GitWorkspaceWatcher` 把调用方目录直接传入 Windows 原生递归 `fs.watch`。
@@ -24,7 +25,6 @@ Assertion failed: !_wcsnicmp(filename, dir, dirlen), file src\win\fs-event.c, li
 
 本地复现环境 Node v24.19.0、libuv 1.52.1、Vitest 4.1.11：
 
-- Vitest runner PID 25624，真正 fork worker PID 29516。
 - worker 已收到该测试文件的 run 请求，收集 8 个用例，前 5 个完成。
 - 第一个原生监视用例状态为 `run`，后两个为 `queued`。
 - worker stderr 包含上述 libuv 断言。
@@ -32,26 +32,26 @@ Assertion failed: !_wcsnicmp(filename, dir, dirlen), file src\win\fs-event.c, li
 - worker 内没有 JS `process.exit` / `abort` / `kill` 请求记录；Node fatal-report 已启用，但此次原生断言没有生成 Node JSON 报告，不能承诺所有原生终止都有报告。
 - 测试 runner 返回 1，诊断脚本仍返回 1。
 
-本地完整记录位于仓库外 `E:\Codex\Firefly-vitest-investigation-20260926\short-path-before\firefly-vitest-diagnostics`。
-其中 `workers.jsonl` 关联 PID、请求、用例和退出；`worker-29516.stderr.log` 保存该 worker 的断言。
+本地完整记录保存在仓库外的短路径修正前诊断归档。
+诊断事件关联 worker、请求、用例及退出状态；独立 stderr 记录保存原生断言。
 
 ## 成功与失败运行对照
 
-| 项目 | main 36163264503 失败 | dev 36161059602 成功 |
+| 项目 | CI 36163264503 失败 | CI 36161059602 成功 |
 | --- | --- | --- |
-| 提交 | d1eb822 | d1eb822 |
+| 源码版本 | 同一版本 | 同一版本 |
 | runner 镜像 | windows-2025-vs2026 / 20260907.229.1 | windows-2025-vs2026 / 20260922.246.2 |
 | Node | 24.20.0 | 24.21.0 |
 | npm | 11.19.0 | 11.19.0 |
 | 安装 | npm ci --foreground-scripts | 相同 |
 | 测试 | run-vitest.ps1；vitest run --reporter=verbose --logHeapUsage | 相同 |
-| 工作目录 | D:/a/Firefly_Agent/Firefly_Agent | 相同 |
+| 工作目录 | GitHub Actions checkout 目录 | 相同 |
 | Vitest | 4.1.11 | 4.1.11 |
 
 两次锁文件相同，解析为 Vitest/@vitest/runner 4.1.11、Vite 7.3.6、chokidar 4.0.3。
-workflow 没有针对 main 的测试差异，也未配置依赖缓存恢复；setup-node 日志中的 cache 是预装 Node 工具缓存。
+两个运行使用相同 workflow 测试逻辑，也未配置依赖缓存恢复；setup-node 日志中的 cache 是预装 Node 工具缓存。
 Vitest watch/cache 均关闭，pool forks、max/minWorkers 1、fileParallelism false。
-环境存在小版本和镜像差异，但本修正不依赖将原因归为分支或升级 Node。
+环境存在小版本和镜像差异，但本修正不依赖将原因归为源码版本差异或升级 Node。
 
 ## 修改
 
@@ -67,8 +67,8 @@ Vitest watch/cache 均关闭，pool forks、max/minWorkers 1、fileParallelism f
 ## 本地验证
 
 - 修改前：定向原生短路径复现，5/8 完成，worker 原生断言退出，runner code 1。
-- 修改后：同一短路径环境，9/9 通过，无跳过；记录在仓库外 `short-path-after`。
-- 最终诊断脚本：监视器和真实 shell 超时测试共 2 文件、16 项通过；记录在仓库外 `final-targeted`。后者同时确认子进程终止仍正常、未被诊断抑制。
+- 修改后：同一短路径环境，9/9 通过，无跳过；该结论仅对应相同短路径夹具。
+- 最终诊断脚本：监视器和真实 shell 超时测试共 2 文件、16 项通过；后者同时确认子进程终止仍正常、未被诊断抑制。
 - Main TypeScript `--noEmit` 通过；两个诊断脚本 Node 语法检查通过。
 
 后续 CI 依据自动运行结果记录。诊断自身不是修复；实际修正是 Windows 原生监视根路径规范化，已有修改前失败和修改后通过的定向证据。

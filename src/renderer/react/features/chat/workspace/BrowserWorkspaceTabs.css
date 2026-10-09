@@ -1,0 +1,8 @@
+.cy-browser-window { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.cy-browser-window__tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--cy-border); }
+.cy-browser-window__tab { display: inline-flex; max-width: 160px; }
+.cy-browser-window__tabs button { background: var(--cy-bg-elevated); color: inherit; border: 1px solid var(--cy-border); border-radius: 4px; padding: 4px 7px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
+.cy-browser-window__tabs button[aria-selected="true"] { border-color: var(--cy-accent); }
+.cy-browser-window__tabs button:disabled { opacity: .5; cursor: default; }
+.cy-browser-window__page { min-height: 0; flex: 1; }
+.cy-browser-window__page[hidden] { display: none; }

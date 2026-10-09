@@ -56,6 +56,24 @@ export interface ToolContext {
   metadata?: Record<string, unknown>;
 }
 
+// Main and child runtimes create a fresh ToolContext for each run. Dispatcher
+// invocation copies share only this private bookkeeping identity, never a string
+// supplied in tool arguments. The identity confers no execution/read authority.
+const toolRunScopes = new WeakMap<ToolContext, object>();
+export function getToolRunScope(context: ToolContext): object {
+  let scope = toolRunScopes.get(context);
+  if (!scope) { scope = Object.freeze({}); toolRunScopes.set(context, scope); }
+  return scope;
+}
+export function createToolInvocationContext(
+  context: ToolContext,
+  invocation: Pick<ToolContext, "execution" | "authorizedToolCall">,
+): ToolContext {
+  const result = { ...context, ...invocation };
+  toolRunScopes.set(result, getToolRunScope(context));
+  return result;
+}
+
 /**
  * 从对话历史取最后一条 role:"user" 消息的文本，作为工具的用户问题上下文。
  *

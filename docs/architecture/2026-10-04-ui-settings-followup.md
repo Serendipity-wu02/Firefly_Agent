@@ -1,34 +1,71 @@
-# UI and settings follow-up — 2026-10-04
+# 导航与设置界面设计及验收
 
-This approved bounded follow-up continues the renderer layout in `2026-10-04-renderer-layout-v1.md`. Workspace: `E:\Codex\2026-10-04\task-2\final-gui-9e967093`; branch: `feat/mode-dropdown`; starting commit: `8876bc0b19f683ad115306bbcc79c881ceec942b`. Music files belong to a separate thread and are unchanged in this follow-up.
+- 记录日期：2026-10-04
+- 状态：导航、日程和设置改造已有实现及自动化验证；本记录未完成新增原生界面验收
+- 范围：Renderer 导航、模型设置、角色覆盖配置、日程列表和托盘入口
+- 关联：[布局设计与验收](2026-10-04-renderer-layout-v1.md)、[API 连接状态指示器](2026-10-04-api-status-indicator.md)
 
-## Implemented
+## 1. 背景
 
-- The persistent 48px rail has the existing Firefly portrait at its top. The bottom local-user menu reads the existing avatar/nickname bridge, follows profile-change events and opens the existing General settings action. It supports keyboard opening, Escape/focus restoration and dismissal on Tab or outside focus/pointer actions. It adds no account service.
-- The independent Today Schedule window uses native details/summary to fold only its scheduled-task list. Token usage, weekly chart, task data and the existing polling/event subscriptions remain active. The initial expanded state preserves the existing view.
-- Tray no longer offers the standalone status panel or QQ Music status entry. Chat, Settings, pet toggle and Quit retain their existing activation behavior.
-- Saved model profiles appear as compact rows with name/model, truthful configuration completeness and Edit/Delete actions. Configuration completeness explicitly does not claim verified connectivity. Add/Edit opens the original form on demand. Preset and Custom API tabs select existing supported provider types; preset shows the key first with the other original inputs under Advanced. Custom exposes name, URL, key, existing protocol selection and manual model name. Original input nodes/listeners and save/error behavior are retained.
-- Editing an existing profile hides new-provider tabs. Selecting the current new-provider tab preserves its draft. Edit focuses its visible input; successful deletion focuses another row or Add; rejection preserves the current row/focus. English and Chinese labels are present.
-- A single initially closed role-override group contains the existing 12 specialists. The six default-route rows are no longer displayed. Their stored mappings, backend default resolution and specialist inheritance remain intact.
-- General no longer exposes the standalone-status toggle. General saves omit `sidebarVisible`, preserving legacy stored data rather than silently resetting it.
+界面改造保留现有会话、模型配置和设置保存链路，集中改善常驻导航、模型配置编辑以及辅助入口。配置完整性与连接测试结果采用不同语义，避免仅因保存了密钥便显示连接成功。
 
-## Compatibility limits and coordinated Main work
+本文记录 2026-10-04 对应阶段的实现和验证。API 连接状态在后续指示器实现中接入；本文原有的契约建议已由关联文档承接，不再作为未实施需求。
 
-Storage remains the existing single-model `modelProfile` schema. A manual model-name input is available; a new provider-owned multi-model catalog and model enumeration API are not implemented. There is no automatic network request, new dependency, new workspace, changed build configuration, history migration or music change.
+## 2. 实现事实
 
-The API lamp requires a real public result boundary. Existing `settings.testConnection(config)` returns only to its settings caller and executes inference. Existing `getPublicModelConfig().connected` in `src/main/settings/model-settings.ts:500` means a saved model/key exists; it is not a verified connection result and must not drive the new green indicator. Proposed minimal state is `{ profileId, revision, state: unverified|checking|connected|failed, checkedAt?, reason? }`, with a read and change subscription on the public model bridge. Main must match the explicitly tested config snapshot to a current saved profile, invalidate on changes, reject stale/out-of-order results, and expose bounded redacted reasons. Configured keys and unrelated run events do not prove connection health. This task adds no invented IPC or fake green lamp.
+### 2.1 导航与日程
 
-Coordinator-owned files for that boundary: `src/main/settings/settings-ipc.ts`, configuration invalidation in `general-settings-lifecycle.ts` as needed, `src/shared/ipc-channels.ts`, a public shared type and `src/preload/index.ts`. Renderer indicator integration can follow the agreed contract and the same effective profile selection as ModelSelector.
+- 48px 常驻导航栏顶部使用既有流萤头像。底部本地用户菜单读取现有头像与昵称桥接，响应资料变化并打开常规设置；支持键盘打开、Escape 关闭与焦点恢复，以及 Tab、焦点移出和外部指针操作关闭。
+- 独立“今日日程”窗口通过原生 `details/summary` 仅折叠计划任务列表。Token 用量、周图表、任务数据及既有轮询和事件订阅继续运行，初始状态保持展开。
+- 托盘移除独立状态面板和 QQ Music 状态入口，保留聊天、设置、桌宠开关和退出的原有激活行为。
 
-Retiring status-window creation requires coordinator changes in `src/main/application/core-bootstrap.ts`, `src/main/application/shell-bootstrap.ts`, `src/main/settings/settings-ipc.ts` and assessment of `src/main/windows/create-aux-windows.ts`. Keep runtime/token statistics, the independent tasks window and `window.sidebar.openSettings`, which Chat and Today Schedule currently consume. Dormant sidebar assets/build entry are retained pending that coordinated cleanup.
+### 2.2 模型配置与角色覆盖
 
-## Verification
+- 已保存模型配置采用紧凑行，展示名称、模型、配置完整性及编辑/删除操作。完整性不代表连接已验证。
+- 添加和编辑按需打开原表单。预设与自定义 API 标签使用现有供应商类型；预设优先展示密钥，其余原有输入置于高级选项。自定义展示名称、URL、密钥、现有协议选择和手动模型名称。
+- 原输入节点、监听器、保存与错误行为保留。编辑现有配置时隐藏新供应商标签；再次选择当前标签不清空草稿。
+- 编辑后焦点进入可见输入；删除成功后焦点移到另一行或“添加”，删除被拒绝时保留原行及焦点。中文与英文标签均已提供。
+- 12 个专用角色的覆盖配置集中到一个初始折叠组。六个默认路由行不再展示，但存储映射、后端默认解析和角色继承保留。
+- 常规设置移除独立状态窗口开关。保存时不提交 `sidebarVisible`，避免静默重置旧存储值。
 
-- Failed-first tests for tray removal, persistent portrait/menu, folded live task refresh, English UI, editor tab reset and edit/delete focus. Logs: `output/ui-followup/` and `output/settings-followup/`.
-- Final complete renderer plus tray suite: **112 files / 733 tests passed** (`renderer-suite-complete.log`). Settings owner final suite: **28 files / 166 tests passed** (`final-tests.log`); these are overlapping runs, not totals to sum.
-- Main `tsc --noEmit` and `npm run check:renderer`: passed.
-- `npm run build:renderer -- --outDir E:/Codex/2026-10-04/task-2/final-gui-9e967093/output/ui-followup/renderer-build`: passed. Existing Vite chunk-size warnings remain. Existing `dist` was not overwritten; a full `npm run build` was not run in this follow-up because it cleans the current app's artifacts.
-- Fresh independent review closed the tab-reset and focus findings; its real settings integration/provider tests passed, 2 files / 11 tests, with no remaining blocker. `git diff --check` passed.
-- An earlier full repository run had 5989 passed / 11 failed / 2 skipped. Failures were one `self-improvement-source.test.ts` plus two `built-in-tools-shell.test.ts` cases requiring `FIREFLY_TEST_BASH`, and eight `builtin-tools/shell-job.test.ts` process-termination assertions. The integration thread owns diagnosis; this report does not claim the full repository is green.
+## 3. 职责与兼容边界
 
-No native app was launched, reloaded, closed or focused in this follow-up. New native screenshots and interaction acceptance require a coordinated restart with the isolated smoke profile; this follow-up does not claim new pixel verification. Earlier layout/mode screenshots document their earlier commits only. No push, PR, merge or deployment.
+模型存储仍使用既有单模型 `modelProfile` 结构，并保留手动模型名称输入。此阶段没有实现供应商所属的多模型目录或模型枚举 API，没有新增账户服务、自动网络请求、依赖、构建配置或历史迁移；音乐实现不在修改范围内。
+
+连接测试结果由 Main 管理。指示器接入前，`getPublicModelConfig().connected` 的历史语义仅表示存在已保存的模型和密钥，不能作为绿色连接指示依据。后续实现已将该字段接到 Main 的 `modelConnections.isConnected()`；Renderer 指示器通过公共快照与订阅消费带版本的测试状态。连接状态契约包含 `profileId`、`revision`、`state`（`unverified` / `checking` / `connected` / `failed`）、可选 `checkedAt` 和有界脱敏 `reason`。Main 负责匹配显式测试的配置快照、配置变化失效和过期结果隔离；Renderer 使用与 ModelSelector 一致的有效配置选择。实际实现与验收见[连接指示器说明](2026-10-04-api-status-indicator.md)。
+
+职责入口使用仓库相对路径：
+
+| 职责 | 入口 |
+| --- | --- |
+| 连接快照及测试状态 | `src/main/settings/model-settings.ts`、`src/main/settings/settings-ipc.ts` |
+| 公共契约与桥接 | `src/shared/model-connection-types.ts`、`src/shared/ipc-channels.ts`、`src/preload/index.ts` |
+| 状态窗口生命周期 | `src/main/application/core-bootstrap.ts`、`src/main/application/shell-bootstrap.ts`、`src/main/windows/create-aux-windows.ts` |
+
+独立状态窗口的启动入口已在后续生命周期实现中退役；保留的辅助窗口代码不等于仍启用该入口。运行时及 Token 统计、独立任务窗口和 `window.sidebar.openSettings` 属于保留边界，后者由聊天和日程使用。
+
+## 4. 后续变更与验收要求
+
+1. 连接指示器变更须沿用 Main 状态权威，不新增平行连接服务或由普通运行事件推断健康状态。
+2. 辅助窗口资产清理须先核对统计、日程和设置入口的调用关系，不能仅按 `sidebar` 名称批量删除。
+3. 原生界面验收使用明确隔离的 smoke profile，覆盖设置编辑/删除焦点、菜单关闭、日程折叠后的数据更新以及真实系统提示。
+4. 新界面的像素与交互结论应来自该版本的原生运行，不能沿用旧布局截图。
+
+## 5. 历史验收结果与限制
+
+以下是记录阶段已执行的检查，不代表当前工作树重新执行。
+
+| 检查 | 记录结果 |
+| --- | --- |
+| Renderer 与托盘完整相关集合 | 112 文件 / 733 测试通过 |
+| 设置相关集合 | 28 文件 / 166 测试通过 |
+| 独立设置集成与供应商回归 | 2 文件 / 11 测试通过；标签重置与焦点问题已关闭 |
+| Main `tsc --noEmit`、`npm run check:renderer` | 通过 |
+| 隔离 Renderer 构建 | 通过；既有 Vite chunk-size 警告保留 |
+| `git diff --check` | 通过 |
+
+相关集合互相重叠，不相加为唯一测试总数。失败先行测试覆盖托盘入口移除、常驻头像/菜单、折叠后的任务刷新、英文界面、编辑标签重置及编辑/删除焦点。
+
+Renderer 采用独立输出目录构建并保留原 `dist`；该阶段没有执行会清理现有应用产物的完整构建，也不宣称全仓通过。Windows 相关检查需要可用的 Git Bash 夹具及允许子进程存活/终止探测的执行环境。
+
+该阶段未启动、重新加载、关闭或聚焦原生应用，没有新增原生截图或像素验收。真实外部模型、原生系统交互和最终整合界面仍需各自的验收证据。

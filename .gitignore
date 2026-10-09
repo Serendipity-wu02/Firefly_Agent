@@ -204,3 +204,6 @@ sticker-descriptions/
 
 # Firefly state and private migration sources
 .firefly/
+
+# Reproducible bundled plugin catalog and ZIP assets (built before Main).
+resources/plugin-marketplace/

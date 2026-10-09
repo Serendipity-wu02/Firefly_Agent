@@ -278,9 +278,10 @@ export class PluginManager {
       const record = this.records.get(id);
       if (!record) return { ok: false, error: `插件不存在: ${id}` };
 
-      this.enabledMap[id] = enabled;
+      const nextEnabledMap = { ...this.enabledMap, [id]: enabled };
       try {
-        this.opts.saveEnabledMap({ ...this.enabledMap });
+        this.opts.saveEnabledMap(nextEnabledMap);
+        this.enabledMap = nextEnabledMap;
       } catch (error) {
         return { ok: false, error: `保存插件开关失败: ${errorMessage(error)}` };
       }

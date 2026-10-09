@@ -13,6 +13,40 @@ afterEach(() => {
 });
 
 describe("FeishuAdapter outgoing media", () => {
+  it.each([undefined, "report.pdf"])("sends a local file through the installed SDK contract (name %s)", async (name) => {
+    const send = vi.fn(async () => ({ messageId: "om_file" }));
+    const adapter = new FeishuAdapter();
+    (adapter as any).channel = { send };
+    await expect(adapter.send({
+      channel: "feishu", targetId: "synthetic-chat",
+      parts: [{ kind: "file", filePath: "/synthetic/document.pdf", ...(name ? { name } : {}) }],
+    })).resolves.toEqual({ ok: true });
+    expect(send).toHaveBeenCalledWith("synthetic-chat", {
+      file: { source: "/synthetic/document.pdf", fileName: name ?? "document.pdf" },
+    });
+  });
+
+  it("sends a local video through the installed SDK contract", async () => {
+    const send = vi.fn(async () => ({ messageId: "om_video" }));
+    const adapter = new FeishuAdapter();
+    (adapter as any).channel = { send };
+    await expect(adapter.send({
+      channel: "feishu", targetId: "synthetic-chat",
+      parts: [{ kind: "video", filePath: "/synthetic/video.mp4" }],
+    })).resolves.toEqual({ ok: true });
+    expect(send).toHaveBeenCalledWith("synthetic-chat", { video: { source: "/synthetic/video.mp4" } });
+  });
+
+  it.each([null, undefined, {}, { messageId: "" }, { messageId: " " }])("rejects a missing delivery receipt (%j)", async (receipt) => {
+    const send = vi.fn(async () => receipt);
+    const adapter = new FeishuAdapter();
+    (adapter as any).channel = { send };
+    await expect(adapter.send({
+      channel: "feishu", targetId: "synthetic-chat", parts: [{ kind: "text", text: "synthetic" }],
+    })).resolves.toMatchObject({ ok: false, error: expect.stringContaining("消息回执") });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it("uploads a local sticker through the SDK image input", async () => {
     const send = vi.fn(async () => ({ messageId: "om_1" }));
     const adapter = new FeishuAdapter();

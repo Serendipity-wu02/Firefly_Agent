@@ -10,6 +10,7 @@ vi.mock("../external-content-paths", () => ({
   resolvePackagedSkillDirectory: () => null,
   resolveSkillScanSources: () => [{ directory: ports.builtin, source: "builtin" }, { directory: ports.user, source: "user" }],
 }));
+import { createStorageContext } from "../storage-context";
 import { initSkills, rescanSkills, setSkillEnabled, skillRegistry } from "./index";
 
 afterEach(() => {
@@ -27,7 +28,10 @@ it("loads current enabled state and preserves user Skill precedence on rescan", 
   fs.writeFileSync(path.join(ports.builtin, "diagram", "SKILL.md"), "---\nname: diagram\ndescription: builtin\n---\nbuiltin");
   fs.writeFileSync(path.join(ports.user, "diagram", "SKILL.md"), "---\nname: diagram\ndescription: user\n---\ncustom");
   fs.writeFileSync(path.join(ports.root, "skills-enabled.json"), JSON.stringify({ diagram: false }));
-  await initSkills();
+  const storage = createStorageContext({ kind: "test", applicationName: "Firefly-test", appData: ports.root, userData: ports.root,
+    sessionData: path.join(ports.root, "session"), logs: path.join(ports.root, "logs"), isolationRoot: ports.root });
+  expect(storage.configRoot).toBe(ports.root); // exact legacy Electron userData location
+  await initSkills(storage);
   expect(skillRegistry.getAll().map(skill => skill.id)).toEqual(["diagram"]);
   expect(skillRegistry.getBody("diagram")).toBe("custom");
   expect(skillRegistry.getById("diagram")?.enabled).toBe(false);

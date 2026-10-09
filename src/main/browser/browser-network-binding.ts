@@ -30,6 +30,8 @@ export interface BrowserNetworkDependencies<S extends object> {
   /** Must create a hidden, unloaded view. The controller has no navigation API. */
   createView(session: S): BrowserViewPort<S>;
   proxyFactory?: BrowserProxyFactory;
+  /** Presentation-only report from the current denied request. Cannot grant a request. */
+  onRequestBlocked?(context: BrowserDomainContext, request: BrowserRequestDetails): void;
   cleanupTimeoutMs?: number;
   workerStopTimeoutMs?: number;
 }
@@ -164,7 +166,8 @@ export function createBrowserNetworkController<S extends object>(registry: Brows
     if (stopped) return failure("closed");
     if (!registry.canPrepare(context, policy)) return failure(context.signal.aborted ? "cancelled" : "permission_denied");
     const copiedContext = Object.freeze({ ...context });
-    const copiedPolicy = policy?.hosts === undefined ? undefined : Object.freeze({ hosts: Object.freeze([...policy.hosts]) });
+    const copiedPolicy = policy?.hosts === undefined ? undefined : Object.freeze({ hosts: Object.freeze([...policy.hosts]),
+      ...(policy.resourceHosts === undefined ? {} : { resourceHosts: Object.freeze([...policy.resourceHosts]) }) });
     let ownerSlots = slots.get(copiedContext.owner);
     if (!ownerSlots) { ownerSlots = new Map(); slots.set(copiedContext.owner, ownerSlots); }
     if (ownerSlots.has(copiedContext.browserId)) return failure("closed");
@@ -183,7 +186,13 @@ export function createBrowserNetworkController<S extends object>(registry: Brows
       seen.add(port.session); cell.port = port;
       cell.domain = registry.create(copiedContext, port.session, copiedPolicy) ?? undefined;
       registry.retireSession(port.session);
-      port.installRequestHandler((request) => !cell.revoked && (cell.domain?.allows(request) ?? false));
+      port.installRequestHandler((request) => {
+        const allowed = !cell.revoked && (cell.domain?.allows(request) ?? false);
+        if (!allowed && !cell.revoked && cell.domain?.isActive()) {
+          try { dependencies.onRequestBlocked?.(cell.context, request); } catch { /* reporting cannot allow a request */ }
+        }
+        return allowed;
+      });
       ensureCurrent(cell);
       if (!cell.domain) throw "owner_mismatch";
       port.denyPermissions(); ensureCurrent(cell);

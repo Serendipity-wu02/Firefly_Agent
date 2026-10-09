@@ -338,3 +338,13 @@
   height: 38px;
   object-fit: contain;
 }
+
+.skill-panel__views { display: flex; gap: 8px; padding: 12px 28px 0; }
+.skill-panel__views button, .skill-card__enable, .skill-panel__confirm button { padding: 7px 12px; border: 1px solid var(--cy-border, #ddd); border-radius: 10px; background: var(--cy-bg-page, #f8f7f6); color: var(--cy-text, #1d1d1f); font: inherit; font-size: 12px; cursor: pointer; }
+.skill-panel__views button[aria-pressed="true"] { background: var(--cy-bg-active, #e6e9ef); color: var(--cy-accent, #8839ef); }
+.skill-panel button:disabled { opacity: .55; cursor: not-allowed; }
+.skill-panel button:focus-visible { outline: 2px solid var(--cy-accent, #8839ef); outline-offset: 3px; }
+.skill-panel__confirm-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .35); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.skill-panel__confirm { width: min(480px, 100%); padding: 24px; border-radius: 16px; background: var(--cy-bg-workspace, #fff); color: var(--cy-text, #1d1d1f); }
+.skill-panel__confirm h2, .skill-panel__confirm p { overflow-wrap: anywhere; }
+.skill-panel__confirm > div { display: flex; gap: 10px; justify-content: flex-end; }

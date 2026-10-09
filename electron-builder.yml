@@ -16,6 +16,8 @@ electronDist: node_modules/electron/dist
 files:
   - dist/**/*
   - "!dist/components/**/*"
+  - "!dist/main/main/sim/**/*"
+  - "!dist/sim/**/*"
   - package.json
   - assets/**/*
   - vendor/**/*

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../../i18n";
 import { DownOutlined, GlobalOutlined, FolderOpenOutlined, UnorderedListOutlined } from "@ant-design/icons";
-import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from "react-resizable-panels";
+import { Group, Panel, Separator, useDefaultLayout, type GroupImperativeHandle } from "react-resizable-panels";
 import { useCompactDock } from "./useCompactDock";
+import { useInspectorPanelVisibility } from "./useInspectorPanelVisibility";
 import { collectWorkspaceOutputs, createWorkspaceResultRevealer, workspaceFileRevision, type WorkspaceChangedFile, type WorkspaceRunOutput } from "../workspace/workspace-artifacts";
 import { WorkspaceResultsIndex } from "../workspace/WorkspaceRunResults";
 import { useBrowserWorkspaceActivation } from "../workspace/useBrowserWorkspaceActivation";
@@ -169,7 +170,7 @@ export function ChatPage() {
   const [browserTabOpen, setBrowserTabOpen] = useState(false);
   const [tasksTabOpen, setTasksTabOpen] = useState(false);
   const [inspectorHidden, setInspectorHidden] = useState(false);
-  const inspectorPanelRef = usePanelRef();
+  const dockGroupRef = useRef<GroupImperativeHandle | null>(null);
   const [resultTabIds, setResultTabIds] = useState<string[]>([]);
   const [workspaceRevisionBySession, setWorkspaceRevisionBySession] = useState<Record<string, number>>({});
   const revealWorkspaceResult = useRef(createWorkspaceResultRevealer());
@@ -208,7 +209,7 @@ export function ChatPage() {
   const [todoStateBySession, setTodoStateBySession] = useState<TodoStateBySession>({});
   // 计划模式（Plan Mode 二期）：会话级计划面板内容与阶段（review → executing → completed）。
   const [planReviewBySession, setPlanReviewBySession] = useState<
-    Record<string, { content: string; planPath: string; phase: PlanReviewPhase }>
+    Record<string, { content: string; planPath: string; phase: PlanReviewPhase; executionRunId?: string; executionAssistantId?: string; dispatchAttemptId?: string }>
   >({});
   const [planDrawerOpen, setPlanDrawerOpen] = useState(false);
   const [interruptedRun, setInterruptedRun] = useState<{ runId: string; rounds: number; todoCount: number } | null>(null);
@@ -377,7 +378,6 @@ export function ChatPage() {
   }, [pendingQueueBySession]);
 
   const activeSessionId = activeSessionIds[mode];
-  useEffect(() => { setBrowserTabOpen(false); }, [activeSessionId, mode]);
   const scopeKey = activeSessionId ?? `mode:${mode}`;
   const draft = drafts[scopeKey] ?? "";
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : [];
@@ -569,9 +569,9 @@ export function ChatPage() {
     return () => { active = false; };
   }, [activeSessionId, mode]);
 
-  // 计划模式事件（Plan Mode）：review/approved/exited 在 run 结束后由主进程发出
-  // （run 订阅已解除），必须持久监听；completed 在 run 内发出，run 订阅无此分支，
-  // 也统一在这里处理。批准后自动发送执行消息（sendMessage 自带 busy 排队机制）。
+  // 计划审阅与批准在 run 结束后发出，必须持久监听。
+  // 完成事件由所属 run 控制器校验并处理，不依赖当前会话。
+  // 批准后自动发送执行消息（sendMessage 自带 busy 排队机制）。
   useEffect(() => {
     const api = aguiApi();
     if (!api?.onEvent || !shouldListenForDeferredPlanEvents(mode) || !activeSessionId) return;
@@ -612,10 +612,18 @@ export function ChatPage() {
           break;
         case "firefly.plan.approved":
           if (value?.sessionId) {
-            setPlanReviewBySession((current) => current[value.sessionId!]
-              ? { ...current, [value.sessionId!]: { ...current[value.sessionId!], phase: "executing" } }
+            const sessionId = value.sessionId, attemptId = crypto.randomUUID();
+            setPlanReviewBySession((current) => current[sessionId]
+              ? { ...current, [sessionId]: { ...current[sessionId], phase: "executing", dispatchAttemptId: attemptId } }
               : current);
-            void sendMessage(t("chatPage.planApprovedAutoMessage"));
+            const dispatchFailed = () => setPlanReviewBySession(current => {
+              const plan = current[sessionId];
+              // An earlier approval's failed enqueue must not overwrite a newly
+              // reviewed plan or a controller that has already taken execution.
+              if (!plan || plan.phase !== "executing" || plan.dispatchAttemptId !== attemptId || plan.executionAssistantId || plan.executionRunId) return current;
+              return { ...current, [sessionId]: { ...plan, phase: "failed" } };
+            });
+            void sendMessage(t("chatPage.planApprovedAutoMessage"), undefined, dispatchFailed).catch(dispatchFailed);
           }
           break;
         case "firefly.plan.supplement":
@@ -623,12 +631,6 @@ export function ChatPage() {
           if (value?.sessionId && typeof value.text === "string" && value.text.trim()) {
             void sendMessage(value.text);
           }
-          break;
-        case "firefly.plan.completed":
-          // adapter 发出时不带 sessionId；按当前计划会话处理
-          setPlanReviewBySession((current) => current[activeSessionId]
-            ? { ...current, [activeSessionId]: { ...current[activeSessionId], phase: "completed" } }
-            : current);
           break;
       }
     });
@@ -787,6 +789,35 @@ export function ChatPage() {
         },
         setInteraction: setInteractionForSession,
         clearInteraction: clearInteractionForSession,
+        bindPlanAttempt: (sessionId, assistantId) => {
+          setPlanReviewBySession(current => {
+            const plan = current[sessionId];
+            if (!plan || (plan.phase !== "executing" && !(plan.phase === "failed" && !plan.executionRunId))) return current;
+            if (plan.phase === "executing" && plan.executionAssistantId && plan.executionAssistantId !== assistantId) return current;
+            return { ...current, [sessionId]: { ...plan, phase: "executing", executionAssistantId: assistantId } };
+          });
+        },
+        bindPlanRun: (sessionId, runId) => {
+          setPlanReviewBySession(current => {
+            const plan = current[sessionId];
+            if (!plan || plan.phase !== "executing" || plan.executionRunId || plan.executionAssistantId !== input.assistantId) return current;
+            return { ...current, [sessionId]: { ...plan, executionRunId: runId } };
+          });
+        },
+        failPlan: (sessionId, runId, phase) => {
+          setPlanReviewBySession(current => {
+            const plan = current[sessionId];
+            if (!plan || plan.executionRunId !== runId || plan.executionAssistantId !== input.assistantId) return current;
+            return { ...current, [sessionId]: { ...plan, phase } };
+          });
+        },
+        completePlan: (sessionId, planPath, runId) => {
+          setPlanReviewBySession((current) => {
+            const plan = current[sessionId];
+            if (!plan || plan.phase !== "executing" || plan.planPath !== planPath || plan.executionRunId !== runId) return current;
+            return { ...current, [sessionId]: { ...plan, phase: "completed" } };
+          });
+        },
         dismissAskIfMatched: (sessionId, value) => {
           setInteractionsBySession((current) => {
             const interaction = sessionInteraction(current, sessionId)?.interaction;
@@ -1110,7 +1141,7 @@ export function ChatPage() {
     await refreshSessionsRef.current(mode, false);
   }
 
-  async function sendMessage(content: string, resumeFromRunId?: string) {
+  async function sendMessage(content: string, resumeFromRunId?: string, onEnqueueFailed?: () => void) {
     const parsedMessage = parseComposerMessage(mode, content);
     const message = parsedMessage.rawContent;
     if (!message) return;
@@ -1153,7 +1184,7 @@ export function ChatPage() {
       userSticker,
       ...(resumeFromRunId ? { resumeFromRunId } : {}),
     });
-    if (!enqueued) return;
+    if (!enqueued) { onEnqueueFailed?.(); return; }
     // 请求期间用户继续输入时不清掉新内容：仅当草稿仍是发送时的文本才清空；
     // 附件同样只清随消息发送的那些（空快照不清任何附件），期间新加的保留
     setDrafts((current) => (current[scopeKey] === content ? { ...current, [scopeKey]: "" } : current));
@@ -1270,11 +1301,10 @@ export function ChatPage() {
     setDiffTabs([]);
     setFileTabs([]);
     setResultTabIds([]);
-    setBrowserTabOpen(false);
     setFilesTabOpen(false);
     setTasksTabOpen(mode !== "chat");
     setInspectorHidden(false);
-    setActiveTabId(mode !== "chat" ? "tasks" : null);
+    setActiveTabId(current => current === "browser" ? "browser" : mode !== "chat" ? "tasks" : null);
   }, [activeSessionId, mode]);
 
   useBrowserWorkspaceActivation(activeSessionId, () => {
@@ -1397,11 +1427,7 @@ export function ChatPage() {
   };
 
   const inspectorVisible = !activePanel && !inspectorHidden;
-  useEffect(() => {
-    const panel = inspectorPanelRef.current;
-    if (!panel) return;
-    if (inspectorVisible) panel.expand(); else panel.collapse();
-  }, [inspectorVisible, inspectorTabIds.length, compactDock, inspectorPanelRef]);
+  const { panelRef: inspectorPanelRef, onLayoutChange: onInspectorLayoutChange } = useInspectorPanelVisibility(inspectorVisible, dockGroupRef, `${inspectorTabIds.length}:${compactDock}`);
 
   // ── 阶段 1A：导航 props 引用稳定化 ──
   // 下方 6 个动作函数读取大量页面状态、内部调用链每次渲染都产生新引用，
@@ -1471,6 +1497,9 @@ export function ChatPage() {
   const navCloseWindow = useCallback(() => window.chat?.close(), []);
   const navOpenSettings = useCallback(() => sidebarApi()?.openSettings("general"), []);
   const navOpenApiSettings = useCallback(() => sidebarApi()?.openSettings("api"), []);
+  const activeSessionTitle = sessions.find(session => session.id === activeSessionId)?.title
+    || (activeSession && activeSession.id === activeSessionId ? activeSession.title : "")
+    || t("chatPage.newTaskTitle");
   const selectedModelProfileId = activeSession?.id === activeSessionId && activeSession
     ? activeSession.modelProfileId : pendingModelProfileByMode[mode];
 
@@ -1503,9 +1532,11 @@ export function ChatPage() {
       {/* 右栏可拖宽布局：聊天区 Panel 常驻（保证内容不重挂载），右侧面板按需挂载 */}
       <Group
         elementRef={dockRef}
+        groupRef={dockGroupRef}
         orientation={compactDock ? "vertical" : "horizontal"}
         className={`cy-page-dock ${compactDock ? "is-compact" : ""}`}
         defaultLayout={compactDock ? undefined : defaultLayout}
+        onLayoutChange={onInspectorLayoutChange}
         onLayoutChanged={compactDock ? undefined : onLayoutChanged}
         // 拖动条命中区外溢到两侧（视觉条只有 12px，命中区鼠标 24px / 触屏 33px）
         resizeTargetMinimumSize={{ coarse: 33, fine: 24 }}
@@ -1519,38 +1550,40 @@ export function ChatPage() {
         onDrop={dragHandlers.onDrop}
       >
         <FileDropOverlay visible={isDraggingFiles} />
-        {/* 白色工作区右上角：打开菜单 + 分割线 + 右侧面板展开/收起开关（左上角 SidebarToggle 的镜像同款动画）。
-            仅在会话对话视图显示：欢迎态与已有会话均显示；工具等独立面板页不显示 */}
+        {/* 标题与工具独立占一行，正文和输入区不再用空白避让浮动按钮。 */}
         {!activePanel && (
-          <span className="cy-inspector-toggle-float">
-            {activeSession?.workspaceBinding && activeSessionId && (
-              <>
-                <OpenWorkspaceMenu sessionId={activeSessionId} />
-                <span className="cy-inspector-toggle-divider" aria-hidden="true" />
-              </>
-            )}
-            <button type="button" className="cy-inspector-toggle" aria-label={t("browserWorkspace.open")}
-              title={t("browserWorkspace.open")} aria-expanded={browserTabOpen && !inspectorHidden}
-              onClick={() => { setBrowserTabOpen(true); setInspectorHidden(false); setActiveTabId("browser"); }}>
-              <GlobalOutlined aria-hidden="true" />
-            </button>
-            <button type="button" className="cy-inspector-toggle" aria-label={t("fileTree.title")}
-              title={t("fileTree.title")} aria-expanded={filesTabOpen && !inspectorHidden}
-              onClick={openFilesTab}><FolderOpenOutlined aria-hidden="true" /></button>
-            {(mode !== "chat" || workspaceOutputs.length > 0) && <button type="button" className="cy-inspector-toggle"
-              aria-label={t("workspace.tasks")} title={t("workspace.tasks")}
-              aria-expanded={tasksTabOpen && !inspectorHidden}
-              onClick={() => { setTasksTabOpen(true); setInspectorHidden(false); setActiveTabId("tasks"); }}>
-              <UnorderedListOutlined aria-hidden="true" /></button>}
-            <InspectorToggle
-              open={inspectorTabIds.length > 0 && !inspectorHidden}
-              onToggle={() => {
-                if (inspectorTabIds.length > 0 && !inspectorHidden) collapseInspector();
-                else if (inspectorTabIds.length > 0) setInspectorHidden(false);
-                else openFilesTab();
-              }}
-            />
-          </span>
+          <header className="cy-workspace-header">
+            <h1 className="cy-workspace-header__title" title={activeSessionTitle}>{activeSessionTitle}</h1>
+            <div className="cy-workspace-header__actions">
+              {activeSession?.workspaceBinding && activeSessionId && (
+                <>
+                  <OpenWorkspaceMenu sessionId={activeSessionId} />
+                  <span className="cy-inspector-toggle-divider" aria-hidden="true" />
+                </>
+              )}
+              <button type="button" className="cy-inspector-toggle" aria-label={t("browserWorkspace.open")}
+                title={t("browserWorkspace.open")} aria-expanded={browserTabOpen && !inspectorHidden}
+                onClick={() => { setBrowserTabOpen(true); setInspectorHidden(false); setActiveTabId("browser"); }}>
+                <GlobalOutlined aria-hidden="true" />
+              </button>
+              <button type="button" className="cy-inspector-toggle" aria-label={t("fileTree.title")}
+                title={t("fileTree.title")} aria-expanded={filesTabOpen && !inspectorHidden}
+                onClick={openFilesTab}><FolderOpenOutlined aria-hidden="true" /></button>
+              {(mode !== "chat" || workspaceOutputs.length > 0) && <button type="button" className="cy-inspector-toggle"
+                aria-label={t("workspace.tasks")} title={t("workspace.tasks")}
+                aria-expanded={tasksTabOpen && !inspectorHidden}
+                onClick={() => { setTasksTabOpen(true); setInspectorHidden(false); setActiveTabId("tasks"); }}>
+                <UnorderedListOutlined aria-hidden="true" /></button>}
+              <InspectorToggle
+                open={inspectorTabIds.length > 0 && !inspectorHidden}
+                onToggle={() => {
+                  if (inspectorTabIds.length > 0 && !inspectorHidden) collapseInspector();
+                  else if (inspectorTabIds.length > 0) setInspectorHidden(false);
+                  else openFilesTab();
+                }}
+              />
+            </div>
+          </header>
         )}
         {activePanel ? (
           <ChatPagePanelHost panel={activePanel} />
@@ -1714,8 +1747,17 @@ export function ChatPage() {
         {/* 右侧面板打开时才挂载 Panel + 拖动条；默认 40% 宽，最小 280px，最大 70% */}
         {inspectorTabIds.length > 0 && (
           <>
-            {inspectorVisible && <Separator className="cy-dock-separator" />}
-            <Panel id="inspector" panelRef={inspectorPanelRef} collapsible collapsedSize={0} defaultSize={inspectorVisible ? compactDock ? "30%" : "40%" : 0} minSize={compactDock ? "15%" : 280} maxSize={compactDock ? "40%" : "70%"} className="cy-dock-body">
+            {inspectorVisible && <Separator className="cy-dock-separator" onKeyDown={event => {
+              if (compactDock || !event.defaultPrevented
+                || !["ArrowLeft", "ArrowRight", "Home", "End", "Enter"].includes(event.key)) return;
+              // v4 defers onLayoutChanged while a document pointer is active, even
+              // after a cancelled sidebar drag. Its native separator key handler
+              // has already committed the layout before this React bubble handler.
+              // Persist only that explicit keyboard action, never mount/expand.
+              const layout = dockGroupRef.current?.getLayout();
+              if (layout && Object.hasOwn(layout, "inspector")) onLayoutChanged(layout, { isUserInteraction: true });
+            }} />}
+            <Panel id="inspector" panelRef={inspectorPanelRef} collapsible collapsedSize={0} defaultSize={compactDock ? "30%" : "40%"} minSize={compactDock ? "15%" : 280} maxSize={compactDock ? "40%" : "70%"} className="cy-dock-body">
               <ChatPageInspector
                 sessionId={activeSessionId}
                 visible={inspectorVisible}

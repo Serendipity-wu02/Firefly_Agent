@@ -6,12 +6,13 @@ import type { BrowserRequestDetails } from "./browser-request-policy";
 export interface BrowserDomainContext {
   readonly owner: object;
   readonly profile: object;
-  readonly conversationId: string;
+  readonly conversationId: string | null;
+  readonly workspaceId?: string;
   readonly browserId: string;
   readonly generation: number;
   readonly signal: AbortSignal;
 }
-export interface BrowserDomainPolicy { readonly hosts?: readonly string[] }
+export interface BrowserDomainPolicy { readonly hosts?: readonly string[]; readonly resourceHosts?: readonly string[] }
 export interface BrowserDomainContents<S extends object> {
   readonly id: number;
   readonly session: S;
@@ -20,7 +21,7 @@ export interface BrowserDomainContents<S extends object> {
 export interface BrowserAuthorizationDomain<S extends object> {
   readonly epoch: Readonly<{
     id: string; session: S; context: BrowserDomainContext;
-    policy: Readonly<{ hosts?: readonly string[]; methods: readonly string[]; resources: readonly string[] }>;
+    policy: Readonly<{ hosts?: readonly string[]; resourceHosts?: readonly string[]; methods: readonly string[]; resources: readonly string[] }>;
   }>;
   readonly signal: AbortSignal;
   isCurrent(): boolean;
@@ -51,15 +52,21 @@ function target(url: string): string | null {
   } catch { return null; }
 }
 function snapshotPolicy(policy?: BrowserDomainPolicy): BrowserAuthorizationDomain<object>["epoch"]["policy"] | null {
-  const hosts: string[] = [];
-  if (policy?.hosts !== undefined) {
-    for (const host of policy.hosts) {
-      const authority = parseConnectAuthority(`${host}:443`);
-      if (!authority || (isIP(authority.host) && !isPublicNetworkAddress(authority.host))) return null;
-      hosts.push(authority.host);
+  const normalized: { hosts?: readonly string[]; resourceHosts?: readonly string[] } = {};
+  if (policy?.resourceHosts !== undefined && policy.hosts === undefined) return null;
+  for (const key of ["hosts", "resourceHosts"] as const) {
+    const input = policy?.[key];
+    if (input !== undefined) {
+      const hosts: string[] = [];
+      for (const host of input) {
+        const authority = parseConnectAuthority(`${isIP(host) === 6 ? `[${host}]` : host}:443`);
+        if (!authority || (isIP(authority.host) && !isPublicNetworkAddress(authority.host))) return null;
+        hosts.push(authority.host);
+      }
+      normalized[key] = Object.freeze([...new Set(hosts)]);
     }
   }
-  return Object.freeze({ methods, resources, ...(policy?.hosts === undefined ? {} : { hosts: Object.freeze(hosts) }) });
+  return Object.freeze({ methods, resources, ...normalized });
 }
 
 /** Main-only registry. Object identities and the trusted owner callback are its authority. */
@@ -75,7 +82,8 @@ export function createBrowserAuthorizationDomainRegistry<S extends object>(optio
   function ownerCurrent(context: BrowserDomainContext): boolean {
     try {
       return (gateOpen || options.isContextAuthorized?.(context) === true) && !context.signal.aborted && Number.isSafeInteger(context.generation) && context.generation >= 0
-        && !!context.conversationId && !!context.browserId && verifyOwner(context) === true;
+        && (context.workspaceId === undefined ? !!context.conversationId : context.conversationId === null && !!context.workspaceId)
+        && !!context.browserId && verifyOwner(context) === true;
     } catch { return false; }
   }
   function canPrepare(context: BrowserDomainContext, policy?: BrowserDomainPolicy): boolean {
@@ -127,7 +135,8 @@ export function createBrowserAuthorizationDomainRegistry<S extends object>(optio
         if (!isCurrent() || !active || !methods.includes(details.method) || !resources.includes(details.resourceType)) return false;
         if (details.webContentsId !== undefined && details.webContentsId !== primaryId) return false;
         const host = target(details.url);
-        return host !== null && (copiedPolicy.hosts === undefined || copiedPolicy.hosts.includes(host));
+        return host !== null && (copiedPolicy.hosts === undefined || copiedPolicy.hosts.includes(host)
+          || (!["mainFrame", "subFrame"].includes(details.resourceType) && copiedPolicy.resourceHosts?.includes(host) === true));
       },
     });
     live.add(domain);

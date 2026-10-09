@@ -1,80 +1,16 @@
-// MCP Server 管理 UI：添加/删除/启停 MCP Server，自定义端点接入说明
+// MCP Server 管理 UI：列表/添加/删除 MCP Server，自定义端点接入说明
 // 从 settings.ts 抽离。依赖 shared/modal + shared/parse + plugins/dom + api/dom。
 // 副作用导入：模块加载时执行事件绑定 + 接入说明渲染。
 
-import { showNotice, showAlert, showHtmlModal, showInputModal } from "../shared/modal";
-import { parseCommandLine } from "../shared/parse";
+import { showHtmlModal } from "../shared/modal";
+import { mountMcpManagement } from "./management";
+import "./panel.css";
 import { pluginAddBtn } from "../plugins/dom";
 import { customEndpointGuideBtn } from "../api/dom";
 
-// ── MCP Server 管理 UI ──────────────────────────────────────
-console.log("[settings] plugin-add-btn 查询结果:", pluginAddBtn ? "找到" : "未找到");
-
-
-pluginAddBtn?.addEventListener("click", async () => {
-  console.log("[settings] ＋ 按钮被点击，弹出输入框…");
-  const command = await showInputModal({
-    title: "添加 MCP Server",
-    message: "输入启动命令，例如：node C:\\my-mcp-server\\index.js",
-    placeholder: "node path\\to\\server.js --flag",
-  });
-  if (!command || !command.trim()) {
-    console.log("[settings] 用户取消或命令为空");
-    return;
-  }
-
-  const nameInput = await showInputModal({
-    title: "MCP Server 名称",
-    message: "给这个 MCP server 起个名字（仅用于展示）",
-    placeholder: "例如：天气工具",
-  });
-  const name = (nameInput && nameInput.trim()) || "未命名 MCP";
-  const serverId = "mcp-" + Date.now();
-  const parsed = parseCommandLine(command.trim());
-  if (!parsed.command) {
-    // 无效命令属于字段校验类反馈：用非阻塞轻提示
-    showNotice({ tone: "warning", message: "请输入有效的启动命令" });
-    return;
-  }
-
-  console.log("[settings] 添加 MCP server:", name, serverId, command.trim());
-
-  try {
-    const result = await window.settings?.addMcpServer?.({
-      id: serverId,
-      name: name,
-      transport: "stdio",
-      command: parsed.command,
-      args: parsed.args,
-    });
-
-    if (result?.ok) {
-      console.log("[settings] MCP server 添加成功，工具数:", result.toolIds?.length);
-      // 添加成功属于普通成功反馈：用非阻塞轻提示
-      showNotice({
-        tone: "success",
-        message: `"${name}" 已连接，发现 ${result.toolIds?.length || 0} 个工具`,
-      });
-    } else {
-      console.error("[settings] MCP server 添加失败:", result?.error);
-      // 失败原因可能较长，需要用户阅读：用单按钮错误模态框并附折叠详情
-      await showAlert({
-        tone: "error",
-        title: "添加失败",
-        message: result?.error || "未知错误",
-        details: "详情见终端日志。",
-      });
-    }
-  } catch (err) {
-    console.error("[settings] MCP server 添加异常:", err);
-    await showAlert({
-      tone: "error",
-      title: "添加异常",
-      message: "调用过程中发生错误",
-      details: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
-    });
-  }
-});
+// Only the existing, narrow preload methods cross the Electron IPC boundary.
+const management = mountMcpManagement(pluginAddBtn);
+pluginAddBtn?.addEventListener("click", () => { void management?.add(); });
 
 export const CUSTOM_ENDPOINT_GUIDE_BODY = [
   '<section class="custom-endpoint-guide-section">',

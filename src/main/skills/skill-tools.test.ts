@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scanSkills } from "./skill-scanner";
+import { dispatchToolCall } from "../orchestrator/harness/tool-dispatcher";
 
 describe("Skill run allowlist", () => {
   it("rejects a globally known skill outside the current mode snapshot", () => {
@@ -39,6 +40,35 @@ it("preserves invoke effect classification for body continuation without changin
     skillRegistry.unregister(id);
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+it("keeps same-run page deduplication through real dispatcher invocation clones without sharing role or run identity", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-dispatched-skill-pages-"));
+  const id = "dispatched-page-fixture", dir = path.join(root, id);
+  fs.mkdirSync(path.join(dir, "references"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${id}\ndescription: public\n---\n${"a".repeat(6000)}${"b".repeat(8000)}body tail`);
+  fs.writeFileSync(path.join(dir, "references", "public.md"), `${"c".repeat(8000)}reference tail`);
+  try {
+    skillRegistry.register(scanSkills(root, "user")[0]); registerSkillTools();
+    const read = toolRegistry.getById("read_skill_reference")!;
+    const context = { userQuery: "synthetic", conversationId: "same-label", ownerSessionId: "same-owner-label", runId: "same-run-label", allowedSkillIds: new Set([id]) };
+    let sequence = 0;
+    const dispatch = async (toolContext: typeof context, args: Record<string, unknown>) => dispatchToolCall({
+      id: `page-${++sequence}`, name: read.id, arguments: JSON.stringify(args),
+    }, { state: { todoItems: [], uncertainEffects: [] }, tools: [read], toolContext });
+    for (const args of [
+      { skill_id: id, ref: "public.md" },
+      { skill_id: id, source: "body", ref: "SKILL.md", offset: 6000 },
+    ]) {
+      const first = await dispatch(context, args); expect(first.outcome).toBe("success");
+      expect((await dispatch(context, { ...args, runId: "model-cannot-reset-scope", ownerSessionId: "forged" })).output).toContain("已在本轮读过");
+      // Equal or model-copied IDs confer no shared identity across Main-owned contexts.
+      expect((await dispatch({ ...context }, args)).output).toBe(first.output);
+      expect((await dispatch({ ...context, runId: "next-run" }, args)).output).toBe(first.output);
+    }
+    expect((await dispatch(context, { skill_id: id, source: "body", ref: "SKILL.md", offset: 14000 })).output).toBe("body tail");
+    expect((await dispatch(context, { skill_id: id, ref: "public.md", offset: 8000 })).output).toBe("reference tail");
+  } finally { skillRegistry.unregister(id); resetReadRefs(); fs.rmSync(root, { recursive: true, force: true }); }
 });
 
 it("reads long body and references in bounded pages without widening run access", async () => {

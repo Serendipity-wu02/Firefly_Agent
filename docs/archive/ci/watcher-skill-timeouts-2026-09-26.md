@@ -1,13 +1,15 @@
 # 文件监视与 Skills 归档测试超时
 
-> 历史记录：所列文件监视与 Skills 超时修正记录；本轮不重跑。主 agent 已将 ZIP 接入 yauzl 与项目落盘适配，最终调用集成与构建待验证。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../../README.md)。
+> **日期**：2026-09-26
+> **状态**：历史技术记录。下文描述记录时的实现、设计与验证结论，不代表当前版本复测。
+> **范围**：文件监视夹具与 Skills 归档安装超时。当前维护入口见[文档导航](../../README.md)。
 
-## 已保存现场
+## 失败证据
 
-运行 [36168348211](https://github.com/Serendipity-wu02/Firefly_Agent/actions/runs/36168348211)，提交 `3b87252cf0b9a0be38c845599d660b2d61f1ed21`。完整日志、stdout/stderr 和 worker 事件位于仓库外 `E:\Codex\Firefly-vitest-investigation-20260926\dev-36168348211`。
+运行 [36168348211](https://github.com/Serendipity-wu02/Firefly_Agent/actions/runs/36168348211)。完整日志、stdout/stderr 和 worker 事件按该运行号保存在仓库外诊断归档。
 
-- `GitWorkspaceWatcher 原生递归监视（真实文件系统） > 8.3 路径监视工作区与外部 gitDir，保留忽略规则并关闭句柄`：15000 ms 用例超时。worker 1552 在 17:42:16.882Z 至 17:42:34.843Z 没有发送新的任务更新，随后约 106 ms 内报告超时。用例唯一的长同步外部调用为 PowerShell/COM 获取短路径；旧诊断未覆盖 `execFileSync`，因此不能把这段空档认定为已直接测得的 PowerShell 耗时。等待事件使用独立的 `vi.waitFor`，原生 watcher 挂载在同步 `fs.watch` 返回时完成；没有原生崩溃退出证据。
-- `preserves user-installed files when loading the actual archive`：5000 ms 用例超时。worker 1724 本次生命周期 17:45:05.186Z 开始；测试 body 超时后才进入 afterEach，afterEach 在 4 ms 内完成，故不是测试清理 hook 超时。body 内部解压与 finally 删除各占多少，旧日志未分别记录，不能追认精确卡点。
+- `GitWorkspaceWatcher 原生递归监视（真实文件系统） > 8.3 路径监视工作区与外部 gitDir，保留忽略规则并关闭句柄`：15000 ms 用例超时。诊断记录出现约 18 秒无任务更新区间，随后约 106 ms 内报告超时。用例唯一的长同步外部调用为 PowerShell/COM 获取短路径；旧诊断未覆盖 `execFileSync`，因此不能把这段空档认定为已直接测得的 PowerShell 耗时。等待事件使用独立的 `vi.waitFor`，原生 watcher 挂载在同步 `fs.watch` 返回时完成；没有原生崩溃退出证据。
+- `preserves user-installed files when loading the actual archive`：5000 ms 用例超时。测试 body 超时后才进入 afterEach，afterEach 在 4 ms 内完成，故不是测试清理 hook 超时。body 内部解压与 finally 删除各占多少，旧日志未分别记录，不能追认精确卡点。
 - 两个 worker 都完成 stop 握手后退出；本次 506 个 worker 非 stopping 异常退出 0。Bash 探测和执行均实际 exit/close 0。保留此前 Windows 8.3 原生崩溃修复及 Bash 夹具修复，不将框架超时混同为原生崩溃。
 
 ## 调用链与有依据的修改
@@ -36,9 +38,8 @@
 
 ## 有限本地验证
 
-- 修改前两轮组合：各 11 项通过，5.75 s、5.64 s，未复现云端超时。分段运行中原 Skills 用例 356 ms、归档清理 45 ms；另一轮 378 ms。
-- 开发中一次新 cmd 参数转义错误由 native realpath 断言检出，已修正为 Windows 原样参数传递，不放宽路径校验。
-- 最终版本四文件组合三轮：每轮 22 项通过，无跳过；诊断两轮短路径用例 495/484 ms，保留用户 Skills 用例均 4 ms。
-- Main TypeScript 无输出检查、Git 空白检查通过。生产改动仅 Skills 预核验；构建与完整套件由本次开发分支 CI 验证后再决定是否合并。
+- 修改前的本地组合未复现云端超时；本地耗时不足以解释 CI 的系统延迟。
+- 最终四文件组合重复验证，均为 22 项通过、无跳过；短路径用例约 0.5 秒，无需迁移的 Skills 用例约 4 ms。cmd 使用 Windows 原样参数传递，native realpath 等路径校验未放宽。
+- Main TypeScript 无输出检查、Git 空白检查通过。生产改动仅涉及 Skills 预核验；本报告未包含该修正后的完整构建与 CI 套件结果。
 
 结论边界：修正了可直接从源码证明的阻塞式测试夹具和不必要的全量解压路径。历史两项云端超时的精确 OS/文件 I/O 延迟来源仍未取得直接证据，不将这些测量写成已证明内存不足、杀毒扫描或统一资源争用根因。

@@ -35,6 +35,12 @@ export const IPC = {
   APP_UPDATE_INSTALL: "app-update:install",
   APP_UPDATE_STATE: "app-update:state",
 
+  // Explicit, standalone desktop dictation
+  DESKTOP_ASR_START: "desktop-asr:start",
+  DESKTOP_ASR_FRAME: "desktop-asr:frame",
+  DESKTOP_ASR_STOP: "desktop-asr:stop",
+  DESKTOP_ASR_CANCEL: "desktop-asr:cancel",
+
   // chat window
   CHAT_MINIMIZE: "chat:minimize",
   CHAT_CLOSE: "chat:close",
@@ -208,6 +214,8 @@ export const IPC = {
   WORKSPACE_FILES_LIST: "workspace-files:list",
   // renderer → main：读取工作区内某文件的内容（预览用，带大小/二进制限制）
   WORKSPACE_FILES_READ: "workspace-files:read",
+  /** Native-confirmed, exact-file text save. */
+  WORKSPACE_FILES_SAVE: "workspace-files:save",
 
   // 工作区右上角"打开"菜单（用本机应用打开工作区根目录）
   // renderer → main：探测本机可打开工作区的应用（VSCode / Cursor 等，进程内缓存）
@@ -287,6 +295,11 @@ export const IPC = {
   // skill toggle
   SKILL_LIST: "skill:list",
   SKILL_SET_ENABLED: "skill:set-enabled",
+  EXTERNAL_SKILLS_LIST: "external-skills:list",
+  EXTERNAL_SKILLS_DETAIL: "external-skills:detail",
+  EXTERNAL_SKILLS_PREPARE: "external-skills:prepare",
+  EXTERNAL_SKILLS_COMMIT: "external-skills:commit",
+  EXTERNAL_SKILLS_CANCEL: "external-skills:cancel",
   // skill-mode override（用户自定义 skill 在 work/code 模式下的可见性）
   SKILL_GET_MODE_OVERRIDES: "skill:get-mode-overrides",
   SKILL_SET_MODE_OVERRIDE: "skill:set-mode-override",

@@ -1,19 +1,41 @@
-# 浏览器/UI 本地候选整合与QA
+# 浏览器与右侧工作区离线集成方案
 
-任务基准：浏览器7a965436075e955c92922dc5a74aeddf4b78f821，已批准UI a3b060b6d8f10f0fe5ef39107c2d68c9ecfbda45。使用现有E盘worktree和依赖，不包含H integrator未提交presence probe或dce1db原生backend，不新增大型worktree/依赖副本。
+- **记录日期**：2026-10-04
+- **状态**：离线集成及隔离 GUI 验证已完成；本文保留该阶段的范围和证据
+- **范围**：Main 只读可用性、preload DTO、单一 Inspector 浏览器入口及既有 UI 回归
+- **后续状态**：真实 BrowserService 与共享接线已由后续阶段实现，见[服务接线说明](browser-service-integration.md)。历史离线结果不代表当前浏览器的完整安全验收。
 
-- [x] 核对关系并在qa/browser-ui-offline-20261004本地整合；merge提交206889393e2c14dc368df702e95ed476b4b746cc。
-- [x] TDD最小共享接线：Main只读browser availability、受限preload DTO、ChatPage单一Inspector浏览器入口。gate关闭，不创建真实guest/代理或导航；表单/历史/刷新不可用，明确真实状态，关闭/会话切换清空展示。
-- [x] 联合定向/全量测试、Main/preload/renderer types及build；独立安全/质量审查。
-- [x] 当前候选隔离profile实际Windows Electron GUI：现有布局、模型状态/设置、右侧文件树/真实fixture预览、浏览器不可用入口及安全匿名fixture交互。新截图本地保存，分别记录pass/fail/未运行/阻塞，不继承旧UI QA数字。
-- [x] 本地提交并报告候选SHA、查看范围、限制；不push/远端merge/发布。
+## 1. 背景与目标
 
-Ruling: merge仅两处文档add/add；保留浏览器分支更新的right-agent-workspace与browser-public-page-gate，产品源码自动合并。UI候选祖先中的已批准音乐Chat声明/头像/设置/model状态变更保留；不引入H后续或未提交改动。
+本阶段将匿名浏览器离线模块与右侧工作区 UI 组合，提供可见且状态真实的浏览器入口。在公网 DNS、可信 TLS 与全协议出口证明尚未完成时，产品入口保持不可用，不创建真实 guest、代理或导航请求。
 
-Ruling: 真实网页服务仍缺可信TLS/公网DNS与全协议安全证据，因此本轮产品仅整合离线模块、可见浏览器入口及默认关闭状态；不安装真实BrowserService/login/navigation/shutdown消费者，避免在尚未验收的权限契约上开放真实guest。必要共享接线是Main只读状态→preload→现有单一Inspector，不新增模型/agent browser API。
+已有音乐、聊天声明、头像、设置及模型状态变更纳入 UI 回归；原生历史后端及未完成的其他功能不属于本阶段范围。
 
-Ruling: Computer Use SKILL及本地guidance/confirmations已读；当前工具无node_repl，无法运行@oai/sky。不调用自制Windows helper/PowerShell UIAutomation。使用用户明确提供的既有Playwright/Electron QA方案，对本候选真实渲染和Windows窗口作隔离验收；不宣称前台鼠标/键盘、系统tray原生验收。副作用守卫与隔离路径核验先于产品入口，不改用户窗口。
+## 2. 实现边界
 
-约束：无真实userData/模型/API/登录档案/外部服务，production gate始终关闭。匿名fixture仅QA入口与单独非persist Session；不为fixture扩大产品URL/证书/网络策略。已知重启未发送草稿为空、英文深色未实现、设置外部更新缓存及未知provider风险记录为既有缺口，不擅加持久化或扩大新功能。同一技术问题两次失败按用户约定Astra-medium诊断。原始日志/截图/QA记录留E盘。
+- Main 发布只读 browser availability，经受限 preload DTO 传递到现有单一 Inspector。
+- gate 关闭时禁用表单导航、历史和刷新；关闭标签或切换会话时清空展示。
+- 不新增模型或 Agent 浏览器 API，不接入实际 BrowserService、login、navigation 或 shutdown 消费者。
+- 匿名交互 fixture 只存在于 QA 入口及独立非 persist Session，不扩展产品 URL、证书或网络策略。
+- 隔离 profile 不读取真实 userData、模型/API 凭据或登录档案，不使用外部服务。
 
-完成记录：631files/6327passed/2skipped；联合25passed；四组types（含5测试文件）及build exit0；独立review无C/R/I；fresh GUI 11passed/1blocked/errors0，6逐张检查截图。详细证据见 docs/testing/browser-ui-candidate.md。最终SHA以交付结果为准。
+## 3. 历史验收
+
+实际 Windows Electron GUI 通过既有 Playwright/Electron QA 方案验证。检查覆盖布局、模型状态及设置、右侧文件树、真实 fixture 预览、浏览器不可用入口和匿名 fixture 交互。该验证不包含操作系统前台鼠标键盘、原生 tray 或完整桌面行为。
+
+| 检查项 | 2026-10-04 记录结果 |
+| --- | --- |
+| 完整自动化测试 | 631 个文件，6327 passed，2 skipped |
+| 联合定向测试 | 25 passed |
+| 类型检查 | Main、preload、renderer 及包含 5 个测试文件的检查均 exit 0 |
+| 构建 | exit 0 |
+| 独立安全与质量审查 | 无 Critical、Required 或 Important 遗留项 |
+| 隔离 GUI | 11 passed，1 blocked，errors 0；6 张截图逐张检查 |
+
+完整证据及限制见[离线候选验证](../testing/browser-ui-candidate.md)。这些数字是历史记录，本次文档整理未重新执行相应测试。
+
+## 4. 遗留问题与后续验收
+
+历史 QA 记录了重启后未发送草稿为空、英文深色模式未实现、设置外部更新缓存及未知 provider 风险；这些问题不通过本阶段引入额外持久化或新功能修复。
+
+后续真实服务验收应分别核对共享接线、原生生命周期、可信公网传输、worker/存储撤销及跨协议出口，不能沿用离线 GUI 数字宣称网络门槛通过。后续进展见[服务原生实现](browser-service-native-plan.md)与[可信 DNS 接线](browser-trusted-resolver.md)。

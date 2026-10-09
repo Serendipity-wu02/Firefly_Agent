@@ -519,6 +519,7 @@ describe("ILinkBotAdapter inbound media", () => {
     expect((adapter as any).transcribeVoice).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "voice", fileName: "微信语音" }),
       "msg-voice-1",
+      undefined,
     );
     expect(sendText).not.toHaveBeenCalled();
     expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({

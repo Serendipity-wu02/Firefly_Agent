@@ -1,18 +1,22 @@
-# Channels Dispatcher（渠道消息调度器）Refactor（重构）Implementation Plan（实施计划）
+# 渠道消息调度器重构设计与实施计划
 
-> 历史记录：2026-09-09 设计与实施计划；复选框、示例和提交命令不是当前待执行任务，现行实现见 src/main/channels/。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../../README.md)。
+> **日期**：2026-09-09
+> **状态**：历史技术记录。下文描述记录时的实现、设计与验证结论，不代表当前版本复测。
+> **范围**：渠道消息调度器的历史设计与分阶段实施方案；复选框是原计划状态。当前维护入口见[文档导航](../../README.md)。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
+> **方案性质**：以下任务拆分及复选框用于追溯 2026-09-09 的设计过程，不构成当前待执行指令。
 
-**Goal:** 修复渠道回复在发送失败后仍污染历史的正确性缺陷，统一外部会话和绑定桌面对话的执行顺序，并把 ChannelDispatcher 收敛为职责清晰、依赖不可变的消息编排器。
+**目标：** 修复渠道回复在发送失败后仍污染历史的正确性缺陷，统一外部会话和绑定桌面对话的执行顺序，并把 ChannelDispatcher 收敛为职责清晰、依赖不可变的消息编排器。
 
-**Architecture:** 保留 IncomingMessage、OutgoingMessage、MessageHandler 和 ChannelAdapter 的现有公共契约。ChannelDispatcher 在外部 session（会话）队列内解析绑定，再在绑定 conversation（桌面对话）队列内执行完整消息流程；它调用独立的限速、上下文、出站组装和传输模块，但继续通过函数注入复用现有 Agent（智能体）、日志、历史和桌面广播能力。
+**架构：** 保留 IncomingMessage、OutgoingMessage、MessageHandler 和 ChannelAdapter 的现有公共契约。ChannelDispatcher 在外部 session（会话）队列内解析绑定，再在绑定 conversation（桌面对话）队列内执行完整消息流程；它调用独立的限速、上下文、出站组装和传输模块，但继续通过函数注入复用现有 Agent（智能体）、日志、历史和桌面广播能力。
 
-**Tech Stack:** TypeScript 5.6、Electron 43、Vitest 4、Node.js 标准库；不新增运行时依赖。
+**技术栈：** TypeScript 5.6、Electron 43、Vitest 4、Node.js 标准库；不新增运行时依赖。
 
-**Spec:** docs/refactor/2026-09-09-channels-dispatcher-refactor-plan.md#设计规格
+**示例边界：** 以下测试代码中的 `C:/virtual/` 是合成夹具路径，不对应维护者机器目录；代码块用于解释历史方案，不表示当前测试已重新执行。
 
-## Global Constraints
+**规格：** [设计规格](#设计规格)
+
+## 全局约束
 
 - 不改变 src/main/channels/types.ts 中 IncomingMessage、OutgoingMessage、OutgoingPart、MessageHandler 和 ChannelAdapter.send 的现有签名。
 - 不在本轮扩展 Adapter 发送结果；ok: true 只表示 Adapter 层的尽力确认，不保证全部片段严格送达。
@@ -22,7 +26,7 @@
 - buildAndRunAgent、broadcastChat、appendLog、appendHistory 和 appendBoundConversationMessage 保持函数注入，不为单一实现增加包装接口。
 - 优先复用 proactive-delivery.ts 的“发送后提交”语义，以及 QQ、QQ Bot 已验证的 Promise（异步承诺）队列模式。
 - 所有生产代码改动必须由失败测试驱动；每个任务完成后运行该任务测试和 channels 相关回归测试。
-- 不修改用户当前 dist/renderer 下的未提交文件。
+- 重构限于源码及对应测试，不覆盖既有 Renderer 构建产物。
 
 ---
 
@@ -407,12 +411,9 @@ Run: npx vitest run src/main/channels/manager.test.ts src/main/channels/dispatch
 
 Expected: PASS。
 
-- [ ] **Step 6: 提交独立正确性修复**
+- [ ] **Step 6: 核对独立正确性修复**
 
-~~~bash
-git add src/main/channels/manager.ts src/main/channels/manager.test.ts src/main/channels/dispatcher.ts src/main/channels/dispatcher.test.ts
-git commit -m "fix(channels): commit assistant state only after delivery"
-~~~
+变更范围：`src/main/channels/manager.ts`、`src/main/channels/manager.test.ts`、`src/main/channels/dispatcher.ts`、`src/main/channels/dispatcher.test.ts`。
 
 ### Task 2: 抽取并修复原子限速器
 
@@ -503,12 +504,9 @@ Run: npm run build:main
 
 Expected: 全部 PASS。
 
-- [ ] **Step 6: 提交限速修复**
+- [ ] **Step 6: 核对限速修复**
 
-~~~bash
-git add src/main/channels/rate-limiter.ts src/main/channels/rate-limiter.test.ts src/main/channels/dispatcher.ts
-git commit -m "fix(channels): consume rate limits atomically"
-~~~
+变更范围：`src/main/channels/rate-limiter.ts`、`src/main/channels/rate-limiter.test.ts`、`src/main/channels/dispatcher.ts`。
 
 ### Task 3: 引入外部 session 和绑定 conversation 两层队列
 
@@ -615,12 +613,9 @@ Run: npx vitest run src/main/channels/keyed-queue.test.ts src/main/channels/disp
 
 Expected: PASS。
 
-- [ ] **Step 7: 提交队列重构**
+- [ ] **Step 7: 核对队列重构**
 
-~~~bash
-git add src/main/channels/keyed-queue.ts src/main/channels/keyed-queue.test.ts src/main/channels/dispatcher.ts src/main/channels/dispatcher.test.ts
-git commit -m "refactor(channels): serialize shared conversation execution"
-~~~
+变更范围：`src/main/channels/keyed-queue.ts`、`src/main/channels/keyed-queue.test.ts`、`src/main/channels/dispatcher.ts`、`src/main/channels/dispatcher.test.ts`。
 
 ### Task 4: 抽取传输服务并复用于主动发送
 
@@ -696,12 +691,9 @@ Run: npx vitest run src/main/channels/delivery-service.test.ts src/main/channels
 
 Expected: PASS，主动发送的 total failure 和 partial delivery 断言保持不变。
 
-- [ ] **Step 7: 提交传输模块**
+- [ ] **Step 7: 核对传输模块**
 
-~~~bash
-git add src/main/channels/delivery-service.ts src/main/channels/delivery-service.test.ts src/main/channels/dispatcher.ts src/main/channels/proactive-delivery.ts src/main/channels/proactive-delivery.test.ts
-git commit -m "refactor(channels): share adapter delivery boundary"
-~~~
+变更范围：`src/main/channels/delivery-service.ts`、`src/main/channels/delivery-service.test.ts`、`src/main/channels/dispatcher.ts`、`src/main/channels/proactive-delivery.ts`、`src/main/channels/proactive-delivery.test.ts`。
 
 ### Task 5: 抽取出站组装并管理临时音频
 
@@ -780,12 +772,9 @@ Run: npm run build:main
 
 Expected: PASS。
 
-- [ ] **Step 7: 提交出站组装模块**
+- [ ] **Step 7: 核对出站组装模块**
 
-~~~bash
-git add src/main/channels/outgoing-composer.ts src/main/channels/outgoing-composer.test.ts src/main/channels/dispatcher.ts src/main/channels/dispatcher-capability.test.ts
-git commit -m "refactor(channels): extract outgoing composition"
-~~~
+变更范围：`src/main/channels/outgoing-composer.ts`、`src/main/channels/outgoing-composer.test.ts`、`src/main/channels/dispatcher.ts`、`src/main/channels/dispatcher-capability.test.ts`。
 
 ### Task 6: 抽取上下文模块
 
@@ -856,12 +845,9 @@ Run: npx vitest run src/main/channels/channel-context.test.ts src/main/channels/
 
 Expected: PASS。
 
-- [ ] **Step 7: 提交上下文模块**
+- [ ] **Step 7: 核对上下文模块**
 
-~~~bash
-git add src/main/channels/channel-context.ts src/main/channels/channel-context.test.ts src/main/channels/dispatcher.ts src/main/channels/dispatcher.test.ts
-git commit -m "refactor(channels): extract conversation context"
-~~~
+变更范围：`src/main/channels/channel-context.ts`、`src/main/channels/channel-context.test.ts`、`src/main/channels/dispatcher.ts`、`src/main/channels/dispatcher.test.ts`。
 
 ### Task 7: 用不可变构造替代模块级 setter
 
@@ -933,12 +919,9 @@ Run: npm run build:main
 
 Expected: PASS。
 
-- [ ] **Step 7: 提交不可变接线**
+- [ ] **Step 7: 核对不可变接线**
 
-~~~bash
-git add src/main/channels/dispatcher.ts src/main/channels/bootstrap.ts src/main/channels/init.ts src/main/channels/bootstrap.test.ts src/main/channels/dispatcher.test.ts
-git commit -m "refactor(channels): replace mutable dispatcher wiring"
-~~~
+变更范围：`src/main/channels/dispatcher.ts`、`src/main/channels/bootstrap.ts`、`src/main/channels/init.ts`、`src/main/channels/bootstrap.test.ts`、`src/main/channels/dispatcher.test.ts`。
 
 ### Task 8: 删除重复队列并完成全量验证
 
@@ -995,12 +978,9 @@ Run: rg -n "private queues|private enqueue" src/main/channels/adapters/qq/napcat
 
 Expected: 无匹配。
 
-- [ ] **Step 6: 提交收尾清理**
+- [ ] **Step 6: 核对收尾清理**
 
-~~~bash
-git add src/main/channels/adapters/qq/napcat-adapter.ts src/main/channels/adapters/qqbot/qqbot-adapter.ts src/main/channels/adapters/qq/napcat-adapter.integration.test.ts src/main/channels/adapters/qqbot/qqbot-adapter.test.ts src/main/channels/dispatcher.ts src/main/channels/types.ts
-git commit -m "refactor(channels): centralize inbound sequencing"
-~~~
+变更范围：`src/main/channels/adapters/qq/napcat-adapter.ts`、`src/main/channels/adapters/qqbot/qqbot-adapter.ts`、`src/main/channels/adapters/qq/napcat-adapter.integration.test.ts`、`src/main/channels/adapters/qqbot/qqbot-adapter.test.ts`、`src/main/channels/dispatcher.ts`、`src/main/channels/types.ts`。
 
 ---
 

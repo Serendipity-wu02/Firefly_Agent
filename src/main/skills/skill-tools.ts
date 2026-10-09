@@ -7,7 +7,7 @@
 import { toolRegistry, type ToolEffectKind } from "../orchestrator/tools/registry/tool-registry";
 import { skillRegistry } from "./skill-registry";
 import { logger, LogTag } from "../logger";
-import type { ToolContext } from "../orchestrator/tools/registry/tool-context";
+import { getToolRunScope, type ToolContext } from "../orchestrator/tools/registry/tool-context";
 
 const LOG_PREFIX = "[SkillTools]";
 
@@ -30,15 +30,13 @@ function truncateForContext(text: string, maxChars: number, hint: string): strin
 }
 
 /**
- * 每轮对话的 reference 已读记录（skill_id + ref → true）。
- * FC 循环开始时调 resetReadRefs() 清空。防止模型在同一轮任务里重复读同一文件。
+ * 每次运行的分页记录，由 Main/child 的原始 ToolContext 身份隔离。
+ * Dispatcher 的逐调用副本沿用同一私有 scope；字符串 runId 不授予共享身份。
  */
-const fallbackReadRefs = new Set<string>();
-let contextReadRefs = new WeakMap<ToolContext, Set<string>>();
+let contextReadRefs = new WeakMap<object, Set<string>>();
 
-/** 每轮 FC 循环开始前调，清空已读记录。由 firefly-agent.ts 在循环入口调。 */
+/** Explicit reset for isolated callers/tests; normal runs are isolated by their scopes. */
 export function resetReadRefs(): void {
-  fallbackReadRefs.clear();
   contextReadRefs = new WeakMap();
 }
 
@@ -158,8 +156,10 @@ export function registerSkillTools(): void {
       if ((source !== "reference" && source !== "body") || typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0
         || source === "body" && ref !== "SKILL.md") return "[read_skill_reference] E_SKILL_READ_ARGUMENT";
       // 去重：同一轮内同一 reference 不重复返回（内容已在对话历史里，再读浪费轮数+token）
-      const readRefs = ctx ? contextReadRefs.get(ctx) ?? new Set<string>() : fallbackReadRefs;
-      if (ctx) contextReadRefs.set(ctx, readRefs);
+      const scope = ctx ? getToolRunScope(ctx) : undefined;
+      // A legacy call without a trusted context cannot share a process-wide read record.
+      const readRefs = scope ? contextReadRefs.get(scope) ?? new Set<string>() : new Set<string>();
+      if (scope) contextReadRefs.set(scope, readRefs);
       const readKey = `${id}/${source}/${ref}/${offset}`;
       if (readRefs.has(readKey)) {
         return `[read_skill_reference] "${ref}" 已在本轮读过，内容已在对话中，不要重复读取。` +

@@ -7,31 +7,39 @@
 import { t, useTranslation } from "../../../i18n";
 import { MarkdownContent } from "./ChatMessageList";
 
-export type PlanReviewPhase = "review" | "executing" | "completed";
+export type PlanReviewPhase = "review" | "executing" | "completed" | "failed" | "cancelled";
 
 // 只存 i18n key（t() 不能出现在模块顶层常量里），展示文案在组件/调用处求值。
 const PHASE_NOTE_KEYS: Record<PlanReviewPhase, string> = {
   review: "planReview.noteReview",
   executing: "planReview.noteExecuting",
   completed: "planReview.noteCompleted",
+  failed: "planReview.noteFailed",
+  cancelled: "planReview.noteCancelled",
 };
 
 const PHASE_DOT: Record<PlanReviewPhase, string> = {
   review: "is-review",
   executing: "is-executing",
   completed: "is-completed",
+  failed: "is-failed",
+  cancelled: "is-cancelled",
 };
 
 const PHASE_LABEL_KEYS: Record<PlanReviewPhase, string> = {
   review: "planReview.tabReview",
   executing: "planReview.tabExecuting",
   completed: "planReview.tabCompleted",
+  failed: "planReview.tabFailed",
+  cancelled: "planReview.tabCancelled",
 };
 
 const ENTRY_LABEL_KEYS: Record<PlanReviewPhase, string> = {
   review: "planReview.entryReview",
   executing: "planReview.entryExecuting",
   completed: "planReview.entryCompleted",
+  failed: "planReview.entryFailed",
+  cancelled: "planReview.entryCancelled",
 };
 
 export function PlanContent({

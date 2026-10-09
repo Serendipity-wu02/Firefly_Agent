@@ -206,13 +206,39 @@ export function listMcpServers(): Array<{
   toolCount: number;
   toolIds: string[];
 }> {
-  return getMcpServerStates();
+  // Read the persistent source directly: a failed read must not look like an
+  // empty list, and disconnected saved servers must remain manageable.
+  const configs = configStore().read([]);
+  const runtime = getMcpServerStates();
+  const byId = new Map(runtime.map(server => [server.id, server]));
+  const storedIds = new Set(configs.map(config => config.id));
+  return [
+    ...configs.map(config => {
+      const state = byId.get(config.id);
+      return {
+        id: config.id,
+        name: config.name,
+        connected: state?.connected ?? false,
+        toolCount: state?.toolCount ?? 0,
+        toolIds: [...(state?.toolIds ?? [])],
+      };
+    }),
+    // Failed cleanup can leave an owned runtime entry without persisted config.
+    // Keep it visible, but never return the underlying connection configuration.
+    ...runtime.filter(server => !storedIds.has(server.id)).map(server => ({
+      id: server.id,
+      name: server.name,
+      connected: server.connected,
+      toolCount: server.toolCount,
+      toolIds: [...server.toolIds],
+    })),
+  ];
 }
 
 /**
  * 读取已持久化的 MCP server 配置（含连接失败、未连接的）。
- * 与 listMcpServers（仅运行时连接态）互补：内置 MCP 同步逻辑需要
- * 以配置文件为事实源，避免「配置存在但连接失败」被误判为不存在。
+ * 内置 MCP 同步逻辑需要完整连接配置；设置页的 listMcpServers 只返回
+ * 配置与运行态合并后的安全摘要，不包含 command/env 等连接信息。
  */
 export function listMcpServerConfigs(): McpServerConfig[] {
   return loadConfigs();

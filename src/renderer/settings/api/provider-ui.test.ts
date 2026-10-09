@@ -64,7 +64,7 @@ it("resolves new labels, tabs, configuration state and actions in English", () =
   const root = document.createElement("div");
   renderProviderRows(root, [profile("first")]);
   expect(root.textContent).toContain("Configured · Connection not tested");
-  expect(root.querySelector('[data-profile-action="edit"]')?.textContent).toBe("Edit");
+  expect(root.querySelector('[data-profile-action="edit"]')?.getAttribute("aria-label")).toBe("Edit Saved model");
   expect(root.querySelector('[data-profile-action="delete"]')?.textContent).toBe("Delete");
 });
 
@@ -72,4 +72,106 @@ it("does not expose the retired standalone status-panel control", () => {
   document.body.innerHTML = html;
   expect(document.getElementById("sidebar-visible")).toBeNull();
   expect(document.getElementById("general-save-status")).not.toBeNull();
+});
+
+it("places profile navigation beside a persistent editor region and keeps routing outside the editor", () => {
+  document.body.innerHTML = html;
+  const workspace = document.querySelector('.model-settings-workspace')!;
+  expect(workspace).not.toBeNull();
+  expect(workspace.querySelector('.model-settings-sidebar')?.contains(document.getElementById('model-profile-list'))).toBe(true);
+  expect(workspace.querySelector('.model-settings-detail')?.contains(document.getElementById('profile-editor'))).toBe(true);
+  expect(workspace.querySelector('.model-settings-detail')?.contains(document.getElementById('profile-editor-empty'))).toBe(true);
+  expect(document.getElementById('profile-editor')?.contains(document.getElementById('agent-routing-group'))).toBe(false);
+});
+
+it("marks only the selected profile and makes the full profile summary a navigation button", () => {
+  const root = document.createElement('div');
+  renderProviderRows(root, [profile('first'), profile('second')], 'first', 'second');
+  const selected = root.querySelector('[data-profile-id="second"] [data-profile-action="edit"]')!;
+  expect(selected.getAttribute('aria-current')).toBe('true');
+  expect(selected.textContent).toContain('Saved model');
+  expect(root.querySelector('[data-profile-id="first"] [data-profile-action="edit"]')?.hasAttribute('aria-current')).toBe(false);
+});
+
+it("defines a two-column workspace and a narrow single-column layout", () => {
+  const css = fs.readFileSync(path.resolve('src/renderer/settings/settings-layout.css'), 'utf8');
+  expect(css).toMatch(/\.model-settings-workspace\s*\{[^}]*grid-template-columns:\s*minmax\(220px,\s*\.72fr\)\s+minmax\(0,\s*1\.9fr\)/);
+  expect(css).toMatch(/@media\s*\(max-width:\s*760px\)\s*\{[\s\S]*?\.model-settings-workspace\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+});
+
+it("lets protocol labels wrap inside the narrower editor column", () => {
+  document.body.innerHTML = html;
+  const style = document.createElement('style');
+  style.textContent = fs.readFileSync(path.resolve('src/renderer/settings/settings.css'), 'utf8') + '\n' + fs.readFileSync(path.resolve('src/renderer/settings/settings-layout.css'), 'utf8');
+  document.head.append(style);
+  expect(getComputedStyle(document.querySelector('.transport-cards .preset-card__name')!).whiteSpace).toBe('normal');
+  style.remove();
+});
+
+it("preserves the 12px radius contract on profile navigation surfaces", () => {
+  document.body.innerHTML = html;
+  const style = document.createElement("style");
+  style.textContent = fs.readFileSync(path.resolve("src/renderer/settings/settings-layout.css"), "utf8");
+  document.head.append(style);
+  try {
+    const root = document.getElementById("model-profile-list")!;
+    renderProviderRows(root, [profile("first")]);
+    for (const selector of [".provider-row", ".provider-row__copy", ".provider-row__action"]) {
+      expect.soft(getComputedStyle(root.querySelector(selector)!).borderRadius, selector).toBe("12px");
+    }
+  } finally {
+    style.remove();
+  }
+});
+
+
+it("associates the profile selection with its model and saved configuration status", () => {
+  const root = document.createElement("div");
+  renderProviderRows(root, [profile("first"), profile("second", { apiKey: "" })]);
+  for (const copy of root.querySelectorAll('[data-profile-action="edit"]')) {
+    const ids = copy.getAttribute("aria-describedby")?.split(" ") ?? [];
+    expect(ids).toHaveLength(2);
+    const descriptions = ids.map(id => root.querySelector(`#${id}`)?.textContent).join(" ");
+    expect(descriptions).toContain("saved-model");
+    expect(descriptions).toMatch(/未验证连接|缺少 API Key/);
+  }
+});
+
+it("connects navigation buttons to their original panels and field inputs to help text", () => {
+  document.body.innerHTML = html;
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".nav-item")) {
+    const panel = document.getElementById(button.getAttribute("aria-controls") ?? "");
+    expect(panel?.dataset.panel, button.dataset.section).toBe(button.dataset.section);
+  }
+  expect(document.querySelector("nav")?.getAttribute("aria-label")).toBe("设置导航");
+  expect(document.getElementById("api-key")?.getAttribute("aria-describedby")).toBe("api-key-hint");
+  expect(document.getElementById("base-url")?.getAttribute("aria-describedby")).toBe("endpoint-preview");
+  expect(document.getElementById("save-status")?.getAttribute("aria-atomic")).toBe("true");
+});
+
+it("uses readable section typography and grouped rows without decorative backgrounds", () => {
+  document.body.innerHTML = html;
+  const style = document.createElement("style");
+  style.textContent = fs.readFileSync(path.resolve("src/renderer/settings/settings-layout.css"), "utf8");
+  document.head.append(style);
+  try {
+    expect(getComputedStyle(document.querySelector(".panel-heading h1")!).fontSize).toBe("26px");
+    expect(getComputedStyle(document.querySelector(".setting-row")!).minHeight).toBe("72px");
+    expect(getComputedStyle(document.querySelector(".settings-content")!).lineHeight).toBe("1.6");
+    expect(document.querySelectorAll(".settings-nav__group")).toHaveLength(3);
+  } finally { style.remove(); }
+});
+
+
+it("keeps a 48px title row and bounds independent settings scroll areas", () => {
+  document.body.innerHTML = html;
+  const style = document.createElement('style');
+  style.textContent = fs.readFileSync(path.resolve('src/renderer/settings/settings.css'), 'utf8') + '\n' + fs.readFileSync(path.resolve('src/renderer/settings/settings-layout.css'), 'utf8');
+  document.head.append(style);
+  try {
+    expect(getComputedStyle(document.querySelector('.settings-titlebar')!).minHeight).toBe('48px');
+    expect(getComputedStyle(document.querySelector('.settings-main')!).minHeight).toBe('0px');
+    expect(getComputedStyle(document.querySelector('.settings-nav__list')!).overflowY).toBe('auto');
+    expect(getComputedStyle(document.querySelector('.settings-content')!).overflowY).toBe('auto');
+  } finally { style.remove(); }
 });

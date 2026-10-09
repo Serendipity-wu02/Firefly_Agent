@@ -1,19 +1,30 @@
-# Firefly 迁移源码差异复核与集中实机验收
+# Firefly 迁移源码差异复核与实机验收方案（2026-09-25）
 
-> 历史记录：该阶段源码对照；旧标识和下一轮验收清单保留供追溯，不直接套用到当前接口。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../../README.md)。
+> **日期**：2026-09-25
+> **状态**：历史源码复核报告；定向验证通过，集中实机验收待执行
+> **范围**：上游 Cyrene、旧 Firefly 与迁移实现的能力、来源及验收差异
+> **适用边界**：本文记录当日源码与既有证据，旧标识及验收方案不直接适用于现行接口。现行入口见[文档导航](../../README.md)。
 
-## 基线与证据边界
+## 1. 来源基线与证据边界
 
-- 当前迁移目录 `E:\Codex\Firefly-Agent-migration`：`codex/firefly-migration`，复核起点 `8775af95008c9f5b8922ec94cef6491d145df0a6`；起点工作树干净。本报告及下述死代码删除尚未提交。
-- 迁移工作来源 `E:\Codex\Cyrene-Agent-master`：`main`，`46610b9df82eecbfea03dffe7de1f340bf42080c`，610 项未提交状态；旧 Firefly `E:\Codex\working\Firefly-Pet`：`firefly-v1.1.0`，`f6f20f962568432f782abe0bdff5b2f9e2686498`，47 项未提交状态。两目录均未修改。
-- **原始 Cyrene 对照点**：上游 `Playa-0v0/Cyrene-Agent` 的 `664c6022e428f6301c2b59b12c88efb1997a6ed7`，提交时间 2026-09-21 12:37 +08:00，版本 `1.2.2`。历史审计 `firefly-migration-audit-2026-09-22.md:21-55` 记录 ZIP 解压在同一时段，原目录当时没有 Git。与后建本地基线 `46610b9` 的树比对：共同路径有 1885 个 Git blob 完全相同；另有 127 个仅 CRLF/LF 不同；仅 19 个同路径文件内容不同，均在审计记录的最初角色／资源改动范围。另外本地基线新增 31 个资源、测试和记录路径，上游有 18 个主要为设计文档／旧生成物的独有路径。相邻上游提交 `ae7c3409` 为 25 个内容差异，之后的 `87ee73a6` 为 22 个，故选用差异最小且时间吻合的 `664c6022`；不使用 9 月 8 日 `v1.2.2` 标签或 9 月 23 日上游最新版本。原 ZIP 没有提交标识，以上是可由 Git 树和当时记录复核的最精确来源；不把本地 WIP 误称原版。
-- 下表“源码依据”均指当前迁移目录；旧版／上游另行注明。`[S]` 本轮静态核对；`[T]` 既有记录或本轮定向测试；`[R]` 既有实机记录。既有记录不等于本轮重测，更不等于未覆盖的链路已经通过。
+- 复核对象为记录日期的迁移工程；来源工程仅用于只读对照。
+- **来源对照快照**：迁移源的本地基线为 `46610b9df82eecbfea03dffe7de1f340bf42080c`，旧 Firefly 源码基线为 `f6f20f962568432f782abe0bdff5b2f9e2686498`。两者均存在快照之外的改动，因此表中旧 Firefly 对照包含实际文件状态，不能视为仅比较已发布版本。
+- **原始 Cyrene 对照点**：上游 `Playa-0v0/Cyrene-Agent` 的 `664c6022e428f6301c2b59b12c88efb1997a6ed7`，上游提交时间为 2026-09-21 12:37 +08:00，版本 `1.2.2`。历史[迁移审计](firefly-migration-audit-2026-09-22.md)记录 ZIP 解压在同一时段，来源目录当时没有 Git。原 ZIP 未携带提交标识，对照点由以下树差异和时间证据推定，本地迁移快照不等同于原始上游版本。
 
-## 两条对照
+| 来源判定证据 | 结果 |
+| --- | --- |
+| 上游 `664c6022` 与本地来源快照 `46610b9` 的共同路径 | 1885 个 Git blob 完全相同；127 个仅 CRLF/LF 不同；19 个内容不同，均属审计记录中的最初角色／资源改动范围 |
+| 独有路径 | 本地来源快照新增 31 个资源、测试和记录路径；上游独有 18 个路径，主要为设计文档与旧生成物 |
+| 相邻上游版本比较 | `ae7c3409` 有 25 个同路径内容差异；后续 `87ee73a6` 有 22 个；`664c6022` 的差异最小且时间吻合 |
+| 未采用的候选基线 | 2026-09-08 的 `v1.2.2` 标签及 2026-09-23 的上游最新版本，不作为该 ZIP 的来源对照点 |
 
-| 功能 | 原始 Cyrene（`664c6022`） | 旧 Firefly（含实际工作树） | 当前实现与状态 | 源码依据 | 自动验证 | 待实机验证 | 建议处理 |
+- 下表“源码依据”均指记录时迁移工程；旧版／上游另行注明。`[S]` 为该阶段静态核对；`[T]` 为既有记录或该阶段定向测试；`[R]` 为既有实机记录。引用历史证据不代表重新测试，也不覆盖未经验证的链路。
+
+## 2. 双基线功能对照
+
+| 功能 | 原始 Cyrene（`664c6022`） | 旧 Firefly（含基线外实现） | 记录时实现与状态 | 源码依据 | 自动验证 | 待实机验证 | 建议处理 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 主入口与 Agent Loop | `CyreneAgent`：无工具 Chat 走 chat-loop，其余走 harness | 独立 FireflyHarness、Work 协调器 | **底座原样复用**循环；只传入本轮 Work 读取范围，无第二套循环 | `src/main/orchestrator/cyrene-agent.ts:447-488`；`src/main/orchestrator/harness/cyrene-harness.ts`；旧 `src/main/work/work-task-coordinator.ts:286` | `[S]` harness 主文件与上游同内容；既有完整测试记录见 Batch 6 | Chat／Work／Code 各一次终态 | 保留现有所有者；不叠加旧 Harness |
+| 主入口与 Agent Loop | `CyreneAgent`：无工具 Chat 走 chat-loop，其余走 harness | 独立 FireflyHarness、Work 协调器 | **底座原样复用**循环；只传入当前任务的 Work 读取范围，无第二套循环 | `src/main/orchestrator/cyrene-agent.ts:447-488`；`src/main/orchestrator/harness/cyrene-harness.ts`；旧 `src/main/work/work-task-coordinator.ts:286` | `[S]` harness 主文件与上游同内容；既有完整测试记录见 Batch 6 | Chat／Work／Code 各一次终态 | 保留现有所有者；不叠加旧 Harness |
 | 人设、称呼、模式 Prompt | 昔涟身份、system、worldbook | 流萤 character-policy 与 YAML 人设 | **已替换／已适配**：四模式组装 Markdown soul、示例及环境称呼；系统约束保留 | `src/main/orchestrator/mode-prompt-profile.ts:8-20`；`src/main/orchestrator/build-options.ts:831-872`；`src/main/orchestrator/environment.ts:167-188`；`prompts/soul.md:1`；`prompts/chat_identity.md:1` | `[S]` 加载顺序与默认称呼；Batch 1 已有 Chat 记录 | 自定义称呼优先、无设置时“开拓者”；核对实际语气与共同经历 | 不按旧 YAML 长度补写；用户经历仅当前对话／有效记忆 |
 | 世界书／知识 | DMAE worldbook、按触发与预算注入 | facts.yaml、精选卡、旧 RAG | **已适配**流萤关系与匹诺康尼条目；大规模旧语料**尚未迁入**，并非全部应迁 | `src/main/rag/index.ts:45-49,264-288`；`src/main/rag/worldbook-constants.ts:39`；`prompts/worldbook/firefly-relations.md:1`；旧 `src/main/character/resources/knowledge/facts.yaml` | `[T]` `worldbook-firefly.test.ts` 实际加载／触发／非触发 | 一次相关与一次无关话题，不要求逐条调用 | 先体验；需更多旧知识时逐项决定，不常驻灌入 |
 | 12 位 task 展示 | 黄金裔展示素材与 task 工具 | 独立子代理运行时 | **已替换／底座原样复用**：12 名单、PNG、lease 与 task 事件共用；职责仍为 general/document/search | `src/shared/task-characters.ts:6-19`；`src/renderer/react/character-portraits.ts:1-30`；`src/main/tasks/task-character-pool.ts:9-30`；`src/main/orchestrator/harness/builtin-tools.ts:45-69` | `[T]` Batch 3／5 映射测试；12 文件存在 | 运行、完成、失败、历史头像按同一任务 ID 展示；未逐人实机 | 卡芙卡显示名正确，保留实际文件名 `卡夫卡.png`；不加权限 |
@@ -26,24 +37,26 @@
 | Work 状态、历史、导出 | 持久会话、harness run store，未有本类导出 | 内存 WorkHistoryStore、Markdown 导出 | **底座原样复用／已适配**：任务状态与持久历史；结束任务快照经 Main 保存对话框导出 | `src/main/chats/chats-store.ts:1-45`；`src/main/chats/work-markdown-export.ts:3-34`；`src/main/chats/chats-ipc.ts:97-115`；`src/renderer/react/features/chat/components/ConversationSidebar.tsx:259,376` | `[T]` 导出／取消测试；`[R]` 公开样本导出与取消 | 覆盖已有文件、失败任务导出；细节错误目前只保证终态标签与展示回答，不导出内部工具参数 | 不扩大导出到原文件正文；错误明细是否增加待用户看样例 |
 | 审批、取消、恢复 | `permission.ts`、tool-dispatcher、run store 与恢复 | 独立授权及检查点 | **底座原样复用**；仅角色拒绝文案已替换 | `src/main/permission.ts:228-263`；`src/main/orchestrator/harness/tool-dispatcher.ts:147-150`；`src/main/orchestrator/harness/run-recovery.ts:23`；`src/main/orchestrator/cyrene-agent.ts:447-488` | `[S]` dispatcher 与恢复文件和上游同内容；既有相关测试 | 一次安全审批／取消及重开保留，勿用私人目标 | 不导入第二个授权、循环或状态所有者 |
 | Memory、历史检索、长任务 | L2 DMAE、实体图、recall_history、恢复 | Memory v2／RAG／checkpoint | **已有等价实现／行为差异**：用户私有旧库未迁；旧策略细节不保证等同 | `src/main/rag/index.ts:245-288`；`src/main/orchestrator/tools/history-tools.ts:40-99`；`src/main/orchestrator/harness/run-recovery.ts:23`；旧 `src/main/memory/memory-service.ts` | `[S]` 接线；旧数据未导入 | 在公开内容中验证记忆边界与恢复，不要求导入旧私有数据 | 保持独立用户数据；不自动写记忆 |
-| GPT-SoVITS／TTS | 通用设置、会话、播放／取消 | GPT-SoVITS 流萤参数与本机资源 | **已适配**通用 `/tts` 协议；默认 off、地址／音频／提示文本为空，外部服务自备 | `src/main/settings/settings-facade.ts:71-86`；`src/main/services/tts/tts-synthesis-service.ts:188-208`；`src/renderer/settings/tts/panel.ts:440-453` | `[T]` Batch 4 成功／失败／取消／迟到测试；无真实服务 | 配置后才测合成、播放、停止；当前服务未配置 | 不复制 E:\GPT-SoVITS 或猜参数 |
+| GPT-SoVITS／TTS | 通用设置、会话、播放／取消 | GPT-SoVITS 流萤参数与本机资源 | **已适配**通用 `/tts` 协议；默认 off、地址／音频／提示文本为空，外部服务自备 | `src/main/settings/settings-facade.ts:71-86`；`src/main/services/tts/tts-synthesis-service.ts:188-208`；`src/renderer/settings/tts/panel.ts:440-453` | `[T]` Batch 4 成功／失败／取消／迟到测试；无真实服务 | 配置后才测合成、播放、停止；当前服务未配置 | 不复制本机 GPT-SoVITS 安装或推测参数 |
 | QQ Music | 网易云服务／播放器 UI | QQMusic.exe GSMTC、音乐上下文与偏好 | **已替换／实现不完整**：QQ 状态及基础控制接入工具权限与 UI；旧音乐上下文、偏好服务没有接线 | `src/main/music/bootstrap.ts:20-46`；`src/main/music/qqmusic-service.ts:106-152`；`src/main/orchestrator/tools/music-tools.ts:4-47`；旧 `src/main/music/music-context-service.ts:98`、`music-preference-service.ts:275` | `[T]` Batch 4 单测；`[R]` 已同意的底层暂停／恢复（非界面审批） | Firefly 内工具审批、取消与状态展示；用户许可后才操作播放 | 不自动带入旧 Memory 服务；偏好／上下文是否需要由体验决定 |
-| 网易云残留 | 网易云 OpenAPI、mpv 与独立播放器 | 无 | **已删除**生效注册、窗口和 vendor；本轮再删仅测试引用的旧视图映射；通用 mpv 探测仍供飞书音频转码 | `src/main/music/bootstrap.ts:20-46`；`src/main/channels/adapters/feishu/audio-transcode.ts:5`；`electron-builder.yml:18-24` | `[S]` 静态引用核对；本轮类型检查 | QQ 页面不出现网易云控制 | 不删共用 mpv 功能／旧用户历史 |
+| 网易云残留 | 网易云 OpenAPI、mpv 与独立播放器 | 无 | **已删除**生效注册、窗口和 vendor；清除仅被测试引用的旧视图映射；通用 mpv 探测仍供飞书音频转码 | `src/main/music/bootstrap.ts:20-46`；`src/main/channels/adapters/feishu/audio-transcode.ts:5`；`electron-builder.yml:18-24` | `[S]` 静态引用核对；该阶段类型检查 | QQ 页面不出现网易云控制 | 不删共用 mpv 功能／旧用户历史 |
 | 数据读取与错误态 | 既有 settings/chats store；原异常可回退空值 | Chat／Work 历史与设置分散存储 | **已适配**：ENOENT 与解析／读取失败分开，失败锁定写入并通过 IPC 拒绝；初次空列表事件原始根因仍**证据不足** | `src/main/chats/chats-store.ts:43-45,78-155`；`src/main/settings/model-settings.ts:452-505`；`src/main/settings/settings-facade.ts:402-438`；`src/renderer/react/features/chat/components/ConversationSidebar.tsx` | `[T]` 8 文件 75 项读失败回归见可靠性记录；`[R]` Main 曾加载 1 模型、6 Chat、4 Work | 正常退出重开后逐项看列表；异常时保存脱敏错误码与时间 | 不以一次重启恢复证明根因；不清空、不重复迁移数据 |
 | 绿色主题与 Markdown | 昔涟粉色变量 | Firefly 绿色 | **已替换**共享 token，旧 `--rb-pink-*` 名称作为 CSS 兼容别名实际值为绿；语法／警告色独立 | `src/renderer/ui/tokens.css:10-18,43-44`；`src/renderer/ui/theme.css:51-59`；`src/renderer/react/features/chat/components/StreamdownMessageContent.css:14-25` | `[T]` Batch 4 计算样式核对；非全页面实机 | 设置／Chat／Work／Code 的焦点、悬停、选中、弹层、表格、行内代码 | 先集中视觉验收；不机械清除变量名或语义色 |
-| 身份、更新、打包与资源 | 上游产品身份／发布、旧角色资源 | 旧 Firefly 安装与数据目录 | **已替换／已删除**：Firefly 链接、包名、appId、独立 `%APPDATA%\Firefly`；自动更新关闭；旧模型源文件已删；保留兼容命令／键与上游许可 | `package.json:2-14`；`electron-builder.yml:1-55`；`src/main/app-identity.ts:4-24`；`src/main/updater/github-app-updater.ts:8-22`；`README.md:36-50` | `[T]` 已有解包／截图助手记录；未做安装器 | 下一轮须确认实际启动迁移目录构建及资源、设置、历史 | 素材再分发范围和安装器／更新元数据仍是公开发布前项 |
+| 身份、更新、打包与资源 | 上游产品身份／发布、旧角色资源 | 旧 Firefly 安装与数据目录 | **已替换／已删除**：Firefly 链接、包名、appId、独立 `%APPDATA%\Firefly`；自动更新关闭；旧模型源文件已删；保留兼容命令／键与上游许可 | `package.json:2-14`；`electron-builder.yml:1-55`；`src/main/app-identity.ts:4-24`；`src/main/updater/github-app-updater.ts:8-22`；`README.md:36-50` | `[T]` 已有解包／截图助手记录；未做安装器 | 待确认迁移工程构建的实际启动及资源、设置、历史 | 素材再分发范围和安装器／更新元数据仍是公开发布前项 |
 
-## 明确差异与残留处置
+## 3. 差异结论与残留处置
 
-1. **本轮已清除**：`src/shared/music-view-state.ts` 的 `deriveNeteaseViewState` 及唯一引用它的 `src/renderer/settings/music-view-state.test.ts`。真实界面入口为 `src/renderer/settings/music/qqmusic-panel.ts`；旧视图映射没有运行 import，删除不改变音乐控制、审批或用户数据。
-2. **保留兼容标识**：`cyrene` CLI、`cyrene-chats`／`cyrene-runs` 数据键、`cyrene.*` 事件名、朋友圈旧作者 ID、`--rb-pink-*` CSS 变量名、截图助手文件名与 `cyrene-skills` 来源名称均存在实际读取方，不能为改名直接删除。`src/main/channels/settings-store.ts:50-75` 的 `obf:` 兜底 key 派生还包含 userData 路径与应用名：曾经复制过来的渠道凭据若采用此兜底格式，新目录不具备原 key；当前没有对应用户配置证据，本轮不读私人值、不迁数据、不改加密格式，实机检查渠道时若异常再处理。
+1. **已清除的死代码**：`src/shared/music-view-state.ts` 的 `deriveNeteaseViewState` 及唯一引用它的 `src/renderer/settings/music-view-state.test.ts`。真实界面入口为 `src/renderer/settings/music/qqmusic-panel.ts`；旧视图映射没有运行 import，删除不改变音乐控制、审批或用户数据。
+2. **保留兼容标识**：`cyrene` CLI、`cyrene-chats`／`cyrene-runs` 数据键、`cyrene.*` 事件名、朋友圈旧作者 ID、`--rb-pink-*` CSS 变量名、截图助手文件名与 `cyrene-skills` 来源名称均存在实际读取方，不能为改名直接删除。`src/main/channels/settings-store.ts:50-75` 的 `obf:` 兜底 key 派生还包含 userData 路径与应用名：曾经复制过来的渠道凭据若采用此兜底格式，新目录不具备原 key；记录时无对应用户配置证据，未读取私人值、迁移数据或修改加密格式；该风险需要结合渠道实机异常单独定位。
 3. **第三方／历史**：`MODEL_LICENSE.md`、`THIRD_PARTY_NOTICES.md`、历史迁移记录以及插件目录显示的 `Cyrene-Plugins` 是来源／外部名称，不能伪装为 Firefly 原创。`assets/ui/cyrene-surface-pattern.svg` 仍由两处 React CSS 引用，是背景图而非昔涟角色图；不在无新设计时删除。`src/main/sim/scenarios/four-tier-mix.ts` 的昔涟文字属于未在正常运行入口注册的模拟样本，保留时不能用它证明正式 Prompt 污染。
 4. **仍待决定／缺实机证据**：旧音乐偏好与上下文、旧 Browser 的目标授权细节、Work 导出错误明细形式、全页面视觉状态、12 位逐一展示、真实语音、Firefly UI 内 QQ 审批、持续 60 FPS、安装器与素材再分发。不为消除差异更换底座行为。
 5. **已删除路径核对**：昔涟模型、旧 task 图、旧朋友圈卡、网易云 Main／窗口／vendor 和音乐页没有生效 import／注册；`electron-builder.yml` 对旧模型目录另留排除保险。`mpv-controller.ts` 仍由飞书音频转码调用，不属于可全删的网易云模块。当前 `src/renderer/public/models/` 实际包含流萤模型；隐藏旧图不等于清理源资源，因此本项以目录与引用双重核对。
 
-## 下一轮一次性实机清单
+## 4. 历史实机验收方案（记录时未执行）
 
-下一轮从 **`E:\Codex\Firefly-Agent-migration` 执行 `npm run start`**，让 Electron 加载该目录的 `dist/main/main/index.js`、`dist/preload/preload/index.js` 与最新的 `dist/renderer`。这三处构建入口均已存在；本轮只改了没有运行 import 的音乐死代码，Renderer 已重新构建。当前迁移目录没有 `release/win-unpacked/Firefly.exe`，不要拿 `E:\Codex\Cyrene-Agent-master` 的解包产物或旧 Firefly 当本轮版本。正式验收前核对进程加载路径与 `%APPDATA%\Firefly`。下列运行记录只摘录时间、runId、状态、错误码与数量；不发送密钥、聊天正文、隐藏思考、曲名或私人路径。正常模式日志级别为 warn，详细运行轨迹要以页面运行状态／持久化 runSnapshot／主进程运行事件为准，不能把日志缺行推定为未执行。
+该方案要求在迁移工程根目录执行 `npm run start`，使 Electron 加载 `dist/main/main/index.js`、`dist/preload/preload/index.js` 与匹配该实现的 `dist/renderer`。记录时三处构建入口均已存在；变更仅涉及无运行 import 的音乐死代码，Renderer 已重新构建，`release/win-unpacked/Firefly.exe` 尚不存在。来源工程的解包产物或旧 Firefly 不可代替该验收版本。验收前应核对进程加载路径与 `%APPDATA%\Firefly`。
+
+运行记录仅保留时间、runId、状态、错误码与数量，不包含密钥、聊天正文、隐藏思考、曲名或私人路径。正常模式日志级别为 warn；详细轨迹应以页面运行状态、持久化 runSnapshot 或主进程运行事件为准，日志缺行不能证明未执行。
 
 | 验收项 | 从哪里进入 | 配置／公开文件 | 操作 | 应显示 | 执行记录确认 | 失败时保留 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -58,8 +71,8 @@
 | 语音 | 设置 → TTS；Chat 回复的朗读／停止 | GPT-SoVITS 服务、参考音频和对应文本当前**未配置** | 未配置时只看缺项提示；以后用户自行配置再试一轮回复与停止 | 文字回复不被服务错误阻断；播放／停止有真实回执 | TTS session 状态与请求结果，不能用音频请求发出等同播放成功 | 仅错误码与时间；不保存音频、URL、密钥 |
 | 主题与保留模式 | 设置、Chat、Work、Code、Learn 及现有弹层／审批 | 本地展示内容 | 依次看默认、悬停、焦点、选中、禁用；表格／代码／引用与链接 | Firefly 绿强调、清晰可读；错误／警告保留语义色，无错误角色图 | 此项以计算样式或页面截图核对，不用模型调用证明视觉 | 页面名、组件名、状态及脱敏截图 |
 
-## 本轮验证与边界
+## 5. 历史验证结果与未覆盖项
 
-- 本轮只删除了两个已无运行引用的网易云视图文件，报告为新增文档。受影响的 QQ 接线测试 3 文件／14 项通过；`npm run check:renderer`、`npx tsc -p tsconfig.main.json --noEmit`、`npm run build:renderer`、`git diff --check` 通过。Renderer 构建有既有大 chunk 警告。不重跑全量测试、不启动应用、不请求模型或控制播放器；构建只更新迁移目录的 Renderer `dist`，未更新解包产物。
-- 首次空列表事件根因未知。近期可靠性修复确认 Main 读取失败不再伪装为空列表且不能写回覆盖；既有 Main 记录为 1 项模型档案、6 Chat、4 Work，最近一次 UI 显示未得到明确答复，仍待上表重开验收。
-- 本地解包运行与截图助手调用已有记录，不代表安装器、公开素材许可、真实语音、QQ UI 审批、持续帧率已验证。本轮不提交、推送、发布或修改旧工作目录。
+- 变更范围为两个已无运行引用的网易云视图文件。受影响的 QQ 接线测试 3 文件／14 项通过；`npm run check:renderer`、`npx tsc -p tsconfig.main.json --noEmit`、`npm run build:renderer`、`git diff --check` 通过。Renderer 构建有既有大 chunk 警告。未执行全量测试、应用启动、模型请求或播放器操作；构建只更新迁移工程的 Renderer `dist`，未更新解包产物。
+- 首次空列表事件根因未知。该阶段可靠性修复确认 Main 读取失败不再伪装为空列表且不能写回覆盖；既有 Main 记录为 1 项模型档案、6 Chat、4 Work，UI 显示缺少明确确认，仍待表中重开验收。
+- 已有本地解包运行与截图助手调用记录，不能证明安装器、公开素材许可、真实语音、QQ UI 审批或持续帧率已经验证。来源工程未修改，未执行发布。

@@ -4,7 +4,9 @@
  * this module does not validate network targets or grant browser authority.
  */
 export interface BrowserPageState {
-  readonly conversationId: string;
+  readonly conversationId: string | null;
+  readonly workspaceId?: string;
+  readonly tabId?: string;
   readonly browserId: string;
   readonly requestId: number;
   readonly closed: boolean;
@@ -32,7 +34,7 @@ export interface BrowserNavigationFailure extends BrowserNavigationIdentity {
   readonly error: NonNullable<BrowserPageState["error"]>;
 }
 
-export function createBrowserPageState(conversationId: string, browserId: string): BrowserPageState {
+export function createBrowserPageState(conversationId: string | null, browserId: string): BrowserPageState {
   return {
     conversationId,
     browserId,

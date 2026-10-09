@@ -4713,3 +4713,7 @@ body {
   background: transparent;
   transition: height 180ms ease;
 }
+
+#desktop-asr-form fieldset { margin: 20px 0; padding: 16px; border: 1px solid var(--border-color, #ddd); border-radius: 12px; }
+#desktop-asr-form .field-label { display: block; margin: 12px 0 6px; }
+#desktop-asr-form input, #desktop-asr-form select { width: 100%; max-width: 460px; }

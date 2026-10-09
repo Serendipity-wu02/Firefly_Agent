@@ -1,8 +1,10 @@
-# 右侧面板 IDE 化改造：施工方案（定稿）
+# 右侧面板 IDE 化设计与实施验证
 
-> 历史记录：2026-09-15 设计及当时验收记录；保留外部参考来源，不据此承诺当前全部界面状态通过。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../../README.md)。
+> **日期**：2026-09-15
+> **状态**：历史技术记录。下文描述记录时的实现、设计与验证结论，不代表当前版本复测。
+> **范围**：IDE 式右栏设计、外部参考来源与当时验收。当前维护入口见[文档导航](../../README.md)。
 
-> 当前工作区与审查维护入口见 [Firefly 维护说明](../../architecture/firefly-maintenance.md)。此前对照方案已退出工作树；本文的既定边界保持：**不移植 dsh 的 dockkit，用成熟轮子组合完成 IDE 式右栏**。
+> 当前工作区与审查维护入口见 [Firefly 维护说明](../../architecture/firefly-maintenance.md)。本文的设计边界为：**不移植 dsh 的 dockkit，组合现有成熟组件实现 IDE 式右栏**。
 
 ---
 
@@ -10,7 +12,7 @@
 
 ### 为什么不用 dsh 的 dockkit
 
-1. **右栏宽度不归 dockkit 管**。dsh 源码明确：右栏整体宽度、推挤聊天区与全屏布局由外层布局（`ui-layout` 的 AppFrame）负责；dockkit 只提供面板内部的标签页、拆分、拖放和浮窗。
+1. **右栏宽度由外层布局管理**。dsh 源码明确：右栏整体宽度、推挤聊天区与全屏布局由外层布局（`ui-layout` 的 AppFrame）负责；dockkit 只提供面板内部的标签页、拆分、拖放和浮窗。
 2. **dockkit 是预稳定内部引擎**。其 README 声明 "Internal engine... may change in any release"，键盘可访问性与样式接口尚不完整。
 3. **依赖非零**。源码引用 clsx、DSH 图标组件、Tooltip 与品牌类型；npm 发布版仍声明 Cordis peer 依赖与 React 18（本项目是 React 19，npm 安装有双 React 实例风险）。
 4. **文件树与文件预览不在 dockkit 内**，dsh 分别维护 `ui-sidebar-files` 和 `ui-sidebar-documentpreview`，且都深度绑定其会话插槽与 Cordis 框架，无法单包复用。
@@ -18,9 +20,9 @@
 ### dsh 源码使用政策
 
 - 全仓库为 MIT 协议（版权方 DeepSeek），法律上可复制，需保留版权声明。
-- **第一轮施工零复制 dsh 源码**；dsh 仅作为交互参考。
+- **首阶段不复制 dsh 源码**；dsh 仅作为交互参考。
 - 图标与品牌组件**一律不用 dsh 的**，使用本项目自有图标体系（lucide-react）。
-- 将来若确认需要"面板内部分屏、跨面板拖动、浮窗"，再评估引入 dockkit（作为带来源与 commit 记录的 vendored 分支维护，需在 `THIRD_PARTY_NOTICES.md` 登记 MIT 声明）或 `dockview-react`。
+- 将来若确认需要"面板内部分屏、跨面板拖动、浮窗"，再评估引入 dockkit（作为具有明确来源、版本标识与更新记录的 vendored 依赖维护，需在 `THIRD_PARTY_NOTICES.md` 登记 MIT 声明）或 `dockview-react`。
 
 ### 技术选型（复用组合）
 
@@ -63,7 +65,7 @@
 - 用 `realpath` 校验最终路径仍位于工作区内，防止通过 symlink 越界。
 - 限制预览文件大小，识别二进制文件并给出提示而非乱码。
 
-### 第一轮明确不做
+### 首阶段排除范围
 
 内部拆分、浮窗、跨面板拖放，以及任何 dsh 源码复制。
 

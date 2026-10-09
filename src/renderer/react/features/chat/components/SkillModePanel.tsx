@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../../i18n";
 import "./SkillModePanel.css";
+import { ExternalSkillsCommitContext, ExternalSkillsPanel, useSkillConfirmationFocus } from "./ExternalSkillsPanel";
 
 type SkillMode = "work" | "code";
 type TabKey = SkillMode;
@@ -85,30 +86,57 @@ export const SkillModePanel: React.FC = () => {
   const [overrides, setOverrides] = useState<Overrides>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const loadGeneration = useRef(0);
+  const refreshInFlight = useRef(false);
+  const pendingSaves = useRef(new Set<string>());
+  const [savingKeys, setSavingKeys] = useState<ReadonlySet<string>>(new Set());
+  const [saveErrors, setSaveErrors] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState("");
   const [source, setSource] = useState<"all" | SkillSource>("all");
   const [tab, setTab] = useState<TabKey>("code");
+  const [view, setView] = useState<"installed" | "external">("installed");
+  const [committing, setCommitting] = useState(false);
+  const commitInFlight = useRef(false);
+  const setCommitBusy = useCallback((busy: boolean) => { commitInFlight.current = busy; setCommitting(busy); }, []);
+  const [enableCandidate, setEnableCandidate] = useState<SkillCatalogItem>();
+  const [enabling, setEnabling] = useState(false);
+  const [enableError, setEnableError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const enableInFlight = useRef(false), alive = useRef(false);
+  const enableDialog = useRef<HTMLDivElement>(null), enableOpener = useRef<HTMLElement>(null);
+  const modeButtons = useRef(new Map<string, HTMLButtonElement>());
+  const closeEnable = useCallback(() => { if (!enableInFlight.current) setEnableCandidate(undefined); }, []);
+  useSkillConfirmationFocus(enableDialog, !!enableCandidate, enableOpener, closeEnable, enabling);
 
   const load = useCallback(async () => {
+    const generation = ++loadGeneration.current;
     const api = window.settings;
+    if (!api?.getSkillCatalog || !api?.getSkillModeOverrides) throw new Error("SKILL_CATALOG_UNAVAILABLE");
     const [cat, ov] = await Promise.all([
       api?.getSkillCatalog?.() ?? Promise.resolve([]),
       api?.getSkillModeOverrides?.() ?? Promise.resolve({}),
     ]);
-    setCatalog(cat as SkillCatalogItem[]);
-    setOverrides(ov as Overrides);
+    if (generation === loadGeneration.current) {
+      setCatalog(cat as SkillCatalogItem[]);
+      setOverrides(ov as Overrides);
+      setLoadFailed(false);
+    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    alive.current = true;
     setLoading(true);
     load()
-      .catch((err) => console.warn("[SkillModePanel] load failed:", err))
+      .catch(() => { if (!cancelled) setLoadFailed(true); })
       .finally(() => !cancelled && setLoading(false));
-    return () => { cancelled = true; };
+    return () => { cancelled = true; alive.current = false; loadGeneration.current++; };
   }, [load]);
 
   const handleRefresh = useCallback(async () => {
+    if (refreshInFlight.current || pendingSaves.current.size || commitInFlight.current || enableInFlight.current) return;
+    loadGeneration.current++;
+    refreshInFlight.current = true;
     setRefreshing(true);
     try {
       const res = await window.settings?.rescanSkills?.();
@@ -117,21 +145,65 @@ export const SkillModePanel: React.FC = () => {
       }
       await load();
     } catch (err) {
-      console.warn("[SkillModePanel] refresh failed:", err);
+      setLoadFailed(true);
     } finally {
+      refreshInFlight.current = false;
       setRefreshing(false);
     }
   }, [load]);
 
-  const toggleMode = useCallback((skillId: string, mode: SkillMode, next: boolean) => {
+  const toggleMode = useCallback(async (skillId: string, mode: SkillMode, next: boolean) => {
+    const key = `${skillId}/${mode}`;
+    if (loading || refreshInFlight.current || pendingSaves.current.has(key)) return;
+    // An obsolete initial read must not replace a newer explicit user choice.
+    loadGeneration.current++;
+    // A synchronous admission fence also catches repeat clicks before React renders.
+    pendingSaves.current.add(key);
+    setSavingKeys(new Set(pendingSaves.current));
+    const previous = overrides[skillId]?.[mode];
+    setSaveErrors(prev => { const updated = { ...prev }; delete updated[key]; return updated; });
     setOverrides((prev) => ({
       ...prev,
       [skillId]: { ...prev[skillId], [mode]: next },
     }));
-    void window.settings
-      ?.setSkillModeOverride?.(skillId, mode, next)
-      ?.catch((err) => console.warn("[SkillModePanel] set override failed:", err));
-  }, []);
+    try {
+      const result = await window.settings?.setSkillModeOverride?.(skillId, mode, next);
+      if (result?.ok !== true) throw new Error("SKILL_MODE_SAVE_FAILED");
+    } catch {
+      // Restore only this failed key; another mode may have saved in the meantime.
+      setOverrides(prev => {
+        const updated = { ...prev }, modes = { ...prev[skillId] };
+        if (previous === undefined) delete modes[mode]; else modes[mode] = previous;
+        if (Object.keys(modes).length) updated[skillId] = modes; else delete updated[skillId];
+        return updated;
+      });
+      setSaveErrors(prev => ({ ...prev, [key]: t("skillPanel.saveFailed", { skill: skillId, mode: mode === "code" ? "Code" : "Work" }) }));
+    } finally {
+      pendingSaves.current.delete(key);
+      setSavingKeys(new Set(pendingSaves.current));
+    }
+  }, [loading, overrides, t]);
+
+  const confirmEnable = async () => {
+    if (!enableCandidate || enableInFlight.current || pendingSaves.current.size) return;
+    const candidate = enableCandidate, generation = ++loadGeneration.current;
+    enableInFlight.current = true; setEnabling(true); setEnableError("");
+    try {
+      const result = await window.settings?.setSkillEnabled?.(candidate.id, true);
+      if (result?.ok !== true) throw new Error("SKILL_ENABLE_FAILED");
+      if (!alive.current || generation !== loadGeneration.current) return;
+      enableOpener.current = modeButtons.current.get(candidate.id) ?? enableOpener.current;
+      setCatalog(previous => previous.map(skill => skill.id === candidate.id ? { ...skill, enabled: true } : skill));
+      setEnableCandidate(undefined);
+    } catch {
+      if (alive.current && generation === loadGeneration.current) {
+        setEnableError(t("skillPanel.enableFailed", { skill: candidate.name })); setEnableCandidate(undefined);
+      }
+    } finally {
+      enableInFlight.current = false;
+      if (alive.current && generation === loadGeneration.current) setEnabling(false);
+    }
+  };
 
   const visibleSkills = useMemo(() => {
     const kw = filter.trim().toLowerCase();
@@ -139,8 +211,8 @@ export const SkillModePanel: React.FC = () => {
       if (source !== "all" && s.source !== source) return false;
       return true;
     });
-    // 展示全部启用技能：关掉的置灰保留在列表里，便于重新开启（与工具面板同口径）。
-    const shown = candidates.filter((s) => s.enabled);
+    // Global disabled state stays visible, independently of per-mode overrides.
+    const shown = candidates;
     const searched = kw
       ? shown.filter(
           (s) =>
@@ -172,7 +244,7 @@ export const SkillModePanel: React.FC = () => {
               type="button"
               className="skill-panel__icon-btn"
               title={t("skillPanel.rescan")}
-              disabled={refreshing}
+              disabled={view === "external" || loading || refreshing || savingKeys.size > 0 || enabling || committing}
               onClick={handleRefresh}
             >
               <RefreshIcon />
@@ -180,6 +252,19 @@ export const SkillModePanel: React.FC = () => {
           </div>
         </div>
       </header>
+
+      <div className="skill-panel__views" aria-label={t("skillPanel.views")}>
+        <button type="button" aria-pressed={view === "installed"} disabled={committing || enabling} onClick={() => { if (!commitInFlight.current && !enableInFlight.current) setView("installed"); }}>{t("skillPanel.installed")}</button>
+        <button type="button" aria-pressed={view === "external"} disabled={committing || enabling} onClick={() => { if (commitInFlight.current || enableInFlight.current) return; setEnableCandidate(undefined); setView("external"); }}>{t("skillPanel.marketplace")}</button>
+      </div>
+
+      <div role="status" aria-live="polite">
+        {Object.entries(saveErrors).map(([key, message]) => <p key={key} className="skill-panel__subtitle">{message}</p>)}
+        {enableError && <p>{enableError}</p>}
+        {loadFailed && <p>{t("skillPanel.loadFailed")}</p>}
+      </div>
+
+      {view === "external" ? <ExternalSkillsCommitContext.Provider value={setCommitBusy}><ExternalSkillsPanel onImported={load} /></ExternalSkillsCommitContext.Provider> : <>
 
       <div className="skill-panel__search-row">
         <input
@@ -223,7 +308,7 @@ export const SkillModePanel: React.FC = () => {
       ) : (
         <div className="skill-panel__list">
           {visibleSkills.map((skill) => {
-            const isOn = isVisibleForMode(skill, tab, overrides);
+            const isOn = skill.enabled && isVisibleForMode(skill, tab, overrides);
             return (
               <div key={skill.id} className={"skill-card" + (isOn ? "" : " is-off")}>
                 <div className="skill-card__top">
@@ -243,14 +328,19 @@ export const SkillModePanel: React.FC = () => {
                     </div>
                   </div>
                   <button
+                    ref={node => { if (node) modeButtons.current.set(skill.id, node); else modeButtons.current.delete(skill.id); }}
                     type="button"
                     role="switch"
                     aria-checked={isOn}
+                    aria-busy={savingKeys.has(`${skill.id}/${tab}`)}
+                    aria-label={t("skillPanel.modeVisibility", { skill: skill.name, mode: tab === "code" ? "Code" : "Work" })}
+                    disabled={!skill.enabled || refreshing || enabling || savingKeys.has(`${skill.id}/${tab}`)}
                     className={"skill-card__pill" + (isOn ? " is-on" : "")}
                     onClick={() => toggleMode(skill.id, tab, !isOn)}
                   >
                     <span className="skill-card__pill-knob" />
                   </button>
+                  {!skill.enabled && <button type="button" className="skill-card__enable" disabled={refreshing || enabling || savingKeys.size > 0} onClick={event => { enableOpener.current = event.currentTarget; setEnableError(""); setEnableCandidate(skill); }}>{t("skillPanel.enable")}</button>}
                 </div>
                 <div className="skill-card__desc">
                   {skill.description.split("\n")[0] || t("skillPanel.noDescription")}
@@ -261,6 +351,18 @@ export const SkillModePanel: React.FC = () => {
           {visibleSkills.length === 0 && <div className="skill-panel__empty">{t("skillPanel.noMatch")}</div>}
         </div>
       )}
+      </>}
+      {enableCandidate && <div className="skill-panel__confirm-overlay">
+        <div ref={enableDialog} role="dialog" aria-modal="true" aria-labelledby="skill-enable-title"
+          tabIndex={-1} className="skill-panel__confirm">
+          <h2 id="skill-enable-title">{t("skillPanel.enableTitle", { skill: enableCandidate.name })}</h2>
+          <p>{t("skillPanel.enableNotice")}</p>
+          <div>
+            <button type="button" disabled={enabling} onClick={closeEnable}>{t("common.cancel")}</button>
+            <button type="button" disabled={enabling} onClick={() => void confirmEnable()}>{t("skillPanel.confirmEnable")}</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 };

@@ -20,3 +20,12 @@ describe("task delegation presentation reducer", () => {
     expect(normalizeTaskDelegationEvent({ ...running, nickname: "风堇", assetFileName: "风堇.png" })).toBeUndefined();
   });
 });
+
+it.each(["completed", "failed", "cancelled"] as const)("does not revive a %s invocation from a replayed start event", status => {
+  const terminal = applyTaskDelegationEvent([], { ...running, status }, "round-1");
+  const replayed = applyTaskDelegationEvent(terminal, running, "round-2");
+  expect(replayed).toEqual(terminal);
+  const retry = applyTaskDelegationEvent(replayed, { ...running, invocationId: "child-run-2" }, "round-2");
+  expect(retry).toHaveLength(2);
+  expect(retry[1]).toMatchObject({ status: "running", roundId: "round-2" });
+});

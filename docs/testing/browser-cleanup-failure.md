@@ -1,47 +1,42 @@
-# 首域清理失败：网络独立负例
+# 首域清理失败的网络独立验收
 
-2026-10-04，基线`787265c895b1d09bd20b79530c1c8391b25906f8`。用户仅授权继续最小独立项：首域清理失败不跳过后域、不得伪报成功；暂停可信TLS/DNS依赖验证，不创建外部服务或配置证书。本步只提交文档与一次性夹具，不修改产品源码、shared bootstrap/IPC、R1、renderer、CI或真实userData。生产gate仍HOLD。
+> 证据阶段：2026-10-04
+> 文档整理：2026-10-07；仅整理既有证据，未重跑测试。
+> 适用边界：下述实现、通过项与 HOLD 均指记录阶段，不代表当前产品状态。
 
-[原始证据、launcher、输入快照及SHA256](fixtures/browser-session-epoch/continuation/cleanup-fault-manifest.json)保留两次运行。独立非persist A/B Session、sandbox/contextIsolation/noNode/noPreload，仅固定内存scheme供应合成文档/shared/SW脚本。两域事先各有cookie和实际running SW。沿既有受审查的清理循环，首await前所有域同步deny/abort/revoke并destroy视图。代理仅创建自有loopback监听，resolve/connect依赖一旦被调用即记录并throw；没有HTTPS请求、TLSsink、证书读取或系统信任/网络配置改动。计数0限探针与受控依赖，不宣称OS/全协议抓包0。
+## 1. 背景与边界
 
-## 注入及实测结果
+验证目标是首域清理失败不跳过后域，且不得伪报成功。本阶段只增加一次性夹具和文档，不改产品、shared bootstrap/IPC、R1、renderer、CI 或真实 userData；可信 TLS/DNS 验证当时暂停，生产 gate HOLD。
 
-| run | PID / native退出 | 证据边界 |
-|---|---|---|
-| fault-cleanup-r1 | 34036 / 1 | 4记录，观察到A失败、B后续清理。但注入是同步throw，launcher未排除额外清理错误；独立review提出两项Required，不能作为异步拒绝回归验收。原样保留。 |
-| fault-cleanup-r2 | 3436 / 1 | 最终4记录。A调用适配器返回一次固定marker的Promise.reject，由现有await消费。launcher严格核验预期负例通过；native exit1、cleanup_failed及全部错误保留。 |
+两独立非 persist A/B Session 均预先有 cookie 和实际 running SW，使用 sandbox/contextIsolation/noNode/noPreload 和固定内存 scheme。首 await 前同步对所有域 deny/abort/revoke、请求 destroy。代理仅监听自有 loopback；resolver/dialer 一旦被调用就记录并 throw。没有 HTTPS/TLS sink 或证书/系统网络变更。零计数只覆盖探针及受控依赖，不是全协议抓包证明。
 
-r2的A `clearStorageData`仅在夹具调用适配器拒绝一次，未覆盖或替换原生Session方法；B五步实际调用原生API。两域proxy revoke均fulfilled，10项清理中只有注入步骤失败，其余9项均ok。B实际cookie0/running SW为空；A cookie1、SW仍running，在每域3秒有界观察后记录失败，未称清理成功。即使A观察超时，B的原生清理已完成，且B最终状态继续复验。
+## 2. 注入设计与最终事实
 
-所有域依然revoked/aborted、view destroyed，纯策略检查拒绝；Main合成的精确proxy challenge返回null，只证明模块capability失效，不冒充真实login归属验证。resolver、dialer、HTTP、鉴权挑战、certificate-error事件均0。
+最终 `fault-cleanup-r2` 含 4 记录。A 的 `clearStorageData` 调用适配器仅一次返回固定 marker 的 Promise.reject，由既有 await 消费；没有覆盖原生 Session 方法。B 的五步调用实际原生 API。两 proxy revoke 均 fulfilled，10 项清理中仅注入步骤失败，其余 9 项成功。
 
-聚合`cleanupResult`从实际errors计算为`{ok:false,code:'cleanup_failed'}`。正常quitAllowed从未放行，willQuit=0；异常fallback调用app.exit1，quit事件记录exit1，不能算正常退出GREEN。原始4项错误为注入、A worker停止观察超时、禁止正常退出及fallback正常生命周期不匹配；没有删除错误转绿。
+B 实际 cookie=0、running SW=[]；A cookie=1、SW 仍 running，每域最多 3 秒观察后明确失败。即使 A 观察超时，B 的原生清理已完成并再次复验。所有域继续 revoked/aborted、view destroyed、策略拒绝；Main 合成精确 proxy challenge 返回 null 只证明模块 capability 失效，不能替代真实 native login 归属。resolver/dialer/HTTP/auth challenge/certificate-error 均为 0。
 
-判定器要求注入一次、A唯一指定步骤失败、其它原生步骤和两域代理均成功、B确实清空、全域继续拒绝、预期非零退出与未放行正常退出。源代码和launcher严格限定允许的注入后果/异常终止错误；额外cleanup/proxy/query异常、deadline或FAULT_NEGATIVE_ASSERTION_FAILED一律不能当预期负例通过。wrapper退出0只表示负例断言通过，不改变native exit1和清理失败语义。
+`cleanupResult` 从真实 errors 聚合为 `{ok:false,code:'cleanup_failed'}`。正常 quitAllowed 未放行、willQuit=0，异常 fallback 为 app.exit(1)，native exit 1。保留注入、A worker 观察超时、禁止正常退出和 fallback 生命周期不匹配四项错误，不解释为正常退出 GREEN。
 
-独立session_epoch_security_review最终只读复审：两项Required关闭，无新增Critical/Required；current/r2输入SHA256 `e593ec778206b9d465790a5d9a0e592fc0e409f0a968a30c1e1ea5a7ce3b02d9`。审查者未运行native或改文件。归档哈希、脚本/launcher语法、两个自有PID退出及Git范围随提交核验。本阶段不重跑整仓测试/type/build，不把之前131或全量结果写成本次执行。此次没有失败的产品修复，也没有同问题连续两次修复失败。
+## 3. 资格判定与审查
 
-## 受控HTTPS目标的必要条件
+判定器要求注入恰一次、A 唯一指定步骤失败、其余原生步骤/两 proxy 成功、B 确实清空、全域持续拒绝、预期 native 非零与未放行正常退出。额外 cleanup/proxy/query 异常、deadline 或 `FAULT_NEGATIVE_ASSERTION_FAILED` 均不算预期负例通过。wrapper exit 0 仅表示负例断言合格，不改变 native exit 1/cleanup_failed。
 
-不再重试相同DNS/TLS探针，不自动创建目标或配置证书。后续相关正例需集成者提供已存在且有权控制的目标：
+早期同步 throw 注入未证明异步拒绝，且 launcher 未排除额外错误，因此不作为该条款验收。独立复审的两项 Required 经上述异步注入和严格 qualifier 关闭，无新增 Critical/Required；审查未重跑 native。最终输入 SHA-256：`e593ec778206b9d465790a5d9a0e592fc0e409f0a968a30c1e1ea5a7ce3b02d9`。
 
-1. 正常系统resolver给出全部公网A/AAAA，现有分类全部通过，无198.18/私网/混合答案；默认数值dial可达443。不能硬编码公网IP、改DNS/代理或绕过环境过滤。
-2. Chromium默认验证可接受的现有证书链，SAN匹配域名、日期有效；不需新增测试根、ignore-certificate-errors或verify override。不需客户端证书、站点登录或持久凭据。
-3. 同源匿名GET/HEAD可获取固定测试文档、SW主脚本及import脚本；操作者可控制v1/v2/v3的明确脚本字节变化、scope与缓存响应，并提供目标命中日志。
-4. 可用自有无业务副作用的合成路径验证已有TLS隧道GET/HEAD允许、POST拒绝及旧epoch撤销；不扩展产品POST权限、不写真实站点或用户数据。跨协议测试另需授权抓包及相应受控端点，不能由HTTPS结果外推。
+原始失败、最终证据、launcher 和输入见[manifest](fixtures/browser-session-epoch/continuation/cleanup-fault-manifest.json)。语法、哈希及自有进程退出已核验；没有产品变更，未重跑整仓/type/build，也不把此前 131 或全量结果列为本阶段执行。
 
-当前已实证的外部环境阻塞是两个独立条件：本机测试leaf不被默认Chromium信任、正常DNS给出非公网198.18答案。**尚不能确认它们是唯一外部阻塞**：跨协议抓包、多平台和特殊目标的验证环境未完成评估。内部Main owner注册、生命周期接线与完整拒绝路径也未完成，不能全部归因于外部环境。
+## 4. 后续可信 HTTPS 验收条件
 
-## 可继续开发的产品模块：精确边界
+1. 正常 resolver 的全部 A/AAAA 符合既有公网分类，无 198.18、私网或混合答案；默认 numeric dial 可达 443，不硬编码 IP 或改网络绕过过滤。
+2. Chromium 默认信任既有有效证书链，SAN 匹配；无新增根、verify override、客户端证书、登录或持久凭据。
+3. 自有 origin 的匿名 GET/HEAD 提供可控文档、SW 主脚本/import、v1/v2/v3 字节、scope/cache 响应及命中日志。
+4. 合成无业务副作用路径验证已有 TLS 隧道 GET/HEAD 允许、POST 拒绝、旧 epoch 撤销；跨协议另需受控 endpoint/出口观察，不由 HTTPS 外推。
 
-以下可另行分配为关闭状态下的实现/单元测试，不需要上面的可信HTTPS目标；本次没有开始这些实现。新模块文件名尚未冻结，不能把提案接口或原型当已存在产品API。
+当时已有两个独立外部阻塞：测试 leaf 不受默认 Chromium 信任、正常 DNS 返回非公网 198.18。尚未证明它们是唯一阻塞；Main owner 注册、生命周期与完整拒绝路径亦未完成。
 
-| 模块与实际落点/契约 | 不依赖公网目标的工作 | 集成限制 |
-|---|---|---|
-| Session/epoch私有注册与权限谓词；现有目录`src/main/browser`，旧`browser-request-policy.ts::createBrowserRequestPolicy`及测试是回归基线 | 对象身份、冻结policy内容、撤销、Session不匹配、缺ID/frame、GET/HEAD/资源/URL拒绝的纯测试；新域策略与旧策略分别评估 | 新文件/接口由集成者冻结；保留既有ID策略及R2基线，不从renderer DTO授予权限，不开启真实网络 |
-| `BrowserNetworkPort.prepare`与`BrowserNetworkBinding.dispose`；精确提案在[right-agent-workspace](../architecture/right-agent-workspace.md#待冻结的可调用接口与错误契约) | 准备默认deny、每个await/副作用前复验、延迟取消、只初始化一次、逐项清理/失败聚合、clear后有界观测；可注入Session端口做单元验证 | 产品实现尚不存在；签名/owner来源仍需父冻结，不能绕过未完成的网络gate |
-| 代理capability生命周期；现有`src/main/browser/authenticated-connect-proxy.ts::{startAuthenticatedConnectProxy,ConnectProxy,ProxyChallenge}`及对应测试 | 新授权域适配器消费Main注册对象，精确challenge/撤销/迟到准备交叉回归；resolver/dialer注入做拒绝测试 | 现有proxy/DNS预算无需重做；无归属challenge不发凭据，不把模块ID检查当完整Session证明 |
-| 浏览器清理参与者；现有`src/main/application/shutdown.ts::{ShutdownCoordinator,createShutdownCoordinator}`及测试 | 以实际register/dispose接口测试浏览器撤销、重入、失败记录和超时；浏览器自己的close/dispose结果保留cleanup_failed | 通用coordinator按设计记录单项失败后继续阶段/finalAction，其Promise resolve不等于浏览器清理成功；只准备参与者，生产注册由集成者接线 |
-| 注册内容的导航适配器；现有`src/main/windows/external-link.ts::installGlobalNavigationGuard`，提案`BrowserService.isRegisteredBrowser/handleNavigation` | 已注册内容的精确路由合同、redirect/popup拒绝及撤销回归，可用注入注册表测试 | 实际全局listener修改和Main host/profile/conversation注册归集成者；不新增URL前缀例外，不将拒绝退到openExternal |
+## 5. 可独立推进的模块与验收要求
 
-当前不能独立宣布可用的部分：真实BrowserService owner/宿主创建与IPC/bridge、生产ShutdownCoordinator注册、HTTPS浏览放行、全协议出口证明。它们有内部注册/接口与集成审查依赖；TLS目标到位也不会自动完成。renderer/R1/持久登录/代理操作工具、目录迁移、记忆、CI均不在本任务开发清单。
+当时可在 gate 关闭下进行如下模块工作，但本报告不声明它们已实施：Session/epoch 私有注册与冻结策略；`BrowserNetworkPort.prepare`/`BrowserNetworkBinding.dispose` 的默认 deny、await 后复验和失败聚合；现有 authenticated proxy 的 Main 注册对象适配；ShutdownCoordinator 浏览器参与者；精确注册内容导航路由。
+
+现有入口分别为 `src/main/browser`、`authenticated-connect-proxy.ts::{startAuthenticatedConnectProxy,ConnectProxy,ProxyChallenge}`、`src/main/application/shutdown.ts::{ShutdownCoordinator,createShutdownCoordinator}`、`src/main/windows/external-link.ts::installGlobalNavigationGuard`。接口方案见[工作区设计](../architecture/right-agent-workspace.md)。coordinator resolve 不等于 browser cleanup 成功；未知 challenge 不发凭据，不能通过 URL 前缀或 external-browser fallback 绕过授权。真实 BrowserService/IPC、生产注册、HTTPS 放行和全出口证明必须分别验收。

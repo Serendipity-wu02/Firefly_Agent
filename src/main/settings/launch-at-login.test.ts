@@ -1,3 +1,12 @@
+import { beforeEach } from "vitest";
+import { getStorageContext } from "../storage-context";
+const runtimeProfile = vi.hoisted(() => ({ kind: "production" as "production" | "development" | "test" | "smoke" }));
+vi.mock("../storage-context", () => ({ getStorageContext: vi.fn() }));
+beforeEach(() => {
+  runtimeProfile.kind = "production";
+  vi.mocked(getStorageContext).mockReset();
+  vi.mocked(getStorageContext).mockImplementation(() => ({ profile: { kind: runtimeProfile.kind } } as never));
+});
 import { describe, expect, it, vi } from "vitest";
 import {
   applyInstallerLaunchAtLoginSelection,
@@ -47,5 +56,23 @@ describe("applyInstallerLaunchAtLoginSelection", () => {
       { launchAtLogin: false, language: "zh-CN" },
       true,
     )).toEqual({ launchAtLogin: true, language: "zh-CN" });
+  });
+});
+
+describe("non-production login item isolation", () => {
+  it.each([
+    ["development", true], ["development", false],
+    ["test", true], ["test", false], ["smoke", true], ["smoke", false],
+  ] as const)("does not change system login items in %s when enabled=%s", (kind, enabled) => {
+    runtimeProfile.kind = kind;
+    const setLoginItemSettings = vi.fn();
+    syncLaunchAtLogin(enabled, { setLoginItemSettings });
+    expect(setLoginItemSettings).not.toHaveBeenCalled();
+  });
+  it("does not fall back to a system write when the runtime context is unavailable", () => {
+    vi.mocked(getStorageContext).mockImplementationOnce(() => { throw new Error("FIREFLY_STORAGE_NOT_INITIALIZED"); });
+    const setLoginItemSettings = vi.fn();
+    expect(() => syncLaunchAtLogin(true, { setLoginItemSettings })).toThrow("FIREFLY_STORAGE_NOT_INITIALIZED");
+    expect(setLoginItemSettings).not.toHaveBeenCalled();
   });
 });

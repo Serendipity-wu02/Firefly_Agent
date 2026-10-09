@@ -3,6 +3,7 @@ import { MosslandAsrStream, encodePcm16MonoWav } from "./mossland-asr-engine";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("encodePcm16MonoWav", () => {
@@ -26,6 +27,67 @@ describe("encodePcm16MonoWav", () => {
 });
 
 describe("MosslandAsrStream", () => {
+  it.each([true, false])("bounds a stalled response body after headers (HTTP success %s)", async (ok) => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", async (_url: unknown, options: RequestInit) => {
+      signal = options.signal ?? undefined;
+      return { ok, status: ok ? 200 : 401, json: () => new Promise(() => {}), text: () => new Promise(() => {}) };
+    });
+    const final = vi.fn();
+    const stream = new MosslandAsrStream("synthetic", final);
+    stream.sendAudio(Buffer.from([0, 0]));
+    let outcome: unknown = "pending";
+    const stopping = stream.stop().then(value => { outcome = value; }, error => { outcome = error; });
+    try {
+      await vi.advanceTimersByTimeAsync(30_001);
+      expect(outcome).toMatchObject({ message: "Mossland 转写超时" });
+      expect(signal?.aborted).toBe(true);
+      expect(final).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      stream.cancel();
+      await stopping;
+    }
+  });
+
+  it("cancel discards captured PCM and prevents later stop from uploading", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const final = vi.fn();
+    const stream = new MosslandAsrStream("synthetic", final);
+    await stream.start();
+    stream.sendAudio(Buffer.from([0, 0]));
+    stream.cancel();
+    stream.sendAudio(Buffer.from([1, 0]));
+    await expect(stream.stop()).resolves.toBe("");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(final).not.toHaveBeenCalled();
+    await expect(stream.start()).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("cancel aborts an active upload and suppresses a non-cooperative late response", async () => {
+    vi.useFakeTimers();
+    let release!: (response: Response) => void;
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", (_url: unknown, options: RequestInit) => {
+      signal = options.signal ?? undefined;
+      return new Promise<Response>((resolve) => { release = resolve; });
+    });
+    const final = vi.fn();
+    const stream = new MosslandAsrStream("synthetic", final);
+    stream.sendAudio(Buffer.from([0, 0]));
+    const stopping = stream.stop();
+    stream.cancel();
+    await expect(stopping).resolves.toBe("");
+    expect(signal?.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    release(new Response(JSON.stringify({ text: "late text" })));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(final).not.toHaveBeenCalled();
+  });
+
   it("uploads all captured frames as one WAV file and returns the transcript", async () => {
     let requestUrl = "";
     let requestInit: RequestInit | undefined;

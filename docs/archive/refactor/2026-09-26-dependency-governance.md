@@ -1,6 +1,11 @@
-# 当前依赖治理记录（2026-09-26）
+# 依赖、分发与来源治理报告（2026-09-26 至 2026-09-27）
 
-## 39 项宿主语义闭环（2026-09-27）
+> **日期**：2026-09-26 至 2026-09-27
+> **状态**：历史技术报告；依赖、快照及验证统计均对应各节日期，不代表当前版本复测。
+> **范围**：直接与传递依赖、安全解压、第三方来源、许可材料及 Skills 分发。
+> **结论**：依赖修补与技术适配具备所列自动化证据；外部程序、安装器、跨平台与公开分发许可仍需独立验收。
+
+## 39 项宿主语义适配（2026-09-27）
 
 正式快照保留既定版本决策：3 项升级适配、12 项正文等价保留、24 项现版保留。下表 ID、模式、正文中出现的真实跨 Skill ID 及附件数均取自当前 ZIP；正文中的示例性提及不等于自动调用。每项均可不经发现页预热直接 `invoke_skill`；长正文通过 `read_skill_reference` 续读。附件路径/锚点另由归档回归检查；外部办公程序与 GUI 未实测。具体逐文件哈希和宿主字面证据见同名 distribution.json 的 `hostSemanticReview`。
 
@@ -46,11 +51,11 @@
 | `write-expense-report` | work | 无 | 1/0/0 | Work query_expense(read) + write_excel(mutation) |
 | `xlsx` | work/code/learn | `office-design` | 7/11/7 | Work write_excel；公式/重算/LibreOffice 外部执行未实测 |
 
-已核对：9 项 SP 的 Firefly 调用链、TDD 与计划执行替代、review brief/Node helper、四份外部宿主 reference；7 项办公 Skills 的实际文档工具、脚本定位、公式/重算/预览/主题与用户目录边界。外部程序、真实模型、GUI 和真实用户覆盖未在本轮调用；“静态语义适配”不等于它们的实机通过。
+已核对：9 项 SP 的 Firefly 调用链、TDD 与计划执行替代、review brief/Node helper、四份外部宿主 reference；7 项办公 Skills 的实际文档工具、脚本定位、公式/重算/预览/主题与用户目录边界。外部程序、真实模型、GUI 和真实用户覆盖未在该阶段调用；“静态语义适配”不等于它们的实机通过。
 
 ## 39项版本兼容决策（2026-09-27）
 
-最新状态：3项升级并适配、12项as/ecc正文等价保留、24项其他现版保留；此前37项源码取得记录不作为新验证。本轮的跨 Skill ID、SP 流程和办公附件静态宿主语义检查见上节；外部程序、真实模型及 GUI 仍未实测。下表 Current body 为正式 ZIP 正文原字节 SHA，Body equal 仅比较升级前正文去 frontmatter/外层空白及 CRLF，不代表整目录一致。附件完整清单与验证边界见同名 distribution.json 的 upstreamCompatibilityReview 与 hostSemanticReview。
+截至 2026-09-27：3项升级并适配、12项as/ecc正文等价保留、24项其他现版保留；此前37项源码取得记录不作为新验证。该阶段的跨 Skill ID、SP 流程和办公附件静态宿主语义检查见上节；外部程序、真实模型及 GUI 仍未实测。下表 Current body 为正式 ZIP 正文原字节 SHA，Body equal 仅比较升级前正文去 frontmatter/外层空白及 CRLF，不代表整目录一致。附件完整清单与验证边界见同名 distribution.json 的 upstreamCompatibilityReview 与 hostSemanticReview。
 
 | Skill | Current body SHA-256 | Fixed input | Body equal | Decision | Reason |
 | --- | --- | --- | --- | --- | --- |
@@ -97,13 +102,13 @@
 
 ## 范围与可审核基线
 
-### 当前上游管理与优先替换（2026-09-27）
+### 上游管理与替换决策（2026-09-27）
 
 当前结果见分发附件 `upstreamManagementExecution`：两份真实收据去重后37项源码取得、2项保留既有有据来源的项目维护内容；仅self-improving-agent的新上游适配已进入正式快照，其余38项保留现版。MiniMax docx独立MIT按固定Git blob核查后严格补充获取配置，不绕过嵌套许可检查。新ZIP为246文件/105 Markdown；整体新版本适配部分完成，不把下载等同于功能可用。
 
 self-improvement已使用明确许可的多宿主来源及Firefly适配；旧15文件不在新分发中。此前十文件授权不明是历史记录，不改写为已获授权，也不继续作为新快照的许可缺件。`license-provenance.json.currentDeliveryReplacement`和包内完整MIT/NOTICE记录新来源。此前28项材料结论继续按其版本/文件范围使用，不能套到新上游未适配正文。
 
-本轮七文件50项定向测试、四项归档回归、类型检查、构建和audit通过；工具24通过、1项符号链接权限跳过。真实旧ZIP到新产物、用户修改/同名附件保护及重复安装重新验证；模型/办公外部工具/GUI不在此证据范围。详细命令及边界见现有集中报告最新节。
+该阶段七文件50项定向测试、四项归档回归、类型检查、构建和audit通过；工具24通过、1项符号链接权限跳过。真实旧ZIP到新产物、用户修改/同名附件保护及重复安装重新验证；模型/办公外部工具/GUI不在此证据范围。详细命令及边界见现有集中报告最新节。
 
 ### 此前继承 Skills 修订（历史验证范围）
 
@@ -113,17 +118,15 @@ self-improvement已使用明确许可的多宿主来源及Firefly适配；旧15�
 
 许可专项未改变 ZIP、manifest、依赖或生产代码；六份完整许可与限定范围 NOTICE/逐文件来源随既有 `vendor/firefly-skills` 整目录资源规则分发。docx、skill-creator 和九项 SP 的现有许可内容也已复核。真实旧 ZIP→生产哈希识别→更新→39 项注册及完整读取、用户改写/同名附件/重复安装保护在隔离副本通过 1 文件 2 测试；该次验证不是 GUI、真实模型或办公外部工具验收。材料检查为 2026-09-27，兼容测试为 2026-09-26；详情与十个未解决路径见集中报告的来源许可专项节。
 
-本次 package/lock 未变化；沿用先前冻结安装，不重复安装原运行环境。新的自动结果与边界见[当前集中验收](2026-09-26-documentation-dependency-closeout.md#firefly-继承-skills-适配验收本次状态)。以下原始治理数字保留初次时点。
+该次 package/lock 未变化；沿用先前冻结安装，不重复安装原运行环境。新的自动结果与边界见[当前集中验收](2026-09-26-documentation-dependency-closeout.md#firefly-继承-skills-适配验收本次状态)。以下原始治理数字保留初次时点。
 
-本记录最初盘点当时工作树证据；初次快照与验证时间保留如下。接续已按授权修正依赖元数据、提示词资料和测试，使用包含当前未提交修改的隔离副本重新安装并验证，不修改原运行环境或用户数据，不提交/推送。当前最终状态见本文末节和集中报告。已读取根 `AGENTS.md`；未发现 docs/refactor 下更深层 AGENTS。
+本报告以声明、锁文件、安装 metadata、源码引用和分发实物为证据。依赖元数据、提示词资料及测试修正后，在隔离副本进行冻结安装与验证；生产用户目录不参与验证。各阶段统计分别标注日期，最终阶段结果见本文末节与集中报告。
 
-- 仓库：`E:\Codex\Firefly-Agent-migration`；分支：`firefly-mini-v1.1.x`；HEAD：`890bc6165d7b3a476d6069c436145c181bd8a16b`。HEAD 不是依赖修改的完成提交；本记录包含工作树中的依赖更新。
-- 初次依赖快照：2026-09-26T11:06:01.224Z（UTC）。安装完成后的依赖快照：2026-09-26T11:09:04.837Z；再次核对 package/lock：2026-09-26T11:13:40.153Z。
+- 依赖快照日期：2026-09-26；分别核对安装前声明、安装后 metadata 与锁文件。
 - 初次新锁共有 **61 个直接 prod、27 个直接 dev、1327 个锁包路径**；这组数字是初次快照，不是接续后的最终声明。
 - package.json SHA-256：`cf06e873522be1074b17e7d332815b2b36c16236491006523d53fb5761bfe654`。
 - package-lock.json SHA-256：`4f0e1ba479651b20c75f50f8c408268a75575fdc97f5b52880795b34d05d0e58`；lockfileVersion=3。
 - Node：`v24.19.0`；npm 实测 / packageManager：`11.17.0` / `npm@11.17.0`。声明、锁版本、安装 metadata 分开保留，不自动归一化。
-- 源码/维护文档证据最终刷新：2026-09-26T11:24:18.057Z；锁文件哈希未变。 helper 哈希及引用复核：2026-09-26T11:30:21.623Z。
 - 本记录由本 Markdown 与以下三个 JSON 组成。采集时间与哈希不是文件系统原子快照。
 
 ### 附件与证据口径
@@ -139,14 +142,14 @@ self-improvement已使用明确许可的多宿主来源及Firefly适配；旧15�
 ### 原始与最终依赖基线
 
 - 旧基线：直接 prod `extract-zip: ^2.0.1`，锁与安装版本均为 2.0.1，BSD-2-Clause。旧锁哈希及原调用路径保存在 direct.json / previousBaseline，保留风险来源，不覆盖历史。
-- 最终：**删除直接 extract-zip；prod yauzl 精确 3.4.0；dev @types/yauzl 精确 3.4.0**。manifest、lock、安装 metadata 三方相符。本次 `npm ls extract-zip --all --json --offline --ignore-scripts` 无 dependencies；`npm ls yauzl --all --json --offline --ignore-scripts` 只列根 yauzl@3.4.0。
+- 最终：**删除直接 extract-zip；prod yauzl 精确 3.4.0；dev @types/yauzl 精确 3.4.0**。manifest、lock、安装 metadata 三方相符。该次 `npm ls extract-zip --all --json --offline --ignore-scripts` 无 dependencies；`npm ls yauzl --all --json --offline --ignore-scripts` 只列根 yauzl@3.4.0。
 - 历史风险来源为 `docs/refactor/2026-09-26-npm-audit-remediation.md`，记录 [GHSA-jmr9-qjv8-65gv](https://github.com/advisories/GHSA-jmr9-qjv8-65gv) 与 [GHSA-7pqw-9j4j-h8q3](https://github.com/advisories/GHSA-7pqw-9j4j-h8q3) 的符号链接/路径写出风险。该文档中的旧“1 high”不代表本记录新锁状态。
 - 项目使用维护中的 yauzl 解析器与小型安全落盘适配层，不维护 extract-zip fork。`src/shared/zip-extraction.ts:6` 明确导入 yauzl，**不是自主实现 ZIP parser**。适配层未复制第三方源码；本记录核对导入及结构，未做独立代码来源相似性鉴定。
 - `@electron-internal/extract-zip@1.0.4` 仍在 Electron 工具链中，完整链见附件。其已安装 README 明示只支持 Electron 内部用例，index.d.ts 的 ExtractOptions 只有 dir，没有 onEntry；不作为项目替代。名字不同，不能与旧 extract-zip 混算。
 
 ### 新落盘入口与边界
 
-已读 `src/shared/zip-extraction.ts`：onEntry 在 entryPath 校验与落盘前执行（元数据预算检查先于回调）；有归档字节、条目数、单条目字节、总展开量、压缩比、路径长度/深度及元数据预算；拒绝链接/特殊文件/加密/危险及重复路径。使用相邻临时目录、独占写入、完成后移动；非空或不安全目标会拒绝，以保留已有文件；失败清理。源码哈希在 latestInputs。本次不以源码阅读代替恶意 ZIP 回归、并发目录替换和跨平台文件系统验收。
+已读 `src/shared/zip-extraction.ts`：onEntry 在 entryPath 校验与落盘前执行（元数据预算检查先于回调）；有归档字节、条目数、单条目字节、总展开量、压缩比、路径长度/深度及元数据预算；拒绝链接/特殊文件/加密/危险及重复路径。使用相邻临时目录、独占写入、完成后移动；非空或不安全目标会拒绝，以保留已有文件；失败清理。源码哈希在 latestInputs。该次不以源码阅读代替恶意 ZIP 回归、并发目录替换和跨平台文件系统验收。
 
 五个项目入口：
 - `scripts/packaging/build-skills-snapshot.mjs:66`
@@ -157,28 +160,28 @@ self-improvement已使用明确许可的多宿主来源及Firefly适配；旧15�
 
 测试/替身引用位于 `src/shared/zip-extraction.test.ts`、`src/main/migration/skill-snapshot.test.ts`，精确行号见 latestInputs.evidence。业务测试结果不纳入本记录的文档一致性验证结论。
 
-### 本轮已执行的两份 audit JSON
+### 该阶段已执行的两份 audit JSON
 
-| 原始文件 | mtime（UTC） | JSON total | 本轮执行退出码 |
+| 审计范围 | 日期（UTC） | JSON total | 执行退出码 |
 |---|---|---:|---|
-| `E:/Codex/Firefly-doc-security-review-20260926/audit-prod.json` | 2026-09-26T11:11:46.238Z | 0 | exit 0 |
-| `E:/Codex/Firefly-doc-security-review-20260926/audit-all.json` | 2026-09-26T11:11:49.658Z | 0 | exit 0 |
+| 生产依赖（`--omit=dev`） | 2026-09-26 | 0 | exit 0 |
+| 全部依赖 | 2026-09-26 | 0 | exit 0 |
 
-两份 SHA-256 均为 `d8f91d339fa33b1b2e620ba1737423c4fcf0d7ee7a256bc08c329b15a77f547f`；auditReportVersion=2、vulnerabilities={}，info/low/moderate/high/critical/total 全为 0。原文已嵌入 direct.json。本轮已对新锁执行 prod/all 两次 audit，均 exit 0；本次刷新复用原始 JSON，不重跑。JSON 不含执行命令或锁哈希，不从相同 metadata.dependencies 反推运行参数。
+两份 SHA-256 均为 `d8f91d339fa33b1b2e620ba1737423c4fcf0d7ee7a256bc08c329b15a77f547f`；auditReportVersion=2、vulnerabilities={}，info/low/moderate/high/critical/total 全为 0。原文已嵌入 direct.json。该阶段已对新锁执行 prod/all 两次 audit，均 exit 0；该次刷新复用原始 JSON，不重跑。JSON 不含执行命令或锁哈希，不从相同 metadata.dependencies 反推运行参数。
 
-**0 告警只是此次 npm 已知公告匹配结果，不是完整安全审计、安全认证、无未知漏洞证明或许可合规结论。** 本次文档刷新未重跑 audit、历史签名验证、历史测试或安装器验收。
+**0 告警只是此次 npm 已知公告匹配结果，不是完整安全审计、安全认证、无未知漏洞证明或许可合规结论。** 该次文档刷新未重跑 audit、历史签名验证、历史测试或安装器验收。
 
 ## 直接依赖逐包清单（初次快照）
 
 每行均适用列出的风险/验证缺口：
 
-- **G**：本轮 prod/all 两次 npm audit 均已执行，exit 0，原始 JSON total=0。0 告警不证明无漏洞、授权完整或分发合规；许可正文与最终产物通知保留仍需逐项验收。
+- **G**：该阶段 prod/all 两次 npm audit 均已执行，exit 0，原始 JSON total=0。0 告警不证明无漏洞、授权完整或分发合规；许可正文与最终产物通知保留仍需逐项验收。
 - **U**：未找到直接 import，且源码/构建脚本未确认调用用途；不能据此判定无用或擅自删除。
 - **N**：含原生/平台运行时或 WASM 路径；实际目标平台加载、二进制来源、附带许可及打包结果未验证。
 - **E**：外部服务/进程/通道能力；真实凭据、网络、权限、失败清理和运行时可达性未实测。
 - **P**：解析/渲染/文档处理入口；恶意输入、资源预算及隔离边界未做完整专项验证。
 - **B**：构建/测试依赖仍可执行代码；安装脚本执行历史及制品重现性未验证。
-- **T**：metadata 为类型定义，编译器源文件清单确认纳入；本轮 Main、Preload、Renderer 类型检查均通过，见[集中验证](2026-09-26-documentation-dependency-closeout.md#最终检查补记)。类型检查通过不等于每个类型包均为业务必需。
+- **T**：metadata 为类型定义，编译器源文件清单确认纳入；该阶段 Main、Preload、Renderer 类型检查均通过，见[集中验证](2026-09-26-documentation-dependency-closeout.md#最终检查补记)。类型检查通过不等于每个类型包均为业务必需。
 - **L**：许可字段/正文或通知分发存在本节说明的缺口，不能由项目 MIT 声明覆盖。
 - **Z**：yauzl 为第三方解析器，项目维护落盘适配层；前置校验/预算/暂存路径源码已读，恶意 ZIP 回归和跨平台验收不由本记录的静态核对替代。
 - **V**：锁文件与已安装 package.json 版本字符串不同，保留原值、不自动格式归一化。
@@ -288,11 +291,11 @@ self-improvement已使用明确许可的多宿主来源及Firefly适配；旧15�
 - @ag-ui/client、@ag-ui/core：lock/metadata 无 license 字段，各自实际 LICENSE 为 MIT、Copyright (c) 2025。字段缺失不等于无许可。
 - simple-git：metadata=MIT；自身安装目录递归文件名检索（不进入嵌套 node_modules）未发现独立 LICENSE/COPYING/NOTICE/COPYRIGHT 文件。完整许可文本及通知保留待补证，不据此断言侵权。
 - @lancedb/lancedb：Apache-2.0；实际有 license_header.txt、NODEJS_THIRD_PARTY_LICENSES.md、RUST_THIRD_PARTY_LICENSES.html；不能漏记内嵌 Rust/Node 通知，也不能把 SPDX header 当 Apache 全文。
-- pixi-live2d-display：锁 `0.5.0-beta`，安装 metadata `v0.5.0-beta`，原值保留；不自行归一化或断言篡改。本次 npm ls --depth=0 exit 0。
+- pixi-live2d-display：锁 `0.5.0-beta`，安装 metadata `v0.5.0-beta`，原值保留；不自行归一化或断言篡改。该次 npm ls --depth=0 exit 0。
 - 未确认直接调用用途完整集合：`@ant-design/cssinjs`、`@lancedb/lancedb`、`llamaindex`、`mdast-util-to-string`、`music-metadata`、`qrcode`、`remark-parse`、`vscode-icons-js`、`wink-bm25-text-search`、`@vitest/coverage-v8`。已查源码/构建脚本，不能凭包名编用途，也不能据此直接删除。传递/peer 关联在 npm explain 附件。
 - qrcode 命中为字段/变量，微信二维码实际 import qr-image；vscode-icons-js 没有直接 import，本地图标通过 assets/icons/vscode SVG 导入；music-metadata 只有避免引入它的注释。这些文本命中不构成包用途。
 - playwright 直接 import 在性能脚本；@playwright/mcp 定位自己 CLI。不能自动把性能脚本的直接声明当成生产 MCP 依赖要求。
-- @types/* 的 metadata 和 createProgram/getSourceFiles 只读枚举证明其类型文件被纳入；本轮 Main、Preload、Renderer 类型检查均已通过，见[集中验证](2026-09-26-documentation-dependency-closeout.md#最终检查补记)。类型包是否冗余或业务必需不能仅由纳入清单或类型检查通过推导。
+- @types/* 的 metadata 和 createProgram/getSourceFiles 只读枚举证明其类型文件被纳入；该阶段 Main、Preload、Renderer 类型检查均已通过，见[集中验证](2026-09-26-documentation-dependency-closeout.md#最终检查补记)。类型包是否冗余或业务必需不能仅由纳入清单或类型检查通过推导。
 - allowScripts 只保存现值，没有验证其强制执行；其 esbuild@0.21.5 与直接锁 esbuild@0.28.2 不同，不能据白名单存在称全部安装脚本受控。
 
 以上差异描述初次快照。接续已修正 allowScripts 的精确版本并验证冻结安装；原工作目录的 node_modules 保持不变。最终版本、安装位置与脚本约束见本文末节，不将初次 installed 字段冒充最终隔离安装。
@@ -339,7 +342,7 @@ distribution.json 逐文件列路径、字节数、SHA-256、Git 跟踪状态。
 | 类别 | 实际证据与分发 | 许可/未知/验证缺口 |
 |---|---|---|
 | 上游 Cyrene 代码 | 根 LICENSE / THIRD_PARTY_NOTICES.md；packages/plugin-sdk/LICENSE；extraFiles | MIT 保留 Playa 与 Firefly 署名；改编维护不能泛称原生自主实现。SDK 的独立 package.json 声明 ajv ^8.17.1，见附件，不增加根直接依赖计数；SDK 发布产物未验证。 |
-| Live2D Cubism Core | src/renderer/public/live2dcubismcore.min.js:1；src/renderer/index.html:25；public 复制路径 | 文件头为 Live2D Inc. / Redistributable Code / 专有许可 URL。独立于 pixi-live2d-display MIT；本次未核验协议适用范围和随包通知。 |
+| Live2D Cubism Core | src/renderer/public/live2dcubismcore.min.js:1；src/renderer/index.html:25；public 复制路径 | 文件头为 Live2D Inc. / Redistributable Code / 专有许可 URL。独立于 pixi-live2d-display MIT；该次未核验协议适用范围和随包通知。 |
 | Firefly 模型与人物资源 | public/models/firefly/、public/avatars/、src/renderer/assets/ | MODEL_LICENSE.md 的 Cyrene 授权不覆盖 Firefly；书面条款、署名、范围及相关肖像权利缺口按本地通知记录。 |
 | 图标/历史图像 | assets/icons/vscode/ 42 个 SVG；assets/icon-presets/firefly.png、assets/tray-icon.ico、build/installer/installer-sidebar.bmp；public/icons/feeling/status/context-usage 等 | vscodeFileIcon.ts 注释称来源 vscode-icons/vscode-icons、MIT，并直接 import SVG；注释不等于独立许可正文，assets 未见配套 LICENSE。其他图片/品牌标志不能套用源码 MIT。历史 sidebar 当前未被打包配置选为 sidebar，但仍在仓库。 |
 | 21 张贴纸 | public/stickers/ 全路径；THIRD_PARTY_NOTICES.md 来源记录 | 所有者提供是来源说明，不证明原创或再分发许可。 |
@@ -348,11 +351,11 @@ distribution.json 逐文件列路径、字节数、SHA-256、Git 跟踪状态。
 | MinGit | vendor/mingit-manifest.json 的 2.55.0.3、URL/hash；prepare-mingit.mjs；resources/mingit 被 extraResources 选择 | THIRD_PARTY_NOTICES.md 记 GPL-2.0；本地 resources/mingit 不存在，归档内许可/源码提供信息未验证；未下载。 |
 | mpv | vendor/mpv-manifest.json 的 20260813、URL/镜像/hash；prepare-mpv.mjs | 当前配置未选择 resources/bin/mpv，本地无该二进制；manifest 无 license，不能猜该构建许可。 |
 | srt-win | asarUnpack 与 sandbox-exec.ts 引用 vendor/srt-win | vendor 实物只有两 manifest 与 skills ZIP/manifest，没有该目录文件；配置不是二进制存在证明。 |
-| Rust 截图 helper | resources/bin/firefly-screenshot.exe 存在且未跟踪；native/firefly-screenshot/Cargo.toml、Cargo.lock | 附件 55 个锁记录。serde/serde_json/thiserror/uuid/windows/windows-numerics、dev serial_test 声明已读；未读外部 Cargo 缓存/未编译，许可及最终二进制成分未完整核验，不能称全为自主实现。 |
+| Rust 截图 helper | resources/bin/firefly-screenshot.exe 在验证目录存在；native/firefly-screenshot/Cargo.toml、Cargo.lock | 附件 55 个锁记录。serde/serde_json/thiserror/uuid/windows/windows-numerics、dev serial_test 声明已读；未读外部 Cargo 缓存/未编译，许可及最终二进制成分未完整核验，不能称全为自主实现。 |
 | 本地模型 | models/ 只列 Git 跟踪 .gitignore/.gitkeep，打包排除 models/**/* | 不读取用户下载模型/权重，不能声称其许可已审。 |
 | 第三方 skills 快照 | vendor/firefly-skills/skills-snapshot.zip / manifest，经 extraResources 分发 | 归档内文档、代码、脚本、模板与许可都是分发对象，逐项见下一节。 |
 
-**文档/实物不一致：** public/models/firefly/README.md 声称模型二进制不在公共仓库分发，但当前 git ls-files 和文件系统实际包含 Moc_0.moc3、Textures_0_0.png、模型/表情/动作 JSON 等 **22 文件**。moc3=363,712 字节，纹理=5,201,550 字节。README 不能抵消实物及 public 构建复制路径。这里只描述本地工作树，不断言远端发布状态；授权和文档一致性仍需核对。
+**文档/实物不一致：** public/models/firefly/README.md 声称模型二进制不在公共仓库分发，但当前 git ls-files 和文件系统实际包含 Moc_0.moc3、Textures_0_0.png、模型/表情/动作 JSON 等 **22 文件**。moc3=363,712 字节，纹理=5,201,550 字节。README 不能抵消实物及 public 构建复制路径。这里只描述该阶段源码快照，不断言远端发布状态；授权和文档一致性仍需核对。
 
 ### 维护文档与随包文档
 
@@ -360,7 +363,7 @@ distribution.json 逐文件列路径、字节数、SHA-256、Git 跟踪状态。
 - 根 LICENSE、MODEL_LICENSE.md、THIRD_PARTY_NOTICES.md 是显式随包通知。
 - skills/ 由项目维护并经 extraFiles 复制；维护位置不能推导独立原创。
 - ZIP 内 SKILL.md、references、README、LICENSE、脚本和模板属于 **随包第三方技能内容**，即使是文档也不能当仓库内部说明忽略。build-skills-snapshot.mjs 明确它们是定制裁剪第三方技能；snapshot-install.ts 是安装入口。
-- 本次只读归档流，不解压到用户目录、不执行归档代码。不能以“原生自主实现”概括仓库及其分发内容。
+- 该次只读归档流，不解压到用户目录、不执行归档代码。不能以“原生自主实现”概括仓库及其分发内容。
 
 ## skills-snapshot.zip 全清单与许可索引（初次快照）
 
@@ -368,7 +371,7 @@ distribution.json 逐文件列路径、字节数、SHA-256、Git 跟踪状态。
 - 初次 manifest skills 数=39；实际 39 顶层目录 / 231 条目。初次每条目路径、未压缩/压缩大小、哈希和说明标题/来源/许可记录见 historicalZipEvidence.entries/documentIndex/skillGroups。当前值见上方修订。
 - 独立许可文件只有四路径：`docx/LICENSE`、`skill-creator/LICENSE`、`skill-creator/LICENSE.txt`、`skill-creator/plugins/skill-creator/LICENSE`。docx/LICENSE 为 MIT、Copyright (c) 2026 MiniMaxAI；另三份为 Apache-2.0 文本。正文已嵌入附件，不能跨技能扩张适用范围。
 - office-design/pdf/pptx-generator/xlsx 的顶层 SKILL.md 声明 MIT，但各目录未发现独立 LICENSE 正文；声明与授权链分开记录。无字段或正文者记未知，不从 as-/ecc-/sp- 前缀猜作者、来源版本或许可证。
-- manifest 的 sourceSha256 是来源记录，本次未取得对应源归档核验；upstream commit、作者、裁剪说明及授权范围仍需补证。ZIP 完整/哈希一致不等于许可完整。
+- manifest 的 sourceSha256 是来源记录，该次未取得对应源归档核验；upstream commit、作者、裁剪说明及授权范围仍需补证。ZIP 完整/哈希一致不等于许可完整。
 
 | ZIP 实际顶层目录 | 条目数 | 说明入口（归档内） | 许可现状 |
 |---|---:|---|---|
@@ -412,11 +415,11 @@ distribution.json 逐文件列路径、字节数、SHA-256、Git 跟踪状态。
 | `write-expense-report` | 2 | `write-expense-report/SKILL.md`（完整 frontmatter 见附件） | 无顶层 license 字段；未发现独立许可正文或顶层 license 声明；授权未知 |
 | `xlsx` | 34 | `xlsx/SKILL.md`（完整 frontmatter 见附件） | license: MIT；只有 frontmatter 声明；未发现该目录独立 LICENSE 正文 |
 
-## 本次验证与更新位置
+## 验证范围与证据索引
 
-本次已执行/读取：声明/lock/安装 metadata 全清单；npm ls --depth=0 exit 0；npm explain（旧 extract-zip 不存在为 exit 1，单独记录）；新 ZIP 包全树；TypeScript 源文件只读枚举；归档流 231 条及哈希；本轮 audit 原文。本轮依赖安装与 prod/all audit 已完成，audit 均 exit 0；本次记录刷新未重跑 install/audit、构建、业务测试、应用、下载器、技能安装或迁移。
+该次已执行/读取：声明/lock/安装 metadata 全清单；npm ls --depth=0 exit 0；npm explain（旧 extract-zip 不存在为 exit 1，单独记录）；新 ZIP 包全树；TypeScript 源文件只读枚举；归档流 231 条及哈希；该阶段 audit 原文。该阶段依赖安装与 prod/all audit 已完成，audit 均 exit 0；该次记录刷新未重跑 install/audit、构建、业务测试、应用、下载器、技能安装或迁移。
 
-交付检查范围为 JSON 解析、完整 prod/dev 键集、锁版本与输入哈希、ZIP manifest/顶层集合、真实引用路径/行号、附件链接、输出范围。本轮 Main、Preload、Renderer 类型检查均通过；7 文件 71 项测试（含 33 项解压测试）通过、0 跳过，MinGit node:test 3 项通过；一次完整构建及最终 Main 构建通过，编译后 CJS 解压真实快照取得 39 个顶层条目。详见[主汇总与集中验证](2026-09-26-documentation-dependency-closeout.md#最终检查补记)。未运行完整测试套件；实际平台 native 加载、制品许可保留、素材授权及未确认用途仍是缺口。其余快照保留各自采集时间。
+交付检查范围为 JSON 解析、完整 prod/dev 键集、锁版本与输入哈希、ZIP manifest/顶层集合、真实引用路径/行号、附件链接、输出范围。该阶段 Main、Preload、Renderer 类型检查均通过；7 文件 71 项测试（含 33 项解压测试）通过、0 跳过，MinGit node:test 3 项通过；一次完整构建及最终 Main 构建通过，编译后 CJS 解压真实快照取得 39 个顶层条目。详见[主汇总与集中验证](2026-09-26-documentation-dependency-closeout.md#最终检查补记)。未运行完整测试套件；实际平台 native 加载、制品许可保留、素材授权及未确认用途仍是缺口。其余快照保留各自采集时间。
 
 后续在 **本文件基线、逐包表、overrides 表、ZIP 替换段** 更新，同时刷新：
 - direct.json：package/lock 哈希、direct、verifiedReferences、licenseEvidence、auditEvidence；保留 previousBaseline。
@@ -425,9 +428,9 @@ distribution.json 逐文件列路径、字节数、SHA-256、Git 跟踪状态。
 
 当前按安装完成的新锁记录 yauzl 3.4.0，不预填 extract-zip 后续版本。后续修改源码/授权文档后，应刷新对应哈希和行号，不能让旧索引代表新内容。
 
-交付校验（2026-09-26T11:25:19.437Z）：直接清单 61 prod / 27 dev、1327 个完整锁记录、925 条确认引用、194 个资源记录、39 组 / 231 个 ZIP 条目均通过上述一致性检查；无失效引用、哈希漂移、缺失附件或行尾空白。该结果只覆盖治理记录完整性。
+治理材料一致性校验（2026-09-26）：直接清单 61 prod / 27 dev、1327 个完整锁记录、925 条确认引用、194 个资源记录、39 组 / 231 个 ZIP 条目均通过上述一致性检查；无失效引用、哈希漂移、缺失附件或行尾空白。该结果只覆盖治理记录完整性。
 
-## 接续后的实际依赖与安装验证
+## 依赖修正后的验证结论
 
 - 最终声明为 61 prod / 28 dev（89 个直接依赖）、1327 个锁记录（含根）、23 个顶层 override。三个 JSON 的 `closeoutRevision` 保存当前声明、输入哈希、变更包的锁记录及隔离安装证据；此前顶层字段保留原采集时间，不冒充最新事实。
 - package.json SHA-256：`bc848e7f2ed00b6e1a098b087a0acb634c204e9c08303ebbac8ed9e714130d7e`；package-lock.json SHA-256：`ee0b9282f8275972fceb25d5d01d32b229150888037504e754e900105947fb50`。
@@ -435,7 +438,7 @@ distribution.json 逐文件列路径、字节数、SHA-256、Git 跟踪状态。
 - 首次隔离 `npm ci` 退出 0，但 `npm ls --all` 退出 1：workflow-core 的 RxJS peer `^7.8.2` 得到了根 7.8.1；jsdom 请求 `undici ^8.10.2`，与全局 override 7.29.0 的计算结果冲突。未把安装成功当作依赖图有效。
 - 根 RxJS 从 7.8.1 更新到 7.8.2（同一补丁系列）。单独升级会让 AG-UI 固定 7.8.1 产生第二份 Observable/Subscriber 类型，隔离 Main 编译实际报 TS2416；因此为 `@ag-ui/client` 设置 `rxjs: "$rxjs"`，共用根版本。最终锁只保留根 `node_modules/rxjs@7.8.2`，AG-UI 路径及类对象相等的回归通过，没有类型断言绕过或 Agent 改造。变更依据为已安装 CHANGELOG.md 所列的 [RxJS 7.8.1 → 7.8.2 官方差异](https://github.com/reactivex/rxjs/compare/7.8.1...7.8.2) 及真实编译错误。
 - 父包限定 `jsdom → undici 8.10.2` 保留其原锁版本，其他构建链仍为 7.29.0；不是降级 jsdom 或全树大版本升级。最终冻结安装后 `npm ls --all --offline --ignore-scripts` 退出 0。
-- 已读取 `esbuild@0.28.2/install.js`（平台二进制定位、版本检查及下载后哈希校验）和 `electron-winstaller@5.4.0/script/select-7z-arch.js`（包内宿主架构 7-Zip 文件复制）。将过时 esbuild 许可项修正到 0.28.2，明确记录 electron-winstaller 5.4.0；不修改第三方脚本。最终 `npm approve-scripts --allow-scripts-pending --json` 为空。npm 11.17.0 该字段实际只警告未记录项；本轮没有改 CI 或启用新的强制策略，不能把它称为强隔离沙箱，见 [npm 官方说明](https://docs.npmjs.com/cli/v11/commands/npm-approve-scripts/)。
+- 已读取 `esbuild@0.28.2/install.js`（平台二进制定位、版本检查及下载后哈希校验）和 `electron-winstaller@5.4.0/script/select-7z-arch.js`（包内宿主架构 7-Zip 文件复制）。将过时 esbuild 许可项修正到 0.28.2，明确记录 electron-winstaller 5.4.0；不修改第三方脚本。最终 `npm approve-scripts --allow-scripts-pending --json` 为空。npm 11.17.0 该字段实际只警告未记录项；该阶段没有改 CI 或启用新的强制策略，不能把它称为强隔离沙箱，见 [npm 官方说明](https://docs.npmjs.com/cli/v11/commands/npm-approve-scripts/)。
 - 最终 prod/all audit 原始 JSON 均退出 0、各级漏洞数 0。只是公告数据库结果，不覆盖第三方归档脚本、许可、跨平台原生运行或完整应用安全。
 - 归档文本为 94 篇 Markdown、41 个源码/测试文本、14 个 JSON 与 4 份许可证，共 153 项，而非此前宽泛描述的“95 篇文档”。全文流式读取、声明/链接/资源核验与各路径状态已附在 distribution.json 的 `closeoutRevision.documents`。已只读找到哈希匹配的原始 ZIP，七处缺失链接和三个正文脚本目标原包也未包含；缺少完整同版辅助输入及部分独立许可依据。未执行第三方脚本，不能称全部资料已收口，见集中报告。
 - 最终隔离安装、204 项相关 Vitest、MinGit 三项 node:test、类型检查、构建、SDK 包和四个示例 Mock 验证见[集中报告](2026-09-26-documentation-dependency-closeout.md#接续逐项验收)。此前验证保留为既有证据，不拼成全量通过。

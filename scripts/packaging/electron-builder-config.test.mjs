@@ -194,3 +194,46 @@ test("pinned retrieval models and provenance ship externally without unrelated m
   await assert.rejects(access(path.join(root, "resources/models/unrelated-model/onnx/model.onnx")), { code: "ENOENT" });
   await assert.rejects(access(path.join(root, "resources/models/cache/untrusted.bin")), { code: "ENOENT" });
 });
+
+test("Main compilation omits simulator sources while the independent simulator entry set retains them", () => {
+  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const compileSet = config => {
+    const loaded = ts.readConfigFile(path.join(root, config), ts.sys.readFile);
+    assert.equal(loaded.error, undefined);
+    const parsed = ts.parseJsonConfigFileContent(loaded.config, ts.sys, root);
+    assert.deepEqual(parsed.errors, []);
+    return ts.createProgram(parsed.fileNames, parsed.options).getSourceFiles()
+      .map(file => path.relative(root, file.fileName).split(path.sep).join("/"));
+  };
+  const main = compileSet("tsconfig.main.json");
+  assert.ok(main.includes("src/main/index.ts"));
+  assert.deepEqual(main.filter(file => file.startsWith("src/main/sim/")), [],
+    "production Main must not compile simulator roots or import them transitively");
+  const sim = compileSet("tsconfig.sim.json");
+  assert.ok(sim.includes("src/main/sim/dmae-sim.ts"));
+  assert.ok(sim.includes("src/main/sim/run-l2-sim.ts"));
+  assert.ok(sim.includes("src/main/rag/worldbook.ts"));
+});
+
+test("installer file selection excludes both simulator outputs while retaining production entries", async context => {
+  const config = YAML.parse(source);
+  const root = await mkdtemp(path.join(os.tmpdir(), "firefly-simulator-package-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const input = path.join(root, "input"), destination = path.join(root, "selected");
+  const retained = [
+    "dist/main/main/index.js", "dist/preload/preload/index.js",
+    "dist/renderer/react/index.html", "dist/cli/index.js", "package.json",
+  ];
+  const omitted = [
+    "dist/main/main/sim/dmae-sim.js", "dist/main/main/sim/render/stats.js",
+    "dist/sim/main/sim/run-l2-sim.js",
+  ];
+  for (const file of [...retained, ...omitted]) {
+    const location = path.join(input, file);
+    await mkdir(path.dirname(location), { recursive: true });
+    await writeFile(location, file);
+  }
+  await copyFiles([new FileMatcher(input, destination, value => value, config.files)], undefined, false);
+  for (const file of retained) assert.equal(await readFile(path.join(destination, file), "utf8"), file);
+  for (const file of omitted) await assert.rejects(access(path.join(destination, file)), { code: "ENOENT" });
+});

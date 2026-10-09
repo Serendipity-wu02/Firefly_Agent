@@ -147,6 +147,16 @@ function copyTree(source: string, destination: string): void {
   }
 }
 
+/** Copy into a newly reserved directory; existing roots (including empty ones) are never adopted. */
+export function copyManagedSkillTreeExclusive(source: string, destination: string): void {
+  assertDirectory(source);
+  // Complete source validation happens before creating the destination.
+  inventory(source);
+  assertSkillPath(destination);
+  fs.mkdirSync(destination);
+  copyTree(source, destination);
+}
+
 function replaceTree(target: string, stage: string, backup: string | null): void {
   if (backup) fs.renameSync(target, backup);
   try { fs.renameSync(stage, target); }

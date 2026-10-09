@@ -29,6 +29,9 @@ export function applyTaskDelegationEvent(
 ): TaskDelegationDisplayRecord[] {
   const index = records.findIndex((record) => record.invocationId === event.invocationId);
   if (index < 0) return [...records, { ...event, roundId }];
+  // A resumed child has a new invocationId. A replayed start for an already
+  // settled invocation must not bring its progress indicator back to life.
+  if (records[index].status !== "running" && event.status === "running") return [...records];
   return records.map((record, recordIndex) => recordIndex === index
     ? { ...record, ...event, roundId: record.roundId ?? roundId }
     : record);

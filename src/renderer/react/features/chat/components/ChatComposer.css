@@ -559,3 +559,9 @@
 }
 :root[data-ui-colors] .cy-queue-dock { background: var(--cy-bg-page); color: var(--cy-text); border-color: var(--cy-border); }
 :root[data-ui-colors] .cy-composer__attachment { background: var(--cy-bg-page); }
+
+/* Dictation is explicit and writes only to the draft. */
+.cy-composer__dictation { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.cy-composer__dictation-error { color: var(--color-danger, #bf3d3d); font-size: 12px; max-width: 260px; overflow-wrap: anywhere; }
+.cy-composer__dictation-status { font-size: 11px; opacity: .7; max-width: 230px; }
+.cy-composer__dictation [aria-pressed="true"] { color: var(--color-danger, #bf3d3d); }

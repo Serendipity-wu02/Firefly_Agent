@@ -1,3 +1,6 @@
+import { syncLaunchAtLogin } from "../settings/launch-at-login";
+const runtimeProfile = vi.hoisted(() => ({ kind: "production" as "production" | "development" | "test" | "smoke" }));
+vi.mock("../storage-context", () => ({ getStorageContext: () => ({ profile: { kind: runtimeProfile.kind } }) }));
 import { describe, expect, it, vi } from "vitest";
 import { createShutdownCoordinator } from "./shutdown";
 import { createStartupReadiness } from "./readiness";
@@ -225,4 +228,21 @@ it("ignores a retired sidebar preference while retaining the schedule window", a
   await startCore(deps);
   expect(deps.shell.windowManager.createSidebarWindow).not.toHaveBeenCalled();
   expect(deps.shell.windowManager.createTasksWindow).toHaveBeenCalledOnce();
+});
+it.each([
+  ["development", true], ["development", false], ["test", true], ["test", false],
+  ["smoke", true], ["smoke", false], ["production", true], ["production", false],
+] as const)("core startup respects %s system-login ownership enabled=%s", async (kind, enabled) => {
+  runtimeProfile.kind = kind;
+  const setLoginItemSettings = vi.fn();
+  const deps = makeCoreDeps([], {
+    loadGeneralSettings: () => ({ petVisible: true, tasksVisible: false, launchAtLogin: enabled }) as never,
+    applyGeneralSettings: settings => syncLaunchAtLogin(settings.launchAtLogin, { setLoginItemSettings }),
+  });
+  await startCore(deps);
+  if (kind === "production") {
+    expect(setLoginItemSettings).toHaveBeenCalledExactlyOnceWith({ openAtLogin: enabled });
+  } else {
+    expect(setLoginItemSettings).not.toHaveBeenCalled();
+  }
 });

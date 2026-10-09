@@ -93,9 +93,9 @@
 
 .cy-message--user .ant-bubble-content {
   border-radius: 12px;
-  background: var(--cy-accent);
-  color: #fff;
-  box-shadow: var(--cy-shadow-bubble-accent);
+  background: var(--cy-bg-active);
+  color: var(--cy-text);
+  box-shadow: none;
 }
 
 .cy-message--user:has(.cy-message__sticker:only-child) .ant-bubble-content {
@@ -178,7 +178,7 @@
 }
 
 .cy-message--user .cy-message-markdown a {
-  color: #fff;
+  color: inherit;
   text-decoration: underline;
 }
 
@@ -1347,6 +1347,12 @@
 }
 
 /* Custom palettes must keep text paired with the surface it is drawn on. */
+:root[data-ui-colors] .cy-message--user .ant-bubble-content {
+  background: var(--cy-accent);
+}
+:root[data-ui-colors] .cy-message--user:has(.cy-message__sticker:only-child) .ant-bubble-content {
+  background: transparent;
+}
 :root[data-ui-colors] .cy-message--user .ant-bubble-content,
 :root[data-ui-colors] .cy-message--user .cy-message-markdown a {
   color: var(--rb-text-on-pink);

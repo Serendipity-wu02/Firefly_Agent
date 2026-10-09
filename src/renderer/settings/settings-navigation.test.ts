@@ -59,3 +59,9 @@ describe("settings category navigation", () => {
     expect(preferences.querySelector('#chat-social-context-enabled')).not.toBeNull();
   });
 });
+
+
+it("retains all fourteen existing first-level settings destinations", () => {
+  document.body.innerHTML = html;
+  expect([...document.querySelectorAll<HTMLButtonElement>('.nav-item')].map(button => button.dataset.section)).toEqual(["general", "appearance", "preferences", "api", "api-advanced", "asr", "firefly", "memory", "user", "tasks", "plugins", "channels", "tokens", "disclaimer"]);
+});

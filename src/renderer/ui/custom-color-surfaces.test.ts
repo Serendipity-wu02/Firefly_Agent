@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
-import { uiColorTokens } from "../../shared/ui-colors";
+import { uiColorContrast, uiColorTokens } from "../../shared/ui-colors";
 
-const files = ["ChatMessageList", "ConversationSidebar", "RightInspector", "RunExperience", "ReviewPanel", "ChatComposer"] as const;
+const files = ["ChatMessageList", "ConversationSidebar", "RightInspector", "RunExperience", "ReviewPanel", "ChatComposer", "FileTreePanel"] as const;
 const styles = Object.fromEntries(files.map(name => [name, readFileSync(new URL(`../react/features/chat/components/${name}.css`, import.meta.url), "utf8") ]));
+styles.BrowserWorkspacePanel = readFileSync(new URL("../react/features/chat/workspace/BrowserWorkspacePanel.css", import.meta.url), "utf8");
 styles.root = readFileSync(new URL("../react/styles/react-root.css", import.meta.url), "utf8");
 
 function declaration(file: string, selector: string, property: string): string {
@@ -17,6 +18,9 @@ function declaration(file: string, selector: string, property: string): string {
 }
 
 const surfaces: [string, string, string][] = [
+  ["BrowserWorkspacePanel", ".cy-browser-workspace__address input", "--cy-bg-workspace"],
+  ["BrowserWorkspacePanel", ".cy-browser-workspace__toolbar button:hover:enabled", "--cy-bg-hover"],
+  ["FileTreePanel", ".cy-file-preview__header", "--cy-bg-page"],
   ["ChatMessageList", '.cy-message-markdown [data-streamdown="table-wrapper"]', "--cy-bg-workspace"],
   ["ChatMessageList", '.cy-message-markdown [data-streamdown="table"] th', "--cy-bg-page"],
   ["ChatMessageList", ".cy-mermaid--fallback .cy-mermaid__source", "--cy-bg-page"],
@@ -70,7 +74,7 @@ describe("custom-color foreground and surface pairs", () => {
   });
 
   it("keeps the existing light defaults when custom colors are disabled", () => {
-    expect(declaration("ChatMessageList", ".cy-message--user .ant-bubble-content", "color")).toBe("rgb(255, 255, 255)");
+    expect(declaration("ChatMessageList", ".cy-message--user .ant-bubble-content", "color")).toBe("var(--cy-text)");
     expect(declaration("ConversationSidebar", ".cy-session-rename-input", "background")).toBe("rgb(255, 255, 255)");
     expect(declaration("RunExperience", ".cy-interaction-panel", "background")).toBe("rgb(245, 245, 247)");
     const dom = new JSDOM('<div class="cy-session-rename-input"></div>');
@@ -85,6 +89,17 @@ describe("custom-color foreground and surface pairs", () => {
     expect(declaration("ChatComposer", ".cy-composer .ant-sender-input", "color")).toBe("var(--cy-text)");
     expect(declaration("ChatComposer", ":root[data-ui-colors] .cy-queue-dock__editor", "color")).toBe("var(--cy-text)");
     expect(declaration("ChatComposer", ":root[data-ui-colors] .cy-composer .ant-sender-actions-btn:disabled", "color")).toBe("var(--cy-text-muted)");
+  });
+
+  it.each([
+    { enabled: true, accent: "#0285ff", background: "#121212", foreground: "#ffffff" },
+    { enabled: true, accent: "#0285ff", background: "#ffffff", foreground: "#0d0d0d" },
+  ])("keeps browser and file headers readable with custom colors %j", input => {
+    const tokens = uiColorTokens(input);
+    for (const [file, selector, token] of surfaces.slice(0, 3)) {
+      expect(declaration(file, `:root[data-ui-colors] ${selector}`, "background")).toBe(`var(${token})`);
+      expect(uiColorContrast({ background: tokens[token], foreground: tokens["--cy-text"] })).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it("boots shared live theme updates in the reminder window without dropping audio", () => {

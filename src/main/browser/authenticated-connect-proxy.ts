@@ -59,8 +59,9 @@ function matchesRemote(target: PinnedTarget, remote: string | undefined): boolea
  * https://nodejs.org/docs/latest-v24.x/api/http.html#event-connect
  * Caller must combine a dedicated session, request policy and complete N1-N10.
  */
-export async function startAuthenticatedConnectProxy(ownerInput: { webContentsId: number; signal: AbortSignal }, dependencies: ProxyDependencies = defaults): Promise<ConnectProxy> {
-  const owner = { webContentsId: ownerInput.webContentsId, signal: ownerInput.signal };
+export async function startAuthenticatedConnectProxy(ownerInput: { webContentsId: number; signal: AbortSignal; readonly allowedHosts?: readonly string[] }, dependencies: ProxyDependencies = defaults): Promise<ConnectProxy> {
+  const owner = { webContentsId: ownerInput.webContentsId, signal: ownerInput.signal,
+    allowedHosts: ownerInput.allowedHosts === undefined ? undefined : Object.freeze([...ownerInput.allowedHosts]) };
   if (!Number.isSafeInteger(owner.webContentsId) || owner.webContentsId <= 0 || owner.signal.aborted) throw new Error("browser binding unavailable");
   const username = randomBytes(16).toString("hex"); const password = randomBytes(32).toString("hex");
   const realm = `browser-${randomBytes(16).toString("hex")}`;
@@ -94,6 +95,9 @@ export async function startAuthenticatedConnectProxy(ownerInput: { webContentsId
       const target = parseConnectAuthority(request.url ?? "");
       if (!target || headerCount(request, "host") !== 1 || request.headers.host?.toLowerCase() !== request.url?.toLowerCase()
         || request.headers["transfer-encoding"] || (request.headers["content-length"] && request.headers["content-length"] !== "0")) { reject(client, 403); return; }
+      // Scope is an exact, immutable host snapshot. Reject before consuming DNS
+      // capacity or opening a socket, including public IP-literal authorities.
+      if (owner.allowedHosts !== undefined && !owner.allowedHosts.includes(target.host)) { reject(client, 403); return; }
       if (requests.size >= 32) { reject(client, 503); return; }
       const scope = new AbortController(); requests.add(scope);
       const cancelled = () => scope.abort(); client.once("close", cancelled);

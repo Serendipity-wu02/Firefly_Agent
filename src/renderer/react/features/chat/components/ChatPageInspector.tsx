@@ -4,13 +4,24 @@
 import type { ToolFileChange } from "../../../../../shared/chat-types";
 import { WorkspaceChangeDiff, WorkspaceRunResults } from "../workspace/WorkspaceRunResults";
 import type { WorkspaceChangedFile, WorkspaceRunOutput } from "../workspace/workspace-artifacts";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useTranslation } from "../../../i18n";
 import { FileTreePanel, FilePreviewContent } from "./FileTreePanel";
+import { requestWorkspaceEditorClose, workspaceEditorKey, useWorkspaceEditorState } from "./WorkspaceTextEditor";
 import { PlanContent, planTabDotClass, planTabLabel, type PlanReviewPhase } from "./PlanReviewPanel";
 import { ReviewDiffContent } from "./ReviewInspector";
 import { RightInspector, type InspectorTab } from "./RightInspector";
-import { ManualBrowserTab } from "../workspace/ManualBrowserTab";
+import type { ManualBrowserTabHandle } from "../workspace/ManualBrowserTab";
+import { BrowserWorkspaceTabs } from "../workspace/BrowserWorkspaceTabs";
+
+function FileDraftMarker({ editorKey }: { editorKey: string }) {
+  const { t } = useTranslation();
+  const draft = useWorkspaceEditorState(editorKey)?.draft;
+  if (!draft || (!draft.saving && draft.text === draft.original)) return null;
+  return <span className="cy-right-inspector__dirty" data-inspector-dirty="true" role="status"
+    aria-label={t(draft.saving ? "fileTree.saving" : "fileTree.unsaved")}
+    title={t(draft.saving ? "fileTree.saving" : "fileTree.unsaved")} />;
+}
 
 /** 从路径取文件名做标签标题（兼容 / 与 \ 分隔） */
 function fileBaseName(filePath: string): string {
@@ -89,14 +100,16 @@ export function ChatPageInspector({
   onOpenFile,
 }: ChatPageInspectorProps) {
   const { t } = useTranslation();
+  const browserRef = useRef<ManualBrowserTabHandle>(null);
   const tabs: InspectorTab[] = [];
 
   if (tasksTabOpen) {
-    tabs.push({ id: "tasks", label: t("workspace.tasks"), content: taskPanel });
+    tabs.push({ id: "tasks", kind: "tasks", label: t("workspace.tasks"), content: taskPanel });
   }
   if (filesTabOpen) {
     tabs.push({
       id: "files",
+      kind: "files",
       label: t("fileTree.title"),
       // 被钉住的文件树标签隐藏 chip 上的 ×，右上角关闭按钮也对它无效
       closable: !filesTabPinned,
@@ -120,8 +133,11 @@ export function ChatPageInspector({
     tabs.push({
       id: tab.id,
       label: fileBaseName(tab.relPath),
+      title: tab.relPath,
+      kind: "file",
+      status: sessionId ? <FileDraftMarker editorKey={workspaceEditorKey(sessionId, workspaceRoot, tab.relPath)} /> : undefined,
       content: sessionId
-        ? <FilePreviewContent sessionId={sessionId} relPath={tab.relPath} refreshRevision={refreshRevision} scrollToLine={tab.line} lineSeq={tab.lineSeq} />
+        ? <FilePreviewContent sessionId={sessionId} workspaceRoot={workspaceRoot} relPath={tab.relPath} refreshRevision={refreshRevision} scrollToLine={tab.line} lineSeq={tab.lineSeq} />
         : null,
     });
   }
@@ -129,18 +145,21 @@ export function ChatPageInspector({
     tabs.push({
       id: tab.id,
       label: tab.filePath ? fileBaseName(tab.filePath) : "Diff",
+      title: `Diff · ${tab.filePath}`,
+      kind: "diff",
       content: tab.change ? <WorkspaceChangeDiff change={tab.change} /> : <ReviewDiffContent runId={tab.runId} fileIndex={tab.fileIndex} />,
     });
   }
   for (const [index, output] of resultTabs.entries()) {
     if (output.sessionId !== sessionId) continue;
-    tabs.push({ id: output.id, label: t("workspace.runResult", { index: index + 1 }),
+    tabs.push({ id: output.id, kind: "result", label: t("workspace.runResult", { index: index + 1 }),
       content: <WorkspaceRunResults output={output} workspaceRoot={workspaceRoot} onOpenFile={onOpenFile}
         onOpenDiff={(result, file) => onOpenResultDiff?.(result, file)} /> });
   }
   if (activePlan && planDrawerOpen) {
     tabs.push({
       id: planTabId,
+      kind: "plan",
       label: planTabLabel(activePlan.phase),
       dotClass: planTabDotClass(activePlan.phase),
       content: <PlanContent content={activePlan.content} phase={activePlan.phase} />,
@@ -149,8 +168,9 @@ export function ChatPageInspector({
   if (browserTabOpen) {
     tabs.push({
       id: "browser",
+      kind: "browser",
       label: t("browserWorkspace.title"),
-      content: <ManualBrowserTab key={sessionId} sessionId={sessionId} active={visible && (activeTabId === "browser" || (!tabs.some(tab => tab.id === activeTabId) && tabs.length === 0))} onClose={() => onCloseTab("browser")} />,
+      content: <BrowserWorkspaceTabs ref={browserRef} sessionId={sessionId} active={visible && (activeTabId === "browser" || (!tabs.some(tab => tab.id === activeTabId) && tabs.length === 0))} onClose={() => onCloseTab("browser")} />,
     });
   }
   if (tabs.length === 0) return null;
@@ -161,7 +181,15 @@ export function ChatPageInspector({
       visible={visible}
       activeTabId={activeTabId}
       onTabChange={onTabChange}
-      onCloseTab={onCloseTab}
+      onCloseTab={id => {
+        if (id === "browser" && browserRef.current) { onTabChange(id); browserRef.current.close(); return; }
+        const file = fileTabs.find(tab => tab.id === id);
+        if (file && sessionId && !requestWorkspaceEditorClose(workspaceEditorKey(sessionId, workspaceRoot, file.relPath), () => onCloseTab(id))) {
+          onTabChange(id);
+          return;
+        }
+        onCloseTab(id);
+      }}
     />
   );
 }

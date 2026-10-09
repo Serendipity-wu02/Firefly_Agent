@@ -70,6 +70,11 @@ export interface AgentRunInput {
  * 新增成员前优先考虑合并语义相近的通知。
  */
 export interface AgentRunHost {
+  /** Completion is delivered only by the matching successful plan run. */
+  completePlan?(sessionId: string, planPath: string, runId: string): void;
+  bindPlanAttempt?(sessionId: string, assistantId: string): void;
+  bindPlanRun?(sessionId: string, runId: string): void;
+  failPlan?(sessionId: string, runId: string | undefined, phase: "failed" | "cancelled"): void;
   /** 消息视图补丁：流式内容、推理块、工具执行记录等全部经此写入。 */
   patchMessage(sessionId: string, messageId: string, patch: Partial<ChatMessageItem>): void;
   /** 展示 composer 交互卡（审批请求 / ask 选择卡）。 */
@@ -210,8 +215,10 @@ export class AgentRunController {
 
   /** 启动并完整跑完一轮 run（从派发请求到终态落盘）。 */
   async start(): Promise<void> {
+    this.deps.host.bindPlanAttempt?.(this.input.sessionId, this.input.assistantId);
     const { api, store } = this.deps;
     if (!api || !store) {
+      this.failPlan("failed");
       const visibleError = t("chatPage.errorModelServiceNotReady");
       this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, {
         content: visibleError,
@@ -302,6 +309,7 @@ export class AgentRunController {
         [this.input.sessionId]: checkpointTrigger,
       };
       if (ack.runId) {
+        this.deps.host.bindPlanRun?.(this.input.sessionId, ack.runId);
         for (const accepted of eventGate.bind(ack.runId)) this.handleEvent(accepted);
       }
       // run 已被主进程接受：认领派发的消息确认派发完成，清除 pendingDispatch。
@@ -376,6 +384,7 @@ export class AgentRunController {
     } catch (error) {
 
       this.terminalStatus = this.terminalStatus ?? "runtime_error";
+      if (!this.terminalReceived) this.failPlan("failed");
       this.completeRunActivity(true);
       const errorMessage = error instanceof Error ? error.message : String(error);
       // 会话守卫冲突：主进程拒绝了并发 run（典型场景：F5 后立即发消息）。
@@ -805,8 +814,28 @@ export class AgentRunController {
   }
 
   /** AG-UI 事件归约：流式内容、推理、工具、交互卡与终态全部在此处理。 */
+  private failPlan(phase: "failed" | "cancelled") {
+    const activeRun = this.deps.registries.activeRuns.current[this.input.sessionId];
+    if (this.runAccepted && activeRun && activeRun.assistantId !== this.input.assistantId) return;
+    const runId = activeRun?.assistantId === this.input.assistantId ? activeRun.runId : undefined;
+    this.deps.host.failPlan?.(this.input.sessionId, runId, phase);
+  }
+
   private handleEvent(event: AguiEvent) {
     if (this.terminalReceived) return;
+    if (event.type === "CUSTOM" && event.name === "firefly.plan.completed") {
+      const value = event.value as { runStatus?: unknown; planPath?: unknown } | null | undefined;
+      const activeRun = this.deps.registries.activeRuns.current[this.input.sessionId];
+      if ((this.input.targetMode === "code" || this.input.targetMode === "chat")
+        && event.threadId === this.input.sessionId
+        && event.runId === activeRun?.runId
+        && activeRun?.assistantId === this.input.assistantId
+        && value?.runStatus === "completed"
+        && typeof value.planPath === "string" && value.planPath) {
+        this.deps.host.completePlan?.(this.input.sessionId, value.planPath, event.runId!);
+      }
+      return;
+    }
     if(event.type==="CUSTOM"&&event.name==="firefly.sResponse"){
       this.controlledSResponse=true;return;
     }
@@ -1102,6 +1131,7 @@ export class AgentRunController {
       // 读取 result.status 区分终态（success / cancelled / timeout / runtime_error）
       const result = (event as { result?: { status?: string } }).result;
       this.terminalStatus = result?.status;
+      if (this.terminalStatus !== "success") this.failPlan(this.terminalStatus === "cancelled" ? "cancelled" : "failed");
       if (this.terminalStatus !== "success") {
         this.revealCancelled = true;
         this.abortCandidateReveal();
@@ -1114,6 +1144,7 @@ export class AgentRunController {
       }
       this.resolveTerminal();
     } else if (event.type === "RUN_ERROR") {
+      this.failPlan("failed");
       this.ensureWorkReadReport();
       this.terminalReceived = true;
       this.revealCancelled = true;

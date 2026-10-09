@@ -188,6 +188,7 @@ export async function runHarnessWithAdapter(
     threadId,
     runId,
     runStatus: terminalRunStatus,
+    planState,
     signal,
     send: sendBaseEvent,
   });

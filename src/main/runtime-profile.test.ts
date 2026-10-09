@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveRuntimeProfile, applyElectronPaths } from "./runtime-profile";
+import { resolveRuntimeProfile, applyElectronPaths, assertRuntimePathsOwned } from "./runtime-profile";
 import { createStorageContext, getStorageContext } from "./storage-context";
 
 const roots: string[] = [];
@@ -65,6 +65,23 @@ describe("runtime profile boundary", () => {
     const alias = path.join(outer, "alias");
     fs.symlinkSync(request.productionAppData, alias, "junction");
     expect(() => resolve({ ...request, argv: ["--firefly-profile=smoke", `--firefly-isolation-root=${alias}`] })).toThrow("FIREFLY_RUNTIME_PRODUCTION_OVERLAP");
+  });
+  it("pins the canonical isolation root when the supplied directory alias is retargeted", () => {
+    const isolation = temporary();
+    const foreign = temporary();
+    const alias = path.join(temporary(), "alias");
+    fs.symlinkSync(isolation, alias, "junction");
+    const profile = resolveRuntimeProfile(input("test", alias));
+    expect(profile.isolationRoot).toBe(fs.realpathSync.native(isolation));
+    expect(Object.isFrozen(profile)).toBe(true);
+
+    fs.unlinkSync(alias);
+    fs.symlinkSync(foreign, alias, "junction");
+    const context = createStorageContext(profile);
+    expect(context.configRoot).toBe(path.join(fs.realpathSync.native(isolation), "Firefly-test"));
+    expect(() => assertRuntimePathsOwned(profile, [path.join(alias, "escaped.json")])).toThrow("FIREFLY_RUNTIME_PATH_ESCAPE");
+    expect(fs.readdirSync(isolation)).toEqual([]);
+    expect(fs.readdirSync(foreign)).toEqual([]);
   });
   it.runIf(process.platform === "win32")("rejects raw Windows 8.3 and canonical aliases of the same production directory", ({ skip }) => {
     const fixtureRoot = temporary();
@@ -129,6 +146,27 @@ describe("Electron application boundary", () => {
     const setPath = vi.fn();
     expect(() => apply({ setName: vi.fn(), setPath, setAppLogsPath: vi.fn(), getPath: vi.fn() }, profile)).toThrow("FIREFLY_RUNTIME_PATH_ESCAPE");
     expect(setPath).not.toHaveBeenCalled();
+  });
+  it("rejects replacement of the trusted root itself before any Electron or storage write", () => {
+    const parent = temporary();
+    const isolation = path.join(parent, "isolation");
+    fs.mkdirSync(isolation);
+    const profile = resolveRuntimeProfile(input("test", isolation));
+    const foreign = temporary();
+    const sentinel = path.join(foreign, "sentinel.txt");
+    fs.writeFileSync(sentinel, "outside-original");
+    const retained = path.join(parent, "retained");
+    fs.renameSync(isolation, retained);
+    fs.symlinkSync(foreign, isolation, "junction");
+    const app = { setName: vi.fn(), setPath: vi.fn(), setAppLogsPath: vi.fn(), getPath: vi.fn() };
+
+    expect(() => assertRuntimePathsOwned(profile, [profile.userData])).toThrow("FIREFLY_RUNTIME_PATH_ESCAPE");
+    expect(() => createStorageContext(profile)).toThrow("FIREFLY_RUNTIME_PATH_ESCAPE");
+    expect(() => applyElectronPaths(app, profile)).toThrow("FIREFLY_RUNTIME_PATH_ESCAPE");
+    for (const method of Object.values(app)) expect(method).not.toHaveBeenCalled();
+    expect(fs.readdirSync(retained)).toEqual([]);
+    expect(fs.readdirSync(foreign)).toEqual(["sentinel.txt"]);
+    expect(fs.readFileSync(sentinel, "utf8")).toBe("outside-original");
   });
   it("guards StorageContext before initialization", () => {
     const getContext = getStorageContext;

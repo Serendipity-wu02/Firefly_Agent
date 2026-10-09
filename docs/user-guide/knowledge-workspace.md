@@ -132,7 +132,7 @@ updatedAt: 2026-08-06T12:34:56.000Z
 ## 五、安全 & 隐私说明
 
 - Vault 文件保存在本机；本文的路径限制针对 Obsidian 专用工具，不代表应用其他工具都被限制在该目录，模型请求仍会发送相关上下文。
-- Obsidian 专用工具校验 Vault 相对路径、已有目标的真实路径并拒绝 `.obsidian/` 等内部目录；这不是本轮完成的全面安全验证。
+- Obsidian 专用工具校验 Vault 相对路径、已有目标的真实路径并拒绝 `.obsidian/` 等内部目录；这些局部约束不构成全面安全验证。
 - 六个工具为 `obsidian_list_files`、`obsidian_search`、`obsidian_read_file`、`obsidian_read_section`、`obsidian_edit`、`obsidian_open_note`；每次操作独立校验当前运行绑定的 Vault。写入使用 `fs-write` 审批策略，打开笔记保留 `network` 风险分类。
 - `obsidian_edit` 修改已有文件要求 `expectedContentHash`；缺失或与读取后变化的文件不一致时拒绝写入，`create` 拒绝覆盖已有文件。该机制不保证模型选择的内容或章节正确。
 

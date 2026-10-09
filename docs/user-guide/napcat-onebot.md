@@ -1,6 +1,6 @@
 # QQ / NapCat（OneBot 11）接入教程
 
-本指南说明 Firefly 的 NapCat 接入。2026-09-26 已按本地 OneBot 适配器核对；NapCat 下载包名称、安装器、WebUI 与账号登录流程未作本轮实机核验，下列外部安装步骤保留作对照，不作为已验证的最新版安装保证。
+本指南说明 Firefly 的 NapCat 接入。2026-09-26 已按本地 OneBot 适配器核对；NapCat 下载包名称、安装器、WebUI 与账号登录流程未作实机核验，下列外部安装步骤保留作对照，不作为已验证的最新版安装保证。
 
 ---
 
@@ -30,7 +30,7 @@ QQ 好友/群 ── QQ 服务器 ── NapCat（登录你的机器人QQ号） 
 
 ### 方式 A：NapCat.Shell（推荐，需要装 QQ）
 
-1. 前往 [NapCatQQ 的 Releases 页面](https://github.com/NapNeko/NapCatQQ/releases)，下载最新的 `NapCat.Shell.zip` 并解压（比如解压到 `D:\NapCat`）
+1. 前往 [NapCatQQ 的 Releases 页面](https://github.com/NapNeko/NapCatQQ/releases)，下载最新的 `NapCat.Shell.zip` 并解压（目录位置由用户选择）
 2. 确保 **QQ（NT 版）已安装**且为最新版本（没装就去 [im.qq.com](https://im.qq.com/) 装一个）
 3. 双击解压目录里的 `launcher.bat` 启动（Windows 10 用 `launcher-win10.bat`）
 

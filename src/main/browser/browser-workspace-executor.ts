@@ -15,9 +15,17 @@ export function createBrowserWorkspaceExecutor(options: {
     if (signal?.aborted) return { ok: false, code: "cancelled" };
     if (!owner || !conversationId || !runId || !(signal instanceof AbortSignal) || owner.conversationId !== conversationId
       || owner.signal.aborted || !options.isRunCurrent(conversationId, runId)) return { ok: false, code: "owner_mismatch" };
-    return options.service().executeAgent(owner, command, {
+    const result = await options.service().executeAgent(owner, command, {
       conversationId, runId, signal,
       isCurrent: () => !signal.aborted && !owner.signal.aborted && options.currentOwner() === owner && options.isRunCurrent(conversationId, runId),
     });
+    if (!result.ok) return result;
+    const value = result.value;
+    // A manual workspace page can never become Agent authority, even if a
+    // composed service mistakenly returns one across the shared DTO boundary.
+    if (value && ("workspaceId" in value || ("conversationId" in value && value.conversationId !== conversationId))) {
+      return { ok: false, code: "owner_mismatch" };
+    }
+    return { ok: true, value };
   };
 }

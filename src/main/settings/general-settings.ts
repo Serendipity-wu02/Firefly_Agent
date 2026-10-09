@@ -95,7 +95,7 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   /** 发件人显示名（可选） */
   emailFromName: string;
   /** 🎧ASR 服务商：off(关闭) | aliyun(阿里云) | mossland(MOSI) | local(本地,占位) */
-  /** Internal channel ASR credential; desktop speech settings are retired. */
+  /** Shared ASR credential for explicit desktop dictation and channel audio transcription. */
   asrMosslandKey: string;
   asrEngine: "off" | "aliyun" | "mossland" | "local";
   /** 阿里云智能语音交互 AppKey */

@@ -21,6 +21,13 @@ it("exposes snapshot reads and removes the exact connection event listener", asy
   for (const listener of fixture.listeners.get("model-connection:changed") ?? []) listener({}, snapshot);
   expect(seen).toHaveLength(1);
 });
+it("binds browser cleanup to its conversation while preserving explicit current-owner revocation", async () => {
+  const api = fixture.exposed.get("manualBrowser");
+  await api.revokePermission("s");
+  expect(fixture.invoke).toHaveBeenLastCalledWith("browser:permission", { kind: "revoke", conversationId: "s" });
+  await api.revokePermission();
+  expect(fixture.invoke).toHaveBeenLastCalledWith("browser:permission", { kind: "revoke" });
+});
 it("preserves sidebar settings and schedule actions for Chat and Tasks", () => {
   const sidebar = fixture.exposed.get("sidebar"); sidebar.openSettings("api"); sidebar.openTasks();
   expect(fixture.send.mock.calls).toEqual([["sidebar:open-settings", "api"], ["sidebar:open-tasks"]]);

@@ -1,69 +1,49 @@
-# Trusted resolver shared integration checkpoint
+# 可信 Resolver 共享接线验证
 
-Resolver commit `cc874dfac7ec2b60051f84aa1491f8e31217edcb` was integrated as
-`5bfa4464a96ba154c32a3105a4b0744224f98243` after clean `16385aa`. The sole conflict
-was two imports in browser-service-ipc.ts: both shared IPC constants and the
-one-time certificate refusal helper are retained. Normal Main now uses the small
-startup composition described in [the resolver contract](../architecture/browser-trusted-resolver.md).
+> 记录日期：2026-10-05
+> 文档整理：2026-10-07；保存历史集成结果，未重新运行。
+> 历史结论：共享路径的匿名 HTTPS/UI 有限验收通过；生产 gate 仍关闭。
+> 适用边界：以上与下文均指记录阶段，不代表当前产品状态；历史 gate/HOLD 不作为当前启用判定。
 
-The complete ordinary suite after current Main integration is **646 files,
-6526 passed /2 existing skips, exit0** (`resolver-final-full.log` in the original
-E evidence directory). The owner branch's14 inherited H failures are not waived:
-this run uses the original exact H TEMP/helper prerequisites and verified Git Bash.
-Browser direct regression:14 files/287 passed. Main official noEmit and isolated
-emit passed; the new startup tests' strict type check passed. Unchanged shared,
-preload and renderer retain their earlier formal checks/builds. Production dist
-and the already running isolated candidate are preserved; no clean/build of
-production dist occurred. Native H12/12 remains a separate existing acceptance.
+## 1. 背景与接线边界
 
-The owned E native probe `r5` exited0 with actual anonymous example.com/GitHub
-navigation through selected DNS192.168.31.1, numeric TCP and normal original-host
-Chromium TLS. Expired.badssl failed with ERR_CERT_DATE_INVALID; no TLS override
-or system resolver/TUN/proxy/certificate change was introduced. The actual shared
-UI/preload/IPC path then passed24 cases/9 screenshots across Chat/Work/Code
-welcome/existing, resize, tab detach/restore, close/reopen and inspector revoke,
-with9 observed GET requests and no renderer errors. Trusted visible/focused host
-ports are synthetic for this geometry test; actual host focus stayed false with
-zero focus events. Public transport is real; OS foreground/tray is not certified.
-The initial public UI failure was an outdated page-content assertion, not network
-failure: requests were allowed, no native failure occurred, and the observed
-multilingual IANA page differed from the former heading. Its RED evidence is kept.
+Main 采用[Resolver 契约](../architecture/browser-trusted-resolver.md)中的小型启动装配。`browser-service-ipc.ts` 同时保留 shared IPC constants 与 one-time certificate refusal helper。以下事实仅适用于该阶段被验证的集成版本。
 
-Extended `r8` exited0,17 recorded cases and no errors. `r6` timed out observing an
-unloaded CDP target; `r7` correctly reported that the destroyed original-origin
-frame was unavailable to DOMStorage. Both failures are retained. Final storage
-readback is explicitly a fixed local protocol fixture at the original origin,
-allowed only to a newly Main-created observer after ordinary old guests were
-destroyed and worker count was zero. Every other old-session request remains
-denied; the observer restores deny-all and destroys itself. It does not prove
-TLS or revive any old service capability. Actual old-session localStorage0,
-IndexedDB[],CacheStorage[],cookie0,cache0 and worker0 were observed.
+## 2. 测试与原生结果
 
-## N1–N10 evidence boundary
+- 完整普通套件：646 files，6526 passed / 2 existing skips，exit 0。使用原历史 fixture 要求的精确 TEMP/helper 与已核验 Git Bash。此前独立模块运行的 14 项 TEMP 失败未被豁免，此通过来自不同且明确的运行条件。
+- Browser 定向回归：14 files / 287 passed。Main 官方 noEmit、隔离 emit 与 startup tests 严格类型通过。未变更的 shared/preload/renderer 沿用较早正式检查/build；原生 H 12/12 是独立既有验收，不混入普通测试。
+- `r5` native exit 0：example.com/GitHub 匿名导航经选定 DNS `192.168.31.1`、数值 TCP、原 hostname Chromium 正常 TLS 成功；expired.badssl 以 `ERR_CERT_DATE_INVALID` 拒绝。未改系统 resolver/TUN/proxy/certificate 或放行 TLS。
+- 实际 shared UI/preload/IPC：24 cases / 9 screenshots，覆盖 Chat/Work/Code 欢迎页与已有会话、resize、tab detach/restore、close/reopen、inspector revoke；观察到 9 个 GET，无 renderer errors。visible/focused host ports 是几何测试合成输入，真实 host focus=false、focus events=0。公网传输真实，OS foreground/tray 未认证。
+- 初始公开 UI RED 是过时页面内容断言：请求已允许，无 native failure；实际 IANA 多语言页面与旧 heading 不同。保留失败，不解释为网络故障。
 
-| Gate | Current evidence | Remaining native gap |
-|---|---|---|
-| N1 | Actual IPC denies IPv4/IPv6 loopback, link-local, fake-IP without extra guest allocation; complete-answer address regressions pass. | Full Windows interface/bypass sink coverage. |
-| N2 | Fixed authenticated proxy route, native load failure paths and retirement denial; ordinary no-fallback tests pass. | Actual proxy-failure/direct-fallback origin instrumentation across all transports. |
-| N3 | Actual native proxy authentication; existing real CONNECT wrong/missing/stale/foreign credential regressions pass. | Complete hostile native Session/challenge matrix. |
-| N4 | Independent A/AAAA DNS, native public TCP/default TLS; actual renderer resolver forgery denied; mixed/fake/mapped and peer-mismatch regressions pass. | Full native redirect/reconnect/rebinding fault matrix. |
-| N5 | Native HEAD200; actual POST/PUT/DELETE/beacon/WSS hooks deny against reserved .invalid targets, without public writes. | Full native iframe/dedicated/shared/SW HTTPS request matrix. |
-| N6 | Actual owner switch destroys old guest, blocks late fetch, creates fresh Session; precise cancellation/late-resource regressions pass. | All native DNS/CONNECT/open-tunnel timing windows. |
-| N7 | Actual RTCPeerConnection/WebTransport with preflight-verified owned IPv4 UDP/TCP sinks: no additional STUN/TURN-TCP/transport traffic. | IPv6/public/all-interface QUIC/HTTP3/WebTransport/WebRTC packet evidence; bounded sinks are not global egress proof. |
-| N8 | Native microphone NotAllowedError, notifications denied, geolocation code1; expired cert refused once and no Firefly preload/Node. | All native device/download/client-cert/site-login denial paths. |
-| N9 | Actual seeded localStorage/IDB/CacheStorage/cookie erased on old Session; cache/worker0; new owner receives fresh Session. | Controlled trusted HTTPS SW install/update/late-writer lifecycle; the storage observer is a local fixture. |
-| N10 | Existing coordinator quiesce/dispose then actual before-quit/will-quit/quit after cleanup and native exit0. | Native cleanup failure/timeouts in every shutdown phase and platform shutdown variants. |
+## 3. 扩展存储观察与失败证据
 
-**Production gate remains closed.** These results do not authorize a production
-restart or reduce the accepted N1–N10 gate. A future controlled trial must carry
-the current explicit Main DNS selection and await the remaining evidence; no
-renderer/config/URL field may enable it. Voice/TTS and table-prop changes are
-separate subsequent commits. Streaming/model semantic owner files remain untouched.
+`r8` exit 0，17 cases，errors 空。`r6` 因 unloaded CDP target 观察超时；`r7` 正确报告原 origin frame 已销毁、DOMStorage 不可用，两者失败均保留。
 
-Local raw evidence is `E:/Codex/2026-10-03/task-10/browser-resolver-integration-20261005`;
-ordinary/build/RED/GREEN receipts are in the earlier `browser-integration-20261005`
-directory. Selected reproducible native scripts/receipts and public UI summary
-are archived in [fixtures/browser-resolver-shared-integration](fixtures/browser-resolver-shared-integration).
-Screenshots stay only in E and are not uploaded or tracked. External Codex post-correction review has not been run. The prior request was
-rejected before process launch and was not retried; explicit payload approval
-is still pending. Local review is supplementary and is not a built-in review.
+最终读回使用原 origin 上的固定 local protocol fixture：旧 guest 全销毁且 worker=0 后，才允许新的 Main-created observer 访问。其余旧 Session 请求持续拒绝；observer 结束后恢复 deny-all 并自毁。实际观察旧 Session localStorage=0、IndexedDB=[]、CacheStorage=[]、cookie=0、cache=0、worker=0。此夹具不证明 TLS，也不恢复旧服务能力。
+
+## 4. N1–N10 证据边界
+
+| 门槛 | 该阶段证据 | 剩余原生缺口 |
+| --- | --- | --- |
+| N1 | IPC 拒绝 IPv4/IPv6 loopback、link-local、fake-IP，无额外 guest；完整答案分类回归通过 | 全 Windows 接口/bypass sink 覆盖 |
+| N2 | fixed authenticated proxy 路由、native load failure、retirement 拒绝和普通 no-fallback 测试 | 跨 transport 的 proxy failure/direct fallback origin 观测 |
+| N3 | 实际 native proxy auth；真实 CONNECT wrong/missing/stale/foreign credential 回归 | 完整 hostile native Session/challenge 矩阵 |
+| N4 | 独立 A/AAAA、native 公网 TCP/default TLS、renderer resolver forgery 拒绝；mixed/fake/mapped/peer mismatch 回归 | native redirect/reconnect/rebinding 故障矩阵 |
+| N5 | native HEAD 200；POST/PUT/DELETE/beacon/WSS 对 `.invalid` 的实际 hook 拒绝，无公网写入 | iframe/dedicated/shared/SW HTTPS 完整请求矩阵 |
+| N6 | owner switch 销毁旧 guest、拒绝迟到 fetch、新 Session；精确取消/迟到资源回归 | 全部 native DNS/CONNECT/open-tunnel 时序窗口 |
+| N7 | RTCPeerConnection/WebTransport 对自有 IPv4 UDP/TCP sink 无额外流量，只有 Node preflight 正例 | 缺同 native probe 合格正例；这些零计数仅是观察，IPv6/公网/全接口 QUIC/HTTP3/WebTransport/WebRTC 未闭合 |
+| N8 | microphone `NotAllowedError`、notifications denied、geolocation code 1；过期证书只拒绝一次；无 Firefly preload/Node | 所有 native device/download/client-cert/site-login 拒绝路径 |
+| N9 | 已 seed localStorage/IDB/CacheStorage/cookie 清空，cache/worker 0，新 owner 新 Session | 受控可信 HTTPS SW install/update/late-writer；observer 为本地夹具 |
+| N10 | coordinator quiesce/dispose 后实际 before-quit/will-quit/quit 和 exit 0 | 各阶段 native cleanup failure/timeout 与系统退出变体 |
+
+N7 的历史零计数资格已由后续[UDP 诊断](browser-udp-diagnostic.md)明确修正；不能从 Node preflight 推导 Chromium 正例合格。后续独立 TCP/UDP 证据也不得倒填为 r8 当时结果。
+
+## 5. 证据与后续验收要求
+
+部分原始日志及 9 张截图仅存于当时仓库外的专用证据目录，未上传或纳入版本控制。选定可复现 native 脚本、退出记录和 public UI summary 见[fixtures](fixtures/browser-resolver-shared-integration)。仓库链接不表示外部日志/截图当前可用。
+
+生产 dist 与原有隔离候选当时保留，未执行生产 clean/build。Voice/TTS、table-prop 与 streaming/model semantic 变更为其他阶段。任何后续受控试用必须保留显式 Main DNS 选择并补齐剩余门槛，renderer/config/URL 字段不能启用生产。
+
+外部 Codex 修正后审查未运行：请求在启动前被拒绝，未换路由或重试；需要单独明确的代码/日志发送授权。本地只读审查仅作补充，不等价于外部内置审查。

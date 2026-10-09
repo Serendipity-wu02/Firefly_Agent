@@ -1,10 +1,12 @@
 # npm audit 修复与残余风险（2026-09-26）
 
-> 历史记录：本文保留截至提交 `890bc61` 的依赖修复快照，包括当时 `extract-zip` 的 1 high、审计退出码及测试结果。后续工作树改用 `yauzl@3.4.0` 与 `src/shared/zip-extraction.ts`，不改写下文旧结论；当前接入和最终验证状态见 [README](../../../README.md)。本文不是当前依赖审计或安全认证。
+> **日期**：2026-09-26
+> **状态**：历史技术记录。下文描述记录时的实现、设计与验证结论，不代表当前版本复测。
+> **范围**：逐包漏洞处置及保留的 extract-zip 风险。当前维护入口见[文档导航](../../README.md)。
 
 ## 范围与结果
 
-基线：`d8757969ab97b49f250fdcead2be2a0723191d3d`，分支 `firefly-mini-v1.1.x`。仅处理依赖安全与直接相关解压入口；不提交、不推送，不修改原两个项目或用户配置。
+范围为依赖安全更新与直接相关的解压入口，采用修补前后的锁文件作为比较基线；外部来源项目和用户配置不在修改范围内。
 
 CI 的 **28 项（1 critical、13 high、14 moderate）是生产依赖口径**。本轮完整审计包含开发依赖，为 **33 项（3 critical、16 high、14 moderate）**。修复后完整与生产两种审计均为 **1 high、0 critical、0 moderate**，退出码仍为 **1**。该 1 项包包含两份 extract-zip advisory，不是“一项测试失败”。传播型包统计不是独立攻击路径数量。
 
@@ -232,9 +234,9 @@ CI 的 **28 项（1 critical、13 high、14 moderate）是生产依赖口径**�
 - 最终 full/prod audit：均退出 1，仅 extract-zip high。
 - 定向 Vitest：5 文件 / 33 测试通过；含 ONNX、Sharp、ExcelJS、恶意 ZIP、迁移及插件安装。
 - MinGit node:test：3 通过，0 跳过。
-- 完整测试一次：514 文件，513 通过、1 文件失败；4428 测试通过、1 失败、1 跳过，224.01 秒。唯一失败是环境未提供 FIREFLY_TEST_BASH，执行前已由测试主动拒绝；不是被测命令返回错误。按实际发现的 E:\Git\bin\bash.exe 设置本次进程环境后，该文件 2/2 通过（0.973 秒）。没有将两次结果伪写为“一次全量全通过”。
+- 完整测试一次：514 文件，513 通过、1 文件失败；4428 测试通过、1 失败、1 跳过，224.01 秒。唯一失败是环境未提供 FIREFLY_TEST_BASH，执行前已由测试主动拒绝；不是被测命令返回错误。按实际检测到的 Git Bash 可执行文件设置该验证进程的 FIREFLY_TEST_BASH 后，该文件 2/2 通过（0.973 秒）。没有将两次结果伪写为“一次全量全通过”。
 - differential-review 追加代理回归并核对跳过项：3 文件、31 通过、1 跳过（5.48 秒）。跳过为插件面板真实文件 symlink 测试，当前 Windows 无创建符号链接权限；已知 ZIP 攻击测试不依赖该权限且已通过。
 - npm run check:renderer、npm run build（Main/Preload tsc、CLI、Vite）、npm run check:plugin-schema 均退出 0。Vite 保留大 chunk 警告，未调宽阈值。npm ls --depth=0 与 git diff --check 退出 0。
 - 没有 lint script；不新增工具或伪称执行 lint。
 - 真实 SMTP、飞书、模型推理、安装器和运行应用未实测；不修改用户设置。
-- 证据在仓库外 `E:\Codex\Firefly-npm-audit-20260926`：before-all.json、triage.json、final-all.json、final-prod.json、各验证日志。日志不作为提交文件。
+- 证据保存在仓库外 2026-09-26 依赖审计归档，包括：before-all.json、triage.json、final-all.json、final-prod.json、各验证日志。日志不属于源码或发布产物。

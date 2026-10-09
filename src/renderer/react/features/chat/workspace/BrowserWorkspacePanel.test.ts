@@ -7,7 +7,7 @@ import { BrowserWorkspacePanel, type BrowserWorkspaceLabels } from "./BrowserWor
 
 const labels: BrowserWorkspaceLabels = {
   panel: "浏览器", address: "网页地址", go: "打开网页", back: "后退", forward: "前进",
-  reload: "刷新", close: "关闭网页", loading: "正在加载", blocked: "页面访问受阻",
+  reload: "刷新", stop: "停止加载", close: "关闭网页", loading: "正在加载", blocked: "页面访问受阻",
   loadFailed: "页面加载失败", closed: "网页已关闭", viewport: "网页区域", empty: "输入网页地址以开始浏览",
 };
 
@@ -50,6 +50,14 @@ afterEach(() => {
 });
 
 describe("manual BrowserWorkspacePanel with injected callbacks", () => {
+  it("offers stop after navigation begins and retains close during network initialization", () => {
+    page = { ...page, loading: true, requestId: 1 }; renderPanel();
+    expect(findButton(labels.stop).disabled).toBe(false);
+    expect(host.querySelector(`button[aria-label="${labels.reload}"]`)).toBeNull();
+    act(() => findButton(labels.stop).click()); expect(onCommand).toHaveBeenCalledExactlyOnceWith("stop");
+    page = { ...page, requestId: 0 }; renderPanel();
+    expect(findButton(labels.stop).disabled).toBe(true); expect(findButton(labels.close).disabled).toBe(false);
+  });
   it("keeps all navigation blocked when the production consumer marks it unavailable", () => {
     address = "https://example.com";
     page = { ...page, url: address, canGoBack: true, canGoForward: true };
@@ -60,6 +68,16 @@ describe("manual BrowserWorkspacePanel with injected callbacks", () => {
     expect(onNavigate).not.toHaveBeenCalled(); expect(onCommand).not.toHaveBeenCalled();
     expect(findButton(labels.close).disabled).toBe(false);
   });
+  it("allows an explicit address proposal while keeping ungranted history unavailable", () => {
+    address = "https://docs.example/path";
+    page = { ...page, url: "https://old.example/", canGoBack: true, canGoForward: true };
+    act(() => root.render(createElement(BrowserWorkspacePanel, { page, address, labels, onAddressChange, onNavigate, onCommand, onClose, navigationAvailable: false, addressAvailable: true })));
+    expect(findButton(labels.go).disabled).toBe(false);
+    for (const label of [labels.back, labels.forward, labels.reload]) expect(findButton(label).disabled).toBe(true);
+    act(() => findButton(labels.go).click());
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith(address);
+  });
+
   it("has labelled controls and disables unavailable history and reload", () => {
     renderPanel();
     expect(host.querySelector("input")?.getAttribute("aria-label")).toBe(labels.address);

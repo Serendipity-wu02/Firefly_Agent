@@ -39,3 +39,55 @@ export function registerBrowserHostOwner<S extends object>(options: { host: Brow
   const offDeleted = options.targets.onSessionDeleted(id => { deleted.add(id); if (owner?.conversationId === id) invalidate(); });
   return Object.freeze({ refresh, resolveOwner, getCurrentOwner() { refresh(); return owner; }, dispose() { if (disposed) return; disposed = true; invalidate(); offInvalidation(); offDeleted(); offHost(); } });
 }
+
+/** A manual workspace needs no chat target. Only native window/frame lifetime owns it. */
+export function registerManualBrowserHostOwner<S extends object>(options: {
+  host: BrowserHostPort; profile: object; service: ReturnType<typeof createBrowserService<S>>;
+}) {
+  const contents = options.host.webContents;
+  let owner: TrustedBrowserOwner | null = null, cancellation: AbortController | undefined;
+  let generation = 0, disposed = false, navigating = false;
+  function invalidate(): void {
+    const previous = owner; owner = null; cancellation?.abort();
+    if (previous) options.service.revoke(previous);
+  }
+  function refresh(): void {
+    if (disposed || navigating) return;
+    try {
+      if (options.host.isDestroyed() || contents.isDestroyed()) { invalidate(); return; }
+      if (owner?.topFrame === contents.mainFrame && !owner.signal.aborted) return;
+      invalidate(); cancellation = new AbortController();
+      owner = Object.freeze({ host: options.host, topFrame: contents.mainFrame, profile: options.profile,
+        conversationId: null, workspaceId: randomUUID(), ownerSessionId: randomUUID(),
+        generation: generation++, signal: cancellation.signal });
+    } catch { invalidate(); }
+  }
+  function resolveOwner(event: BrowserInvokeEvent): TrustedBrowserOwner | null {
+    try {
+      if (disposed || navigating || event.sender !== contents || event.senderFrame !== contents.mainFrame) return null;
+      refresh(); return owner;
+    } catch { invalidate(); return null; }
+  }
+  const offHost = options.service.registerHost(options.host, resolveOwner);
+  // Electron passes a details event first; the positional (url, isInPlace, isMainFrame)
+  // arguments are deprecated. Prefer details and fall back so removal cannot silently skip revocation.
+  const onNavigation = (...args: unknown[]) => {
+    const details = args[0] as { isMainFrame?: unknown; isSameDocument?: unknown } | null | undefined;
+    const isMainFrame = typeof details?.isMainFrame === "boolean" ? details.isMainFrame : args[3] === true;
+    const isSameDocument = typeof details?.isSameDocument === "boolean" ? details.isSameDocument : args[2] === true;
+    if (isMainFrame && !isSameDocument) { navigating = true; invalidate(); }
+  };
+  const onLoaded = () => { navigating = false; };
+  const onCrash = () => { navigating = true; invalidate(); };
+  function dispose(): void {
+    if (disposed) return; disposed = true; invalidate();
+    contents.removeListener("did-start-navigation", onNavigation); contents.removeListener("did-finish-load", onLoaded);
+    contents.removeListener("render-process-gone", onCrash);
+    contents.removeListener("destroyed", dispose); options.host.removeListener("closed", dispose); offHost();
+  }
+  contents.on("did-start-navigation", onNavigation); contents.on("did-finish-load", onLoaded);
+  contents.on("render-process-gone", onCrash);
+  contents.on("destroyed", dispose); options.host.on("closed", dispose);
+  return Object.freeze({ resolveOwner, getCurrentOwner() { refresh(); return owner; }, dispose });
+}
+

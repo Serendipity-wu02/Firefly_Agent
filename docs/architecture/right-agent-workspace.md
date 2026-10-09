@@ -1,93 +1,92 @@
-# Firefly 右侧代理工作区：两步交付设计
+# Firefly 右侧代理工作区架构与变更边界
 
-日期：2026-10-04。工作树基线：`50cc50be3d6e51c616c41ba5d2b6e86dd7b626aa`；共享审阅对照整合 `c1735ec4a90980332d1745f0c86034bdba55f374`。后者相较本基线仅音乐/日程头像五文件差异，不更改本设计边界；未将其它分支结果冒充本主线验证。
+- **设计日期**：2026-10-04
+- **状态**：首版范围与来源语义设计；浏览器部分已有后续实现，本文保留契约演进边界
+- **源码核对日期**：2026-10-07，仅核对相关浏览器入口，不构成新测试结果
+- **结论**：工作区复用现有 Inspector；Main 持有浏览器权限和真实输出证据，renderer 负责受限交互与展示。
 
-## 授权与当前状态
+## 1. 背景与分阶段范围
 
-用户已对“两步交付”的建议回复“可以的”：首版是基础浏览器、当前工作区文件/Diff 预览、真实输出来源摘要、重命名/置顶；日程窗口独立。第二步再讨论登录教务、代理点击/输入及下载。
+原设计按两步提供聊天旁工作区。首版限定用户手动公共网页、当前工作区文件/Diff 预览、真实输出来源摘要和既有重命名/置顶；登录教务、代理点击/输入和下载另行设计。日程独立窗口、任务会话绑定和无 backend 契约的会话操作不属于该首版。
 
-这确认了功能范围，不等于批准尚待 review 的网络代理、安全机制或共享文件接线。父另明确批准独立纯 renderer 状态机 TDD 与实现；该部分已完成加载/错误/关闭状态及测试，不接网络。浏览器服务和新安全机制仍未实现，共享接线未改，ignored 草稿未强制添加。
+该范围是历史设计约束，不应被用来否认后续已实现的浏览器能力。当前源码已存在 BrowserService、原生 WebContentsView、共享 IPC/preload、宿主与导航路由，并包含 manual/agent permission grant 路径。具体实现见[服务接线](browser-service-integration.md)；本文中的历史候选签名不取代 `src/shared/manual-browser.ts` 和 `src/main/browser/browser-service.ts`。
 
-工作树复用 `E:\Codex\2026-10-04\task-4\audit-r3-r4`，分支 `feat/right-agent-workspace`。旧 R3/R4 完整成果保留在 `fix/audit-r3-r4`，提交 `5bd8b920fd6da88f32fbdad622bddf92d2a9ec28`。不另建工作树或修改原仓库。共享依赖位于 E 盘当前 Firefly 仓库：Electron 43.1.0、React 19.3.0、TypeScript 5.9.3、Vitest 4.1.11；复用、不复制、不启用 C 盘缓存。
+| 首版能力 | 设计验收目标 |
+| --- | --- |
+| 手动公共网页 | 可见网页、地址栏、前进/后退/刷新、加载/错误/受阻状态及关闭 |
+| 文件与 Diff | 沿用文件树、文本/代码/Markdown、行号、Diff 和计划标签，限当前会话工作区 |
+| 输出来源摘要 | 从完整工具结果提取结构化证据，保留真实 outcome，长预览不丢来源 |
+| 会话操作 | 重命名、置顶复用已有接口，不建立第二套会话存储 |
 
-## 首版交付与排除范围
+首版不设计持久登录、凭据存储、文件上传、付款或通用执行通道；不新增 Office/PDF/可执行 HTML 查看器、任意路径读取和外部单文件打开。没有 backend 契约的 fork、side-chat、archive、分享或独立会话窗口不得显示假操作入口。
 
-| 首版交付 | 可验收行为 |
-|---|---|
-| 用户手动浏览公共网页 | 右侧可见网页、地址栏、前进/后退/刷新、加载/错误/受阻提示、关闭标签 |
-| 现有文件与 Diff 预览 | 沿用文件树、文本/代码/Markdown、行号定位、Diff 与计划标签；预览限当前会话工作区 |
-| 真实输出来源摘要 | Main 根据完整工具结果中的结构化证据提供来源及真实结果状态；长预览不丢来源 |
-| 现有会话操作 | 重命名、置顶复用既有接口，不增加第二套会话存储 |
+保留 Firefly Harness 与既有目录边界，不以另一套 CLI/app-server 替换桌面代理核心。朋友圈、新记忆、目录迁移、真实 userData 与 CI 标准变化不属于此架构变更。
 
-首版不提供代理浏览器工具或代理操作入口，包括自动导航、截图、点击、输入、下载；不登录、不保存登录态、不存凭据、不上传文件、不付款。不新增 Office/PDF/可执行 HTML 查看器、任意路径读取或外部单文件打开。没有 backend 契约的 fork、side-chat、archive、分享、新独立会话窗口不出现假按钮。任务会话绑定及日程独立小窗口不在本主线。
+## 2. 现有组件与职责
 
-R1 目录边界模块及相关原生 backend、目录迁移、朋友圈、新记忆、真实 userData、CI 门禁变化继续排除。保留 Firefly Harness，不用 Codex CLI/app-server 替换桌面代理核心；不操作现有 PID 10072，不推送、PR、合并或部署。
+`ChatPage.tsx` 持有 files/file/diff/plan 标签，`ChatPageInspector.tsx` 组装 `RightInspector`。工作区组件位于 `features/chat/workspace/`，保留分屏、窄布局与关闭标签回退，ChatPage 只传会话和必要回调。
 
-## 现有实现与最小接线
+浏览器采用 Main 管理的 WebContentsView，renderer 负责工具栏、标签和内容矩形。原生视图只覆盖网页区域；拖宽、缩放、布局和标签变化更新矩形，审批/设置等可信弹窗打开时卸下网页，防止远程内容遮挡可信 UI。远程页面没有 Firefly preload、Node 或宿主 IPC。[Electron WebContentsView](https://www.electronjs.org/docs/latest/api/web-contents-view)
 
-`ChatPage.tsx` 持有 files/file/diff/plan 标签，`ChatPageInspector.tsx` 组装 `RightInspector`。保留既有分屏、窄布局和标签关闭回退；新浏览器与来源组件放在独立 `features/chat/workspace/`，ChatPage 仅传当前会话及接线回调。
+独立 `browser-page-state.ts` 已在原设计阶段完成 17 个状态用例，按 conversationId/browserId/requestId 隔离异步响应。较旧、外来会话或关闭页的结果不能覆盖当前页面；失败保留已提交地址。状态机只控制展示，不构成网络授权。[状态验证](../testing/right-agent-workspace-state.md)
 
-推荐 Main 管理 `WebContentsView`，Renderer 负责工具栏、标签和内容矩形。单独窗口偏离同屏目标，iframe 有站点嵌入限制，webview 增加宿主边界复杂度。[Electron WebContentsView](https://www.electronjs.org/docs/latest/api/web-contents-view)
+## 3. 文件打开与来源权限
 
-原生视图只覆盖网页内容区域。拖宽、缩放、窄布局、标签切换更新矩形；审批、设置或其它可信弹窗打开时卸下/隐藏网页，避免远程内容遮挡可信 UI。远程网页不获得 Firefly preload、Node 或宿主 IPC。
+文件预览复用 `window.workspaceFiles.list/read(sessionId, relPath)` 和 `src/main/chats/workspace-files-ipc.ts`。原设计时已存在工作区绑定、realpath 检查、stat 阶段 1MB 限制与二进制拒绝，但当时 handler 未使用 event，`createIpcScope` 只管理注册，realpath/stat/readFile 之间仍有竞态。此文不宣称这些问题已修复；后续是否解决须依据相应目录边界实现与验收。
 
-## 文件打开与预览权限
+来源中的路径只展示 Main 记录，不增加自动打开、自动读取或新文件 IPC。未来自动打开如依赖更强 sender/竞态保证，须先满足目录边界条件。现有用户手动文件树与行号定位保留真实缺失、越界、过大错误。文本/代码/Markdown 预览不执行 HTML、脚本或宏，远程页不得取得文件接口。
 
-复用既有手动 `window.workspaceFiles.list/read(sessionId, relPath)` 和 `src/main/chats/workspace-files-ipc.ts`，不修改目录边界算法、不扩大读取权。其已有会话工作区绑定、realpath 检查、stat 阶段 1MB 上限及二进制拒绝，不代表 sender 授权或实际打开的竞态已安全：handler 忽略 event，`createIpcScope` 只管理注册；realpath/stat/readFile 间也存在竞态。本主线不宣称这些问题已修复，不修改受限 R1 边界。
+## 4. 浏览器网络与匿名性边界
 
-来源中的文件路径只展示 Main 记录，首版不新增来源链接自动打开、自动读取或新的文件 IPC。若将来自动打开要求更强授权/竞态保证，须先解决 R1 依赖并获原任务授权；当前不借来源入口绕过。已有用户手动文件树/行号定位原样保留，缺失、越界或过大显示真实错误。预览纯文本/代码/Markdown，不执行 HTML、脚本、宏，也不让远程页取得文件接口。
+初始浏览阶段限定公共 HTTPS，拒绝本地、内网、回环、链路本地和保留 IPv4/IPv6，以及 file/data/javascript/自定义 scheme、URL userinfo。限制覆盖导航、重定向、框架和子资源，不能只验证地址栏。
 
-## 浏览器网络与登录策略
+使用独立内存 Session，不导入常用浏览器 profile，不保留登录态，不把凭据写入配置、日志或事件。权限、新窗口、下载、上传、客户端证书与写请求默认拒绝，远程网页不自动成为 Agent 上下文。[Electron Session](https://www.electronjs.org/docs/latest/api/session)、[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)
 
-首版只浏览公共网页；建议执行限制为公共 HTTPS。禁止本地/内网/回环/链路本地及保留 IPv4/IPv6、file/data/javascript/自定义 scheme、URL userinfo。限制必须覆盖导航、重定向、框架与子资源，不能只验证地址栏。用户手动浏览不等于批准无限网络访问。
+网络采用专用 Session、鉴权 CONNECT 代理和 Chromium 请求策略的分层责任：完整 DNS 答案校验、已审数值 IP 连接、原 hostname 正常端到端 TLS、GET/HEAD 限制与撤销。代理不解密 TLS；一次 DNS 预检、裸 loadURL 或关闭 DIRECT 的配置值都不能替代实际出口证明。
 
-独立内存 session、不导入常用浏览器 profile、不保留登录态、不把凭据写入配置/日志/事件。权限、新窗口、下载、上传、客户端证书与写请求默认拒绝。远程内容不可信，不自动进入代理上下文。[Electron Session](https://www.electronjs.org/docs/latest/api/session)、[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)
-
-**待安全 review 的候选机制**：专用 session 经鉴权受限本地代理访问，代理解析全部目标地址、拒绝私网并固定已核验 IP 建立连接；HTTPS 不解密。Chromium 侧限制写请求，禁止 DIRECT 回退，验证或禁用 QUIC/WebRTC 等绕行。一次 DNS 预检不能证明实际连接安全。候选代理尚未获 review，不能先实现后要求追认；若 review 不接受或无法验证边界，浏览器部分暂不开放，不降级为裸 loadURL。
-
-浏览器首版属于基础手动查看，公共页面中依赖登录或被限制的交互显示受阻；不宣称对所有站点兼容。已读取原仓库 `docs/superpowers/plans/2026-10-03-visible-browser-plan.md`：记录用户选方案 B、登录状态“保持”、首批 GitHub/ChatGPT。本设计不撤销该产品选择；按父确认的两步收缩，当前先公开匿名验证。持久登录仍受原计划的跨工具凭据保护、真实行动审批等安全前置条件约束，本主线不创建持久 profile 或真实凭据。父统一原三阶段与本次两步计划。
+历史产品方向曾包含可见浏览器、保留登录及 GitHub/ChatGPT 目标；首阶段匿名验证没有撤销该长期方向，也没有完成持久登录的凭据保护与真实行动审批前置条件。持久 profile 或真实凭据不由本设计自动引入。
 
 ### 2026-10-04 会话授权域验证契约
 
-用户明确选择“综合看看这个方向解决吧”：本轮授权更新设计、独立安全review及隔离原型，优先独立Session/BrowserContext、不可变policyEpoch和统一出口，不默认禁Worker。授权不等于生产网络gate放行；仍是匿名公共HTTPS GET/HEAD，不增加站点登录、POST、持久凭据、无限网络访问或代理工具。
+后续网络研究选择独立 Session/BrowserContext、不可变 policyEpoch 和统一出口，默认不禁用 worker。研究与原型许可不等同于生产网络放行，原阶段仍限定匿名公共 HTTPS GET/HEAD。
 
-policyEpoch是本轮候选Main私有对象，绑定已注册owner/profile/conversation/browser、全新非persist Session对象、冻结目标与方法政策、专用代理及abort状态；不是renderer可传入的数字或DTO。冻结政策内容及闭包，不只冻结包含可变Set/对象的外壳。网页、子框架、dedicated/shared/service worker继承同一域。Session回调的可信来源是Main注册的对象与闭包，不从请求的resourceType、可选WebContentsId/frame反推授权；缺字段既不直接授予权限，也不独立证明来自外域。协议/资源拒绝仍保留，字段不充当worker身份证。
+policyEpoch 是 Main 私有对象，绑定已注册 owner/profile/conversation/browser、全新非 persist Session、冻结目标/方法政策、专用代理与 abort 状态。冻结内容与闭包，不能只冻结包含可变 Set/对象的外壳。页面、子框架、dedicated/shared/service worker 继承同域限制。
 
-独立安全review允许受限原型，要求新Session先安装默认deny的唯一handler及权限/鉴权绑定，准备未完成不导航；每次准备await后、setProxy结束后及首文档副作用前复验注册对象/owner/abort/epoch，失败持续deny。缓存继承的验收必须同时覆盖同源第二Session误配旧proxy拨号0、clearAuthCache+closeAllConnections后无归属挑战取消、旧域存量tunnel终止，不能只数policyAllows=true。review不批准生产放行。
+Session 回调的权限来自 Main 注册的对象与闭包，不从 resourceType、可选 WebContentsId/frame 反推身份。缺字段既不授予权限，也不独立证明来自外域；协议与资源限制仍保留。原生 Electron 43.1.0 的 dedicated worker GET/xhr 与 importScripts/script 关联祖先 frame/页面 ID，SharedWorker/SW 缺少这些字段，历史 RED 只证明字段不能可靠分类 worker，不证明认证或 IP 绕过。[Chromium 150 固定源码](https://raw.githubusercontent.com/chromium/chromium/150.0.7871.47/content/public/browser/content_browser_client.h)、[Electron 43 固定源码](https://raw.githubusercontent.com/electron/electron/v43.1.0/shell/browser/api/electron_api_web_request.cc)
 
-这改变后续网络模块中的“缺WebContentsId/未知worker直接拒绝”分支，改为“未注册、已撤销或Session对象不匹配的域拒绝”；不改变公网IP固定、方法限制、匿名性和撤销要求。本机43.1.0下dedicated worker GET/xhr及importScripts/script关联祖先frame与页面ID，SharedWorker/SW缺ID/frame，与[Chromium150固定源码](https://raw.githubusercontent.com/chromium/chromium/150.0.7871.47/content/public/browser/content_browser_client.h)及[Electron43固定源码](https://raw.githubusercontent.com/electron/electron/v43.1.0/shell/browser/api/electron_api_web_request.cc)语义一致；先前“冒用宿主”措辞不代表已证认证/IP绕过。历史RED保留，用来证明字段不足以分类worker。
+新 Session 在未导航前安装默认 deny 的唯一 handler、权限和鉴权绑定。每次准备 await 后、setProxy 完成后及首文档副作用前复验对象、owner、abort 与 epoch，失败持续 deny。
 
-每个授权域唯一新Session、partition及代理capability；绝不把workspace/profile级Session共享给多个tab或复用旧域。政策不可原地扩大，任何owner/会话/目标或方法权限变化先同步撤销旧域、持续deny、关闭代理存量隧道和Session连接，再创建新域。跨站只有在目标政策/授权发生变化时构成跨域，不擅自新增“同站点白名单”；同源两个域也必须隔离。旧worker不得看到新政策、凭据或存储。清理失败不得报告成功或恢复旧域。
+每个授权域使用唯一新 Session、partition 与 proxy capability，不共享 workspace/profile 级 Session 给多个 tab，不复用旧域。政策不能原地扩大；owner、会话、目标或方法权限变化先同步撤销旧域、关闭存量 tunnel 和连接，再创建新域。同源两个域也必须隔离；跨站只有在目标政策或授权变化时才构成换域，不能据此私自增加同站白名单。清理失败不报告成功，不恢复旧域。
 
-鉴权候选只向当前Main注册且原生`contents.session === epoch.session`的页面、精确代理端点/realm/scheme发专用凭据，复验owner/abort/epoch；目标站点鉴权及无可信Session来源的挑战均取消。原型调查Chromium是否在该Session内缓存已由页面认证的代理capability，供缺ID/frame的workers使用；缓存继承不是向未知挑战发放凭据。未预认证或清auth cache后的无归属挑战继续拒绝，若worker功能因此受阻如实记录，不用endpoint、pid、URL或猜测的owner补授权。缓存跨域、旧代可复用或无字段challenge无法安全归属时该路线未通过，不能绕过。
+代理凭据只发给当前 Main 注册且 `contents.session === epoch.session` 的精确页面，并匹配 endpoint/realm/scheme、owner/abort/epoch。目标站点鉴权和无可信 Session 来源的 challenge 取消。worker 可以继承已由页面认证的 Session proxy cache；该继承不等于向未知 challenge 发放凭据。未预认证或清 auth cache 后的无归属 challenge 仍拒绝，不用 endpoint、PID、URL 或猜测 owner 补授权。
 
-代理不解密TLS，仍不能证明方法限制、worker身份或全协议出口；Session统一`onBeforeRequest`负责每个可观察请求的HTTPS GET/HEAD与目标政策。N1–N10继续适用，SW安装/更新/importScripts及已有TLS隧道上的POST均须独立验收；QUIC/WebRTC/WebTransport旁路未证明前生产gate保持HOLD。Node TLS夹具的显式测试CA仅是局部验证目标证书，不安装系统CA、不改变Chromium验证，不冒充Chromium可信HTTPS正例。
+缓存继承验收须包含同源第二 Session 误配旧 proxy 拨号为 0、`clearAuthCache` + `closeAllConnections` 后未知 challenge 取消、旧域存量 tunnel 终止。若跨域缓存可复用或 challenge 无法安全归属，则该路径未通过，不能为可用性放宽边界。
 
-参考[DeepSeek browser-guests](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/src/browser-guests.ts)的Main owner/opaque lease、先注册再附着及无beforeunload等待回收思路；该实现实际按workspace复用process-lifetime partition，release保留workspace存储，并非本方案的新域策略或网络安全证明。只作结构参考，无代码移植，来源MIT，Copyright (c) 2026 DeepSeek，保留[许可链接](https://github.com/deepseek-ai/deepseek-harness/blob/master/LICENSE)；如后续复制实质代码须完整保留许可声明。未更换Firefly runtime/renderer布局。
+N1–N10 继续适用。SW 安装/更新/importScripts、已建 TLS tunnel 内 POST、QUIC/WebRTC/WebTransport 都须独立证明；Node fixture 的显式测试 CA 只验证局部目标，不安装系统 CA 或改变 Chromium 验证。后续有限证据见[网络门槛](../security/browser-public-page-gate.md)。
 
-## 控制与退出清理
+结构参考为 [DeepSeek browser-guests](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/src/browser-guests.ts) 的 Main owner/opaque lease、先注册后附着和不等待 beforeunload 的回收。参考实现按 workspace 复用 process-lifetime partition，release 保留存储，不是此方案的新域隔离证明。未移植代码；来源 MIT、Copyright (c) 2026 DeepSeek，[许可](https://github.com/deepseek-ai/deepseek-harness/blob/master/LICENSE)在实质复制时须完整保留。
 
-首版只有用户控制，不创建 agent lease，也不注册代理浏览器工具。独立状态模块按 conversationId/browserId 和导航 requestId 隔离：较旧、其它会话或已关闭页面的异步响应不能覆盖当前页面；失败保留上次已提交地址并显示真实错误。
+## 5. 控制与退出生命周期
 
-纯状态模块已实现于 `src/renderer/react/features/chat/workspace/browser-page-state.ts`，17 个用例通过。它只是展示状态转换，没有实际浏览器/网络/权限动作；本地 blocked/load_failed 是展示结果，不替代待冻结的 Main 错误及授权契约。[本阶段验证记录](../testing/right-agent-workspace-state.md)
+首版手动控制不创建 Agent lease。Main 生成非空唯一 partition，绑定 profile/conversation/browser，不使用 defaultSession 或旧标识。关闭 view 不等于销毁 Session，须同步撤销并停止新请求/代理，释放 view 后 await connections/storage/cache/auth/resolver 清理，保留 `cleanup_failed`。正常退出消费 ShutdownCoordinator；异常崩溃不承诺即时清零。
 
-partition 由 Main 生成非空唯一标识，绑定 runtime profile/conversation/browser，不使用 defaultSession，也不复用旧标识。关闭 view 不等于销毁 Electron Session；关闭须停止请求/代理连接、释放 view，再 await `clearStorageData`/`clearCache`，记录清理失败，重开用新标识。正常退出接现有 ShutdownCoordinator，清理失败不得静默当作成功。切换会话先取消旧请求并隐藏旧视图，后台页面不得继续替用户操作。异常崩溃不承诺未实现的即时清除，内存会话避免持久登录状态。
+切换会话先取消旧请求并隐藏旧 view。第二步 Agent 适配须单独定义用户优先、显式接管、站点/动作范围、run 取消及每次 await/副作用前复验；不得由首版设计自动推导通用 executeJavaScript/CDP 能力。当前额外授权模式以实际实现和对应验收为准。
 
-第二步如引入代理操作，再独立设计用户优先、显式接管、站点/动作授权、run 取消、每次 await 后及副作用前的租约复验；首版不预埋通用 executeJavaScript/CDP 通道。
+## 6. 输出来源与 canonical 提交
 
-## 输出来源语义
+设计要求 Main 在 `harness/tool-round.ts::commitToolResult` 等完整结果边界投影来源，由 HarnessEvent、AGUI 和可选恢复字段传递。preview 最多 200 字，不能从 preview、Markdown 或模型答案反推证据。
 
-Main 在 `harness/tool-round.ts::commitToolResult` 等完整结果边界投影来源，`HarnessEvent`、AGUI 映射和可选恢复字段透传。现有 `preview` 最多 200 字；不能从 preview、Markdown 或模型回答反推来源。
+首版候选来源限结构化证据：changes 的变更文件、read_file 的 canonicalPath/hash/行范围，以及 web_search 完整 JSON 的 `success:true/results[].url`。搜索仅标为“搜索结果”，导航不证明模型阅读，shell 文本不能生成“已创建文件”。无证据显示“未提供结构化来源”；failure、cancelled、unknown、not_executed 不显示成功。来源不能自动成为记忆事实。
 
-首版来源限明确结构化证据：changes 的变更文件，read_file 的 canonicalPath/hash/行范围，已有 `web_search` 完整 JSON 的 `success:true/results[].url`。搜索标“搜索结果”，不声明已阅读全文；导航只证明访问，不证明模型读取；截图第二步如获批则标“获批页面捕获”。shell 文本不生成“已创建文件”。无证据显示“未提供结构化来源”；失败、取消、unknown、not_executed 不显示成功。来源是外部/历史记录，不 mint 记忆 M 事实。
+公开记录仅包含受限引用标识，不默认暴露参数和原始输出，不新增完整输出读取 IPC。URL 丢弃 userinfo/query/fragment，path 含秘密模式时降到 origin；必要原始 URL 仅在受限 Main 状态短暂使用，不从公开记录恢复。手动浏览不伪造 toolCallId 混入工具来源。
 
-输出记录只显示引用标识，本轮不新开完整输出读取 IPC；参数、原始输出不默认进入摘要。公开 URL 丢弃 userinfo/query/fragment，path 如含秘密模式则降到 origin 展示；原 URL 如确有必要仅在受限 Main 状态短暂使用，不通过公开 record 恢复敏感参数。用户手动访问网页不是生成答案的来源，不伪造 toolCallId 将浏览记录混入输出证据。
+来源进入既有 canonical tool-result 提交/恢复链。原设计时 `tool_end` 早于 `commitToolResultMessage`，因此事件发出不等于持久提交。候选来源须加入 appendToolResult metadata，成功后才发布 committed 来源，失败不发布；恢复只消费 canonical metadata，不建立第二份来源库。重试仅提交最终结果，按 profile/conversation/run/toolCall/assistantEntry 去重；旧 metadata 缺字段兼容，不从 preview 重建。
 
-来源必须进入现有 canonical tool-result 提交/恢复链。当前 `tool_end` 在 `commitToolResultMessage` 之前发出，不能当作持久提交证明。投影先产生候选记录，由父与原 S owner 扩展已有 appendToolResult metadata，等待其成功后再发独立的 committed 来源事件；失败不发布 committed 来源。恢复从 canonical metadata 提取，主线不建立第二份来源数据库。重试只提交最终结果，重复按 profile/conversation/run/toolCall/assistantEntry key 去重；旧 metadata 缺字段兼容、不从 preview 重建。
+<a id="待冻结的可调用接口与错误契约"></a>
 
-## 待冻结的可调用接口与错误契约
+## 7. 历史候选接口与错误契约
 
-以下为审阅提案，由父冻结后新模块引用；不是已实现 API，也不让 Renderer DTO 变成 authority。
+以下 TypeScript 是 2026-10-04 的接口设计快照，保留用于解释早期文档；它们不是当前可直接调用的完整 API。真实 BrowserService/network controller 已采用后续接口，Main 私有 owner、真实 Session、错误码及源记录不授予 renderer authority 的原则继续有效。
 
 ```ts
 type BrowserErrorCode = "permission_denied" | "owner_mismatch" | "closed"
@@ -99,7 +98,7 @@ type ManualBrowserCommand =
   | { kind: "history"; browserId: string; action: "back" | "forward" | "reload" }
   | { kind: "layout"; browserId: string; bounds: { x:number; y:number; width:number; height:number } | null }
   | { kind: "close"; browserId: string };
-// TrustedUserOwner 是父注册的 Main 私有对象，以对象身份/私有注册表验证，禁止从 payload 构造。
+// TrustedUserOwner 是 Main 注册的私有对象，以对象身份/私有注册表验证，禁止从 payload 构造。
 interface TrustedUserOwner {
   readonly host: Electron.BrowserWindow;
   readonly topFrame: Electron.WebFrameMain;
@@ -122,7 +121,7 @@ interface BrowserNetworkPort {
   prepare(owner: TrustedUserOwner, browserId: string, partitionKey: string): Promise<BrowserReply<BrowserNetworkBinding>>;
 }
 interface BrowserNetworkBinding {
-  readonly session: Electron.Session; // 已完成 review 接受的网络与权限限制
+  readonly session: Electron.Session; // 历史提案要求先完成网络与权限准备
   validate(url: string, method: string, signal: AbortSignal): Promise<BrowserReply<string>>;
   dispose(signal: AbortSignal): Promise<BrowserReply<null>>;
 }
@@ -135,13 +134,13 @@ interface BrowserService extends UserBrowserController {
 }
 ```
 
-手动 owner 从父的实际窗口/profile/会话注册冻结；open 后才由 Main 生成 browserId，关闭/会话切换/宿主销毁递增 generation。权限异步结束后、每次 await 后、loadURL/展示等副作用前重新验证对象仍注册、top frame、profile、owner 和 signal。失败只回错误码，不回秘密 URL 或原始异常。runId 不用虚构的“manual”替代。
+手动 owner 来自实际窗口/profile/会话注册，browserId 由 Main 生成。关闭、会话切换和宿主销毁使旧 generation 失效；失败只返回固定错误码，不返回秘密 URL 或原始异常。不得虚构 manual runId。
 
-第二步 owner-bound adapter 必须消费父实际 runtime 冻结的 profile/ownerSessionId/conversationId/runId/origin/signal/generation，并用 Main 私有不透明租约校验。当前 tool-runtime 没有 ownerSessionId，父须从真实父/子 agent 注册建立映射，不从活动标签或模型参数回填。取消仅传准确 runId；该 adapter 在首版不创建、不注册。
+未来 run-bound adapter 应消费真实 runtime 的 profile/ownerSessionId/conversationId/runId/origin/signal/generation，并用 Main 私有租约验证，不能从活动标签或模型参数补 ownerSessionId。取消绑定准确 runId。
 
-全局导航接线：父修改 `external-link.ts::installGlobalNavigationGuard` 为动态精确路由，只有 BrowserService 注册的 WebContents 交专门策略。原 listener 在创建时已安装，不能靠再设一个新窗口 handler 移除。所有 browser 导航/redirect/popup 拒绝都不得退到 openExternal；其它窗口保持原守卫，不引入 URL 前缀例外或通用绕过。先 preventDefault，再由受限控制器校验/启动导航。
+原生全局导航只路由精确登记 guest，拒绝不能转系统浏览器。早期“先 preventDefault 再启动 GET”的提案已经修正：当前路由保留原请求方法，交 Session GET/HEAD gate 判定，避免 POST 被改写为 GET，详见[服务接线](browser-service-integration.md)。
 
-来源模块的可调用提案如下。FrozenToolOwner 由父实际 runtime 注册冻结；投影纯函数不验证或授予权限，调用适配器必须只接受 Main 已注册对象。canonicalPath 保留在已有私有 fileRead metadata，公开 DTO 只展示受限路径/hash/行范围和证据 key，不能恢复文件读取权。
+来源接口同属历史候选；projector 是纯函数，不进行文件/网络读取或独立持久化，也不验证或授予权限：
 
 ```ts
 interface FrozenToolOwner {
@@ -171,34 +170,31 @@ interface WorkspaceSourceInput {
   outcome: WorkspaceSourceRecord["outcome"]; category?: string;
   fullOutput: string | undefined; outputRecordId?: string; truncated: boolean;
 }
-// 新 projector 的签名，父冻结后实现；不含读取文件/网络或独立持久存储。
+// 新 projector 的签名，契约冻结后实现；不含读取文件/网络或独立持久存储。
 // projectWorkspaceSource(input: WorkspaceSourceInput): WorkspaceSourceRecord
-// 父/S 的现有 appendToolResult input 增加 workspaceSource?: WorkspaceSourceRecord。
-// await appendToolResult 成功后，父发布 committed workspaceSource；失败不得发布。
-// 父恢复适配器：recoverWorkspaceSource(metadata: unknown): WorkspaceSourceRecord | null。
+// canonical transcript 的现有 appendToolResult input 增加 workspaceSource?: WorkspaceSourceRecord。
+// await appendToolResult 成功后，提交适配器发布 committed workspaceSource；失败不得发布。
+// 恢复适配器：recoverWorkspaceSource(metadata: unknown): WorkspaceSourceRecord | null。
 ```
 
-profile/ownerSessionId 用于 Main 私有去重和归属校验，不序列化到公开 record；conversation/run/assistantEntry/toolCall 与 canonical metadata 交叉校验。恢复仅接受 schemaVersion=1 和合法字段，历史缺失返回 null；URL 脱敏不反向恢复原地址。源 record 即使格式正确仍只是展示证据，不成为 agent authority、文件 capability 或记忆事实。
+profile/ownerSessionId 仅用于 Main 私有归属与去重，不序列化到公开 record。conversation/run/assistantEntry/toolCall 与 canonical metadata 交叉校验，恢复仅接受 schemaVersion=1 和合法字段，历史缺失返回 null。canonicalPath 只留现有私有 fileRead metadata；公开 DTO 的路径/hash/行号不构成文件 capability。
 
-## 分工与共享文件
+## 8. 变更落点与后续顺序
 
-本主线独占新浏览器/来源/状态组件、Main 新浏览器模块和相应测试。主 UI 线程负责头像、导航、设置、任务、托盘及现有会话菜单。唯一集成者负责 review 结果、共享接线分工与最终集成；日程窗口由其它独立主线负责。
+| 接口层 | 变更职责 |
+| --- | --- |
+| ChatPage、ChatPageInspector、RightInspector | 会话身份、标签、独立 hook、布局和可信弹窗遮挡 |
+| shared IPC、preload、renderer global types | 白名单命令与受限 DTO，不传 gate/owner/profile/partition/token |
+| Main application/window/external-link/shutdown | 服务注册、宿主绑定、精确导航路由与资源释放 |
+| Harness tool-round/tool-dispatcher/event-mapper | 完整结果来源投影，保持既有结果语义 |
+| chat-types、AGUI、AgentRunController、normalizers、ChatMessageList | committed 来源、canonical 恢复及展示 |
 
-| 需协调的共享文件 | 最小改动目的 |
-|---|---|
-| `src/renderer/react/features/chat/pages/ChatPage.tsx` | 会话身份、独立工作区 hook、可信弹窗遮挡回调 |
-| `src/renderer/react/features/chat/components/ChatPageInspector.tsx`、`RightInspector.tsx/.css` | 注入标签与内容矩形，不重做导航 |
-| `src/shared/ipc-channels.ts`、`src/preload/index.ts`、`src/renderer/global.d.ts` | 白名单手动浏览器桥；不改宠物 `types/firefly.d.ts` |
-| `src/main/application/default-dependencies.ts`、`src/main/windows/window-manager.ts`、`src/main/windows/external-link.ts`、`src/main/application/shutdown.ts` | 服务注册、宿主绑定、精确导航路由与释放 |
-| `src/main/orchestrator/harness/types.ts`、`tool-round.ts`、`tool-dispatcher.ts`、`adapter/event-mapper.ts` | 完整结果来源投影，保留 R2/R3/R4 |
-| `src/shared/chat-types.ts`、`src/main/agui-bridge.ts`、`pages/run/AgentRunController.ts`、`pages/chat-page-normalizers.ts`、`components/ChatMessageList.tsx` | 来源字段与 canonical AGUI/恢复接线，由父唯一写 |
+后续变更先核对当前实现，避免重复建立权限来源或持久层。优先闭合来源 metadata/恢复契约与剩余网络验收，再扩展第二步能力。共享接线与对应模块应同步更新类型、行为测试和消费者，不能只添加展示按钮。
 
-共享表中的所有既有文件均由集成者唯一写；本主线只交最小接线提案，不写 UI 独占文件。`harness/adapter/tool-runtime.ts` 与真实 run owner 绑定由父负责；transcript types/store/coordinator/sink/settlement 仍由原 S owner，经父协调。新 i18n key/文案由本主线提供清单，父协调 UI owner 应用。新类型待父冻结，不能在主线另造身份来源或复制持久层。
+## 9. 验收标准
 
-## 验收与未完成门槛
+验收应覆盖真实隔离 Electron 公共页面、地址栏及历史、宽/窄/缩放/拖宽、弹窗遮挡、关闭与切换；实际私网/重绑定/旁路拒绝；文件/Diff、rename/pin、Stop/队列/审批回归；超过 200 字输出的来源、错误/取消/unknown 状态及旧记录恢复。
 
-验收必须包含：真实隔离 Electron 窗口的公共页、地址栏前后刷新、宽/窄/缩放/拖宽/弹窗遮挡、标签关闭及会话切换；实际网络私网/重绑定/旁路拒绝证据；当前工作区文件/Diff、重命名置顶、Stop/队列/审批回归；完整输出超过 200 字的来源和错误/取消/unknown 的真实状态；旧记录恢复兼容。保留 RED/GREEN，执行定向、全量、类型和 build，不改检查策略。
+每项结果须说明时间和范围，区分普通测试、合成 native fixture、可信公网传输与操作系统前台验收。历史组件 GREEN、后续服务接线或局部 TLS 成功不能自动闭合全部网络门槛；本文没有新增测试或改变运行时行为。
 
-已读取并按源码核验父的 `E:\Codex\2026-10-03\task-10\h-native-20261004\right-workspace-shared-boundary-review.md`。两步范围和唯一共享写入者已明确；本修订补齐导航、owner/profile/未来 run 租约及 canonical 来源恢复提案。当前具体剩余阻塞只有：父接受/冻结本接口和来源 metadata 契约；网络实施机制及实际 Electron 43.1.0 可验证边界的安全结论。返回结论即可接续 TDD，无需重做总体设计或再次询问首版范围。原登录产品选择保留，首版不以新浏览器解锁 R1 文件读取。
-
-参考的交互方向是聊天旁可见浏览器和文件预览，以及真实已有动作；不是导入另一产品的权限或功能。[Browser](https://learn.chatgpt.com/docs/browser)、[Work with files](https://learn.chatgpt.com/docs/artifacts-viewer)、[Commands](https://learn.chatgpt.com/docs/reference/commands)
+交互参考仅用于聊天旁浏览器、文件预览和已实现动作的组织：[Browser](https://learn.chatgpt.com/docs/browser)、[Work with files](https://learn.chatgpt.com/docs/artifacts-viewer)、[Commands](https://learn.chatgpt.com/docs/reference/commands)，不导入其他产品的权限模型。

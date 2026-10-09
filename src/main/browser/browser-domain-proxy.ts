@@ -1,6 +1,6 @@
 import type { BrowserAuthorizationDomain, BrowserDomainContents } from "./browser-authorization-domain";
 import { startAuthenticatedConnectProxy, type ConnectProxy, type ProxyChallenge } from "./authenticated-connect-proxy";
-export type BrowserProxyFactory = (owner: { webContentsId: number; signal: AbortSignal }) => Promise<ConnectProxy>;
+export type BrowserProxyFactory = (owner: { webContentsId: number; signal: AbortSignal; readonly allowedHosts?: readonly string[] }) => Promise<ConnectProxy>;
 /** Carries only cleanup semantics; never an underlying error or credentials. */
 export class BrowserProxyCleanupError extends Error {
   constructor() { super("browser proxy cleanup failed"); }
@@ -13,7 +13,9 @@ export interface BrowserDomainProxy<S extends object> {
 export async function startBrowserDomainProxy<S extends object>(domain: BrowserAuthorizationDomain<S>, contents: BrowserDomainContents<S>, factory: BrowserProxyFactory = startAuthenticatedConnectProxy): Promise<BrowserDomainProxy<S>> {
   if (!domain.ownsContents(contents)) throw new Error("browser domain unavailable");
   const nativeId = contents.id;
-  const proxy = await factory({ webContentsId: nativeId, signal: domain.signal });
+  const hosts = domain.epoch.policy.hosts;
+  const scope = hosts === undefined ? {} : { allowedHosts: Object.freeze([...new Set([...hosts, ...(domain.epoch.policy.resourceHosts ?? [])])]) };
+  const proxy = await factory({ webContentsId: nativeId, signal: domain.signal, ...scope });
   if (!domain.ownsContents(contents)) {
     try { await proxy.revoke(); } catch { throw new BrowserProxyCleanupError(); }
     throw new Error("browser domain unavailable");

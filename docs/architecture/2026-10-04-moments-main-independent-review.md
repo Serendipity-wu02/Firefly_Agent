@@ -1,90 +1,88 @@
-# Moments Main 清理独立代码与安全审查
+# Moments 后端退役代码与安全审查
 
-日期：2026-10-04。审查者：独立 review agent；未修改产品文件。
+- 记录日期：2026-10-04
+- 审查方式：独立只读代码审查与定向测试
+- 结论：一项 P2 兼容问题和一项 P3 注释问题已修正，无剩余阻断级发现
+- 范围：[Moments 后端退役](2026-10-04-moments-main-cleanup.md)；不扩展为全仓安全认证
 
-## 结论
+## 1. 审查背景与结论
 
-针对 `refactor/remove-moments-main` 的未提交工作树，基线与 HEAD 均为 `9660c584c0c191def41906a62802a4ca932bd809`。发现一项 P2 兼容问题，主任务已修正且已独立复核；另有一项可选注释修正也已完成。未发现权限、MCP、Memory、共享语音、渠道或 Work 学习功能的误删。
+审查检查朋友圈专属功能退役是否误删共享入口或放宽安全校验，并重点验证安装升级时旧配置字段的保留。未发现权限、MCP、Memory、共享语音、渠道或 Work 学习功能因该退役被误删；这不证明这些独立系统没有其他缺口。
 
-| 级别 | 数量 | 状态 |
-|---|---:|---|
+| 级别 | 数量 | 最终状态 |
+| --- | ---: | --- |
 | P0 / Critical | 0 | 未发现 |
 | P1 / High | 0 | 未发现 |
-| P2 / Medium | 1 | 安装选项写回兼容，已修正并验证 |
-| P3 / Nit | 1 | 模式注释，已修正 |
+| P2 / Medium | 1 | 安装选项写回兼容已修正并验证 |
+| P3 / Nit | 1 | 模式注释已修正 |
 
-建议：接受本次 Main 范围改动，无剩余阻断级审查发现；当前独立工作树不能作为完整产品发布，因为 Renderer 联动尚未完成。审查结束后的完整测试复验已通过，证据见末尾补充记录。
+审查结论支持该 Main 范围改造。审查时 Renderer 联动尚未完成，不能把后端独立状态作为完整产品发布依据；后续界面验收见[Renderer 布局记录](2026-10-04-renderer-layout-v1.md)。
 
-## 发现
+## 2. 发现与修正
 
-### P2：首次启动消费安装选项时，归一化写盘会剔除旧设置字段
+### 2.1 安装选项写回会剔除旧设置字段
 
-位置：`src/main/settings/settings-facade.ts:379`–`:389`；对应测试 `src/main/settings/settings-facade.test.ts:162`。
+涉及 `src/main/settings/settings-facade.ts` 的 `loadGeneralSettings0`，回归位于 `src/main/settings/settings-facade.test.ts`。历史定位分别为 379–389 行和 162 行，行号只适用于审查快照。
 
-触发条件：已有 `app-settings.json` 含旧 Moments 字段，同时存在有效 `installer-options.json` 开机启动选择。`loadGeneralSettings0` 会把 `normalizeGeneralSettings(withInstallerSelection)` 写回磁盘。删除归一化中的旧字段后，这条保留的启动路径会清除磁盘旧字段，违反此次“读取时忽略旧字段，升级不改写旧字段”的兼容约束。普通读取不写盘的新增测试没有覆盖这一情形。
+当已有 `app-settings.json` 含旧 Moments 字段，同时存在有效 `installer-options.json` 开机启动选择时，原逻辑将 `normalizeGeneralSettings(withInstallerSelection)` 写回磁盘。归一化删除旧字段后，合法安装/升级就会清除这些磁盘值，违背“读取忽略、升级保留”的兼容约束。仅测试普通读取不写盘不能覆盖此路径。
 
-影响是旧配置数据被剔除；未证明权限升级或敏感数据外泄。安装选择消费路径本身是基线已有行为，问题来自本次归一化字段删除与它的组合。外部攻击者不需要被假设为有此能力；合法安装/升级即可触发。
+影响为旧配置数据丢失；未证明权限升级或敏感信息外泄。修正后保存原始合并对象 `withInstallerSelection`，运行时返回值仍归一化。安装选择仍只更新用户明确选择的 `launchAtLogin`，消费生命周期不变。新增回归先观察到失败，修正后独立设置集合 24 项通过，验证旧磁盘值保留且运行时旧字段不可见。
 
-修正：`settings-facade.ts:387` 现写原始合并对象 `withInstallerSelection`，返回给运行时仍归一化。安装选项消费仍只更新用户明确选择的 `launchAtLogin`，消费生命周期保持原样。新增测试验证磁盘旧值保留且运行时旧字段不可见。主任务 RED 日志显示该测试修复前失败；修复后独立重跑设置文件 24 测试全部通过。
+### 2.2 Skill 模式注释不准确
 
-### P3 / Nit：Skill 模式注释出现重复 Work
+`src/shared/ipc-channels.ts` 的历史 308 行注释 `work/code/Work` 已改为 `work/code`；工具覆盖仍为 `chat/work/code`。该问题不影响运行行为。
 
-位置：`src/shared/ipc-channels.ts:308`。注释 `work/code/Work` 不准确，不影响运行行为。已修正为实际保留的 Skill 覆盖模式 `work/code`；工具覆盖层仍为 `chat/work/code`。
+## 3. 实现边界与共享能力
 
-## 删除边界与共享能力复核
+| 范围 | 审查事实 |
+| --- | --- |
+| 装配与后台消费者 | `src/main/application/default-dependencies.ts` 移除服务、媒体匹配、IPC 和扫描器；`src/main/application/background.ts` 移除扫描器生命周期；Agent runtime/build-options 移除朋友圈背景及成功收尾发帖调度，没有留下专属后台消费者 |
+| 工具、协议和桥 | `src/main/orchestrator/tools/registry/tool-registration.ts`、`src/main/protocols/bootstrap.ts`、`src/preload/index.ts`、`src/shared/ipc-channels.ts` 移除专属链路；旧媒体文件不再由 `moment-media` 提供，但没有新增文件删除/迁移 |
+| 社交与记忆收尾 | `buildChatSocialContext`、社交抽取调度、关系记录、既有记忆写入和贴图返回保留；删除的 `finishedContext` 仅用于 Moments 发帖快照，不是共享 `threadId` |
+| RAG、Worldbook、搜索与贴图 | 关键词查找、`search_text`、贴图匹配/embedding 创建刷新、渠道 outgoing-composer 保留；贴图测试仅移除专属 matcher 断言，渠道、ID 冲突、用户 GIF 元数据和不写回配置断言保留 |
+| Work、Call 与 Learn | `knowledge_workflow.md`、pop_quiz、knowledge workspace、progress 保留；`learn-post-turn` 与 `learn/progress.md` 不属于旧模式入口；Call 桥退役检查和获取资源前拒绝 `active-call` 保留 |
+| 调度归属 | Agent `threadId` 及 `RUN_ERROR` 的 threadId/runId/schedulerRunId/schedulerTaskId 保留 |
+| 独立敏感边界 | 权限、shell、MCP 事务、Memory 存储、Renderer、许可/来源/模型声明及顶层目录不属于该退役差异 |
 
-| 范围 | 证据与结论 |
-|---|---|
-| Moments 装配链 | `application/default-dependencies.ts` 删除服务导入、媒体匹配装配、IPC 注册和扫描器构造；`background.ts` 删除扫描器启动/受控退出；`agent-runtime.ts` 与 `build-options.ts` 删除朋友圈背景注入、成功收尾发帖调度。没有留下该功能后台消费者。 |
-| 工具、协议和桥 | `tools/registry/tool-registration.ts` 删除 Moments 工具注册；`protocols/bootstrap.ts:14` 和 `:31` 仅移除 `moment-media` 注册及 handler；`preload/index.ts` 和 `shared/ipc-channels.ts` 删除 Moments API 与事件。旧媒体文件不会再由该协议提供，但未新增删除/迁移操作。 |
-| 社交和记忆收尾 | `agent-runtime.ts:269` 保留 `buildChatSocialContext`；`:296` 保留社交抽取调度；`build-options.ts:975` 保留社交抽取/旧记忆写入分支、关系记录与贴图返回。删除 `finishedContext` 的唯一消费者是 Moments 发帖快照，非共享事件 threadId。 |
-| RAG、Worldbook、搜索与贴图 | `rag/index.ts:293` 关键词查找函数完整保留，仅注释删除 Moments 例子；共享 `search_text` 注册及实现保留。贴图匹配、embedding 服务创建/刷新、渠道 outgoing-composer 保留；`firefly-sticker-resources.test.ts` 仅删除专属 Moments matcher 断言，渠道路径、ID 冲突、用户 GIF 元数据和不写回配置的正向断言保留。 |
-| Work 学习和 Call / Learn 退役 | Work `knowledge_workflow.md` 注入、pop_quiz、knowledge workspace 和 progress 模块保留。未把 `learn-post-turn` 或 `learn/progress.md` 当旧模式入口误删。`ipc-contract.test.ts:39` 保留 Call 桥退役检查；`plugin-host/speech-input-service.ts:129` 保留在取得资源前明确拒绝 `active-call`；模式校验与 Work 覆盖测试保留。 |
-| 调度归属 | `scheduler/scheduler-runner.ts:113` 的 Agent threadId 与 `:201` 的 RUN_ERROR threadId/runId/schedulerRunId/schedulerTaskId 未改。 |
-| 敏感边界 | 权限、shell、MCP 事务、Memory 存储、Renderer、license/notice/model authorization 文件的目标路径没有本次差异；顶层目录未更名。审查和补充测试仅操作隔离工作树与临时夹具，没有访问真实用户文件。 |
+审查和定向测试使用隔离代码与合成夹具，没有访问真实用户文件。
 
-## 插件输入验证及安全边界
+## 4. 插件与协议安全契约
 
-`src/plugins/prompts.ts:88` 在写入 registry 之前检查非空数组和允许来源；`moments-post` 明确抛 sources 非法错误，混合活动来源与旧来源的声明也被完整拒绝。不存在 silently remap 到 conversation 的扩大调用。`src/plugins/api.ts:568` 与 `packages/plugin-sdk/src/api.ts:568` 保持相同活动来源联合；SDK README 明确要求旧插件移除旧声明并重新构建。
+`src/plugins/prompts.ts` 在写入 registry 之前检查非空数组及允许来源。`sources: ["moments-post"]` 明确拒绝，混合活动与退役来源同样完整拒绝，不静默映射到 conversation。`src/plugins/api.ts` 与 `packages/plugin-sdk/src/api.ts` 保持一致的活动来源联合，旧插件需移除声明后重新构建。
 
-`prompts.ts:109` 保留显式来源过滤、未声明来源仅 conversation/scheduler、取消信号和模式过滤；删除的是仅 Moments 场景绕过 modes 的例外。活动来源、plugin-agent opt-in、多来源模式过滤、非法来源后正常注册，以及 provider 失败/超时/长度限制的正向测试保留。
+显式来源过滤、未声明来源仅允许 conversation/scheduler、取消信号和模式过滤保留。移除的是 Moments 专属模式例外。活动来源、plugin-agent opt-in、多来源模式过滤、非法声明后正常注册，以及 provider 失败/超时/长度限制的正向测试保留。
 
-本地协议权限并未因删除 Moments 协议而扩张：`bootstrap.ts:33` 继续调用 sticker URL 解析及目录内解析，字体 handler 继续解码、文件名白名单、父目录和存在性检查。`sticker-protocol.ts` 与 `ui-font-protocol.ts` 不变；对应有效资源及拒绝路径穿越的测试保留并独立执行通过。
+协议 bootstrap 的 pre-ready 与 shell-bootstrap 两个注册路径均纳入审查。sticker URL 及目录内解析、字体解码、文件名白名单、父目录和存在性检查保留。`sticker-protocol.ts` 与 `ui-font-protocol.ts` 的有效资源和路径穿越拒绝测试独立通过。
 
-对恶意 Renderer 请求旧 Moments IPC 或 `moment-media` URL，路径已经不暴露且无 handler，不能落入通用文件访问。对恶意插件提交 `sources: ["moments-post"]`，注册在 entries.set 前拒绝。没有发现删除校验后保留外部访问入口的情形。
+旧 Moments IPC 和 `moment-media` 已无暴露入口/handler，不回落到通用文件访问。未发现删除校验却保留受保护访问入口的情况。
 
-## 引用、历史与影响范围
+## 5. 影响范围与证据边界
 
-本仓库源码规模超过 200 文件，采用 SURGICAL 策略：完整检查本次共享生产文件差异和修改测试、优先跟踪协议/插件/设置安全路径，删除的专属模块按归属、导出和反向调用审查；未逐行重新审计约一万行删除实现。
+采取定向差异审查：完整检查共享生产文件差异与修改测试，优先跟踪协议、插件、设置安全路径；对 38 个专属删除文件按归属、153 个导出及反向调用审查，没有逐行重新审计约一万行删除实现。
 
-参考 `reference-audit.json`：38 个删除文件、153 个导出符号；非 Renderer 的剩余生产引用为 0，Renderer 47 个文本命中，通用同名符号 36 个命中。已按真实导入鉴别 `initialize` 等同名误命中，不把存储、调度或 Live2D 的 initialize 删除。独立 `git grep` 在 Main/preload/shared/plugins/SDK 非测试 TS 源码中没有 Moments 残余链。
+引用检查记录非 Renderer 生产专属引用为 0、Renderer 47 个文本命中、通用同名符号 36 个命中。`initialize` 等命中按实际导入鉴别，没有误删存储、调度或 Live2D。Main/Preload/shared/plugins/SDK 非测试 TypeScript 检查没有残余 Moments 链。
 
-协议 bootstrap 生产调用分别来自 pre-ready 与 shell-bootstrap，删除媒体协议分支影响两个启动注册路径，sticker/font 共用代码保持不变。插件来源验证的生产注册入口是 `src/plugins/context.ts:205`–`:207`；没有新增第二条绕过 registry 的来源路径。`onAgentRunFinished` 唯一生产调用在 `agent-runtime.ts:365`，删除参数未影响其他生产调用。
+插件生产注册入口为 `src/plugins/context.ts`，`onAgentRunFinished` 唯一生产调用属于 Agent runtime。关键媒体协议/handler、来源过滤例外与保留安全校验追溯到 2026-09-25 的初始桌面运行实现；历史检查限于这些删除路径及一跳调用。
 
-`git blame` 显示被删除的媒体协议注册/handler 和来源过滤例外来自 `f1f6579540c8ce3faa792dbc40f44d9a9119fe6a`（2026-09-25，建立 Firefly desktop runtime）；保留的安全校验也出自该基线。未发现安全修复校验被删除而其受保护入口保留。历史分析限于本次关键删除路径及一跳调用。
+## 6. 验收证据
 
-## 验证证据
+历史记录区分独立执行与其他检查产生的日志，不把二者相加为独立覆盖量。
 
-- 已读取主任务 `green-targeted.log`：10 文件、148 测试通过，覆盖设置、IPC、协议 bootstrap、插件 prompt、build-options、background、agent-runtime、贴图资源、能力过滤和图像路由。这是主任务日志证据，不冒充独立重跑。
-- 独立运行补充正向测试：8 文件、64 测试通过，退出码 0，11:43 UTC 耗时 2.20s。文件为 `sticker-protocol`、`ui-font`、`sticker-embedding-cache`、`knowledge/progress/learn-post-turn`、`plugin-host/speech-input-service`、`scheduler/scheduler-runner`、`orchestrator/tools/search-code-tools`、`settings/launch-at-login` 的 `.test.ts`。
-- 修正后独立运行 `npm test -- src/main/settings/settings-facade.test.ts`：1 文件、24 测试通过，11:45:58 UTC 耗时 350ms。另已读取主任务 `red-installer-settings.log`（新增安装选项测试失败）和 `green-installer-settings.log`（设置与登录选项共 29 测试通过），确认修复前后证据。
-- 首次独立补充运行因默认临时目录 mkdir EPERM 在导入前失败，0 测试执行；将该命令进程的 TEMP/TMP 指向 `E:\Codex\2026-10-04\task-3\review-temp` 后重跑通过。未改产品配置。
-- 已读取 `build-main.log`、`build-preload.log`、`check-schema.log`，主任务报告成功，schema 日志确认一致。本审查未重新构建。
-- 独立 `git diff --check 9660c584` 退出码 0。
-- Renderer 的 16 个类型错误属于独立 UI 删除尚未联动的已知依赖，不创建 stub、不改 Renderer；联动前不能发布。
-- `full-tests.log` 已完成：599 文件中 596 通过、3 失败；5841 测试中 5828 通过、11 失败、2 跳过。失败为 shell-job（8）、built-in-tools-shell（2）、self-improvement-source（1）；这些实现不在本次差异。本审查未复现基线全量测试，不能断言这些失败都是既有或仅由环境造成，也不能声称全量通过。
-- 主任务随后报告：99 个共享文件、839 测试通过；受控升级执行权限后 shell-job 单文件 13/13 通过，支持初次 8 个进程存活失败来自执行沙箱限制的归因；其余 3 个 Bash 夹具失败将使用已核验的 `E:\Git\bin\bash.exe` 重跑全量。这些为主任务反馈，未由本审查独立重跑；最终全量结果由主任务追加。
-- `built-in-tools.snapshot.test.ts.snap` 曾在 status 中出现换行/stat 变化，独立 git diff 无语义差异；主任务确认工作树与 HEAD blob hash 相同，不提交此文件。
+| 检查 | 证据性质与结果 |
+| --- | --- |
+| 专属契约与共享入口 | 已读取 10 文件 / 148 测试通过的证据；不是独立重跑 |
+| 独立共享正向回归 | 8 文件 / 64 测试通过，退出码 0，2.20 秒；覆盖 sticker protocol、ui font、embedding cache、learn-post-turn、speech-input-service、scheduler-runner、search-code-tools、launch-at-login |
+| 独立安装选项回归 | 设置测试 1 文件 / 24 测试通过，350ms；另读取修复前失败与修复后 29 项通过日志 |
+| Main/Preload/schema | 已读取构建及 schema 成功证据；没有独立重建 |
+| 差异空白检查 | 退出码 0 |
+| 审查时 Renderer | 16 个类型错误，来自尚未联动的 UI 退役；未用 stub 绕过 |
+| 后续共享回归 | 99 文件 / 839 测试通过；属于读取的补充证据 |
+| 最终全仓复验 | 599 文件全部通过；5840 项通过 / 2 跳过，共 5842 项，退出码 0，360.56 秒；属于审查结束后补充证据 |
 
-## 尚未验证范围
+独立测试使用隔离临时目录；Windows shell 检查要求已核验的 `FIREFLY_TEST_BASH`，进程回归要求允许相应子进程操作。网络受限会阻止插件示例获取已声明依赖。最终复验没有修改产品配置、shell、测试约束或 CI。原始测试时间使用 UTC+08，不能解释为 UTC。
 
-最终安装选项修正已复核代码并独立重跑回归测试。真实 GUI、真实模型、网络供应者、ASR/TTS 服务、安装器和打包未执行。本审查无浏览器或真实用户数据检查，不扩展为整仓安全审计。完整发布仍需要 UI 联动和完整 renderer 验收。
+插件示例的最终补充证据覆盖本地 SDK 打包、四个示例编译和冒烟契约。快照文件的字节一致性检查未发现语义变化。
 
-## 主任务最终复验补充
+## 7. 后续验收要求与限制
 
-以下为独立审查结束后主任务核验的原始日志证据，并非额外的独立审查运行：
-
-- `full-tests-verified.log`：批准的执行环境及实际 Git Bash 夹具 `FIREFLY_TEST_BASH=E:\Git\bin\bash.exe`，`npm test` 退出码 0；599 个测试文件全部通过，5840 项通过、2 项跳过，共 5842 项；用时 360.56 秒。首轮 11 项失败在相同源码下复验通过，没有修改 shell、测试约束或 CI。
-- `plugin-examples-verified.log`：本地 SDK 打包及四个示例编译、冒烟契约均通过；首次尝试的网络沙箱 `connect EACCES` 已通过批准环境复验解决。
-- 审查日志的 `11:43` / `11:45:58` 为测试进程输出的本机时间（UTC+08），上文标注 UTC 不准确；以原始日志为准。
-- renderer 类型检查与构建仍依赖另一 UI 分支删除 Moments 类型及入口；本分支没有提供兼容空壳。
+后续变更继续验证安装选择合并保留、旧来源拒绝、共享协议路径约束与共享能力回归。真实 GUI、模型、外部 ASR/TTS、安装器及打包未由该审查执行；没有浏览器或真实用户数据检查。完整发布需当前整合版本的 Renderer 和原生验收，本文不宣称当前工作树已重新通过全仓检查。

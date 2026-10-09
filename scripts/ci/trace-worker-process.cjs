@@ -1,12 +1,38 @@
-const { writeFileSync } = require("node:fs");
+const { openSync, writeSync, closeSync } = require("node:fs");
 const path = require("node:path");
 const { ChildProcess } = require("node:child_process");
 const { syncBuiltinESMExports } = require("node:module");
 const output = process.env.FIREFLY_VITEST_DIAGNOSTICS;
-const write = (event, details = {}) => writeFileSync(path.join(output, `process-${process.pid}.jsonl`), JSON.stringify({ time: new Date().toISOString(), event, pid: process.pid, ppid: process.ppid, ...details }) + "\n", { flag: "a" });
+// appendFileSync calls the mutable fs.writeFileSync export in Node. Capture the
+// low-level operations before tests install I/O spies, and keep our own descriptor.
+// Diagnostics are best-effort: a failed sink must not change the observed process.
+let traceFd = null;
+try { traceFd = openSync(path.join(output, `process-${process.pid}.jsonl`), "a"); }
+catch { /* The runner owns the diagnostic directory; tests can still run without it. */ }
+const closeTrace = () => {
+  if (traceFd === null) return;
+  const fd = traceFd;
+  traceFd = null;
+  try { closeSync(fd); } catch { /* Do not replace the worker's exit status. */ }
+};
+const write = (event, details = {}) => {
+  if (traceFd === null) return;
+  try {
+    const data = Buffer.from(JSON.stringify({ time: new Date().toISOString(), event, pid: process.pid, ppid: process.ppid, ...details }) + "\n");
+    let offset = 0;
+    while (offset < data.length) {
+      const written = writeSync(traceFd, data, offset, data.length - offset);
+      if (written <= 0) { closeTrace(); return; }
+      offset += written;
+    }
+  } catch { closeTrace(); }
+};
 const stack = () => new Error().stack.split("\n").slice(2, 10);
 write("process-start", { node: process.version, uv: process.versions.uv });
-process.on("exit", code => write("process-exit", { code }));
+process.on("exit", code => {
+  try { write("process-exit", { code }); }
+  finally { closeTrace(); }
+});
 process.on("disconnect", () => write("process-disconnect"));
 process.on("uncaughtExceptionMonitor", error => write("uncaught-exception", { name: error.name, code: error.code }));
 for (const method of ["exit", "abort", "kill"]) {
@@ -45,6 +71,7 @@ const phaseFiles = new Set([
   "history-native-contract.test.ts",
   "runtime-summary.test.ts",
   "current-skills-compatibility.test.ts",
+  "main-desktop-memory.test.ts", "storage-safety.test.ts",
 ]);
 let phaseProbeEnabled = false;
 let flushPhase = () => {};

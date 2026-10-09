@@ -12,9 +12,9 @@ export interface BrowserHostPort {
   isDestroyed(): boolean; isVisible(): boolean; isFocused(): boolean; getContentSize(): number[]; contentView: Pick<View, "addChildView" | "removeChildView">;
   on(event: string, listener: () => void): unknown; removeListener(event: string, listener: () => void): unknown;
 }
-export interface TrustedBrowserOwner { readonly host: BrowserHostPort; readonly topFrame: object; readonly profile: object; readonly conversationId: string; readonly ownerSessionId: string; readonly generation: number; readonly signal: AbortSignal }
-import type { BrowserBounds, BrowserErrorCode, BrowserPageDto, BrowserReply, ManualBrowserCommand, BrowserPermissionScope, BrowserPermissionDto, BrowserAction, BrowserDomInput, BrowserObservation, BrowserWorkspaceCommand } from "../../shared/manual-browser";
-export type { BrowserBounds, BrowserErrorCode, BrowserPageDto, BrowserReply, ManualBrowserCommand } from "../../shared/manual-browser";
+export interface TrustedBrowserOwner { readonly host: BrowserHostPort; readonly topFrame: object; readonly profile: object; readonly conversationId: string | null; readonly workspaceId?: string; readonly ownerSessionId: string; readonly generation: number; readonly signal: AbortSignal }
+import type { BrowserBounds, BrowserErrorCode, BrowserOwnedPageDto as BrowserPageDto, BrowserReply, ManualBrowserCommand, BrowserPermissionScope, BrowserOwnedPermissionDto as BrowserPermissionDto, BrowserAction, BrowserDomInput, BrowserObservation, BrowserWorkspaceCommand } from "../../shared/manual-browser";
+export type { BrowserBounds, BrowserErrorCode, BrowserOwnedPageDto as BrowserPageDto, BrowserReply, ManualBrowserCommand } from "../../shared/manual-browser";
 export interface TrustedBrowserRun { readonly conversationId: string; readonly runId: string; readonly signal: AbortSignal; isCurrent(): boolean }
 export interface BrowserInvokeEvent { sender: BrowserHostPort["webContents"]; senderFrame: object | null }
 export interface BrowserGuestPort<S extends object> extends BrowserViewPort<S> {
@@ -26,6 +26,8 @@ export interface BrowserGuestPort<S extends object> extends BrowserViewPort<S> {
 }
 export interface BrowserServiceOptions<S extends object> extends Omit<BrowserNetworkDependencies<S>, "createView"> {
   profile: object; gateOpen?: boolean;
+  /** Main composition only. Manual site grants never authorize agent operations. */
+  manualBrowsing?: boolean;
   permissionPolicy?: BrowserPermissionScope;
   /** Main-owned native confirmation; never provided by renderer or a tool. */
   confirmPermission?(owner: TrustedBrowserOwner, scope: BrowserPermissionScope, signal: AbortSignal): Promise<boolean>;
@@ -46,7 +48,7 @@ function parseCommand(value: unknown): ManualBrowserCommand | null {
   if (v.kind === "get") return { kind: "get" };
   if (v.kind === "open") return typeof v.url === "string" ? { kind: "open", url: v.url } : null;
   if (typeof v.browserId !== "string" || !v.browserId || v.browserId.length > 128) return null;
-  if (v.kind === "close") return { kind: "close", browserId: v.browserId };
+  if (v.kind === "close" || v.kind === "stop") return { kind: v.kind, browserId: v.browserId };
   if (v.kind === "navigate") return typeof v.url === "string" ? { kind: "navigate", browserId: v.browserId, url: v.url } : null;
   if (v.kind === "history" && ["back", "forward", "reload"].includes(String(v.action))) return { kind: "history", browserId: v.browserId, action: v.action as "back" | "forward" | "reload" };
   if (v.kind === "layout") {
@@ -71,7 +73,12 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
   const cells = new Map<string, Cell>(), guests = new WeakMap<S, BrowserGuestPort<S>>(), byContents = new WeakMap<object, Cell>();
   const registered = new WeakSet<object>();
   const gateOpen = options.gateOpen === true;
-  const policy = options.permissionPolicy && options.confirmPermission ? Object.freeze({ hosts: Object.freeze([...options.permissionPolicy.hosts]), actions: Object.freeze([...options.permissionPolicy.actions]) }) : undefined;
+  const manualBrowsing = options.manualBrowsing === true && !!options.confirmPermission;
+  const agentPolicy: BrowserPermissionScope | undefined = options.permissionPolicy && options.confirmPermission
+    ? Object.freeze({ mode: "agent", hosts: Object.freeze([...options.permissionPolicy.hosts]), actions: Object.freeze([...options.permissionPolicy.actions]) }) : undefined;
+  const policy: BrowserPermissionScope | undefined = manualBrowsing
+    ? Object.freeze({ mode: "manual", hosts: Object.freeze([]), resourceHosts: Object.freeze([]), actions: Object.freeze(["navigate"] as BrowserAction[]) })
+    : agentPolicy;
   function clearPermission(owner: Owner): void {
     owner.grant = undefined; owner.denied = false;
     const pending = owner.pending; owner.pending = undefined; pending?.cancel.abort();
@@ -87,23 +94,51 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
   }
   function permissionDto(owner: Owner): BrowserPermissionDto {
     return Object.freeze({ conversationId: owner.value.conversationId,
+      ...(owner.value.workspaceId === undefined ? {} : { workspaceId: owner.value.workspaceId }),
       status: owner.pending ? "pending" : owner.grant ? "granted" : owner.denied ? "denied" : "required",
-      scope: owner.pending?.scope ?? owner.grant ?? policy ?? Object.freeze({ hosts: [], actions: [] }), requestId: owner.pending?.id ?? null });
+      scope: owner.pending?.scope ?? owner.grant ?? policy ?? Object.freeze({ hosts: [], actions: [] }),
+      ...(manualBrowsing && agentPolicy && owner.value.workspaceId === undefined ? { agentScope: agentPolicy } : {}), requestId: owner.pending?.id ?? null }) as BrowserPermissionDto;
   }
-  function parseScope(input: unknown): BrowserPermissionScope | null {
+  function parseScope(input: unknown, owner: Owner): BrowserPermissionScope | null {
     if (!policy || !input || typeof input !== "object") return null;
     const value = input as Record<string, unknown>;
-    if (!Array.isArray(value.hosts) || !value.hosts.length || value.hosts.length > policy.hosts.length || !Array.isArray(value.actions) || !value.actions.length || value.actions.length > policy.actions.length) return null;
-    if (!value.hosts.every(host => typeof host === "string" && policy.hosts.includes(host)) || !value.actions.every(action => policy.actions.includes(action))) return null;
+    if (value.mode === "manual") {
+      if (!manualBrowsing || !Array.isArray(value.hosts) || value.hosts.length !== 1
+        || !Array.isArray(value.actions) || value.actions.length !== 1 || value.actions[0] !== "navigate"
+        || !Array.isArray(value.resourceHosts) || value.resourceHosts.length > 16) return null;
+      const validHost = (host: unknown): host is string => {
+        if (typeof host !== "string") return false;
+        const url = validatePublicBrowserUrl(`https://${host}/`);
+        return !!url && new URL(url).hostname === host;
+      };
+      if (!value.hosts.every(validHost) || !value.resourceHosts.every(validHost)) return null;
+      const primary = value.hosts[0] as string;
+      const resourceHosts = [...new Set(value.resourceHosts as string[])].filter(host => host !== primary).sort();
+      if (resourceHosts.length) {
+        const source = typeof value.sourceBrowserId === "string" ? cells.get(value.sourceBrowserId) : undefined;
+        if (!source || source.owner !== owner || !usable(source) || value.sourceRequestId !== source.page.requestId
+          || owner.grant?.mode !== "manual" || owner.grant.hosts[0] !== primary
+          || resourceHosts.some(host => !owner.grant?.resourceHosts?.includes(host) && !source.page.blockedResourceHosts?.includes(host))) return null;
+      }
+      return Object.freeze({ mode: "manual", hosts: Object.freeze([primary]), resourceHosts: Object.freeze(resourceHosts), actions: Object.freeze(["navigate"] as BrowserAction[]) });
+    }
+    // Legacy untagged proposals still require the explicit native Agent dialog.
+    // Never erase a manual tag or reinterpret manual resource provenance as Agent authority.
+    if (owner.value.workspaceId !== undefined || !agentPolicy || (value.mode !== undefined && value.mode !== "agent")
+      || value.resourceHosts !== undefined || value.sourceBrowserId !== undefined || value.sourceRequestId !== undefined) return null;
+    if (!Array.isArray(value.hosts) || !value.hosts.length || value.hosts.length > agentPolicy.hosts.length || !Array.isArray(value.actions) || !value.actions.length || value.actions.length > agentPolicy.actions.length) return null;
+    if (!value.hosts.every(host => typeof host === "string" && agentPolicy.hosts.includes(host)) || !value.actions.every(action => agentPolicy.actions.includes(action))) return null;
     const hosts = value.hosts as string[], actions = value.actions as BrowserAction[];
-    return Object.freeze({ hosts: Object.freeze(policy.hosts.filter(host => hosts.includes(host))), actions: Object.freeze(policy.actions.filter(action => actions.includes(action))) });
+    return Object.freeze({ mode: "agent", hosts: Object.freeze(agentPolicy.hosts.filter(host => hosts.includes(host))), actions: Object.freeze(agentPolicy.actions.filter(action => actions.includes(action))) });
   }
   function equalScope(a: BrowserPermissionScope, b: BrowserPermissionScope): boolean { return JSON.stringify(a) === JSON.stringify(b); }
   let stopping = false;
   function validOwner(value: TrustedBrowserOwner, host: Host): boolean {
     try { return value.host === host.host && value.profile === options.profile && value.topFrame === host.host.webContents.mainFrame
       && value.signal instanceof AbortSignal && !value.signal.aborted && !host.host.isDestroyed() && !host.host.webContents.isDestroyed()
-      && typeof value.conversationId === "string" && !!value.conversationId && value.conversationId.length <= 256
+      && (value.workspaceId === undefined
+        ? typeof value.conversationId === "string" && !!value.conversationId && value.conversationId.length <= 256
+        : value.conversationId === null && typeof value.workspaceId === "string" && !!value.workspaceId && value.workspaceId.length <= 256)
       && typeof value.ownerSessionId === "string" && !!value.ownerSessionId && value.ownerSessionId.length <= 256
       && Number.isSafeInteger(value.generation) && value.generation >= 0;
     } catch { return false; }
@@ -121,9 +156,25 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
     isOwnerCurrent: context => {
       const owner = owners.get(context.owner as TrustedBrowserOwner);
       return !!owner && current(owner) && context.profile === options.profile && context.conversationId === owner.value.conversationId
+        && context.workspaceId === owner.value.workspaceId
         && context.generation === owner.value.generation && cells.get(context.browserId)?.owner === owner;
     } });
-  const network = createBrowserNetworkController(registry, { ...options, createView: session => {
+  const network = createBrowserNetworkController(registry, { ...options, onRequestBlocked: (context, request) => {
+    const cell = cells.get(context.browserId);
+    if (!cell || cell.context.signal !== context.signal || !usable(cell) || cell.owner.grant?.mode !== "manual") return;
+    if (request.webContentsId !== undefined && request.webContentsId !== cell.guest?.contents.id) return;
+    const url = validatePublicBrowserUrl(request.url);
+    if (url && ['mainFrame', 'subFrame'].includes(request.resourceType)) { blockedNavigation(cell, url); return; }
+    const host = url ? new URL(url).hostname : undefined;
+    const supported = ["stylesheet", "script", "image", "font", "media", "xhr"].includes(request.resourceType);
+    if (host && supported && ["GET", "HEAD"].includes(request.method) && !cell.owner.grant.hosts.includes(host)
+      && !cell.owner.grant.resourceHosts?.includes(host)) {
+      const blocked = cell.page.blockedResourceHosts ?? [];
+      if (blocked.includes(host) || blocked.length >= 16) return;
+      cell.page = { ...cell.page, blockedResourceHosts: Object.freeze([...blocked, host]) };
+    } else { if (cell.page.blockedRequest) return; cell.page = { ...cell.page, blockedRequest: true }; }
+    publish(cell);
+  }, createView: session => {
     const guest = options.createView(session); guests.set(session, guest); return guest;
   } });
   function publish(cell: Cell): void {
@@ -132,6 +183,13 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
     }
   }
   function usable(cell: Cell): boolean { return !cell.closing && !cell.abort.signal.aborted && current(cell.owner) && cell.binding?.isCurrent() === true; }
+  function blockedNavigation(cell: Cell, input: string): void {
+    if (!usable(cell) || cell.owner.grant?.mode !== "manual") return;
+    const url = validatePublicBrowserUrl(input);
+    const origin = url && !cell.owner.grant.hosts.includes(new URL(url).hostname) ? `${new URL(url).origin}/` : undefined;
+    if (cell.page.error === "blocked_url" && cell.page.blockedNavigationUrl === origin) return;
+    cell.page = { ...cell.page, error: "blocked_url", ...(origin ? { blockedNavigationUrl: origin } : { blockedRequest: true }) }; publish(cell);
+  }
   function terminate(cell: Cell): void {
     if (cell.closing) return;
     cell.closing = true; cell.navigation?.abort(); cell.abort.abort();
@@ -178,7 +236,8 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
     cell.manualRequestId = requestId;
     const stop = () => { try { cell.guest?.stop(); } catch { cell.failed = true; } };
     navigation.signal.addEventListener("abort", stop, { once: true });
-    cell.page = { ...cell.page, requestId, loading: true, pendingUrl: url, error: null }; publish(cell);
+    cell.page = { ...cell.page, requestId, loading: true, pendingUrl: url, error: null,
+      ...(cell.owner.grant?.mode === "manual" ? { blockedResourceHosts: [], blockedNavigationUrl: undefined, blockedRequest: false } : {}) }; publish(cell);
     let abort!: () => void;
     try {
       if (!usable(cell)) return fail("cancelled");
@@ -196,7 +255,7 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
     } catch {
       if (navigation.signal.aborted || cell.page.requestId !== requestId || !usable(cell)) return fail(cell.owner.value.signal.aborted || navigation.signal.aborted ? "cancelled" : "owner_mismatch");
       cell.page = { ...cell.page, loading: false, pendingUrl: null, error: "load_failed" }; publish(cell); return fail("load_failed");
-    } finally { navigation.signal.removeEventListener("abort", stop); if (abort) navigation.signal.removeEventListener("abort", abort); if (cell.manualRequestId === requestId) cell.manualRequestId = undefined; }
+    } finally { navigation.signal.removeEventListener("abort", stop); if (abort) navigation.signal.removeEventListener("abort", abort); if (cell.manualRequestId === requestId) cell.manualRequestId = undefined; if (cell.navigation === navigation) cell.navigation = undefined; }
   }
   async function execute(ownerValue: TrustedBrowserOwner, input: unknown): Promise<BrowserReply<BrowserPageDto | null>> {
     const owner = owners.get(ownerValue);
@@ -211,12 +270,14 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
       const url = allowedUrl(owner, command.url); if (!url) return fail("blocked_url");
       if (owner.cells.size) return fail("closed");
       const abort = new AbortController(), browserId = randomUUID();
-      const context = Object.freeze({ owner: ownerValue, profile: options.profile, conversationId: ownerValue.conversationId, browserId, generation: ownerValue.generation, signal: abort.signal });
+      const identity = { conversationId: ownerValue.conversationId,
+        ...(ownerValue.workspaceId === undefined ? {} : { workspaceId: ownerValue.workspaceId }) };
+      const context = Object.freeze({ owner: ownerValue, profile: options.profile, ...identity, browserId, generation: ownerValue.generation, signal: abort.signal });
       const cell: Cell = { owner, context, abort, closing: false, failed: false,
-        page: { browserId, conversationId: ownerValue.conversationId, requestId: 0, closed: false, loading: true, url: "", pendingUrl: url, canGoBack: false, canGoForward: false, error: null },
+        page: { browserId, ...identity, requestId: 0, closed: false, loading: true, url: "", pendingUrl: url, canGoBack: false, canGoForward: false, error: null } as BrowserPageDto,
         onAbort: () => { terminate(cell); void cleanup(cell); } };
       cells.set(browserId, cell); owner.cells.add(cell); ownerValue.signal.addEventListener("abort", cell.onAbort, { once: true });
-      cell.preparing = network.prepare(context, owner.grant ? { hosts: owner.grant.hosts } : undefined); publish(cell);
+      cell.preparing = network.prepare(context, owner.grant ? { hosts: owner.grant.hosts, resourceHosts: owner.grant.resourceHosts } : undefined); publish(cell);
       let cancelPrepare!: () => void;
       let prepared: BrowserNetworkReply<BrowserNetworkBinding<S>>;
       try {
@@ -231,8 +292,9 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
       cell.binding = prepared.value; cell.guest = guests.get(prepared.value.session);
       if (!usable(cell) || !cell.guest) { await cleanup(cell); return fail(ownerValue.signal.aborted ? "cancelled" : "owner_mismatch"); }
       registered.add(cell.guest.contents); byContents.set(cell.guest.contents, cell);
-      cell.guest.installCallbacks({ allowsNavigation: target => usable(cell) && allowedUrl(owner, target) !== null,
-        started: target => { if (usable(cell) && cell.manualRequestId === undefined && allowedUrl(owner, target)) { cell.page = { ...cell.page, requestId: cell.page.requestId + 1, loading: true, pendingUrl: target, error: null }; publish(cell); } },
+      cell.guest.installCallbacks({ allowsNavigation: target => { const allowed = usable(cell) && allowedUrl(owner, target) !== null; if (!allowed) blockedNavigation(cell, target); return allowed; },
+        started: target => { if (usable(cell) && cell.manualRequestId === undefined && allowedUrl(owner, target)) { cell.page = { ...cell.page, requestId: cell.page.requestId + 1, loading: true, pendingUrl: target, error: null,
+          ...(owner.grant?.mode === "manual" ? { blockedResourceHosts: [], blockedNavigationUrl: undefined, blockedRequest: false } : {}) }; publish(cell); } },
         changed: () => snapshot(cell), failed: () => { if (usable(cell) && cell.manualRequestId === undefined) { cell.page = { ...cell.page, loading: false, pendingUrl: null, error: "load_failed" }; publish(cell); } },
         destroyed: () => { if (!cell.closing) void cleanup(cell); } });
       return navigate(cell, url);
@@ -244,6 +306,27 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
       const closed = await cleanup(cell); return closed.ok ? { ok: true, value: Object.freeze({ ...cell.page }) } : closed;
     }
     if (!usable(cell) || !cell.guest) return fail("owner_mismatch");
+    if (command.kind === "stop") {
+      if (!permits(owner, "navigate")) return fail("permission_denied");
+      if (!cell.page.loading) return { ok: true, value: Object.freeze({ ...cell.page }) };
+      const requestId = cell.page.requestId + 1;
+      cell.manualRequestId = requestId;
+      cell.observation = undefined;
+      try {
+        if (cell.navigation) cell.navigation.abort(); else cell.guest.stop();
+        if (cell.failed) throw new Error("browser stop failed");
+        const native = cell.guest.snapshot();
+        cell.page = { ...cell.page, requestId, loading: false, pendingUrl: null, error: null,
+          url: allowedUrl(owner, native.url) ?? cell.page.url, canGoBack: native.canGoBack, canGoForward: native.canGoForward };
+        publish(cell); return { ok: true, value: Object.freeze({ ...cell.page }) };
+      } catch {
+        cell.failed = true;
+        clearPermission(owner);
+        const closed = await cleanup(cell);
+        return fail(closed.ok ? "load_failed" : "cleanup_failed");
+      }
+      finally { if (cell.manualRequestId === requestId) cell.manualRequestId = undefined; }
+    }
     if (command.kind === "navigate") { if (!permits(owner, "navigate")) return fail("permission_denied"); const url = allowedUrl(owner, command.url); return url ? navigate(cell, url) : fail("blocked_url"); }
     if (command.kind === "history") {
       if (!permits(owner, "navigate")) return fail("permission_denied");
@@ -288,12 +371,19 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
     const command = input as Record<string, unknown>;
     if (command.kind === "get") return { ok: true, value: permissionDto(owner) };
     if (command.kind === "revoke") {
+      // Cleanup from an old renderer scope cannot revoke the newly active conversation.
+      if (owner.value.workspaceId !== undefined) {
+        if (command.conversationId !== undefined || (command.workspaceId !== undefined && command.workspaceId !== owner.value.workspaceId)) return fail("owner_mismatch");
+      } else if (command.workspaceId !== undefined || (command.conversationId !== undefined && command.conversationId !== owner.value.conversationId)) return fail("owner_mismatch");
       clearPermission(owner); const closed = await closeOwner(owner); if (!closed.ok) return closed;
       return current(owner) ? { ok: true, value: permissionDto(owner) } : fail("owner_mismatch");
     }
     if (command.kind !== "request") return fail("permission_denied");
-    const scope = parseScope(command.scope); if (!scope) return fail("permission_denied");
-    if (owner.pending) return equalScope(owner.pending.scope, scope) ? owner.pending.promise : fail("permission_denied");
+    const scope = parseScope(command.scope, owner); if (!scope) return fail("permission_denied");
+    if (owner.pending) {
+      if (equalScope(owner.pending.scope, scope)) return owner.pending.promise;
+      if (!manualBrowsing) return fail("permission_denied");
+    }
     if (owner.grant && equalScope(owner.grant, scope)) return { ok: true, value: permissionDto(owner) };
     clearPermission(owner);
     const pending: PendingPermission = { id: randomUUID(), scope, cancel: new AbortController(), promise: undefined! };
@@ -321,13 +411,14 @@ export function createBrowserService<S extends object>(options: BrowserServiceOp
     return pending.promise;
   }
   async function executeAgent(ownerValue: TrustedBrowserOwner, input: unknown, run: TrustedBrowserRun): Promise<BrowserReply<BrowserPageDto | BrowserObservation | null>> {
+    if (ownerValue.workspaceId !== undefined) return fail("owner_mismatch");
     const owner = owners.get(ownerValue);
     const runCurrent = () => {
       try { return !!owner && current(owner) && run.conversationId === ownerValue.conversationId && typeof run.runId === "string" && !!run.runId
         && run.signal instanceof AbortSignal && !run.signal.aborted && run.isCurrent() === true; } catch { return false; }
     };
     if (!runCurrent()) return fail(run?.signal?.aborted ? "cancelled" : "owner_mismatch");
-    if (!owner!.grant) return fail("permission_denied");
+    if (!owner!.grant || owner!.grant.mode !== "agent") return fail("permission_denied");
     if (!input || typeof input !== "object" || Array.isArray(input)) return fail("permission_denied");
     const raw = input as Record<string, unknown>;
     const keys = ["operation", "browserId", "url", "snapshotId", "ref", "text"];

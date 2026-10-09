@@ -1,28 +1,29 @@
-# Firefly → Cyrene 新底座迁移审计
+# Firefly → Cyrene 新底座迁移审计（2026-09-22）
 
-> 历史记录：迁移前只读审计；当时缺失项、静态预测及无 Git 状态不代表当前迁移目录状态。 原正文、测试结论及来源归属保留；当前操作入口见[文档导航](../../README.md)。
+> **日期**：2026-09-22
+> **状态**：历史只读审计；无测试执行或实机验证
+> **范围**：Cyrene 新底座与原 Firefly 的源码、资源、契约和迁移缺口
+> **结论**：记录时资源迁入基本完成，人设与 UI 仍存在冲突；构建产物过期且 Electron 二进制缺失，尚不具备迁移后运行条件。
+> **适用边界**：本文中的缺失项、预测与设计均对应审计日期，不表示现行实现状态，也不是重新开启迁移的实施指令。现行入口见[文档导航](../../README.md)。
 
-- 审计日期：2026-09-22
-- 新底座：`E:\Codex\Cyrene-Agent-master`
-- 原 Firefly：`E:\Codex\working\Firefly-Pet`
-- 本轮性质：只读审计。未修改源码、未安装依赖、未启动应用、未运行测试、未请求模型、未读取任何用户数据目录内容（仅检查目录名是否存在）。本文件是本轮唯一新增文件。
+审计未修改源码、安装依赖、启动应用、运行测试或请求模型；仅检查用户数据目录名是否存在，未读取目录内容。下文“新底座”指审计时 Cyrene 来源工程，“原 Firefly”指旧版 Firefly 来源工程。
 
 ## 0. 证据等级与基线
 
 | 标记 | 含义 |
 |---|---|
-| **[S]** | 静态源码/文件结论（本轮读取实际文件得出） |
+| **[S]** | 静态源码/文件结论（审计时读取实际文件得出） |
 | **[T]** | 已有测试记录 |
 | **[R]** | 运行验证 |
 | **[预测]** | 对测试结果的静态推断，未实际运行 |
 
-- 本轮全部结论为 **[S]**。**无 [R]**。
+- 源码事实结论为 **[S]**；测试结果推断另标 **[预测]**。无 **[R]**。
 - 新底座**没有任何测试运行记录**（无 coverage、结果文件或 vitest 缓存），所以没有 [T]。
-- 本轮未运行测试：`vitest` 会写缓存，与只读要求冲突。
+- 未运行测试：`vitest` 会写缓存，与只读审计约束冲突。
 
 **新底座基线**
 
-- 目录不是 Git 仓库（`git rev-parse` 返回 `fatal: not a git repository`），无法用 Git 确定基线。
+- 来源为 ZIP 解压目录，审计时没有版本标识可用于确定源码基线；`git rev-parse` 返回 `fatal: not a git repository`。
 - 按文件时间推断：
   - 解压：2026-09-21 12:37（绝大多数文件）。
   - `dist/`：13:49 构建。
@@ -32,19 +33,19 @@
 
 **原 Firefly 基线**
 
-- Git 分支 `firefly-v1.1.0`，HEAD `f6f20f9`（2026-09-20，与 `origin/firefly-v1.1.0` 一致），共 85 个提交。
-- 工作区有 **39 个已修改 + 8 个未跟踪文件未提交**，包括：
+- 源码对照基线为 `f6f20f9`（2026-09-20），对应旧 Firefly `firefly-v1.1.0` 版本来源。
+- 审计目录另含基线快照之外的实现，主要包括：
   - `docs/architecture/unified-workbench-v1.md`
   - `src/main/work/work-file-evidence.ts`
   - `ThinkingIntensityControl.tsx`、`UnifiedStatusCard.tsx`、`WorkbenchSidebar.tsx`
   - thinking-effort 相关测试
-- 这些未提交内容不属于任何提交，作为"原功能基线"的地位不确定（见 §9 问题 5）。
+- 上述实现是否计入“原功能”范围尚未确定，不能将目录中全部能力直接等同于版本基线（见 §9 问题 5）。
 
 ---
 
-## 1. 当前迁移状态
+## 1. 审计时迁移状态
 
-### 1.1 已发生的迁移改动（21 个文件，13:54–14:01）[S]
+### 1.1 迁移内容清单（21 个文件，2026-09-21 13:54–14:01）[S]
 
 | 类别 | 文件 |
 |---|---|
@@ -61,7 +62,7 @@
 - **身份层**在开发模式下完成，打包配置未改。
 - **人设层**只替换了"identity + worldbook"一层。system 层、执行人设、风格层、运行时硬编码字符串仍是昔涟，所以每个模式都在混合人设。
 - **UI 可见品牌**未替换。
-- **构建产物过期**，Electron 二进制缺失，应用当前无法按迁移后状态启动。
+- **构建产物过期**，Electron 二进制缺失，应用当时无法按迁移后状态启动。
 - **原 Firefly 功能**：未迁入任何代码。大部分由新底座等价实现覆盖，有 4 项缺口（见 §5）。
 
 ---
@@ -103,7 +104,7 @@
 
 - `node_modules/electron/` 下没有 `dist/`，也没有 `path.txt`。版本 `electron@43.1.0` 的安装脚本没有执行。
 - 其他依赖存在：`pixi-live2d-display`、`vitest`、`@lancedb/lancedb`。
-- 本机 Node 为 v24.19.0，满足 `engines` 要求。
+- 审计环境的 Node 为 v24.19.0，满足 `engines` 要求。
 
 ### B2 构建产物过期，默认启动方式会运行上游昔涟 [S]
 
@@ -111,7 +112,7 @@
   - `dist/main/main/index.js` 中没有身份代码，也没有 `app-identity.js`。
   - `dist/renderer/models/` 只有 `cyrene/`，渲染 bundle 引用 `models/cyrene`。
 - `start.bat` 执行 `cyrene run`，即 `dist/cli`；`npm start` 执行 `electron .`，即 `dist/main`。两者都会以上游身份和昔涟模型启动。
-- 未改包名时，上游身份的 userData 为 `%APPDATA%\live2d-cyrene`（本机目前不存在）。
+- 未改包名时，上游身份的 userData 为 `%APPDATA%\live2d-cyrene`（审计环境中不存在）。
 - 只有重新构建（`npm run build`，或用 `npm run dev`）后，迁移改动才会生效。
 
 ### B3 人设混合：每个模式实际加载的内容 [S]
@@ -237,7 +238,7 @@
 
 状态图例：**可复用**（新底座已有）/ **已迁入** / **未迁入** / **差异**（存在冲突或行为差异）/ **缺运行证据**
 
-| # | 功能 | 原 Firefly（HEAD f6f20f9） | 新底座 | 状态 |
+| # | 功能 | 原 Firefly（源码基线 f6f20f9） | 新底座 | 状态 |
 |---|---|---|---|---|
 | 1 | Chat | `chat/chat-ipc.ts`；人设由 `character-policy.ts:267` 投影生成 | `CyreneAgent` → `runChatLoop`/harness；prompt 来自 `mode-prompt-profile.ts` | **可复用**；人设冲突（B3）；缺运行证据 |
 | 2 | Work 任务执行 | 见注 1 | 见注 1 | **可复用 + 差异**；见注 1 |
@@ -275,8 +276,8 @@
 **注 2：工具目标与完成证据（#7）**
 
 - 原 Firefly 把计划步骤绑定到工具目标，并强制要求"必读文件"的读取证据：
-  - 提交 `069efc3`、`0fea49e`。
-  - `work-file-evidence.ts`（未提交）。
+  - 能力来源参考：`069efc3`、`0fea49e`。
+  - `work-file-evidence.ts` 属于审计目录中的补充实现，未包含在上述版本基线中。
 - 新底座对应的能力：
   - `tools/registry/tool-evidence.ts`：写文件时的 diff 证据。
   - `execution-ledger.ts:33`。
@@ -300,7 +301,7 @@
 
 ### 目录与单实例对照
 
-| 应用 | userData | 单实例 | 本机目录 |
+| 应用 | userData | 单实例 | 审计环境目录状态 |
 |---|---|---|---|
 | 迁移版 | `Firefly-Cyrene-Base` | 有，按 userData 独立加锁 | 不存在（从未以迁移后身份启动） |
 | 原 Firefly | `firefly-agent`（来自 package 名） | 源码中没有 `requestSingleInstanceLock` | **存在**，内容未读取 |
@@ -333,11 +334,13 @@
   2. `canon_quotes.md` 与 `canon_quotes_lite.md` 完全相同。
   3. `plan_identity.md` 没有任何代码引用，是死文件。
   4. `worldbook/Cyrene.md` 内容已换成流萤，但文件名会进入条目 ID（`worldbook.ts:525` `wb_${fileName}_…`），生成的 ID 仍是 `wb_Cyrene_*`。
-  5. 原 Firefly 工作区有 47 个未提交改动。如果以它为功能参考，基线不确定。
+  5. 原 Firefly 审计目录包含版本基线之外的实现；作为功能参考前，需要确定这些能力是否属于迁移范围。
 
 ---
 
 ## 8. 许可证、版权与来源 [S]
+
+本节保留审计时的来源记录与静态风险判断，未完成独立法律审查；不构成现行再分发授权。公开版本引用用于定位当时已分发的资源。
 
 | 对象 | 现状 | 风险或待办 |
 |---|---|---|
@@ -358,171 +361,168 @@
 
 ---
 
-## 9. 需要用户提供的精确信息（现有文件无法确定）
+## 9. 审计时未决事项
 
 1. **流萤 Live2D 模型**
    - 作者、来源链接和授权范围（是否允许再分发）。
-   - 是否要处理公开分支 `firefly-v1.1.0` 和 `firefly-v2.4-alpha1` 中已推送的模型文件（是否处理、如何处理由你决定）。
-2. **心情图、表情包、状态图**：是否有流萤版素材？如果没有，选"隐藏"还是"暂时只显示文字"？
+   - 公开版本 `firefly-v1.1.0` 和 `firefly-v2.4-alpha1` 中模型文件的处置范围与方式。
+2. **心情图、表情包、状态图**：流萤版素材是否可用；缺少素材时采用隐藏或纯文字显示。
 3. **子代理名单（黄金裔）**：
    - A. 去角色化，清空名单。现有代码已支持无名单路径（`harness/builtin-tools.ts:31,46,50`）。
    - B. 换成星核猎手成员，需要头像素材和名单。
-4. **音乐**：保留网易云、迁入 QQ 音乐桌面桥，还是两者并存？
-5. **Firefly 仓库的 47 个未提交改动**：统一工作台、思考强度、`work-file-evidence` 是否算作"原功能"？建议先提交或暂存，固定基线。
-6. **打包身份**（只在要打包时需要）：appId、productName、安装包名、自动更新源（例如 `Serendipity-wu02/Firefly_Agent` 的 Releases，或关闭更新）。
-7. **TTS 验收**（只在做 TTS 批次时需要）：本机 GPT-SoVITS 服务地址，以及参考音频的本机路径（原配置 `refAudioPath` 为空）。
+4. **音乐**：保留网易云、迁入 QQ 音乐桌面桥或两者并存的产品选择。
+5. **旧 Firefly 功能边界**：统一工作台、思考强度、`work-file-evidence` 等基线外实现是否计入“原功能”；确定范围后应保留可复核的来源快照。
+6. **打包身份**（打包设计依赖）：appId、productName、安装包名、自动更新源（例如 `Serendipity-wu02/Firefly_Agent` 的 Releases，或关闭更新）。
+7. **TTS 验收**（语音模块验收依赖）：本机 GPT-SoVITS 服务地址，以及参考音频的本机路径（原配置 `refAudioPath` 为空）。
 
 ---
 
-## 10. 下一批实施指令
+## 10. 历史迁移设计（审计时尚未实施）
 
-原则：
+以下方案保留当时的技术决策、依赖与验收标准，不代表当前实施要求。设计原则：
 
 - 以新底座为主。只替换角色内容，保留运行约束。
 - 不移植原 Firefly 的 orchestrator、权限或设置所有者。
 - 不预建 Jev / DecisionProvider 插槽，不引入新架构。
 
-每个批次都要能独立构建、测试和实机验收。
+各功能模块应具备独立构建、测试与实机验收条件。
 
-### 批次 1：流萤可见、人设单一、Chat 可用（建议立即执行）
+### 10.1 品牌、人设与 Chat 可用性
 
-> 可直接交给实施者的指令：
->
-> **范围**：`E:\Codex\Cyrene-Agent-master`。只做下列改动，不修改权限、审批、harness 循环和设置结构，不新增模块。
->
-> **1. 固定基线**
->
-> - 在仓库根目录 `git init`，把当前状态作为首个提交。提交说明中写明："Cyrene 1.2.2 zip 解压 + 2026-09-21 迁移 WIP（21 个文件见 docs/migration/firefly-migration-audit-2026-09-22.md §1.1）"。
-> - 只在本地提交，不推送；远程策略由用户决定。
-> - 确认 `.gitignore` 已排除 `node_modules/` 和 `dist/main|cli|preload|renderer/assets`。
->
-> **2. 恢复 Electron 二进制**
->
-> - 执行 `node node_modules/electron/install.js`（需要网络；不改动 `package.json` 和 lock 文件）。
-> - 确认 `node_modules/electron/dist/electron.exe` 已存在。
->
-> **3. Prompt 角色层替换**（保留 §3 B3 列出的运行约束段落，只替换角色内容）
->
-> - `chat_system.md`：
->   - `:9` 改为流萤。
->   - `:15-41` 改写为"流萤与底层模型"，保留"模型不等于角色、记忆边界、如实回答技术身份"这些约束。
->   - `:84` 改为"我有一点担心"。
->   - `:170` 替换名字。
-> - `work_system.md`：
->   - 在 `:3, :9, :20-21, :26-42, :148, :219, :251, :278` 替换角色内容。
->   - 删除"善用♪为结尾"。
-> - `learn_system.md`：`:1, :3` 替换角色，并去掉重复句；`:148` 把"Work"更正为"Learn"。
-> - `code_system.md`：`:5` 替换角色，并把"Learn 学习模式"更正为"Code 模式"；`:13, :69` 替换角色。
-> - `cyrene_harness.md`：
->   - **保留文件名**（`prompt-builder.ts:55` 引用它）。
->   - 按原 Firefly 的 `work_mode` 与萨姆三态重写为流萤执行人设，来源是 `source-persona/firefly.yaml` 的 `work_mode`。
->   - 保留 `:75-101` 的通用约束，删除全部"人家 / ♪"规则与昔涟示例。
-> - `styles/01-05*.md`：按流萤口吻重写，保留 5 个 ID 和采样语义。`05_sweet` 改为"亲近"，不写撒娇和"人家"。
-> - `phone_identity.md`、`phone_system.md`、`phone_style.md`：替换为流萤。
-> - `work_remark.md:1`、`code_remark.md:1`：标题改为流萤。
-> - `soul.md`：
->   - 从 `firefly.yaml` 投影为分节 Markdown：身份、背景、性格、喜好、语言习惯、禁用词、角色边界、日常语气。
->   - 不再保留原始 YAML，`work_mode` 段不放进 Chat。
->   - 在 `source-persona/firefly.yaml` 文件头注明"来源存档，运行时不读取"。
-> - `canon_quotes_lite.md`：从 `canon_quotes.md` 精选不超过三分之一的条目。
-> - `worldbook/Cyrene.md`：重命名为 `worldbook/Firefly.md`。
-> - 删除 `plan_identity.md`（没有引用）。
->
-> **4. 运行时字符串（模型可见）替换为流萤**
->
-> - `agent-runtime.ts:135-137`：心情值列表保持不变，以免破坏 `sidebar.ts:91` 的图片映射。
-> - `context-manager.ts:5, :81`
-> - `history-tools.ts:93`
-> - `build-options.ts:265`
-> - `permission.ts:247`
-> - `proactive-lifecycle.ts:167`
-> - `toast-service.ts:130/150/219`
-> - `settings-facade.ts:97`：去掉♪。
-> - `call-manager.ts`
-> - `create-aux-windows.ts:140/191/250`
-> - 只做字符串替换，不引入新的配置层。
->
-> **5. 子代理名单**：按用户对 §9 问题 3 的回答处理。默认执行 A：清空 `task-character-pool.ts` 中的 `TASK_CHARACTERS`，并同步更新以下测试：
->
-> - `mode-prompt-profile.test.ts:20-21`
-> - `task-character-pool.test.ts`
-> - 受影响的 moments 测试
->
-> **6. 朋友圈默认关闭**：`settings-facade.ts:44-45` 中，`momentsEnabled` 和 `chatMomentsContextEnabled` 的默认值改为 `false`。只改默认值，不删除代码。
->
-> **7. UI 品牌**
->
-> - `react/index.html:6` 改为"流萤 · 聊天"。
-> - `renderer/index.html:6` 改为"Firefly"。
-> - `ChatMessageList.tsx:106` 改用 `avatars/firefly-avatar.png`。
-> - `zh-CN.json` 的 35 处、`en.json` 的 10 处改为流萤 / Firefly。朋友圈相关键可以保留。
-> - feeling、stickers、status 素材按 §9 问题 2 的回答处理。回答前不改动。
->
-> **8. 测试**
->
-> - `live2d-actions.test.ts:50-54` 和 `play-live2d-action.test.ts` 改为流萤动作别名。
-> - 新增一个断言：以下"模型可见"文件中不含 `昔涟|Cyrene|人家|♪`：
->   - `prompts/*_system.md`
->   - `prompts/*_identity.md`
->   - `cyrene_harness.md`
->   - `styles/*.md`
->   - `soul.md`
->   - 第 4 步列出的源码文件
->   - 例外：`moments_personas/` 和注释。
->
-> **9. 验证**
->
-> - 运行 `npm run build`、`npm run check:renderer`、`npm test`。报告真实的通过和失败数；对失败项逐条说明，不得跳过。
-> - 用户实机执行 `npm run dev`，按以下项目验收：
->   - 桌宠显示流萤，眨眼、说话口型和 `expression00` 默认表情正常。
->   - 聊天窗口标题和头像为流萤。
->   - Chat 发送一句问候，回复以流萤口吻、不自称"人家"、不带♪。
->   - Work 模式要求读取一个文件，回复中角色一致，工具审批仍按"只读"档位弹出。
->   - `%APPDATA%\Firefly-Cyrene-Base` 被创建，`%APPDATA%\firefly-agent` 未被修改（时间戳不变）。
->
-> **不做**：打包配置、音乐、TTS、知识语料、Jev/DecisionProvider。
+**范围**：新底座工程的角色与展示层；不修改权限、审批、harness 循环和设置结构，不新增模块。
 
-### 批次 2：桌宠交互与具身（依赖批次 1）
+**1. 来源与交付约束**
 
-> - **点击命中**：让 `manager.ts:50-70` 的 `buildHitAreaDefs` 支持没有 `Motion` 字段的模型。在 `src/shared/live2d-actions.ts` 旁增加一张"命中区 → 动作别名"映射表，至少包括：
->   - Head → `害羞` 或 `开心`
->   - Body → `打招呼`
->
->   不修改第三方的 `Firefly.model3.json`。
-> - **补齐动作**：`live2d-actions.ts` 增加 `被拖拽`（Tap/0）和 `不适`（expression7）。拖拽开始时播放 `被拖拽`：在 `main.ts:343` 的 pointerdown 之后、`manager.pause()` 之前触发，或在拖拽结束后补播，由实机效果决定。
-> - **Chat 中的动作**：`play-live2d-action.ts:85` 改为 `modes:["work","chat"]`，并设 `chatBuiltin:true`。`effectKind` 保持不变，不放宽权限。
-> - **心情驱动表情**：心情观察器的心情值按原 `embodiment-adapter.ts` 的映射驱动表情：
->   - 开心 / 感动 → expression4
->   - 思考 → expression5
->   - 害羞 → expression10
->   - 担心 → expression7
->
->   经现有的 `LIVE2D_PLAY_ACTION` IPC 下发，不新增通道。
-> - **测试**：命中映射、新动作、Chat 模式工具可见性。实机验收点击、拖拽、情绪表情。
+- 保留 Cyrene 1.2.2 ZIP 来源和 2026-09-21 角色迁移内容的可复核基线；21 个改动文件见 §1.1。
+- `.gitignore` 应排除 `node_modules/` 和 `dist/main|cli|preload|renderer/assets`。
 
-### 批次 3：Work 文件读取证据与导出（原 Firefly 能力的适配迁入）
+**2. 恢复 Electron 二进制**
 
-> - **读取覆盖**：`read_file` 的返回结果（`fs-tools.ts`）增加 `coverage: "full" | "partial"` 和实际读取的行范围。`totalLines` 已存在，据此计算即可。
-> - **部分读取声明**：在 `work_system.md` 和 `code_system.md` 加入约束——结论基于部分读取时，必须说明已读范围，并询问用户是否接受部分范围。这是原 Firefly `WorkFileReadAcceptance` 的等价表达，不复制 coordinator。
-> - **必读文件证据**：用户在本轮明确附加或引用的文件，在运行收尾时检查是否至少读取过一次。复用 `execution-ledger` 或 `tool-evidence` 的已有记录，未读的文件作为 `uncertain` 提示给用户，而不是静默宣告完成。
-> - **会话导出 Markdown**：把 `Firefly-Pet/src/shared/work-markdown.ts` 的渲染逻辑改写为读取 `chats-store` 的会话，经 `showSaveDialog` 保存；入口放在现有会话菜单。
-> - **测试**：参考原 `tools/test/runtime/work-file-segmentation.test.ts`、`work-markdown-export.test.ts` 的用例语义改写。
+- 执行 `node node_modules/electron/install.js`（需要网络；不改动 `package.json` 和 lock 文件）。
+- 确认 `node_modules/electron/dist/electron.exe` 已存在。
 
-### 批次 4：语音与音乐（依赖 §9 问题 4、7）
+**3. Prompt 角色层替换**（保留 §3 B3 列出的运行约束段落，只替换角色内容）
 
-> - **TTS**：GPT-SoVITS 设置增加 `seed`（默认沿用原 `DEFAULT_GPTSOVITS_SEED`）和流萤默认参考文本（`Firefly-Pet/src/shared/tts-types.ts:28`）。默认引擎保持 `off`，由用户在设置中开启。实机验收需要本机服务。
-> - **音乐**：如果用户选择迁入 QQ 音乐，把 `qqmusic-desktop-bridge.ts` 和 `qqmusic_gsmtc.ps1` 适配为 `music/music-router.ts` 下的一个 provider，复用现有 `music_*` 工具与 mpv；不新增第二个音乐服务。
+- `chat_system.md`：
+  - `:9` 改为流萤。
+  - `:15-41` 改写为"流萤与底层模型"，保留"模型不等于角色、记忆边界、如实回答技术身份"这些约束。
+  - `:84` 改为"我有一点担心"。
+  - `:170` 替换名字。
+- `work_system.md`：
+  - 在 `:3, :9, :20-21, :26-42, :148, :219, :251, :278` 替换角色内容。
+  - 删除"善用♪为结尾"。
+- `learn_system.md`：`:1, :3` 替换角色，并去掉重复句；`:148` 把"Work"更正为"Learn"。
+- `code_system.md`：`:5` 替换角色，并把"Learn 学习模式"更正为"Code 模式"；`:13, :69` 替换角色。
+- `cyrene_harness.md`：
+  - **保留文件名**（`prompt-builder.ts:55` 引用它）。
+  - 按原 Firefly 的 `work_mode` 与萨姆三态重写为流萤执行人设，来源是 `source-persona/firefly.yaml` 的 `work_mode`。
+  - 保留 `:75-101` 的通用约束，删除全部"人家 / ♪"规则与昔涟示例。
+- `styles/01-05*.md`：按流萤口吻重写，保留 5 个 ID 和采样语义。`05_sweet` 改为"亲近"，不写撒娇和"人家"。
+- `phone_identity.md`、`phone_system.md`、`phone_style.md`：替换为流萤。
+- `work_remark.md:1`、`code_remark.md:1`：标题改为流萤。
+- `soul.md`：
+  - 从 `firefly.yaml` 投影为分节 Markdown：身份、背景、性格、喜好、语言习惯、禁用词、角色边界、日常语气。
+  - 不再保留原始 YAML，`work_mode` 段不放进 Chat。
+  - 在 `source-persona/firefly.yaml` 文件头注明"来源存档，运行时不读取"。
+- `canon_quotes_lite.md`：从 `canon_quotes.md` 精选不超过三分之一的条目。
+- `worldbook/Cyrene.md`：重命名为 `worldbook/Firefly.md`。
+- 删除 `plan_identity.md`（没有引用）。
 
-### 批次 5：知识与世界观
+**4. 运行时字符串（模型可见）替换为流萤**
 
-> - 把 `Firefly-Pet/src/main/character/resources/{knowledge/curated_cards, knowledge/facts.yaml, world/lore, character/experience}` 转写为 `prompts/worldbook/*.md` 条目，写明触发词、优先级和内在价值。
-> - 控制条目总量，不移植原 Firefly 的 RAG 引擎和预建向量索引。
-> - `world/npc`、`world/quests` 等大体量语料暂不导入，另行评估后再用新底座的文档索引。
+- `agent-runtime.ts:135-137`：心情值列表保持不变，以免破坏 `sidebar.ts:91` 的图片映射。
+- `context-manager.ts:5, :81`
+- `history-tools.ts:93`
+- `build-options.ts:265`
+- `permission.ts:247`
+- `proactive-lifecycle.ts:167`
+- `toast-service.ts:130/150/219`
+- `settings-facade.ts:97`：去掉♪。
+- `call-manager.ts`
+- `create-aux-windows.ts:140/191/250`
+- 只做字符串替换，不引入新的配置层。
 
-### 批次 6：打包身份（只在需要打包时执行，依赖 §9 问题 6）
+**5. 子代理名单**：依赖 §9 问题 3 的产品选择。原方案默认采用 A：清空 `task-character-pool.ts` 中的 `TASK_CHARACTERS`，并同步更新以下测试：
 
-> - 修改 `electron-builder.yml` 的 `appId`、`productName`、`artifactName`、`menuCategory`、`publish`；修改 `package.json` 的 `name`、`description`、`bin`。
-> - 从构建中移除 `public/models/cyrene/` 和 `assets/models/cyrene/`。
-> - 为流萤模型补充 MODEL_LICENSE（依赖 §9 问题 1）。
+- `mode-prompt-profile.test.ts:20-21`
+- `task-character-pool.test.ts`
+- 受影响的 moments 测试
 
-**Jev / DecisionProvider**：以上批次全部完成，并经实机验收稳定后再启动。本轮和以上批次都不预建插槽。
+**6. 朋友圈默认关闭**：`settings-facade.ts:44-45` 中，`momentsEnabled` 和 `chatMomentsContextEnabled` 的默认值改为 `false`。只改默认值，不删除代码。
+
+**7. UI 品牌**
+
+- `react/index.html:6` 改为"流萤 · 聊天"。
+- `renderer/index.html:6` 改为"Firefly"。
+- `ChatMessageList.tsx:106` 改用 `avatars/firefly-avatar.png`。
+- `zh-CN.json` 的 35 处、`en.json` 的 10 处改为流萤 / Firefly。朋友圈相关键可以保留。
+- feeling、stickers、status 素材依赖 §9 问题 2 的选择；未确定前保持原状。
+
+**8. 测试**
+
+- `live2d-actions.test.ts:50-54` 和 `play-live2d-action.test.ts` 改为流萤动作别名。
+- 新增一个断言：以下"模型可见"文件中不含 `昔涟|Cyrene|人家|♪`：
+  - `prompts/*_system.md`
+  - `prompts/*_identity.md`
+  - `cyrene_harness.md`
+  - `styles/*.md`
+  - `soul.md`
+  - 第 4 步列出的源码文件
+  - 例外：`moments_personas/` 和注释。
+
+**9. 验证**
+
+- 运行 `npm run build`、`npm run check:renderer`、`npm test`。报告真实的通过和失败数；对失败项逐条说明，不得跳过。
+- 用户实机执行 `npm run dev`，按以下项目验收：
+  - 桌宠显示流萤，眨眼、说话口型和 `expression00` 默认表情正常。
+  - 聊天窗口标题和头像为流萤。
+  - Chat 发送一句问候，回复以流萤口吻、不自称"人家"、不带♪。
+  - Work 模式要求读取一个文件，回复中角色一致，工具审批仍按"只读"档位弹出。
+  - `%APPDATA%\Firefly-Cyrene-Base` 被创建，`%APPDATA%\firefly-agent` 未被修改（时间戳不变）。
+
+**范围外**：打包配置、音乐、TTS、知识语料、Jev/DecisionProvider。
+
+### 10.2 桌宠交互与具身（依赖 §10.1）
+
+- **点击命中**：让 `manager.ts:50-70` 的 `buildHitAreaDefs` 支持没有 `Motion` 字段的模型。在 `src/shared/live2d-actions.ts` 旁增加一张"命中区 → 动作别名"映射表，至少包括：
+  - Head → `害羞` 或 `开心`
+  - Body → `打招呼`
+
+  不修改第三方的 `Firefly.model3.json`。
+- **补齐动作**：`live2d-actions.ts` 增加 `被拖拽`（Tap/0）和 `不适`（expression7）。拖拽开始时播放 `被拖拽`：在 `main.ts:343` 的 pointerdown 之后、`manager.pause()` 之前触发，或在拖拽结束后补播，由实机效果决定。
+- **Chat 中的动作**：`play-live2d-action.ts:85` 改为 `modes:["work","chat"]`，并设 `chatBuiltin:true`。`effectKind` 保持不变，不放宽权限。
+- **心情驱动表情**：心情观察器的心情值按原 `embodiment-adapter.ts` 的映射驱动表情：
+  - 开心 / 感动 → expression4
+  - 思考 → expression5
+  - 害羞 → expression10
+  - 担心 → expression7
+
+  经现有的 `LIVE2D_PLAY_ACTION` IPC 下发，不新增通道。
+- **测试**：命中映射、新动作、Chat 模式工具可见性。实机验收点击、拖拽、情绪表情。
+
+### 10.3 Work 文件读取证据与导出
+
+- **读取覆盖**：`read_file` 的返回结果（`fs-tools.ts`）增加 `coverage: "full" | "partial"` 和实际读取的行范围。`totalLines` 已存在，据此计算即可。
+- **部分读取声明**：在 `work_system.md` 和 `code_system.md` 加入约束——结论基于部分读取时，必须说明已读范围，并询问用户是否接受部分范围。这是原 Firefly `WorkFileReadAcceptance` 的等价表达，不复制 coordinator。
+- **必读文件证据**：用户在当前任务中明确附加或引用的文件，在运行收尾时检查是否至少读取过一次。复用 `execution-ledger` 或 `tool-evidence` 的已有记录，未读的文件作为 `uncertain` 提示给用户，而不是静默宣告完成。
+- **会话导出 Markdown**：把 `Firefly-Pet/src/shared/work-markdown.ts` 的渲染逻辑改写为读取 `chats-store` 的会话，经 `showSaveDialog` 保存；入口放在现有会话菜单。
+- **测试**：参考原 `tools/test/runtime/work-file-segmentation.test.ts`、`work-markdown-export.test.ts` 的用例语义改写。
+
+### 10.4 语音与音乐（依赖 §9 问题 4、7）
+
+- **TTS**：GPT-SoVITS 设置增加 `seed`（默认沿用原 `DEFAULT_GPTSOVITS_SEED`）和流萤默认参考文本（`Firefly-Pet/src/shared/tts-types.ts:28`）。默认引擎保持 `off`，由用户在设置中开启。实机验收需要本机服务。
+- **音乐**：如果用户选择迁入 QQ 音乐，把 `qqmusic-desktop-bridge.ts` 和 `qqmusic_gsmtc.ps1` 适配为 `music/music-router.ts` 下的一个 provider，复用现有 `music_*` 工具与 mpv；不新增第二个音乐服务。
+
+### 10.5 知识与世界观
+
+- 把 `Firefly-Pet/src/main/character/resources/{knowledge/curated_cards, knowledge/facts.yaml, world/lore, character/experience}` 转写为 `prompts/worldbook/*.md` 条目，写明触发词、优先级和内在价值。
+- 控制条目总量，不移植原 Firefly 的 RAG 引擎和预建向量索引。
+- `world/npc`、`world/quests` 等大体量语料暂不导入，另行评估后再用新底座的文档索引。
+
+### 10.6 打包身份（依赖 §9 问题 6）
+
+- 修改 `electron-builder.yml` 的 `appId`、`productName`、`artifactName`、`menuCategory`、`publish`；修改 `package.json` 的 `name`、`description`、`bin`。
+- 从构建中移除 `public/models/cyrene/` 和 `assets/models/cyrene/`。
+- 为流萤模型补充 MODEL_LICENSE（依赖 §9 问题 1）。
+
+**Jev / DecisionProvider 的历史边界**：不属于上述迁移范围，不预建插槽；后续评估以迁移能力完成并通过稳定性实机验收为前提。

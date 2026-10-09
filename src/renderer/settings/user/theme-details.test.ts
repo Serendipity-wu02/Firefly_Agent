@@ -17,7 +17,7 @@ describe("Firefly settings theme and address", () => {
   it("uses one accent focus and hover treatment for shared setting fields", () => {
     expect(themeStyles).toContain('[data-ui-theme="pearl-white"] .tts-field input:hover:not(:disabled)');
     expect(themeStyles).toContain('[data-ui-theme="pearl-white"] .tts-field input:focus');
-    expect(themeStyles).toContain('border-color: var(--rb-pink-500);\n  box-shadow: 0 0 0 3px rgba(136, 57, 239, 0.18);');
+    expect(themeStyles).toContain('border-color: var(--rb-pink-500);\n  box-shadow: 0 0 0 3px rgba(68, 70, 79, 0.18);');
     expect(settingsStyles).not.toContain("255, 182, 220");
     expect(settingsStyles).not.toContain("255, 192, 230");
   });

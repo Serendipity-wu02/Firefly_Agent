@@ -1,3 +1,4 @@
+import { DesktopAsrButton } from "./DesktopAsrButton";
 import { Sender } from "@ant-design/x";
 import { Popover } from "antd";
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
@@ -400,6 +401,7 @@ export function ChatComposer({
         }
         />
         <div className="cy-composer__footer">
+        <DesktopAsrButton key={`${mode}:${conversationId ?? "new"}:${workspaceRoot ?? ""}`} onText={text => onChange(`${value}${value && !/\s$/.test(value) ? " " : ""}${text}`)} />
         {mode === "work" && attachments.some((attachment) => attachment.kind === "document") && (
           <label className="cy-composer__read-requirement">
             <input type="checkbox" checked={requireDocumentRead} onChange={(event) => onRequireDocumentReadChange?.(event.target.checked)} />

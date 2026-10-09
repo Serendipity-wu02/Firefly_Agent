@@ -1,55 +1,65 @@
-# dedicated worker 边界：可行性证据与待决方案
+# Worker 请求身份与创建边界可行性分析
 
-> 后续方向：用户已授权优先验证专用Session及不可变policyEpoch，默认不禁Worker。当前契约见[right-agent-workspace](right-agent-workspace.md#2026-10-04-会话授权域验证契约)，原型与剩余HOLD门槛见[会话证据](../testing/browser-session-epoch.md)。本文保留历史RED和CSP可行性调查，不作为已选择的生产禁用方案。
+- **证据日期**：2026-10-04
+- **状态**：历史安全反例与 CSP 可行性研究；未选为生产禁用方案
+- **后续方向**：独立 Session 与不可变 policyEpoch，默认不禁用 worker，见[会话授权域契约](right-agent-workspace.md#2026-10-04-会话授权域验证契约)
+- **范围**：区分请求字段的证明能力、候选创建边界及兼容代价
 
-2026-10-04，产品基线 `ff65b1152daf44011df232527ad626b3ee2844d0`。用户要求先RED与最小方案，worker禁用及兼容取舍必须交父审阅，不能将review建议当产品决定。本阶段只保留一次性验证夹具、原始证据位置和候选方案，**没有修改任何产品源码/共享接线/GUI/R1/CI，生产gate继续HOLD**。DNS Important 已由父独立复核确认 CLOSED，范围限单一Main模块实例，报告 `E:\Codex\2026-10-03\task-10\dns-worker-review-20261004\dns-worker-review.md`；worker仍OPEN。
+## 1. 背景与历史结论
 
-## 更精确的原生 RED
+Electron webRequest 暴露的 WebContentsId、frame 和 resourceType 不能可靠区分所有页面请求与 worker 请求。本阶段通过隔离原生实验验证了这一局限，并调查 CSP 禁止 worker 创建的可行性，没有修改产品源码、共享接线、GUI、目录边界或 CI。
 
-Electron43.1.0 / Chromium150.0.7871.47 / embedded Node24.18。新专用非persist Session、隐藏sandbox/contextIsolation/noNode/noPreload窗口。严格产品request policy与代理在首个合成文档加载前安装，然后才创建blob classic worker。只有固定不可变的 `ff-network-fixture://fixture/` 文档加载是夹具例外；其他blob/data/HTTPS URL均经过未改的产品请求策略。代理pin仍由受控依赖映射到本机自签名TLS服务，证书拒绝，HTTP0；不声明真实公网或worker身份已获授权。
+同期 DNS 并发预算审查的 Important 项已关闭，证明范围仅限单一 Main 模块实例；worker 边界不能据此关闭。该阶段生产网络 gate 保持 HOLD。后续 Session/epoch 与网络验收见[会话证据](../testing/browser-session-epoch.md)，本文不描述当前全部产品授权状态。
 
-| 请求 | 真实属性 | 本地pin拨号 |
-|---|---|---|
-| 页面fetch GET | xhr / owner ID1 / frame(process4,routing1,tree1,top=true) / 同文档url与origin / referrer空；Sec-Fetch-Dest=empty，Mode=no-cors | 0→1 |
-| 该文档随后创建的worker fetch GET | 上述属性完全相同，策略allowed=true | 1→2 |
-| 同worker importScripts GET | script / 同owner与frame / Sec-Fetch-Dest=script，Mode=no-cors，策略allowed=true | 2→3 |
+## 2. 原生请求身份反例
 
-`red-r1` PID32616 exit1，旧“只有策略安装前预建worker才会漏过”假设被排除；`red-r2` PID25864 exit1，补importScripts真实入口，失败断言明确要求worker GET在拨号前拒绝。它们是有效RED，非两次失败修复。HTTP0仅因为TLS负例，不倒推请求策略安全。没有证明认证/IP绕过、出站写入或TLS成功。
+实验环境为 Electron 43.1.0、Chromium 150.0.7871.47、embedded Node 24.18。全新非 persist Session 和隐藏窗口固定 sandbox/contextIsolation、无 Node/preload，产品 request policy 与代理先于首个合成文档安装。
 
-因此仅加framePresent、top-frame比较、原生frame ID、referrer或Sec-Fetch-Dest不能区分此反例；禁止xhr同时破坏页面fetch，且遗漏已实测的worker script入口。页面上报worker ID、patch Worker构造器也不是可信Main边界。协议/类别检查仍必要，但不能充当worker身份。
+只有固定不可变的 `ff-network-fixture://fixture/` 文档是 fixture 例外，其他 blob/data/HTTPS 请求继续经过原策略。受控 dialer 将数值参数映射到本机自签 TLS 服务，Chromium 拒绝证书，目标 HTTP 命中为 0；这不是公网或 worker TLS 正向授权证据。
 
-## 候选A：新文档执行前由浏览器禁止创建worker（建议父评估）
+| 请求 | 实际可观察属性 | 数值 pin 拨号 |
+| --- | --- | --- |
+| 页面 fetch GET | xhr；页面 owner ID 与 top frame；同文档 URL/origin；referrer 空；`Sec-Fetch-Dest=empty`、`Mode=no-cors` | 0 → 1 |
+| 随后创建的 worker fetch GET | 与页面 fetch 的上述身份字段相同，策略 allowed=true | 1 → 2 |
+| 同 worker importScripts GET | script；同 owner/frame；`Sec-Fetch-Dest=script`、`Mode=no-cors`，策略 allowed=true | 2 → 3 |
 
-最小安全方向是对新的专用Session在任何不可信脚本执行前安装唯一Main请求/响应处理器，保持原GET/HEAD、认证、IP固定与撤销检查；在响应中**另追加强制 CSP `worker-src 'none'`，完整保留站点所有既有CSP与Report-Only头**。不重写站点政策、不追加worker白名单、不靠resourceType猜测worker。主/子文档均须覆盖；新窗口/外部scheme继续沿既定Main导航拒绝契约，不能因这项方案额外放行。
+反例发生在策略安装后创建的 worker，排除了“只有预建 worker 才遗漏”的解释。其失败断言要求 worker GET 在拨号前被拒绝，未证明认证绕过、IP 绕过、TLS 成功或出站写入。目标 HTTP 为 0 仅来自 TLS 负例，不能倒推请求策略安全。
 
-该方案的前提是全新非persist Session及新binding、无旧worker/SW/未受保护文档、处理器先于首次导航、缓存/重定向/全部frame政策不遗漏、处理器不能被其他listener替换。CSP不终止已存在worker，不能对现有Session安装后宣称安全；违规/准备或清理失败仍拒绝load，不恢复DIRECT或复用旧上下文。纯header helper也不能代表这些Main保证已成立。
+仅增加 framePresent、top-frame 比较、原生 frame ID、referrer 或 Sec-Fetch-Dest 不能区分该反例。禁止 xhr 会同时破坏页面 fetch，并遗漏 script 类型的 importScripts。页面上报 worker ID 或改写 Worker 构造器也不能成为 Main 可信身份来源。
 
-一次性 `csp-r2` PID34440 exit0，10条观察/errors=[]。真实onHeadersReceived保留原 `worker-src 'self' blob: data:`，另追加none，Chromium实际enforce：
+## 3. 候选 A 的创建边界与可行性
 
-- blob classic/module、data Worker和blob SharedWorker均未ready，产生异步error和真实 `effectiveDirective=worker-src / disposition=enforce`；并非必须同步抛SecurityError。SW register拒绝，SecurityError明确写CSP。
-- srcdoc/about:blank子框架继承限制，放宽meta CSP也不能解除响应强制政策。
-- 没有worker GET请求，页面GET产生的dial1后仍为1；运行SW0/shared0。页面JS设置标题成功，页面XHR仍由原策略接受并拨号，随后因自签TLS失败；不能称页面HTTPS fetch成功。
+候选 A 在任何不可信脚本执行前，为全新专用 Session 的主/子文档响应另追加强制 CSP `worker-src 'none'`，完整保留站点既有 CSP 和 Report-Only 头。GET/HEAD、认证、IP 固定和撤销策略不变，不靠 resourceType 猜测 worker。
 
-这是安全创建边界的**原生可行性证明**，不是产品修复GREEN或总网络gate验收。未测真实可信HTTPS主/跨源子文档、redirect/304缓存、data/blob子文档、旧generation及再次打开等全部路径；这些必须在实施后补验，不能用此fixture替代。最终夹具snapshot复验 `csp-r3` PID13748 exit0，10条观察/errors=[]，dial仍1→1，运行SW0/shared0；原始launcher/JSON已归档。
+前置条件是新 Session、新 binding、无旧 worker/SW/未受保护文档，唯一 handler 先于首次导航，并覆盖缓存、重定向及全部 frame。CSP 不终止已存在 worker；不能在旧 Session 上后补 header 就声称安全。处理器不能被其他 listener 替换，准备或清理失败不得恢复 DIRECT 或复用旧上下文。
 
-## 兼容性取舍必须明确接受
+最终原型复验共 10 条观察，`errors=[]`、exit 0：
 
-禁用范围涵盖Web Worker、SharedWorker、ServiceWorker，也阻止worker内的importScripts/nested worker通过“已有worker”继续运行，因为起始worker不应存在。页面常规JS/DOM不因此被关闭，页面GET/HEAD fetch/XHR保持既有策略；POST等原有拒绝不变。
+- 保留原 `worker-src 'self' blob: data:` 并追加 `none` 后，blob classic/module、data Worker、blob SharedWorker 均未 ready，产生异步 error 与真实 `effectiveDirective=worker-src / disposition=enforce`。
+- SW register 以明确 CSP SecurityError 拒绝；srcdoc/about:blank 子框架继承限制，放宽 meta CSP 不能解除响应强制政策。
+- worker GET 未出现，页面 GET 引起的 dial 计数保持 1；running SW/shared 均为 0。
+- 页面 JS 可设置标题，页面 XHR 被原策略接受并拨号，随后因自签 TLS 失败；不宣称页面 HTTPS fetch 成功。
 
-依赖worker的网页功能将报error/registration rejection。网站有自己的回退代码时才可能继续；没有回退则功能失效。后台计算、某些PDF/编解码/大型搜索、共享后台状态等可能失效或退到主线程而卡顿；这些是按依赖的影响推断，并非已测过具体网站。SW离线缓存、push/后台同步能力不能使用。不能承诺“只禁worker、不影响网页”。本轮未在真实网站作兼容测量，公开HTTPS仍受198.18 DNS环境限制。
+原型曾将 constructor 同步 throw 作为错误断言，后改为要求真实 CSP violation 与异步失败。保留这一语义限制即可理解验证结果；普通 error 不能算作保护成立。
 
-父需决定是否接受这一“保留页面JS、禁止所有worker创建”的浏览模式。未接受前不添加产品helper、不改变既定浏览能力，也不批准真实入口。
+该结果仅证明原生创建边界的可行性，不是产品修复 GREEN 或 N1–N10 总验收。未覆盖可信 HTTPS 主/跨源子文档、redirect/304 缓存、data/blob 子文档、旧 generation 和重开等完整路径。
 
-## 候选B及拒绝边界
+## 4. 兼容性与未选择原因
 
-如产品必须支持worker，需另冻结可信Main target生命周期与能力契约：首次脚本前控制worker target、私有绑定owner/generation，在其请求发出前按真实target校验，unknown/detach/旧generation等撤销。Electron43 debugger有target sessionId传输，但现有webRequest ID/frame不能可靠join到worker；普通Network通知或收到请求后再封堵不提供零迟到证明。CDP自动附加/暂停及Fetch拦截是可研究路线，**未在本机验证完整递归worker生命周期或无race保证**，属于更大设计，不在本阶段实施。DevTools打开会detach，必须考虑拒绝与生命周期冲突，不能向renderer公开调试能力。
+禁止 worker 会同时限制 Web Worker、SharedWorker、ServiceWorker 及其后续 importScripts/nested worker。页面普通 JS/DOM 不因此关闭，GET/HEAD fetch/XHR 沿原策略，POST 拒绝不变。
 
-若候选A任一文档路径不能证实，仍HOLD；可另提交关闭页面JS的静态阅读模式，但其交互/兼容代价更大，也需父决策。无论哪一路都不替代QUIC/WebRTC出口证据。没有绕198.18 DNS、安装抓包驱动、修改系统网络/证书或尝试mTLS真实证书。
+依赖 worker 的页面功能可能失败或回退主线程；后台计算、部分 PDF/编解码/搜索、共享后台状态、SW 离线缓存、push 和后台同步都可能受影响。这些是依赖关系推断，没有真实站点兼容测量，不能承诺“只禁 worker 而不影响网页”。后续选择 Session/epoch 继承路线，未将候选 A 作为默认产品行为。
 
-## 恢复与可审查材料
+## 5. 候选 B 与后续变更门槛
 
-一次性夹具快照：[worker-boundary.cjs](../testing/fixtures/browser-worker-boundary/worker-boundary.cjs)及launcher；[manifest](../testing/fixtures/browser-worker-boundary/manifest.json)记录证据SHA256及实际退出码，五次JSON和launcher也已归档。sha256绑定外部原始字节，archivedSha256绑定Git内LF行尾副本，JSON内容未改；fixture目录属性保持归档字节不受checkout转换。外部完整证据保留于 `E:\Codex\2026-10-04\task-4\network-modules-native`，含对应stdout/stderr，原始失败未覆盖。最终脚本快照对应red-r2/csp-r3；其他历史运行的脚本版本未保存，不能以最终脚本哈希冒充其运行输入。复跑需要工作树现有dist、Electron及外部本机测试TLS材料；这不是独立可搬运的测试包。测试私钥不入Git，代理凭据未记录。
+若使用更细的 target 控制，需要在首次脚本前建立 Main target 生命周期与私有 owner/generation，确保请求前校验，并在 unknown/detach/旧 generation 时撤销。Electron 43 debugger 有 target sessionId 传输，但 webRequest ID/frame 无法可靠关联全部 worker；普通 Network 通知或请求后封堵没有零迟到保证。
 
-`csp-r1` 首次探针断言误假设constructor同步throw，实际是异步error；纠正一次，随后csp-r2通过，强制要求每种创建失败都有真实CSP violation，而非把任何error算作保护。产品修复尝试0，测试断言纠正1次，同问题连续两次技术修复失败0，无权限拒绝或模型补救。此处“GREEN”只限候选原型可行性。历史131/6190测试与build不是本阶段重跑结果；产品源未变，本阶段验证为原生探针、脚本语法与Git检查。
+CDP 自动附加/暂停及 Fetch 拦截属于待研究方向，未验证完整递归 worker 生命周期或无 race；DevTools detach 冲突也必须处理，不能向 renderer 公开调试能力。静态无 JS 阅读模式另有兼容代价，不能作为未经决策的自动回退。任何候选均不能替代 QUIC/WebRTC 出口证据。
 
-来源：[Electron43 webRequest](https://github.com/electron/electron/blob/v43.1.0/docs/api/web-request.md)（响应头可修改、最后listener独占）、[W3C worker-src](https://w3c.github.io/webappsec-csp/#directive-worker-src)及[多政策](https://w3c.github.io/webappsec-csp/#multiple-policies)（Worker/SharedWorker/SW加载限制、强制策略共同约束）、[Electron43 Debugger](https://github.com/electron/electron/blob/v43.1.0/docs/api/debugger.md)（sessionId接口、detach）。当次读取的CDP tot页面只显示重定向，未获取其方法正文，不将该页面称为已核验的Chromium150实现依据。按using-superpowers/brainstorming可行性路径、context-engineering、source-driven及verification记录，未把Spike当已批准产品设计。
+## 6. 证据与复现边界
+
+[worker-boundary.cjs](../testing/fixtures/browser-worker-boundary/worker-boundary.cjs)及 launcher 为最终一次性 fixture 快照；[manifest](../testing/fixtures/browser-worker-boundary/manifest.json)保留证据 SHA256 和实际退出码。`sha256` 绑定外部原始字节，`archivedSha256` 绑定仓库内 LF 行尾副本，JSON 内容未改。
+
+最终脚本不能代表未保存的早期运行输入。复现依赖现有 dist、Electron 和本机测试 TLS 材料，不是独立可搬运包；测试私钥与代理凭据不入文档或 Git。历史 131/6190 测试与 build 不属于该原型阶段重跑结果。
+
+参考：[Electron 43 webRequest](https://github.com/electron/electron/blob/v43.1.0/docs/api/web-request.md)、[W3C worker-src](https://w3c.github.io/webappsec-csp/#directive-worker-src)、[多 CSP 策略](https://w3c.github.io/webappsec-csp/#multiple-policies)、[Electron 43 Debugger](https://github.com/electron/electron/blob/v43.1.0/docs/api/debugger.md)。当时读取的 CDP tot 页面仅返回重定向，不能作为已核验 Chromium 150 实现依据。

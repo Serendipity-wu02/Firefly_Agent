@@ -143,3 +143,14 @@ it("rejects linked installed destinations without writing through them", () => {
   expect(() => synchronizeManagedSkillDirectories(options)).toThrow(/SKILL_(DIRECTORY|MIGRATION)_LINK/);
   expect(fs.readdirSync(outside)).toEqual([]);
 });
+
+it("exposes an exclusive tree copy that cannot replace an existing destination", async () => {
+  const options = fixture();
+  const module = await import("./directory-install");
+  const copy = (module as Record<string, unknown>).copyManagedSkillTreeExclusive;
+  expect(copy, "external install must reuse the exclusive managed tree copy").toBeTypeOf("function");
+  const destination = path.join(options.root, "exclusive-copy");
+  (copy as (from: string, to: string) => void)(path.join(options.sourceDirectory, "public-skill"), destination);
+  expect(() => (copy as (from: string, to: string) => void)(path.join(options.sourceDirectory, "public-skill"), destination)).toThrow();
+  expect(fs.readFileSync(path.join(destination, "SKILL.md"), "utf8")).toBe("original");
+});

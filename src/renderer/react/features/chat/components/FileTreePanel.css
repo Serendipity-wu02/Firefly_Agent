@@ -239,3 +239,20 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Keep custom foreground text paired with the selected workspace surface. */
+:root[data-ui-colors] .cy-file-preview__header {
+  background: var(--cy-bg-page);
+}
+
+/* Minimal text editor: use the same workspace colors and scrolling contract. */
+.cy-file-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cy-file-editor__toolbar,
+.cy-file-editor__decision { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 12px; color: var(--cy-text-muted); font: 500 12px/1.5 var(--rb-font-sans, sans-serif); }
+.cy-file-editor__dirty { color: var(--cy-accent); }
+.cy-file-editor__hint,
+.cy-file-editor__error { margin: 0; padding: 4px 12px 8px; color: var(--cy-text-muted); font: 400 12px/1.5 var(--rb-font-sans, sans-serif); }
+.cy-file-editor__error { color: var(--cy-text); }
+.cy-file-editor__decision { border-block: 1px solid var(--cy-border); background: var(--cy-bg-hover); }
+.cy-file-editor__input { flex: 1; min-height: 100px; width: 100%; resize: none; box-sizing: border-box; border: 0; padding: 12px; background: var(--cy-bg-page); color: var(--cy-text); tab-size: 2; white-space: pre; overflow: auto; font: 400 12px/1.65 var(--rb-font-mono, ui-monospace, monospace); }
+.cy-file-editor__input:focus-visible { outline: 2px solid var(--cy-accent); outline-offset: -2px; }

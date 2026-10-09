@@ -1,47 +1,40 @@
-# Bounded N6 continuation
+# N6 有限撤销矩阵与 N10 回调身份验证计划
 
-Base 2cf8eb93d4a227f5b46dc1e4c30b93720c3ece19; same isolated E worktree.
-Reuse prior resolver/owner/late-resource regressions, do not replay N3/N10 faults.
-No product gate, R1, shared/renderer, OS network, trust, external service or CI change.
+> 记录阶段：2026-10-05
+> 文档整理：2026-10-07；仅整理历史计划及结果，未重新执行。
+> 历史结论：有限 E1/E2 条款获得证据；完整 N6/E3 未闭合，生产 gate 关闭。
+> 适用边界：以上与下文均指记录阶段，不代表当前产品状态；历史 gate/HOLD 不作为当前启用判定。
 
-Finite matrix: P0 CONNECT receipt before admission; P1 actual dedicated c-ares
-A/AAAA UDP held by owned DNS stub; P2 native answers held before proxy delivery;
-P3 actual connected socket's connect event delivery held; P5 peer observes200;
-P6 active bytes; P7 repeat revoke with injected close failure. Every negative uses
-the same raw CONNECT/nonce probe and owned origin counters as its positive control.
-Record real remote peer, local destroy and remote EOF/reset separately, retaining
-both test peers until product revoke observations complete. Only then reclaim
-fixture peers. Post-revoke fresh nonce must never be forwarded; prior writes may
-arrive later and do not count as a violation.
+## 1. 背景与范围
 
-P4 peer check,200 initiation and initial pipe setup are one synchronous source
-continuation with no await. Record their sequence, do not manufacture an async
-native window by rewriting product code or a reentrant getter. P2 is accurately
-before proxy answer validation, not a claim of pausing after the final predicate.
-This finite E1/E2 matrix is not all native OS/Chromium DNS/connect timing windows.
+复用既有 resolver、owner 与迟到资源回归，不重复 N3/N10 故障矩阵。不改产品 gate、R1、shared/renderer、系统网络/信任、外部服务或 CI。既有 N3/N10 脚本和 manifest 保持原始证据身份，新矩阵单独归档。
 
-Add native guest DNS-wait cancellation/control and actual independent sibling
-resolver cancellation. Address classification/port mapping only in owned QA
-process; realSocket/realPeer retained. Restore real policy for optional one-site
-example.com anonymous GET/defaultTLS/revoke observation via existing approved
-Main resolver. No originlogs: never label this full E3. Failed optional route is
-retained as a limitation, not replaced by another route or TLS exception.
+## 2. 验证设计
 
-N10 identity only: two actual quit requests supply distinguishable first/second
-final callbacks; first executes once and second never executes. Existing N3/N10
-fixture scripts/manifest remain immutable; new artifacts live separately.
+| 边界 | 观察点 |
+| --- | --- |
+| P0 | 收到 CONNECT、admission 之前 |
+| P1 | 自有 DNS stub 扣住真实独立 c-ares A/AAAA UDP 查询 |
+| P2 | 原生答案完成、交付 proxy 校验之前 |
+| P3 | 实际 socket 已连接、connect 事件向代理交付之前 |
+| P5 | 探针 peer 已收到 200 |
+| P6 | 活动字节已完整往返 |
+| P7 | 重复 revoke，注入 close failure |
 
-Verify fixture syntax, native runs, related existing tests; independent read-only
-review and exact evidence/hash/local commit. No repeat full build/test needed
-unless a production change or unresolved failure calls for it.
+每个负例必须使用与正例相同的 raw CONNECT/nonce 探针与自有 origin counter。分别记录真实 remote peer、本地 destroy 和远端 EOF/reset；产品撤销观测结束后才能回收夹具两端 peer。撤销后新提交的 fresh nonce 不得转发；撤销前已经启动的写入可能晚到，不自动算违规。
 
-Completed checkpoint: local n6-r2 has 17 records, native exit0; its 14 raw
-proxy records qualify with one revoke marker each and no forbidden initiation
-after that marker. n6-r1's whole matrix is superseded by the P0 marker check
-(qualification exit1); only its independently valid single public TLS observation
-is accepted. Distinct native N10 callback identity passes first1/second0.
-Existing targeted regressions: 4 files/95 passed. Independent read-only review
-found no Critical/Important; one raw classification-label Minor is disclosed.
-Final classifications, immutable inputs, qualification logs and hashes are in
-browser-native-n6.md and fixtures/browser-native-n6/manifest.json. No production
-source change, complete E3 or OS resolver certification is claimed.
+P4 的 peer 检查、200 启动和初始 pipe 设置是源码中无 await 的同步续段。仅记录其真实顺序，不改产品或使用重入 getter 制造异步窗口。P2 不得描述为最终地址谓词之后的暂停。本矩阵不涵盖全部 OS/Chromium DNS/connect 时序。
+
+## 3. 补充观察与验证要求
+
+- 增加真实 native guest DNS-wait 取消/正例及独立 sibling resolver 取消。
+- 地址分类和端口映射只在自有 QA 进程替换，保留 realSocket/realPeer。
+- 可选 example.com 匿名 GET 使用既定 Main resolver、恢复实际分类/443 拨号与默认 TLS；缺 origin 日志不得写完整 E3。失败时保留限制，不换路由或放行证书。
+- N10 仅补身份：两次真实 quit 传入可区分的回调，首个恰好执行一次、第二个不执行。
+- 检查夹具语法、原生记录、相关既有测试、独立只读审查与原始字节哈希。没有产品变更且无未解失败时，不要求重复全量/build。
+
+## 4. 已记录结果
+
+`n6-r2`：17 记录、native exit 0；其中 14 个 raw proxy case 各有一个 revoke marker，marker 后没有禁止的启动事件。`n6-r1` 因 P0 marker 检查失败（资格 exit 1）不作整组验收，只采用独立有效的单个公开 TLS 观察。N10 不同回调身份为 first 1 / second 0。
+
+已有定向回归 4 文件、95 通过。独立只读审查无 Critical/Important；原始分类标签的一项 Minor 保留并解释。详细证据、输入及哈希见[N6 报告](browser-native-n6.md)、[manifest](fixtures/browser-native-n6/manifest.json)。未修改产品源码，不宣称 OS resolver 取消或完整 E3。

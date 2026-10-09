@@ -1,4 +1,5 @@
 import { resolveTimeoutPolicy } from "../runtime-policy";
+import { createAbortError, raceWithSignal } from "../abort-utils";
 import {
   buildMosslandError,
   MOSSLAND_BASE_URL,
@@ -32,7 +33,7 @@ export function encodePcm16MonoWav(pcm: Buffer): Buffer {
   return Buffer.concat([header, pcm]);
 }
 
-async function transcribeWav(apiKey: string, wav: Buffer): Promise<string> {
+async function transcribeWav(apiKey: string, wav: Buffer, signal: AbortSignal): Promise<string> {
   const form = new FormData();
   form.append("model", "moss-transcribe");
   form.append("response_format", "json");
@@ -43,6 +44,7 @@ async function transcribeWav(apiKey: string, wav: Buffer): Promise<string> {
     apiKey,
     timeoutMs: resolveTimeoutPolicy({ stage: "asr-mossland" }).totalMs,
     body: form,
+    signal,
   });
   if (!response.ok) {
     throw buildMosslandError("Mossland 转写失败", response.status, await response.text());
@@ -59,6 +61,7 @@ async function transcribeWav(apiKey: string, wav: Buffer): Promise<string> {
 export class MosslandAsrStream {
   private readonly frames: Buffer[] = [];
   private stopPromise: Promise<string> | null = null;
+  private readonly cancellation = new AbortController();
 
   constructor(
     private readonly apiKey: string,
@@ -66,13 +69,14 @@ export class MosslandAsrStream {
   ) {}
 
   async start(): Promise<void> {
+    if (this.cancellation.signal.aborted) throw createAbortError();
     if (!this.apiKey.trim()) {
       throw new Error("Mossland 转写失败：缺少 API Key");
     }
   }
 
   sendAudio(pcmFrame: Buffer): void {
-    if (this.stopPromise || pcmFrame.length === 0) return;
+    if (this.stopPromise || this.cancellation.signal.aborted || pcmFrame.length === 0) return;
     this.frames.push(Buffer.from(pcmFrame));
   }
 
@@ -83,9 +87,30 @@ export class MosslandAsrStream {
     return this.stopPromise;
   }
 
+  cancel(): void {
+    this.frames.length = 0;
+    this.cancellation.abort();
+  }
+
   private async finish(): Promise<string> {
-    if (this.frames.length === 0) return "";
-    const text = await transcribeWav(this.apiKey, encodePcm16MonoWav(Buffer.concat(this.frames)));
+    if (this.cancellation.signal.aborted || this.frames.length === 0) return "";
+    const wav = encodePcm16MonoWav(Buffer.concat(this.frames));
+    this.frames.length = 0;
+    // Own the whole upload + response body, not only the HTTP headers.
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), resolveTimeoutPolicy({ stage: "asr-mossland" }).totalMs);
+    const signal = AbortSignal.any([this.cancellation.signal, deadline.signal]);
+    let text: string;
+    try {
+      text = await raceWithSignal(transcribeWav(this.apiKey, wav, signal), signal);
+    } catch (error) {
+      if (this.cancellation.signal.aborted) return "";
+      if (deadline.signal.aborted) throw new Error("Mossland 转写超时");
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+    if (this.cancellation.signal.aborted) return "";
     if (text) this.onFinal(text);
     return text;
   }

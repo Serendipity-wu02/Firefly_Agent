@@ -22,6 +22,7 @@ import {
   createPluginMarketplaceService,
 } from "./plugin-marketplace";
 import { IPC } from "../shared/ipc-channels";
+import { registerPluginMarketplaceIpc } from "./plugin-marketplace-ipc";
 import type { LlmClient } from "./services/llm/llm-client";
 import { enqueueLLMTask } from "./llm-queue";
 import type { IpcScope } from "./application/ipc-scope";
@@ -46,6 +47,8 @@ export interface PluginRuntimeDeps {
    * sender 校验的依据；未提供时面板转发一律拒绝（fail-closed）。
    */
   getPanelHostWebContents?: () => Electron.WebContents | null;
+  /** Live owner of the React marketplace. Missing ownership always fails closed. */
+  getMarketplaceHostWebContents?: () => Electron.WebContents | null;
 }
 
 export async function startPluginRuntime(deps: PluginRuntimeDeps): Promise<PluginManager> {
@@ -145,18 +148,15 @@ export async function startPluginRuntime(deps: PluginRuntimeDeps): Promise<Plugi
   // 插件市场：列表来自官方索引快照，安装下载后走管理器的 ZIP 导入管线（含身份校验与来源记录）
   const market = createPluginMarketplaceService({
     registryUrls: MARKET_REGISTRY_URLS,
+    bundledDir: path.join(__dirname, "..", "plugin-marketplace"),
     zipUrlPrefixes: MARKET_ZIP_URL_PREFIXES,
     cacheDir: path.join(app.getPath("userData"), "plugin-market-cache"),
     installZip: (zipPath, opts) => manager.installZip(zipPath, opts),
   });
-  deps.ipc.handle(IPC.PLUGINS_MARKET_LIST, (_event, preferred: unknown) =>
-    market.listMarket(typeof preferred === "string" ? preferred : undefined),
-  );
-  deps.ipc.handle(IPC.PLUGINS_MARKET_INSTALL, (_event, id: unknown) => {
-    if (typeof id !== "string" || !id) {
-      return { ok: false, error: "id 必须是非空字符串" };
-    }
-    return market.installFromMarket(id);
+  registerPluginMarketplaceIpc({
+    ipc: deps.ipc,
+    market,
+    getHostWebContents: () => deps.getMarketplaceHostWebContents?.() ?? null,
   });
   if (deps.onPluginRunningStateChange) {
     manager.onRunningStateChange(deps.onPluginRunningStateChange);

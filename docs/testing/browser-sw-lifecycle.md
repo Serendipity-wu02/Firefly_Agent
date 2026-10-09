@@ -1,44 +1,42 @@
-# SW安装/更新与原生退出的有限证据
+# Service Worker 安装更新与退出生命周期验证
 
-2026-10-04，续接基线`de87bbd10cb6420abcf2703941b6b6c4b28ebf2f`，用户授权现环境可做的隔离验证。沿用[Session契约](../architecture/right-agent-workspace.md#2026-10-04-会话授权域验证契约)，产品源码/启动接线不变，生产gate HOLD。[原始JSON、launcher、输入版本及哈希](fixtures/browser-session-epoch/continuation/sw-lifecycle-manifest.json)保留全部运行，不覆盖失败。
+> 证据阶段：2026-10-04
+> 文档整理：2026-10-07；仅整理既有证据，未重跑测试。
+> 适用边界：下述实现、通过项与 HOLD 均指记录阶段，不代表当前产品状态。
 
-## TLS与DNS仍是两个独立限制
+## 1. 背景与范围
 
-[只读诊断](fixtures/browser-session-epoch/continuation/diagnosis-manifest.json)中example.com系统DNS为198.18.1.171，未改产品判非公网；探针未调用应用TCP连接API。原记录`tcpAttempts:0`是源码的显式API计数/无调用事实，不是OS DNS内部TCP或抓包0。现有测试leaf自签且日期有效，Chromium页面实测ERR_CERT_AUTHORITY_INVALID；不是过期。未安装根/改系统网络/改DNS/绕198.18/统一放行证书。
+沿用[Session 契约](../architecture/right-agent-workspace.md)，以固定内存主脚本验证 SW install/update 与 native quit；产品源码/启动接线不变，当时生产 gate HOLD。环境为 Electron 43.1.0 / Chromium 150.0.7871.47、独立非 persist Session、sandbox/contextIsolation、无 Node/preload。
 
-本步仍用先前受控resolver/dialer将合法公网数值pin映射到自有本机TLS sink，仅实验依赖替换；未用于实际公网联网。Node局部显式CA、rejectUnauthorized:true仅建立一个自有GET TLS隧道作为退出关闭观察，未冒充Chromium允许路径。本次sink唯一HTTP命中为该Node GET。
+## 2. TLS/DNS 与协议边界
 
-## SW路径实测
+只读诊断的 example.com OS DNS 为 `198.18.1.171`，按原策略非公网；应用未调用 TCP 连接 API。`tcpAttempts:0` 不涵盖 OS DNS 内部 TCP 或全机流量。既有 leaf 为日期有效自签证书，Chromium 明确 `ERR_CERT_AUTHORITY_INVALID`，不是过期；不安装根或改网络。
 
-Electron43.1.0/Chromium150.0.7871.47，独立非persist Session/窗口、sandbox/contextIsolation，无Node/preload，固定内存scheme仅供应合成文档/worker脚本；protocol handler也复验活动域和GET。不创建真实userData或改变首版匿名GET/HEAD限制。
+受控 resolver/dialer 将合法公网 pin 映射到自有 TLS sink；Node 使用局部 CA、rejectUnauthorized:true 建立自有 GET 隧道作关闭观察。该 Node GET 是 sink 唯一 HTTP 命中，不代表 Chromium TLS 正例。
 
-- `/update.js`内存主脚本v1实际激活：active state=activated，回传version=1、UUID及安装事件结果；不只看register resolve。
-- 主脚本实际字节改为v2，update后active version=2且UUID改变，protocol记录版本2。每版安装事件GET均进入Session xhr hook（ID/frame缺失）并新增代理拨号1；POST hook拒绝、未新增拨号，HTTP0。
-- 安装期顶层HTTPS import使用独立`/install-only/` scope；更新v3顶层HTTPS import使用已存在scope。两次远端import均进入真实script hook（ID/frame缺失），各新增代理DNS与数值拨号1，hookCoverageGap=false，HTTP0，脚本求值/更新失败。
-- 失败的v3更新后，实际active仍为v2及其原UUID。失败安装或update返回不能当成新版本可用。
+## 3. SW 实测与技术边界
 
-这证明本机这两个**import路径可观察**及内存脚本v1/v2真实安装/激活，不证明HTTPS主SW脚本安装/更新成功或全面覆盖。SW import未触发app certificate-error逐URL事件，原始错误是script evaluation failed，不能只凭TypeError确定每次精确证书错误码；默认Chromium信任未改变、受控TLS下失败和HTTP0仅是负例。已有installed SW动态新import脚本map负例仍与这次安装/更新路径分别解释。
+- `/update.js` 内存 v1 实际 activated，回传 version1、UUID 与安装事件结果，不只看 register resolve。
+- 主脚本字节变为 v2 后 update，active version2、UUID 改变、protocol 记录 v2。每版安装事件 GET 进入无 ID/frame 的 xhr hook并新增 proxy dial1；POST 拒绝、HTTP0。
+- 独立 `/install-only/` scope 安装期顶层 HTTPS import 与既有 scope 更新 v3 顶层 import 均进入 script hook，各新增 DNS/数值 dial1，hookCoverageGap=false、HTTP0，脚本求值/更新失败。
+- v3 失败后实际 active 仍为 v2 原 UUID；失败返回不表示新版本可用。
 
-## 退出失败及有界观测
+这些事实证明两个 import 路径可观察和内存 v1/v2 激活，不能证明 HTTPS 主 SW install/update 成功或全面覆盖。import 无逐 URL app certificate-error，实际错误为 script evaluation failed，不能从 TypeError 推断每次精确证书错误。已安装 SW 动态 import script-map 负例与安装/更新路径分开解释。
 
-| run | PID / native退出 | 结果 |
-|---|---|---|
-| green-sw-r1 | 34136 / 1 | 7记录；全域revoke/destroy/清理均尝试，cookies0、隧道已关闭、peer0，但B即时running snapshot非空。errors保留，走异常app.exit1；不算生命周期GREEN。 |
-| green-sw-r2 | 9468 / 0 | 7记录/errors=[]，真实will-quit/quit及launcher门槛通过；两个即时快照恰好为空，未验证状态迟到原因。 |
-| green-sw-r3 | 10672 / 0 | 最终7记录/errors=[]；补全域清理后才等待、操作/事件时间及放行前全域复验；A有界观测34ms后为空，B0ms；正式退出事件通过。 |
+## 4. 退出设计与最终结果
 
-首轮失败后核对固定Electron API：ServiceWorkers有running状态事件和查询，没有本次可用的stop方法；clearStorageData promise不等于同步主进程running快照为空。只做一次有界状态观测修正，零生产修复。r3支持快照需要异步等待的解释，未证明r1内部精确时序原因，不删除旧错误转绿，不加禁Worker或扩大等待。
+原型在 before-quit 同步 preventDefault/锁重入，首 await 前全域 ready=false/revoked/abort、触发 proxy revoke、destroy view，不等待不可信 beforeunload。每域五项清理逐项捕获，先尝试全部域，再逐域最多 3 秒观察 worker 状态；两域序列最多 6 秒，不是总退出 3 秒。超时/查询/清理失败保留 errors，正常退出不放行。放行前再次核对全域为空。
 
-最终原型在before-quit同步preventDefault/锁重入；首个await前全部域ready=false/revoked/abort并触发proxy revoke，再destroy全部view，不等待网页beforeunload。全部域各五项清理逐项捕获，先尝试全部域才逐域有界观察最多3秒（当前两域序列最多6秒，不是总退出3秒上限）；超时/查询/清理失败保留errors，拒绝正常退出GREEN。记录初始running workers、状态事件、各清理resolve时间、最终快照，并在放行退出前复验全域为空。B自身即时清理快照仍非空，waitedMs=0仅表示轮到最终检查时已空，不表示B同步清理完成。
+最终 `green-sw-r3`：7 记录、errors 空、native exit0；A 有界观察 34ms 后为空，B waitedMs0 只表示轮到检查已空，不表示其原生清理同步完成。beforeQuit3、cleanupRuns1、reentryBlocked1、willQuit1、quit1/code0、beforeUnloadEvents0；两域 cookie/worker 空、Node TLS client destroyed、自有 peer0。
 
-r3真实beforeQuit=3、cleanupRuns=1、reentryBlocked=1、willQuit=1、quit=1/exitCode0；beforeUnloadEvents=0。两个域cookies及running workers为空，Node已验证存量GET TLS客户端destroyed，剩余自有peer0。launcher另校验原始errors、事件及锁门槛，避免进程exit0掩盖JSON失败。正常GREEN未调用app.exit；异常fallback的quit事件不冒充正常退出。`destroy`不发beforeunload及Windows系统退出不保证app事件均来自[固定BrowserWindow文档](https://raw.githubusercontent.com/electron/electron/v43.1.0/docs/api/browser-window.md)、[固定App文档](https://raw.githubusercontent.com/electron/electron/v43.1.0/docs/api/app.md)；状态事件见[固定ServiceWorkers文档](https://raw.githubusercontent.com/electron/electron/v43.1.0/docs/api/service-workers.md)。
+早期原生退出失败时 cookie0/tunnel closed/peer0，但 B 即时 running snapshot 非空，走 app.exit1，不能算正常生命周期通过。`clearStorageData` resolve 不保证 Main running snapshot 同步空，ServiceWorkers 提供状态事件/查询而非本次可用 stop 方法。最终有界观察支持异步状态解释，但未证明早期内部精确时序。launcher 核验原始 errors、事件与重入，不以 exit0 单独判通过。
 
-## 审查、验证及最小下一步
+## 5. 证据、审查与剩余验收
 
-独立session_epoch_security_review先审诊断和原型顺序，要求launcher原始证据门槛、全域清理后等待、放行前复验及精确SW版本；均落实。最终只读复审核对r1失败与r3原始记录/脚本：无新增Critical/Required，可交付有限原型证据，生产HOLD；审查者未运行native或改文件。最终输入SHA256为`8a7b32f9c918b0ed82e709a5f062fbbaf54e12ed00a3cb91cd7c00e4eb6346a9`。脚本及launcher语法、归档哈希、记录PID退出及Git范围检查随提交验证；产品代码未变，不将历史131/全量/build结果写成本阶段新执行。
+独立只读审查要求原始证据 gate、全域清理后观察、退出前复验与精确 SW 版本，均满足，无新增 Critical/Required；未独立跑 native。输入 SHA-256：`8a7b32f9c918b0ed82e709a5f062fbbaf54e12ed00a3cb91cd7c00e4eb6346a9`。语法、归档哈希与自有 PID 退出已核验，产品无变更，未将历史131/全量/build算作新执行。
 
-**仍HOLD**：可信Chromium TLS及其已有隧道POST、HTTPS主SW脚本安装/更新/导航预加载、完整跨协议出口、生产owner/ShutdownCoordinator、清理失败注入、Windows系统关机/注销/崩溃及多平台未验证。
+[原始证据](fixtures/browser-session-epoch/continuation/sw-lifecycle-manifest.json)、[诊断证据](fixtures/browser-session-epoch/continuation/diagnosis-manifest.json)保留失败与输入版本。后续[首域失败](browser-cleanup-failure.md)补充 A 异步拒绝、B 清理完成及 cleanup_failed/native exit1，不把该有限项继续写成完全未测。
 
-最小下一步：当前环境可先做夹具首域清理失败注入，断言仍清后域、全域持续deny且不伪报正常退出；另对准备await取消点补原生生命周期记录。可信TLS正例需要受控HTTPS目标，其证书链由系统原有信任支持、正常DNS答案全过现有公网策略且能部署固定SW测试脚本；满足前再跑同源HTTPS主SW安装/更新、真实已有TLS隧道POST拒绝和GET/HEAD允许。没有这个前提就维持缺口，不安装根、不改网络、不硬编码公网IP绕DNS。全协议出口抓包及生产接线是后续独立门槛，本次不提前实施。
+可信 Chromium TLS/已有隧道 POST、HTTPS 主 SW install/update/navigation-preload、持续 late-writer、跨协议出口、生产 owner/ShutdownCoordinator、其他失败/超时和 Windows 关机/注销/崩溃/跨平台仍需独立验收。可信目标须有既有系统信任、合规 DNS 和可控脚本，不能靠新增根或硬编码公网 IP 补齐。
 
-首域失败注入已在[网络独立负例](browser-cleanup-failure.md)续接：A异步拒绝一次，B原生清理完成，聚合cleanup_failed/native exit1保留、未放行正常退出；独立复审两项Required关闭。此项不再列为完全未测，正常退出、异步失败的有限夹具证据分别保留，生产参与者接线与其他失败/超时种类仍未验证。可信TLS/DNS依赖验证按用户要求暂停。
+固定 API：[BrowserWindow](https://raw.githubusercontent.com/electron/electron/v43.1.0/docs/api/browser-window.md)、[App](https://raw.githubusercontent.com/electron/electron/v43.1.0/docs/api/app.md)、[ServiceWorkers](https://raw.githubusercontent.com/electron/electron/v43.1.0/docs/api/service-workers.md)。destroy 不发送 beforeunload，Windows 系统退出也不保证 app 事件完整。

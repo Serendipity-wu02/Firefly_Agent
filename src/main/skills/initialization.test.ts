@@ -22,11 +22,14 @@ vi.mock("./directory-install", () => ({
   synchronizeManagedSkillDirectories: ports.sync,
   validateManagedSourceDirectory: ports.validate,
 }));
-vi.mock("./skill-scanner", () => ({ scanSkills: () => [{ id: "public-skill", enabled: true }] }));
-vi.mock("./skill-registry", () => ({ skillRegistry: { register: ports.register } }));
+vi.mock("./skill-scanner", async (importOriginal) => ({ ...await importOriginal<typeof import("./skill-scanner")>(), scanSkills: () => [{ id: "public-skill", enabled: true }] }));
+vi.mock("./skill-registry", () => ({ skillRegistry: { register: ports.register, getAll: () => [], setExternalAccessGate: vi.fn(), unregister: vi.fn() } }));
 vi.mock("./skill-tools", () => ({ registerSkillTools: ports.tools }));
 vi.mock("../logger", () => ({ logger: { info: vi.fn(), warn: ports.warn }, LogTag: { Skills: "Skills" } }));
+import { createStorageContext } from "../storage-context";
 import { initSkills } from "./index";
+
+function storage() { return createStorageContext({ kind: "test", applicationName: "Firefly-test", appData: ports.root, userData: ports.root, sessionData: path.join(ports.root, "session"), logs: path.join(ports.root, "logs"), isolationRoot: ports.root }); }
 
 function fixture() {
   ports.root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-init-directory-"));
@@ -45,7 +48,7 @@ afterEach(() => {
 it("rejects an invalid directory manifest without installing or replacing existing Skills", async () => {
   fixture();
   fs.writeFileSync(path.join(path.dirname(ports.source), "skills-manifest.json"), "{}");
-  await initSkills();
+  await initSkills(storage());
   expect(ports.sync).not.toHaveBeenCalled();
   expect(ports.register).toHaveBeenCalledWith({ id: "public-skill", enabled: true });
   expect(ports.warn).toHaveBeenCalled();
@@ -54,7 +57,7 @@ it("rejects an invalid directory manifest without installing or replacing existi
 it("runs managed directory sync before scanning and preserves existing Skills after failure", async () => {
   fixture();
   ports.sync.mockImplementationOnce(() => { throw new Error("SKILL_UPDATE_BACKUP_CONFLICT"); });
-  await expect(initSkills()).resolves.toBeUndefined();
+  await expect(initSkills(storage())).resolves.toBeUndefined();
   expect(ports.validate).toHaveBeenCalledWith(ports.source, ["public-skill"], {});
   expect(ports.sync).toHaveBeenCalledOnce();
   expect(ports.register).toHaveBeenCalledWith({ id: "public-skill", enabled: true });
@@ -65,8 +68,8 @@ it("runs managed directory sync before scanning and preserves existing Skills af
 
 it("synchronizes a valid source without adding it to the scan roots", async () => {
   fixture();
-  await initSkills();
-  expect(ports.sync).toHaveBeenCalledWith({ sourceDirectory: ports.source, userSkillsDir: ports.root,
+  await initSkills(storage());
+  expect(ports.sync).toHaveBeenCalledWith({ sourceDirectory: ports.source, userSkillsDir: path.join(ports.root, "skills"),
     expectedIds: ["public-skill"], expectedFileHashes: {} });
   expect(ports.register).toHaveBeenCalledTimes(1);
 });

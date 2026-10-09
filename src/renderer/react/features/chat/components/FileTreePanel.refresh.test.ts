@@ -12,6 +12,7 @@ const highlight = vi.hoisted(() => ({ codeToTokens: vi.fn() }));
 vi.mock("shiki", () => ({ createHighlighter: async () => highlight }));
 
 import { FilePreviewContent, FileTreePanel } from "./FileTreePanel";
+import { applyUiColors } from "../../../../ui/colors";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -46,6 +47,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   delete window.workspaceFiles;
+  applyUiColors(undefined);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -163,6 +165,42 @@ describe("workspace file refresh", () => {
 });
 
 describe("file preview refresh", () => {
+  it("adapts low-contrast syntax to live dark and light colors without rereading the file", async () => {
+    highlight.codeToTokens.mockReturnValue({ tokens: [[{ content: "console.log", offset: 0, color: "#24292e" }]] });
+    applyUiColors({ enabled: true, background: "#121212", foreground: "#ffffff" });
+    await renderPreview({ relPath: "app.ts" });
+    const token = () => host.querySelector<HTMLElement>(".cy-file-preview__text span")!;
+    expect(token().style.color).toBe("rgb(255, 255, 255)");
+    await act(async () => applyUiColors({ enabled: true, background: "#ffffff", foreground: "#0d0d0d" }));
+    expect(token().style.color).toBe("rgb(36, 41, 46)");
+    await act(async () => applyUiColors(undefined));
+    expect(token().style.color).toBe("rgb(36, 41, 46)");
+    expect(read).toHaveBeenCalledOnce();
+    expect(highlight.codeToTokens).toHaveBeenCalledOnce();
+  });
+
+  it("retains readable syntax accents and falls back only when their contrast is low", async () => {
+    highlight.codeToTokens.mockReturnValue({ tokens: [[{ content: "literal", offset: 0, color: "#ffcc00" }]] });
+    applyUiColors({ enabled: true, background: "#121212", foreground: "#ffffff" });
+    await renderPreview({ relPath: "app.ts" });
+    const token = () => host.querySelector<HTMLElement>(".cy-file-preview__text span")!;
+    expect(token().style.color).toBe("rgb(255, 204, 0)");
+    await act(async () => applyUiColors({ enabled: true, background: "#ffffff", foreground: "#0d0d0d" }));
+    expect(token().style.color).toBe("rgb(13, 13, 13)");
+    await act(async () => applyUiColors(undefined));
+    expect(token().style.color).toBe("rgb(255, 204, 0)");
+    expect(read).toHaveBeenCalledOnce();
+  });
+
+  it("disconnects the custom-color observer when a preview is closed", async () => {
+    const observe = vi.spyOn(MutationObserver.prototype, "observe");
+    const disconnect = vi.spyOn(MutationObserver.prototype, "disconnect");
+    await renderPreview({ relPath: "app.ts" });
+    expect(observe).toHaveBeenCalledWith(document.documentElement, { attributes: true, attributeFilter: ["data-ui-colors"] });
+    await act(async () => root.unmount());
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+
   it("keeps preview refresh visible but disabled while a read is pending", async () => {
     const pending = deferred<WorkspaceReadResult>();
     read.mockReturnValueOnce(pending.promise);

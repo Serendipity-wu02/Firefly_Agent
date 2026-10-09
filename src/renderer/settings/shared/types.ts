@@ -1,3 +1,4 @@
+import type { ExternalSkillsApi } from "../../../shared/external-skills";
 import type { MemoryPolicyPanelApi } from "../../../shared/memory-panel-contracts";
 import type { UiColors } from "../../../shared/ui-colors";
 // Settings 公共类型定义
@@ -107,6 +108,12 @@ export interface ModelPreset {
 }
 
 export interface GeneralSettings extends ChatAppearanceSettings {
+  asrEngine?: "off" | "mossland" | "aliyun" | "local";
+  asrMosslandKey?: string;
+  asrAliyunAppKey?: string;
+  asrAliyunAccessKeyId?: string;
+  asrAliyunAccessKeySecret?: string;
+  asrLanguage?: "zh" | "en" | "auto";
   maxParallelToolCalls: number;
   citaEnabled: boolean;
   citaSemanticEngine: "remote" | "local";
@@ -232,6 +239,8 @@ export interface MemoryPanelApi extends MemoryPolicyPanelApi {
 }
 
 export interface SettingsApi {
+  externalSkills?: ExternalSkillsApi;
+  setSkillEnabled?: (id: string, enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
   minimize: () => void;
   close: () => void;
   getConfig: () => Promise<ModelSettings>;
