@@ -58,6 +58,17 @@
   --rb-pink-700: #3d3e55;
   --rb-pink-glow: #a9aabc;
 
+  --rb-accent-rgb: 77, 78, 105;
+  --rb-accent-hover: #5d5e7b;
+  --rb-accent-deep: #3d3e55;
+  --rb-danger: #b42338;
+  --rb-danger-strong: #9a1c30;
+  --rb-success: #2f7d4f;
+  --rb-warn-fg: #7a4f0e;
+  --rb-warn2-fg: #9a4a2e;
+  --rb-warn3-fg: #7c3420;
+  --rb-pink-fg: #8f2f5f;
+
   /* Light-mode component primitives */
   --rb-card-bg:        #fafbfc;
   --rb-divider-light:  rgba(0, 0, 0, 0.08);
@@ -102,6 +113,75 @@
   --rb-weather-snow:        #a8c8ff;
   --rb-weather-bolt-1:      #ffe08a;
   --rb-weather-bolt-2:      #ff9d4d;
+}
+
+
+/* Firefly dark for the legacy windows (settings, tasks, toast, stickers). Same ramp as the React window. */
+[data-ui-theme="firefly-dark"] {
+  color-scheme: dark;
+
+  --rb-bg-0: #141c19;
+  --rb-bg-1: #0f1513;
+  --rb-bg-2: #1e2b26;
+  --rb-bg-3: #19231f;
+  --rb-bg-elevated: #1c2824;
+
+  --rb-text-strong:  #eef6f1;
+  --rb-text-default: #e4eee9;
+  --rb-text-muted:   #9aaea4;
+  --rb-text-faint:   #7d9187;
+  --rb-text-on-pink: #0d1a13;
+
+  --rb-border-faint: rgba(255, 255, 255, 0.06);
+  --rb-border-soft:  #2a3a34;
+  --rb-border-strong:#3a4d45;
+  --rb-border-grid:  rgba(255, 255, 255, 0.04);
+
+  --rb-glow-pink:   0 0 12px rgba(123, 216, 174, 0.22);
+  --rb-glow-soft:   0 0 6px  rgba(255, 255, 255, 0.05);
+  --rb-glow-violet: 0 0 10px rgba(255, 255, 255, 0.04);
+  --rb-shadow-card:    0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 16px rgba(0, 0, 0, 0.3);
+  --rb-shadow-elevated:0 8px 32px rgba(0, 0, 0, 0.5);
+  --rb-shadow-pink:    0 4px 16px rgba(123, 216, 174, 0.2);
+
+  --rb-pink-50:  #17231e;
+  --rb-pink-100: #1f2e27;
+  --rb-pink-200: #2a3a34;
+  --rb-pink-300: #4a6a5b;
+  --rb-pink-400: #7bd8ae;
+  --rb-pink-500: #6fcfa3;
+  --rb-pink-600: #8fe0bc;
+  --rb-pink-700: #a9ead0;
+  --rb-pink-glow: #4a6a5b;
+
+  --rb-accent-rgb: 123, 216, 174;
+  --rb-accent-hover: #8fe0bc;
+  --rb-accent-deep: #3b9a76;
+  --rb-danger: #f28b82;
+  --rb-danger-strong: #f6a8a1;
+  --rb-success: #6fd6a4;
+  --rb-warn-fg: #e8c36a;
+  --rb-warn2-fg: #f0b49a;
+  --rb-warn3-fg: #f2c3b0;
+  --rb-pink-fg: #f0a8cc;
+
+  --rb-card-bg:        #19231f;
+  --rb-divider-light:  rgba(255, 255, 255, 0.08);
+  --rb-hover-light:    rgba(255, 255, 255, 0.06);
+  --rb-active-light:   rgba(255, 255, 255, 0.11);
+  --rb-input-bg:       #141c19;
+  --rb-input-border:   #33463e;
+  --rb-input-text:     #e4eee9;
+  --rb-input-placeholder: #7d9187;
+  --rb-slider-track:   rgba(255, 255, 255, 0.12);
+  --rb-slider-fill:    var(--rb-pink-500);
+  --rb-slider-thumb:   #e4eee9;
+  --rb-toggle-off:     #33463e;
+  --rb-toggle-on:      var(--rb-pink-500);
+  --rb-scroll-thumb:   rgba(255, 255, 255, 0.2);
+  --rb-scroll-thumb-hover: rgba(255, 255, 255, 0.34);
+
+  --rb-weather-accent:      #7bd8ae;
 }
 
 /* NOTE: do NOT paint `body` here. The Live2D pet window keeps its
@@ -529,8 +609,21 @@
   border-color: var(--rb-border-soft);
 }
 
+/* Segmented options: the selected one is a solid accent fill with white text, with no ring. */
 [data-ui-theme="pearl-white"] .option-block.is-active,
-[data-ui-theme="pearl-white"] .language-option.is-active,
+[data-ui-theme="pearl-white"] .language-option.is-active {
+  color: #ffffff;
+  background: var(--rb-pink-500);
+  border-color: var(--rb-pink-500);
+  box-shadow: none;
+}
+[data-ui-theme="pearl-white"] .option-block.is-active:not(:disabled):hover,
+[data-ui-theme="pearl-white"] .language-option.is-active:not(:disabled):hover {
+  color: #ffffff;
+  background: #5d5e7b;
+  border-color: #5d5e7b;
+}
+
 [data-ui-theme="pearl-white"] .chat__sticker-btn.is-active,
 [data-ui-theme="pearl-white"] .chat__attach.has-file {
   color: var(--rb-pink-600);

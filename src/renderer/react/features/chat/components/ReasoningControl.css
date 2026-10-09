@@ -33,7 +33,7 @@
 }
 
 .cy-reasoning-popover .ant-popover-inner {
-  border: 1px solid #eeeeee;
+  border: 1px solid var(--cy-border);
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(29, 29, 31, 0.12);
 }
@@ -41,7 +41,7 @@
 .cy-reasoning-popover .ant-segmented {
   padding: 3px;
   border-radius: 12px;
-  background: #f7f7f7;
+  background: var(--cy-bg-subtle);
 }
 
 .cy-reasoning-popover .ant-segmented-item {
@@ -55,12 +55,12 @@
    跟随流萤主题变量（--cy-accent），变量缺失时回退默认粉。 */
 .cy-reasoning-popover .ant-segmented-thumb {
   border-radius: 8px;
-  background: rgba(136, 57, 239, 0.22);
-  background: color-mix(in srgb, var(--cy-accent, #8839ef) 22%, transparent);
+  background: rgba(var(--cy-accent-rgb), 0.22);
+  background: color-mix(in srgb, var(--cy-accent, var(--cy-accent-solid)) 22%, transparent);
   box-shadow: none;
 }
 
 .cy-reasoning-popover .ant-segmented-item-selected {
-  color: var(--cy-accent, #8839ef);
+  color: var(--cy-accent, var(--cy-accent));
   font-weight: 600;
 }

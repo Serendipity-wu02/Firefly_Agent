@@ -29,7 +29,7 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 12px;
-  background: #f4f4f4;
+  background: var(--cy-bg-subtle);
   box-shadow: var(--cy-shadow-bubble-neutral);
 }
 
@@ -42,7 +42,7 @@
   z-index: 1;
   border: 1px solid rgba(31, 35, 48, 0.07);
   border-radius: 12px;
-  background: #fff;
+  background: var(--cy-surface);
   box-shadow: var(--cy-shadow-bubble-neutral);
   transition:
     border-color 160ms ease,
@@ -55,7 +55,7 @@
 }
 
 .cy-composer.ant-sender:focus-within {
-  border-color: rgba(136, 57, 239, 0.32);
+  border-color: rgba(var(--cy-accent-rgb), 0.32);
   box-shadow: var(--cy-shadow-control-focus);
 }
 
@@ -73,7 +73,7 @@
 }
 
 .cy-composer .ant-sender-input::placeholder {
-  color: #969696;
+  color: var(--cy-text-muted);
 }
 
 .cy-composer .ant-sender-actions-list {
@@ -89,7 +89,7 @@
 }
 
 .cy-composer .ant-sender-actions-btn:disabled {
-  color: #aaa;
+  color: var(--cy-text-muted);
   background: #e7e7e7;
 }
 
@@ -101,11 +101,11 @@
   margin: 0 auto -5px;
   padding: 3px 6px 8px;
   overflow: hidden;
-  border: 1px solid #d8e9df;
+  border: 1px solid var(--cy-border);
   border-bottom: 0;
   border-radius: 12px;
-  background: #e6e9ef;
-  color: #4c4f69;
+  background: var(--cy-bg-hover);
+  color: var(--cy-text);
 }
 
 .cy-queue-dock__header,
@@ -143,8 +143,8 @@
 }
 
 .cy-queue-dock__header:hover {
-  background: #ccd0da;
-  color: #7287fd;
+  background: var(--cy-bg-active);
+  color: var(--cy-accent);
 }
 
 .cy-queue-dock__list {
@@ -164,7 +164,7 @@
 
 .cy-queue-dock__lead {
   flex: none;
-  color: #6c6f85;
+  color: var(--cy-text-muted);
 }
 
 .cy-queue-dock__content {
@@ -204,13 +204,13 @@
   min-width: 0;
   height: 28px;
   padding: 3px 8px;
-  border: 1px solid rgba(136, 57, 239, 0.38);
+  border: 1px solid rgba(var(--cy-accent-rgb), 0.38);
   border-radius: 12px;
   outline: none;
-  background: #fff;
+  background: var(--cy-surface);
   color: var(--cy-text);
   font: 400 13px/1.4 var(--rb-font-sans, sans-serif);
-  box-shadow: 0 0 0 2px rgba(136, 57, 239, 0.08);
+  box-shadow: 0 0 0 2px rgba(var(--cy-accent-rgb), 0.08);
 }
 
 .cy-queue-dock__actions {
@@ -231,13 +231,13 @@
   border-radius: 12px;
   padding: 0;
   background: transparent;
-  color: #6c6f85;
+  color: var(--cy-text-muted);
   cursor: pointer;
 }
 
 .cy-queue-dock__actions button:hover:not(:disabled) {
-  background: #ccd0da;
-  color: #7287fd;
+  background: var(--cy-bg-active);
+  color: var(--cy-accent);
 }
 
 .cy-queue-dock__actions button:disabled,
@@ -252,7 +252,7 @@
   appearance: none;
   border: 0;
   background: transparent;
-  color: #363636;
+  color: var(--cy-text);
   font: 500 13px/1 var(--rb-font-sans, sans-serif);
   cursor: pointer;
 }
@@ -276,7 +276,7 @@
 }
 
 .cy-composer__icon-button:disabled {
-  color: #aaa;
+  color: var(--cy-text-muted);
   cursor: wait;
 }
 
@@ -292,7 +292,7 @@
   width: 20px;
   height: 20px;
   fill: none;
-  stroke: #333;
+  stroke: var(--cy-text);
   stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -320,7 +320,7 @@
   padding: 5px 8px;
   border: 1px solid var(--cy-border);
   border-radius: 12px;
-  background: #f7f7f7;
+  background: var(--cy-bg-subtle);
   color: var(--cy-text);
   font: 500 12px/1.2 var(--rb-font-sans, sans-serif);
 }
@@ -340,7 +340,7 @@
   height: 58px;
   padding: 0;
   overflow: hidden;
-  background: #eee;
+  background: var(--cy-bg-hover);
 }
 
 .cy-composer__attachment--sticker {
@@ -350,7 +350,7 @@
   height: 58px;
   padding: 0;
   overflow: hidden;
-  background: #eff1f5;
+  background: var(--cy-bg-page);
 }
 
 .cy-composer__attachment--sticker img {
@@ -397,7 +397,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #888;
+  color: var(--cy-text-muted);
   font: 500 16px/18px sans-serif;
   cursor: pointer;
 }
@@ -428,13 +428,13 @@
   padding: 5px;
   border: 1px solid transparent;
   border-radius: 12px;
-  background: #f7f7f7;
+  background: var(--cy-bg-subtle);
   cursor: pointer;
 }
 
 .cy-sticker-picker button:hover {
-  border-color: #ac80f4;
-  background: #e6e9ef;
+  border-color: #a9aabc;
+  background: var(--cy-bg-hover);
 }
 
 .cy-sticker-picker img {
@@ -487,8 +487,8 @@
 .cy-composer__footer-button--placeholder small {
   padding: 2px 4px;
   border-radius: 12px;
-  background: #ececec;
-  color: #898989;
+  background: var(--cy-bg-hover);
+  color: var(--cy-text-muted);
   font: 600 9px/1 var(--rb-font-sans, sans-serif);
   letter-spacing: .04em;
 }
@@ -508,7 +508,7 @@
 .cy-composer__footer .cy-composer__code-folder-icon,
 .cy-composer__footer .cy-composer__terminal-folder-icon {
   fill: none;
-  stroke: #333;
+  stroke: var(--cy-text);
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -530,7 +530,7 @@
   width: 1px;
   height: 16px;
   margin: 0 2px;
-  background: #ddd;
+  background: var(--cy-bg-active);
 }
 
 /* 弹性空白：把右侧控件组（上下文环/思考控制）推到 footer 最右端。 */
@@ -540,8 +540,8 @@
 
 .cy-model-selector__menu { min-width: 210px; display: grid; gap: 4px; }
 .cy-model-selector__menu button { border: 0; background: transparent; text-align: left; padding: 8px; border-radius: 12px; cursor: pointer; display: grid; gap: 2px; }
-.cy-model-selector__menu button:hover { background: #e6e9ef; }
-.cy-model-selector__menu small { color: #6c6f85; }
+.cy-model-selector__menu button:hover { background: var(--cy-bg-hover); }
+.cy-model-selector__menu small { color: var(--cy-text-muted); }
 
 /* Pair custom foregrounds with custom surfaces; keep the default theme unchanged. */
 :root[data-ui-colors] .cy-composer-shell { background: var(--cy-bg-page); }
@@ -566,7 +566,7 @@
 .cy-composer-shell {
   border: 1px solid var(--cy-border, rgba(31, 35, 48, 0.09));
   border-radius: 22px;
-  background: var(--cy-surface, #fff);
+  background: var(--cy-surface, var(--cy-surface));
   box-shadow: 0 2px 16px rgba(31, 35, 48, 0.06);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
@@ -582,7 +582,7 @@
 .cy-composer .ant-sender-actions-list { order: 2; align-self: center; }
 .cy-composer__footer { min-height: 0; margin-top: 0; padding: 2px 14px 10px; gap: 4px 6px; }
 .cy-composer__footer-button,
-.cy-composer__agent-button { padding: 0 8px; border-radius: 8px; color: var(--cy-text-secondary, #5f5f5f); font-weight: 500; }
+.cy-composer__agent-button { padding: 0 8px; border-radius: 8px; color: var(--cy-text-secondary, var(--cy-text-secondary)); font-weight: 500; }
 .cy-composer__footer-button:hover:not(:disabled),
 .cy-composer__agent-button:hover { background: var(--cy-bg-hover, rgba(0, 0, 0, 0.05)); }
 .cy-composer__icon-button { border-radius: 8px; }

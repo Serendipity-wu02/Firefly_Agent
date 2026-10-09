@@ -118,11 +118,9 @@ body {
 .tasks__winbtn svg { display: block; }
 
 .tasks__winbtn:hover {
-  background: var(--rb-glow-soft);
-  border-color: var(--rb-border-soft);
+  background: var(--rb-hover-light);
+  border-color: transparent;
   color: var(--rb-text-strong);
-  transform: translateY(-1px);
-  box-shadow: var(--rb-glow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 
 .tasks__winbtn--close {
@@ -203,7 +201,7 @@ body {
   letter-spacing: -1px;
   color: var(--rb-text-strong);
   /* 粉色光晕收紧到 8px 模糊，避免在 40px 字符上糊成白光 */
-  text-shadow: 0 0 8px rgba(77, 78, 105, 0.5);
+  text-shadow: 0 0 8px rgba(var(--rb-accent-rgb), 0.5);
 }
 
 .schedule-count__unit {
@@ -339,11 +337,9 @@ body {
 }
 
 .schedule-settings-btn:hover {
-  background: var(--rb-glow-soft);
-  border-color: var(--rb-border-soft);
+  background: var(--rb-hover-light);
+  border-color: transparent;
   color: var(--rb-text-strong);
-  transform: translateY(-1px);
-  box-shadow: var(--rb-glow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 
 .schedule-settings-btn:active { transform: translateY(0); }

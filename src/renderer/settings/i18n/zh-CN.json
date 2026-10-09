@@ -298,20 +298,12 @@
       },
       "appearance": {
         "heading": "外观设置",
-        "subheading": "调整白调界面的窗口布局与流萤桌宠显示方式。",
-        "layout": {
-          "title": "布局",
-          "desc": "选择流萤与聊天、状态和日程窗口的组织方式。",
-          "option": {
-            "multiWindow": {
-              "title": "多窗口",
-              "desc": "各功能使用独立窗口"
-            },
-            "singleWindow": {
-              "title": "单窗口",
-              "desc": "集中在一个主窗口中"
-            }
-          }
+        "subheading": "调整界面颜色、字体和窗口外观。",
+        "theme": {
+          "title": "主题",
+          "desc": "浅色是冷灰蓝，深色取流萤的墨绿与萤光青绿；切换后所有窗口同步应用。",
+          "light": { "title": "浅色", "desc": "冷灰蓝，明亮清爽" },
+          "dark": { "title": "深色 · 流萤", "desc": "墨绿底色，萤光青绿点缀" }
         },
         "personalize": {
           "title": "个性化",
@@ -337,9 +329,6 @@
           "uiIcon": {
             "title": "桌面图标",
             "desc": "切换系统托盘与应用窗口图标。"
-          },
-          "chatBg": {
-            "soon": "聊天背景"
           }
         },
         "pet": {
@@ -850,6 +839,8 @@
       "fontResetFailed": "恢复默认字体失败",
       "iconApplied": "图标已应用",
       "iconFailed": "应用图标失败",
+      "themeApplied": "主题已应用",
+      "themeFailed": "应用主题失败，请重试",
       "saving": "保存中…",
       "saved": "已保存",
       "saveFailed": "保存失败"

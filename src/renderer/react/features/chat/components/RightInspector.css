@@ -48,7 +48,7 @@
   height: var(--cy-workspace-header-height);
   min-height: var(--cy-workspace-header-height);
   flex-shrink: 0;
-  border-bottom: 1px solid var(--cy-border, #f0ebee);
+  border-bottom: 1px solid var(--cy-border, var(--cy-border));
   background: var(--cy-bg-workspace);
   padding: 0 2px;
 }
@@ -69,7 +69,7 @@
   font-weight: 500;
   line-height: 1.2;
   font-family: var(--rb-font-sans, sans-serif);
-  color: var(--cy-text-muted, #99939a);
+  color: var(--cy-text-muted, var(--cy-text-muted));
   transition: color 0.12s, background 0.12s;
 }
 
@@ -80,13 +80,13 @@
 }
 
 .cy-right-inspector__tabs .ant-tabs-tab:hover {
-  color: var(--cy-text, #2f2d31);
+  color: var(--cy-text, var(--cy-text));
   background: rgb(0 0 0 / 2%);
 }
 
 .cy-right-inspector__tabs .ant-tabs-tab.ant-tabs-tab-active {
   background: var(--cy-bg-page);
-  color: var(--cy-text, #2f2d31);
+  color: var(--cy-text, var(--cy-text));
   border-color: var(--cy-border) !important;
   box-shadow: none;
 }
@@ -94,7 +94,7 @@
 /* antd 直接给活动标签的文字上默认蓝色（选择器命中 .ant-tabs-tab-btn），
    必须以更高优先级把文字颜色覆盖为应用深色，由中性文字与细边框区分活动标签 */
 .cy-right-inspector__tabs.ant-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: var(--cy-text, #2f2d31);
+  color: var(--cy-text, var(--cy-text));
 }
 
 .cy-right-inspector__tabs .ant-tabs-tab-btn {
@@ -110,12 +110,12 @@
 .cy-right-inspector__tabs .ant-tabs-tab-remove {
   margin-left: 4px;
   padding: 0 2px;
-  color: var(--cy-text-muted, #99939a);
+  color: var(--cy-text-muted, var(--cy-text-muted));
   font-size: 10px;
 }
 
 .cy-right-inspector__tabs .ant-tabs-tab-remove:hover {
-  color: var(--cy-accent, #8839ef);
+  color: var(--cy-accent, var(--cy-accent));
 }
 
 /* 右上角整体关闭按钮（关闭活动标签） */
@@ -132,7 +132,7 @@
   border-radius: 999px;
   background: var(--cy-text-muted, #a99fa5);
 }
-.cy-right-inspector__dot.is-review { background: var(--cy-accent, #8839ef); }
+.cy-right-inspector__dot.is-review { background: var(--cy-accent, var(--cy-accent-solid)); }
 .cy-right-inspector__dot.is-executing { background: #d98f2b; animation: cy-right-inspector-dot-pulse 1.4s ease-in-out infinite; }
 .cy-right-inspector__dot.is-completed { background: #3e9c63; }
 
@@ -149,14 +149,14 @@
   justify-content: center;
   border: 0;
   background: transparent;
-  color: var(--cy-text-muted, #99939a);
+  color: var(--cy-text-muted, var(--cy-text-muted));
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
 
 .cy-right-inspector__close:hover {
   background: var(--cy-bg-hover, #fff1f6);
-  color: var(--cy-text, #2f2d31);
+  color: var(--cy-text, var(--cy-text));
 }
 
 /* ── 主体：antd Tabs 内容区（滚动由各内容组件自理） ──
@@ -194,5 +194,5 @@
   .cy-right-inspector__tabs.ant-tabs .ant-tabs-tab, .cy-right-inspector__close { transition: none; }
 }
 
-.cy-right-inspector__dot.is-failed { background: #c42b1c; }
+.cy-right-inspector__dot.is-failed { background: var(--cy-danger); }
 .cy-right-inspector__dot.is-cancelled { background: var(--cy-text-muted); }

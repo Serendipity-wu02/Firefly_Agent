@@ -27,7 +27,7 @@
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease;
 }
-.cy-browser-newtab__tile:hover { background: var(--cy-bg-workspace, #fff); border-color: var(--cy-border); }
+.cy-browser-newtab__tile:hover { background: var(--cy-bg-workspace, var(--cy-surface)); border-color: var(--cy-border); }
 .cy-browser-newtab__tile:focus-visible { outline: 2px solid var(--cy-accent, #44464f); outline-offset: 2px; }
 .cy-browser-newtab__icon {
   display: grid;
@@ -36,7 +36,7 @@
   place-items: center;
   border: 1px solid var(--cy-border);
   border-radius: 50%;
-  background: var(--cy-bg-workspace, #fff);
+  background: var(--cy-bg-workspace, var(--cy-surface));
   color: var(--cy-text);
   font: 650 17px/1 var(--rb-font-sans, sans-serif);
 }

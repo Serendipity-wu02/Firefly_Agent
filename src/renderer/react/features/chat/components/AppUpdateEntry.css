@@ -11,7 +11,7 @@
   border: 1px solid rgba(238, 126, 165, 0.24);
   border-radius: 12px;
   background: linear-gradient(135deg, rgba(255, 241, 247, 0.92), rgba(249, 244, 255, 0.86));
-  color: #c95d86;
+  color: var(--cy-accent);
   font: inherit;
   font-size: 12px;
   text-align: left;
@@ -20,9 +20,8 @@
 }
 
 .cy-app-update-entry:hover:not(:disabled) {
-  border-color: rgba(224, 84, 134, 0.44);
-  box-shadow: 0 5px 16px rgba(204, 91, 136, 0.12);
-  transform: translateY(-1px);
+  border-color: var(--cy-border);
+  background: var(--cy-bg-hover);
 }
 
 .cy-app-update-entry:disabled {

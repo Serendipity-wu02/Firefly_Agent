@@ -88,8 +88,8 @@
   padding: 4px;
   display: flex;
   flex-direction: column;
-  background: var(--cy-bg, #fff);
-  border: 1px solid var(--cy-border, #f0ebee);
+  background: var(--cy-bg, var(--cy-surface));
+  border: 1px solid var(--cy-border, var(--cy-border));
   border-radius: 12px;
   box-shadow: 0 6px 20px rgb(0 0 0 / 10%);
   z-index: 40;

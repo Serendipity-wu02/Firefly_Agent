@@ -486,9 +486,27 @@
             <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>外观设置</title><path d="M24 44C29.9601 44 26.3359 35.136 30 31C33.1264 27.4709 44 29.0856 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M28 17C29.6569 17 31 15.6569 31 14C31 12.3431 29.6569 11 28 11C26.3431 11 25 12.3431 25 14C25 15.6569 26.3431 17 28 17Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 21C17.6569 21 19 19.6569 19 18C19 16.3431 17.6569 15 16 15C14.3431 15 13 16.3431 13 18C13 19.6569 14.3431 21 16 21Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M17 34C18.6569 34 20 32.6569 20 31C20 29.3431 18.6569 28 17 28C15.3431 28 14 29.3431 14 31C14 32.6569 15.3431 34 17 34Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></div>
             <div>
               <h1><span data-i18n="panel.appearance.heading">外观设置</span></h1>
-              <p><span data-i18n="panel.appearance.subheading">调整白调界面的窗口布局与流萤桌宠显示方式。</span></p>
+              <p><span data-i18n="panel.appearance.subheading">调整界面颜色、字体和窗口外观。</span></p>
             </div>
           </div>
+
+          <div class="appearance-section" id="ui-theme-section">
+            <div class="appearance-section__heading">
+              <h2><span data-i18n="panel.appearance.theme.title">主题</span></h2>
+              <p><span data-i18n="panel.appearance.theme.desc">浅色是冷灰蓝，深色取流萤的墨绿与萤光青绿；切换后所有窗口同步应用。</span></p>
+            </div>
+            <div class="appearance-theme-options" id="ui-theme-select" role="radiogroup" aria-label="主题">
+              <button type="button" class="appearance-theme-option is-active" data-value="pearl-white" role="radio" aria-checked="true" aria-pressed="true">
+                <span class="appearance-theme-swatch appearance-theme-swatch--light" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="appearance-theme-option__copy"><strong><span data-i18n="panel.appearance.theme.light.title">浅色</span></strong><small><span data-i18n="panel.appearance.theme.light.desc">冷灰蓝，明亮清爽</span></small></span>
+              </button>
+              <button type="button" class="appearance-theme-option" data-value="firefly-dark" role="radio" aria-checked="false" aria-pressed="false">
+                <span class="appearance-theme-swatch appearance-theme-swatch--dark" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="appearance-theme-option__copy"><strong><span data-i18n="panel.appearance.theme.dark.title">深色 · 流萤</span></strong><small><span data-i18n="panel.appearance.theme.dark.desc">墨绿底色，萤光青绿点缀</span></small></span>
+              </button>
+            </div>
+          </div>
+
 
           <fieldset id="ui-color-controls" class="ui-color-controls" disabled>
             <legend>界面颜色</legend>
@@ -500,23 +518,6 @@
             <button type="button" id="ui-colors-reset">恢复默认颜色</button>
             <p id="ui-colors-status" role="status" aria-live="polite"></p>
           </fieldset>
-          <div class="appearance-section">
-            <div class="appearance-section__heading">
-              <h2><span data-i18n="panel.appearance.layout.title">布局</span></h2>
-              <p><span data-i18n="panel.appearance.layout.desc">选择流萤与聊天、状态和日程窗口的组织方式。</span></p>
-            </div>
-            <div class="appearance-options" aria-label="窗口布局">
-              <button type="button" class="appearance-option is-active" aria-pressed="true">
-                <span class="appearance-option__icon">▦</span>
-                <span class="appearance-option__copy"><strong><span data-i18n="panel.appearance.layout.option.multiWindow.title">多窗口</span></strong><small><span data-i18n="panel.appearance.layout.option.multiWindow.desc">各功能使用独立窗口</span></small></span>
-              </button>
-              <button type="button" class="appearance-option" disabled>
-                <span class="appearance-option__icon">▣</span>
-                <span class="appearance-option__copy"><strong><span data-i18n="panel.appearance.layout.option.singleWindow.title">单窗口</span></strong><small><span data-i18n="panel.appearance.layout.option.singleWindow.desc">集中在一个主窗口中</span></small></span>
-                <span class="soon-badge">SOON</span>
-              </button>
-            </div>
-          </div>
 
           <div class="appearance-section">
             <div class="appearance-section__heading">
@@ -558,7 +559,6 @@
                   <button type="button" class="appearance-icon-option is-active" data-icon="firefly" aria-pressed="true" aria-label="流萤图标"><img src="../avatars/firefly-avatar.png" alt="" /></button>
                 </div>
               </div>
-              <button type="button" class="appearance-placeholder" disabled><span data-i18n="panel.appearance.personalize.chatBg.soon">聊天背景</span><span class="soon-badge">SOON</span></button>
             </div>
           </div>
 

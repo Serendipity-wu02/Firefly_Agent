@@ -23,7 +23,7 @@ import {
   type SegmentedOutputMode,
 } from "../../shared/preferences";
 import { isProactiveDeliveryTargetSelectable } from "../../shared/proactive-delivery";
-import type { UiTheme } from "../../shared/ui-theme";
+import { normalizeUiTheme, type UiTheme } from "../../shared/ui-theme";
 import { DEFAULT_UI_FONT, normalizeUiFont, type UiFont } from "../../shared/ui-font";
 import { normalizeUiIcon, type UiIcon } from "../../shared/ui-icon";
 import {
@@ -73,7 +73,7 @@ import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
-import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
+import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, uiThemeSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
 import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, fireflyPanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, fireflySaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
 import { pluginAddBtn, permissionBlocksWrap, permissionNote } from "./plugins/dom";
@@ -548,6 +548,15 @@ function renderProactiveDeliveryVisibility(): void {
 function renderUiFont(font: UiFont): void {
   uiFontCurrent.textContent = font.kind === "custom" ? font.displayName : t("settings.appearance.font.defaultNotion");
   uiFontResetButton.hidden = font.kind !== "custom";
+}
+
+function renderUiTheme(theme: UiTheme): void {
+  uiThemeSelect.querySelectorAll<HTMLButtonElement>(".appearance-theme-option").forEach((button) => {
+    const active = button.dataset.value === theme;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-checked", String(active));
+    button.setAttribute("aria-pressed", String(active));
+  });
 }
 
 function renderUiIcon(icon: UiIcon): void {
@@ -1100,6 +1109,7 @@ async function loadGeneralSettings(): Promise<void> {
     launchAtLoginInput.checked = cfg.launchAtLogin;
     renderUiFont(normalizeUiFont(cfg.uiFont));
     renderUiIcon(normalizeUiIcon(cfg.uiIcon));
+    renderUiTheme(normalizeUiTheme(cfg.uiTheme));
     applyDefaultChatModeSelection(normalizeDefaultChatMode(cfg.defaultChatMode));
     preferencesState.currentCustomStyleConfig = normalizeCustomStyleConfig(cfg.customStyle);
     applySegmentedOutputSelection(normalizeSegmentedOutputMode(cfg.segmentedOutputMode));
@@ -1220,6 +1230,24 @@ uiFontResetButton.addEventListener("click", async () => {
   } finally {
     uiFontResetButton.disabled = false;
   }
+});
+
+uiThemeSelect.querySelectorAll<HTMLButtonElement>(".appearance-theme-option").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const theme = normalizeUiTheme(button.dataset.value);
+    const previous = uiThemeSelect.querySelector<HTMLButtonElement>(".appearance-theme-option.is-active")?.dataset.value;
+    if (previous === theme) return;
+    renderUiTheme(theme);
+    try {
+      // The main process saves the choice and broadcasts it, so every window re-themes together.
+      await window.settings!.saveGeneral({ uiTheme: theme });
+      setAppearanceSaveStatus(t("settings.status.themeApplied"), "is-ok");
+    } catch (error) {
+      console.error("应用主题失败:", error);
+      renderUiTheme(normalizeUiTheme(previous));
+      setAppearanceSaveStatus(t("settings.status.themeFailed"), "is-error");
+    }
+  });
 });
 
 uiIconSelect.querySelectorAll<HTMLButtonElement>(".appearance-icon-option").forEach((button) => {

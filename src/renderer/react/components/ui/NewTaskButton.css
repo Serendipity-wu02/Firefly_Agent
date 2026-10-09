@@ -9,7 +9,7 @@
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  color: var(--cy-text, #1d1d1f);
+  color: var(--cy-text, var(--cy-text));
   transition: background 0.15s ease;
 }
 
@@ -18,7 +18,7 @@
 }
 
 .cy-side-action.is-active {
-  background: var(--cy-bg-active, #e6e9ef);
+  background: var(--cy-bg-active, var(--cy-bg-hover));
 }
 
 .cy-side-action-icon {
@@ -28,12 +28,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6b6b70;
+  color: var(--cy-text-muted);
   flex-shrink: 0;
 }
 
 .cy-side-action.is-active .cy-side-action-icon {
-  color: var(--cy-accent, #8839ef);
+  color: var(--cy-accent, var(--cy-accent));
 }
 
 .cy-side-action-label {

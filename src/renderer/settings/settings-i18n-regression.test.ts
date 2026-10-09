@@ -56,18 +56,19 @@ describe("settings i18n regressions", () => {
     expect(dom.window.getComputedStyle(restartNotice!).display).toBe("inline");
   });
 
-  it("renders custom-style actions with white text", () => {
+  it("renders custom-style actions with dark, readable text on their light fill", () => {
     const dom = createSettingsDocument();
     const style = dom.window.document.createElement("style");
     style.textContent = css;
     dom.window.document.head.append(style);
 
+    // Both are ghost buttons on a light fill. White text there was unreadable until the pointer hovered it.
     for (const id of ["custom-style-sampling-btn", "custom-style-prompt-btn"]) {
       const button = dom.window.document.getElementById(id);
       expect(button).not.toBeNull();
       const label = button!.querySelector("span");
       expect(label).not.toBeNull();
-      expect(dom.window.getComputedStyle(label!).color).toBe("rgb(255, 255, 255)");
+      expect(dom.window.getComputedStyle(label!).color).toBe("var(--rb-text-strong)");
     }
   });
 

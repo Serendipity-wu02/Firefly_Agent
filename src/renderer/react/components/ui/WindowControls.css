@@ -24,7 +24,7 @@
 }
 
 .cy-winbtn--close:hover {
-  background: #c42b1c;
+  background: var(--cy-danger);
   border-color: #c42b1c;
   color: #fff;
 }

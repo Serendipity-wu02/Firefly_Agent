@@ -20,6 +20,7 @@ export const uiFontCurrent = document.getElementById("ui-font-current") as HTMLE
 export const uiFontImportButton = document.getElementById("ui-font-import") as HTMLButtonElement;
 export const uiFontResetButton = document.getElementById("ui-font-reset") as HTMLButtonElement;
 export const uiIconSelect = document.getElementById("ui-icon-select") as HTMLElement;
+export const uiThemeSelect = document.getElementById("ui-theme-select") as HTMLElement;
 export const screenshotHotkeyInput = document.getElementById("screenshot-hotkey-input") as HTMLInputElement | null;
 export const openChromeGpu = document.getElementById("open-chrome-gpu") as HTMLElement;
 export const disableGpuInput = document.getElementById("disable-gpu-electron") as HTMLInputElement;

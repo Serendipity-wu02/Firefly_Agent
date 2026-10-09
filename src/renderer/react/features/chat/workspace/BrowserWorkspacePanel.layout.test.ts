@@ -43,7 +43,7 @@ it("keeps the committed URL compact and long addresses inside the inspector", ()
   expect(property(".cy-browser-workspace__location", "min-width")).toBe("0px");
   expect(property(".cy-browser-workspace__location [data-browser-committed-url]", "text-overflow")).toBe("ellipsis");
   expect(property(".cy-browser-workspace__location [data-browser-committed-url]", "overflow")).toBe("hidden");
-  expect(property(".cy-browser-workspace__toolbar", "background")).toBe("var(--cy-bg-workspace, #fff)");
+  expect(property(".cy-browser-workspace__toolbar", "background")).toBe("var(--cy-bg-workspace, var(--cy-surface))");
 });
 
 const tabsCss = readFileSync(new URL("./BrowserWorkspaceTabs.css", import.meta.url), "utf8");

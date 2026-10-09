@@ -31,13 +31,13 @@
 }
 
 .cy-style-panel__option:hover {
-  background: #eff1f5;
+  background: var(--cy-bg-page);
   color: var(--cy-accent);
 }
 
 .cy-style-panel__option.is-active {
-  background: #e6e9ef;
-  color: #7287fd;
+  background: var(--cy-bg-hover);
+  color: var(--cy-accent);
 }
 
 .cy-style-icon {
@@ -49,7 +49,7 @@
 
 .cy-style-popover .ant-popover-inner {
   padding: 9px;
-  border: 1px solid #eeeeee;
+  border: 1px solid var(--cy-border);
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(29, 29, 31, 0.12);
 }

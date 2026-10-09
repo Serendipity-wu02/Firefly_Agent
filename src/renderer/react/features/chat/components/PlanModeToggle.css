@@ -34,7 +34,7 @@
 }
 
 .cy-plan-popover .ant-popover-inner {
-  border: 1px solid #eeeeee;
+  border: 1px solid var(--cy-border);
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(29, 29, 31, 0.12);
 }
@@ -42,7 +42,7 @@
 .cy-plan-popover .ant-segmented {
   padding: 3px;
   border-radius: 12px;
-  background: #f7f7f7;
+  background: var(--cy-bg-subtle);
 }
 
 .cy-plan-popover .ant-segmented-item {
@@ -63,5 +63,5 @@
 
 /* 激活态：按钮文字+图标轻微染色，区别于 thinking 按钮 */
 .cy-plan-control.is-active {
-  color: var(--cy-accent, #8839ef);
+  color: var(--cy-accent, var(--cy-accent));
 }

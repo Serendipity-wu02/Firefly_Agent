@@ -7,7 +7,7 @@
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
-  background: var(--cy-bg-workspace, #fff);
+  background: var(--cy-bg-workspace, var(--cy-surface));
   user-select: none;
   overflow-y: auto;
   overflow-x: hidden;
@@ -26,13 +26,13 @@
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  color: var(--cy-text, #1d1d1f);
+  color: var(--cy-text, var(--cy-text));
 }
 
 .tool-panel__subtitle {
   margin: 6px 0 0;
   font-size: 12px;
-  color: var(--cy-text-muted, #8e8e93);
+  color: var(--cy-text-muted, var(--cy-text-muted));
 }
 
 /* Chat 模式工具增强总开关行：标题 + 说明 + 复用卡片 pill 开关。 */
@@ -43,9 +43,9 @@
   gap: 16px;
   margin: 14px 28px 0;
   padding: 12px 16px;
-  border: 1px solid var(--cy-border, #f2f2f2);
+  border: 1px solid var(--cy-border, var(--cy-border));
   border-radius: 12px;
-  background: var(--cy-bg-page, #f8f7f6);
+  background: var(--cy-bg-page, var(--cy-bg-subtle));
   flex-shrink: 0;
 }
 
@@ -59,12 +59,12 @@
 .tool-panel__master-text strong {
   font-size: 13px;
   font-weight: 600;
-  color: var(--cy-text, #1d1d1f);
+  color: var(--cy-text, var(--cy-text));
 }
 
 .tool-panel__master-text span {
   font-size: 11px;
-  color: var(--cy-text-muted, #8e8e93);
+  color: var(--cy-text-muted, var(--cy-text-muted));
 }
 
 .tool-panel__master-pill {
@@ -81,17 +81,17 @@
   box-sizing: border-box;
   padding: 9px 16px;
   font-size: 13px;
-  color: var(--cy-text, #1d1d1f);
-  background: var(--cy-bg-page, #f8f7f6);
-  border: 1px solid var(--cy-border, #f2f2f2);
+  color: var(--cy-text, var(--cy-text));
+  background: var(--cy-bg-page, var(--cy-bg-subtle));
+  border: 1px solid var(--cy-border, var(--cy-border));
   border-radius: 12px;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .tool-panel__search:focus {
-  border-color: var(--cy-pill-border, #38a169);
-  box-shadow: 0 0 0 3px rgba(136, 57, 239, 0.1);
+  border-color: var(--cy-pill-border, var(--cy-success));
+  box-shadow: 0 0 0 3px rgba(var(--cy-accent-rgb), 0.1);
 }
 
 .tool-panel__tabs {
@@ -105,7 +105,7 @@
   padding: 6px 14px;
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--cy-text-muted, #8e8e93);
+  color: var(--cy-text-muted, var(--cy-text-muted));
   background: transparent;
   border: none;
   border-radius: 12px;
@@ -114,12 +114,12 @@
 }
 
 .tool-panel__tab:hover {
-  color: var(--cy-text, #1d1d1f);
+  color: var(--cy-text, var(--cy-text));
 }
 
 .tool-panel__tab.is-active {
-  background: var(--cy-bg-active, #e6e9ef);
-  color: var(--cy-accent, #8839ef);
+  background: var(--cy-bg-active, var(--cy-bg-hover));
+  color: var(--cy-accent, var(--cy-accent));
 }
 
 .tool-panel__grid {
@@ -146,7 +146,7 @@
   padding: 40px 12px;
   text-align: center;
   font-size: 12px;
-  color: var(--cy-text-muted, #8e8e93);
+  color: var(--cy-text-muted, var(--cy-text-muted));
 }
 
 /* 工具卡片 */
@@ -162,11 +162,11 @@
 }
 
 .tool-card:hover {
-  background: var(--cy-bg-page, #f8f7f6);
+  background: var(--cy-bg-page, var(--cy-bg-subtle));
 }
 
 .tool-card.is-off .tool-card__name {
-  color: var(--cy-text-muted, #8e8e93);
+  color: var(--cy-text-muted, var(--cy-text-muted));
 }
 
 .tool-card__icon {
@@ -190,7 +190,7 @@
   gap: 6px;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--cy-text, #1d1d1f);
+  color: var(--cy-text, var(--cy-text));
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -201,8 +201,8 @@
   padding: 1px 6px;
   font-size: 10px;
   font-weight: 500;
-  color: var(--cy-text-muted, #8e8e93);
-  background: var(--cy-bg-page, #f8f7f6);
+  color: var(--cy-text-muted, var(--cy-text-muted));
+  background: var(--cy-bg-page, var(--cy-bg-subtle));
   border-radius: 12px;
 }
 
@@ -210,7 +210,7 @@
   margin-top: 2px;
   font-size: 11.5px;
   line-height: 1.45;
-  color: var(--cy-text-muted, #8e8e93);
+  color: var(--cy-text-muted, var(--cy-text-muted));
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -233,11 +233,11 @@
 }
 
 .tool-card__pill:hover {
-  box-shadow: 0 0 0 3px rgba(136, 57, 239, 0.08);
+  box-shadow: 0 0 0 3px rgba(var(--cy-accent-rgb), 0.08);
 }
 
 .tool-card__pill.is-on {
-  background: var(--cy-accent, #8839ef);
+  background: var(--cy-accent, var(--cy-accent-solid));
 }
 
 .tool-card__pill-knob {
@@ -247,7 +247,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--cy-surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   transition: transform 0.2s ease;
 }
@@ -261,7 +261,7 @@
 }
 
 .tool-panel::-webkit-scrollbar-thumb {
-  background: var(--cy-border, #f2f2f2);
+  background: var(--cy-border, var(--cy-bg-hover));
   border-radius: 3px;
 }
 

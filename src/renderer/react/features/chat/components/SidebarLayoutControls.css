@@ -8,7 +8,7 @@
 .cy-sidebar-layout__project { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .cy-sidebar-layout__project span, .cy-sidebar-layout__order span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cy-sidebar-layout__order span { flex: 1; }
-.cy-sidebar-layout__error { padding: 4px 12px; color: #c42b1c; font-size: 12px; }
+.cy-sidebar-layout__error { padding: 4px 12px; color: var(--cy-del-fg); font-size: 12px; }
 
 /* Native selects become quiet pill controls with a drawn chevron. */
 .cy-sidebar-layout select {
@@ -26,7 +26,7 @@
 .cy-sidebar-layout select:hover:not(:disabled) { border-color: var(--cy-border); color: var(--cy-text); }
 .cy-sidebar-layout select:focus-visible,
 .cy-sidebar-layout summary:focus-visible,
-.cy-sidebar-layout button:focus-visible { outline: 2px solid var(--cy-accent, #6b9982); outline-offset: 1px; }
+.cy-sidebar-layout button:focus-visible { outline: 2px solid var(--cy-accent, var(--cy-accent)); outline-offset: 1px; }
 .cy-sidebar-layout summary { padding: 7px 4px 2px; color: var(--cy-text-muted); font-size: 11.5px; list-style: none; user-select: none; }
 .cy-sidebar-layout summary::-webkit-details-marker { display: none; }
 .cy-sidebar-layout summary::before { content: "›"; display: inline-block; width: 12px; transition: transform 140ms ease; }

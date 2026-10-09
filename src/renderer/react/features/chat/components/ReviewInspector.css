@@ -15,14 +15,14 @@
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border-bottom: 1px solid var(--cy-border, #f0ebee);
+  border-bottom: 1px solid var(--cy-border, var(--cy-border));
   background: var(--cy-bg-page);
   flex-shrink: 0;
   min-width: 0;
 }
 .cy-review-inspector__title-text {
   font: 600 12px/1.3 var(--rb-font-mono, monospace);
-  color: var(--cy-text, #2f2d31);
+  color: var(--cy-text, var(--cy-text));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -42,7 +42,7 @@
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  color: var(--cy-text-muted, #99939a);
+  color: var(--cy-text-muted, var(--cy-text-muted));
 }
 
 .cy-review-inspector__diff-content {
@@ -62,10 +62,10 @@
 }
 .cy-review-inspector__hunk-header {
   padding: 4px 14px;
-  color: #0550ae;
+  color: var(--cy-info-fg);
   font-size: 11px;
   font-weight: 600;
-  background: #ddf4ff;
+  background: var(--cy-info-bg);
   border-top: 1px solid #b6e3ff;
   border-bottom: 1px solid #b6e3ff;
 }
@@ -77,8 +77,8 @@
   min-height: 20px;
   white-space: pre;
 }
-.cy-review-inspector__line.is-add { background: #e6ffec; }
-.cy-review-inspector__line.is-remove { background: #ffebe9; }
+.cy-review-inspector__line.is-add { background: var(--cy-add-bg); }
+.cy-review-inspector__line.is-remove { background: var(--cy-del-bg); }
 .cy-review-inspector__line.is-context { background: transparent; }
 
 /* 行号列 */
@@ -96,16 +96,16 @@
   text-align: center;
   user-select: none;
 }
-.cy-review-inspector__line.is-add .cy-review-inspector__line-marker { color: #116329; }
-.cy-review-inspector__line.is-remove .cy-review-inspector__line-marker { color: #82071e; }
+.cy-review-inspector__line.is-add .cy-review-inspector__line-marker { color: var(--cy-add-fg); }
+.cy-review-inspector__line.is-remove .cy-review-inspector__line-marker { color: var(--cy-del-fg); }
 .cy-review-inspector__line.is-context .cy-review-inspector__line-marker { color: transparent; }
 
 .cy-review-inspector__line-text {
   flex: 1;
   overflow: visible;
 }
-.cy-review-inspector__line.is-add .cy-review-inspector__line-text { color: #116329; }
-.cy-review-inspector__line.is-remove .cy-review-inspector__line-text { color: #82071e; }
+.cy-review-inspector__line.is-add .cy-review-inspector__line-text { color: var(--cy-add-fg); }
+.cy-review-inspector__line.is-remove .cy-review-inspector__line-text { color: var(--cy-del-fg); }
 .cy-review-inspector__line.is-context .cy-review-inspector__line-text { color: var(--cy-text-muted, #8b8489); }
 
 /* kind 徽标 */
@@ -117,12 +117,12 @@
   font-weight: 600;
   line-height: 1.4;
 }
-.cy-review-inspector__kind.is-modified { background: #ddf4ff; color: #0550ae; }
-.cy-review-inspector__kind.is-created  { background: #e6ffec; color: #116329; }
-.cy-review-inspector__kind.is-deleted  { background: #ffebe9; color: #82071e; }
-.cy-review-inspector__kind.is-renamed  { background: #ddf4ff; color: #0550ae; }
-.cy-review-inspector__kind.is-binary   { background: #f0f0f0; color: #6e7781; }
-.cy-review-inspector__kind.is-large    { background: #f0f0f0; color: #6e7781; }
+.cy-review-inspector__kind.is-modified { background: var(--cy-info-bg); color: var(--cy-info-fg); }
+.cy-review-inspector__kind.is-created  { background: var(--cy-add-bg); color: var(--cy-add-fg); }
+.cy-review-inspector__kind.is-deleted  { background: var(--cy-del-bg); color: var(--cy-del-fg); }
+.cy-review-inspector__kind.is-renamed  { background: var(--cy-info-bg); color: var(--cy-info-fg); }
+.cy-review-inspector__kind.is-binary   { background: var(--cy-bg-hover); color: #6e7781; }
+.cy-review-inspector__kind.is-large    { background: var(--cy-bg-hover); color: #6e7781; }
 
 /* ── 元信息视图 ── */
 .cy-review-inspector__meta {
@@ -142,9 +142,9 @@
 }
 .cy-review-inspector__meta-size {
   font-size: 11px;
-  color: var(--cy-text-muted, #99939a);
+  color: var(--cy-text-muted, var(--cy-text-muted));
 }
 .cy-review-inspector__meta-hint {
   font-size: 12px;
-  color: var(--cy-text-muted, #99939a);
+  color: var(--cy-text-muted, var(--cy-text-muted));
 }
