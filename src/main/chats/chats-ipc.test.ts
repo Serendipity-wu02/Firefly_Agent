@@ -64,19 +64,6 @@ describe("chats IPC mode filtering", () => {
     expect(cache.getSession(session.id)!.messages.find(m=>m.id==="a")!.sSettlement).toBeUndefined();
     expect((await get({},session.id) as any).messages.find((m:any)=>m.id==="a").content).toBe("RAW");
   });
-  it("initializes a bound Work knowledge workspace only through its explicit entry", async () => {
-    const { registerChatsIpc } = await import("./chats-ipc");
-    registerChatsIpc();
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "knowledge-ipc-"));
-    const event = { sender: {} };
-    const session = await mocks.handlers.get(IPC.CHATS_CREATE)!(event, { mode: "work" }) as { id: string };
-    await mocks.handlers.get(IPC.CHATS_SET_WORKSPACE)!(event, { sessionId: session.id, workspaceRoot: root });
-    expect(fs.existsSync(path.join(root, "learn/progress.md"))).toBe(false);
-    expect(mocks.handlers.has("chats:init-learn-workspace")).toBe(false);
-    await expect(Promise.resolve(mocks.handlers.get(IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE)!(event, session.id))).resolves.toMatchObject({ ok: true });
-    expect(fs.existsSync(path.join(root, "learn/progress.md"))).toBe(true);
-    fs.rmSync(root, { recursive: true, force: true });
-  });
   it("propagates history read failures instead of reporting empty Chat and Work lists", async () => {
     const directory = path.join(mocks.userDataDir, "firefly-chats");
     fs.mkdirSync(directory, { recursive: true });

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { TaskCharacterLeasePool, buildTaskCompanionPrompt, getTaskCompanionNames } from "./task-character-pool";
 import { TASK_CHARACTERS } from "../../shared/task-characters";
+import { SPECIALIST_AGENTS } from "../../shared/specialist-agents";
 
 describe("TaskCharacterLeasePool", () => {
   it("exposes the twelve supplied display characters without assigning duties", () => {
@@ -14,6 +15,17 @@ describe("TaskCharacterLeasePool", () => {
     expect(buildTaskCompanionPrompt()).toContain("delegate_agent");
     expect(buildTaskCompanionPrompt()).not.toMatch(/subagent_type|companion_id/);
     expect(buildTaskCompanionPrompt()).not.toContain("黄金裔");
+  });
+
+  it("lists all twelve specialists in Work and tells the main agent to start with the primary one", () => {
+    const prompt = buildTaskCompanionPrompt("work");
+    for (const agent of SPECIALIST_AGENTS) expect(prompt, agent.id).toContain(`${agent.id}（${agent.nickname}）`);
+    expect(prompt).toContain("先判断任务主要属于哪个领域，只先委托最主责的那一位");
+    expect(prompt).toContain("再继续委托其他角色");
+    expect(prompt).toContain("不要一次性委托全部角色");
+    // Code keeps the roles whose tools exist there; documents-data stays a Work-only role.
+    expect(buildTaskCompanionPrompt("code")).not.toContain("documents-data（知更鸟）");
+    expect(SPECIALIST_AGENTS.filter(agent => agent.supportedModes.includes("code"))).toHaveLength(11);
   });
 
   it("has a PNG asset for every displayed task character", () => {

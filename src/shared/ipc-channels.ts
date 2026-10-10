@@ -199,7 +199,6 @@ export const IPC = {
   // renderer → main：打开文件夹选择器
   CHATS_PICK_WORKSPACE_FOLDER: "chats:pick-workspace-folder",
   // renderer → main：显式初始化知识工作区结构（只创建缺失文件）
-  CHATS_INIT_KNOWLEDGE_WORKSPACE: "chats:init-knowledge-workspace",
   // main → 所有窗口：工作区绑定变更广播
   CHATS_WORKSPACE_CHANGED: "chats:workspace-changed",
 

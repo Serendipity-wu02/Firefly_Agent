@@ -31,14 +31,14 @@ export function DesktopAsrButton({ onText }: { onText: (text: string) => void })
   }, []);
   const label = t(`dictation.${state === "recording" ? "stop" : state === "idle" ? "start" : state}`);
   return <span className="cy-composer__dictation">
-    <button type="button" className="cy-composer__footer-button" title={t("dictation.hint")} aria-label={label}
+    <button type="button" className="cy-composer__mic" title={`${label} · ${t("dictation.hint")}`} aria-label={label}
       aria-pressed={state === "recording"} disabled={state === "starting" || state === "stopping"}
       onClick={() => { if (!controller.current) { setError("unavailable"); return; } if (state === "recording") void controller.current.stop(); else void controller.current.start(); }}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>
-      <span>{label}</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/></svg>
+      <span className="cy-sr-only">{label}</span>
     </button>
-    {state !== "idle" && <button type="button" className="cy-composer__footer-button" onClick={() => controller.current?.cancel()}>{t("dictation.cancel")}</button>}
+    {state !== "idle" && <button type="button" className="cy-composer__mic-cancel" onClick={() => controller.current?.cancel()}>{t("dictation.cancel")}</button>}
     {error && <span className="cy-composer__dictation-error" role="alert">{t(`dictation.error.${error}`)}</span>}
-    {state !== "idle" && <span className="cy-composer__dictation-status" role="status">{t("dictation.hint")}</span>}
+    {state !== "idle" && <span className="cy-sr-only" role="status">{t("dictation.hint")}</span>}
   </span>;
 }

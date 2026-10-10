@@ -8,14 +8,16 @@ export function getTaskCompanionNames(): readonly string[] {
 }
 
 export function buildTaskCompanionPrompt(mode: "work" | "code" = "work"): string {
-  const names = SPECIALIST_AGENTS.filter(agent => agent.supportedModes.includes(mode))
-    .map(agent => `${agent.id}（${agent.nickname}）：${agent.role}`);
-  return names.length === 0
+  const roster = SPECIALIST_AGENTS.filter(agent => agent.supportedModes.includes(mode))
+    .map(agent => `- ${agent.id}（${agent.nickname}）：${agent.role}。${agent.description}`);
+  return roster.length === 0
     ? ""
     : [
-      `当前模式的专业 Agent：${names.join("；")}。`,
-      "仅在工具可用时由主 Agent 调用 delegate_agent，参数只有 agent_id 和 prompt。角色不授予权限，工具与 Skills 必须在父运行授权范围内。",
-      "子 Agent 不得再次委派、询问用户或确认父级副作用；不要编造角色与当前用户的共同经历。",
+      "当前模式的专业 Agent（任何一位都可以委托）：",
+      ...roster,
+      "仅在工具可用时由主 Agent 调用 delegate_agent，参数只有 agent_id 和 prompt。",
+      "选择方式：先判断任务主要属于哪个领域，只先委托最主责的那一位；等它的结果回来，若任务跨领域或结果不足，再继续委托其他角色。需要几位就依次委托几位，每次调用传入完整的 prompt，必要时把前一位的结论写进去。不要一次性委托全部角色；简单任务由主 Agent 自己完成。",
+      "角色不授予权限，工具与 Skills 必须在父运行授权范围内。子 Agent 不得再次委派、询问用户或确认父级副作用；不要编造角色与当前用户的共同经历。",
     ].join("\n");
 }
 

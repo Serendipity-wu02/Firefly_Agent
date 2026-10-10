@@ -2,14 +2,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
-import { ensureVaultStructure } from "./obsidian/vault-init";
 import { registerObsidianTools, unregisterObsidianTools } from "./obsidian/obsidian-tools";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 
-it("reads the teaching templates through the real bound Obsidian tool", async () => {
+it("reads user-provided templates through the real bound Obsidian tool", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "knowledge-templates-"));
   try {
-    await ensureVaultStructure(root);
+    fs.mkdirSync(path.join(root, ".obsidian"));
+    fs.mkdirSync(path.join(root, "templates"), { recursive: true });
+    for (const filename of ["topic-template.md", "review-template.md", "outline-template.md"]) {
+      fs.writeFileSync(path.join(root, "templates", filename), `# ${filename}
+
+- section
+`);
+    }
     registerObsidianTools();
     const read = toolRegistry.getById("obsidian_read_file")!;
     for (const filename of ["topic-template.md", "review-template.md", "outline-template.md"]) {

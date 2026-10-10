@@ -14,11 +14,11 @@ import { createRoot, type Root } from "react-dom/client";
 import type { ComposerAttachment } from "./ChatComposer";
 
 // 只 mock 与 IPC/资产耦合的子控件，保留 Sender / antd 真实渲染与键盘逻辑
-vi.mock("./ReasoningControl", () => ({ ReasoningControl: () => null }));
+vi.mock("./ModelEffortControl", () => ({ ModelEffortControl: () => null }));
+vi.mock("./DesktopAsrButton", () => ({ DesktopAsrButton: () => null }));
 vi.mock("./StyleControl", () => ({ StyleControl: () => null }));
 vi.mock("./PermissionControl", () => ({ PermissionControl: () => null }));
 vi.mock("./PlanModeToggle", () => ({ PlanModeToggle: () => null }));
-vi.mock("./ModelSelector", () => ({ ModelSelector: () => null }));
 vi.mock("./ContextUsageRing", () => ({ ContextUsageRing: () => null }));
 vi.mock("../../../../../shared/renderer-base", () => ({ resolveAsset: (path: string) => path }));
 
@@ -350,8 +350,13 @@ describe("ChatComposer 队列与附件展示", () => {
       attachments: [{ name: "report.txt", kind: "document" }],
     });
     expect(host!.querySelector(".cy-composer__attachment")?.textContent).toContain("report.txt");
-    const uploadButton = buttonByLabel(t("composer.uploadFile"));
-    expect(uploadButton.disabled).toBe(false);
+    // Attaching lives in the "+" menu; it opens while a run is going and offers the upload entry.
+    const addButton = buttonByLabel(t("composer.addMenuTitle"));
+    expect(addButton.disabled).toBe(false);
+    await act(async () => { addButton.click(); });
+    const uploadButton = [...document.body.querySelectorAll("button")].find((item) => item.getAttribute("aria-label") === t("composer.uploadFile"));
+    expect(uploadButton).toBeTruthy();
+    expect((uploadButton as HTMLButtonElement).disabled).toBe(false);
   });
 });
 

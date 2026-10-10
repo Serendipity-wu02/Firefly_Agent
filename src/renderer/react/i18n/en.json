@@ -52,6 +52,7 @@
     "queueAdjust": "Adjust into the current task's next step",
     "queueAdjustUnavailable": "No active run to adjust",
     "queueTruncated": "...",
+    "addMenuTitle": "Add",
     "uploadFile": "Upload file",
     "screenshot": "Screenshot",
     "screenshotShortcut": "Screenshot (Alt+Shift+S)",
@@ -74,6 +75,7 @@
     "pastedImageAttachmentName": "pasted-image_{{ts}}.png",
     "planApprovedAutoMessage": "Plan approved — go ahead and start.",
     "resumeLastTaskMessage": "Resume last task",
+    "emptyGreetingTask": "What are we building?",
     "emptyGreeting": "What can I help with?",
     "emptyHint": {
       "chat": "Chat about anything, or ask me to look something up or write something.",
@@ -89,13 +91,6 @@
     "errorChatStoreUnavailable": "The chat session service isn't ready yet",
     "newTaskTitle": "New task",
     "newChatTitle": "New chat",
-    "learnStructureConfirmTitle": "Add learning structure",
-    "learnStructureConfirm": "Add the Firefly learning structure to this Obsidian vault? Only missing files will be created — existing content won't be touched.",
-    "learnStructureFailedTitle": "Failed to add learning structure",
-    "learnStructureFailed": "Failed to add learning structure: {{error}}",
-    "learnStructureCreated": "Created {{created}} files/folders.",
-    "learnStructureCreatedWithSkipped": "Created {{created}} files/folders, skipped {{skipped}} existing ones.",
-    "emptyDirLearnStructureConfirm": "This is an empty directory. Firefly can set up a learning workspace here (materials/, notes/, exercises/, templates/, learn/progress.md) so you can study together.\n\nCreate it?",
     "defaultWorkspaceName": "Project folder",
     "setWorkspaceFailedTitle": "Failed to set workspace",
     "setWorkspaceFailed": "Failed to set workspace: {{error}}",
@@ -605,11 +600,17 @@
   },
   "permission": {
     "panelTitle": "Permission level",
+    "panelQuestion": "How should Firefly's actions be approved?",
     "levelProjectReadOnly": "Read-only",
-    "levelReadOnly": "Allow access",
-    "levelScoped": "Specific directory",
-    "levelPerAction": "Ask before each action",
-    "levelFull": "Full access"
+    "descProjectReadOnly": "Reads the current project only; changes nothing",
+    "levelReadOnly": "Read access",
+    "descReadOnly": "Can read files, cannot modify them",
+    "levelScoped": "Project folder",
+    "descScoped": "Can read and write inside the current project folder",
+    "levelPerAction": "Ask first",
+    "descPerAction": "Asks before every file change or command",
+    "levelFull": "Full access",
+    "descFull": "Unrestricted access to any file or command on this computer"
   },
   "tts": {
     "labelIdle": "Read aloud",
@@ -628,6 +629,10 @@
   },
   "reasoning": {
     "followModel": "Follow model"
+  },
+  "modelEffort": {
+    "sliderLabel": "Thinking effort",
+    "unsupported": "This model does not support adjusting thinking effort"
   },
   "modelSelector": {
     "switchTitle": "Switch model for this chat",

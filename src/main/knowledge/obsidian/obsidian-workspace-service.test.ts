@@ -3,7 +3,6 @@
  * - create 永不覆盖：目标已存在一律拒绝（PATH_ALREADY_EXISTS）
  * - 修改已有文件必须携带 expectedContentHash（CONTENT_HASH_REQUIRED / CONTENT_CONFLICT）
  * - resolveSafe 保护 .obsidian/ 与 .firefly/ 内部目录
- * - isEmptyDirectory 忽略旧版与当前应用内部目录
  */
 
 import * as fs from "fs"
@@ -15,7 +14,6 @@ import {
   ObsidianError,
 } from "./obsidian-workspace-service"
 import { contentHash, extractHeadings } from "./obsidian-markdown"
-import { isEmptyDirectory } from "./vault-init"
 
 describe("ObsidianWorkspaceService 写契约不变量", () => {
   let vaultRoot: string
@@ -190,28 +188,6 @@ describe("ObsidianWorkspaceService 写契约不变量", () => {
       writeFile(".firefly/leak.md", "# 不该被列出\n")
       const files = await service.listFiles({ recursive: true })
       expect(files.some((file) => file.path.startsWith(".firefly/"))).toBe(false)
-    })
-  })
-
-  describe("isEmptyDirectory 内部目录保护", () => {
-    it("只含 .firefly/ 时仍判定为空", async () => {
-      fs.mkdirSync(path.join(vaultRoot, ".firefly/history"), { recursive: true })
-      fs.writeFileSync(path.join(vaultRoot, ".firefly/index.db"), "x")
-      expect(await isEmptyDirectory(vaultRoot)).toBe(true)
-    })
-
-    it("只含 .obsidian/ 时仍判定为空（既有行为不回归）", async () => {
-      fs.mkdirSync(path.join(vaultRoot, ".obsidian"), { recursive: true })
-      expect(await isEmptyDirectory(vaultRoot)).toBe(true)
-    })
-
-    it("存在用户笔记时判定为非空", async () => {
-      writeFile("notes/user.md", "# 用户笔记\n")
-      expect(await isEmptyDirectory(vaultRoot)).toBe(false)
-    })
-
-    it("不存在时判定为空（不抛错）", async () => {
-      expect(await isEmptyDirectory(path.join(vaultRoot, "never"))).toBe(true)
     })
   })
 })

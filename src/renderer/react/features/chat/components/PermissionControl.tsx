@@ -10,12 +10,12 @@ interface PermissionSettingsApi {
 }
 
 // 只存 i18n key（t() 不能出现在模块顶层常量里），展示文案在组件内求值。
-const PERMISSION_OPTIONS: ReadonlyArray<{ level: PermissionLevel; labelKey: string }> = [
-  { level: "project-read-only", labelKey: "permission.levelProjectReadOnly" },
-  { level: "read-only", labelKey: "permission.levelReadOnly" },
-  { level: "scoped", labelKey: "permission.levelScoped" },
-  { level: "per-action", labelKey: "permission.levelPerAction" },
-  { level: "full", labelKey: "permission.levelFull" },
+const PERMISSION_OPTIONS: ReadonlyArray<{ level: PermissionLevel; labelKey: string; descKey: string }> = [
+  { level: "project-read-only", labelKey: "permission.levelProjectReadOnly", descKey: "permission.descProjectReadOnly" },
+  { level: "read-only", labelKey: "permission.levelReadOnly", descKey: "permission.descReadOnly" },
+  { level: "scoped", labelKey: "permission.levelScoped", descKey: "permission.descScoped" },
+  { level: "per-action", labelKey: "permission.levelPerAction", descKey: "permission.descPerAction" },
+  { level: "full", labelKey: "permission.levelFull", descKey: "permission.descFull" },
 ];
 
 function permissionApi(): PermissionSettingsApi | undefined {
@@ -82,7 +82,7 @@ export function PermissionControl() {
       overlayClassName="cy-permission-popover"
       content={
         <div className="cy-permission-panel">
-          <strong>{t("permission.panelTitle")}</strong>
+          <strong>{t("permission.panelQuestion")}</strong>
           <div className="cy-permission-panel__options">
             {PERMISSION_OPTIONS.map((option) => (
               <button
@@ -92,7 +92,11 @@ export function PermissionControl() {
                 onClick={() => void select(option.level)}
               >
                 <PermissionIcon level={option.level} />
-                <span>{t(option.labelKey)}</span>
+                <span className="cy-permission-panel__text">
+                  <span className="cy-permission-panel__label">{t(option.labelKey)}</span>
+                  <small>{t(option.descKey)}</small>
+                </span>
+                {level === option.level && <svg className="cy-permission-panel__check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
               </button>
             ))}
           </div>

@@ -1,5 +1,5 @@
 .cy-permission-panel {
-  min-width: 156px;
+  width: 300px;
 }
 
 .cy-permission-panel > strong {
@@ -20,14 +20,19 @@
   width: 100%;
   align-items: center;
   gap: 8px;
-  padding: 8px 9px;
+  padding: 8px 10px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   cursor: pointer;
   font: 500 13px/1.25 var(--rb-font-sans, sans-serif);
   text-align: left;
 }
+
+.cy-permission-panel__text { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.cy-permission-panel__label { color: var(--cy-text); }
+.cy-permission-panel__text small { color: var(--cy-text-muted); font: 400 12px/1.4 var(--rb-font-sans, sans-serif); }
+.cy-permission-panel__option .cy-permission-panel__check { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 .cy-permission-panel__option svg,
 .cy-permission-control > svg {
@@ -50,14 +55,12 @@
 .cy-permission-panel__option.is-per-action,
 .cy-permission-control.is-per-action { color: var(--cy-text); }
 .cy-permission-panel__option.is-full,
-.cy-permission-control.is-full { color: #d49d16; }
+.cy-permission-control.is-full { color: #d9652b; }
+.cy-permission-panel__option.is-full .cy-permission-panel__label { color: #d9652b; }
+.cy-permission-panel__option.is-full small { color: #d9652b; opacity: .85; }
 
 .cy-permission-panel__option:hover { background: var(--cy-bg-subtle); }
-.cy-permission-panel__option.is-project-read-only.is-active,
-.cy-permission-panel__option.is-read-only.is-active { background: rgba(33, 163, 102, 0.16); }
-.cy-permission-panel__option.is-scoped.is-active { background: rgba(59, 130, 246, 0.16); }
-.cy-permission-panel__option.is-per-action.is-active { background: var(--cy-bg-subtle); }
-.cy-permission-panel__option.is-full.is-active { background: rgba(212, 157, 22, 0.18); }
+.cy-permission-panel__option.is-active { background: var(--cy-bg-hover); }
 
 .cy-permission-popover .ant-popover-inner {
   padding: 9px;

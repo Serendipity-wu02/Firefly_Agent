@@ -768,8 +768,6 @@ const chatStoreApi = {
     ipcRenderer.invoke(IPC.CHATS_CLEAR_WORKSPACE, sessionId),
   pickWorkspaceFolder: () =>
     ipcRenderer.invoke(IPC.CHATS_PICK_WORKSPACE_FOLDER),
-  initKnowledgeWorkspace: (sessionId: string) =>
-    ipcRenderer.invoke(IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE, sessionId),
   onWorkspaceChanged: (callback: (payload: { sessionId: string; binding: unknown }) => void) => {
     const listener = (_e: Electron.IpcRendererEvent, payload: { sessionId: string; binding: unknown }) =>
       callback(payload);

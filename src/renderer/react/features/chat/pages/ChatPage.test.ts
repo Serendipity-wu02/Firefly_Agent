@@ -23,7 +23,6 @@ describe("ChatPage feedback", () => {
     // 错误上报与失败提示走轻提示 / 模态框
     expect(chatPageSource).toMatch(/feedback\.notice\(\{\s*tone:\s*"error"/);
     expect(chatPageSource).toMatch(/feedback\.alert\(\{/);
-    expect(chatPageSource).toMatch(/feedback\.confirm\(\{/);
     // 破坏性选择走确认弹窗
     expect(chatPageSource).not.toContain("window.alert");
     expect(chatPageSource).not.toContain("window.confirm");

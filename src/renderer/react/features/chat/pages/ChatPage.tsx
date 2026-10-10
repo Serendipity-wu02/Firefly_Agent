@@ -98,7 +98,6 @@ import "../../../components/ui/UserAvatar.css";
 import "../../../components/ui/NewTaskButton.css";
 import "../../../components/ui/ToolModeButton.css";
 import "../components/ChatComposer.css";
-import "../components/ReasoningControl.css";
 import "../components/StyleControl.css";
 import "../components/PermissionControl.css";
 import "../components/ChatMessageList.css";
@@ -1008,37 +1007,6 @@ export function ChatPage() {
     return session.id;
   }
 
-  async function initVaultStructure(sessionId: string) {
-    const store = chatStore();
-    if (!store) return;
-    // 结构学习会在工作区写入文件：覆盖性选择，需确认后执行
-    const confirmed = await feedback.confirm({
-      title: t("chatPage.learnStructureConfirmTitle"),
-      message: t("chatPage.learnStructureConfirm"),
-      confirmText: t("common.confirm"),
-    });
-    if (!confirmed) return;
-    const result = await store.initKnowledgeWorkspace(sessionId);
-    if (!result.ok) {
-      // 长操作失败：错误详情需阅读，用单按钮错误弹窗
-      await feedback.alert({
-        tone: "error",
-        title: t("chatPage.learnStructureFailedTitle"),
-        message: t("chatPage.learnStructureFailed", { error: result.error ?? t("chatPage.unknownError") }),
-      });
-    } else {
-      const created = result.created?.length ?? 0;
-      const skipped = result.skipped?.length ?? 0;
-      // 普通成功反馈：非阻塞轻提示
-      feedback.notice({
-        tone: "success",
-        message: skipped > 0
-          ? t("chatPage.learnStructureCreatedWithSkipped", { created, skipped })
-          : t("chatPage.learnStructureCreated", { created }),
-      });
-    }
-  }
-
   async function chooseWorkspace() {
     const targetMode = mode;
     if (targetMode === "chat") return;
@@ -1622,7 +1590,7 @@ export function ChatPage() {
         )}
         <ContextCompressionNotice visible={isCompressingContext} />
         {!hasMessages && <div className="cy-workspace-greeting">
-          <h2 className="cy-workspace-greeting__title">{t("chatPage.emptyGreeting")}</h2>
+          <h2 className="cy-workspace-greeting__title">{t(mode === "chat" ? "chatPage.emptyGreeting" : "chatPage.emptyGreetingTask")}</h2>
           <p className="cy-workspace-greeting__hint">{t(`chatPage.emptyHint.${mode}`)}</p>
         </div>}
         <div className="cy-workspace-composer">
@@ -1663,7 +1631,6 @@ export function ChatPage() {
               ? queueFlow.adjustMessage(activeSessionId, id)
               : Promise.resolve(false)}
             onChooseWorkspace={() => void chooseWorkspace()}
-            onInitializeKnowledge={() => { if (activeSessionId) void initVaultStructure(activeSessionId); }}
             onChooseFiles={(files) => void chooseFiles(files)}
             onRemoveAttachment={removeAttachment}
             onScreenshot={() => void handleScreenshot()}

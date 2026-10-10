@@ -52,6 +52,7 @@
     "queueAdjust": "调整到当前任务下一步",
     "queueAdjustUnavailable": "当前没有可调整的运行",
     "queueTruncated": "...",
+    "addMenuTitle": "添加",
     "uploadFile": "上传文件",
     "screenshot": "截图",
     "screenshotShortcut": "截图 (Alt+Shift+S)",
@@ -75,6 +76,7 @@
     "planApprovedAutoMessage": "已批准计划，请开始执行。",
     "resumeLastTaskMessage": "继续上次任务",
     "emptyGreeting": "有什么可以帮你的吗？",
+    "emptyGreetingTask": "我们要构建什么？",
     "emptyHint": {
       "chat": "随便聊聊，或者让我帮你查资料、写点东西。",
       "work": "描述一个任务，我会一步步帮你完成。",
@@ -89,13 +91,6 @@
     "errorChatStoreUnavailable": "聊天会话服务尚未就绪",
     "newTaskTitle": "新任务",
     "newChatTitle": "新对话",
-    "learnStructureConfirmTitle": "添加学习结构",
-    "learnStructureConfirm": "要在当前 Obsidian Vault 中添加 Firefly 通用学习结构吗？只会创建缺失的文件，不会覆盖已有内容。",
-    "learnStructureFailedTitle": "添加学习结构失败",
-    "learnStructureFailed": "添加学习结构失败：{{error}}",
-    "learnStructureCreated": "已创建 {{created}} 个文件/目录。",
-    "learnStructureCreatedWithSkipped": "已创建 {{created}} 个文件/目录，跳过 {{skipped}} 个已存在项。",
-    "emptyDirLearnStructureConfirm": "这是一个空目录。Firefly 可以在这里创建通用学习工作区结构（materials/、notes/、exercises/、templates/、learn/progress.md），方便你之后和 Firefly 一起学习。\n\n是否创建？",
     "defaultWorkspaceName": "工作文件夹",
     "setWorkspaceFailedTitle": "设置工作区失败",
     "setWorkspaceFailed": "设置工作区失败：{{error}}",
@@ -605,11 +600,17 @@
   },
   "permission": {
     "panelTitle": "权限等级",
+    "panelQuestion": "Firefly 的操作应如何批准？",
     "levelProjectReadOnly": "完全只读",
+    "descProjectReadOnly": "只读取当前项目，不做任何修改",
     "levelReadOnly": "允许访问",
+    "descReadOnly": "可读取文件，不能修改",
     "levelScoped": "指定目录",
+    "descScoped": "可在当前项目目录内读写",
     "levelPerAction": "请求审批",
-    "levelFull": "完全访问"
+    "descPerAction": "每次修改文件或运行命令前都先询问",
+    "levelFull": "完全访问",
+    "descFull": "不受限制地访问你电脑上的任何文件和命令"
   },
   "tts": {
     "labelIdle": "朗读",
@@ -628,6 +629,10 @@
   },
   "reasoning": {
     "followModel": "跟随模型"
+  },
+  "modelEffort": {
+    "sliderLabel": "思考强度",
+    "unsupported": "当前模型不支持调节思考强度"
   },
   "modelSelector": {
     "switchTitle": "切换当前对话模型",

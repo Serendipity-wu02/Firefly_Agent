@@ -26,7 +26,6 @@ import * as fs from "fs";
 import * as path from "path";
 import { createWorkMarkdownSnapshot } from "./work-markdown-export";
 import { inspectWorkReadFile, isWorkReadScopeCurrent, WORK_READ_PAGE_LINES } from "./work-read-scope";
-import { ensureVaultStructure } from "../knowledge/obsidian/vault-init";
 import { getDefaultModelProfile, loadModelSettings, resolveModelSettingsProfile } from "../settings/model-settings";
 import { FileToolOutputStore } from "../orchestrator/harness/tool-output/file-tool-output-store";
 import { getHarnessRunStore } from "../orchestrator/harness/run-store";
@@ -602,22 +601,6 @@ export function registerChatsIpc(
         const msg = err instanceof Error ? err.message : String(err);
         return { ok: false, error: msg };
       }
-    },
-  );
-
-  ipc.handle(
-    IPC.CHATS_INIT_KNOWLEDGE_WORKSPACE,
-    async (_event, sessionId: string) => {
-      if (!sessionId) return { ok: false, error: "missing sessionId" };
-      const binding = chatsStore.getWorkspaceBinding(sessionId);
-      if (!binding) return { ok: false, error: "no workspace binding" };
-      const session = chatsStore.getSession(sessionId);
-      if (!session || session.mode !== "work") {
-        return { ok: false, error: "session is not in work mode" };
-      }
-      const result = await ensureVaultStructure(binding.workspaceRoot);
-      if (result.error) return { ok: false, error: result.error };
-      return { ok: true, created: result.created, skipped: result.skipped };
     },
   );
 
