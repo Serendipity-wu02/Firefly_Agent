@@ -91,11 +91,8 @@ export const IPC = {
   SIDEBAR_CLOSE: "sidebar:close",
   SIDEBAR_TOGGLE_ALWAYS_ON_TOP: "sidebar:toggle-always-on-top",
   SIDEBAR_OPEN_SETTINGS: "sidebar:open-settings",
-  SIDEBAR_OPEN_TASKS: "sidebar:open-tasks",
 
   // tasks window (read-only display, no per-element interactions)
-  TASKS_CLOSE: "tasks:close",
-  TASKS_MINIMIZE: "tasks:minimize",
 
   // settings window
   SETTINGS_MINIMIZE: "settings:minimize",
@@ -132,8 +129,6 @@ export const IPC = {
   SETTINGS_RESET_UI_FONT: "settings:reset-ui-font",
   SETTINGS_OPEN_SIDEBAR: "settings:open-sidebar",
   SETTINGS_CLOSE_SIDEBAR: "settings:close-sidebar",
-  SETTINGS_OPEN_TASKS: "settings:open-tasks",
-  SETTINGS_CLOSE_TASKS: "settings:close-tasks",
   SETTINGS_SET_PET_ALWAYS_ON_TOP: "settings:set-pet-always-on-top",
   SETTINGS_SET_PET_VISIBLE: "settings:set-pet-visible",
   SETTINGS_SET_PET_ZOOM: "settings:set-pet-zoom",
@@ -317,7 +312,6 @@ export const IPC = {
   SCHEDULER_FIRE_NOW: "scheduler:fire-now",
   SCHEDULER_GET_HISTORY: "scheduler:get-history",
   SCHEDULER_GET_TOOLS: "scheduler:get-tools",
-  SCHEDULER_CHANGED: "scheduler:changed",  // main → renderer：任务列表变更通知
 
   // token usage statistics
   TOKEN_USAGE_GET: "token-usage:get",

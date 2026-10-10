@@ -31,7 +31,6 @@ interface SidebarApi {
   minimize: () => void;
   close: () => void;
   toggleAlwaysOnTop: () => Promise<boolean>;
-  openTasks: () => void;
   openSettings: (section?: string) => void;
 }
 
@@ -48,7 +47,6 @@ if (!window.sidebar) {
     minimize: () => {},
     close: () => {},
     toggleAlwaysOnTop: () => Promise.resolve(false),
-    openTasks: () => {},
     openSettings: (_section?: string) => {},
   };
 }

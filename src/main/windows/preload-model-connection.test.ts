@@ -28,9 +28,9 @@ it("binds browser cleanup to its conversation while preserving explicit current-
   await api.revokePermission();
   expect(fixture.invoke).toHaveBeenLastCalledWith("browser:permission", { kind: "revoke" });
 });
-it("preserves sidebar settings and schedule actions for Chat and Tasks", () => {
-  const sidebar = fixture.exposed.get("sidebar"); sidebar.openSettings("api"); sidebar.openTasks();
-  expect(fixture.send.mock.calls).toEqual([["sidebar:open-settings", "api"], ["sidebar:open-tasks"]]);
+it("preserves the sidebar settings action", () => {
+  const sidebar = fixture.exposed.get("sidebar"); sidebar.openSettings("api");
+  expect(fixture.send.mock.calls).toEqual([["sidebar:open-settings", "api"]]);
 });
 it("exposes manual commands and Main-confirmed permission requests, preserving offline availability", async () => {
   const api = fixture.exposed.get("manualBrowser");

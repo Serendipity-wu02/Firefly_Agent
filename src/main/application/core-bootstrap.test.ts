@@ -50,7 +50,6 @@ function makeCoreDeps(calls: string[], overrides: Partial<CoreDependencies> = {}
         onPetWindowReady: vi.fn(),
         onPetWindowClosed: vi.fn(),
         createSidebarWindow: vi.fn(),
-        createTasksWindow: vi.fn(),
         setPetWindowAlwaysOnTop: vi.fn(),
         applyPetWindowZoom: vi.fn(),
       },
@@ -82,7 +81,7 @@ function makeCoreDeps(calls: string[], overrides: Partial<CoreDependencies> = {}
     createScheduler: () => ({ initialize: () => { calls.push("scheduler-initialize"); }, start: vi.fn(() => { calls.push("scheduler-start"); }), stop: vi.fn() } as never),
     registerCoreIpc: () => { calls.push("register-core-ipc"); },
     wireToastCenter: () => { calls.push("wire-toast-center"); },
-    loadGeneralSettings: () => ({ petVisible: true, sidebarVisible: false, tasksVisible: false }) as never,
+    loadGeneralSettings: () => ({ petVisible: true, sidebarVisible: false }) as never,
     applyGeneralSettings: () => { calls.push("apply-settings"); },
     revealStartupWindows: async () => { calls.push("reveal"); },
     minimumSplashMs: 2500,
@@ -189,7 +188,7 @@ describe("startCore", () => {
     expect(deps.shell.windowManager.createPetWindow).toHaveBeenCalledWith(true);
 
     const hidden = makeCoreDeps([], {
-      loadGeneralSettings: () => ({ petVisible: false, sidebarVisible: false, tasksVisible: false }) as never,
+      loadGeneralSettings: () => ({ petVisible: false, sidebarVisible: false }) as never,
     });
     await startCore(hidden);
     // 隐藏时窗口仍创建（不显示），托盘"显示桌宠"与设置开关随时能救回；
@@ -200,7 +199,6 @@ describe("startCore", () => {
     expect(hidden.shell.windowManager.applyPetWindowZoom).toHaveBeenCalled();
     expect(hidden.shell.windowManager.onPetWindowReady).toHaveBeenCalled();
     expect(hidden.shell.windowManager.createSidebarWindow).not.toHaveBeenCalled();
-    expect(hidden.shell.windowManager.createTasksWindow).not.toHaveBeenCalled();
   });
 
   it("runs reveal after core-ready and drains activation last", async () => {
@@ -224,10 +222,9 @@ describe("startCore", () => {
 });
 
 it("ignores a retired sidebar preference while retaining the schedule window", async () => {
-  const deps = makeCoreDeps([], { loadGeneralSettings: () => ({ petVisible: true, sidebarVisible: true, tasksVisible: true }) as never });
+  const deps = makeCoreDeps([], { loadGeneralSettings: () => ({ petVisible: true, sidebarVisible: true }) as never });
   await startCore(deps);
   expect(deps.shell.windowManager.createSidebarWindow).not.toHaveBeenCalled();
-  expect(deps.shell.windowManager.createTasksWindow).toHaveBeenCalledOnce();
 });
 it.each([
   ["development", true], ["development", false], ["test", true], ["test", false],
@@ -236,7 +233,7 @@ it.each([
   runtimeProfile.kind = kind;
   const setLoginItemSettings = vi.fn();
   const deps = makeCoreDeps([], {
-    loadGeneralSettings: () => ({ petVisible: true, tasksVisible: false, launchAtLogin: enabled }) as never,
+    loadGeneralSettings: () => ({ petVisible: true, launchAtLogin: enabled }) as never,
     applyGeneralSettings: settings => syncLaunchAtLogin(settings.launchAtLogin, { setLoginItemSettings }),
   });
   await startCore(deps);

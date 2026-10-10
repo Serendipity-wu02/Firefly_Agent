@@ -188,7 +188,6 @@ export async function startCore(deps: CoreDependencies): Promise<CoreResult> {
   shell.windowManager.setPetWindowAlwaysOnTop(generalSettings.petAlwaysOnTop);
   shell.windowManager.applyPetWindowZoom(generalSettings.petZoom);
   // The legacy sidebar preference no longer creates a standalone status window.
-  if (generalSettings.tasksVisible) shell.windowManager.createTasksWindow();
 
   // 注册核心资源清理（固定阶段）；scheduler/proactive/更新定时器由 background 注册
   shutdown.register({

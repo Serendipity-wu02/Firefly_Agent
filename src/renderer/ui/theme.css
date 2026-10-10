@@ -229,7 +229,6 @@
 [data-ui-theme="pearl-white"] .chat__titlebar,
 [data-ui-theme="pearl-white"] .settings-titlebar,
 [data-ui-theme="pearl-white"] .sidebar__titlebar,
-[data-ui-theme="pearl-white"] .tasks__titlebar,
 [data-ui-theme="pearl-white"] .sticker-titlebar {
   background: var(--rb-bg-1);
   border-bottom-color: var(--rb-border-soft);
@@ -244,7 +243,6 @@
 [data-ui-theme="pearl-white"] .settings-titlebar__hint,
 [data-ui-theme="pearl-white"] .chat__hint,
 [data-ui-theme="pearl-white"] .sidebar__hint,
-[data-ui-theme="pearl-white"] .tasks__hint,
 [data-ui-theme="pearl-white"] .chat__rail-meta,
 [data-ui-theme="pearl-white"] .chat__rail-time,
 
@@ -253,7 +251,6 @@
 [data-ui-theme="pearl-white"] .chat__name,
 [data-ui-theme="pearl-white"] .sidebar__name,
 [data-ui-theme="pearl-white"] .sidebar__title,
-[data-ui-theme="pearl-white"] .tasks__title,
 [data-ui-theme="pearl-white"] .sticker-title,
 [data-ui-theme="pearl-white"] .profile__name {
   color: var(--rb-text-strong);
@@ -551,7 +548,6 @@
 [data-ui-theme="pearl-white"] .win-btn,
 [data-ui-theme="pearl-white"] .sidebar__icon-btn,
 [data-ui-theme="pearl-white"] .sidebar__winbtn,
-[data-ui-theme="pearl-white"] .tasks__winbtn,
 [data-ui-theme="pearl-white"] .chat__icon-btn,
 [data-ui-theme="pearl-white"] .chat__winbtn,
 [data-ui-theme="pearl-white"] .chat__attach,
@@ -595,7 +591,6 @@
 [data-ui-theme="pearl-white"] .win-btn:hover,
 [data-ui-theme="pearl-white"] .sidebar__icon-btn:hover,
 [data-ui-theme="pearl-white"] .sidebar__winbtn:hover,
-[data-ui-theme="pearl-white"] .tasks__winbtn:hover,
 [data-ui-theme="pearl-white"] .chat__icon-btn:hover,
 [data-ui-theme="pearl-white"] .chat__winbtn:hover,
 [data-ui-theme="pearl-white"] .accordion-toggle:hover,
@@ -607,11 +602,7 @@
   border-color: var(--rb-border-strong);
 }
 
-/* 今日日程：pearl-white 下保留品牌粉作为强调色。
-   dark 主题默认是 strong/default（参见 tasks.css）；这里只覆盖白调。 */
-[data-ui-theme="pearl-white"] .schedule-count__unit {
-  color: var(--rb-pink-600);
-}
+/* Token 用量面板：pearl-white 下的数字与标签配色。 */
 [data-ui-theme="pearl-white"] .usage-number {
   color: var(--rb-pink-600);
   text-shadow: var(--rb-shadow-pink);

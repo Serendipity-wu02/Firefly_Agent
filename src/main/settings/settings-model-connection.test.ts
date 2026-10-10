@@ -28,15 +28,15 @@ async function setup(profiles = [{ id: "p1", ...config }]) {
   windows.setSettingsWindow(window as never);
   const handlers = new Map<string, (...args: any[]) => any>();
   const events = new Map<string, (...args: any[]) => any>();
-  const createSidebarWindow = vi.fn(); const createTasksWindow = vi.fn();
+  const createSidebarWindow = vi.fn();
   const { registerSettingsIpc } = await import("./settings-ipc");
   dispose = registerSettingsIpc({
     ipc: { handle: (channel: string, callback: (...args: any[]) => any) => handlers.set(channel, callback), on: (channel: string, callback: (...args: any[]) => any) => events.set(channel, callback) },
     getModelSettings: model.loadModelSettings, saveModelSettings: model.saveModelSettings,
-    windowManager: { createSidebarWindow, createTasksWindow }, runtimeStateService: { getState: () => ({ tokens: 17 }) },
+    windowManager: { createSidebarWindow }, runtimeStateService: { getState: () => ({ tokens: 17 }) },
   } as never) as unknown as (() => void) | undefined;
   const trusted = { sender: contents, senderFrame: mainFrame };
-  return { model, contents, window, trusted, handlers, events, createSidebarWindow, createTasksWindow,
+  return { model, contents, window, trusted, handlers, events, createSidebarWindow,
     snapshot: () => handlers.get("model-connection:get")?.(trusted),
     test: (input: unknown = config, event: unknown = trusted) => Promise.resolve().then(() => handlers.get(IPC.SETTINGS_TEST_CONNECTION)!(event, input)),
   };
@@ -141,9 +141,9 @@ it("ignores preview invalidation, preserves names, and does not broadcast after 
   dispose?.(); h.contents.send.mockClear(); h.model.saveModelSettings({ modelProfiles: [] });
   expect(h.contents.send).not.toHaveBeenCalled();
 });
-it("legacy status-open does nothing while schedule and token state remain available", async () => {
-  const h = await setup(); h.events.get(IPC.SETTINGS_OPEN_SIDEBAR)!(); h.events.get(IPC.SETTINGS_OPEN_TASKS)!();
-  expect(h.createSidebarWindow).not.toHaveBeenCalled(); expect(h.createTasksWindow).toHaveBeenCalledOnce();
+it("legacy status-open does nothing while token state remains available", async () => {
+  const h = await setup(); h.events.get(IPC.SETTINGS_OPEN_SIDEBAR)!();
+  expect(h.createSidebarWindow).not.toHaveBeenCalled();
   expect(h.handlers.get(IPC.RUNTIME_STATE_GET)!()).toEqual({ tokens: 17 });
 });
 it("accepts reordered reasoning fields and copies a normalized preference", async () => {

@@ -61,19 +61,17 @@ function setup(overrides: Partial<ToastServiceDeps> = {}) {
   const bus = createToastEventBus();
   const windowStub = createWindowStub();
   const activate = vi.fn();
-  const openTasksWindow = vi.fn();
   let counter = 0;
   const service = createToastService({
     bus,
     window: windowStub.controller,
     activate,
-    openTasksWindow,
     newId: () => `toast-${++counter}`,
     ...overrides,
   });
   const ipcStub = createIpcStub();
   service.registerIpc(ipcStub.ipc);
-  return { bus, service, windowStub, ipcStub, activate, openTasksWindow };
+  return { bus, service, windowStub, ipcStub, activate };
 }
 
 function pushedItems(sent: Array<{ channel: string; payload: unknown }>): ToastItem[] {
@@ -302,12 +300,12 @@ describe("createToastService · 通知档（任务完成）", () => {
     expect(service.hasPendingSeen("task-finished", "sched-1")).toBe(false);
   });
 
-  it("点击 task-finished：打开任务窗口并结束生命周期，超时定时器一并清理", () => {
-    const { bus, service, ipcStub, openTasksWindow } = setup();
+  it("点击 task-finished：回到聊天窗口并结束生命周期，超时定时器一并清理", () => {
+    const { bus, service, ipcStub, activate } = setup();
     bus.publishSchedulerFinished(finishedEvent);
     const item = service.getActiveToasts()[0];
     ipcStub.emit("toast:clicked", 42, item.id);
-    expect(openTasksWindow).toHaveBeenCalledTimes(1);
+    expect(activate).toHaveBeenCalledExactlyOnceWith({ kind: "chat" });
     expect(service.getActiveToasts()).toHaveLength(0);
     // 提前结束后定时器不得再把已移除的 toast 复活
     vi.advanceTimersByTime(TOAST_NOTIFY_TIMEOUT_MS * 2);

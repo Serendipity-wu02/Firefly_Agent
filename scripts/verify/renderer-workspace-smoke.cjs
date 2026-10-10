@@ -168,18 +168,6 @@ fs.mkdirSync(isolation, { recursive: true });
       await open(t.fileTree.title);
       await page.locator('.cy-right-inspector__close').click();
     }
-    await page.evaluate(() => window.sidebar.openTasks());
-    let daily;
-    for (let i = 0; i < 50; i++) {
-      daily = app.windows().find(p => /tasks\/index/.test(p.url()));
-      if (daily) break;
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    if (!daily || daily === page) throw new Error('Daily window did not remain separate');
-    await daily.waitForLoadState('domcontentloaded');
-    await daily.screenshot({ path: path.join(root, 'daily-separate.png'), animations: 'disabled' });
-    evidence.screenshots.push('daily-separate.png');
-    evidence.cases.push({ type: 'daily-separate', url: daily.url() });
     if (evidence.errors.length) throw new Error('Renderer errors: ' + evidence.errors.join('; '));
     evidence.ok = true;
   } catch (error) { evidence.ok = false; evidence.failure = String(error.stack || error); throw error; }

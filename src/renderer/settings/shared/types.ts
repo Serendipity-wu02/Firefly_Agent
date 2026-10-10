@@ -123,7 +123,6 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   petZoom: number;
   disableGpuElectron?: boolean;
   sidebarVisible: boolean;
-  tasksVisible: boolean;
   /** 提醒中心音效总开关：关闭后所有 toast 静音 */
   toastSoundEnabled: boolean;
   launchAtLogin: boolean;
@@ -261,8 +260,6 @@ export interface SettingsApi {
   resetUiFont: () => Promise<UiFont>;
   openSidebar: () => void;
   closeSidebar: () => void;
-  openTasks: () => void;
-  closeTasks: () => void;
   openChromeGpu: () => void;
   setPetAlwaysOnTop: (value: boolean) => void;
   setPetVisible: (value: boolean) => void;

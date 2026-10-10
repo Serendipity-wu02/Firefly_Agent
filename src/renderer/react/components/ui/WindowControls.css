@@ -23,8 +23,9 @@
   color: var(--cy-text);
 }
 
+/* The close button turns the standard window red, never the soft pink of the danger text colour. */
 .cy-winbtn--close:hover {
-  background: var(--cy-danger);
+  background: #c42b1c;
   border-color: #c42b1c;
   color: #fff;
 }

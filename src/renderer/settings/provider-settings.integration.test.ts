@@ -20,7 +20,7 @@ beforeEach(async () => {
   document.body.innerHTML = html;
   element("save-status").textContent = "fixture initializing";
   profiles = [{ id: "existing", provider: "DeepSeek（深度求索）", displayName: "Existing", model: "old-manual-model", baseUrl: "https://example.invalid/v1", apiKey: "fixture-key", explicitTransport: "responses", multimodal: true }];
-  general = { sidebarVisible: false, tasksVisible: true, toastSoundEnabled: true, currentStyleId: "default", language: "zh-CN" };
+  general = { sidebarVisible: false, toastSoundEnabled: true, currentStyleId: "default", language: "zh-CN" };
   saveGeneral = vi.fn(async patch => { general = { ...general, ...patch }; return general; });
   saveProfile = vi.fn(async profile => {
     const id = profile.id || "new-profile";

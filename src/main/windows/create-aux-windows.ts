@@ -10,11 +10,9 @@ import {
   setReactChatWindow,
   setSettingsWindow,
   setStickerManagerWindow,
-  setTasksWindow,
   settingsWindow,
   showWindowWhenStartupReady,
   stickerManagerWindow,
-  tasksWindow,
 } from "./window-state";
 
 /**
@@ -121,57 +119,6 @@ export function dispatchOrQueueReactSession(sessionId: string): void {
  */
 export function createSidebarWindow(): void {
   // Compatibility stub: the standalone status window has been retired.
-}
-
-/**
- * 创建/复用今日日程窗口。
- */
-export function createTasksWindow(): void {
-  if (tasksWindow && !tasksWindow.isDestroyed()) {
-    tasksWindow.show();
-    tasksWindow.focus();
-    return;
-  }
-
-  const layout = computeLayout();
-  const window = new BrowserWindow({
-    x: layout.tasks.x,
-    y: layout.tasks.y,
-    width: 320,
-    height: 760,
-    minHeight: 540,
-    title: "流萤 · 今日日程",
-    icon: getCurrentAppIconPath(),
-    backgroundColor: "#00000000",
-    autoHideMenuBar: true,
-    show: false,
-    frame: false,
-    transparent: true,
-    resizable: true,
-    webPreferences: {
-      preload: path.join(app.getAppPath(), "dist", "preload", "preload", "index.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-  setTasksWindow(window);
-
-  if (isDev) {
-    window.loadURL("http://localhost:5173/tasks/");
-  } else {
-    window.loadFile(
-      path.join(app.getAppPath(), "dist", "renderer", "tasks", "index.html")
-    );
-  }
-
-  window.once("ready-to-show", () => {
-    showWindowWhenStartupReady(window);
-  });
-
-  window.on("closed", () => {
-    setTasksWindow(null);
-  });
 }
 
 /**

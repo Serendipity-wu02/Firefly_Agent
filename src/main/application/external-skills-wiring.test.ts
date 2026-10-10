@@ -15,7 +15,7 @@ const m = vi.hoisted(() => ({ storage: null as any, chat: null as any, core: nul
 vi.mock("electron", () => ({ app: m.app, BrowserWindow: { getAllWindows: () => [] }, dialog: {}, screen: {} }));
 vi.mock("electron-updater", () => ({ autoUpdater: {} }));
 vi.mock("../storage-context", async load => ({ ...await load<typeof import("../storage-context")>(), getStorageContext: () => m.storage }));
-vi.mock("../windows/window-state", () => ({ get reactChatWindow() { return m.chat; }, sidebarWindow: null, settingsWindow: null, tasksWindow: null, setGetCurrentAppIconPath: vi.fn(), getCurrentAppIconPath: () => "", markStartupPhaseReady: vi.fn() }));
+vi.mock("../windows/window-state", () => ({ get reactChatWindow() { return m.chat; }, sidebarWindow: null, settingsWindow: null, setGetCurrentAppIconPath: vi.fn(), getCurrentAppIconPath: () => "", markStartupPhaseReady: vi.fn() }));
 vi.mock("../skills/external-reviews", () => ({ EXTERNAL_SKILL_REVIEWS: m.reviews }));
 vi.mock("../skills", async load => { const real = await load<typeof import("../skills")>(); return { ...real, initSkills: vi.fn(async (storage, host) => { m.events.push("scan"); m.hosts.push(host); return real.initSkills(storage, host); }) }; });
 vi.mock("../external-content-paths", async load => ({ ...await load<typeof import("../external-content-paths")>(), getExternalContentPaths: () => ({ installRoot: path.join(m.storage.profile.isolationRoot, "app"), builtinSkillDirectory: path.join(m.storage.profile.isolationRoot, "builtin"), userSkillDirectories: [path.join(m.storage.dataRoot, "skills")], promptDirectories: [] }) }));

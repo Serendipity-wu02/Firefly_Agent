@@ -15,7 +15,6 @@ import {
  */
 export let reactChatWindow: BrowserWindow | null = null;
 export let sidebarWindow: BrowserWindow | null = null;
-export let tasksWindow: BrowserWindow | null = null;
 export let settingsWindow: BrowserWindow | null = null;
 export let stickerManagerWindow: BrowserWindow | null = null;
 export let toastWindow: BrowserWindow | null = null;
@@ -30,10 +29,6 @@ export function setToastWindow(win: BrowserWindow | null): void {
 
 export function setSidebarWindow(win: BrowserWindow | null): void {
   sidebarWindow = win;
-}
-
-export function setTasksWindow(win: BrowserWindow | null): void {
-  tasksWindow = win;
 }
 
 export function setSettingsWindow(win: BrowserWindow | null): void {

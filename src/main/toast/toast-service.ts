@@ -18,7 +18,6 @@ export interface ToastServiceDeps {
   /** 窗口激活代理（点击 toast 后激活聊天窗口/切会话） */
   activate(request: WindowActivationRequest): void;
   /** 打开任务窗口（task-finished 点击跳转目标） */
-  openTasksWindow(): void;
   /** toast id 生成器；默认递增计数，可注入以便测试 */
   newId?: () => string;
   /** 时钟注入；默认 Date.now，测试可替换 */
@@ -241,8 +240,8 @@ export function createToastService(deps: ToastServiceDeps) {
       sourceId: event.schedulerRunId,
       title: `「${event.taskTitle}」跑完了`,
       summary: event.outputPreview,
-      // 任务结果落在任务历史而非聊天流，V1 点击降级为打开任务窗口
-      target: { type: "window", window: "tasks" },
+      // 任务结果不落在聊天流里，点击回到聊天窗口
+      target: { type: "window", window: "chat" },
       createdAt: nowFn(),
     };
     pushToast(item);
@@ -266,11 +265,7 @@ export function createToastService(deps: ToastServiceDeps) {
         deps.activate({ kind: "chat", sessionId: item.target.sessionId });
         break;
       case "window":
-        if (item.target.window === "tasks") {
-          deps.openTasksWindow();
-        } else {
-          deps.activate({ kind: "chat" });
-        }
+        deps.activate({ kind: "chat" });
         break;
     }
     // 点击即视觉消隐；等待操作档的去重记忆保留到业务结算

@@ -23,7 +23,7 @@ export type ToastKind =
  */
 export type ToastTarget =
   | { type: "session"; sessionId: string }
-  | { type: "window"; window: "chat" | "tasks" };
+  | { type: "window"; window: "chat" };
 
 /** 主进程维护、推送给渲染页的 toast 条目 */
 export interface ToastItem {

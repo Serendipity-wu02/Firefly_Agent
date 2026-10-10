@@ -42,7 +42,6 @@ import {
   setGetCurrentAppIconPath,
   sidebarWindow,
   settingsWindow,
-  tasksWindow,
 } from "../windows/window-state";
 import { getDefaultModelProfile, getCachedSavedModelProfile, listCachedSavedModelProfileIds, loadModelSettings, saveModelSettings, onModelConnectionChanged } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
@@ -165,7 +164,7 @@ const SPLASH_MIN_MS = 2500;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 function broadcastToAuxWindows(channel: string, payload: unknown): void {
-  for (const win of [reactChatWindow, sidebarWindow, tasksWindow, settingsWindow]) {
+  for (const win of [reactChatWindow, sidebarWindow, settingsWindow]) {
     if (win && !win.isDestroyed()) {
       win.webContents.send(channel, payload);
     }
@@ -724,7 +723,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           bus: toastEvents,
           window: toastWindowController,
           activate: (request) => { activation.request(request); },
-          openTasksWindow: () => { windowManager.createTasksWindow(); },
           // 音效总开关：设置页可关；每次弹窗时读取，改动即时生效
           isSoundEnabled: () => loadGeneralSettings().toastSoundEnabled,
           shouldSuppressNotify: (event) => {

@@ -352,14 +352,10 @@
       "general": {
         "heading": "通用设置",
         "groups": { "desktop": "桌面与提醒", "system": "系统" },
-        "subheading": "控制状态栏、日程栏、基础音频和系统行为。",
+        "subheading": "控制状态栏、基础音频和系统行为。",
         "statusBar": {
           "title": "状态栏窗口",
           "desc": "不小心关闭后可以从这里重新打开。"
-        },
-        "tasksBar": {
-          "title": "日程栏窗口",
-          "desc": "控制右侧日程/任务展示窗口。"
         },
         "toastSound": {
           "title": "提醒音效",

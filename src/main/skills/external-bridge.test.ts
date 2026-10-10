@@ -7,7 +7,7 @@ vi.mock("electron", () => ({ contextBridge: { exposeInMainWorld: (name: string, 
 vi.mock("../../preload/music", () => ({ exposeMusicApi: vi.fn() }));
 vi.mock("../../preload/live2d-listener-diagnostics", () => ({ getLive2DIpcListenerCounts: vi.fn() }));
 vi.mock("../skills", () => ({ listSkillsForUi: vi.fn(), setSkillEnabled: m.setEnabled, skillRegistry: { getById: () => ({ id: "external-openai-test" }) }, rescanSkills: vi.fn() }));
-vi.mock("../windows/window-state", () => ({ get reactChatWindow() { return m.chat; }, sidebarWindow: null, tasksWindow: null, settingsWindow: null, stickerManagerWindow: null }));
+vi.mock("../windows/window-state", () => ({ get reactChatWindow() { return m.chat; }, sidebarWindow: null, settingsWindow: null, stickerManagerWindow: null }));
 vi.mock("../orchestrator/sticker-settings", () => ({ getStickerManagerConfig: vi.fn(), setStickerEnabled: vi.fn() }));
 vi.mock("../sticker-storage", () => ({ addUserSticker: vi.fn(), deleteUserSticker: vi.fn() }));
 vi.mock("../memory/panel", () => ({ loadImportedDocumentPanelData: vi.fn(), loadMemoryPanelData: vi.fn() }));

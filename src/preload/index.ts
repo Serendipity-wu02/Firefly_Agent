@@ -221,22 +221,10 @@ const sidebarApi = {
   minimize: () => ipcRenderer.send(IPC.SIDEBAR_MINIMIZE),
   close: () => ipcRenderer.send(IPC.SIDEBAR_CLOSE),
   toggleAlwaysOnTop: () => ipcRenderer.invoke(IPC.SIDEBAR_TOGGLE_ALWAYS_ON_TOP),
-  openTasks: () => ipcRenderer.send(IPC.SIDEBAR_OPEN_TASKS),
   openSettings: (section?: string) => ipcRenderer.send(IPC.SIDEBAR_OPEN_SETTINGS, section),
 };
 
-const tasksApi = {
-  minimize: () => ipcRenderer.send(IPC.TASKS_MINIMIZE),
-  close: () => ipcRenderer.send(IPC.TASKS_CLOSE),
-  onSchedulerChanged: (callback: () => void) => {
-    const handler = () => callback();
-    ipcRenderer.on(IPC.SCHEDULER_CHANGED, handler);
-    return () => ipcRenderer.removeListener(IPC.SCHEDULER_CHANGED, handler);
-  },
-};
-
 contextBridge.exposeInMainWorld("sidebar", sidebarApi);
-contextBridge.exposeInMainWorld("tasks", tasksApi);
 
 // 注意力 Toast 中心 API：渲染页纯表现层。
 // 点击/关闭只上报 toast id，跳转目标由主进程查权威状态解析；高度上报服务于高度协议。
@@ -350,8 +338,6 @@ const settingsApi = {
   resetUiFont: () => ipcRenderer.invoke(IPC.SETTINGS_RESET_UI_FONT) as Promise<UiFont>,
   openSidebar: () => ipcRenderer.send(IPC.SETTINGS_OPEN_SIDEBAR),
   closeSidebar: () => ipcRenderer.send(IPC.SETTINGS_CLOSE_SIDEBAR),
-  openTasks: () => ipcRenderer.send(IPC.SETTINGS_OPEN_TASKS),
-  closeTasks: () => ipcRenderer.send(IPC.SETTINGS_CLOSE_TASKS),
   openChromeGpu: () => ipcRenderer.send(IPC.SETTINGS_OPEN_CHROME_GPU),
   setPetAlwaysOnTop: (value: boolean) => ipcRenderer.send(IPC.SETTINGS_SET_PET_ALWAYS_ON_TOP, value),
   setPetVisible: (value: boolean) => ipcRenderer.send(IPC.SETTINGS_SET_PET_VISIBLE, value),

@@ -1,4 +1,3 @@
-import { BrowserWindow } from "electron";
 import { IPC } from "../../shared/ipc-channels";
 import { createIpcScope, type IpcScope } from "../application/ipc-scope";
 import type { ToolDefinition } from "../orchestrator/tools/registry/tool-registry";
@@ -40,15 +39,6 @@ export function projectTaskForRenderer(task: ScheduledTask): RendererScheduledTa
   return { ...rest, enabled: isPluginTaskEffectivelyEnabled(task) };
 }
 
-/** 通知所有窗口任务列表已变更 */
-function broadcastChanged(): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      try { win.webContents.send(IPC.SCHEDULER_CHANGED); } catch { /* ignore */ }
-    }
-  }
-}
-
 let schedulerIpcRegistered = false;
 
 /** 注册 scheduler IPC。idempotent：同一 channel 重复注册会抛错。 */
@@ -67,7 +57,7 @@ export function registerSchedulerIpc(
 
   ipc.handle(IPC.SCHEDULER_LIST, () => ok(store.getTasks().map(projectTaskForRenderer)));
   ipc.handle(IPC.SCHEDULER_ADD, (_event, input: NewScheduledTaskInput) => {
-    try { const r = ok(store.addTask(input)); broadcastChanged(); return r; } catch (err) { return fail(err); }
+    try { const r = ok(store.addTask(input)); return r; } catch (err) { return fail(err); }
   });
   ipc.handle(IPC.SCHEDULER_UPDATE, (_event, id: string, patch: ScheduledTaskPatch) => {
     try {
@@ -76,11 +66,11 @@ export function registerSchedulerIpc(
       const effective = current?.ownerPluginId
         ? authorizePluginTaskUpdatePatch(current, patch)
         : patch;
-      const r = ok(store.updateTask(id, effective)); broadcastChanged(); return r;
+      const r = ok(store.updateTask(id, effective)); return r;
     } catch (err) { return fail(err); }
   });
   ipc.handle(IPC.SCHEDULER_DELETE, (_event, id: string) => {
-    try { const r = ok(store.deleteTask(id)); broadcastChanged(); return r; } catch (err) { return fail(err); }
+    try { const r = ok(store.deleteTask(id)); return r; } catch (err) { return fail(err); }
   });
   ipc.handle(IPC.SCHEDULER_TOGGLE, (_event, id: string, enabled: boolean) => {
     try {
@@ -89,7 +79,7 @@ export function registerSchedulerIpc(
       const patch = task?.ownerPluginId
         ? pluginTaskTogglePatch(task, enabled)
         : { enabled };
-      const r = ok(store.updateTask(id, patch)); broadcastChanged(); return r;
+      const r = ok(store.updateTask(id, patch)); return r;
     } catch (err) { return fail(err); }
   });
   ipc.handle(IPC.SCHEDULER_GET_HISTORY, (_event, taskId: string, limit?: number) => {

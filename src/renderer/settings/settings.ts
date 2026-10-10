@@ -73,7 +73,7 @@ import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
-import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, uiThemeSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
+import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, uiThemeSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, toastSoundEnabledInput } from "./appearance/dom";
 import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, fireflyPanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, fireflySaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
 import { pluginAddBtn, permissionBlocksWrap, permissionNote } from "./plugins/dom";
@@ -179,7 +179,6 @@ if (!window.settings) {
       chatLineHeight: 1.75,
       chatParaSpacing: 0.5,
       sidebarVisible: true,
-      tasksVisible: true,
       toastSoundEnabled: true,
       launchAtLogin: false,
       language: "zh-CN",
@@ -240,8 +239,6 @@ if (!window.settings) {
     endScreenshotHotkeyCapture: () => Promise.resolve(true),
     openSidebar: () => {},
     closeSidebar: () => {},
-    openTasks: () => {},
-    closeTasks: () => {},
     openChromeGpu: () => {},
     setPetAlwaysOnTop: () => {},
     setPetVisible: () => {},
@@ -1105,7 +1102,6 @@ async function loadGeneralSettings(): Promise<void> {
     chatParaSpacingVal.textContent = (cfg.chatParaSpacing ?? 0.5).toFixed(2) + "em";
     document.documentElement.style.setProperty("--rb-chat-para-spacing", (cfg.chatParaSpacing ?? 0.5) + "em");
     disableGpuInput.checked = cfg.disableGpuElectron ?? false;
-    tasksVisibleInput.checked = cfg.tasksVisible ?? true;
     launchAtLoginInput.checked = cfg.launchAtLogin;
     renderUiFont(normalizeUiFont(cfg.uiFont));
     renderUiIcon(normalizeUiIcon(cfg.uiIcon));
@@ -1177,12 +1173,6 @@ openChromeGpu.addEventListener("click", () => {
 
 disableGpuInput.addEventListener("change", () => {
   void window.settings?.saveGeneral({ disableGpuElectron: disableGpuInput.checked });
-});
-
-tasksVisibleInput.addEventListener("change", () => {
-  if (tasksVisibleInput.checked) window.settings?.openTasks();
-  else window.settings?.closeTasks();
-  void window.settings?.saveGeneral({ tasksVisible: tasksVisibleInput.checked });
 });
 
 windowCornerRadiusInput.addEventListener("input", () => {
@@ -1532,7 +1522,6 @@ generalForm.addEventListener("submit", async (e) => {
   try {
     await window.settings!.saveGeneral({
       disableGpuElectron: disableGpuInput.checked,
-      tasksVisible: tasksVisibleInput.checked,
       toastSoundEnabled: toastSoundEnabledInput.checked,
       launchAtLogin: launchAtLoginInput.checked,
       language: "zh-CN",

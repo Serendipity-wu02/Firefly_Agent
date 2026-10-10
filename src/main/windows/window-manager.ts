@@ -6,7 +6,6 @@ import {
   createSettingsWindow,
   createSidebarWindow,
   createStickerManagerWindow,
-  createTasksWindow,
   loadReactChatWindowPage,
   type ReactChatWindowHandle,
   showReactChatWindow,
@@ -32,7 +31,6 @@ export interface WindowManager {
   openReactChatWindow(sessionId?: string): Promise<BrowserWindow>;
   createSidebarWindow(): void;
   createSettingsWindow(section?: string): void;
-  createTasksWindow(): void;
   createStickerManagerWindow(): void;
 
   showPetWindow(): void;
@@ -165,7 +163,6 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
 
     createSidebarWindow,
     createSettingsWindow,
-    createTasksWindow,
     createStickerManagerWindow,
 
     showPetWindow(): void {

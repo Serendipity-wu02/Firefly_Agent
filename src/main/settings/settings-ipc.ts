@@ -15,7 +15,6 @@ import type { WindowManager } from "../windows/window-manager";
 import {
   reactChatWindow,
   sidebarWindow,
-  tasksWindow,
   settingsWindow,
 } from "../windows/window-state";
 import type { RuntimeStateService } from "../orchestrator/runtime-state-service";
@@ -81,7 +80,7 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): () => void {
   // 解构会捕获 null 并导致后续 ?. 永远短路（设置里的打开侧边栏/日程等会失效）。
 
   function broadcastToAuxWindows(channel: string, payload: unknown): void {
-    for (const win of [reactChatWindow, sidebarWindow, tasksWindow, settingsWindow]) {
+    for (const win of [reactChatWindow, sidebarWindow, settingsWindow]) {
       if (win && !win.isDestroyed()) {
         win.webContents.send(channel, payload);
       }
@@ -222,14 +221,6 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): () => void {
 
   ipc.on(IPC.SETTINGS_CLOSE_SIDEBAR, async () => {
     sidebarWindow?.close();
-  });
-
-  ipc.on(IPC.SETTINGS_OPEN_TASKS, () => {
-    deps.windowManager?.createTasksWindow();
-  });
-
-  ipc.on(IPC.SETTINGS_CLOSE_TASKS, async () => {
-    tasksWindow?.close();
   });
 
   ipc.on(IPC.SETTINGS_SET_PET_ALWAYS_ON_TOP, (_event, value: boolean) => {
