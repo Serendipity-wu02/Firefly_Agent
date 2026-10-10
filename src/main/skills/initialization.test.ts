@@ -32,7 +32,7 @@ import { initSkills } from "./index";
 function storage() { return createStorageContext({ kind: "test", applicationName: "Firefly-test", appData: ports.root, userData: ports.root, sessionData: path.join(ports.root, "session"), logs: path.join(ports.root, "logs"), isolationRoot: ports.root }); }
 
 function fixture() {
-  ports.root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-init-directory-"));
+  ports.root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-init-directory-")));
   ports.source = path.join(ports.root, "package", "skills");
   fs.mkdirSync(ports.source, { recursive: true });
   fs.writeFileSync(path.join(path.dirname(ports.source), "skills-manifest.json"), JSON.stringify({ skills: ["public-skill"], files: {} }));

@@ -13,10 +13,10 @@ export function isolatedStorageContext(): {
   productionSentinelRoot: string;
   dispose: () => void;
 } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-external-test-"));
+  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-external-test-")));
   let productionSentinelRoot: string | undefined;
   try {
-    productionSentinelRoot = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-external-sentinel-"));
+    productionSentinelRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-external-sentinel-")));
     const profile = resolveRuntimeProfile({
       argv: ["--firefly-profile=test", `--firefly-isolation-root=${root}`],
       env: {},

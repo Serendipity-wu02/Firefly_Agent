@@ -34,7 +34,7 @@ import { registerMemoryUserToolIpc } from "../memory/memory-user-ipc";
 const roots: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); for (const skill of skillRegistry.getAll()) skillRegistry.unregister(skill.id); roots.splice(0).forEach(root => fs.rmSync(root, { recursive: true, force: true })); });
 async function fixture(imported = true) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-t6-scan-test-")); roots.push(root);
+  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-t6-scan-test-"))); roots.push(root);
   const userData = path.join(root, "Firefly-test"); fs.mkdirSync(userData); ports.root = userData;
   const storage = createStorageContext({ kind: "test", applicationName: "Firefly-test", appData: root, userData, sessionData: path.join(userData, "session"), logs: path.join(userData, "logs"), isolationRoot: root });
   let primary = true;

@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 it("loads current enabled state and preserves user Skill precedence on rescan", async () => {
-  ports.root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-current-skill-startup-"));
+  ports.root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-current-skill-startup-")));
   ports.builtin = path.join(ports.root, "builtin");
   ports.user = path.join(ports.root, "skills");
   for (const directory of [ports.builtin, ports.user]) {

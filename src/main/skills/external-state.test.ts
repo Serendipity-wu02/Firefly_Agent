@@ -18,7 +18,7 @@ async function subject() {
 const roots: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); roots.splice(0).forEach(root => fs.rmSync(root, { recursive: true, force: true })); });
 export function stateFixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-external-state-test-")); roots.push(root);
+  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "firefly-external-state-test-"))); roots.push(root);
   const userData = path.join(root, "Firefly-test"); fs.mkdirSync(userData);
   const storage = createStorageContext({ kind: "test", applicationName: "Firefly-test", appData: root, userData,
     sessionData: path.join(userData, "session"), logs: path.join(userData, "logs"), isolationRoot: root });
