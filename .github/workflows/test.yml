@@ -63,6 +63,15 @@ jobs:
           printf 'FIREFLY_TEST_BASH=%s\n' "$bash_path" >> "$GITHUB_ENV"
           printf 'Bash integration executable: %s\n' "$bash_path"
 
+      # 只读诊断：测量运行器上的磁盘 fsync、重命名、SQLite 提交速度（TEMP 与 RUNNER_TEMP/工作区各一份），
+      # 用来判断集成测试在 CI 上变慢是否来自磁盘；不改变任何测试结果，失败也不阻断。
+      - name: Probe runner disk and SQLite speed
+        shell: pwsh
+        continue-on-error: true
+        env:
+          FIREFLY_VITEST_DIAGNOSTICS: ${{ runner.temp }}/firefly-vitest-diagnostics
+        run: node scripts/ci/probe-runner-io.mjs
+
       - name: Run full test suite
         run: ./scripts/ci/run-vitest.ps1
 
