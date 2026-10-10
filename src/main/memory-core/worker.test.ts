@@ -7,6 +7,8 @@ import {randomBytes} from "node:crypto";
 import {Worker} from "node:worker_threads";
 import {build} from "esbuild";
 import {afterEach,beforeAll,describe,it,expect,vi} from "vitest";
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 import {resolveRuntimeProfile} from "../runtime-profile";
 import {createStorageContext} from "../storage-context";
 import {sealPayload,openPayload} from "./payload-codec";

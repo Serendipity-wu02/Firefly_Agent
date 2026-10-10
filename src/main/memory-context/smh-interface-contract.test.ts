@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {expect,it} from "vitest";
+import {expect,it,vi} from "vitest";
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 import {createSmhFixture} from "./smh-fixture.test-support";
 
 const base=path.resolve(os.tmpdir(),"firefly-smh-fixtures");

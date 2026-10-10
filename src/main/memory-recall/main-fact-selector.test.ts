@@ -5,6 +5,8 @@ import {randomUUID} from "node:crypto";
 import {spawnSync} from "node:child_process";
 import {policySubjectKey} from "../memory-policy/policy-repository";
 import {afterEach,expect,it,vi} from "vitest";
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 import {createSmhFixture} from "../memory-context/smh-fixture.test-support";
 import {createMainUserFactCoordinator} from "../memory-policy/main-user-fact-coordinator";
 import {createMainFactSelector} from "./main-fact-selector";

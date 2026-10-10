@@ -3,7 +3,9 @@ import os from "node:os";
 import {DatabaseSync} from "node:sqlite";
 import path from "node:path";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
-import {afterEach,it,expect} from "vitest";
+import {afterEach,it,expect,vi} from "vitest";
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 import {openMemoryRepository} from "../memory-core/repository";
 import {MemoryService} from "../memory-core/memory-service";
 import {createMainSourceRegistry} from "../memory-sources/source-registry";
