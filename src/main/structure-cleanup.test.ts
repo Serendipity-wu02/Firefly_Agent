@@ -34,9 +34,9 @@ it("keeps model terms and licenses separate from upstream provenance", () => {
   expect(read("THIRD_PARTY_NOTICES.md")).toContain("https://github.com/Playa-0v0/Cyrene-Agent");
   expect(read("THIRD_PARTY_NOTICES.md")).not.toContain("Existing upstream contributions are recorded");
   expect(read("LICENSE")).toContain("Copyright (c) 2026 Playa");
-  expect(read("LICENSE")).toContain("Copyright (c) 2026 Serendipity-wu02 (Firefly)");
+  expect(read("LICENSE")).toContain("Copyright (c) 2026 Serendipity-wu02");
   const license = read("LICENSE");
-  expect(license.indexOf("Copyright (c) 2026 Serendipity-wu02 (Firefly)")).toBeLessThan(license.indexOf("Copyright (c) 2026 Playa"));
+  expect(license.indexOf("Copyright (c) 2026 Serendipity-wu02")).toBeLessThan(license.indexOf("Copyright (c) 2026 Playa"));
 });
 
 it("has valid file targets in the license and readme links", () => {
