@@ -1,7 +1,10 @@
 MIT License
 
-Copyright (c) 2026 Playa
 Copyright (c) 2026 Serendipity-wu02 (Firefly)
+
+Portions of this software are derived from Cyrene-Agent
+(https://github.com/Playa-0v0/Cyrene-Agent),
+Copyright (c) 2026 Playa, used under the MIT License.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
