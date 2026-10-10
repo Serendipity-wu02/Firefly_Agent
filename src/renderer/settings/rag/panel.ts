@@ -1,7 +1,7 @@
 // RAG / Embedding / Reranker 面板：模型切换、状态检查
 // 从 settings.ts 抽离。完全自含（IIFE 闭包 + localStorage + window.settings IPC）。
 // 副作用导入：模块加载时执行事件绑定 + 状态初始化。
-// 模型文件由用户自行放置到 models/ 目录（见 docs/local-models.md），应用内不再提供下载/删除。
+// 模型文件由用户自行放置到 models/ 目录，应用内不再提供下载/删除。
 
 import { showNotice, showAlert } from "../shared/modal";
 

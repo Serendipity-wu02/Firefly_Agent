@@ -28,7 +28,7 @@ modes:
 2. `references/api-spec.md` —— 完整接口规范（manifest 字段表、ctx API、生命周期、zip 导入限制）
 3. `references/example-walkthrough.md` —— 官方示例插件 system-status 走读，覆盖工具 + 弹窗 + IPC 全部知识点；写新插件前通读一遍
 
-开发版仓库中另有 `docs/plugins/` 文档和 `examples/` 示例（`system-status` 为保留上游署名的 JS 示例；`weather-tool`、`long-term-memory`、`scheduled-automation`、`local-asr-contract` 为 TypeScript + SDK 示例，分别展示 Secrets/轮次事件/调度任务/语音租约契约）。接口以当前 `src/plugins/api.ts`、加载器与 SDK 源码为准；示例限制见 `examples/README.md`。
+开发版仓库中另有 `examples/` 示例（`system-status` 为保留上游署名的 JS 示例；`weather-tool`、`long-term-memory`、`scheduled-automation`、`local-asr-contract` 为 TypeScript + SDK 示例，分别展示 Secrets/轮次事件/调度任务/语音租约契约）。接口以当前 `src/plugins/api.ts`、加载器与 SDK 源码为准；示例限制见 `examples/README.md`。
 
 ## 开发流程
 

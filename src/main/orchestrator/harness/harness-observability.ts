@@ -17,7 +17,7 @@ import {
 import type { HarnessRun } from "./firefly-harness";
 
 /**
- * 上下文容量快照（docs/context-usage-viewer-construction-plan.md）：
+ * 上下文容量快照：
  * - preRequest：每轮 compaction 后、callLLM 前，代表本轮真正发给模型的 input；
  * - terminal：settleRun 统一出口（所有终态共享），此时 final assistant 已写回 transcript，含最终回复。
  * harness 的动态事实已物化为 internal transcript 消息，无独立 runtimeContext 计量。

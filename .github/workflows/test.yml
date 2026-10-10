@@ -29,7 +29,6 @@ jobs:
         run: npx electron --version
 
       # 生产依赖审计保留原有非阻断策略；调整门禁需单独确认。
-      # 当前依赖与本地审计证据见 docs/refactor/2026-09-26-documentation-dependency-closeout.md。
       - name: Audit production dependencies
         run: npm audit --omit=dev --json > npm-audit-prod.json
         continue-on-error: true

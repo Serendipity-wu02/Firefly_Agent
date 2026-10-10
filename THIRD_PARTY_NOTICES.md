@@ -48,7 +48,7 @@ Firefly maintains the review/delegation adaptation, four reference briefs and th
 
 ## Current sticker source
 
-The 21 current Firefly stickers were supplied by the repository owner for this resource update. Original filenames, current asset paths and descriptions are recorded in [the resource update report](docs/archive/reviews/resource-refresh-2026-09-26.md). This source record does not claim original authorship or transfer the underlying artwork/IP rights; the applicable asset permissions remain separate from the source-code MIT license.
+The 21 current Firefly stickers were supplied by the repository owner for this resource update. This source record does not claim original authorship or transfer the underlying artwork/IP rights; the applicable asset permissions remain separate from the source-code MIT license.
 
 ## Historical design research sources
 

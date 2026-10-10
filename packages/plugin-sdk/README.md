@@ -22,7 +22,7 @@ SDK 包含公开类型、常量、Manifest 校验及测试工具，不包含 Ele
 
 Mock Context 的 `dispose()` 触发取消与登记的清理回调，不会代替插件调用 `unregister()`，也不模拟真实文件存储、Electron 窗口或渠道注册。
 
-完整开发指南见本仓库 `docs/plugins/plugin-dev-guide.md`。
+接口定义见 `src/`。
 
 ## 当前 0.2.0 源码契约
 

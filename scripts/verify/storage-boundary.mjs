@@ -66,7 +66,7 @@ export function checkDirectAccess(repository, allowlist) {
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const repository = path.resolve(fileURLToPath(new URL("../../", import.meta.url)));
-  const inventoryFile = path.join(repository, "docs/architecture/storage-direct-access.json");
+  const inventoryFile = path.join(repository, "scripts/verify/storage-direct-access.json");
   if (process.argv.includes("--write-inventory")) {
     fs.writeFileSync(inventoryFile, `${JSON.stringify(inventoryDirectAccess(repository), null, 2)}\n`);
     console.log(`Inventory written: ${inventoryFile}`);

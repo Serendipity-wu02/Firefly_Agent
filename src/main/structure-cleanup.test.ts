@@ -14,7 +14,6 @@ it("keeps the twelve avatar mappings and excludes source persona from runtime pr
     expect(read("src/renderer/react/character-portraits.ts")).toContain(`assets/task-portraits/${character.assetFileName}`);
   }
   expect(fs.existsSync(path.join(root, "prompts/source-persona/firefly.yaml"))).toBe(false);
-  expect(fs.existsSync(path.join(root, "docs/reference/persona/firefly.yaml"))).toBe(true);
 });
 
 it("indexes only current Firefly descriptions and resources", () => {
@@ -29,11 +28,7 @@ it("exposes only current Window and SDK contracts", () => {
   expect(JSON.parse(read("examples/system-status/manifest.json")).author).toBe("Playa");
 });
 
-it("separates current contributors and model terms from upstream provenance", () => {
-  const contributors = read("docs/CONTRIBUTORS.md");
-  expect(contributors).toContain("# Firefly_Agent Contributors");
-  expect(contributors).toContain("Serendipity-wu02");
-  expect(contributors).not.toMatch(/lll69|Unknownuserfrommars|Asuna404|Tobi1chi|boring9720|liyi3068238601|LZhWi|lucifergzsz414|Modusensus|是依七哒/);
+it("keeps model terms and licenses separate from upstream provenance", () => {
   expect(read("MODEL_LICENSE.md")).toContain("src/renderer/public/models/firefly/");
   expect(read("MODEL_LICENSE.md")).not.toContain("unrestricted permission");
   expect(read("THIRD_PARTY_NOTICES.md")).toContain("https://github.com/Playa-0v0/Cyrene-Agent");
@@ -42,8 +37,8 @@ it("separates current contributors and model terms from upstream provenance", ()
   expect(read("LICENSE")).toContain("Copyright (c) 2026 Serendipity-wu02 (Firefly)");
 });
 
-it("has valid file targets in current navigation", () => {
-  for (const file of ["README.md", "docs/README.md", "docs/archive/README.md", "docs/reference/persona/README.md", "docs/architecture/firefly-runtime.md"]) {
+it("has valid file targets in the license and readme links", () => {
+  for (const file of ["README.md", "README.en.md", "THIRD_PARTY_NOTICES.md", "MODEL_LICENSE.md"]) {
     for (const match of read(file).matchAll(/\]\(([^)]+)\)/g)) {
       const link = match[1].split("#")[0];
       if (!link || /^[a-z]+:/i.test(link)) continue;
@@ -63,7 +58,7 @@ it("keeps maintenance tools at their current paths and excludes unused installer
   for (const file of ["scripts/packaging/upstream-skills/fetch_skills.py", "scripts/packaging/upstream-skills/sources.json", "scripts/verify/sandbox-runtime/check-status.mjs"]) {
     expect(fs.existsSync(path.join(root, file)), file).toBe(true);
   }
-  for (const file of ["README.md", "README.en.md", "DEVELOPMENT.md", "scripts/README.md", "resources/README.md", "examples/README.md", "docs/architecture/firefly-runtime.md"]) {
+  for (const file of ["README.md", "README.en.md", "DEVELOPMENT.md", "scripts/README.md", "resources/README.md", "examples/README.md"]) {
     expect(read(file), file).not.toMatch(/docs\/refactor\/|docs\/migration\/|docs\/internal-issue\/|poc\/srt|tools\/firefly-upstream-fetch/);
   }
   expect(read("scripts/perf/chat-renderer-baseline.mjs")).toContain("output/perf/baseline-report.json");

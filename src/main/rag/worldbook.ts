@@ -1,4 +1,4 @@
-// 注：注释中的 "V5 §x" / "v4.0 §x" 均指 docs/specs/2026-08-08-dmae-v5-upgrade-and-l2-working-memory.md（DMAE 世界书升级设计）。
+// 注：注释中的 "V5 §x" / "v4.0 §x" 均指 DMAE 世界书升级设计稿的章节。
 import * as fs from "fs";
 import * as path from "path";
 import { WORLDBOOK_CONSTANTS } from "./worldbook-constants";

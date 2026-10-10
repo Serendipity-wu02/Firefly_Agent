@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { toolRegistry } from "../registry/tool-registry";
 
 // run_shell 捕获层验收测试：每流 2MB 上限 + captureTruncated 语义 + 字段顺序（stdout 置尾）
-// 背景：旧实现 16KB 砍头导致 npm test 汇总行永久丢失（参见 docs/architecture/firefly-reliability-boundaries.md）。
+// 背景：旧实现 16KB 砍头导致 npm test 汇总行永久丢失。
 describe.runIf(process.platform === "win32")("run_shell capture limit", () => {
   beforeAll(async () => {
     await import("../built-in-tools");

@@ -24,7 +24,7 @@
 
 `npm test` 不扫描 `scripts/**/*.test.mjs`。这些文件使用 Node 测试入口，例如 `node --test scripts/packaging/electron-builder-config.test.mjs`；SDK 示例由上表的专用命令执行。`scripts/install-bge-reranker.ps1` 是显式模型安装入口，不属于普通构建步骤。执行前阅读脚本，核对下载、写入和运行前提。
 
-MinGit 和插件归档仍使用共享的 `src/shared/zip-extraction.ts` 安全解压层；Skills 直接从受校验的目录分发，不经 ZIP。安全维护入口见 [依赖与归档说明](../docs/security/dependency-management.md)，脚本说明不代表整体安全或发布验收通过。
+MinGit 和插件归档仍使用共享的 `src/shared/zip-extraction.ts` 安全解压层；Skills 直接从受校验的目录分发，不经 ZIP。脚本说明不代表整体安全或发布验收通过。
 
 `npm run validate:skills` 检查正式 `vendor/firefly-skills/skills/` 的 41 项、项目 `skills/` 的四项、目录安全及 `skills-manifest.json` 固定的文件哈希。`packaging/skill-adaptations/` 和旧归档元数据仅保留来源与迁移识别依据，不在构建时重写正式目录。不会下载或执行第三方安装脚本；本地备份与取证目录不进入产物。
 

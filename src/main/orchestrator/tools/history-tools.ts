@@ -1,6 +1,6 @@
 // 历史对话召回工具 —— 让流萤能"回忆"滚出上下文窗口的对话。
 //
-// 设计（见 docs/history-and-skill-architecture.md）：
+// 设计：
 // - 不切分、不压缩、不启发式。全部历史无损存入向量库，模型主动召回。
 // - 存：每轮 user + assistant 消息用 addMemory 存入 source="chat_history"
 // - 取：recall_history 工具语义检索，按时间排序返回

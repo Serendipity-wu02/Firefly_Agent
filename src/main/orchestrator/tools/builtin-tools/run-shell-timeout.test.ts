@@ -6,7 +6,6 @@ import { resolveTimeoutPolicy } from "./run-shell-tool";
 // - 纯函数层：钳制区间 [1s, 30min] + 显式 deadline 禁用 idle 检测
 // - 真实进程层：超时杀进程 + 引导文案；静默命令在显式 deadline 下正常完成
 // 背景：idle 2min 是"无输出=卡死"启发式，会误杀 rm -rf 大目录/linker 类无输出长任务
-// （参见 docs/architecture/firefly-reliability-boundaries.md）。
 describe("resolveTimeoutPolicy（纯函数）", () => {
   it("未传/空值/非数字 → 默认策略（idle 2min + total 30min）", () => {
     for (const raw of [undefined, null, "", "abc", true, false, {}, Number.NaN]) {

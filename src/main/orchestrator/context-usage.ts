@@ -1,6 +1,6 @@
 // 上下文容量快照计算：把一轮请求的上下文按 5 类拆分 token 估算。
 //
-// 设计要点（docs/context-usage-viewer-construction-plan.md）：
+// 设计要点：
 // - 复用 context-manager 的 estimateTokens，与 computeTokenBudget 同公式，不做精确 tokenizer；
 //   快照仅用于展示，不参与任何截断/压缩决策。
 // - 消息分类判定优先级（钉死，勿改顺序）：

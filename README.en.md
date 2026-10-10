@@ -6,7 +6,7 @@
 
 **Firefly_Agent 1.1.0** is a Windows Live2D AI desktop companion and multi-mode Agent workspace featuring Firefly from *Honkai: Star Rail*. Built with Electron, TypeScript and React, it brings character interaction, conversations, task execution and development tools into one application.
 
-[Repository](https://github.com/Serendipity-wu02/Firefly_Agent) · [Issues](https://github.com/Serendipity-wu02/Firefly_Agent/issues) · [Documentation](./docs/README.md) · [Architecture](./docs/architecture/firefly-runtime.md)
+[Repository](https://github.com/Serendipity-wu02/Firefly_Agent) · [Issues](https://github.com/Serendipity-wu02/Firefly_Agent/issues)
 
 ## Features
 
@@ -15,7 +15,7 @@
 | Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters retain separate portraits and have explicitly configured persistent specialist roles. |
 | Chat | Character conversations, model profiles, streamed replies and history. An explicit preferred form of address takes priority over an existing nickname; the default is “开拓者” (Trailblazer). Canonical story events do not automatically become shared experiences with the current user. |
 | Work | Tools, file and document processing, Skills, Task/Subagent, approvals and cancellation. Explicitly required file reads need evidence from the current run; budget limits require partial-range confirmation. Task completion and complete reading are reported separately. Finished tasks can be exported to Markdown through a native save dialog. |
-| Work knowledge workspace | Learning, quizzes, notes and progress remain available in Work. Bind a workspace, then explicitly confirm “添加学习结构” (add learning structure), or bind an initialized Vault. Ordinary Work does not automatically create a Vault or maintain progress. See the [knowledge workspace guide](docs/user-guide/knowledge-workspace.md). |
+| Work knowledge workspace | Learning, quizzes, notes and progress remain available in Work. Bind a workspace, then explicitly confirm “添加学习结构” (add learning structure), or bind an initialized Vault. Ordinary Work does not automatically create a Vault or maintain progress. |
 | Code | Git, LSP, AST, file and command tools, and Code Skills, using the current Agent, tool permissions and approvals. External language servers require their own environment. |
 | Browser / Files | Existing Main-defined exact HTTPS hosts, actions, native authorization boundaries and bounded Agent browsing remain in place; the handoff's manual-only policy is not adopted. The file workspace edits complete UTF-8 text files (≤1 MiB), with native confirmation for each save, version-hash conflict checks and unsaved-draft guards. Real Windows GUI acceptance remains pending. |
 | Skills | 41 third-party Skills plus four project Skills (`diagram`, `document-reader-validation`, `knowledge-workspace`, and `plugin-development`), for 45 total. Persona and planning/file protocols move to `prompts/persona-support/` and `prompts/workflow-support/`, outside Skill discovery. Existing mechanisms include discovery, registration, mode filtering, on-demand body and attachment reading, user overrides, and managed updates with hash recognition, backups and user-edit protection. |
@@ -39,7 +39,7 @@ The current source tree is Firefly's independently maintained product baseline. 
 
 Skill attachment-page deduplication is isolated by trusted run scope; dispatcher calls within a run share its records without leaking them across runs or roles. The original cause of the first empty-history-list incident remains unknown. Read failures being presented as empty lists and subsequent file overwrites have been fixed; successful restarts do not establish the original cause.
 
-Current boundaries are described in the [reliability guide](docs/architecture/firefly-reliability-boundaries.md); historical commands, input hashes and results are available through the [archive index](docs/archive/README.md). Targeted results do not establish a full test-suite pass or completion of every feature. No public installer or automatic update is promised; automatic updates remain disabled.
+Targeted results do not establish a full test-suite pass or completion of every feature. No public installer or automatic update is promised; automatic updates remain disabled.
 
 ## Development environment and startup
 
@@ -119,9 +119,7 @@ The application starts at `src/main/index.ts`, compiled to `dist/main/main/index
 | `src/shared/` | IPC, data/event contracts and ZIP security boundaries |
 | `prompts/`, `assets/` | Layered character prompts, world knowledge and product assets |
 | `native/`, `electron-builder.yml` | Native helper source and application packaging configuration |
-| `docs/architecture/` | Current responsibilities, entry points and maintenance boundaries; historical records are separated in the documentation index |
 
-See the [runtime architecture](./docs/architecture/firefly-runtime.md) and [maintenance boundaries](./docs/architecture/firefly-maintenance.md) for dependency directions.
 
 ## Data and upgrade protection
 
@@ -131,12 +129,12 @@ Settings, model profiles, Chat / Work history, run records and user Skills do no
 
 ## Development workflow
 
-Commit and validate development on `firefly-mini-v1.1.x`, then use a PR to merge into `main`. Run checks appropriate to the change and state what remains unverified. Read the [contribution guide](./.github/CONTRIBUTING.md) and [AGENTS.md](./AGENTS.md). Do not include credentials, private conversations or user data in Issues or PRs.
+Commit and validate development on `firefly-mini-v1.1.x`, then use a PR to merge into `main`. Run checks appropriate to the change and state what remains unverified. Read [AGENTS.md](./AGENTS.md). Do not include credentials, private conversations or user data in Issues or PRs.
 
 ## Maintenance and licensing
 
 Firefly_Agent is independently maintained by Serendipity-wu02. Source copyright and licensing are documented in [LICENSE](./LICENSE).
 
-Source licensing is documented in the complete [MIT License](./LICENSE). Third-party Skills, dependencies, Live2D models, portraits, character IP and other assets have their own licenses or permissions; the source MIT license does not automatically grant asset redistribution rights. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md), [MODEL_LICENSE.md](./MODEL_LICENSE.md) and the [contributors record](./docs/CONTRIBUTORS.md) for provenance and boundaries. Public asset redistribution review remains pending.
+Source licensing is documented in the complete [MIT License](./LICENSE). Third-party Skills, dependencies, Live2D models, portraits, character IP and other assets have their own licenses or permissions; the source MIT license does not automatically grant asset redistribution rights. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) and [MODEL_LICENSE.md](./MODEL_LICENSE.md) for provenance and boundaries. Public asset redistribution review remains pending.
 
 Firefly and *Honkai: Star Rail* intellectual property belongs to its respective rightsholders. This is an unofficial project.

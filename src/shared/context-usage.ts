@@ -5,7 +5,7 @@
 // - preRequest 只更新 renderer 内存态，圆环实时刷新，零 I/O；
 // - terminal 包含最终 assistant 回复，随消息持久化（一次落盘）。
 
-/** 六类分类 key；口径见 docs/context-usage-viewer-construction-plan.md。
+/** 六类分类 key。
  *  `toolDefinitions` 为旧快照兼容 key（拆分前"工具与 Skill"合一），仅渲染层识别，不再产出。 */
 export type ContextUsageCategoryKey =
   | "systemPrompt"

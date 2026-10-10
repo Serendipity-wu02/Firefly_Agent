@@ -6,7 +6,7 @@
 
 **Firefly_Agent 1.1.0** 是以《崩坏：星穹铁道》流萤为角色的 Windows Live2D AI 桌面伴侣与多模式 Agent 工作台。项目使用 Electron、TypeScript 和 React，将角色化桌面交互、对话、任务执行与开发工具放在同一应用中。
 
-[项目仓库](https://github.com/Serendipity-wu02/Firefly_Agent) · [问题反馈](https://github.com/Serendipity-wu02/Firefly_Agent/issues) · [文档导航](./docs/README.md) · [架构说明](./docs/architecture/firefly-runtime.md)
+[项目仓库](https://github.com/Serendipity-wu02/Firefly_Agent) · [问题反馈](https://github.com/Serendipity-wu02/Firefly_Agent/issues)
 
 ## 功能速览
 
@@ -15,7 +15,7 @@
 | 桌面角色 | 流萤 Live2D 模型、点击与双击表情、拖动、动作播放与复位；Chat 动作沿用工具与事件链。12 位任务角色保留独立头像和展示身份；专业角色映射已明确配置。 |
 | Chat | 角色化对话、模型档案、流式回复与历史。称呼采用明确偏好，其次已有昵称，默认“开拓者”；原作经历不会自动成为与当前用户的共同经历。 |
 | Work | 工具调用、文件和文档处理、Skills、Task/Subagent、审批与取消。明确要求读取的文件使用本次运行证据；预算不足时确认部分范围，任务完成与完整读取分别展示；已结束任务通过原生保存对话框导出 Markdown。 |
-| Work 知识工作区 | 学习、测验、笔记与进度能力保留在 Work。先绑定工作区，再明确确认“添加学习结构”，或绑定已初始化的 Vault；普通 Work 不自动创建 Vault 或维护进度。详见[使用说明](docs/user-guide/knowledge-workspace.md)。 |
+| Work 知识工作区 | 学习、测验、笔记与进度能力保留在 Work。先绑定工作区，再明确确认“添加学习结构”，或绑定已初始化的 Vault；普通 Work 不自动创建 Vault 或维护进度。 |
 | Code | Git、LSP、AST、文件与命令工具，以及 Code Skills；执行沿用现有 Agent、工具权限与审批。外部语言服务器需要相应环境。 |
 | Browser / Files | 手动浏览需用户逐次原生确认精确 HTTPS 站点及其资源域；资源域不能用于页面导航，手动授权不供 Agent 使用。Agent 保留 Main 当前四个固定域名与动作范围。文件工作区支持完整 UTF-8 文本编辑（≤1 MiB），每次保存需原生确认，并检查版本哈希冲突、保护未保存草稿。真实 Windows GUI 尚未验收。 |
 | Skills | 41 项第三方 Skills 与 `diagram`、`document-reader-validation`、`knowledge-workspace`、`plugin-development` 四项项目 Skills，共 45 项；角色表达及计划/文件协议移至 `prompts/persona-support/`、`prompts/workflow-support/`，不再占用 Skill ID。保留扫描注册、模式过滤、按需正文及附件读取、用户覆盖，以及带哈希识别、备份和用户修改保护的托管更新。 |
@@ -39,7 +39,7 @@
 
 Skill 附件分页去重已按可信运行域隔离，同一运行的调度器调用共享去重记录，不跨运行或角色串用。首次历史列表为空事件的原始根因仍未确定；已修复读取失败伪装为空列表与失败后覆盖文件的问题，成功重开不改变原始根因结论。
 
-当前验证边界见[可靠性说明](docs/architecture/firefly-reliability-boundaries.md)，历史命令、输入哈希与阶段结果从[归档索引](docs/archive/README.md)查阅。定向结果不表示全量测试或全部功能完成。当前不承诺公开安装包或自动更新，自动更新保持关闭。
+定向结果不表示全量测试或全部功能完成。当前不承诺公开安装包或自动更新，自动更新保持关闭。
 
 ## 开发环境与启动
 
@@ -119,9 +119,7 @@ npm run package:win:dir
 | `src/shared/` | IPC、数据/事件契约和 ZIP 安全边界 |
 | `prompts/`、`assets/` | 分层角色提示词、世界观及产品资源 |
 | `native/`、`electron-builder.yml` | 原生助手源码与应用打包配置 |
-| `docs/architecture/` | 当前模块职责、主入口与维护边界；历史记录从文档导航分开访问 |
 
-完整调用方向见[运行架构](./docs/architecture/firefly-runtime.md)和[维护边界](./docs/architecture/firefly-maintenance.md)。
 
 ## 数据与升级保护
 
@@ -131,12 +129,12 @@ npm run package:win:dir
 
 ## 开发流程
 
-后续开发在 `firefly-mini-v1.1.x` 完成提交与验证，再通过 PR 合入 `main`。按修改范围执行实际检查并说明未覆盖项。请阅读[贡献指南](./.github/CONTRIBUTING.md)和 [AGENTS.md](./AGENTS.md)；Issue 与 PR 不要附密钥、私人对话或用户数据。
+后续开发在 `firefly-mini-v1.1.x` 完成提交与验证，再通过 PR 合入 `main`。按修改范围执行实际检查并说明未覆盖项。请阅读 [AGENTS.md](./AGENTS.md)；Issue 与 PR 不要附密钥、私人对话或用户数据。
 
 ## 维护与许可
 
 Firefly_Agent 由 Serendipity-wu02 独立维护。源码版权与许可见 [LICENSE](./LICENSE)。
 
-源码见完整 [MIT License](./LICENSE)。第三方 Skills、依赖、Live2D 模型、头像、角色 IP 和其他资产分别遵循自己的许可或授权；MIT 源码许可不自动授予素材再分发权。来源与边界见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)、[MODEL_LICENSE.md](./MODEL_LICENSE.md)及[贡献者记录](./docs/CONTRIBUTORS.md)。公开资产再分发检查继续保留。
+源码见完整 [MIT License](./LICENSE)。第三方 Skills、依赖、Live2D 模型、头像、角色 IP 和其他资产分别遵循自己的许可或授权；MIT 源码许可不自动授予素材再分发权。来源与边界见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)及 [MODEL_LICENSE.md](./MODEL_LICENSE.md)。公开资产再分发检查继续保留。
 
 流萤及《崩坏：星穹铁道》相关知识产权归其权利人，本项目为非官方项目。

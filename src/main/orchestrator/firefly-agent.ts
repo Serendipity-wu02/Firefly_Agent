@@ -183,8 +183,7 @@ export interface FireflyRunOptions {
   /** 可用 Skill 列表（feature flag 开启时使用）。Skill 路由层不依赖该字段是否存在。 */
   availableSkills?: SkillRouteInfo[];
   /**
-   * ExecutionLedger：同进程工具去重缓存（设计稿 v3 §5.5.1.1，
-   * 历史设计索引见 docs/archive/README.md）。
+   * ExecutionLedger：同进程工具去重缓存（设计稿 v3 §5.5.1.1）。
    * FireflyAgent 内部默认从 ExecutionLedgerStore 取，调用方一般不用传。
    */
   executionLedger?: ExecutionLedger;

@@ -1,4 +1,4 @@
-// OpenAI Responses transport —— 第三协议（docs/responses-transport-construction-plan.md）
+// OpenAI Responses transport —— 第三协议
 // 请求体协议：POST {baseUrl}/responses，input items + instructions
 //
 // 与 Chat Completions 的关键 wire 差异（施工文档钉死，改前必读）：

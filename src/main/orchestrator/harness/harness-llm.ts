@@ -29,7 +29,7 @@ import {
 } from "../prompt-layers";
 
 /**
- * 输出上限策略（docs/architecture/firefly-reliability-boundaries.md）：
+ * 输出上限策略：
  * - OpenAI / Responses 协议：max_tokens 可选，缺省即模型自身输出上限。
  *   不传，避免固定预算把长思维链拦腰截断。
  * - Anthropic 协议：max_tokens 必填（缺字段直接 400），传模型级安全大值。
