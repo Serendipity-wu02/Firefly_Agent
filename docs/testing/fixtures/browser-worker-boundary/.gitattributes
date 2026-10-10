@@ -1,2 +1,0 @@
-# Preserve captured bytes so manifest SHA256 survives checkout on Windows.
-* -text

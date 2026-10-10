@@ -49,7 +49,7 @@ body {
 }
 
 .win-btn:hover { background: rgba(255, 255, 255, 0.14); }
-.win-btn--close:hover { background: var(--rb-pink-500); }
+.win-btn--close:hover { background: var(--rb-danger); border-color: transparent; color: #ffffff; }
 
 .sticker-grid {
   height: calc(100% - 52px);

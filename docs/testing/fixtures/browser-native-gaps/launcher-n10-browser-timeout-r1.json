@@ -1,9 +1,0 @@
-{
-  "mode": "browser-timeout",
-  "matrix": "n10",
-  "exitCode": 0,
-  "temp": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\temp-n10-browser-timeout-r1",
-  "profile": "E:\\Codex\\2026-10-04\\task-4\\browser-native-gaps-qa\\profile-n10-browser-timeout-r1",
-  "pid": 30916,
-  "run": "n10-browser-timeout-r1"
-}

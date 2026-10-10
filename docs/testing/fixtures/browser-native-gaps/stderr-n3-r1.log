@@ -1,2 +1,0 @@
-(node:32032) electron: Failed to load URL: data:text/html,<title>Owned anonymous acceptance</title> with error: ERR_BLOCKED_BY_CLIENT
-(Use `electron --trace-warnings ...` to show where the warning was created)

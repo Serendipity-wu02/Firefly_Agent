@@ -1,2 +1,0 @@
-[9940:1005/124855.833:ERROR:net\cert\internal\cert_issuer_source_aia.cc:136] AiaRequest::OnFetchCompleted got error -379
-[9940:1005/124855.836:ERROR:net\cert\internal\cert_issuer_source_aia.cc:136] AiaRequest::OnFetchCompleted got error -379

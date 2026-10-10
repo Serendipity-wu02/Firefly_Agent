@@ -1,9 +1,0 @@
-{
-  "exitCode": 0,
-  "temp": "E:\\Codex\\2026-10-04\\task-4\\browser-udp-diagnostic-qa\\temp-udp-own-interface-r1",
-  "pid": 30096,
-  "mode": "fix",
-  "profile": "E:\\Codex\\2026-10-04\\task-4\\browser-udp-diagnostic-qa\\profile-udp-own-interface-r1",
-  "matrix": "diagnostic",
-  "run": "udp-own-interface-r1"
-}

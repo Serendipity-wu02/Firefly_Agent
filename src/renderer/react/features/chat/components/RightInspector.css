@@ -155,7 +155,7 @@
 }
 
 .cy-right-inspector__close:hover {
-  background: var(--cy-bg-hover, #fff1f6);
+  background: var(--cy-bg-hover);
   color: var(--cy-text, var(--cy-text));
 }
 

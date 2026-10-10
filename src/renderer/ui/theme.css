@@ -1234,8 +1234,8 @@
 }
 
 [data-ui-theme="pearl-white"] .call__close:hover {
-  color: var(--rb-pink-600);
-  background: var(--rb-pink-50);
+  color: #ffffff;
+  background: var(--rb-danger);
 }
 
 [data-ui-theme="pearl-white"] .call__avatar {

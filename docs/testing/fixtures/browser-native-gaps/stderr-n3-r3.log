@@ -1,6 +1,0 @@
-(node:29584) electron: Failed to load URL: https://owned-admission.invalid/ with error: ERR_CONNECTION_CLOSED
-(Use `electron --trace-warnings ...` to show where the warning was created)
-(node:29584) electron: Failed to load URL: https://owned-admission.invalid/ with error: ERR_CONNECTION_CLOSED
-(node:29584) electron: Failed to load URL: https://foreign-admission.invalid/ with error: ERR_CONNECTION_CLOSED
-(node:29584) electron: Failed to load URL: https://cross-session.invalid/ with error: ERR_CONNECTION_CLOSED
-(node:29584) electron: Failed to load URL: https://foreign-admission.invalid/ with error: ERR_PROXY_CONNECTION_FAILED

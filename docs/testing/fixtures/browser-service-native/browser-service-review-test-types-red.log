@@ -1,2 +1,0 @@
-src/main/browser/electron-browser-guest.test.ts(64,5): error TS2322: Type '() => void' is not assignable to type '() => boolean'.
-  Type 'void' is not assignable to type 'boolean'.

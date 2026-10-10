@@ -1,3 +1,0 @@
-(node:28332) electron: Failed to load URL: https://owned-shutdown.invalid/ with error: ERR_TUNNEL_CONNECTION_FAILED
-(Use `electron --trace-warnings ...` to show where the warning was created)
-(node:28332) electron: Failed to load URL: https://owned-shutdown.invalid/ with error: ERR_TUNNEL_CONNECTION_FAILED

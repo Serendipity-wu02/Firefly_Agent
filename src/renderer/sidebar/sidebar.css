@@ -132,14 +132,16 @@ body {
 .sidebar__winbtn:active { transform: translateY(0); }
 
 .sidebar__winbtn--close {
-  background: rgba(219, 39, 119, 0.16);
-  color: #ffb6dc;
+  background: transparent;
+  color: var(--rb-text-muted);
 }
 
 .sidebar__winbtn--close:hover {
-  background: linear-gradient(135deg, var(--rb-pink-glow), var(--rb-pink-600));
-  color: var(--rb-text-on-pink);
-  box-shadow: 0 0 18px rgba(45, 122, 95, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  background: var(--rb-danger);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: none;
+  transform: none;
 }
 
 .sidebar__body {
