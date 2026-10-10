@@ -11,7 +11,7 @@ const sessions = [] as const;
 const groups = [{ groupId: "work:section:s", sectionId: "s", label: "Section", sessions: [] }, { groupId: "work:default", label: "Recent", sessions: [] }];
 function Harness() {
   const layout = useSidebarLayout(api, sessions);
-  return layout.snapshot && createElement(SidebarLayoutControls, { mode: "work", snapshot: layout.snapshot, groups, projectIds: [], pending: layout.pending, mutate: layout.mutate });
+  return layout.snapshot && createElement(SidebarLayoutControls, { mode: "work", snapshot: layout.snapshot, groups, projectIds: [], title: "Section title", pending: layout.pending, mutate: layout.mutate });
 }
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -33,4 +33,15 @@ it.each(["conflict", "storage_error"])("preserves a section name draft after %s"
   act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"Keep this draft"); input.dispatchEvent(new Event("input",{bubbles:true})); });
   await act(async () => form.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
   expect(api.mutate).toHaveBeenCalled(); expect(input.value).toBe("Keep this draft");
+});
+it("keeps the arrangement controls folded behind one heading button", async () => {
+  await act(async () => root.render(createElement(Harness)));
+  const toggle = host.querySelector<HTMLButtonElement>('button[aria-label="sidebar.manageLayout"]')!;
+  const panel = host.querySelector<HTMLElement>(`#${CSS.escape(toggle.getAttribute("aria-controls")!)}`)!;
+  expect(panel.hidden).toBe(true);
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  await act(async () => toggle.click());
+  expect(panel.hidden).toBe(false);
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(host.querySelector(".cy-conversation-sidebar__title")?.textContent).toBe("Section title");
 });

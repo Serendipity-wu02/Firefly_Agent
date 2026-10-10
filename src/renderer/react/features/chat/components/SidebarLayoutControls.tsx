@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "../../../i18n";
 import type { ConversationMode } from "../../../../../shared/chat-types";
 import type { SidebarPatch, SidebarSnapshot } from "../../../../../shared/sidebar-layout";
 import type { SidebarProjectionGroup } from "../pages/sidebar-projection";
 import "./SidebarLayoutControls.css";
 
-export function SidebarLayoutControls({ mode, snapshot, groups, projectIds, pending, mutate }: {
-  mode: ConversationMode; snapshot: SidebarSnapshot; groups: SidebarProjectionGroup[];
+export function SidebarLayoutControls({ mode, snapshot, groups, projectIds, pending, mutate, title }: {
+  mode: ConversationMode; snapshot: SidebarSnapshot; groups: SidebarProjectionGroup[]; title: string;
   projectIds: readonly string[]; pending: boolean; mutate(patch: SidebarPatch): Promise<boolean>;
 }) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
   const [name, setName] = useState("");
   const [renames, setRenames] = useState<Record<string, string>>({});
   const state = snapshot.layout.modes[mode];
@@ -25,6 +28,14 @@ export function SidebarLayoutControls({ mode, snapshot, groups, projectIds, pend
     void mutate({ mode, kind: "set-group-order", groupIds });
   };
   return <div className="cy-sidebar-layout">
+    <div className="cy-sidebar-layout__head">
+      <span className="cy-conversation-sidebar__title">{title}</span>
+      <button type="button" className="cy-sidebar-layout__toggle" aria-label={t("sidebar.manageLayout")} title={t("sidebar.manageLayout")}
+        aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(value => !value)}>
+        <SlidersHorizontal size={14} strokeWidth={1.8} aria-hidden="true" />
+      </button>
+    </div>
+    <div id={panelId} className="cy-sidebar-layout__panel" hidden={!open}>
     <div className="cy-sidebar-layout__selectors">
       {mode !== "chat" && <select aria-label={t("sidebar.viewMode")} disabled={pending} value={state.viewMode}
         onChange={event => void mutate({ mode, kind: "set-view", viewMode: event.target.value as "project" | "merged" })}>
@@ -35,8 +46,7 @@ export function SidebarLayoutControls({ mode, snapshot, groups, projectIds, pend
         <option value="recent">{t("sidebar.recentSort")}</option><option value="manual">{t("sidebar.manualSort")}</option>
       </select>
     </div>
-    <details><summary>{t("sidebar.manageLayout")}</summary>
-      <div className="cy-sidebar-layout__management">
+    <div className="cy-sidebar-layout__management">
         {mode !== "chat" && snapshot.layout.projects.filter(project => projectIds.includes(project.id)).map(project =>
           <label className="cy-sidebar-layout__project" key={project.id} title={project.workspaceRoot}>
             <input type="checkbox" disabled={pending} checked={!state.hiddenProjectIds.includes(project.id)}
@@ -47,7 +57,7 @@ export function SidebarLayoutControls({ mode, snapshot, groups, projectIds, pend
           event.preventDefault(); if (!name.trim() || pending) return;
           void mutate({ mode, kind: "create-section", name: name.trim() }).then(ok => { if (ok) setName(""); });
         }}>
-          <input aria-label={t("sidebar.sectionName")} maxLength={120} value={name} onChange={event => setName(event.target.value)} />
+          <input aria-label={t("sidebar.sectionName")} placeholder={t("sidebar.sectionName")} maxLength={120} value={name} onChange={event => setName(event.target.value)} />
           <button type="submit" disabled={pending || !name.trim()}>{t("sidebar.addSection")}</button>
         </form>
         {state.sections.map(section => <div className="cy-sidebar-layout__section" key={section.id}>
@@ -63,7 +73,7 @@ export function SidebarLayoutControls({ mode, snapshot, groups, projectIds, pend
           <button type="button" aria-label={t("sidebar.moveUp")} disabled={pending || index === 0} onClick={() => moveGroup(index, -1)}>↑</button>
           <button type="button" aria-label={t("sidebar.moveDown")} disabled={pending || index === groups.length - 1} onClick={() => moveGroup(index, 1)}>↓</button>
         </div>)}
-      </div>
-    </details>
+    </div>
+    </div>
   </div>;
 }

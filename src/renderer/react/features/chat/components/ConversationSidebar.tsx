@@ -51,14 +51,6 @@ function ProjectIcon({ mode }: { mode: ConversationMode }) {
   );
 }
 
-function ConversationIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5 5.5h14v10H9l-4 3v-13Z" />
-    </svg>
-  );
-}
-
 function formatModifiedTime(timestamp: number): string {
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
@@ -128,6 +120,7 @@ export const ConversationSidebar = memo(function ConversationSidebar({
   // 统一反馈入口：删除会话走危险确认
   const feedback = useFeedback();
   const supportsProjects = mode === "work" || mode === "code";
+  const sectionTitle = supportsProjects ? t("sidebar.projectsTitle") : t("sidebar.conversationsTitle");
   const layout = useSidebarLayout(typeof window === "undefined" ? undefined : chatStore()?.sidebarLayout, sessions);
   const projection = useMemo(() => layout.snapshot ? projectSidebar(sessions, layout.snapshot, mode) : null, [sessions, layout.snapshot, mode]);
   const groupBySession = useMemo(() => new Map(projection?.groups.flatMap(group => group.sessionIds.map(id => [id, group.groupId] as const)) ?? []), [projection]);
@@ -151,6 +144,9 @@ export const ConversationSidebar = memo(function ConversationSidebar({
     }
     return result;
   }, [sessions]);
+  // A single, expanded, unnamed group (typical Chat history) needs no heading of its own.
+  const soleGroup = projection?.groups.length === 1 ? projection.groups[0] : undefined;
+  const flat = !!soleGroup && !soleGroup.projectId && !soleGroup.sectionId && !!persistedExpanded?.includes(soleGroup.groupId);
   const projectKeys = useMemo(() => ["pinned", "recent", ...projects.keys()], [projects]);
   const [expandedKeys, setExpandedKeys] = useState<string[]>(projectKeys);
 
@@ -234,7 +230,6 @@ export const ConversationSidebar = memo(function ConversationSidebar({
               {session.pinned && <PushpinOutlined className="cy-session-label__pin" />}
             </span>
           ),
-        icon: <ConversationIcon />,
         group: groupBySession.get(session.id) ?? (supportsProjects ? session.workspaceRoot ?? `unbound:${session.id}` : session.pinned ? "pinned" : "recent"),
       })),
     [sortedSessions, editing, t, supportsProjects, onRename, groupBySession],
@@ -313,9 +308,10 @@ export const ConversationSidebar = memo(function ConversationSidebar({
 
   return (
     <nav className="cy-conversation-sidebar" aria-label={supportsProjects ? t("sidebar.projectsAndConversationsAria") : t("sidebar.conversationListAria")}>
-      <div className="cy-conversation-sidebar__title">{supportsProjects ? t("sidebar.projectsTitle") : t("sidebar.conversationsTitle")}</div>
-      {layout.snapshot && projection && <SidebarLayoutControls mode={mode} snapshot={layout.snapshot} groups={projection.groups}
-        projectIds={sessions.map(session => layout.snapshot!.sessionProjectIds[session.id]).filter((id): id is string => !!id)} pending={layout.pending} mutate={layout.mutate} />}
+      {layout.snapshot && projection
+        ? <SidebarLayoutControls mode={mode} snapshot={layout.snapshot} groups={projection.groups} title={sectionTitle}
+          projectIds={sessions.map(session => layout.snapshot!.sessionProjectIds[session.id]).filter((id): id is string => !!id)} pending={layout.pending} mutate={layout.mutate} />
+        : <div className="cy-conversation-sidebar__title">{sectionTitle}</div>}
       {layout.error && <p className="cy-sidebar-layout__error" role="alert">{t(layout.error === "conflict" ? "sidebar.layoutConflict" : "sidebar.layoutFailed")}</p>}
       {items.length === 0 ? (
         <div className="cy-conversation-sidebar__empty">
@@ -337,7 +333,7 @@ export const ConversationSidebar = memo(function ConversationSidebar({
             }}
           >
             <Conversations
-              rootClassName="cy-conversation-list"
+              rootClassName={flat ? "cy-conversation-list cy-conversation-list--flat" : "cy-conversation-list"}
               items={items}
               activeKey={activeSessionId}
               onActiveChange={(key) => {

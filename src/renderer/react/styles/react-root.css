@@ -329,7 +329,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: 10px;
+  margin-top: 2px;
   padding: 0 2px;
   flex-shrink: 0;
 }
@@ -605,11 +605,11 @@ html, body {
   flex: 0 0 var(--cy-workspace-header-height);
   height: var(--cy-workspace-header-height);
   box-sizing: border-box;
-  padding: 0 12px;
+  padding: 0 2px;
   font: 650 16px/1.3 var(--rb-font-sans, sans-serif);
   color: var(--cy-text);
 }
-.cy-page-sidebar .cy-mode-picker { align-self: stretch; margin: 0 4px; }
+.cy-page-sidebar .cy-mode-picker { flex: 1; min-width: 0; }
 .cy-page-more { display: grid; min-width: 168px; gap: 4px; }
 .cy-page-more .cy-side-action { width: 100%; }
 /* The popup belongs to the rail for focus/hover ownership, but uses full menu rows. */

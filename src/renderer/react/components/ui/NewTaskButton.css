@@ -14,7 +14,7 @@
 }
 
 .cy-side-action:hover {
-  background: #f4f4f5;
+  background: var(--cy-bg-hover);
 }
 
 .cy-side-action.is-active {
@@ -50,6 +50,6 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #ff3b5c;
+  background: var(--cy-danger);
   pointer-events: none;
 }

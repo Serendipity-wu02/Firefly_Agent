@@ -197,10 +197,11 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
       </nav>
       <aside ref={contextRef} onPointerEnter={enter} onPointerLeave={leave} id="firefly-context-sidebar" className={`cy-page-sidebar ${collapsed ? "is-floating" : ""} ${peeking ? "is-peeking" : ""}`} style={{ width: sidebar.width }} inert={hidden} aria-hidden={hidden} aria-label={t("ui.contextSidebar")}>
         {collapsed && <span className="cy-sidebar-hover-corridor" aria-hidden="true" />}
-        <div className="cy-page-context-header">Firefly</div>
-        <ModeSwitch value={mode} onChange={onModeChange} />
+        <div className="cy-page-context-header">
+          <ModeSwitch value={mode} onChange={onModeChange} />
+        </div>
         <div className="cy-page-newtask">
-          <NewTaskButton onClick={onNewTask} />
+          <NewTaskButton label={mode === "chat" ? undefined : t("ui.newTaskButton")} onClick={onNewTask} />
         </div>
         <div className="cy-page-conversations">
           <ConversationSidebar
