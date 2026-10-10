@@ -1,5 +1,7 @@
 import fs from "node:fs";import os from "node:os";import path from "node:path";import {randomBytes} from "node:crypto";
 import {DatabaseSync} from "node:sqlite";import {it,expect,afterEach,beforeEach,vi} from "vitest";import {openMemoryRepository} from "./repository";
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 const roots:string[]=[],repos:ReturnType<typeof openMemoryRepository>[]=[];
 afterEach(()=>{vi.restoreAllMocks();for(const repo of repos.splice(0))repo.close();for(const root of roots.splice(0))fs.rmSync(root,{recursive:true,force:true})});
 const canary="\u4e2d\u6587\u4f18\u5148 English \u6df7\u5408\ud83c\udf40";
