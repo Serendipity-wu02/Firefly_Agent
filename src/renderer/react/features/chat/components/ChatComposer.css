@@ -517,7 +517,7 @@
 .cy-composer__footer .cy-composer__obsidian-icon,
 .cy-composer__footer .cy-composer__obsidian-icon path {
   stroke: none;
-  fill: #A88BFA;
+  fill: var(--cy-accent);
 }
 
 .cy-composer__footer .cy-composer__footer-button svg:last-child,

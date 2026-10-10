@@ -73,7 +73,7 @@
   --rb-warn-fg: #7a4f0e;
   --rb-warn2-fg: #9a4a2e;
   --rb-warn3-fg: #7c3420;
-  --rb-pink-fg: #8f2f5f;
+  --rb-pink-fg: #4d4e69;
 
   /* Light-mode component primitives */
   --rb-card-bg:        #fafbfc;
@@ -175,7 +175,7 @@
   --rb-warn-fg: #e8c36a;
   --rb-warn2-fg: #f0b49a;
   --rb-warn3-fg: #f2c3b0;
-  --rb-pink-fg: #f0a8cc;
+  --rb-pink-fg: #a9ead0;
 
   --rb-card-bg:        #19231f;
   --rb-divider-light:  rgba(255, 255, 255, 0.08);
@@ -414,7 +414,7 @@
   border-radius: 12px;
   background: linear-gradient(90deg, #e1e1e5, #ededef);
   border: 1px solid #a7a8af;
-  box-shadow: inset 0 1px 2px rgba(116, 80, 96, 0.08);
+  box-shadow: inset 0 1px 2px rgba(31, 35, 48, 0.08);
   outline: none;
 }
 
@@ -932,11 +932,11 @@
 }
 
 [data-ui-theme="pearl-white"] .choice-card__question--invalid {
-  border-color: #e11d48;
+  border-color: var(--rb-danger);
 }
 
 [data-ui-theme="pearl-white"] .choice-card__question--invalid .choice-card__question-title {
-  color: #be123c;
+  color: var(--rb-danger-strong);
 }
 
 [data-ui-theme="pearl-white"] .sticker-field input,

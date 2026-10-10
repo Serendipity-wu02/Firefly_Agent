@@ -164,7 +164,7 @@
 }
 
 .cy-message__image-attachment figcaption.is-error {
-  background: rgb(180 42 70 / 82%);
+  background: color-mix(in srgb, var(--cy-danger) 85%, transparent);
 }
 
 .cy-message__file-attachment {

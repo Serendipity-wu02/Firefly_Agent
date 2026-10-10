@@ -203,15 +203,15 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
         legend: {
           display: true,
           position: "top",
-          labels: { color: "rgba(235, 229, 245, 0.7)", font: { size: 11 }, boxWidth: 12, boxHeight: 12 },
+          labels: { color: "rgba(232, 236, 240, 0.7)", font: { size: 11 }, boxWidth: 12, boxHeight: 12 },
         },
         tooltip: {
           // 用 Chart.js 自带 tooltip，显示输入/输出/命中/未命中
-          backgroundColor: "rgba(30, 20, 45, 0.95)",
+          backgroundColor: "rgba(24, 30, 36, 0.95)",
           borderColor: "rgba(45, 122, 95, 0.3)",
           borderWidth: 1,
-          titleColor: "rgba(254, 247, 255, 0.95)",
-          bodyColor: "rgba(235, 229, 245, 0.85)",
+          titleColor: "rgba(255, 255, 255, 0.95)",
+          bodyColor: "rgba(232, 236, 240, 0.85)",
           padding: 10,
           cornerRadius: 10,
           displayColors: true,
@@ -262,7 +262,7 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
   tokensState.trendChart = new Chart(canvas, config);
 }
 
-const modelColors = ["#ff7eb7", "#8b7cf6", "#4db6ac", "#f4a261", "#5b8def", "#94a3b8"];
+const modelColors = ["#ef8f6b", "#8b7cf6", "#4db6ac", "#f4a261", "#5b8def", "#94a3b8"];
 
 function renderModelUsage(models: TokenModelData[]): void {
   const canvas = document.getElementById("token-model-chart") as HTMLCanvasElement | null;

@@ -21,7 +21,7 @@ const base: CSSProperties = {
 const mint = "#7bd8ae";
 const sky = "#8ec7f0";
 const amber = "#e8c36a";
-const rose = "#f0a3b4";
+const rose = "#f2a07b";
 const violet = "#c3a6f0";
 const mute = "#7f948a";
 

@@ -62,7 +62,7 @@
 }
 
 .cy-open-workspace:hover .cy-open-workspace__main {
-  box-shadow: inset -1px 0 0 var(--cy-border, #f0ebee);
+  box-shadow: inset -1px 0 0 var(--cy-border, #eceef3);
 }
 
 /* ── 点击状态 ── */

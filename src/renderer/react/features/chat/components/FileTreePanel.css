@@ -178,7 +178,7 @@
 }
 
 .cy-file-preview__md-btn:hover {
-  background: var(--cy-bg-hover, #f5f2f4);
+  background: var(--cy-bg-hover, #eceef3);
   color: var(--cy-text, #3d393f);
 }
 
@@ -226,7 +226,7 @@
 }
 
 .cy-file-refresh:hover:not(:disabled) {
-  background: var(--cy-bg-hover, #f5f2f4);
+  background: var(--cy-bg-hover, #eceef3);
   color: var(--cy-text, #3d393f);
 }
 

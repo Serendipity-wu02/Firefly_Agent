@@ -1,6 +1,6 @@
 /* ============================================================
    Firefly schedule window (read-only display)
-   Uses the project pink/violet glass style; the reference HTML only
+   Uses the project glass style; the reference HTML only
    informs layout density, not colors or visual language.
    柱状图/用量进度条样式抽到 ../ui/chart.css，与 settings 共享。
    ============================================================ */
@@ -32,7 +32,7 @@ body {
     radial-gradient(circle at 88% 22%, var(--rb-bg-3) 0%, transparent 38%),
     radial-gradient(circle at 50% 110%, var(--rb-bg-3) 0%, transparent 38%),
     linear-gradient(155deg, var(--rb-bg-3) 0%, var(--rb-bg-1) 60%, var(--rb-bg-2) 100%);
-  border: 1px solid rgba(255, 190, 226, 0.36);
+  border: 1px solid var(--rb-border-soft);
 }
 
 .tasks::before {

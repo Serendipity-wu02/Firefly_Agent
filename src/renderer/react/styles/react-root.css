@@ -272,7 +272,7 @@ html, body {
   width: 1px;
   height: 16px;
   flex-shrink: 0;
-  background: var(--cy-border, #f0ebee);
+  background: var(--cy-border, #eceef3);
 }
 
 /* 全局文字选中：用应用粉色强调色替代浏览器默认蓝 */

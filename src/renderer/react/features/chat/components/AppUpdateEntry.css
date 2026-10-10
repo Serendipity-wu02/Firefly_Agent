@@ -8,9 +8,9 @@
   min-height: 34px;
   padding: 7px 10px;
   overflow: hidden;
-  border: 1px solid rgba(238, 126, 165, 0.24);
+  border: 1px solid rgba(var(--cy-accent-rgb), 0.24);
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(255, 241, 247, 0.92), rgba(249, 244, 255, 0.86));
+  background: linear-gradient(135deg, rgba(var(--cy-accent-rgb), 0.08), rgba(var(--cy-accent-rgb), 0.04));
   color: var(--cy-accent);
   font: inherit;
   font-size: 12px;
@@ -39,6 +39,6 @@
   position: absolute;
   inset: 0 auto 0 0;
   z-index: 0;
-  background: rgba(236, 126, 166, 0.13);
+  background: rgba(var(--cy-accent-rgb), 0.13);
   transition: width 180ms ease;
 }

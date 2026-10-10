@@ -7,7 +7,7 @@
   border: 1px solid var(--cy-border, var(--cy-border));
   border-radius: 12px;
   background: var(--cy-surface);
-  box-shadow: 0 4px 16px rgb(44 31 38 / 5%);
+  box-shadow: 0 4px 16px rgb(31 35 48 / 5%);
   overflow: hidden;
   app-region: no-drag;
 }

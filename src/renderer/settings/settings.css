@@ -29,7 +29,7 @@ body {
     radial-gradient(circle at 12% 8%, rgba(var(--rb-accent-rgb), 0.28) 0%, transparent 36%),
     radial-gradient(circle at 86% 18%, rgba(var(--rb-accent-rgb), 0.24) 0%, transparent 40%),
     linear-gradient(145deg, var(--rb-bg-2) 0%, var(--rb-bg-1) 64%, var(--rb-bg-2) 100%);
-  border: 1px solid rgba(255, 190, 226, 0.36);
+  border: 1px solid var(--rb-border-soft);
 }
 
 .settings-shell::before {
@@ -698,7 +698,7 @@ body {
 .ghost-btn {
   padding: 8px 12px;
   border-radius: 12px;
-  color: rgba(254, 247, 255, 0.88);
+  color: rgba(255, 255, 255, 0.88);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   font: var(--rb-text-small-em);
@@ -1025,7 +1025,7 @@ body {
   width: 20px;
   height: 20px;
   border-radius: var(--rb-radius-full);
-  background: rgba(254, 247, 255, 0.88);
+  background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.60);
   transition: transform 180ms cubic-bezier(.2,.8,.2,1), background 180ms ease;
 }
@@ -1405,7 +1405,7 @@ body {
 }
 .cy-modal__icon--info {
   color: var(--rb-feedback-info, var(--rb-pink-500));
-  background: rgba(244, 114, 182, 0.13);
+  background: rgba(var(--rb-accent-rgb), 0.13);
 }
 .cy-modal__icon--warning {
   color: var(--rb-feedback-warning, #d09a43);
@@ -1542,7 +1542,7 @@ body {
 }
 .cy-notice--info .cy-notice__icon {
   color: var(--rb-feedback-info, var(--rb-pink-500));
-  background: rgba(244, 114, 182, 0.13);
+  background: rgba(var(--rb-accent-rgb), 0.13);
 }
 .cy-notice--warning .cy-notice__icon {
   color: var(--rb-feedback-warning, #d09a43);
@@ -2012,7 +2012,7 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: linear-gradient(135deg, rgba(var(--rb-accent-rgb), 0.28), rgba(30, 90, 69, 0.22));
-  color: rgba(255, 238, 248, 0.95);
+  color: rgba(255, 255, 255, 0.95);
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
@@ -2100,7 +2100,7 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(254, 247, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 13px;
 }
 .plugin-config .tts-field input:focus {
@@ -2174,7 +2174,7 @@ body {
   border-left: 1px solid rgba(var(--rb-accent-rgb), 0.12);
 }
 .perm-seg:not(.is-active):hover {
-  color: rgba(255, 238, 248, 0.85);
+  color: rgba(255, 255, 255, 0.85);
   background: rgba(255, 255, 255, 0.06);
 }
 .perm-seg.is-active {
@@ -2208,7 +2208,7 @@ body {
 }
 .accordion-toggle:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 238, 248, 0.95);
+  color: rgba(255, 255, 255, 0.95);
 }
 .plugin-card--accordion.is-expanded .accordion-toggle {
   transform: rotate(180deg);
@@ -2581,11 +2581,11 @@ body {
 /* 删除档案按钮 */
 .save-btn--danger {
   color: var(--rb-danger);
-  border-color: rgba(255, 110, 150, 0.40);
+  border-color: color-mix(in srgb, var(--rb-danger) 40%, transparent);
 }
 .save-btn--danger:hover:not(:disabled) {
   color: var(--rb-danger-strong);
-  border-color: rgba(255, 110, 150, 0.70);
+  border-color: color-mix(in srgb, var(--rb-danger) 70%, transparent);
 }
 
 /* 自定义端点：与官方厂商卡片共用主表单，但明确标注高级与非官方边界。 */
@@ -2724,7 +2724,7 @@ body {
   margin: 11px 0;
   padding: 11px 12px;
   border-radius: 12px;
-  color: rgba(255, 237, 245, 0.92);
+  color: rgba(255, 255, 255, 0.92);
   background: rgba(245, 158, 11, 0.10);
   border: 1px solid rgba(251, 191, 36, 0.2);
   line-height: 1.65;
@@ -2844,7 +2844,7 @@ body {
 
 [data-ui-theme="pearl-white"] .custom-endpoint-controls {
   color: var(--rb-text-default);
-  background: linear-gradient(135deg, rgba(255, 240, 247, 0.8), rgba(255, 255, 255, 0.72));
+  background: linear-gradient(135deg, rgba(var(--rb-accent-rgb), 0.06), rgba(255, 255, 255, 0.72));
   border-color: var(--rb-pink-200);
 }
 
@@ -2955,7 +2955,7 @@ body {
 
 .token-range__btn:hover {
   background: rgba(var(--rb-accent-rgb), 0.12);
-  color: rgba(254, 247, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .token-range__btn.is-active {
@@ -3056,7 +3056,7 @@ body {
 .token-stat__value {
   font-size: 18px;
   font-weight: 700;
-  color: rgba(254, 247, 255, 0.92);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 /* 小节标题 */
@@ -3233,7 +3233,7 @@ body {
   border: 1px solid rgba(var(--rb-accent-rgb), 0.3);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   font-size: 12px;
-  color: rgba(254, 247, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
   line-height: 1.6;
   pointer-events: none;
   backdrop-filter: blur(8px);
@@ -3406,7 +3406,7 @@ body {
 .tts-engine__name {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(254, 247, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .tts-engine__tag {
@@ -3416,7 +3416,7 @@ body {
   padding: 1px 6px;
   border-radius: 12px;
   background: rgba(var(--rb-accent-rgb), 0.16);
-  color: rgba(254, 247, 255, 0.6);
+  color: rgba(255, 255, 255, 0.6);
   text-transform: uppercase;
 }
 
@@ -3449,7 +3449,7 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(254, 247, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 13px;
 }
 
@@ -3466,7 +3466,7 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(254, 247, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 13px;
   cursor: pointer;
   -webkit-appearance: none;
@@ -3492,7 +3492,7 @@ body {
 
 .tts-field select option {
   background: rgba(38, 28, 60, 0.98);
-  color: rgba(254, 247, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
   padding: 8px;
 }
 
@@ -3949,7 +3949,7 @@ body {
 .scheduler-tool-hint {
   padding: 10px 14px;
   border-radius: 12px;
-  color: rgba(255, 218, 238, 0.80);
+  color: rgba(255, 255, 255, 0.80);
   background: rgba(var(--rb-accent-rgb), 0.07);
   border: 1px solid rgba(var(--rb-accent-rgb), 0.16);
   font: var(--rb-text-small);
@@ -3978,7 +3978,7 @@ body {
 .scheduler-tool-hint {
   padding: 10px 12px;
   border-radius: 12px;
-  color: rgba(255, 218, 238, 0.82);
+  color: rgba(255, 255, 255, 0.82);
   background: rgba(var(--rb-accent-rgb), 0.08);
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   font-size: 13px;
@@ -4010,7 +4010,7 @@ body {
   box-shadow: 0 28px 60px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .sticker-add-modal__title {
-  color: rgba(254, 247, 255, 0.94);
+  color: rgba(255, 255, 255, 0.94);
   font-size: 14px;
   font-weight: 700;
   margin-bottom: 12px;
@@ -4018,7 +4018,7 @@ body {
 .sticker-field { margin-bottom: 10px; }
 .sticker-field label {
   display: block;
-  color: rgba(254, 247, 255, 0.58);
+  color: rgba(255, 255, 255, 0.58);
   font-size: 12px;
   margin-bottom: 4px;
 }
@@ -4030,7 +4030,7 @@ body {
   border-radius: 12px;
   background: rgba(15, 13, 28, 0.6);
   border: 1px solid rgba(var(--rb-accent-rgb), 0.16);
-  color: rgba(254, 247, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 13px;
   font-family: inherit;
   resize: vertical;
@@ -4044,7 +4044,7 @@ body {
 .sticker-file-btn {
   padding: 5px 12px;
   border-radius: 12px;
-  color: rgba(254, 247, 255, 0.88);
+  color: rgba(255, 255, 255, 0.88);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   font-size: 12px;
@@ -4053,7 +4053,7 @@ body {
 }
 .sticker-file-btn:hover { background: rgba(255, 255, 255, 0.14); }
 .sticker-file-name {
-  color: rgba(254, 247, 255, 0.46);
+  color: rgba(255, 255, 255, 0.46);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4090,12 +4090,12 @@ body {
 .channels-card__header h2 {
   margin: 0;
   font-size: 16px;
-  color: rgba(254, 247, 255, 0.92);
+  color: rgba(255, 255, 255, 0.92);
 }
 .channels-card__hint {
   margin: 6px 0 12px 0;
   font-size: 12px;
-  color: rgba(254, 247, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 .channels-card__actions {
   display: flex;
@@ -4107,13 +4107,13 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: rgba(254, 247, 255, 0.7);
+  color: rgba(255, 255, 255, 0.7);
 }
 .channels-status__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(254, 247, 255, 0.3);
+  background: rgba(255, 255, 255, 0.3);
 }
 .channels-status__dot--running { background: rgba(74, 222, 128, 0.9); }
 .channels-status__dot--starting { background: rgba(250, 204, 21, 0.9); }
@@ -4130,13 +4130,13 @@ body {
 }
 .channels-card__body .form-row__label {
   font-size: 13px;
-  color: rgba(254, 247, 255, 0.82);
+  color: rgba(255, 255, 255, 0.82);
   cursor: pointer;
 }
 .channels-card__body .form-label {
   display: block;
   font-size: 12px;
-  color: rgba(254, 247, 255, 0.7);
+  color: rgba(255, 255, 255, 0.7);
   margin-bottom: 4px;
 }
 .channels-card__body .form-input {
@@ -4145,13 +4145,13 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   background: rgba(255, 255, 255, 0.05);
-  color: rgba(254, 247, 255, 0.92);
+  color: rgba(255, 255, 255, 0.92);
   font-size: 13px;
 }
 .btn-secondary {
   padding: 5px 12px;
   border-radius: 12px;
-  color: rgba(254, 247, 255, 0.88);
+  color: rgba(255, 255, 255, 0.88);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   font-size: 12px;
@@ -4179,7 +4179,7 @@ body {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
-  color: rgba(254, 247, 255, 0.7);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 12px;
   cursor: pointer;
 }
@@ -4187,7 +4187,7 @@ body {
 .channels-card__body .form-hint {
   margin: 6px 0 0 0;
   font-size: 11px;
-  color: rgba(254, 247, 255, 0.45);
+  color: rgba(255, 255, 255, 0.45);
 }
 .channels-card__body .form-hint code {
   background: rgba(255, 255, 255, 0.06);
@@ -4199,7 +4199,7 @@ body {
   margin-top: 10px;
   font-size: 12px;
   min-height: 16px;
-  color: rgba(254, 247, 255, 0.6);
+  color: rgba(255, 255, 255, 0.6);
 }
 .channels-feedback--ok { color: rgba(74, 222, 128, 0.95); }
 .channels-feedback--err { color: rgba(248, 113, 113, 0.92); }
@@ -4218,7 +4218,7 @@ body {
   padding: 8px 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
-  color: rgba(254, 247, 255, 0.78);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 12px;
 }
 .channels-context-binding > span {
@@ -4293,7 +4293,7 @@ body {
 .channels-log > summary {
   cursor: pointer;
   font-size: 13px;
-  color: rgba(254, 247, 255, 0.85);
+  color: rgba(255, 255, 255, 0.85);
   user-select: none;
 }
 .channels-log__actions {
@@ -4317,12 +4317,12 @@ body {
 .channels-log__entry--incoming { border-left-color: rgba(74, 222, 128, 0.7); }
 .channels-log__entry--outgoing { border-left-color: rgba(var(--rb-accent-rgb), 0.9); }
 .channels-log__meta {
-  color: rgba(254, 247, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 10px;
   margin-bottom: 2px;
 }
 .channels-log__text {
-  color: rgba(254, 247, 255, 0.92);
+  color: rgba(255, 255, 255, 0.92);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -4388,7 +4388,7 @@ body {
 .music-status-dot.is-connected { background:rgba(74,222,128,0.95); box-shadow:0 0 8px rgba(74,222,128,0.65); }
 .music-diagnostics { margin-top:16px; color:var(--rb-text-muted); font-size:12px; }
 .music-diagnostics summary { cursor:pointer; }
-.music-qr { display:grid; grid-template-columns:220px 1fr; align-items:center; gap:20px; margin-top:14px; padding:16px; border:1px solid rgba(255,182,220,.14); border-radius: 12px; background:rgba(255,255,255,.04); }
+.music-qr { display:grid; grid-template-columns:220px 1fr; align-items:center; gap:20px; margin-top:14px; padding:16px; border:1px solid rgba(255,255,255,.14); border-radius: 12px; background:rgba(255,255,255,.04); }
 .music-qr__img { width:220px; height:220px; padding:8px; background:#fff; border-radius: 12px; }
 .music-qr p { color:var(--rb-text-muted); }
 .music-profile { background:transparent; border:0; padding:12px 0; }
@@ -4692,11 +4692,11 @@ body {
 .plugin-panel-card__header h2 {
   margin: 0;
   font-size: 16px;
-  color: rgba(254, 247, 255, 0.92);
+  color: rgba(255, 255, 255, 0.92);
 }
 .plugin-panel-card__version {
   font-size: 12px;
-  color: rgba(254, 247, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 .plugin-panel-card__frame {
   display: block;
