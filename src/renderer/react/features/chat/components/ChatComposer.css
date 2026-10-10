@@ -433,7 +433,7 @@
 }
 
 .cy-sticker-picker button:hover {
-  border-color: #a9aabc;
+  border-color: rgba(var(--cy-accent-rgb), 0.45);
   background: var(--cy-bg-hover);
 }
 

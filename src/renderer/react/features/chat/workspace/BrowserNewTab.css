@@ -28,7 +28,7 @@
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 .cy-browser-newtab__tile:hover { background: var(--cy-bg-workspace, var(--cy-surface)); border-color: var(--cy-border); }
-.cy-browser-newtab__tile:focus-visible { outline: 2px solid var(--cy-accent, #44464f); outline-offset: 2px; }
+.cy-browser-newtab__tile:focus-visible { outline: 2px solid var(--cy-accent); outline-offset: 2px; }
 .cy-browser-newtab__icon {
   display: grid;
   width: 40px;

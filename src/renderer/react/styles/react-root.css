@@ -277,7 +277,7 @@ html, body {
 
 /* 全局文字选中：用应用粉色强调色替代浏览器默认蓝 */
 ::selection {
-  background: rgba(68, 70, 79, 0.24);
+  background: rgba(var(--cy-accent-rgb), 0.24);
   color: inherit;
 }
 
@@ -322,7 +322,7 @@ html, body {
 
 .cy-dock-separator:hover::after,
 .cy-dock-separator:active::after {
-  background: var(--cy-accent, #44464f);
+  background: var(--cy-accent);
 }
 
 .cy-page-newtask {
@@ -728,3 +728,9 @@ html, body {
 .cy-rail-button:hover { background: var(--cy-bg-hover); }
 .cy-rail-button.is-active, .cy-page-rail .cy-side-action.is-active { background: var(--cy-bg-active); color: var(--cy-accent); }
 .cy-page button:focus-visible, .cy-page-more button:focus-visible { outline: 2px solid rgba(var(--cy-accent-rgb), 0.45); outline-offset: 1px; }
+
+/* The slate custom-endpoint icon turns Firefly green in the dark theme. */
+:root[data-ui-theme="firefly-dark"] img[src$="custom-endpoint.svg"] { filter: hue-rotate(-85deg) saturate(3) brightness(1.9); }
+/* MiniMax brand red-pink is neutral in light and Firefly green in dark. */
+img[src$="minimax.svg"] { filter: grayscale(1) contrast(1.1); }
+:root[data-ui-theme="firefly-dark"] img[src$="minimax.svg"] { filter: hue-rotate(165deg) saturate(1.1); }

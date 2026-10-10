@@ -239,7 +239,7 @@
   cursor: pointer;
 }
 .cy-interaction-panel__options button:hover,
-.cy-interaction-panel__options button.is-selected { border-color: #a9aabc; background: var(--cy-bg-hover); }
+.cy-interaction-panel__options button.is-selected { border-color: rgba(var(--cy-accent-rgb), 0.45); background: var(--cy-bg-hover); }
 .cy-interaction-panel__options button:disabled { cursor: wait; opacity: .58; }
 .cy-interaction-panel__option-index { color: var(--cy-text-muted, var(--cy-text-muted)); font: 500 13px/1.45 var(--rb-font-sans, sans-serif); }
 .cy-interaction-panel__options strong { display: inline; font: 500 13px/1.45 var(--rb-font-sans, sans-serif); }

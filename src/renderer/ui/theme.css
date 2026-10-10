@@ -1396,3 +1396,9 @@
   --rb-feedback-info: var(--rb-pink-500);
   --rb-feedback-motion: 180ms;
 }
+
+/* The slate custom-endpoint icon turns Firefly green in the dark theme. */
+[data-ui-theme="firefly-dark"] img[src$="custom-endpoint.svg"] { filter: hue-rotate(-85deg) saturate(3) brightness(1.9); }
+/* MiniMax brand red-pink is neutral in light and Firefly green in dark. */
+img[src$="minimax.svg"] { filter: grayscale(1) contrast(1.1); }
+[data-ui-theme="firefly-dark"] img[src$="minimax.svg"] { filter: hue-rotate(165deg) saturate(1.1); }
