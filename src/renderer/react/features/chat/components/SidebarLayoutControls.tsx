@@ -35,12 +35,15 @@ export function SidebarLayoutControls({ mode, snapshot, groups, projectIds, pend
         <SlidersHorizontal size={14} strokeWidth={1.8} aria-hidden="true" />
       </button>
     </div>
+    {mode !== "chat" && <div className="cy-sidebar-layout__views" role="radiogroup" aria-label={t("sidebar.viewMode")}>
+      {(["project", "merged"] as const).map(view => <button key={view} type="button" role="radio" aria-checked={state.viewMode === view}
+        className={state.viewMode === view ? "is-active" : ""} disabled={pending}
+        onClick={() => { if (state.viewMode !== view) void mutate({ mode, kind: "set-view", viewMode: view }); }}>
+        {t(view === "project" ? "sidebar.viewProjectsShort" : "sidebar.viewMergedShort")}
+      </button>)}
+    </div>}
     <div id={panelId} className="cy-sidebar-layout__panel" hidden={!open}>
     <div className="cy-sidebar-layout__selectors">
-      {mode !== "chat" && <select aria-label={t("sidebar.viewMode")} disabled={pending} value={state.viewMode}
-        onChange={event => void mutate({ mode, kind: "set-view", viewMode: event.target.value as "project" | "merged" })}>
-        <option value="project">{t("sidebar.projectView")}</option><option value="merged">{t("sidebar.mergedView")}</option>
-      </select>}
       <select data-sidebar-sort aria-label={t("sidebar.sortMode")} disabled={pending} value={state.sortMode}
         onChange={event => void mutate({ mode, kind: "set-sort", sortMode: event.target.value as "recent" | "manual" })}>
         <option value="recent">{t("sidebar.recentSort")}</option><option value="manual">{t("sidebar.manualSort")}</option>

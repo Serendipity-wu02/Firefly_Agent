@@ -61,7 +61,7 @@
   cursor: pointer;
 }
 .cy-sidebar-layout select:hover:not(:disabled) { background-color: var(--cy-bg-hover); }
-.cy-sidebar-layout button:not(.cy-sidebar-layout__toggle) {
+.cy-sidebar-layout button:not(.cy-sidebar-layout__toggle):not(.cy-sidebar-layout__views button) {
   height: 28px;
   padding: 0 8px;
   border: 0;
@@ -71,8 +71,25 @@
   font: 500 12px/1 var(--rb-font-sans, sans-serif);
   cursor: pointer;
 }
-.cy-sidebar-layout button:not(.cy-sidebar-layout__toggle):hover:enabled { background: var(--cy-bg-active); color: var(--cy-text); }
+.cy-sidebar-layout button:not(.cy-sidebar-layout__toggle):not(.cy-sidebar-layout__views button):hover:enabled { background: var(--cy-bg-active); color: var(--cy-text); }
 .cy-sidebar-layout button:disabled { opacity: 0.45; cursor: default; }
 .cy-sidebar-layout select:focus-visible,
 .cy-sidebar-layout input:focus-visible,
 .cy-sidebar-layout button:focus-visible { outline: 2px solid var(--cy-accent); outline-offset: 1px; }
+
+/* Project / merged view switch under the heading. */
+.cy-sidebar-layout__views { display: flex; gap: 2px; margin: 0 4px 6px; padding: 2px; border: 1px solid var(--cy-border); border-radius: 10px; background: var(--cy-bg-subtle); }
+.cy-sidebar-layout__views button {
+  flex: 1;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cy-text-muted);
+  cursor: pointer;
+  font: 500 12px/1 var(--rb-font-sans, sans-serif);
+}
+.cy-sidebar-layout__views button:hover:enabled { color: var(--cy-text); }
+.cy-sidebar-layout__views button.is-active { background: var(--cy-bg-active); color: var(--cy-text); }
+.cy-sidebar-layout__views button:disabled { opacity: 0.5; cursor: default; }

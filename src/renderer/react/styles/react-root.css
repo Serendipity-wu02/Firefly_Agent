@@ -112,7 +112,7 @@ html, body {
   width: 100vw;
   background: var(--cy-bg-page);
   box-sizing: border-box;
-  padding: var(--cy-app-titlebar-height) var(--cy-workspace-gutter) var(--cy-workspace-gutter) 48px;
+  padding: var(--cy-app-titlebar-height) var(--cy-workspace-gutter) var(--cy-workspace-gutter) var(--cy-workspace-gutter);
   position: relative;
   display: flex;
   gap: 0;
@@ -156,13 +156,25 @@ html, body {
 }
 
 .cy-page.is-collapsed {
-  padding-left: 48px;
+  padding-left: var(--cy-workspace-gutter);
 }
+
+.cy-page-titlebar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 50;
+  height: var(--cy-app-titlebar-height);
+  pointer-events: none;
+}
+.cy-page-titlebar > * { pointer-events: auto; }
 
 .cy-page-toggle {
   position: absolute;
-  top: 6px;
-  left: 56px;
+  top: 9px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .cy-page-top-center {
@@ -173,7 +185,6 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
-  transition: left 0.25s ease;
 }
 
 .cy-page-windows {
@@ -198,7 +209,7 @@ html, body {
   position: absolute;
   top: var(--cy-app-titlebar-height);
   bottom: 8px;
-  left: 56px;
+  left: 8px;
   z-index: 40;
   padding: 8px;
   box-sizing: border-box;
@@ -350,11 +361,6 @@ html, body {
   flex-shrink: 0;
 }
 
-/* 收起状态：组件向左移 */
-.cy-page.is-collapsed .cy-page-top-center {
-  left: calc(50% - 85px);
-}
-
 .cy-workspace {
   width: 100%;
   height: 100%;
@@ -484,53 +490,9 @@ html, body {
   50% { transform: translateY(-8px); }
 }
 
-/* Fixed application rail and collapsible conversation context. */
-.cy-page-rail {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 48px;
-  box-sizing: border-box;
-  padding: var(--cy-app-titlebar-height) 4px 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  border-right: 1px solid var(--cy-border);
-  background: var(--cy-bg-page);
-  app-region: no-drag;
-}
-.cy-rail-button,
-.cy-page-rail .cy-side-action,
-.cy-page-rail .cy-settings-btn {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--cy-text-muted);
-  cursor: pointer;
-}
-.cy-page-rail .cy-side-action-label { display: none; }
-.cy-rail-button:hover,
-.cy-rail-button.is-active,
-.cy-page-rail .cy-side-action.is-active { background: var(--cy-bg-active); color: var(--cy-accent); }
-.cy-page-rail-bottom { margin-top: auto; }
-.cy-page-role {
-  position: absolute;
-  top: 8px;
-  width: 32px;
-  height: 32px;
-}
-.cy-page-role-avatar {
-  display: block;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-}
+/* Portrait next to the sidebar toggle, with the model connection dot. */
+.cy-page-role { position: relative; width: 30px; height: 30px; }
+.cy-page-role-avatar { display: block; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
 .cy-model-connection {
   position: absolute;
   right: -6px;
@@ -563,58 +525,19 @@ html, body {
   clip-path: inset(50%);
   white-space: nowrap;
 }
-.cy-rail-user { position: relative; }
-.cy-rail-user__menu {
-  position: absolute;
-  bottom: 0;
-  left: 44px;
-  z-index: 60;
-  box-sizing: border-box;
-  width: 240px;
-  max-width: calc(100vw - 64px);
-  padding: 8px;
+/* Hover strip that unfolds the hidden sidebar. */
+.cy-page-edge { position: absolute; top: var(--cy-app-titlebar-height); bottom: 0; left: 0; z-index: 39; width: 10px; app-region: no-drag; }
+
+.cy-side-action--search kbd {
+  margin-left: auto;
+  padding: 1px 6px;
   border: 1px solid var(--cy-border);
-  border-radius: 12px;
-  background: var(--cy-bg-page);
-  box-shadow: var(--cy-shadow-control-hover);
+  border-radius: 6px;
+  color: var(--cy-text-muted);
+  font: 500 11px/1.4 var(--rb-font-sans, sans-serif);
 }
-.cy-rail-user__name {
-  padding: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-  color: var(--cy-text);
-}
-.cy-rail-user__menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--cy-text);
-  cursor: pointer;
-}
-.cy-rail-user__menu button:hover { background: var(--cy-bg-active); }
-.cy-page-context-header {
-  display: flex;
-  align-items: center;
-  flex: 0 0 var(--cy-workspace-header-height);
-  height: var(--cy-workspace-header-height);
-  box-sizing: border-box;
-  padding: 0 2px;
-  font: 650 16px/1.3 var(--rb-font-sans, sans-serif);
-  color: var(--cy-text);
-}
-.cy-page-sidebar .cy-mode-picker { flex: 1; min-width: 0; }
 .cy-page-more { display: grid; min-width: 168px; gap: 4px; }
-.cy-page-more .cy-side-action { width: 100%; }
-/* The popup belongs to the rail for focus/hover ownership, but uses full menu rows. */
-.cy-page-rail .cy-page-more .cy-side-action { display: flex; align-items: center; justify-content: flex-start; height: 38px; padding: 0 10px; gap: 12px; }
-.cy-page-rail .cy-page-more .cy-side-action-label { display: inline; }
+.cy-page-more .cy-side-action { display: flex; width: 100%; }
 .cy-page button:focus-visible,
 .cy-page-more button:focus-visible {
   outline: 2px solid var(--cy-accent);
@@ -634,7 +557,7 @@ html, body {
     position: absolute;
     top: var(--cy-app-titlebar-height);
     bottom: 8px;
-    left: 56px;
+    left: 8px;
     z-index: 40;
     box-sizing: border-box;
     padding: 8px;
@@ -678,27 +601,6 @@ html, body {
 
 /* ===== Popover and menu language (user menu, "more" menu, mode picker, dropdowns) =====
    One rounded, softly shadowed surface with quiet rows, shared by hand-built and antd menus. */
-.cy-rail-user__menu {
-  width: 248px;
-  padding: 6px;
-  border: 1px solid rgba(var(--cy-accent-rgb), 0.08);
-  border-radius: 16px;
-  background: var(--cy-popover, #f1f2f6);
-  box-shadow: 0 10px 34px rgba(61, 62, 85, 0.14), 0 1px 3px rgba(61, 62, 85, 0.06);
-}
-.cy-rail-user__name { padding: 8px 10px 10px; border-bottom: 1px solid var(--cy-border); margin-bottom: 4px; font: 600 13px/1.3 var(--rb-font-sans, sans-serif); }
-.cy-rail-user__menu button {
-  gap: 10px;
-  min-height: 34px;
-  padding: 0 10px;
-  border-radius: 10px;
-  color: var(--cy-text-secondary, var(--cy-text));
-  font: 500 13px/1 var(--rb-font-sans, sans-serif);
-  transition: background-color 110ms ease, color 110ms ease;
-}
-.cy-rail-user__menu button svg { color: var(--cy-text-muted); stroke-width: 1.7; }
-.cy-rail-user__menu button:hover { background: var(--cy-bg-hover); color: var(--cy-text); }
-
 .ant-popover .ant-popover-inner,
 .ant-dropdown .ant-dropdown-menu,
 .ant-select-dropdown {
@@ -719,14 +621,9 @@ html, body {
 .ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) { background: var(--cy-bg-hover); color: var(--cy-text); }
 .ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) { background: var(--cy-bg-active); color: var(--cy-text); font-weight: 600; }
 .cy-page-more { gap: 2px; }
-.cy-page-rail .cy-page-more .cy-side-action { height: 36px; border-radius: 10px; color: var(--cy-text-secondary, var(--cy-text)); font: 500 13px/1 var(--rb-font-sans, sans-serif); }
-.cy-page-rail .cy-page-more .cy-side-action:hover { background: var(--cy-bg-hover); color: var(--cy-text); }
+.cy-page-more .cy-side-action { height: 36px; border-radius: 10px; color: var(--cy-text-secondary, var(--cy-text)); font: 500 13px/1 var(--rb-font-sans, sans-serif); }
+.cy-page-more .cy-side-action:hover { background: var(--cy-bg-hover); color: var(--cy-text); }
 
-/* Rail: the active destination is a soft rounded square, as in the reference. */
-.cy-page-rail { border-right: 1px solid var(--cy-border); background: var(--cy-rail); }
-.cy-rail-button, .cy-page-rail .cy-side-action, .cy-page-rail .cy-settings-btn { border-radius: 10px; transition: background-color 110ms ease, color 110ms ease; }
-.cy-rail-button:hover { background: var(--cy-bg-hover); }
-.cy-rail-button.is-active, .cy-page-rail .cy-side-action.is-active { background: var(--cy-bg-active); color: var(--cy-accent); }
 .cy-page button:focus-visible, .cy-page-more button:focus-visible { outline: 2px solid rgba(var(--cy-accent-rgb), 0.45); outline-offset: 1px; }
 
 /* The slate custom-endpoint icon turns Firefly green in the dark theme. */

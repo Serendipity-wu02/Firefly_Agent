@@ -582,7 +582,8 @@
     "mascotAlt": "提醒",
     "currentTasks": "当前任务",
     "progress": "{{completed}}/{{total}} 已完成",
-    "empty": "暂无任务"
+    "empty": "暂无任务",
+    "modeCode": "代码"
   },
   "fileChange": {
     "panelAria": "文件变更",
@@ -760,7 +761,14 @@
     "unpin": "取消置顶",
     "pin": "置顶",
     "pinnedTitle": "置顶",
-    "recentTitle": "最近"
+    "recentTitle": "最近",
+    "searchAction": "搜索",
+    "searchSessions": "搜索任务、项目",
+    "searchResults": "搜索结果",
+    "recentSessions": "最近任务",
+    "noSearchResults": "没有匹配的任务",
+    "viewProjectsShort": "项目",
+    "viewMergedShort": "合并"
   },
   "workRead": {
     "complete": "完整读取已验证",

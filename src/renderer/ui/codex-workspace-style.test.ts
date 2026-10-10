@@ -35,13 +35,13 @@ describe("Codex-reference workbench presentation", () => {
   it("uses adjacent flat columns while retaining the 12px outer and content corners", () => {
     expect(value("root", ".cy-page", "gap")).toBe("0px");
     const padding = value("root", ".cy-page", "padding");
-    expect(padding).toBe("var(--cy-app-titlebar-height) var(--cy-workspace-gutter) var(--cy-workspace-gutter) 48px");
+    expect(padding).toBe("var(--cy-app-titlebar-height) var(--cy-workspace-gutter) var(--cy-workspace-gutter) var(--cy-workspace-gutter)");
     expect(value("root", ":root", "--cy-app-titlebar-height")).toBe("50px");
     expect(value("root", ":root", "--cy-workspace-gutter")).toBe("8px");
     // CSSOM does not resolve var() in JSDOM. Check the actual referenced token
     // values too, so the geometry contract cannot pass with incorrect defaults.
     expect(padding.replace(/var\((--[\w-]+)\)/g, (_, token: string) => value("root", ":root", token)))
-      .toBe("50px 8px 8px 48px");
+      .toBe("50px 8px 8px 8px");
     expect(value("root", ".cy-page", "border-radius")).toBe("12px");
     for (const [file, selector] of [["root", ".cy-workspace"], ["inspector", ".cy-right-inspector"]] as const) {
       expect(value(file, selector, "border")).toBe("0px");
@@ -49,21 +49,20 @@ describe("Codex-reference workbench presentation", () => {
       expect(value(file, selector, "border-radius")).toBe("12px");
     }
   });
-  it("aligns context, conversation and inspector headers on the shared 48px row", () => {
+  it("aligns conversation and inspector headers on the shared 48px row under the title bar", () => {
     expect(value("root", ":root", "--cy-workspace-header-height")).toBe("48px");
-    for (const selector of [".cy-page-context-header", ".cy-workspace-header"]) {
-      expect(value("root", selector, "height")).toBe("var(--cy-workspace-header-height)");
-    }
+    expect(value("root", ".cy-workspace-header", "height")).toBe("var(--cy-workspace-header-height)");
+    expect(value("root", ".cy-page-titlebar", "height")).toBe("var(--cy-app-titlebar-height)");
     expect(value("inspector", ".cy-right-inspector__tabs > .ant-tabs-nav", "height"))
       .toBe("var(--cy-workspace-header-height)");
   });
-  it("keeps the titlebar and rail clear when the narrow sidebar floats over the workspace", () => {
+  it("keeps the titlebar clear when the narrow sidebar floats over the workspace", () => {
     const media = "(max-width: 900px)";
-    expect(value("root", ".cy-page.is-collapsed", "padding-left")).toBe("48px");
+    expect(value("root", ".cy-page.is-collapsed", "padding-left")).toBe("var(--cy-workspace-gutter)");
     expect(value("root", ".cy-page-sidebar.is-floating", "top")).toBe("var(--cy-app-titlebar-height)");
     expect(value("root", ".cy-page-sidebar", "position", media)).toBe("absolute");
     expect(value("root", ".cy-page-sidebar", "top", media)).toBe("var(--cy-app-titlebar-height)");
-    expect(value("root", ".cy-page-sidebar", "left", media)).toBe("56px");
+    expect(value("root", ".cy-page-sidebar", "left", media)).toBe("8px");
     expect(value("root", ".cy-page-sidebar", "bottom", media)).toBe(value("root", ":root", "--cy-workspace-gutter"));
     expect(value("root", ".cy-page-sidebar", "border-radius", media)).toBe("12px");
     expect(value("root", ".cy-workspace-composer", "padding", media)).toBe("12px");

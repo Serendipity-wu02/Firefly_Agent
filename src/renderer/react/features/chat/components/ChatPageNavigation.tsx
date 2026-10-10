@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Popover } from "antd";
-import { Ellipsis, LayoutDashboard } from "lucide-react";
+import { Ellipsis, Search } from "lucide-react";
 import { useTranslation } from "../../../i18n";
 import type { ChatSessionMeta, ConversationMode } from "../../../../../shared/chat-types";
-import { ModeSwitch } from "../../../components/ui/ModeSwitch";
+import type { TodoState } from "../../../../../shared/todo-types";
+import { ModeTabs } from "../../../components/ui/ModeTabs";
 import { ModelModeButton } from "../../../components/ui/ModelModeButton";
 import { NewTaskButton } from "../../../components/ui/NewTaskButton";
 import { PluginModeButton } from "../../../components/ui/PluginModeButton";
@@ -14,7 +15,9 @@ import { ToolModeButton } from "../../../components/ui/ToolModeButton";
 import { WindowControls } from "../../../components/ui/WindowControls";
 import { AppUpdateEntry } from "./AppUpdateEntry";
 import { ConversationSidebar } from "./ConversationSidebar";
-import { RailUserMenu } from "./RailUserMenu";
+import { SidebarSearchDialog } from "./SidebarSearchDialog";
+import { SidebarTaskCard } from "./SidebarTaskCard";
+import { SidebarUserRow } from "./SidebarUserRow";
 import { ModelConnectionIndicator } from "./ModelConnectionIndicator";
 import { useSidebarWidth } from "../pages/useSidebarWidth";
 import { reportChatPerfRender } from "./chat-perf-probe";
@@ -29,6 +32,8 @@ export interface ChatPageNavigationProps {
   sessionListStatus: "loading" | "error" | "ready";
   activeSessionId?: string;
   activeModelProfileId?: string;
+  /** Todo list of the active task, shown in the card at the bottom of the sidebar (work and code only). */
+  todoState?: TodoState | null;
   onToggleCollapsed: () => void;
   onModeChange: (mode: string) => void;
   onNewTask: () => void;
@@ -56,6 +61,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   sessionListStatus,
   activeSessionId,
   activeModelProfileId,
+  todoState,
   onToggleCollapsed,
   onModeChange,
   onNewTask,
@@ -75,22 +81,21 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   // 性能探针：perf harness 注册后统计导航子树执行次数（阶段 1A 验收：流式期间应为 0）
   reportChatPerfRender("navigationRenders");
   const sidebar = useSidebarWidth(collapsed);
-  const hasOpenPanel = activePanel !== null;
   const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLButtonElement>(null);
-  const railRef = useRef<HTMLElement>(null);
+  // The thin strip along the left window edge is what brings the folded sidebar back on hover.
+  const edgeRef = useRef<HTMLElement>(null);
   const contextRef = useRef<HTMLElement>(null);
   const [peeking, setPeeking] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const pointerWithin = useRef(false);
-  // The pointer is on the "more" button: it owns the hover, so the conversation sidebar must not unfold over it.
-  const overMore = useRef(false);
   const keyboardInteraction = useRef(false);
   const owns = (target: EventTarget | null) => target instanceof Node &&
-    Boolean(railRef.current?.contains(target) || contextRef.current?.contains(target));
+    Boolean(edgeRef.current?.contains(target) || contextRef.current?.contains(target));
   const holdFocus = () => owns(document.activeElement) &&
-    (keyboardInteraction.current || Boolean(document.activeElement?.closest('[role="menu"], .cy-rail-user__menu, .ant-popover')));
-  const enter = () => { pointerWithin.current = true; if (collapsed && !overMore.current && !moreOpen) setPeeking(true); };
+    (keyboardInteraction.current || Boolean(document.activeElement?.closest('[role="menu"], .ant-popover')));
+  const enter = () => { pointerWithin.current = true; if (collapsed && !moreOpen) setPeeking(true); };
   const leave = (event: React.PointerEvent) => {
     if (owns(event.relatedTarget)) return;
     pointerWithin.current = false;
@@ -99,7 +104,7 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   useEffect(() => { setPeeking(false); }, [collapsed]);
   useEffect(() => {
     const focus = (event: FocusEvent) => {
-      if (collapsed && owns(event.target) && !overMore.current && !moreOpen) setPeeking(true);
+      if (collapsed && owns(event.target) && !moreOpen) setPeeking(true);
       else if (!pointerWithin.current && !moreOpen) setPeeking(false);
     };
     const pointerDown = () => { keyboardInteraction.current = false; };
@@ -112,6 +117,8 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
       keyboardInteraction.current = true;
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "s" && !event.repeat) {
         event.preventDefault(); onToggleCollapsed();
+      } else if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "k") {
+        event.preventDefault(); setSearchOpen(true);
       }
     };
     const blur = () => { pointerWithin.current = false; setPeeking(false); };
@@ -131,7 +138,6 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
   useEffect(() => {
     if (!sidebar.isResizing && !moreOpen && !pointerWithin.current && !holdFocus()) setPeeking(false);
   }, [moreOpen, sidebar.isResizing]);
-  useEffect(() => { if (moreOpen) setPeeking(false); }, [moreOpen]);
   const hidden = collapsed && !peeking && !sidebar.isResizing;
   const chooseMorePanel = (panel: ChatPagePanel) => {
     setMoreOpen(false);
@@ -153,55 +159,54 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
           sidebar.resizeBy(delta);
         }} />;
 
+  const morePanelActive = activePanel === "tool" || activePanel === "skill" || activePanel === "model";
   return (
     <>
-      <div className="cy-page-toggle">
-        <SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />
-      </div>
-      <div className="cy-page-windows">
-        <WindowControls onMinimize={onMinimize} onMaximize={onMaximize} onClose={onCloseWindow} />
-      </div>
-      <nav ref={railRef} onPointerEnter={enter} onPointerLeave={leave} className="cy-page-rail" aria-label={t("ui.navigation")}>
-        <div className="cy-page-role">
-          <img className="cy-page-role-avatar" src={resolveAsset("avatars/firefly-avatar.png")} alt="Firefly" draggable={false} />
-          <ModelConnectionIndicator activeProfileId={activeModelProfileId} onOpenSettings={onOpenApiSettings ?? onOpenSettings} />
+      <header className="cy-page-titlebar">
+        <div className="cy-page-toggle">
+          <SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />
+          <div className="cy-page-role">
+            <img className="cy-page-role-avatar" src={resolveAsset("avatars/firefly-avatar.png")} alt="Firefly" draggable={false} />
+            <ModelConnectionIndicator activeProfileId={activeModelProfileId} onOpenSettings={onOpenApiSettings ?? onOpenSettings} />
+          </div>
         </div>
-        <button type="button" className={`cy-rail-button ${!hasOpenPanel ? "is-active" : ""}`}
-          title={t("ui.workbench")} aria-label={t("ui.workbench")} aria-pressed={!hasOpenPanel}
-          onClick={() => {
-            if (activePanel) onTogglePanel(activePanel);
-            if (collapsed) onToggleCollapsed();
-          }}>
-          <LayoutDashboard size={20} aria-hidden="true" />
-        </button>
-        <PluginModeButton active={activePanel === "plugin"} onClick={() => onTogglePanel("plugin")} />
-        <Popover trigger={["hover", "click"]} mouseEnterDelay={0.08} mouseLeaveDelay={0.2} placement="rightTop" open={moreOpen} onOpenChange={setMoreOpen} getPopupContainer={() => railRef.current!}
-          content={(
-            <div className="cy-page-more" onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.stopPropagation(); setMoreOpen(false); moreRef.current?.focus();
-              }
-            }}>
-              <ToolModeButton active={activePanel === "tool"} onClick={() => chooseMorePanel("tool")} />
-              <SkillModeButton active={activePanel === "skill"} onClick={() => chooseMorePanel("skill")} />
-              <ModelModeButton active={activePanel === "model"} onClick={() => chooseMorePanel("model")} />
-            </div>
-          )}>
-          <button ref={moreRef} type="button" className={`cy-rail-button ${moreOpen ? "is-active" : ""}`}
-            onPointerEnter={() => { overMore.current = true; setPeeking(false); }} onPointerLeave={() => { overMore.current = false; }}
-            title={t("ui.more")} aria-label={t("ui.more")} aria-expanded={moreOpen}>
-            <Ellipsis size={20} aria-hidden="true" />
-          </button>
-        </Popover>
-        <div className="cy-page-rail-bottom"><RailUserMenu onOpenSettings={onOpenSettings} /></div>
-      </nav>
+        <div className="cy-page-top-center">
+          <ModeTabs value={mode} onChange={onModeChange} />
+        </div>
+        <div className="cy-page-windows">
+          <WindowControls onMinimize={onMinimize} onMaximize={onMaximize} onClose={onCloseWindow} />
+        </div>
+      </header>
+      {collapsed && <nav ref={edgeRef} onPointerEnter={enter} onPointerLeave={leave} className="cy-page-edge" aria-label={t("ui.navigation")} />}
       <aside ref={contextRef} onPointerEnter={enter} onPointerLeave={leave} id="firefly-context-sidebar" className={`cy-page-sidebar ${collapsed ? "is-floating" : ""} ${peeking ? "is-peeking" : ""}`} style={{ width: sidebar.width }} inert={hidden} aria-hidden={hidden} aria-label={t("ui.contextSidebar")}>
         {collapsed && <span className="cy-sidebar-hover-corridor" aria-hidden="true" />}
-        <div className="cy-page-context-header">
-          <ModeSwitch value={mode} onChange={onModeChange} />
-        </div>
         <div className="cy-page-newtask">
           <NewTaskButton label={mode === "chat" ? undefined : t("ui.newTaskButton")} onClick={onNewTask} />
+          <button type="button" className="cy-side-action cy-side-action--search" onClick={() => setSearchOpen(true)} aria-label={t("sidebar.searchAction")} aria-keyshortcuts="Control+K">
+            <span className="cy-side-action-icon"><Search size={16} strokeWidth={1.8} aria-hidden="true" /></span>
+            <span className="cy-side-action-label">{t("sidebar.searchAction")}</span>
+            <kbd>Ctrl K</kbd>
+          </button>
+          <PluginModeButton active={activePanel === "plugin"} onClick={() => onTogglePanel("plugin")} />
+          <Popover trigger={["hover", "click"]} mouseEnterDelay={0.08} mouseLeaveDelay={0.2} placement="rightTop" open={moreOpen} onOpenChange={setMoreOpen}
+            getPopupContainer={() => contextRef.current!}
+            content={(
+              <div className="cy-page-more" onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.stopPropagation(); setMoreOpen(false); moreRef.current?.focus();
+                }
+              }}>
+                <ToolModeButton active={activePanel === "tool"} onClick={() => chooseMorePanel("tool")} />
+                <SkillModeButton active={activePanel === "skill"} onClick={() => chooseMorePanel("skill")} />
+                <ModelModeButton active={activePanel === "model"} onClick={() => chooseMorePanel("model")} />
+              </div>
+            )}>
+            <button ref={moreRef} type="button" className={`cy-side-action ${moreOpen || morePanelActive ? "is-active" : ""}`}
+              title={t("ui.more")} aria-label={t("ui.more")} aria-expanded={moreOpen}>
+              <span className="cy-side-action-icon"><Ellipsis size={18} aria-hidden="true" /></span>
+              <span className="cy-side-action-label">{t("ui.more")}</span>
+            </button>
+          </Popover>
         </div>
         <div className="cy-page-conversations">
           <ConversationSidebar
@@ -217,11 +222,14 @@ export const ChatPageNavigation = React.memo(function ChatPageNavigation({
             onExport={onExportSession}
           />
         </div>
+        {(mode === "work" || mode === "code") && <SidebarTaskCard mode={mode} state={todoState ?? null} />}
         <AppUpdateEntry />
+        <SidebarUserRow onOpenSettings={onOpenSettings} />
         {sidebar.overlay && !hidden && resizeHandle}
       </aside>
       {!sidebar.overlay && resizeHandle}
-
+      <SidebarSearchDialog open={searchOpen} sessions={sessions} activeSessionId={activeSessionId}
+        onClose={() => setSearchOpen(false)} onSelect={onSelectSession} />
     </>
   );
 });

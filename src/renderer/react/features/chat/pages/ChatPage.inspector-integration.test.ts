@@ -164,9 +164,8 @@ it("keeps registration current across compact orientation changes and Work mode 
   await click(button("展开/收起右侧面板")); expect(panelWidth()).toBeGreaterThan(0);
   expect(inspector()).toBe(before);
   await click(inspector()!.querySelector<HTMLElement>(".cy-right-inspector__close")!);
-  await click(host.querySelector<HTMLElement>(".cy-mode-picker__trigger")!);
-  await click([...host.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(node => node.textContent?.includes("Work"))!);
-  expect(host.querySelector(".cy-mode-picker__trigger")?.textContent).toContain("Work");
+  await click([...host.querySelectorAll<HTMLElement>('.cy-mode-tabs [role="tab"]')].find(node => node.textContent?.includes("Work"))!);
+  expect(host.querySelector(".cy-mode-tabs__tab.is-active")?.textContent).toContain("Work");
   expect(inspector()?.hidden).toBe(false); expect(panelWidth()).toBeGreaterThan(0);
   expect(fetch).not.toHaveBeenCalled();
 });
@@ -207,7 +206,8 @@ it("mounts an initially hidden browser inspector collapsed and reveals the same 
   expect(hidden).not.toBeNull(); expect(hidden?.hidden).toBe(true); expect(panelWidth()).toBe(0);
   const address = hidden!.querySelector<HTMLInputElement>("input")!;
   expect(address.value).toBe(browserPage.url);
-  await click(button("工作台"));
+  // Toggling the open plugin entry again leaves the panel and returns to the workbench.
+  await click(button("插件"));
   expect(inspector()).toBe(hidden); expect(inspector()?.hidden).toBe(false); expect(panelWidth()).toBeGreaterThan(0);
   expect(inspector()?.querySelector("input")).toBe(address);
   expect(commands.some(command => command.kind === "close")).toBe(false);

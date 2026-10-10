@@ -116,6 +116,8 @@
   color: var(--cy-text-muted);
 }
 .cy-conversation-project span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cy-conversation-project__name { min-width: 0; flex: 1; }
+.cy-conversation-project .cy-conversation-project__count { flex: none; color: var(--cy-text-muted); font: 400 12px/1 var(--rb-font-sans, sans-serif); }
 
 .cy-session-label { display: flex; min-width: 0; align-items: center; gap: 6px; }
 .cy-session-label__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

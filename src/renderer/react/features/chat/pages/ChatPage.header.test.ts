@@ -97,8 +97,8 @@ it("uses a shared titlebar gutter and a solid workspace without an artwork overl
     expect(tokens.getPropertyValue("--cy-workspace-header-height").trim()).toBe("48px");
     const page = rules.find(rule => rule.selectorText === ".cy-page")!.style;
     expect(page.getPropertyValue("padding")).toContain("var(--cy-app-titlebar-height)");
-    const contextHeader = rules.find(rule => rule.selectorText === ".cy-page-context-header")!.style;
-    expect(contextHeader.getPropertyValue("height")).toBe("var(--cy-workspace-header-height)");
+    const titlebar = rules.find(rule => rule.selectorText === ".cy-page-titlebar")!.style;
+    expect(titlebar.getPropertyValue("height")).toBe("var(--cy-app-titlebar-height)");
     expect(rules.filter(rule => rule.selectorText?.includes(".cy-workspace::before"))).toHaveLength(0);
     expect(rules.filter(rule => rule.selectorText === ".cy-workspace").some(rule => rule.style.overflowY === "auto")).toBe(false);
   } finally { sheet.remove(); }

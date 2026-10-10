@@ -386,7 +386,8 @@ export const ConversationSidebar = memo(function ConversationSidebar({
                     >
                       <span className="cy-conversation-project">
                         <ProjectIcon mode={mode} />
-                        <span>{project.name}</span>
+                        <span className="cy-conversation-project__name">{project.name}</span>
+                        <span className="cy-conversation-project__count">{project.conversationCount}</span>
                       </span>
                     </Popover>
                   );

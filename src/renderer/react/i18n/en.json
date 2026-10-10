@@ -582,7 +582,8 @@
     "mascotAlt": "Reminder",
     "currentTasks": "Current tasks",
     "progress": "{{completed}}/{{total}} done",
-    "empty": "No tasks"
+    "empty": "No tasks",
+    "modeCode": "Code"
   },
   "fileChange": {
     "panelAria": "File changes",
@@ -760,7 +761,14 @@
     "unpin": "Unpin",
     "pin": "Pin",
     "pinnedTitle": "Pinned",
-    "recentTitle": "Recent"
+    "recentTitle": "Recent",
+    "searchAction": "Search",
+    "searchSessions": "Search tasks and projects",
+    "searchResults": "Results",
+    "recentSessions": "Recent tasks",
+    "noSearchResults": "No matching tasks",
+    "viewProjectsShort": "Projects",
+    "viewMergedShort": "Merged"
   },
   "workRead": {
     "complete": "Complete read verified",
@@ -828,7 +836,7 @@
     "newTabSites": "Popular sites",
     "newTabRecent": "Recently visited",
     "newTabLocalHint": "Type a local or private-network address such as localhost:5173 or 192.168.1.5:3000; it is confirmed separately before opening.",
-    "ready":"Enter a HTTPS page address to browse.",
+    "ready": "Enter a HTTPS page address to browse.",
     "sessionRequired": "Start or select a conversation to browse.",
     "title": "Browser",
     "open": "Open browser",

@@ -9,7 +9,6 @@ import { WorkspaceResultsIndex } from "../workspace/WorkspaceRunResults";
 import { useBrowserWorkspaceActivation } from "../workspace/useBrowserWorkspaceActivation";
 import { ChatComposer, parseComposerMessage } from "../components/ChatComposer";
 import { ComposerSlot } from "../components/ComposerSlot";
-import { TodoPanel } from "../components/TodoPanel";
 import { CodeGitPanel } from "../components/CodeGitPanel";
 import type { PlanReviewPhase } from "../components/PlanReviewPanel";
 import { ChatPageInspector, type ChatPageInspectorDiffTab } from "../components/ChatPageInspector";
@@ -91,7 +90,6 @@ import {
 import "../../../components/ui/SidebarToggle.css";
 import { InspectorToggle } from "../../../components/ui/InspectorToggle";
 import { OpenWorkspaceMenu } from "../components/OpenWorkspaceMenu";
-import "../../../components/ui/ModeSwitch.css";
 import "../../../components/ui/WindowControls.css";
 import "../../../components/ui/SettingsButton.css";
 import "../../../components/ui/UserAvatar.css";
@@ -1481,6 +1479,7 @@ export function ChatPage() {
         sessionListStatus={sessionListErrors[mode] ? "error" : sessionsByMode[mode] === undefined ? "loading" : "ready"}
         activeSessionId={activeSessionId}
         activeModelProfileId={selectedModelProfileId}
+        todoState={activeSessionId ? todoStateBySession[activeSessionId] : null}
         onToggleCollapsed={navToggleCollapsed}
         onModeChange={navModeChange}
         onNewTask={navNewTask}
@@ -1743,7 +1742,7 @@ export function ChatPage() {
                 pendingWorkspaceName={pendingWorkspaceByMode[mode]?.displayName}
                 onChooseWorkspace={mode !== "chat" ? () => void chooseWorkspace() : undefined}
                 taskPanel={<div className="cy-workspace-task-panel">{mode === "work"
-                  ? <TodoPanel state={activeSessionId ? todoStateBySession[activeSessionId] : null} />
+                  ? null
                   : mode === "code" && activeSessionId
                     ? <CodeGitPanel docked expanded sessionId={activeSessionId} projectName={workspaceNames.code}
                         todoState={todoStateBySession[activeSessionId] ?? null}

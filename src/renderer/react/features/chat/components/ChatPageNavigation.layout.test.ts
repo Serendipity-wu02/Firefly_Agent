@@ -41,7 +41,7 @@ function button(label: string) {
 describe("workspace navigation layout", () => {
   it("temporarily reveals hidden context on hover without pinning, and retracts when entering chat", () => {
     render({ collapsed: true });
-    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const rail = host.querySelector<HTMLElement>(".cy-page-edge")!;
     const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
     act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     expect(aside.hasAttribute("inert")).toBe(false);
@@ -55,44 +55,21 @@ describe("workspace navigation layout", () => {
     expect(aside.hasAttribute("inert")).toBe(true);
     expect(props.onToggleCollapsed).not.toHaveBeenCalled();
   });
-  it("lets the more button own the hover: the conversation sidebar never unfolds over it", () => {
+  it("keeps the unfolded sidebar in place while the more menu is open", () => {
     render({ collapsed: true });
-    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const edge = host.querySelector<HTMLElement>(".cy-page-edge")!;
     const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
-    const more = button(t("ui.more"));
-    const workbench = button(t("ui.workbench"));
-    const move = (from: HTMLElement, to: HTMLElement) => {
-      // A browser reports a move as pointerout on the old element followed by pointerover on the new one.
-      act(() => from.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: to })));
-      act(() => to.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: from })));
-    };
-    // Into the rail from outside, then straight onto the more button.
-    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: document.body })));
-    expect(aside.classList.contains("is-peeking")).toBe(true);
-    move(rail, more);
-    expect(aside.classList.contains("is-peeking")).toBe(false);
-    expect(aside.hasAttribute("inert")).toBe(true);
-    // Off the rail and back in over another button: the sidebar peeks as it always did.
-    move(more, workbench);
-    act(() => workbench.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
-    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: document.body })));
-    expect(aside.classList.contains("is-peeking")).toBe(true);
-  });
-
-  it("opens the more menu on click and keeps the sidebar folded while it is open", () => {
-    render({ collapsed: true });
-    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
-    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
-    act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: document.body })));
-    expect(aside.classList.contains("is-peeking")).toBe(true);
+    act(() => edge.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: document.body })));
     act(() => button(t("ui.more")).click());
     expect(document.querySelector(".cy-page-more")).toBeTruthy();
-    expect(aside.classList.contains("is-peeking")).toBe(false);
+    expect(aside.contains(document.querySelector(".cy-page-more"))).toBe(true);
+    act(() => aside.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(aside.classList.contains("is-peeking")).toBe(true);
   });
 
   it("keeps the floating sidebar open while crossing its owned hover corridor", () => {
     render({ collapsed: true });
-    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const rail = host.querySelector<HTMLElement>(".cy-page-edge")!;
     const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
     act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     const corridor = aside.querySelector<HTMLElement>(".cy-sidebar-hover-corridor");
@@ -110,7 +87,7 @@ describe("workspace navigation layout", () => {
   it("allows a narrow floating sidebar to resize without reserving a second chat column", () => {
     Object.defineProperty(window, "innerWidth", { value: 800, configurable: true });
     render({ collapsed: true });
-    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const rail = host.querySelector<HTMLElement>(".cy-page-edge")!;
     act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
     expect(handle.getAttribute("aria-valuenow")).toBe("240");
@@ -163,7 +140,7 @@ describe("workspace navigation layout", () => {
   });
   it("resizes a hover overlay without pinning it or hiding during the drag", () => {
     render({ collapsed: true });
-    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const rail = host.querySelector<HTMLElement>(".cy-page-edge")!;
     const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
     act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     const handle = host.querySelector<HTMLElement>('[role="separator"]');
@@ -179,12 +156,12 @@ describe("workspace navigation layout", () => {
     expect(aside.hasAttribute("inert")).toBe(true);
     expect(localStorage.getItem("firefly.chat.sidebar-width")).toBe("280");
   });
-  it("holds the floating context while its menu owns focus and releases after focus leaves", () => {
+  it("holds the floating context while a control inside owns keyboard focus and releases after focus leaves", () => {
     render({ collapsed: true });
-    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!;
+    const rail = host.querySelector<HTMLElement>(".cy-page-edge")!;
     const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
     act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
-    act(() => button(t("ui.userMenu")).click());
+    act(() => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true })); button(t("sidebar.searchAction")).focus(); });
     act(() => rail.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
     expect(aside.hasAttribute("inert")).toBe(false);
     const outside = document.createElement("button"); document.body.appendChild(outside);
@@ -194,7 +171,7 @@ describe("workspace navigation layout", () => {
   });
   it("retracts after a pointer-focused control, while keeping keyboard focus visible", () => {
     render({ collapsed: true });
-    const rail = host.querySelector<HTMLElement>(".cy-page-rail")!, aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    const rail = host.querySelector<HTMLElement>(".cy-page-edge")!, aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
     act(() => rail.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     const control = aside.querySelector<HTMLButtonElement>("button")!;
     act(() => { control.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })); control.focus(); });
@@ -212,7 +189,7 @@ describe("workspace navigation layout", () => {
     expect(event.defaultPrevented).toBe(true);
     expect(props.onToggleCollapsed).toHaveBeenCalledOnce();
     render();
-    act(() => host.querySelector(".cy-page-rail")!.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    act(() => host.querySelector(".cy-page-sidebar")!.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
     expect(host.querySelector(".cy-page-sidebar")?.hasAttribute("inert")).toBe(false);
   });
   it("clears pointer drag feedback on release without stealing keyboard focus", () => {
@@ -282,7 +259,7 @@ describe("workspace navigation layout", () => {
   });
   it("marks only the generated portrait as the white U placeholder", () => {
     render();
-    const avatar = host.querySelector(".cy-rail-user .cy-user-avatar-circle")!;
+    const avatar = host.querySelector(".cy-sidebar-user .cy-user-avatar-circle")!;
     expect(avatar.classList.contains("is-placeholder")).toBe(true);
     expect(avatar.textContent).toBe("U");
   });
@@ -292,44 +269,26 @@ describe("workspace navigation layout", () => {
       getProfile: async () => ({ nickname: "Synthetic nickname" }), onProfileChanged: () => () => {},
     } });
     await act(async () => render());
-    expect(host.querySelector(".cy-rail-user .is-placeholder")?.textContent).toBe("U");
+    expect(host.querySelector(".cy-sidebar-user .is-placeholder")?.textContent).toBe("U");
     expect(button(t("ui.userMenu")).title).toBe("Synthetic nickname");
   });
-  it("keeps rail settings reachable and mounted history inert while collapsed", () => {
+  it("keeps mounted history inert while collapsed and reaches settings once the sidebar unfolds", () => {
     render({ collapsed: true });
-    expect(host.querySelector(".cy-page-sidebar")?.hasAttribute("inert")).toBe(true);
+    const aside = host.querySelector<HTMLElement>(".cy-page-sidebar")!;
+    expect(aside.hasAttribute("inert")).toBe(true);
     expect(host.textContent).toContain("legacy-session-fixture");
-    expect(host.querySelector(".cy-page-rail")?.hasAttribute("inert")).toBe(false);
-    act(() => button(t("ui.userMenu")).click());
+    expect(host.querySelector(".cy-page-titlebar")?.hasAttribute("inert")).toBe(false);
+    expect(button(t("ui.toggleSidebar")).getAttribute("aria-expanded")).toBe("false");
+    act(() => host.querySelector(".cy-page-edge")!.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     act(() => button(t("ui.settings")).click());
     expect(props.onOpenSettings).toHaveBeenCalledOnce();
-    expect(button(t("ui.toggleSidebar")).getAttribute("aria-expanded")).toBe("false");
   });
   it("keeps the Firefly portrait visible outside the collapsed context", () => {
     render({ collapsed: true });
-    const portrait = host.querySelector<HTMLImageElement>(".cy-page-rail img.cy-page-role-avatar")!;
+    const portrait = host.querySelector<HTMLImageElement>(".cy-page-titlebar img.cy-page-role-avatar")!;
     expect(portrait).toBeTruthy();
     expect(portrait.src).toMatch(/\/avatars\/firefly-avatar\.png$/);
     expect(host.querySelector(".cy-page-sidebar")?.contains(portrait)).toBe(false);
-  });
-  it("closes the local user menu on Escape and restores focus", () => {
-    render();
-    const trigger = button(t("ui.userMenu"));
-    act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
-    const settings = button(t("ui.settings"));
-    expect(document.activeElement).toBe(settings);
-    act(() => settings.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
-    expect(document.activeElement).toBe(trigger);
-  });
-  it("dismisses the user menu when focus leaves without trapping Tab", () => {
-    render();
-    const trigger = button(t("ui.userMenu"));
-    act(() => trigger.click());
-    const outside = button(t("ui.workbench"));
-    act(() => outside.focus());
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
-    expect(document.activeElement).toBe(outside);
   });
   it("refreshes the local portrait and nickname through the existing profile events", async () => {
     let changedAvatar: (() => void) | undefined;
@@ -348,41 +307,75 @@ describe("workspace navigation layout", () => {
     expect(trigger.querySelector(".is-placeholder")).toBeNull();
     avatar = "data:image/png;base64,fixture-two";
     await act(async () => { changedAvatar!(); changedProfile!({ nickname: "Updated local nickname" }); });
-    act(() => trigger.click());
-    expect(document.querySelector(".cy-rail-user__name")?.textContent).toBe("Updated local nickname");
+    expect(document.querySelector(".cy-sidebar-user__name")?.textContent).toBe("Updated local nickname");
     expect(trigger.querySelector("img")?.getAttribute("src")).toBe("data:image/png;base64,fixture-two");
     act(() => root.unmount());
     expect(changedAvatar).toBeUndefined();
     expect(changedProfile).toBeUndefined();
   });
-  it.each(["Tab", "Shift+Tab"])("dismisses the local menu on %s without cancelling native traversal", key => {
-    render();
-    const trigger = button(t("ui.userMenu"));
-    act(() => trigger.click());
-    const event = new KeyboardEvent("keydown", { key: "Tab", shiftKey: key === "Shift+Tab", bubbles: true, cancelable: true });
-    act(() => button(t("ui.settings")).dispatchEvent(event));
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
-    expect(event.defaultPrevented).toBe(false);
-  });
-  it("returns to the workbench and expands context from an open panel", () => {
-    render({ collapsed: true, activePanel: "plugin" });
-    act(() => button(t("ui.workbench")).click());
-    expect(props.onTogglePanel).toHaveBeenCalledWith("plugin");
-    expect(props.onToggleCollapsed).toHaveBeenCalledOnce();
-  });
-  it("keeps the current mode dropdown in context while plugins are open", () => {
+  it("keeps the mode tabs in the title bar while plugins are open", () => {
     render({ activePanel: "plugin" });
-    const modeButton = host.querySelector<HTMLButtonElement>(".cy-mode-picker__trigger")!;
-    expect(modeButton.textContent).toContain("Chat");
-    expect(modeButton.getAttribute("aria-haspopup")).toBe("menu");
-    expect(host.querySelector(".cy-page-sidebar")?.contains(modeButton)).toBe(true);
-    act(() => modeButton.click());
-    const codeChoice = [...host.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
-      .find(node => node.querySelector(".cy-mode-picker__label")?.textContent === "Code")!;
-    act(() => codeChoice.click());
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('.cy-page-titlebar [role="tab"]')];
+    expect(tabs.map(tab => tab.textContent)).toEqual(["Work", "Chat", "Code"]);
+    expect(tabs.map(tab => tab.getAttribute("aria-selected"))).toEqual(["false", "true", "false"]);
+    expect(host.querySelector(".cy-page-sidebar")?.querySelector('[role="tablist"]')).toBeNull();
+    act(() => tabs[2].click());
     expect(props.onModeChange).toHaveBeenCalledExactlyOnceWith("code");
     expect(props.onTogglePanel).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(modeButton);
+  });
+  it("moves between the mode tabs with the arrow keys", () => {
+    render();
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    act(() => { tabs[1].focus(); tabs[1].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true })); });
+    expect(props.onModeChange).toHaveBeenLastCalledWith("code");
+    expect(document.activeElement).toBe(tabs[2]);
+    act(() => tabs[2].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true })));
+    expect(props.onModeChange).toHaveBeenLastCalledWith("work");
+  });
+  it("opens the session switcher from the search row and selects by keyboard", async () => {
+    const sessions = [
+      { id: "a", title: "Alpha task", mode: "work", updatedAt: 3, workspaceDisplayName: "ProjectOne" },
+      { id: "b", title: "Beta task", mode: "work", updatedAt: 2, workspaceDisplayName: "ProjectTwo" },
+    ] as ChatPageNavigationProps["sessions"];
+    render({ sessions });
+    act(() => button(t("sidebar.searchAction")).click());
+    await act(async () => {});
+    const input = document.querySelector<HTMLInputElement>(".cy-sidebar-search input")!;
+    expect(input).toBeTruthy();
+    expect([...document.querySelectorAll(".cy-sidebar-search__title")].map(node => node.textContent)).toEqual(["Alpha task", "Beta task"]);
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => { setValue.call(input, "projecttwo"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect([...document.querySelectorAll(".cy-sidebar-search__title")].map(node => node.textContent)).toEqual(["Beta task"]);
+    act(() => { document.querySelector(".cy-sidebar-search")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
+    expect(props.onSelectSession).toHaveBeenCalledExactlyOnceWith("b");
+  });
+  it("opens the session switcher with Ctrl+K", async () => {
+    render();
+    const event = new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true });
+    act(() => window.dispatchEvent(event));
+    await act(async () => {});
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.querySelector(".cy-sidebar-search")).toBeTruthy();
+  });
+  it("shows the task card only for work and code and reflects the todo progress", () => {
+    const todoState = { updatedAt: 1, todos: [
+      { id: "1", content: "Read", status: "completed" }, { id: "2", content: "Write", status: "in_progress" },
+    ] } as ChatPageNavigationProps["todoState"];
+    render({ mode: "chat", todoState });
+    expect(host.querySelector(".cy-task-card")).toBeNull();
+    render({ mode: "work", todoState });
+    expect(host.querySelector(".cy-task-card")).toBeTruthy();
+    expect(host.querySelector(".cy-task-card__sub")?.textContent).toBe(t("todo.progress", { completed: 1, total: 2 }));
+    expect(host.querySelector('.cy-task-card [role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("50");
+    render({ mode: "code", todoState: null });
+    expect(host.querySelector(".cy-task-card__badge")?.textContent).toBe(t("todo.modeCode"));
+  });
+  it("toggles the plugin panel from its entry in the sidebar", () => {
+    render({ activePanel: "plugin" });
+    const plugin = button(t("ui.plugins"));
+    expect(plugin.getAttribute("aria-pressed")).toBe("true");
+    act(() => plugin.click());
+    expect(props.onTogglePanel).toHaveBeenCalledExactlyOnceWith("plugin");
   });
   it("opens tools through More and returns keyboard focus on Escape", async () => {
     render();
@@ -436,7 +429,7 @@ it("ends an in-flight resize on explicit collapse and ignores its remaining poin
   expect(localStorage.getItem("firefly.chat.sidebar-width")).toBe("280");
 });
 
-it("more menu retains visible text and row layout inside its rail popup container", async () => {
+it("more menu retains visible text and row layout inside its sidebar popup container", async () => {
   const style = document.createElement("style");
   style.textContent = fs.readFileSync("src/renderer/react/styles/react-root.css", "utf8"); document.head.append(style);
   try {

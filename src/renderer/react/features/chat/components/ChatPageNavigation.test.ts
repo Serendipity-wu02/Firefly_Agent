@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../../../components/ui/SidebarToggle", () => ({
   SidebarToggle: ({ collapsed }: { collapsed: boolean }) => createElement("span", null, `sidebar-toggle:${collapsed}`),
 }));
-vi.mock("../../../components/ui/ModeSwitch", () => ({
-  ModeSwitch: () => createElement("span", null, "mode-switch"),
+vi.mock("../../../components/ui/ModeTabs", () => ({
+  ModeTabs: () => createElement("span", null, "mode-tabs"),
 }));
 vi.mock("../../../components/ui/ToolModeButton", () => ({
   ToolModeButton: ({ active }: { active: boolean }) => createElement("span", null, `tool-button:${active}`),
@@ -24,10 +24,6 @@ vi.mock("../../../components/ui/PluginModeButton", () => ({
 vi.mock("../../../components/ui/WindowControls", () => ({
   WindowControls: () => createElement("span", null, "window-controls"),
 }));
-vi.mock("../../../components/ui/SettingsButton", () => ({
-  SettingsButton: () => createElement("span", null, "settings-button"),
-}));
-vi.mock("../../../components/ui/UserAvatar", () => ({ UserAvatar: () => createElement("span", null, "user-avatar") }));
 vi.mock("../../../components/ui/NewTaskButton", () => ({
   NewTaskButton: () => createElement("span", null, "new-task-button"),
 }));
@@ -62,12 +58,12 @@ describe("ChatPageNavigation", () => {
       onOpenSettings: () => undefined,
     }));
 
-    expect(html).toContain("mode-switch");
+    expect(html).toContain("mode-tabs");
     expect(html).toContain("更多");
     expect(html).toContain("conversation-sidebar:loading");
   });
 
-  it("places the plugin entry in the rail and marks it active", () => {
+  it("places the plugin entry in the sidebar and marks it active", () => {
     const html = renderToStaticMarkup(createElement(ChatPageNavigation, {
       collapsed: false,
       activePanel: "plugin",
@@ -91,8 +87,8 @@ describe("ChatPageNavigation", () => {
     }));
 
     expect(html).toContain("plugin-button:true");
-    expect(html).toContain("cy-page-rail");
-    expect(html).toContain("mode-switch");
+    expect(html).toContain("cy-page-titlebar");
+    expect(html).toContain("mode-tabs");
     expect(html).toContain("conversation-sidebar:error");
   });
 });

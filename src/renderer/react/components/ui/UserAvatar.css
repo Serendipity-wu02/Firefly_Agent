@@ -44,6 +44,3 @@
   transition: color 0.15s;
 }
 
-/* Generated local portrait only; uploaded photos retain their existing styling. */
-.cy-rail-user .cy-user-avatar-circle.is-placeholder { background: var(--cy-surface); filter: none; border: 1px solid var(--cy-border); }
-.cy-rail-user .cy-user-avatar-circle.is-placeholder span { color: var(--cy-text-secondary); }

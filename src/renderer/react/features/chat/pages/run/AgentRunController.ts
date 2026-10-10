@@ -1078,7 +1078,7 @@ export class AgentRunController {
         });
       }
     } else if (event.type === "CUSTOM" && event.name === "firefly.todo") {
-      // Harness 的 Todo 复用右侧现有 TodoPanel，不再复制成消息内 TaskPlanCard。
+      // Harness 的 Todo 显示在侧栏底部的任务卡里，不再复制成消息内 TaskPlanCard。
       const items = (event.value as { items?: Array<{ id: string; content: string; status: string }> } | null | undefined)?.items;
       if (Array.isArray(items)) {
         const ownerRunId = event.runId ?? this.deps.registries.activeRuns.current[this.input.sessionId]?.runId;
