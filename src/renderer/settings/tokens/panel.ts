@@ -122,12 +122,12 @@ function showTokenTooltip(e: MouseEvent, d: TokenDayData): void {
   if (!tip) return;
   tip.innerHTML = `
     <div class="token-tooltip__date">${d.date} ${d.weekday}</div>
-    <div class="token-tooltip__row"><span>📥 输入</span><span>${d.input.toLocaleString()}</span></div>
-    <div class="token-tooltip__row"><span>📤 输出</span><span>${d.output.toLocaleString()}</span></div>
-    <div class="token-tooltip__row"><span>🎯 缓存命中</span><span>${formatCacheMetric(d.hit, d)}</span></div>
-    <div class="token-tooltip__row"><span>❌ 缓存未命中</span><span>${formatCacheMetric(d.miss, d)}</span></div>
-    <div class="token-tooltip__row"><span>📝 缓存创建</span><span>${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}</span></div>
-    <div class="token-tooltip__row"><span>🔢 请求</span><span>${d.requests.toLocaleString()} / ${d.attemptedRequests.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>输入</span><span>${d.input.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>输出</span><span>${d.output.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>缓存命中</span><span>${formatCacheMetric(d.hit, d)}</span></div>
+    <div class="token-tooltip__row"><span>缓存未命中</span><span>${formatCacheMetric(d.miss, d)}</span></div>
+    <div class="token-tooltip__row"><span>缓存创建</span><span>${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}</span></div>
+    <div class="token-tooltip__row"><span>请求</span><span>${d.requests.toLocaleString()} / ${d.attemptedRequests.toLocaleString()}</span></div>
   `;
   tip.hidden = false;
   moveTokenTooltip(e);
@@ -171,7 +171,7 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
       labels,
       datasets: [
         {
-          label: "📥 输入",
+          label: "输入",
           data: inputData,
           borderColor: ink.input,
           backgroundColor: ink.inputFill,
@@ -183,7 +183,7 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
           pointHoverBackgroundColor: ink.input,
         },
         {
-          label: "📤 输出",
+          label: "输出",
           data: outputData,
           borderColor: ink.output,
           backgroundColor: ink.outputFill,
@@ -227,16 +227,16 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
               const d = data[idx];
               const which = item.datasetIndex === 0 ? "input" : "output";
               const val = which === "input" ? d.input : d.output;
-              return `${which === "input" ? "📥 输入" : "📤 输出"}: ${val.toLocaleString()}`;
+              return `${which === "input" ? "输入" : "输出"}: ${val.toLocaleString()}`;
             },
             afterBody: (items) => {
               const idx = items[0].dataIndex;
               const d = data[idx];
               return [
-                `🎯 缓存命中: ${formatCacheMetric(d.hit, d)}`,
-                `❌ 缓存未命中: ${formatCacheMetric(d.miss, d)}`,
-                `📝 缓存创建: ${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}`,
-                `🔢 请求: ${d.requests} / ${d.attemptedRequests}`,
+                `缓存命中: ${formatCacheMetric(d.hit, d)}`,
+                `缓存未命中: ${formatCacheMetric(d.miss, d)}`,
+                `缓存创建: ${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}`,
+                `请求: ${d.requests} / ${d.attemptedRequests}`,
               ];
             },
           },

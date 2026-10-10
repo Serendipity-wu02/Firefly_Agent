@@ -4822,3 +4822,31 @@ button:disabled, .save-btn:disabled, .ghost-btn:disabled { cursor: not-allowed; 
 .appearance-theme-swatch--dark i:nth-child(1) { background: #21302a; }
 .appearance-theme-swatch--dark i:nth-child(2) { background: #19231f; }
 .appearance-theme-swatch--dark i:nth-child(3) { background: #7bd8ae; }
+
+/* ===== Layout and consistency pass (loaded last) =====
+   One reading column, one card surface, one heading style; no emoji, glow or lift on the page itself. */
+.settings-content { padding: 24px 32px 32px; }
+.settings-panel { max-width: 820px; margin-inline: auto; }
+
+/* The tool page heading follows the other pages: title, description, one compact add button. */
+.plugin-panel-heading { align-items: flex-start; margin-bottom: 18px; }
+.plugin-panel-heading__icon { display: none; }
+.plugin-panel-heading h1,
+.plugin-panel-heading__title { margin: 0; color: var(--rb-text-strong); font: var(--rb-text-title); }
+.plugin-add-btn { width: 32px; height: 32px; flex: 0 0 auto; border-radius: 8px; border: 1px solid var(--rb-border-strong); background: var(--rb-card-bg); color: var(--rb-text-strong); font-size: 20px; box-shadow: none; }
+.plugin-add-btn:hover:not(:disabled) { transform: none; box-shadow: none; background: var(--rb-hover-light); border-color: var(--rb-border-strong); }
+.plugin-add-btn:active:not(:disabled) { background: var(--rb-active-light); }
+
+/* Cards: flat surface, hairline border, no shadow. */
+.plugin-card, .agent-setting-card, .memory-card, .scheduler-card, .channels-card, .profile-card, .rag-model-card,
+.token-hero, .token-stat, .token-cache-summary { background: var(--rb-card-bg); border: 1px solid var(--rb-border-soft); border-radius: 12px; box-shadow: none; }
+
+/* Token usage: quiet range tabs, plain numbers, line icons. */
+.token-range__btn { border-color: var(--rb-border-soft); background: var(--rb-card-bg); color: var(--rb-text-muted); transition: background 120ms ease, color 120ms ease; }
+.token-range__btn:hover { background: var(--rb-hover-light); color: var(--rb-text-strong); }
+.token-range__btn.is-active,
+[data-ui-theme="pearl-white"] .token-range__btn.is-active { background: var(--rb-pink-500); color: var(--rb-text-on-pink); border-color: var(--rb-pink-500); box-shadow: none; }
+.token-hero__value { color: var(--rb-text-strong); text-shadow: none; }
+.token-stat__value { color: var(--rb-text-strong); }
+.token-stat__icon, .token-hero__label svg, .token-empty__icon, .memory-list__empty > span { display: inline-flex; color: var(--rb-text-muted); }
+.token-empty__icon, .memory-list__empty > span { color: var(--rb-text-faint); opacity: 1; }
