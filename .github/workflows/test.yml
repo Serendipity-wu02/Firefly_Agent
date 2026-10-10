@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, firefly-mini-v1.1.x]
   pull_request:
-    branches: [main]
+    branches: [main, chore/project-structure-finalize, firefly-mini-v1.1.x]
 
 permissions:
   contents: read
@@ -29,7 +29,6 @@ jobs:
         run: npx electron --version
 
       # 生产依赖审计保留原有非阻断策略；调整门禁需单独确认。
-      # 当前依赖与本地审计证据见 docs/refactor/2026-09-26-documentation-dependency-closeout.md。
       - name: Audit production dependencies
         run: npm audit --omit=dev --json > npm-audit-prod.json
         continue-on-error: true
@@ -44,6 +43,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build and select native history helpers
+        shell: pwsh
+        run: |
+          npm run build:history-helpers
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $helper = (Resolve-Path -LiteralPath 'native/target/release/firefly-history-presence.exe').Path
+          "FIREFLY_HISTORY_PRESENCE_TEST_HELPER=$helper" >> $env:GITHUB_ENV
+
       # 插件清单契约检查：源码类型与 manifest.schema.json 保持一致
       - name: Check plugin schema contract
         run: npm run check:plugin-schema
@@ -56,7 +63,21 @@ jobs:
           printf 'FIREFLY_TEST_BASH=%s\n' "$bash_path" >> "$GITHUB_ENV"
           printf 'Bash integration executable: %s\n' "$bash_path"
 
+      # 只读诊断：测量运行器上的磁盘 fsync、重命名、SQLite 提交速度（TEMP 与 RUNNER_TEMP/工作区各一份），
+      # 用来判断集成测试在 CI 上变慢是否来自磁盘；不改变任何测试结果，失败也不阻断。
+      - name: Probe runner disk and SQLite speed
+        shell: pwsh
+        continue-on-error: true
+        env:
+          FIREFLY_VITEST_DIAGNOSTICS: ${{ runner.temp }}/firefly-vitest-diagnostics
+        run: node scripts/ci/probe-runner-io.mjs
+
+      # 测试的临时目录放到 RUNNER_TEMP（D 盘）：探测显示运行器默认 TEMP（C 盘）的 fsync/SQLite 提交慢约 9 倍，
+      # 真实 SQLite 集成测试因此反复超时。这只改变临时文件所在磁盘，不放宽任何断言或门禁。
       - name: Run full test suite
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: ./scripts/ci/run-vitest.ps1
 
       - name: Upload Vitest worker evidence

@@ -9,12 +9,12 @@
  * - 暴露 initWindowI18n / useTranslation / t / setLocale / subscribeLocaleChanged
  *   供窗口代码使用。
  */
-import i18next, { type i18n as I18nInstance } from "i18next";
+import i18next, { type i18n as I18nInstance, type Resource } from "i18next";
 import { useCallback, useSyncExternalStore } from "react";
 
 export interface WindowI18nOptions {
   /** 该窗口的翻译资源，如 { en: { translation: {...} }, "zh-CN": { translation: {...} } } */
-  resources: Record<string, Record<string, unknown>>;
+  resources: Resource;
   /** 主语言 fallback（默认 zh-CN） */
   fallbackLng?: string;
   /** 初始语言；不传则用 fallbackLng */
@@ -109,7 +109,7 @@ export function applyTranslations(rootEl: ParentNode = document): () => void {
  */
 export function useTranslation() {
   const locale = useSyncExternalStore(
-    (onChange) => i18next.on("languageChanged", () => onChange()),
+    subscribeLocaleChanged,
     () => i18next.language,
     () => i18next.language,
   );

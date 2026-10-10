@@ -31,7 +31,7 @@ export interface ChannelCapability {
   text: boolean;
   /** 图片消息 */
   image: boolean;
-  /** TTS 音频消息 */
+  /** 音频文件消息 */
   audio: boolean;
   /** 文件附件 */
   file: boolean;

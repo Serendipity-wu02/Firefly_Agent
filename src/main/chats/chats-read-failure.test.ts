@@ -55,7 +55,8 @@ it("preserves the index and corrupt session instead of normalizing from missing 
   vi.resetModules();
   const reloaded = await import("./chats-store");
   reloaded.initialize();
-  expect(() => reloaded.listSessions()).toThrow("CHAT_HISTORY_READ_FAILED");
+  expect(reloaded.listSessions()).toHaveLength(1);
+  expect(() => reloaded.getSession(session.id)).toThrow("CHAT_SESSION_READ_FAILED");
   expect(fs.readFileSync(index(), "utf8")).toBe(contents);
   expect(fs.readFileSync(file, "utf8")).toBe("{broken");
 });

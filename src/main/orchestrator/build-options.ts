@@ -21,7 +21,11 @@
 //
 // 这些全部塞到 BuildOptionsDeps 里。dispatcher / agent-runtime 通过
 // buildBuildOptionsDeps()（agent-runtime.ts）注入同一份 deps，保证口径一致。
+import {prepareMainAttachmentProjection,reprepareMainAttachmentProjection,readMainAttachmentGrant,type MainAttachmentGrant,type MainAttachmentSource} from "../memory-context/main-attachment-projection";
+import type {PendingChatAttachment} from "../../shared/chat-types";
 import { existsSync } from "fs";
+import { loadPromptFile } from "../prompts/prompt-loader";
+import { openKnowledgeWorkspace, canUpdateLearningProgress } from "../knowledge/knowledge-workspace";
 import { basename } from "path";
 import {
   resolveExecutionMode,
@@ -61,7 +65,7 @@ import { filterToolsBySearchBackend, type SearchBackend } from "./search-backend
 import type { RunCapabilities } from "./run-capabilities";
 import { buildStickerEmbeddingQuery } from "../sticker-query";
 import { isPlanReadOnly, getPlanState } from "./plan-mode";
-import { policyFor, type ToolRiskLevel } from "../permission-policy";
+import { policyFor } from "../permission-policy";
 import { resolveTranscriptRetainTokens, type MaterializedTranscript } from "./conversation-transcript-context";
 import type { UncertainEffect } from "./harness/types";
 
@@ -69,6 +73,11 @@ import type { UncertainEffect } from "./harness/types";
  *  类型故意用宽签名（unknown / 任意 shape）—— 因为 build-options 是纯消费者，
  *  实际调用时由 index.ts 注入真实的强类型函数。这避免循环类型依赖。 */
 export interface BuildOptionsDeps {
+  /** Main-only binding issued before media reads; no run DTO can create one. */
+  attachmentGrant?: MainAttachmentGrant;
+  requireAttachmentGrant?: boolean;
+  /** Existing Main document pipeline, invoked only for an authorized non-Work document. */
+  materializeAttachmentDocument?: (attachment: PendingChatAttachment, userText: string) => Promise<string>;
   loadModelSettings: (modelProfileId?: string) => ModelSettingsLite;
   loadGeneralSettings: () => StyleSettingsLite;
   loadUserProfile: () => UserProfileLite;
@@ -82,7 +91,6 @@ export interface BuildOptionsDeps {
     getEnabled(): ReadonlyArray<unknown>;
     /** 按会话模式 + 用户覆盖层过滤的启用 skill 列表（三模适配层入口）。 */
     getEnabledForMode(mode: import("../skills/types").SkillMode, overrides?: SkillModeOverrides): ReadonlyArray<unknown>;
-    /** 懒加载某 skill 的 SKILL.md 正文（去 frontmatter）。用于 plan mode 条件注入 firefly-plan-mode body。 */
     getBody(id: string): string | null;
   };
   resolveSlashActivation: (
@@ -150,8 +158,6 @@ export interface BuildOptionsDeps {
     contextBlock: string;
     retrievedAtoms: SocialAtom[];
   }>;
-  /** 构建朋友圈 Chat 背景块（只读本地 moments 数据，同步）；返回空串表示无内容。 */
-  buildMomentsContext?: (query: string) => string;
   /**
    * 获取对话的工作区绑定（来自 Conversation Workspace Binding）。
    * 返回 undefined 表示当前对话未绑定工作区。
@@ -169,6 +175,8 @@ export interface BuildOptionsDeps {
 
 /** onRunFinished 副作用所需的 deps（与 BuildOptionsDeps 部分重叠） */
 export interface OnRunFinishedDeps {
+  /** Main 装配的个人记忆运行模式；省略时保留旧诊断/调用方行为。 */
+  personalMemoryMode?: "legacy" | "smh";
   loadModelSettings: () => ModelSettingsLite;
   scheduleMemoryWrite: (userText: string, reply: string, conversationId?: string) => void;
   scheduleSocialAtomExtraction?: (input: SocialExtractionInput) => void;
@@ -199,8 +207,6 @@ export interface OnRunFinishedDeps {
     reply: string,
   ) => Promise<void>;
   recordRelationshipTurn: (input: RelationshipTurnInput) => Promise<unknown> | unknown;
-  /** run 成功收尾时调度流萤朋友圈主动发帖评估（缺省不启用）。 */
-  scheduleMomentsTurn?: (input: import("../moments/moments-service").MomentsTurnInput) => void;
 }
 
 export interface ModelSettingsLite {
@@ -208,7 +214,7 @@ export interface ModelSettingsLite {
   baseUrl: string;
   model: string;
   apiKey: string;
-  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+  explicitTransport?: "openai" | "anthropic" | "responses";
   /** 顶层 reasoning 镜像（来自 perProvider[currentProvider].reasoning）。adapter 直接读。 */
   reasoning?: import("../../shared/reasoning").ReasoningPreference;
   runtimeSync?: string;
@@ -228,9 +234,6 @@ export interface StyleSettingsLite {
   currentStyleId?: unknown;
   customStyle?: unknown;
   chatSocialContextEnabled?: unknown;
-  /** 朋友圈总开关与 Chat 背景注入开关（moments-awareness 门控用）。 */
-  momentsEnabled?: unknown;
-  chatMomentsContextEnabled?: unknown;
   /** 工具-模式覆盖层（三模适配层）。未提供时按 modes 字段或全可见过滤。 */
   toolModeOverrides?: ToolModeOverrides;
   /** Chat 模式工具增强总开关。未提供时视为关闭（chat 无工具，现状行为）。 */
@@ -432,22 +435,8 @@ function isStyleId(value: unknown): value is StyleId {
   return typeof value === "string" && (STYLE_IDS as readonly string[]).includes(value);
 }
 
-function styleIdFromLegacyFile(value: unknown): StyleId | undefined {
-  if (typeof value !== "string") return undefined;
-  const legacy: Record<string, StyleId> = {
-    "01_default.md": "default",
-    "02_lively.md": "lively",
-    "03_healing.md": "healing",
-    "04_focused.md": "focused",
-    "05_sweet.md": "sweet",
-  };
-  return legacy[value];
-}
-
 function resolveRunStyleId(input: AguiRunInput, saved: StyleSettingsLite): StyleId {
   if (isStyleId(input.styleId)) return input.styleId;
-  const legacyStyleId = styleIdFromLegacyFile(input.style);
-  if (legacyStyleId) return legacyStyleId;
   if (isStyleId(saved.currentStyleId)) return saved.currentStyleId;
   return normalizeStyleId(undefined);
 }
@@ -509,6 +498,16 @@ export async function buildAgentRunOptions(
   input: AguiRunInput,
   deps: BuildOptionsDeps,
 ): Promise<{ options: FireflyRunOptions; latestUserText: string }> {
+  const attachmentGrant = deps.attachmentGrant;
+  const attachmentSource = attachmentGrant ? readMainAttachmentGrant(attachmentGrant) : undefined;
+  if (deps.requireAttachmentGrant && !attachmentGrant && (input.attachments?.length || input.imageAttachments?.length || input.workDocuments?.length)) throw Error("MEMORY_ATTACHMENT_DENIED");
+  if (attachmentSource) {
+    if (input.sessionId !== attachmentSource.sessionId || input.userTurnId !== attachmentSource.userTurnId) throw Error("MEMORY_ATTACHMENT_DENIED");
+    input = { ...input, attachments: undefined,
+      imageAttachments: attachmentSource.attachments.filter(a => a.kind === "image").map(a => ({ name: a.name, filePath: a.filePath, mime: a.mime })),
+      workDocuments: input.mode === "work" ? attachmentSource.attachments.filter(a => a.kind === "document").map(a => ({ name: a.name, path: a.readScope?.path ?? a.filePath, ...(a.readScope ? { requiredEndLine: a.readScope.endLine, totalLines: a.readScope.totalLines, partialAccepted: a.readScope.partialAccepted } : {}) })) : undefined,
+    };
+  }
   const settings = deps.loadModelSettings(input.modelProfileId);
   const styleSettings = deps.loadGeneralSettings();
   if (!settings.baseUrl) {
@@ -520,16 +519,19 @@ export async function buildAgentRunOptions(
   const transcriptContext = input.useTranscriptContext && input.sessionId
     ? await requireBuildModelContext(deps)(input.sessionId, retainTokens)
     : undefined;
-  const messages = transcriptContext?.messages ?? deps.normalizeChatMessages(input.messages);
+  let messages = transcriptContext?.messages ?? deps.normalizeChatMessages(input.messages);
+  if (attachmentSource) {
+    const index = messages.map(message => message.role).lastIndexOf("user");
+    if (index < 0) throw Error("MEMORY_ATTACHMENT_DENIED");
+    messages = messages.map((message, i) => i === index ? { role: "user", content: attachmentSource.userText } : message);
+  }
   if (messages.length === 0) {
     throw new Error("没有可发送的聊天内容。");
   }
   // slim view for downstream helpers that only need { role, content }
   const slimMessages = messages as unknown as Array<{ role: string; content?: string }>;
   const latestUserText = contentToText(messages.filter((m) => m.role === "user").at(-1)?.content) ?? "";
-  const executionMode = resolveExecutionMode(
-    input.executionMode ?? ((input.style || "").startsWith("talk") ? "chat" : "work"),
-  );
+  const executionMode = resolveExecutionMode(input.executionMode);
   const isChatMode = executionMode === "chat";
   const conversationId = input.sessionId || "default";
 
@@ -554,11 +556,6 @@ export async function buildAgentRunOptions(
   const socialContextEnabled = isChatMode
     && styleSettings.chatSocialContextEnabled === true
     && Boolean(deps.buildChatSocialContext);
-  // 朋友圈 Chat 背景：总开关与子开关都开启才注入（momentsEnabled && chatMomentsContextEnabled）
-  const momentsContextEnabled = isChatMode
-    && styleSettings.chatMomentsContextEnabled === true
-    && styleSettings.momentsEnabled === true
-    && Boolean(deps.buildMomentsContext);
   const profile = deps.loadUserProfile();
   const { cleanMessages: cleanLlm, timestampedMessages: llmMessages, timeContext: conversationTimeContext } = buildConversationTimeContext(
     messages as unknown as ChatContextMessage[],
@@ -600,15 +597,6 @@ export async function buildAgentRunOptions(
   envTimer.end();
 
   const channelSystem = buildChannelSystem(input.channel);
-
-  let momentsContextBlock = "";
-  if (momentsContextEnabled) {
-    try {
-      momentsContextBlock = deps.buildMomentsContext!(latestUserText);
-    } catch (err) {
-      console.warn("[Firefly] moments context build failed:", err);
-    }
-  }
 
   let chatSocialContextBlock = "";
   let retrievedSocialAtoms: SocialAtom[] = [];
@@ -690,6 +678,7 @@ export async function buildAgentRunOptions(
 
   // 优先使用 AguiBridge 注入的真实会话模式，fallback 到执行模式（兼容旧调用方）。
   const resolvedMode: ConversationMode = input.mode ?? (isChatMode ? "chat" : "work");
+  if (resolvedMode !== "chat" && resolvedMode !== "work" && resolvedMode !== "code") throw new Error("INVALID_CONVERSATION_MODE");
   const basePromptMode = resolvedMode;
 
   let pluginPromptContext = "";
@@ -727,10 +716,13 @@ export async function buildAgentRunOptions(
   const conversationIdForPlan = conversationId;
   const planReadOnly = (resolvedMode === "code" || resolvedMode === "chat")
     && isPlanReadOnly(conversationIdForPlan);
+  // 任意 Shell 字符串不能由提示型 effect 分类器证明只读；计划阶段保留专用读取工具。
+  const allowedDuringPlan = (tool: ToolDefinition): boolean => {
+    const risk = tool.risk ?? "safe";
+    return risk !== "shell" && policyFor("read-only", risk) === "allow";
+  };
   const enabledTools = planReadOnly
-    ? (modeEnabledTools as readonly ToolDefinition[]).filter(
-      (t) => policyFor("read-only", (t as ToolDefinition & { risk?: ToolRiskLevel }).risk ?? "safe") === "allow",
-    )
+    ? (modeEnabledTools as readonly ToolDefinition[]).filter(allowedDuringPlan)
     : modeEnabledTools;
 
   // 三模适配层：skill 按 resolvedMode 过滤，chat 模式不暴露 skill。
@@ -746,18 +738,19 @@ export async function buildAgentRunOptions(
   let autoInjectedSkillContext = deps.buildAutoInjectedSkillContext(enabledSkills);
   let autoInjectedSoulContext = deps.buildAutoInjectedSoulContext?.(enabledSkills) ?? "";
 
-  // Plan Mode 条件注入：firefly-plan-mode skill 的 SKILL.md 正文只在
-  // PLAN_DISCUSSING / PLAN_REVIEW 时注入。不拼进 stablePrefix（autoInjectedSkillContext
-  // 会进 toolSystemContent → stablePrefix，进/出 plan mode 会打断缓存），改为单独字段
-  // planSkillContext 传给 harness，在 runtimeParts（可变部分）拼，保证缓存前缀稳定。
   const planStateForInject = resolvedMode === "code" || resolvedMode === "chat"
     ? getPlanState(conversationIdForPlan)
     : "NORMAL";
   let planSkillContext: string | undefined;
   if (planStateForInject === "PLAN_DISCUSSING" || planStateForInject === "PLAN_REVIEW") {
-    const planSkillBody = deps.skillRegistry.getBody("firefly-plan-mode");
+    const planSkillBody = loadPromptFile("workflow-support/plan-mode.md");
     if (planSkillBody) {
-      planSkillContext = `## Plan Mode 指令（自动激活，无需 invoke_skill）\n\n${planSkillBody}`;
+      const references = ["coverage-check.md", "plan-templates.md", "execution-handoff.md"]
+        .map(file => {
+          const body = loadPromptFile(`workflow-support/references/${file}`);
+          return body ? `### 已附参考：references/${file}\n\n${body}` : "";
+        }).filter(Boolean);
+      planSkillContext = ["## Plan Mode 指令（自动激活，无需 invoke_skill）", planSkillBody, ...references].join("\n\n");
     }
   }
 
@@ -786,7 +779,7 @@ export async function buildAgentRunOptions(
   // 严格 opt-in——不走"未声明 modes 即全可见"的默认规则，防止 fs/git 等
   // 未声明 modes 的工具意外漏进闲聊会话。
   const chatOptInTools = (isChatMode && styleSettings.chatToolsEnabled === true)
-    ? (modeEnabledTools as readonly ToolDefinition[]).filter(
+    ? (enabledTools as readonly ToolDefinition[]).filter(
       (t) => styleSettings.toolModeOverrides?.[t.id]?.chat === true,
     )
     : [];
@@ -823,13 +816,22 @@ export async function buildAgentRunOptions(
       ? { defaultExecutionMode: (s.manifest as Record<string, unknown>).defaultExecutionMode as "direct" | "plan" }
       : {}),
   })).filter((s) => s.id);
-  const runTools = capabilities.tools;
+  const knowledgeWorkspace = openKnowledgeWorkspace(resolvedMode, resolvedWorkspaceRoot);
+  const knowledgeToolIds = new Set(["obsidian_list_files", "obsidian_search", "obsidian_read_file", "obsidian_read_section", "obsidian_edit", "obsidian_open_note"]);
+  // 权威 capabilities 与兼容入口均需经过最终计划约束，resolver 不得重新引入写入能力。
+  const runTools = capabilities.tools.filter((tool) =>
+    (!planReadOnly || allowedDuringPlan(tool))
+    && (!knowledgeToolIds.has(tool.id) || knowledgeWorkspace !== undefined),
+  );
   const searchToolIds = filteredBySearch
     .filter((t) => t.id === "web_search" || t.id.startsWith("minimax-web-search-"))
     .map((t) => t.id);
   console.log(`[Firefly] 搜索后端=${activeSearchBackend} 暴露搜索工具=[${searchToolIds.join(", ") || "无"}]`);
-  const baseSoulSystemPrompt = deps.buildModePrompt?.(resolvedMode)
+  const modePrompt = deps.buildModePrompt?.(resolvedMode)
     ?? deps.buildSoulSystemBasePrompt(basePromptMode);
+  const baseSoulSystemPrompt = knowledgeWorkspace && await canUpdateLearningProgress(knowledgeWorkspace)
+    ? [modePrompt, loadPromptFile("knowledge_workflow.md")].filter(Boolean).join("\n\n")
+    : modePrompt;
   // Chat 工具增强开启且有勾选工具时，chat 也注入工具目录 prompt
   //（buildToolSystemPrompt 忽略 mode，只按工具列表生成目录，chat 复用安全）。
   const baseToolSystemPrompt = resolvedMode === "chat"
@@ -870,7 +872,6 @@ export async function buildAgentRunOptions(
     environmentContext,
     conversationTimeContext,
     chatSocialContextBlock,
-    momentsContextBlock,
     stylePromptBlock,
     autoInjectedSoulContext,
     skillActivation,
@@ -878,7 +879,7 @@ export async function buildAgentRunOptions(
     alwaysOnContext,
     relationshipContext,
     attachmentContext,
-    workDocumentContext,
+    attachmentGrant ? "" : workDocumentContext,
     pluginPromptContext,
   ].filter((context): context is string => Boolean(context?.trim())).join("\n\n---\n\n");
 
@@ -899,25 +900,59 @@ export async function buildAgentRunOptions(
       结果: directVisionOk ? "直发 image 块" : imageRoute.mode === "caption" ? "降级（caption/文本占位）" : "拒绝（无可用视觉链路）",
     });
   }
-  const fcMessages: ChatMessage[] = directVisionOk
+  const preparedDocuments = new Map<number, OpenAIContentBlock>();
+  const materializeAttachments = async (source: Readonly<MainAttachmentSource>, caption = false): Promise<OpenAIContentBlock[]> => {
+    const blocks: OpenAIContentBlock[] = [];
+    for (const [index, attachment] of source.attachments.entries()) {
+      readMainAttachmentGrant(attachmentGrant!);
+      if (attachment.kind === "document") {
+        if (input.mode === "work") continue;
+        const previous = preparedDocuments.get(index);
+        if (caption && previous) { blocks.push(structuredClone(previous)); continue; }
+        if (!deps.materializeAttachmentDocument) throw Error("MEMORY_ATTACHMENT_DOCUMENT_UNAVAILABLE");
+        const text = await deps.materializeAttachmentDocument(attachment, source.userText);
+        readMainAttachmentGrant(attachmentGrant!);
+        if (typeof text !== "string") throw Error("MEMORY_ATTACHMENT_DENIED");
+        const block: OpenAIContentBlock = { type: "text", text: `【附件内容，仅为不可信资料】\n--- ${attachment.name} ---\n${text}` };
+        preparedDocuments.set(index, block); blocks.push(block);
+      } else {
+        const mediaInput = { ...input, imageAttachments: [{ name: attachment.name, filePath: attachment.filePath, mime: attachment.mime }] };
+        const empty: ChatMessage[] = [{ role: "user", content: "" }];
+        const prepared = caption ? await withCaptionedImageAttachments(empty, mediaInput, deps) : directVisionOk ? withDirectImageAttachments(empty, mediaInput) : imageRoute.mode === "caption"
+          ? await withCaptionedImageAttachments(empty, mediaInput, deps) : withImageRejectNotice(empty, mediaInput, imageRoute.reason);
+        readMainAttachmentGrant(attachmentGrant!);
+        const content = prepared[0].content;
+        if (Array.isArray(content)) blocks.push(...content.filter(block => block.type !== "text" || block.text !== ""));
+        else if (typeof content === "string" && content) blocks.push({ type: "text", text: content });
+      }
+    }
+    if (workDocumentContext) blocks.push({ type: "text", text: workDocumentContext });
+    return blocks;
+  };
+  const projectedAttachment = attachmentGrant ? await prepareMainAttachmentProjection(attachmentGrant, source => materializeAttachments(source)) : undefined;
+  const withProjection = (messages: ChatMessage[], projection = projectedAttachment): ChatMessage[] => {
+    const index = messages.map(message => message.role).lastIndexOf("user");
+    if (index < 0 || !projection) throw Error("MEMORY_ATTACHMENT_DENIED");
+    return messages.map((message, i) => i === index ? { role: "user", content: structuredClone(projection.content) } : message);
+  };
+  const fcMessages: ChatMessage[] = projectedAttachment ? withProjection(llmMessages as unknown as ChatMessage[]) : directVisionOk
     ? withDirectImageAttachments(llmMessages as unknown as ChatMessage[], input)
     : imageRoute.mode === "caption"
       ? await withCaptionedImageAttachments(llmMessages as unknown as ChatMessage[], input, deps)
       : withImageRejectNotice(llmMessages as unknown as ChatMessage[], input, imageRoute.reason);
-  const cleanFcMessages: ChatMessage[] = directVisionOk
+  const cleanFcMessages: ChatMessage[] = projectedAttachment ? withProjection(cleanLlm as unknown as ChatMessage[]) : directVisionOk
     ? withDirectImageAttachments(cleanLlm as unknown as ChatMessage[], input)
     : imageRoute.mode === "caption"
       ? await withCaptionedImageAttachments(cleanLlm as unknown as ChatMessage[], input, deps)
       : withImageRejectNotice(cleanLlm as unknown as ChatMessage[], input, imageRoute.reason);
-  const imageCaptionFallback = directVisionOk
-    ? buildImageCaptionFallbackMessages(
-    isChatMode
-      ? [soulSystemWithoutCita, soulRuntimeContext].filter(Boolean).join("\n\n---\n\n")
-      : [toolSystemContent, soulSystemWithoutCita, soulRuntimeContext].filter(Boolean).join("\n\n---\n\n"),
-    llmMessages as unknown as ChatMessage[],
-    input,
-    deps,
-    )
+  const fallbackSystem = isChatMode
+    ? [soulSystemWithoutCita, soulRuntimeContext].filter(Boolean).join("\n\n---\n\n")
+    : [toolSystemContent, soulSystemWithoutCita, soulRuntimeContext].filter(Boolean).join("\n\n---\n\n");
+  const imageCaptionFallback = directVisionOk && input.imageAttachments?.length && deps.captionImageForFallback
+    ? attachmentGrant ? async (): Promise<ChatMessage[]> => {
+      const caption = await reprepareMainAttachmentProjection(attachmentGrant, source => materializeAttachments(source, true));
+      return [{ role: "system", content: fallbackSystem }, ...withProjection(llmMessages as unknown as ChatMessage[], caption)];
+    } : buildImageCaptionFallbackMessages(fallbackSystem, llmMessages as unknown as ChatMessage[], input, deps)
     : undefined;
 
   // 轨迹侧崩溃孤儿：并入 recoveryContext，与派发侧（渠道恢复上下文）在 bridge 合并
@@ -970,7 +1005,7 @@ export async function buildAgentRunOptions(
       ...(transcriptRecoveryContext ? { recoveryContext: transcriptRecoveryContext } : {}),
       ...(imageCaptionFallback ? { imageCaptionFallback } : {}),
       tools: [...runTools],
-      capabilities,
+      capabilities: { ...capabilities, tools: runTools, toolIds: new Set(runTools.map((tool) => tool.id)) },
       ...(availableSkills.length > 0 ? { availableSkills } : {}),
       resolvedWorkspaceRoot,
     },
@@ -994,11 +1029,11 @@ export async function onAgentRunFinished(
   deps: OnRunFinishedDeps,
   channel?: ChannelId,
   conversationId?: string,
-  finishedContext?: { runId?: string; source?: "desktop" | "channel"; mode?: string },
 ): Promise<{ sticker: string | null }> {
   const chatContent = result.reply;
   const sideEffectUserText = stripTurnModelContextForSideEffects(latestUserText);
-  const socialContext = result.executionMode === "chat" && result.socialContext?.enabled === true
+  const legacyPersonalMemoryEnabled = deps.personalMemoryMode !== "smh";
+  const socialContext = legacyPersonalMemoryEnabled && result.executionMode === "chat" && result.socialContext?.enabled === true
     ? result.socialContext
     : undefined;
   const usesSocialExtractor = Boolean(socialContext);
@@ -1018,21 +1053,9 @@ export async function onAgentRunFinished(
       retrievedAtoms: socialContext.retrievedAtoms,
       now: socialContext.now,
     });
-  } else {
+  } else if (legacyPersonalMemoryEnabled) {
     deps.scheduleMemoryWrite(sideEffectUserText, chatContent, conversationId);
   }
-
-  // 朋友圈主动发帖评估：输入是事件产生时冻结的快照（runId/source/mode 由 agent-runtime 透传）
-  deps.scheduleMomentsTurn?.({
-    conversationId: conversationId ?? "default",
-    runId: finishedContext?.runId,
-    source: finishedContext?.source ?? "desktop",
-    mode: finishedContext?.mode ?? "chat",
-    channel,
-    userText: sideEffectUserText,
-    assistantReply: chatContent,
-    finishedAt: Date.now(),
-  });
 
   const settings = deps.loadModelSettings();
   const inferredStatus = deps.inferRuntimeState(sideEffectUserText, chatContent, false);
@@ -1042,14 +1065,16 @@ export async function onAgentRunFinished(
     updatedAt: Date.now(),
   });
 
-  await perf.track("record_relationship_turn", async () => {
-    await deps.recordRelationshipTurn({
-      userText: sideEffectUserText,
-      assistantText: chatContent,
-      fireflyFeeling: deps.runtimeState.feeling ?? "平静",
-      channel: channel ?? "desktop",
+  if (legacyPersonalMemoryEnabled) {
+    await perf.track("record_relationship_turn", async () => {
+      await deps.recordRelationshipTurn({
+        userText: sideEffectUserText,
+        assistantText: chatContent,
+        fireflyFeeling: deps.runtimeState.feeling ?? "平静",
+        channel: channel ?? "desktop",
+      });
     });
-  });
+  }
 
   const stickerIndex = deps.getStickerEmbeddingIndex?.() ?? deps.stickerEmbeddingIndex;
   const stickerQuery = buildStickerEmbeddingQuery(chatContent, sideEffectUserText);

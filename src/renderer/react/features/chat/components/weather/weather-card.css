@@ -1,12 +1,12 @@
 .weather-card {
-  --radius-lg: 28px;
-  --radius-md: 18px;
+  --radius-lg: 12px;
+  --radius-md: 12px;
   --font-main: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, -apple-system, sans-serif;
 
   position: relative;
   flex: 0 1 440px;
   width: 100%;
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   font-family: var(--font-main);
   background: var(--card-bg);
   border: 1px solid var(--card-border);
@@ -22,29 +22,29 @@
 .weather-card[data-theme="light"] {
   --card-bg: rgba(255, 255, 255, 0.62);
   --card-border: rgba(255, 255, 255, 0.85);
-  --card-shadow: 0 24px 60px -16px rgba(45, 122, 95, 0.24), 0 8px 28px rgba(35, 101, 78, 0.12);
+  --card-shadow: 0 24px 60px -16px rgba(var(--cy-accent-rgb), 0.24), 0 8px 28px rgba(35, 101, 78, 0.12);
   --card-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 
-  --text-primary: #183628;
-  --text-secondary: #456858;
+  --text-primary: #4c4f69;
+  --text-secondary: #6c6f85;
   --text-muted: #557160;
 
-  --accent: #2d7a5f;
-  --accent-2: #48bb78;
-  --accent-soft: rgba(45, 122, 95, 0.14);
-  --divider: rgba(45, 122, 95, 0.16);
+  --accent: #4d4e69;
+  --accent-2: #a9aabc;
+  --accent-soft: rgba(var(--cy-accent-rgb), 0.14);
+  --divider: rgba(var(--cy-accent-rgb), 0.16);
 
   --detail-bg: rgba(255, 255, 255, 0.55);
   --detail-border: rgba(255, 255, 255, 0.9);
-  --detail-shadow: 0 4px 14px rgba(45, 122, 95, 0.12);
-  --icon-bg: linear-gradient(135deg, #e9f6ef, #dcfce7);
-  --icon-color: #2d7a5f;
+  --detail-shadow: 0 4px 14px rgba(var(--cy-accent-rgb), 0.12);
+  --icon-bg: linear-gradient(135deg, #e6e8ee, #dcdfe7);
+  --icon-color: #4d4e69;
 
   --panel-bg: rgba(255, 255, 255, 0.38);
   --panel-border: rgba(255, 255, 255, 0.7);
 
-  --tag-bg: linear-gradient(135deg, #e9f6ef, #dcfce7);
-  --tag-color: #23654e;
+  --tag-bg: linear-gradient(135deg, #e6e8ee, #dcdfe7);
+  --tag-color: #4d4e69;
 
   --sun-core-1: #ffe08a;
   --sun-core-2: #ffb14d;
@@ -61,14 +61,14 @@
 .weather-card[data-theme="dark"] {
   --card-bg: rgba(18, 40, 31, 0.70);
   --card-border: rgba(255, 255, 255, 0.09);
-  --card-shadow: 0 28px 64px -18px rgba(0, 0, 0, 0.65), 0 6px 22px rgba(45, 122, 95, 0.18);
+  --card-shadow: 0 28px 64px -18px rgba(0, 0, 0, 0.65), 0 6px 22px rgba(var(--cy-accent-rgb), 0.18);
   --card-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 
   --text-primary: #e6f6ec;
   --text-secondary: #bad7c5;
   --text-muted: #a5bead;
 
-  --accent: #71d19a;
+  --accent: #b4befe;
   --accent-2: #a7e7bc;
   --accent-soft: rgba(72, 187, 120, 0.13);
   --divider: rgba(167, 211, 178, 0.14);
@@ -347,7 +347,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 13px;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   background: var(--detail-bg);
   border: 1px solid var(--detail-border);
   box-shadow: var(--detail-shadow);
@@ -390,7 +390,7 @@
   justify-content: center;
   gap: 8px;
   border: 1px solid var(--detail-border);
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   background: var(--detail-bg);
   color: var(--text-secondary);
   font-family: var(--font-main);
@@ -430,7 +430,7 @@
 .weather-advanced-content {
   margin-top: 12px;
   padding: 16px 18px;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   display: grid;
@@ -442,7 +442,7 @@
 .weather-adv-icon {
   width: 32px; height: 32px;
   flex-shrink: 0;
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--icon-bg);
   color: var(--icon-color);
   display: flex;

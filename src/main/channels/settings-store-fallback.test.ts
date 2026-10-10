@@ -8,10 +8,9 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { createHash } from "node:crypto";
 
 // 用独立子目录隔离 settings-store.test.ts（它用 os.tmpdir()）
-const FALLBACK_TMP = path.join(os.tmpdir(), "cyrene-fallback-test");
+const FALLBACK_TMP = path.join(os.tmpdir(), "firefly-fallback-test");
 fs.mkdirSync(FALLBACK_TMP, { recursive: true });
 
 // Mock electron：safeStorage.isEncryptionAvailable → false
@@ -20,7 +19,7 @@ vi.mock("electron", () => {
   return {
     app: {
       getPath: (_k: string) => FALLBACK_TMP,
-      getName: () => "live2d-cyrene",
+      getName: () => "Firefly",
       isReady: () => true, // 模拟 ready 后 safeStorage 仍不可用（Linux/沙盒）
     },
     safeStorage: {
@@ -39,20 +38,15 @@ vi.mock("electron", () => {
 import { loadChannelsSettings, saveChannelsSettings } from "./settings-store";
 
 describe("settings-store: safeStorage 不可用 fallback", () => {
-  it("reads legacy derivation and saves current encoding with a backup", () => {
+  it("keeps current encrypted credentials across repeated saves", () => {
     const file = path.join(FALLBACK_TMP, "channels-settings.json");
-    const backup = `${file}.pre-firefly.bak`;
-    fs.rmSync(backup, { force: true });
-    const key = createHash("sha256").update(`${FALLBACK_TMP}::live2d-cyrene::cyrene-bot-secret`).digest().subarray(0, 16);
-    const content = Buffer.from("public-test-secret");
-    const encrypted = Buffer.from(content.map((byte, index) => byte ^ key[index % key.length]));
-    const original = JSON.stringify({ feishu: { appSecret: `obf:${encrypted.toString("base64")}` } });
-    fs.writeFileSync(file, original);
+    saveChannelsSettings({ feishu: { enabled: true, appSecret: "public-test-secret" } });
+    const original = fs.readFileSync(file, "utf8");
     expect(loadChannelsSettings().feishu.appSecret).toBe("public-test-secret");
     saveChannelsSettings({ rateLimitPerUser: 20 });
     expect(loadChannelsSettings().feishu.appSecret).toBe("public-test-secret");
     expect(JSON.parse(fs.readFileSync(file, "utf8")).feishu.appSecret).toMatch(/^obf2:/);
-    expect(fs.readFileSync(backup, "utf8")).toBe(original);
+    expect(JSON.parse(original).feishu.appSecret).toBe(JSON.parse(fs.readFileSync(file, "utf8")).feishu.appSecret);
   });
   it("refuses to overwrite unreadable credentials", () => {
     const file = path.join(FALLBACK_TMP, "channels-settings.json");

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { extractZip } from "../../shared/zip-extraction";
+import { copyVendorSkills } from "../../test-utils/vendor-skill-source";
 import { scanSkills } from "./skill-scanner";
 import { skillRegistry } from "./skill-registry";
 import { registerSkillTools } from "./skill-tools";
@@ -10,7 +10,6 @@ import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 import { registerDocumentTools } from "../orchestrator/tools/document-tools";
 import { registerLifeTools } from "../orchestrator/tools/life-tools";
 
-const archive = path.resolve("vendor/firefly-skills/skills-snapshot.zip");
 const mappings: Record<string, string[]> = {
   "as-code-review-and-quality": ["as-security-and-hardening"],
   "as-debugging-and-error-recovery": ["ecc-tdd-workflow"],
@@ -45,10 +44,10 @@ afterEach(() => {
 
 it("resolves required cross-Skill calls when each Skill is invoked directly", async () => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-host-semantics-"));
-  await extractZip(archive, { dir: root });
+  copyVendorSkills(root);
   const skills = scanSkills(root, "builtin");
   ids = skills.map(skill => skill.id);
-  expect(skills).toHaveLength(39);
+  expect(skills).toHaveLength(41);
   for (const skill of skills) skillRegistry.register(skill);
   registerSkillTools();
   registerDocumentTools();
@@ -67,7 +66,7 @@ it("resolves required cross-Skill calls when each Skill is invoked directly", as
     for (const target of targets) {
       const targetSkill = skillRegistry.getById(target);
       expect(targetSkill, `${source} → ${target}`).toBeDefined();
-      for (const mode of sourceSkill.modes ?? ["work", "code", "learn"] as const) {
+      for (const mode of sourceSkill.modes ?? ["work", "code"] as const) {
         expect(skillRegistry.getEnabledForMode(mode).some(skill => skill.id === target), `${source} → ${target} in ${mode}`).toBe(true);
       }
       if (!result.includes(target)) {
@@ -104,4 +103,19 @@ it("resolves required cross-Skill calls when each Skill is invoked directly", as
   const userResult = String(await invoke.execute({ skill_id: "sp-writing-plans" }, { userQuery: "public fixture", allowedSkillIds }));
   expect(userResult).toContain("User supplied plan instructions");
   expect(userResult).not.toContain("Firefly execution uses");
+});
+
+it("keeps inherited workflow examples aligned with bundled Firefly commands", () => {
+  const root = path.resolve("vendor/firefly-skills/skills");
+  const planning = fs.readFileSync(path.join(root, "as-planning-and-task-breakdown/SKILL.md"), "utf8");
+  const recovery = fs.readFileSync(path.join(root, "ecc-agent-introspection-debugging/SKILL.md"), "utf8");
+  const docx = fs.readFileSync(path.join(root, "docx/SKILL.md"), "utf8");
+  const project = fs.readFileSync(path.join(root, "docx/scripts/dotnet/MiniMaxAIDocx.Core/MiniMaxAIDocx.Core.csproj"), "utf8");
+  expect(planning).toContain("upstream convention");
+  expect(planning).not.toContain("expected by the `/build` command");
+  expect(recovery).not.toContain("workspace-surface-audit");
+  expect(docx).toContain("未注册 `run-script` 命令");
+  expect(docx).not.toContain("-- run-script");
+  expect(project).toContain('PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1"');
+  expect(docx).toContain("3.5.1");
 });

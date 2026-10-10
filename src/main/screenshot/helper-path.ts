@@ -12,5 +12,5 @@ export function resolveScreenshotHelperPath(environment: ScreenshotHelperPathEnv
   if (environment.isPackaged) {
     return path.join(environment.resourcesPath, "bin", "firefly-screenshot.exe");
   }
-  return path.join(environment.appPath, "native", "firefly-screenshot", "target", "release", "firefly-screenshot.exe");
+  return path.join(environment.appPath, "native", "target", "release", "firefly-screenshot.exe");
 }

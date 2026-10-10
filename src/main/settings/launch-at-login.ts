@@ -1,3 +1,5 @@
+import { getStorageContext } from "../storage-context";
+
 export interface LoginItemSettingsApp {
   setLoginItemSettings(settings: { openAtLogin: boolean }): void;
 }
@@ -11,6 +13,8 @@ export function syncLaunchAtLogin(
   enabled: boolean,
   app: LoginItemSettingsApp,
 ): void {
+  // Login items are shared OS state, including disabling an existing entry.
+  if (getStorageContext().profile.kind !== "production") return;
   app.setLoginItemSettings({ openAtLogin: enabled });
 }
 

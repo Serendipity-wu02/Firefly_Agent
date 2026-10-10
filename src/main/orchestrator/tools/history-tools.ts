@@ -1,6 +1,6 @@
 // 历史对话召回工具 —— 让流萤能"回忆"滚出上下文窗口的对话。
 //
-// 设计（见 docs/history-and-skill-architecture.md）：
+// 设计：
 // - 不切分、不压缩、不启发式。全部历史无损存入向量库，模型主动召回。
 // - 存：每轮 user + assistant 消息用 addMemory 存入 source="chat_history"
 // - 取：recall_history 工具语义检索，按时间排序返回
@@ -23,7 +23,11 @@ export async function indexConversationTurn(
   sessionId: string,
   userText: string,
   assistantText: string,
-): Promise<{ status: "complete" | "partial" | "unavailable" | "failed"; indexed: number }> {
+  options: { personalMemoryMode?: "legacy" | "smh" } = {},
+): Promise<{ status: "complete" | "partial" | "unavailable" | "failed" | "retired"; indexed: number; code?: "MEMORY_LEGACY_RETIRED" }> {
+  if (options.personalMemoryMode === "smh") {
+    return { status: "retired", indexed: 0, code: "MEMORY_LEGACY_RETIRED" };
+  }
   if (!isUserMemoryVectorStoreReady()) {
     console.warn(LOG_PREFIX, "对话向量索引未就绪；原始对话已保留，请检查 BGE-M3 模型状态");
     return { status: "unavailable", indexed: 0 };
@@ -47,7 +51,7 @@ export async function indexConversationTurn(
 }
 
 /** 注册 recall_history 工具。在 startup 调一次。 */
-export function registerRecallHistoryTool(): void {
+export function registerRecallHistoryTool(options: { personalMemoryMode?: "legacy" | "smh" } = {}): void {
   toolRegistry.register({
     id: "recall_history",
     name: "回忆历史",
@@ -75,6 +79,7 @@ export function registerRecallHistoryTool(): void {
       required: ["query"],
     },
     execute: async (args) => {
+      if (options.personalMemoryMode === "smh") return "MEMORY_LEGACY_RETIRED";
       if (!isUserMemoryVectorStoreReady()) {
         return "[recall_history] 向量检索未就绪，请在设置中检查 BGE-M3 模型状态；未执行检索。";
       }

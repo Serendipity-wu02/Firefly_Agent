@@ -113,7 +113,7 @@ describe("plugin-agent", () => {
       }),
       includeInteractiveTools: false,
       planState: undefined,
-      taskExecutor: undefined,
+      agentExecutor: undefined,
       toolContext: expect.objectContaining({
         userQuery: "收集十个木头",
         conversationId: "plugin:minecraft-bot",

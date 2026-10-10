@@ -1,7 +1,7 @@
 // 聊天渲染性能探针：默认完全空操作。
 // 只有 perf harness 页面（src/renderer/react-perf）在 React 挂载前向 window
 // 注册 __fireflyChatPerfProbe 计数器后才会真正计数，业务运行零成本。
-// 用途：聊天渲染性能基线与阶段验收（docs/internal-issue/2026-09-17-chat-renderer-performance-known-issues.md）；
+// 用途：聊天渲染性能基线与阶段验收（scripts/perf/chat-renderer-baseline.mjs）；
 // 基线与优化后共用同一探针，保证前后数据可比。
 
 export interface ChatPerfProbeCounters {

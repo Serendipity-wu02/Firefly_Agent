@@ -4,7 +4,6 @@ import * as path from "path"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { MemoryStore } from "./memory-types"
 import {
-  backupMemoryFile,
   readMemoryFile,
   resolveMemoryPath,
   writeMemoryFile,
@@ -41,9 +40,9 @@ function buildStore(): MemoryStore {
       roundCount: 7,
     },
     l2: [{
-      id: "l2_legacy",
-      content: "旧记忆",
-      triggerText: "旧触发",
+      id: "l2_current",
+      content: "测试记忆",
+      triggerText: "测试触发",
       sourceConversationId: "test",
       createdAt: 1,
       lastAccessedAt: 1,
@@ -51,7 +50,7 @@ function buildStore(): MemoryStore {
       weight: 0,
       isPinned: false,
       status: "active",
-      ragId: "rag_legacy",
+      ragId: "rag_current",
     }],
     evidence: [],
     reflectionLogs: [],
@@ -88,21 +87,4 @@ describe("memory-store-io", () => {
     expect(readMemoryFile(filePath).l1?.roundCount).toBe(7)
   })
 
-  it("creates exactly one timestamped backup of an existing file", () => {
-    const filePath = path.join(electronMock.userDataDir, "memory.json")
-    writeMemoryFile(filePath, buildStore())
-
-    backupMemoryFile(filePath)
-
-    const backups = fs.readdirSync(electronMock.userDataDir).filter((name) => name.startsWith("memory.backup.") && name.endsWith(".json"))
-    expect(backups).toHaveLength(1)
-    expect(readMemoryFile(path.join(electronMock.userDataDir, backups[0]))).toEqual(buildStore())
-  })
-
-  it("is a no-op when backing up a missing file", () => {
-    const filePath = path.join(electronMock.userDataDir, "memory.json")
-
-    expect(() => backupMemoryFile(filePath)).not.toThrow()
-    expect(fs.readdirSync(electronMock.userDataDir)).toHaveLength(0)
-  })
 })

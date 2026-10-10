@@ -9,7 +9,6 @@ import {
 import type { AguiApi, AguiEvent, ChatStoreApi } from "../chat-page-bridge";
 import type { ChatSession } from "../../../../../../shared/chat-types";
 import type { TodoStateBySession } from "../session-runtime-state";
-import type { EarlyTtsPlaybackQueue } from "../../tts/early-tts-queue";
 
 /**
  * AgentRunController 全流程单测：注入假桥、记录型宿主与真实注册表，
@@ -53,7 +52,6 @@ function createFakeStore() {
 /** 记录型宿主：全部端口为 vi.fn，Todo 状态按函数式更新真实维护。 */
 function createRecordingHost() {
   let todoState: TodoStateBySession = {};
-  const earlyTtsQueue = { append: vi.fn(), cancel: vi.fn() } as unknown as EarlyTtsPlaybackQueue;
   const host: AgentRunHost & Record<string, ReturnType<typeof vi.fn>> = {
     patchMessage: vi.fn(),
     setInteraction: vi.fn(),
@@ -67,10 +65,9 @@ function createRecordingHost() {
     setModeBusy: vi.fn(),
     requestTakeover: vi.fn(),
     clearTakeover: vi.fn(),
-    earlyTts: { start: vi.fn(() => earlyTtsQueue), finish: vi.fn() },
     onRunFinished: vi.fn(),
   };
-  return { host, earlyTtsQueue, readTodoState: () => todoState };
+  return { host, readTodoState: () => todoState };
 }
 
 function createRegistries(): AgentRunRegistries {
@@ -191,6 +188,22 @@ afterEach(() => {
 });
 
 describe("AgentRunController", () => {
+  it("refreshes current S from Main after cache persistence",async()=>{
+    const {flushAllFrames}=installManualAnimationFrame();
+    const api=createFakeApi({success:true,runId:"run-1"}),store=createFakeStore(),{host}=createRecordingHost(),registries=createRegistries();
+    store.get=vi.fn(async()=>({id:"session-1",messages:[{id:"assistant-1",role:"model",at:1,content:"CACHE",sSettlement:{state:"unknown",runId:"run-1",assistantEntryId:"entry",originalText:"RAW"}}]} as ChatSession));
+    const {promise}=launch(createInput(),{api,store,host,registries});await flush();api.emit(RUN_STARTED_EVENT);
+    api.emit({type:"CUSTOM",name:"firefly.sResponse",runId:"run-1",value:{pending:true}});
+    api.emit({type:"TEXT_MESSAGE_START",messageId:"assistant-1",runId:"run-1"});
+    api.emit({type:"TEXT_MESSAGE_CONTENT",messageId:"assistant-1",delta:"provisional",runId:"run-1"});
+    await flushAllFrames();
+    expect(host.patchMessage).toHaveBeenCalledWith("session-1","assistant-1",expect.objectContaining({content:"provisional"}));
+    api.emit({type:"TEXT_MESSAGE_END",messageId:"assistant-1",runId:"run-1"});
+    api.emit({type:"RUN_FINISHED",runId:"run-1",result:{status:"success"}});await promise;
+
+    expect(host.patchMessage).toHaveBeenLastCalledWith("session-1","assistant-1",expect.objectContaining({content:"",sSettlement:{state:"unknown",runId:"run-1",assistantEntryId:"entry",originalText:"RAW"}}));
+    expect(store.upsert.mock.calls.every(call=>call[1].sSettlement===undefined)).toBe(true);
+  });
   it("uses hidden channel model context when continuing a bound conversation from desktop", async () => {
     const api = createFakeApi({ success: true, runId: "run-1" });
     const store = createFakeStore();
@@ -311,7 +324,7 @@ describe("AgentRunController", () => {
   it("成功流：事件序列归约、终态提交正式回答并按顺序落盘", async () => {
     const api = createFakeApi({ success: true, runId: "run-1" });
     const store = createFakeStore();
-    const { host, earlyTtsQueue } = createRecordingHost();
+    const { host } = createRecordingHost();
     const registries = createRegistries();
     const input = createInput();
     const { promise } = launch(input, { api, store, host, registries });
@@ -362,7 +375,7 @@ describe("AgentRunController", () => {
     expect(store.upsert.mock.calls.at(-1)?.[1].content).toBe("你好，世界");
     expect(api.reportRunPersisted).toHaveBeenCalledWith({ runId: "run-1", finalMessageId: "assistant-1" });
     // 成功且提交正式回答：早播队列用完整正文收尾
-    expect(host.earlyTts.finish).toHaveBeenCalledWith(earlyTtsQueue, "你好，世界");
+
     // 收尾：清 busy、清注册表、通知宿主
     expect(host.setModeBusy).toHaveBeenCalledWith("chat", false);
     expect(registries.activeRuns.current["session-1"]).toBeUndefined();
@@ -375,7 +388,7 @@ describe("AgentRunController", () => {
     const { flushFrames } = installManualAnimationFrame();
     const api = createFakeApi({ success: true, runId: "run-1" });
     const store = createFakeStore();
-    const { host, earlyTtsQueue } = createRecordingHost();
+    const { host } = createRecordingHost();
     const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
     await flush();
 
@@ -397,7 +410,7 @@ describe("AgentRunController", () => {
       .filter((patch) => patch.transientText);
     expect(candidatePatches.map((patch) => patch.transientText)).toEqual(["你好，", "你好，世界"]);
     expect(store.upsert.mock.calls.slice(0, -1).every((call) => call[1].content === "")).toBe(true);
-    expect(earlyTtsQueue.append).not.toHaveBeenCalled();
+
   });
 
   it("跨绘制帧到达的候选正文会按小组平滑追加到界面", async () => {
@@ -501,7 +514,7 @@ describe("AgentRunController", () => {
     const { flushAllFrames } = installManualAnimationFrame();
     const api = createFakeApi({ success: true, runId: "run-1" });
     const store = createFakeStore();
-    const { host, earlyTtsQueue } = createRecordingHost();
+    const { host } = createRecordingHost();
     const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
     await flush();
 
@@ -523,8 +536,7 @@ describe("AgentRunController", () => {
       responseStarted: true,
       streaming: false,
     }));
-    expect(earlyTtsQueue.append).not.toHaveBeenCalled();
-    expect(host.earlyTts.finish).toHaveBeenCalledWith(earlyTtsQueue, "权威最终答案");
+
   });
 
   it("忽略旧轮次候选；discard 仅闭合当前轮，正文保留为过程消息（ask_user 不丢字）", async () => {
@@ -672,7 +684,7 @@ describe("AgentRunController", () => {
     const { flushAllFrames } = installManualAnimationFrame();
     const api = createFakeApi({ success: true, runId: "run-1" });
     const store = createFakeStore();
-    const { host, earlyTtsQueue } = createRecordingHost();
+    const { host } = createRecordingHost();
     const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
     await flush();
 
@@ -692,7 +704,7 @@ describe("AgentRunController", () => {
       transientText: undefined,
     }));
     expect(store.upsert.mock.calls.at(-1)?.[1].content).toBe("ABCDE");
-    expect(host.earlyTts.finish).toHaveBeenCalledWith(earlyTtsQueue, "ABCDE");
+
   });
 
   it.each(["cancelled", "timeout"] as const)("%s 时把尚未归类的候选正文转成中断过程片段，不提交正式回答", async (status) => {
@@ -806,7 +818,7 @@ describe("AgentRunController", () => {
   it("cancelled 终态：不提交正式回答，早播队列取消而非收尾", async () => {
     const api = createFakeApi({ success: true, runId: "run-1" });
     const store = createFakeStore();
-    const { host, earlyTtsQueue } = createRecordingHost();
+    const { host } = createRecordingHost();
     const input = createInput();
     const { promise } = launch(input, { api, store, host, registries: createRegistries() });
     await flush();
@@ -827,8 +839,7 @@ describe("AgentRunController", () => {
       status: "terminal",
       terminalStatus: "cancelled",
     });
-    expect(host.earlyTts.finish).not.toHaveBeenCalled();
-    expect(earlyTtsQueue.cancel).toHaveBeenCalled();
+
     expect(host.onRunFinished).toHaveBeenCalled();
   });
 
@@ -1080,52 +1091,6 @@ describe("AgentRunController", () => {
     expect(registries.checkpointTriggers.current["session-1"]).toBeUndefined();
   });
 
-  it("关闭切分时把 off 模式透传给 earlyTts.start", async () => {
-    vi.stubGlobal("window", {
-      chat: {
-        getGeneralSettings: vi.fn(async () => ({
-          ttsEarlyReadSplitEnabled: false,
-          ttsEarlyReadSplitMode: "paragraph",
-        })),
-      },
-      setTimeout,
-      clearTimeout,
-    });
-    const api = createFakeApi({ success: true, runId: "run-1" });
-    const store = createFakeStore();
-    const { host } = createRecordingHost();
-    const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
-    await flush();
-    api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "success" } });
-    await promise;
-
-    expect(host.earlyTts.start).toHaveBeenCalledWith("chat", "session-1", "assistant-1", "off");
-  });
-
-  it("开启切分且选择一段一切时把 paragraph 透传给 earlyTts.start", async () => {
-    vi.stubGlobal("window", {
-      chat: {
-        getGeneralSettings: vi.fn(async () => ({
-          ttsEarlyReadSplitEnabled: true,
-          ttsEarlyReadSplitMode: "paragraph",
-        })),
-      },
-      setTimeout,
-      clearTimeout,
-    });
-    const api = createFakeApi({ success: true, runId: "run-1" });
-    const store = createFakeStore();
-    const { host } = createRecordingHost();
-    const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
-    await flush();
-    api.emit(RUN_STARTED_EVENT);
-    api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "success" } });
-    await promise;
-
-    expect(host.earlyTts.start).toHaveBeenCalledWith("chat", "session-1", "assistant-1", "paragraph");
-  });
-
   it("把轨迹回退元数据透传进派发请求", async () => {
     const api = createFakeApi({ success: true, runId: "run-1" });
     const store = createFakeStore();
@@ -1174,4 +1139,46 @@ describe("AgentRunController", () => {
     api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "success" } });
     await promise;
   });
+});
+
+
+it("keeps the complete structured child result through the owning run checkpoint", async () => {
+  const api = createFakeApi({ success: true, runId: "run-1" });
+  const store = createFakeStore(); const { host } = createRecordingHost();
+  const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
+  await flush(); api.emit(RUN_STARTED_EVENT);
+  const taskResult = { agentId: "reviewer", sessionId: "child-1", status: "completed" as const, text: "Complete child result: " + "x".repeat(1200) };
+  api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "delegate-1", toolCallName: "delegate_agent" });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "foreign-run", toolCallId: "delegate-1", status: "success", content: "foreign", taskResult: { ...taskResult, text: "foreign result" } });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "run-1", toolCallId: "delegate-1", status: "success", content: "200-character preview", taskResult });
+  api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "success" } });
+  await promise;
+  expect(store.upsert.mock.calls.at(-1)?.[1].toolExecutions).toEqual([expect.objectContaining({ id: "delegate-1", result: "200-character preview", taskResult })]);
+  expect(host.patchMessage.mock.calls.some(([, , patch]) => patch.toolExecutions?.some((tool: { taskResult?: { text: string } }) => tool.taskResult?.text === "foreign result"))).toBe(false);
+});
+
+it("foreign_run_and_malformed_evidence_rejected inside otherwise owning tool events", async () => {
+  const api = createFakeApi({ success: true, runId: "run-1" });
+  const store = createFakeStore(); const { host } = createRecordingHost();
+  const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
+  await flush(); api.emit(RUN_STARTED_EVENT);
+  const taskResult = { agentId: "reviewer", sessionId: "child-1", status: "failed" as const, text: "foreign evidence", executionEvents: [{ id: "event", seq: 1, monotonicMs: 0, clockDomainId: "synthetic", parentRunId: "other-run", agentId: "reviewer", childRunId: "child-run", executionId: "execution", phase: "start" as const }] };
+  api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "delegate-1", toolCallName: "delegate_agent" });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "run-1", toolCallId: "delegate-1", status: "failed", taskResult });
+  api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "delegate-2", toolCallName: "delegate_agent" });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "run-1", toolCallId: "delegate-2", status: "failed", taskResult: { ...taskResult, executionEvents: undefined, text: 3 } as never });
+  api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "success" } }); await promise;
+  expect(store.upsert.mock.calls.at(-1)?.[1].toolExecutions.map((tool: { taskResult?: unknown }) => tool.taskResult)).toEqual([undefined, undefined]);
+});
+it("long_result_does_not_truncate_write_ledger through cancellation checkpoint", async () => {
+  const api = createFakeApi({ success: true, runId: "run-1" });
+  const store = createFakeStore(); const { host } = createRecordingHost();
+  const { promise } = launch(createInput(), { api, store, host, registries: createRegistries() });
+  await flush(); api.emit(RUN_STARTED_EVENT);
+  const writes = Array.from({ length: 1000 }, (_, index) => ({ path: `${index}.md`, canonicalPath: `/synthetic/${index}.md`, agentId: "reviewer", childRunId: "child-run", toolCallId: "write-child", state: "applied" as const, eventIds: ["actual-write-event"] }));
+  const taskResult = { agentId: "reviewer", sessionId: "child-1", status: "cancelled" as const, text: "x".repeat(64001), writes };
+  api.emit({ type: "TOOL_CALL_START", runId: "run-1", toolCallId: "delegate-1", toolCallName: "delegate_agent" });
+  api.emit({ type: "TOOL_CALL_RESULT", runId: "run-1", toolCallId: "delegate-1", status: "failed", taskResult });
+  api.emit({ type: "RUN_FINISHED", runId: "run-1", result: { status: "cancelled" } }); await promise;
+  expect(store.upsert.mock.calls.at(-1)?.[1].toolExecutions[0].taskResult).toMatchObject({ writes, text: "x".repeat(64000), truncated: true });
 });

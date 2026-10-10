@@ -14,7 +14,7 @@ export interface ControlledShutdownRequest {
   finalAction(): void;
 }
 
-export type RequestControlledShutdown = (input: ControlledShutdownRequest) => Promise<void>;
+export type RequestControlledShutdown = (input: ControlledShutdownRequest) => Promise<boolean>;
 
 export interface RegisterAppUpdateIpcOptions {
   service: AppUpdateService;
@@ -37,11 +37,10 @@ export function registerAppUpdateIpc(options: RegisterAppUpdateIpcOptions): void
   ipc.handle(IPC.APP_UPDATE_INSTALL, async () => {
     if (!options.service.canInstall()) return false;
     if (options.requestControlledShutdown) {
-      await options.requestControlledShutdown({
+      return options.requestControlledShutdown({
         reason: "update-install",
         finalAction: () => options.service.install(),
       });
-      return true;
     }
     return options.service.install();
   });

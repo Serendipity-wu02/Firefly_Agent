@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { createHash } from "node:crypto";
 
 let tmpDir: string;
 
@@ -34,13 +35,23 @@ vi.mock("../../external-content-paths", () => ({
   findSkillPath: (_skillId: string, _sub: string) => null,
 }));
 
+// This suite verifies write-ahead capture, not host-font rendering. Fail at the
+// generation boundary deterministically, before any output stream is opened.
+vi.mock("pdfkit", () => ({
+  default: class {
+    constructor() { throw new Error("PDF_GENERATION_FAILED"); }
+  },
+}));
+
+import type { ToolContext } from "./registry/tool-context";
+import { getWorkspaceExecutionCoordinator } from "../harness/execution-coordinator";
 import { registerDocumentTools } from "./document-tools";
 
 registerDocumentTools();
 
 function getTool(id: string) {
   const tool = registry.get(id) as
-    | { execute: (args: Record<string, unknown>, ctx?: { runId?: string; resolvedWorkspaceRoot?: string }) => Promise<string> }
+    | { execute: (args: Record<string, unknown>, ctx?: ToolContext) => Promise<string> }
     | undefined;
   if (!tool) throw new Error(`工具未注册：${id}`);
   return tool;
@@ -119,27 +130,52 @@ describe("Review 基线捕获（写盘前）", () => {
   });
 
   it("write_pdf 基线捕获先于生成（生成失败也不影响基线）", async () => {
-    fs.writeFileSync(path.join(tmpDir, "report.pdf"), Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 0, 1]));
+    const outputPath = path.join(tmpDir, "report.pdf");
+    const original = Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 0, 1]);
+    fs.writeFileSync(outputPath, original);
 
-    // 本机 msyh.ttc 与 pdfkit 的 subset 不兼容，doc.text() 会抛错——
-    // 恰好验证 write-ahead 语义：基线在任何写盘/生成动作之前已保存
-    let threw = false;
-    try {
-      await getTool("write_pdf").execute(
-        { filename: "report.pdf", title: "标题", paragraphs: ["段落一"] },
-        { runId: "run-pdf-1" },
-      );
-    } catch {
-      threw = true;
-    }
+    await expect(getTool("write_pdf").execute(
+      { filename: "report.pdf", title: "标题", paragraphs: ["段落一"] },
+      { runId: "run-pdf-1" },
+    )).rejects.toThrow("PDF_GENERATION_FAILED");
 
     const baselines = listBaselines("run-pdf-1");
     expect(baselines).toHaveLength(1);
     expect(baselines[0]).toMatch(/\.binary$/);
-    if (threw) {
-      // 生成失败时原二进制不应被截断破坏（createWriteStream 未成功写入）
-      // 等待 pdfkit 内部流动作结束，避免延迟 open 撞上目录清理
-      await new Promise((r) => setTimeout(r, 50));
-    }
+    const marker = path.join(tmpDir, "firefly-runs", "reviews", "run-pdf-1", "before", baselines[0]);
+    expect(JSON.parse(fs.readFileSync(marker, "utf8"))).toEqual({
+      size: original.length, hash: createHash("sha256").update(original).digest("hex"),
+    });
+    expect(fs.readFileSync(outputPath)).toEqual(original);
+  });
+});
+
+
+describe("document actual bytes and validated write ownership", () => {
+  it.each([
+    ["write_excel", "actual.xlsx", { sheets: [{ name: "Data", headers: ["value"], rows: [[1]] }] }],
+    ["write_word", "actual.docx", { title: "Synthetic", paragraphs: ["Temporary evidence"] }],
+  ])("%s records actual generated output bytes", async (id, filename, args) => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: id };
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      await getTool(id).execute({ ...args, filename }, { userQuery: "", resolvedWorkspaceRoot: tmpDir, execution: { coordinator, scope, permit } });
+    });
+    const file = path.join(tmpDir, filename);
+    const sha256 = createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+    expect(coordinator.getWriteEvidence()[0]).toMatchObject({ path: file, before: { version: "absent" }, after: { sha256 }, state: "applied" });
+    await coordinator.closeGroup("g");
+  });
+
+  it("invalid filename and pre-render failure do not claim output paths", async () => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: "invalid" };
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      const context = { userQuery: "", resolvedWorkspaceRoot: tmpDir, execution: { coordinator, scope, permit } };
+      expect(await getTool("write_excel").execute({ filename: "../escape.xlsx", sheets: [] }, context)).toContain("[错误]");
+      await expect(getTool("write_pdf").execute({ filename: "report.pdf", title: "synthetic", paragraphs: [] }, context)).rejects.toThrow("PDF_GENERATION_FAILED");
+    });
+    expect(coordinator.getWriteEvidence()).toEqual([]);
+    await coordinator.closeGroup("g");
   });
 });

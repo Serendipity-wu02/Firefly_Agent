@@ -1,3 +1,4 @@
+import { beginWriteBatch } from "./registry/file-write-evidence";
 // 文件系统工具组 — 给 agent 装上"读文件 / 列目录 / 写文件 / 读图片"四件武器
 // 不绕 run_shell，直接用 fs API。每个工具都有 risk 字段交给权限网关判定。
 
@@ -186,7 +187,7 @@ toolRegistry.register({
     "参数：path (必填，绝对路径)，startLine (可选，默认 1)，maxLines (可选，默认 500)。",
   enabled: true,
   risk: "fs-read",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   effectKind: "read" as const,
   // 只读同步文件读取；不会改工作区或 Harness 父状态。
   isConcurrencySafe: () => true,
@@ -289,7 +290,7 @@ toolRegistry.register({
     "参数：path (必填，绝对路径)，showHidden (可选，是否显示以 . 开头的隐藏项，默认 false)。",
   enabled: true,
   risk: "fs-read",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   effectKind: "read" as const,
   // 只读目录枚举；不会改工作区或 Harness 父状态。
   isConcurrencySafe: () => true,
@@ -373,43 +374,46 @@ async function executeWriteFile(args: Record<string, unknown>, ctx?: ToolContext
 
   console.log(LOG_PREFIX, "write_file:", filePath, "bytes=" + Buffer.byteLength(content, "utf8"), append ? "(append)" : "(overwrite)");
 
-  if (createDirs) {
+  const batch = beginWriteBatch(ctx, [filePath]);
+  await batch.run([filePath], async () => {
+    if (createDirs) {
+      try {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new ToolExecutionError(
+          "E_CREATE_PARENT_FAILED",
+          "创建父目录失败: " + msg,
+          "permission_denied",
+        );
+      }
+    }
+
+    // Review 基线捕获：在写文件之前保存 pre-mutation baseline
+    if (ctx?.runId) {
+      const tracker = getRunReviewTracker(app.getPath("userData"));
+      tracker.captureBefore(ctx.runId, filePath);
+    }
+
     try {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      if (append) {
+        // 追加写：原文件末尾缺换行时补一个，避免两段内容粘在同一行
+        const needsNewline = existingContent !== null && existingContent.length > 0 && !existingContent.endsWith("\n");
+        fs.appendFileSync(filePath, (needsNewline ? "\n" : "") + content, "utf8");
+      } else {
+        fs.writeFileSync(filePath, content, "utf8");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new ToolExecutionError(
-        "E_CREATE_PARENT_FAILED",
-        "创建父目录失败: " + msg,
-        "permission_denied",
+        "E_WRITE_FILE_FAILED",
+        "写入失败: " + msg,
+        "semantic_failure",
+        false,
+        "unknown",
       );
     }
-  }
-
-  // Review 基线捕获：在写文件之前保存 pre-mutation baseline
-  if (ctx?.runId) {
-    const tracker = getRunReviewTracker(app.getPath("userData"));
-    tracker.captureBefore(ctx.runId, filePath);
-  }
-
-  try {
-    if (append) {
-      // 追加写：原文件末尾缺换行时补一个，避免两段内容粘在同一行
-      const needsNewline = existingContent !== null && existingContent.length > 0 && !existingContent.endsWith("\n");
-      fs.appendFileSync(filePath, (needsNewline ? "\n" : "") + content, "utf8");
-    } else {
-      fs.writeFileSync(filePath, content, "utf8");
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new ToolExecutionError(
-      "E_WRITE_FILE_FAILED",
-      "写入失败: " + msg,
-      "semantic_failure",
-      false,
-      "unknown",
-    );
-  }
+  });
 
   let st: fs.Stats;
   try {
@@ -514,7 +518,7 @@ toolRegistry.register({
     "参数：path，content (要写的字符串)，append (可选，true=追加，默认 false=覆盖)，createDirs (可选，默认 true)。",
   enabled: true,
   risk: "fs-write",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   effectKind: "mutation" as const,
   verificationPolicyResolver: resolveWriteFilePolicy,
   inputSchema: {
@@ -616,7 +620,7 @@ toolRegistry.register({
     "参数：path (必填，绝对路径)。",
   enabled: true,
   risk: "fs-read",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   effectKind: "read" as const,
   verificationPolicy: "none" as const,
   needsContext: true,

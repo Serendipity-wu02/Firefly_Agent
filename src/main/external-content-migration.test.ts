@@ -46,6 +46,7 @@ function createFixture(): Fixture {
     manifestFile: path.join(userData, "content-manifest.json"),
     input: {
       isPackaged: true,
+      manifestFile: path.join(userData, "content-manifest.json"),
       installRoot,
       promptDirectories: [path.join(userData, "prompts"), path.join(installRoot, "prompts")],
       userSkillDirectories: [path.join(userData, "skills")],
@@ -135,3 +136,32 @@ describe("migrateStagedExternalContent", () => {
 function sha1Of(content: string): string {
   return crypto.createHash("sha1").update(content, "utf8").digest("hex");
 }
+
+it("uses the explicit manifest storage owner rather than deriving it from prompts", () => {
+  const f = createFixture();
+  const explicitManifest = path.join(f.userData, "state-owner", "content-manifest.json");
+  migrateStagedExternalContent({ ...f.input, manifestFile: explicitManifest });
+  expect(fs.existsSync(explicitManifest)).toBe(true);
+  expect(fs.existsSync(f.manifestFile)).toBe(false);
+});
+it("does not consume installer staging when a non-production profile disables it", () => {
+  const f = createFixture();
+  write(path.join(f.staging, "prompts", "user.md"), "fixture-user-content");
+  migrateStagedExternalContent({ ...f.input, allowStagedMigration: false });
+  expect(fs.readFileSync(path.join(f.staging, "prompts", "user.md"), "utf8")).toBe("fixture-user-content");
+  expect(fs.existsSync(path.join(f.userPrompts, "user.md"))).toBe(false);
+});
+
+it("preserves malformed existing manifest rather than replacing it at startup", () => {
+  const f = createFixture();
+  write(f.manifestFile, "{malformed");
+  migrateStagedExternalContent(f.input);
+  expect(fs.readFileSync(f.manifestFile, "utf8")).toBe("{malformed");
+});
+it("keeps exactly one valid previous manifest when startup refreshes it", () => {
+  const f = createFixture();
+  const previous = { prompts: { "previous.md": sha1Of("previous") }, skills: {} };
+  write(f.manifestFile, JSON.stringify(previous));
+  migrateStagedExternalContent(f.input);
+  expect(JSON.parse(fs.readFileSync(`${f.manifestFile}.bak`, "utf8"))).toEqual(previous);
+});

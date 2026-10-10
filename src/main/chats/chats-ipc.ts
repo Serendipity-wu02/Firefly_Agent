@@ -1,3 +1,6 @@
+import type {MainDesktopMemory} from "../memory-context/main-desktop-memory";
+import {mainAttachmentReferences} from "../memory-context/main-attachment-projection";
+import {canonicalJson} from "../memory-core/repository-types";
 // 聊天会话 IPC 桥接：把 chats-store 的纯数据 API 暴露给渲染进程。
 //
 // 写操作成功后会向渲染窗口广播 `chats:changed`，以便：
@@ -17,17 +20,18 @@ import { app, BrowserWindow, type WebContents, dialog, shell } from "electron";
 import { randomUUID } from "crypto";
 import { IPC } from "../../shared/ipc-channels";
 import { createIpcScope, type IpcScope } from "../application/ipc-scope";
-import type { ChatMessage, ConversationMode, ConversationWorkspaceBinding } from "../../shared/chat-types";
+import type { ChatMessage, ConversationMode, ConversationWorkspaceBinding, PendingChatMessage } from "../../shared/chat-types";
 import * as chatsStore from "./chats-store";
 import * as fs from "fs";
 import * as path from "path";
 import { createWorkMarkdownSnapshot } from "./work-markdown-export";
 import { inspectWorkReadFile, isWorkReadScopeCurrent, WORK_READ_PAGE_LINES } from "./work-read-scope";
-import { ensureVaultStructure, isEmptyDirectory } from "../learn/obsidian/vault-init";
 import { getDefaultModelProfile, loadModelSettings, resolveModelSettingsProfile } from "../settings/model-settings";
 import { FileToolOutputStore } from "../orchestrator/harness/tool-output/file-tool-output-store";
 import { getHarnessRunStore } from "../orchestrator/harness/run-store";
 import { getConversationTranscriptStore } from "../orchestrator/conversation-transcript-store";
+import { projectSSettlementMessages } from "../orchestrator/conversation-transcript-context";
+import { getStorageContext } from "../storage-context";
 import { getRunReviewTracker } from "../orchestrator/review/run-review-tracker";
 import { getAdapterForConfig } from "../orchestrator/vendors";
 import { activeChatTargetRegistry } from "../plugin-host/active-chat-target";
@@ -63,6 +67,15 @@ const compactingSessions = new Set<string>();
 function visibleUserText(content: string): string {
   return content.replace(/\[sticker:[^\]]+\]/gi, "").trim();
 }
+function stripSProjection(message:ChatMessage):ChatMessage {const {sSettlement:_projection,...stored}=message;return stored}
+/** Project the same stable payload as claimPendingMessage without reading attachment bytes. */
+function pendingUserMessage(head: PendingChatMessage): ChatMessage {
+ return { id: head.id, role: "user", content: head.rawContent, at: Date.now(),
+  ...(head.userSticker ? { sticker: head.userSticker } : {}),
+  ...(head.attachments?.length ? { attachments: head.attachments.map(attachment => attachment.kind === "image"
+   ? { kind: "image" as const, name: attachment.name, filePath: attachment.filePath, mime: attachment.mime ?? "application/octet-stream", caption: attachment.caption, status: "pending" as const, ...(attachment.hasAnnotations ? { hasAnnotations: true } : {}) }
+   : { kind: "document" as const, name: attachment.name, filePath: attachment.filePath, status: "pending" as const, ...(attachment.readScope ? { readScope: attachment.readScope } : {}) }) } : {}) };
+}
 
 export function registerChatsIpc(
   ipcOption?: IpcScope,
@@ -70,6 +83,7 @@ export function registerChatsIpc(
     titleService?: ConversationTitleService;
     llmClient?: LlmClient;
     isPrimaryModelBusy?: () => boolean;
+    memory?:Pick<MainDesktopMemory,"appendUser"|"mutate"|"ownsSession"> & { readonly usesCanonicalUserContent?: boolean };
   } = {},
 ): void {
   const ipc = ipcOption ?? createIpcScope();
@@ -84,6 +98,11 @@ export function registerChatsIpc(
         onTitleChanged: () => broadcastChanged(),
       })
     : undefined);
+  const changedUsers=(id:string,next:ChatMessage[])=>{
+    const before=chatsStore.getSession(id)?.messages??[], ids=new Set([...before,...next].filter(m=>m.role==="user").map(m=>m.id));
+    return [...ids].filter(messageId=>JSON.stringify(before.filter(m=>m.id===messageId))!==JSON.stringify(next.filter(m=>m.id===messageId)));
+  };
+  const mutate=<T>(event:any,id:string,ids:string[],commit:()=>T):T|Promise<T>=>options.memory?options.memory.mutate(event,id,ids,commit):commit();
   chatsStore.initialize();
   // 进程刚启动时没有任何存活运行：磁盘上遗留的插话标记都是陈旧的，清回普通队列
   chatsStore.clearStalePendingAdjustMarks();
@@ -93,7 +112,12 @@ export function registerChatsIpc(
     (_event, options?: { mode?: ConversationMode }) => chatsStore.listSessions(options),
   );
 
-  ipc.handle(IPC.CHATS_GET, (_event, id: string) => chatsStore.getSession(id));
+  const project=async<T extends {messages:ChatMessage[]}>(id:string,value:T|null):Promise<T|null>=>{
+    if(!value)return value;
+    const store=getConversationTranscriptStore(getStorageContext().dataRoot);
+    return store.withReadLease(id,async read=>({...value,messages:projectSSettlementMessages(value.messages,(await read()).entries)}));
+  };
+  ipc.handle(IPC.CHATS_GET, (_event, id: string) => project(id,chatsStore.getSession(id)));
   ipc.handle(IPC.CHATS_EXPORT_WORK_MARKDOWN, async (event, id: unknown) => {
     if (typeof id !== "string" || !id) return { ok: false, error: "invalid-session" };
     const session = chatsStore.getSession(id);
@@ -113,7 +137,7 @@ export function registerChatsIpc(
   });
   ipc.handle(IPC.CHATS_GET_PAGE, (_event, payload: { id: string; before?: number | null; limit?: number }) => {
     if (!payload?.id) return null;
-    return chatsStore.getSessionPage(payload.id, payload.before ?? null, payload.limit ?? 80);
+    return project(payload.id,chatsStore.getSessionPage(payload.id, payload.before ?? null, payload.limit ?? 80));
   });
 
   ipc.handle(
@@ -135,12 +159,13 @@ export function registerChatsIpc(
 
   ipc.handle(
     IPC.CHATS_APPEND,
-    (event, payload: { id: string; message: ChatMessage }) => {
+    async (event, payload: { id: string; message: ChatMessage }) => {
       if (!payload || !payload.id || !payload.message) return null;
-      const session = chatsStore.appendMessage(payload.id, payload.message);
+      const commit=()=>chatsStore.appendMessage(payload.id, stripSProjection(payload.message));
+      const session = payload.message.role==="user"&&options.memory?await options.memory.appendUser(event,payload.id,payload.message,commit):await mutate(event,payload.id,[],commit);
       if (session) {
         broadcastChanged(event.sender);
-        if (payload.message.role === "user") {
+        if (payload.message.role === "user"&&!options.memory?.ownsSession?.(payload.id)) {
           titleService?.schedule({
             sessionId: payload.id,
             userMessageId: payload.message.id,
@@ -154,24 +179,11 @@ export function registerChatsIpc(
 
   ipc.handle(
     IPC.CHATS_UPSERT,
-    (event, payload: { id: string; message: ChatMessage } | null | undefined) => {
+    async (event, payload: { id: string; message: ChatMessage } | null | undefined) => {
       if (!payload?.id || !payload.message) return null;
-      const session = chatsStore.upsertMessage(payload.id, payload.message);
-      if (session) broadcastChanged(event.sender);
-      return session;
-    },
-  );
-
-  ipc.handle(
-    IPC.CHATS_SET_MESSAGE_TTS_CACHE,
-    (event, payload: { id: string; messageId: string; cacheKey: string; converterVersion: string }) => {
-      if (!payload?.id || !payload.messageId || !payload.cacheKey || !payload.converterVersion) return null;
-      const session = chatsStore.setMessageTtsCacheKey(
-        payload.id,
-        payload.messageId,
-        payload.cacheKey,
-        payload.converterVersion,
-      );
+      const before=chatsStore.getSession(payload.id)?.messages??[],next=before.filter(m=>m.id!==payload.message.id).concat(payload.message);
+      if(options.memory?.ownsSession?.(payload.id)&&changedUsers(payload.id,next).length)throw Error("MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED");
+      const session = await mutate(event,payload.id,changedUsers(payload.id,next),()=>chatsStore.upsertMessage(payload.id, stripSProjection(payload.message)));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -179,18 +191,30 @@ export function registerChatsIpc(
 
   ipc.handle(
     IPC.CHATS_REPLACE_MESSAGES,
-    (event, payload: { id: string; messages: ChatMessage[] }) => {
+    async (event, payload: { id: string; messages: ChatMessage[] }) => {
       if (!payload || !payload.id || !Array.isArray(payload.messages)) return null;
-      const session = chatsStore.replaceMessages(payload.id, payload.messages);
+      if(options.memory?.ownsSession?.(payload.id)&&changedUsers(payload.id,payload.messages).length)throw Error("MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED");
+      const session = await mutate(event,payload.id,changedUsers(payload.id,payload.messages),()=>chatsStore.replaceMessages(payload.id, payload.messages.map(stripSProjection)));
       if (session) broadcastChanged(event.sender);
       return session;
     },
   );
   ipc.handle(
     IPC.CHATS_REPLACE_TAIL,
-    (event, payload: { id: string; startIndex: number; messages: ChatMessage[] }) => {
+    async (event, payload: { id: string; startIndex: number; messages: ChatMessage[] }) => {
       if (!payload?.id || !Array.isArray(payload.messages)) return null;
-      const session = chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages);
+      const before=chatsStore.getSession(payload.id)?.messages??[],next=before.slice(0,payload.startIndex).concat(payload.messages);
+      if(options.memory?.ownsSession?.(payload.id)&&changedUsers(payload.id,next).length){
+        const lastUser=before.map(message=>message.role).lastIndexOf("user"),old=before[lastUser],replacement=payload.messages.filter(message=>message.role==="user");
+        if(payload.startIndex!==lastUser||!old||replacement.length!==1||replacement[0].id!==old.id||replacement[0].modelContext)throw Error("MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED");
+        if(replacement[0].attachments?.length){
+          const attachments=replacement[0].attachments;
+          if(options.memory.usesCanonicalUserContent!==true||!old.attachments?.length
+            ||canonicalJson(mainAttachmentReferences(attachments))!==canonicalJson(mainAttachmentReferences(old.attachments))
+            ||canonicalJson(attachments.map(item=>item.kind==="document"?item.readScope??null:null))!==canonicalJson(old.attachments.map(item=>item.kind==="document"?item.readScope??null:null)))throw Error("MEMORY_ATTACHMENT_DENIED");
+        }
+      }
+      const session = await mutate(event,payload.id,changedUsers(payload.id,next),()=>chatsStore.replaceMessagesTail(payload.id, payload.startIndex, payload.messages.map(stripSProjection)));
       if (session) broadcastChanged(event.sender);
       return session;
     },
@@ -210,6 +234,7 @@ export function registerChatsIpc(
       if (typeof sessionId !== "string" || !sessionId) {
         return { ok: false, error: "missing sessionId" };
       }
+      if(options.memory?.ownsSession?.(sessionId))return {ok:false,error:"MEMORY_CONTEXT_LEGACY_COMPACTION_UNSUPPORTED"};
       if (compactingSessions.has(sessionId)) {
         return { ok: false, error: "正在压缩，请稍候" };
       }
@@ -322,7 +347,8 @@ export function registerChatsIpc(
 
   ipc.handle(IPC.CHATS_DELETE, async (event, id: string) => {
     if (!id) return false;
-    const ok = chatsStore.deleteSession(id);
+    const ids=(chatsStore.getSession(id)?.messages??[]).filter(m=>m.role==="user").map(m=>m.id);
+    const ok = await mutate(event,id,ids,()=>chatsStore.deleteSession(id));
     if (ok) {
       // 删除当前活动目标会话时使语音输入租约目标失效（登记表内部判断是否命中）
       activeChatTargetRegistry.notifySessionDeleted(id);
@@ -428,22 +454,38 @@ export function registerChatsIpc(
     },
   );
 
+  const pendingClaims = new Map<string, Promise<chatsStore.ClaimPendingResult>>();
   // 认领队首：单次会话文件写入完成待发条目 → 正式用户消息 + 派发状态。
   // 认领产生真实历史消息，广播刷新；队列空/认领冲突原样透传。
   ipc.handle(IPC.CHATS_PENDING_CLAIM, (event, sessionId: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId) {
-      return { ok: false, error: "invalid-payload" };
-    }
-    const result = chatsStore.claimPendingMessage(sessionId);
-    if (result.ok && result.claimed) {
-      broadcastChanged(event.sender);
-      titleService?.schedule({
-        sessionId,
-        userMessageId: result.userMessage.id,
-        text: result.visibleContent,
-      });
-    }
-    return result;
+    if (typeof sessionId !== "string" || !sessionId) return { ok: false, error: "invalid-payload" };
+    const operation = async (): Promise<chatsStore.ClaimPendingResult> => {
+      const session = chatsStore.getSession(sessionId), head = session?.pendingMessages?.[0];
+      let result: chatsStore.ClaimPendingResult;
+      if (options.memory && session && !session.pendingDispatch && head) {
+        const expected = JSON.stringify(head); let stale = false, claimed: chatsStore.ClaimPendingResult | undefined;
+        await options.memory.appendUser(event, sessionId, pendingUserMessage(head), () => {
+          // The queue can change while Main authorizes. Only this exact head may receive its receipt.
+          const current = chatsStore.getSession(sessionId);
+          if (!current || current.pendingDispatch || JSON.stringify(current.pendingMessages?.[0]) !== expected) { stale = true; return false; }
+          claimed = chatsStore.claimPendingMessage(sessionId);
+          return claimed.ok && claimed.claimed ? claimed : false;
+        });
+        if (stale) throw Error("MEMORY_SOURCE_STALE");
+        if (!claimed) throw Error("MEMORY_USER_SOURCE_DENIED");
+        result = claimed;
+      } else result = chatsStore.claimPendingMessage(sessionId);
+      if (result.ok && result.claimed) {
+        broadcastChanged(event.sender);
+        if (!options.memory?.ownsSession?.(sessionId)) titleService?.schedule({ sessionId, userMessageId: result.userMessage.id, text: result.visibleContent });
+      }
+      return result;
+    };
+    // Duplicate IPC claims must not race source admission for one user identity.
+    const previous = pendingClaims.get(sessionId), pending = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(operation);
+    pendingClaims.set(sessionId, pending);
+    void pending.then(() => { if (pendingClaims.get(sessionId) === pending) pendingClaims.delete(sessionId); }, () => { if (pendingClaims.get(sessionId) === pending) pendingClaims.delete(sessionId); });
+    return pending;
   });
 
   // 派发确认：run 被主进程接受后清除认领状态；纯簿记，不广播。
@@ -517,15 +559,6 @@ export function registerChatsIpc(
     }
   });
 
-  ipc.handle(
-    IPC.CHATS_MIGRATE_LEGACY,
-    (event, messages: ChatMessage[]) => {
-      const session = chatsStore.migrateLegacyMessages(messages);
-      if (session) broadcastChanged(event.sender);
-      return session;
-    },
-  );
-
   // ── 对话工作区绑定 ──────────────────────────────────────
 
   ipc.handle(
@@ -536,7 +569,7 @@ export function registerChatsIpc(
       }
       const existing = chatsStore.getSession(payload.sessionId);
       if (!existing) return { ok: false, error: "session not found" };
-      if (existing.mode !== "work" && existing.mode !== "code" && existing.mode !== "learn") {
+      if (existing.mode !== "work" && existing.mode !== "code") {
         return { ok: false, error: `${existing.mode ?? "unknown"} mode does not support workspace binding` };
       }
       // 路径验证：目录存在 + realpath 解析
@@ -563,29 +596,11 @@ export function registerChatsIpc(
             });
           } catch { /* ignore */ }
         }
-        // Learn 模式：检测目录是否为空，让 renderer 决定是否初始化结构
-        const empty = existing.mode === "learn" ? await isEmptyDirectory(resolved) : false;
-        return { ok: true, binding, isEmpty: empty };
+        return { ok: true, binding };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return { ok: false, error: msg };
       }
-    },
-  );
-
-  ipc.handle(
-    IPC.CHATS_INIT_LEARN_WORKSPACE,
-    async (_event, sessionId: string) => {
-      if (!sessionId) return { ok: false, error: "missing sessionId" };
-      const binding = chatsStore.getWorkspaceBinding(sessionId);
-      if (!binding) return { ok: false, error: "no workspace binding" };
-      const session = chatsStore.getSession(sessionId);
-      if (!session || session.mode !== "learn") {
-        return { ok: false, error: "session is not in learn mode" };
-      }
-      const result = await ensureVaultStructure(binding.workspaceRoot);
-      if (result.error) return { ok: false, error: result.error };
-      return { ok: true, created: result.created, skipped: result.skipped };
     },
   );
 

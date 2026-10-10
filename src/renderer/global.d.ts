@@ -1,11 +1,14 @@
+import type { DesktopAsrApi } from "../shared/desktop-asr";
+import type { SettingsApi } from "./settings/shared/types";
+import type { ModelConfigApi } from "../shared/model-connection-types";
+import type { BrowserAvailabilityApi } from "../shared/browser-availability";
 // Global type augmentations for renderer
 
 import type { ReviewSnapshot, ReviewRestoreOutcome } from "../shared/review-types";
 import type { AppUpdateApi } from "../shared/app-update";
 import type { StickerManagerApi } from "../shared/sticker-types";
 import type { PluginManagementApi, PluginPanelApi } from "../shared/plugin-management";
-import type { MomentsApi } from "../shared/moments-types";
-import type { WorkspaceListResult, WorkspaceReadResult } from "../shared/workspace-files-types";
+import type { WorkspaceListResult, WorkspaceReadResult, WorkspaceSaveResult } from "../shared/workspace-files-types";
 import type { OpenInAppListResult, OpenInAppOpenResult } from "../shared/open-in-app-types";
 
 interface SystemApi {
@@ -23,6 +26,8 @@ interface WorkspaceFilesApi {
   list: (sessionId: string, relPath: string) => Promise<WorkspaceListResult>;
   /** 读取工作区内某文件内容（预览用；1MB 上限、二进制拒绝） */
   read: (sessionId: string, relPath: string) => Promise<WorkspaceReadResult>;
+  /** Every save requires Main-owned native confirmation. */
+  save: (sessionId: string, relPath: string, content: string, editVersion: string) => Promise<WorkspaceSaveResult>;
 }
 
 interface OpenInAppApi {
@@ -46,28 +51,16 @@ interface ChatWindowApi {
   getGeneralSettings: () => Promise<{
     language?: string;
     currentStyleId?: string;
-    ttsEarlyReadSplitEnabled?: boolean;
-    ttsEarlyReadSplitMode?: "sentence" | "paragraph";
-  }>;
-}
 
-/** 设置窗口通过 contextBridge 暴露的 window.settings（对应 preload 的 settingsApi）。
- *  只声明聊天页技能/工具模式面板用到的子集，完整实现见 src/preload/index.ts。 */
-interface SettingsWindowApi {
-  getSkillCatalog: () => Promise<unknown>;
-  getSkillModeOverrides: () => Promise<unknown>;
-  /** 重新扫描技能目录；失败返回 ok=false + error */
-  rescanSkills: () => Promise<{ ok: boolean; error?: string }>;
-  setSkillModeOverride: (skillId: string, mode: string, next: boolean) => Promise<unknown>;
-  getToolCatalog: () => Promise<unknown>;
-  getToolModeOverrides: () => Promise<unknown>;
-  getGeneral: () => Promise<unknown>;
-  setToolModeOverride: (toolId: string, mode: string, next: boolean) => Promise<unknown>;
-  saveGeneral: (payload: Record<string, unknown>) => Promise<unknown>;
+  }>;
 }
 
 declare global {
   interface Window {
+    desktopAsr?: DesktopAsrApi;
+    manualBrowser?: BrowserAvailabilityApi;
+    manualBrowserWorkspace?: import("../shared/manual-browser").ManualBrowserWorkspaceApi;
+    modelConfig?: ModelConfigApi;
     system?: SystemApi;
     review?: ReviewApi;
     workspaceFiles?: WorkspaceFilesApi;
@@ -75,11 +68,10 @@ declare global {
     appUpdate?: AppUpdateApi;
     plugins?: PluginManagementApi;
     pluginPanel?: PluginPanelApi;
-    moments?: MomentsApi;
     toast?: ToastRendererApi;
     chat?: ChatWindowApi;
     stickerManager?: StickerManagerApi;
-    settings?: SettingsWindowApi;
+    settings?: SettingsApi;
   }
 }
 

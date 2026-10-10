@@ -11,6 +11,9 @@ import {
 } from "./build-options"
 import type { SocialAtom } from "../social-context/types"
 import type { ConversationMode } from "../../shared/chat-types"
+import { approvePlan, enterPlanDiscussing, markPlanWritten, moveToReview, resetPlanSessionsForTest } from "./plan-mode"
+import type { ToolDefinition } from "./tools/registry/tool-registry"
+import * as promptLoader from "../prompts/prompt-loader"
 
 function createBuildDeps(): BuildOptionsDeps {
   return {
@@ -54,7 +57,121 @@ function createBuildDeps(): BuildOptionsDeps {
   }
 }
 
+it("ignores retired Moments context dependencies without disturbing Chat social context", async () => {
+  const deps = {
+    ...createBuildDeps(),
+    loadGeneralSettings: () => ({ momentsEnabled: true, chatMomentsContextEnabled: true, chatSocialContextEnabled: true }),
+    buildChatSocialContext: async () => ({ contextBlock: "SHARED_SOCIAL_CONTEXT", retrievedAtoms: [] }),
+    buildMomentsContext: () => "RETIRED_MOMENTS_CONTEXT",
+  };
+  const result = await buildAgentRunOptions({ sessionId: "retired-settings", executionMode: "chat",
+    messages: [{ role: "user", content: "Public fixture" }] }, deps);
+  expect(result.options.soulRuntimeContext).toContain("SHARED_SOCIAL_CONTEXT");
+  expect(result.options.soulRuntimeContext).not.toContain("RETIRED_MOMENTS_CONTEXT");
+});
+
 describe("build-options", () => {
+  const planCases = (["code", "chat"] as const).flatMap(mode =>
+    (["PLAN_DISCUSSING", "PLAN_REVIEW"] as const).flatMap(state =>
+      [false, true].map(authoritative => ({ mode, state, authoritative })),
+    ),
+  );
+  it.each(planCases)("keeps shell and writes out of $mode $state capabilities (authoritative=$authoritative)", async ({ mode, state, authoritative }) => {
+    const conversationId = `plan-filter-${mode}-${state}-${authoritative}`;
+    const tools: ToolDefinition[] = [
+      { id: "read_file", risk: "fs-read" },
+      { id: "run_shell", risk: "shell" },
+      { id: "write_file", risk: "fs-write" },
+    ].map(tool => ({ ...tool, name: tool.id, description: "Synthetic tool", enabled: true,
+      inputSchema: { type: "object" }, execute: vi.fn(async () => "fixture") }));
+    const deps = createBuildDeps();
+    deps.toolRegistry.getEnabledToolsForMode = () => tools;
+    deps.loadGeneralSettings = () => ({ ...createBuildDeps().loadGeneralSettings(),
+      chatToolsEnabled: true,
+      toolModeOverrides: Object.fromEntries(tools.map(tool => [tool.id, { chat: true }])),
+    });
+    if (authoritative) deps.resolveRunCapabilities = () => ({ mode, tools,
+      toolIds: new Set(tools.map(tool => tool.id)), skills: [], skillIds: new Set() });
+    enterPlanDiscussing(conversationId);
+    if (state === "PLAN_REVIEW") {
+      markPlanWritten(conversationId);
+      expect(moveToReview(conversationId)).toBe(true);
+    }
+    try {
+      const result = await buildAgentRunOptions({ sessionId: conversationId, mode,
+        messages: [{ role: "user", content: "Inspect synthetic plan" }] }, deps);
+      expect(result.options.tools?.map(tool => tool.id)).toEqual(["read_file"]);
+      expect(result.options.capabilities?.tools.map(tool => tool.id)).toEqual(["read_file"]);
+      expect([...result.options.capabilities!.toolIds]).toEqual(["read_file"]);
+      expect(tools.map(tool => tool.id)).toEqual(["read_file", "run_shell", "write_file"]);
+    } finally { resetPlanSessionsForTest(); }
+  });
+  it("restores shell and writes after the synthetic plan is approved for execution", async () => {
+    const conversationId = "plan-filter-executing";
+    const tools = [{ id: "run_shell", risk: "shell" }, { id: "write_file", risk: "fs-write" }];
+    const deps = createBuildDeps();
+    deps.toolRegistry.getEnabledToolsForMode = () => tools;
+    enterPlanDiscussing(conversationId);
+    markPlanWritten(conversationId);
+    expect(moveToReview(conversationId)).toBe(true);
+    expect(approvePlan(conversationId)).toBe(true);
+    try {
+      const result = await buildAgentRunOptions({ sessionId: conversationId, mode: "code",
+        messages: [{ role: "user", content: "Execute synthetic plan" }] }, deps);
+      expect(result.options.tools?.map(tool => tool.id)).toEqual(["run_shell", "write_file"]);
+      expect([...result.options.capabilities!.toolIds]).toEqual(["run_shell", "write_file"]);
+    } finally { resetPlanSessionsForTest(); }
+  });
+  it.each([false, true])("injects teaching only for an opted-in progress workspace: %s", async enabled => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "work-teaching-scope-"));
+    const loader = vi.spyOn(promptLoader, "loadPromptFile").mockReturnValue("FIXTURE_TEACHING_PROTOCOL");
+    try {
+      fs.mkdirSync(path.join(root, ".obsidian"));
+      if (enabled) {
+        fs.mkdirSync(path.join(root, "learn"));
+        fs.writeFileSync(path.join(root, "learn/progress.md"), "# Public progress fixture");
+      }
+      const deps = createBuildDeps();
+      deps.getWorkspaceBinding = () => ({ workspaceRoot: root, displayName: "fixture", boundAt: 1 });
+      deps.toolRegistry.getEnabledToolsForMode = () => [{ id: "obsidian_read_file", enabled: true }];
+      const result = await buildAgentRunOptions({ sessionId: "fixture", mode: "work",
+        messages: [{ role: "user", content: "Inspect public notes" }] }, deps);
+      expect(result.options.capabilities?.toolIds.has("obsidian_read_file")).toBe(true);
+      expect(result.options.soulSystemBaseContent?.includes("FIXTURE_TEACHING_PROTOCOL")).toBe(enabled);
+      expect(fs.existsSync(path.join(root, "learn"))).toBe(enabled);
+    } finally { loader.mockRestore(); fs.rmSync(root, { recursive: true, force: true }); }
+  });
+  it("loads the retained planning protocol without the retired Skill ID", async () => {
+    const deps = createBuildDeps();
+    const getBody = vi.fn(() => null);
+    deps.skillRegistry.getBody = getBody;
+    const loader = vi.spyOn(promptLoader, "loadPromptFile").mockReturnValue("FIXTURE_PLAN_PROTOCOL");
+    enterPlanDiscussing("fixture-planning-protocol");
+    try {
+      const result = await buildAgentRunOptions({ sessionId: "fixture-planning-protocol", mode: "code",
+        messages: [{ role: "user", content: "Plan a public fixture" }] }, deps);
+      expect(loader).toHaveBeenCalledWith("workflow-support/plan-mode.md");
+      for (const file of ["coverage-check.md", "execution-handoff.md", "plan-templates.md"]) {
+        expect(loader).toHaveBeenCalledWith(`workflow-support/references/${file}`);
+      }
+      expect(result.options.planSkillContext).toContain("FIXTURE_PLAN_PROTOCOL");
+      expect(result.options.toolSystemContent).not.toContain("FIXTURE_PLAN_PROTOCOL");
+      expect(getBody).not.toHaveBeenCalledWith("firefly-plan-mode");
+    } finally { loader.mockRestore(); resetPlanSessionsForTest(); }
+  });
+  it("keeps Obsidian tools out of ordinary Work runs without initializing a Vault", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "work-no-vault-"));
+    try {
+      const deps = createBuildDeps();
+      deps.getWorkspaceBinding = () => ({ workspaceRoot: root, displayName: "work", boundAt: 1 });
+      deps.toolRegistry.getEnabledToolsForMode = () => [{ id: "obsidian_read_file", enabled: true }];
+      const result = await buildAgentRunOptions({ sessionId: "work", mode: "work", messages: [{ role: "user", content: "hello" }] }, deps);
+      expect(result.options.tools?.map((tool) => tool.id)).not.toContain("obsidian_read_file");
+      expect(result.options.capabilities?.toolIds.has("obsidian_read_file")).toBe(false);
+      expect(result.options.capabilities?.tools.map((tool) => tool.id)).not.toContain("obsidian_read_file");
+      expect(fs.readdirSync(root)).toEqual([]);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
   it("injects selected Work paths as untrusted references without pretending to include file contents", async () => {
     const result = await buildAgentRunOptions({
       sessionId: "work-read-prompt", mode: "work", executionMode: "work",
@@ -66,7 +183,7 @@ describe("build-options", () => {
     expect(result.options.soulRuntimeContext).not.toContain("【本轮附件内容】");
     expect(result.options.soulSystemBaseContent).not.toContain("public.txt");
   });
-  it.each(["chat", "work", "learn", "code"] as const)("uses the explicit %s mode prompt", async (mode) => {
+  it.each(["chat", "work", "code"] as const)("uses the explicit %s mode prompt", async (mode) => {
     const deps = createBuildDeps();
     deps.buildModePrompt = (target) => `[MODE:${target}]`;
     const result = await buildAgentRunOptions({
@@ -178,7 +295,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "生成一份文档" }],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
     const askOptions = result.options as typeof result.options & {
       askSystemContent?: string
@@ -192,7 +309,7 @@ describe("build-options", () => {
   it("passes the trusted runtime environment to the agent decision stages", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "帮我查一下今天的天气" }],
-      style: "01_default.md",
+      styleId: "default",
     }, createBuildDeps())
 
     expect((result.options as typeof result.options & {
@@ -212,13 +329,13 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
 
     expect(result.options.settings.reasoning).toEqual({ mode: "off" })
   })
 
-  it.each(["chat", "work", "code", "learn"] as const)(
+  it.each(["chat", "work", "code"] as const)(
     "preserves the saved reasoning preference in %s mode",
     async (executionMode) => {
       const deps = createBuildDeps()
@@ -232,7 +349,7 @@ describe("build-options", () => {
 
       const result = await buildAgentRunOptions({
         messages: [{ role: "user", content: "你好" }],
-        style: "01_default.md",
+        styleId: "default",
         executionMode,
         mode: executionMode,
       }, deps)
@@ -245,7 +362,7 @@ describe("build-options", () => {
   it("adds a concise WeChat system when the run comes from WeChat", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
       channel: "wechat",
     }, createBuildDeps())
 
@@ -258,7 +375,7 @@ describe("build-options", () => {
   it("does not add channel system for desktop chat", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
     }, createBuildDeps())
 
     expect(result.options.soulSystemBaseContent).not.toContain("你正在通过微信回复用户")
@@ -268,7 +385,7 @@ describe("build-options", () => {
   it("messages 不含 system，由循环层组装 system", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
     }, createBuildDeps())
 
     // 原始 messages 不含 system 消息
@@ -285,7 +402,7 @@ describe("build-options", () => {
         { role: "assistant", content: "早点休息", at: Date.UTC(2026, 6, 12, 12, 2) },
         { role: "user", content: "我回来啦", at: Date.UTC(2026, 6, 13, 3, 0) },
       ],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
 
     expect(result.options.messages[0].content).toContain("<internal_context>用户发送这条消息的时间：2026-07-12 20:00")
@@ -301,7 +418,7 @@ describe("build-options", () => {
   it("toolSystemContent / soulSystemBaseContent 是分开的两套字符串", async () => {
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "你好" }],
-      style: "01_default.md",
+      styleId: "default",
     }, createBuildDeps())
 
     expect(result.options.toolSystemContent).toBe("TOOL_SYSTEM")
@@ -340,7 +457,7 @@ describe("build-options", () => {
     const result = await buildAgentRunOptions({
       sessionId: "daily-session",
       messages: [{ role: "user", content: "搜索后写一份 Markdown 报告" }],
-      style: "01_default.md",
+      styleId: "default",
       executionMode: "work",
     }, deps)
 
@@ -361,7 +478,7 @@ describe("build-options", () => {
       sessionId: "conversation-bound",
       workspaceBindingSessionId: null,
       messages: [{ role: "user", content: "继续对话" }],
-      style: "01_default.md",
+      styleId: "default",
       executionMode: "work",
     }, deps)
 
@@ -473,7 +590,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "今天怎么样" }],
-      style: "01_default.md",
+      styleId: "default",
       channel: "wechat",
       executionMode: "chat",
     }, deps)
@@ -562,7 +679,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [originalUserMessage],
-      style: "01_default.md",
+      styleId: "default",
       sessionId: "conversation-1",
     }, deps)
 
@@ -585,7 +702,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "第二首" }],
-      style: "01_default.md",
+      styleId: "default",
       sessionId: "conversation-1",
     }, deps)
 
@@ -598,7 +715,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "好无聊" }],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
 
     expect(result.options.toolSystemContent).toContain("SKILL_CATALOG")
@@ -612,7 +729,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "今日推荐呢" }],
-      style: "01_default.md",
+      styleId: "default",
     }, deps)
 
     expect(result.options.toolSystemContent).toContain("AUTO_MUSIC_RULES")
@@ -638,7 +755,7 @@ describe("build-options", () => {
         { role: "assistant", content: "好的" },
         { role: "user", content: "请看这张图" },
       ],
-      style: "01_default.md",
+      styleId: "default",
       imageAttachments: [{ name: "图 像.png", filePath: imagePath, mime: "image/png" }],
     }, deps)
 
@@ -698,7 +815,7 @@ describe("build-options", () => {
 
     const result = await buildAgentRunOptions({
       messages: [{ role: "user", content: "这图哪里不对？" }],
-      style: "01_default.md",
+      styleId: "default",
       imageAttachments: [{ name: "setup.png", filePath: "C:\\tmp\\setup.png", mime: "image/png" }],
     }, deps)
 
@@ -789,6 +906,65 @@ describe("build-options", () => {
       fireflyFeeling: "温柔",
       channel: "wechat",
     })
+  })
+
+  it.each([
+    { executionMode: "chat" as const, hasSocialContext: false },
+    { executionMode: "chat" as const, hasSocialContext: true },
+    { executionMode: "work" as const, hasSocialContext: false },
+    { executionMode: "code" as const, hasSocialContext: false },
+  ])("keeps mood and stickers without legacy personal writes in smh mode ($executionMode, social=$hasSocialContext)", async ({ executionMode, hasSocialContext }) => {
+    const scheduleMemoryWrite = vi.fn()
+    const scheduleSocialAtomExtraction = vi.fn()
+    const recordRelationshipTurn = vi.fn(async () => {})
+    const inferRuntimeState = vi.fn(() => ({ status: "陪伴中" }))
+    const setRuntimeState = vi.fn()
+    const observeRuntimeState = vi.fn(async () => {})
+    const broadcastRuntimeStateChanged = vi.fn()
+    const matchSticker = vi.fn(async () => ({ id: "hugtight" }))
+    const deps: OnRunFinishedDeps = {
+      personalMemoryMode: "smh",
+      loadModelSettings: () => ({ provider: "test", baseUrl: "", model: "", apiKey: "", runtimeSync: "llm", stickerEnabled: true }),
+      scheduleMemoryWrite,
+      scheduleSocialAtomExtraction,
+      recordRelationshipTurn,
+      inferRuntimeState,
+      runtimeState: { status: "陪伴中", feeling: "温柔", expression: 0, updatedAt: 0 },
+      feelingToExpression: { "温柔": 3 },
+      setRuntimeState,
+      stickerEmbeddingIndex: [{ id: "hugtight", embedding: [1, 0] }],
+      getEmbeddingProvider: () => ({ embed: async () => [1, 0] }),
+      matchSticker,
+      loadStickerSettings: () => ({}),
+      broadcastRuntimeStateChanged,
+      observeRuntimeState,
+    }
+
+    const effects = await onAgentRunFinished({
+      reply: "来，抱抱你",
+      toolResults: [],
+      executionMode,
+      ...(hasSocialContext ? {
+        socialContext: {
+          enabled: true as const,
+          conversationId: "chat-smh",
+          userTurnId: "user-1",
+          assistantTurnId: "assistant-1",
+          retrievedAtoms: [],
+          now: 100,
+        },
+      } : {}),
+    }, "今天好累", deps, undefined, "chat-smh")
+
+    expect(scheduleMemoryWrite).not.toHaveBeenCalled()
+    expect(scheduleSocialAtomExtraction).not.toHaveBeenCalled()
+    expect(recordRelationshipTurn).not.toHaveBeenCalled()
+    expect(inferRuntimeState).toHaveBeenCalledWith("今天好累", "来，抱抱你", false)
+    expect(setRuntimeState).toHaveBeenCalledWith({ status: "陪伴中", expression: 3, updatedAt: expect.any(Number) })
+    expect(matchSticker).toHaveBeenCalledWith("来，抱抱你\n今天好累", expect.anything(), deps.stickerEmbeddingIndex, 0.55)
+    expect(broadcastRuntimeStateChanged).toHaveBeenCalledTimes(1)
+    expect(observeRuntimeState).toHaveBeenCalledWith(expect.objectContaining({ runtimeSync: "llm" }), [], "今天好累", "来，抱抱你")
+    expect(effects).toEqual({ sticker: "hugtight" })
   })
 
   it("uses the latest sticker embedding index when agent run finishes", async () => {
@@ -951,98 +1127,6 @@ describe("build-options", () => {
   })
 })
 
-describe("moments context 注入（Phase 3 Chat Awareness）", () => {
-  function momentsDeps(overrides: {
-    momentsEnabled?: boolean;
-    chatMomentsContextEnabled?: boolean;
-    blockText?: string;
-    throwInBuild?: boolean;
-  }) {
-    const deps = createBuildDeps()
-    deps.loadGeneralSettings = () => ({
-      currentStyleId: "default",
-      customStyle: { diversity: { driver: "model-default" }, repetition: "model-default" },
-      chatSocialContextEnabled: false,
-      momentsEnabled: overrides.momentsEnabled ?? true,
-      chatMomentsContextEnabled: overrides.chatMomentsContextEnabled ?? true,
-    })
-    deps.buildMomentsContext = vi.fn((query: string) => {
-      if (overrides.throwInBuild) throw new Error("moments store 未初始化")
-      return overrides.blockText ?? `【近期朋友圈动态】\n${query}`
-    })
-    return deps
-  }
-
-  it("Chat 模式且双开关开启时注入 momentsContextBlock，并把最新用户文本传给门控检索", async () => {
-    const deps = momentsDeps({})
-    const result = await buildAgentRunOptions({
-      sessionId: "moments-chat",
-      executionMode: "chat",
-      messages: [{ role: "user", content: "你刚才朋友圈发的是什么意思" }],
-    }, deps)
-
-    expect(deps.buildMomentsContext).toHaveBeenCalledWith("你刚才朋友圈发的是什么意思")
-    expect(result.options.soulRuntimeContext).toContain("【近期朋友圈动态】")
-  })
-
-  it("chatMomentsContextEnabled=false 时 block 不出现", async () => {
-    const deps = momentsDeps({ chatMomentsContextEnabled: false })
-    const result = await buildAgentRunOptions({
-      sessionId: "moments-off",
-      executionMode: "chat",
-      messages: [{ role: "user", content: "你好" }],
-    }, deps)
-
-    expect(deps.buildMomentsContext).not.toHaveBeenCalled()
-    expect(result.options.soulRuntimeContext).not.toContain("【近期朋友圈动态】")
-  })
-
-  it("momentsEnabled=false 总开关关闭时不注入", async () => {
-    const deps = momentsDeps({ momentsEnabled: false })
-    await buildAgentRunOptions({
-      sessionId: "moments-master-off",
-      executionMode: "chat",
-      messages: [{ role: "user", content: "你好" }],
-    }, deps)
-
-    expect(deps.buildMomentsContext).not.toHaveBeenCalled()
-  })
-
-  it("Work 模式不注入", async () => {
-    const deps = momentsDeps({})
-    await buildAgentRunOptions({
-      sessionId: "moments-work",
-      executionMode: "work",
-      messages: [{ role: "user", content: "帮我修个 bug" }],
-    }, deps)
-
-    expect(deps.buildMomentsContext).not.toHaveBeenCalled()
-  })
-
-  it("构建抛错时静默降级为空，不影响本轮运行", async () => {
-    const deps = momentsDeps({ throwInBuild: true })
-    const result = await buildAgentRunOptions({
-      sessionId: "moments-error",
-      executionMode: "chat",
-      messages: [{ role: "user", content: "你好" }],
-    }, deps)
-
-    expect(result.options.soulRuntimeContext).not.toContain("【近期朋友圈动态】")
-  })
-
-  it("返回空串时按空省略，不产生空分隔段", async () => {
-    const deps = momentsDeps({ blockText: "" })
-    const result = await buildAgentRunOptions({
-      sessionId: "moments-empty",
-      executionMode: "chat",
-      messages: [{ role: "user", content: "你好" }],
-    }, deps)
-
-    expect(result.options.soulRuntimeContext).not.toContain("【近期朋友圈动态】")
-    expect(result.options.soulRuntimeContext).not.toMatch(/(^|\n)---(\n|$)\s*(^|\n)---/)
-  })
-})
-
 describe("权威轨迹上下文源（CTA Phase 1）", () => {
   it("desktop transcript context 启用时忽略渲染端消息", async () => {
     const deps = createBuildDeps()
@@ -1143,3 +1227,61 @@ describe("权威轨迹上下文源（CTA Phase 1）", () => {
     expect(JSON.stringify(built.options.messages)).toContain("消息15")
   })
 })
+
+it("rejects ungranted media before calling caption or document readers", async () => {
+ const deps=createBuildDeps();deps.requireAttachmentGrant=true;
+ deps.captionImageForFallback=vi.fn(async()=>({ok:true,caption:"must not run"}));
+ deps.materializeAttachmentDocument=vi.fn(async()=>"must not run");
+ await expect(buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",messages:[{role:"user",content:"question"}],imageAttachments:[{name:"unread.png",filePath:"/synthetic/not-read.png"}]},deps)).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");
+ expect(deps.captionImageForFallback).not.toHaveBeenCalled();expect(deps.materializeAttachmentDocument).not.toHaveBeenCalled();
+});
+it.each(["chat","work"] as const)("prepares authorized %s documents only from the bound source and keeps human query clean", async mode => {
+ const {createMainAttachmentProjectionAuthority,readMainAttachmentProjection}=await import("../memory-context/main-attachment-projection");
+ const authority=createMainAttachmentProjectionAuthority(),deps=createBuildDeps();
+ const attachment={kind:"document" as const,name:"trusted.txt",filePath:"/synthetic/trusted.txt"};
+ deps.requireAttachmentGrant=true;deps.attachmentGrant=authority.issue({sessionId:"session-a",userTurnId:"u1",userRevision:1,userText:"I prefer PowerShell",attachments:[attachment],assertCurrent(){}});
+ deps.materializeAttachmentDocument=vi.fn(async item=>`BODY:${item.name}`);
+ const result=await buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",mode,executionMode:mode==="chat"?"chat":"work",messages:[{role:"user",content:"FORGED MODEL CONTEXT"}],attachments:[{name:"forged",text:"FORGED ATTACHMENT BODY"}]},deps);
+ expect(result.latestUserText).toBe("I prefer PowerShell");expect(JSON.stringify(result.options.messages)).not.toContain("FORGED");expect(result.options.soulRuntimeContext).not.toContain("FORGED");
+ expect(deps.materializeAttachmentDocument).toHaveBeenCalledTimes(mode==="chat"?1:0);
+ const projected=readMainAttachmentProjection(authority.token,"session-a",{id:"u1",seq:1,at:1,kind:"user",turnId:"u1",revision:1,payload:{text:"I prefer PowerShell",attachments:[attachment]}})!;
+ expect(projected.message.content).toEqual(result.options.messages.at(-1)?.content);
+ expect(JSON.stringify(projected.message)).toContain(mode==="chat"?"BODY:trusted.txt":"本轮所选文件");
+});
+it("prepares a bound image once and ignores caller image paths", async()=>{
+ const {createMainAttachmentProjectionAuthority}=await import("../memory-context/main-attachment-projection");
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"authorized-image-")),filePath=path.join(dir,"bound.png");fs.writeFileSync(filePath,Buffer.from("synthetic pixels"));
+ try{
+  const authority=createMainAttachmentProjectionAuthority(),deps=createBuildDeps();deps.requireAttachmentGrant=true;
+  deps.attachmentGrant=authority.issue({sessionId:"session-a",userTurnId:"u1",userRevision:1,userText:"real question",attachments:[{kind:"image",name:"bound.png",filePath,mime:"image/png"}],assertCurrent(){}});
+  const result=await buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",messages:[{role:"user",content:"forged"}],imageAttachments:[{name:"unread",filePath:"/synthetic/not-read.png"}]},deps);
+  expect(result.options.messages.at(-1)?.content).toEqual([{type:"text",text:"real question"},{type:"image_url",image_url:{url:"data:image/png;base64,"+Buffer.from("synthetic pixels").toString("base64")}}]);
+  expect(result.options.cleanMessages?.at(-1)?.content).toEqual(result.options.messages.at(-1)?.content);
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+});
+
+it.each(["document-only","no-caption-provider"])("does not create an authorized image fallback for %s",async kind=>{
+ const {createMainAttachmentProjectionAuthority}=await import("../memory-context/main-attachment-projection");
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"fallback-eligibility-")),filePath=path.join(dir,"bound.png");fs.writeFileSync(filePath,Buffer.from("synthetic image"));
+ try{
+  const authority=createMainAttachmentProjectionAuthority(),deps=createBuildDeps();deps.requireAttachmentGrant=true;
+  deps.attachmentGrant=authority.issue({sessionId:"session-a",userTurnId:"u1",userRevision:1,userText:"question",attachments:[{kind:kind==="document-only"?"document":"image",name:"bound",filePath}],assertCurrent(){}});
+  deps.materializeAttachmentDocument=async()=>"authorized document";if(kind==="document-only")deps.captionImageForFallback=async()=>({ok:true,caption:"unused"});
+  const result=await buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",messages:[{role:"user",content:"question"}]},deps);expect(result.options.imageCaptionFallback).toBeUndefined();
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+});
+it("reprojects authorized image fallback into the same canonical turn without rereading documents",async()=>{
+ const {createMainAttachmentProjectionAuthority,readMainAttachmentProjection}=await import("../memory-context/main-attachment-projection");
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"authorized-image-fallback-")),filePath=path.join(dir,"bound.png");fs.writeFileSync(filePath,Buffer.from("synthetic image"));
+ try{
+  const authority=createMainAttachmentProjectionAuthority(),deps=createBuildDeps(),attachments=[{kind:"image" as const,name:"bound.png",filePath},{kind:"document" as const,name:"bound.txt",filePath:"/synthetic/document.txt"}];
+  deps.requireAttachmentGrant=true;deps.attachmentGrant=authority.issue({sessionId:"session-a",userTurnId:"u1",userRevision:1,userText:"human original",attachments,assertCurrent(){}});
+  deps.materializeAttachmentDocument=vi.fn(async()=>"authorized document bytes");deps.captionImageForFallback=vi.fn(async path=>{expect(path).toBe(filePath);return {ok:true,caption:"synthetic caption bytes"}});
+  const result=await buildAgentRunOptions({sessionId:"session-a",userTurnId:"u1",messages:[{role:"user",content:"untrusted request"}]},deps);
+  const entry={id:"u1",seq:1,at:1,kind:"user" as const,turnId:"u1",revision:1,payload:{text:"human original",attachments}},before=readMainAttachmentProjection(authority.token,"session-a",entry)!;
+  const fallback=await result.options.imageCaptionFallback!();expect(before.assertCurrent).toThrow("MEMORY_ATTACHMENT_DENIED");
+  expect(JSON.stringify(fallback)).toContain("synthetic caption bytes");expect(JSON.stringify(fallback)).toContain("authorized document bytes");expect(JSON.stringify(fallback)).not.toContain("data:image");expect(JSON.stringify(fallback)).not.toContain("untrusted request");
+  expect(deps.captionImageForFallback).toHaveBeenCalledTimes(1);expect(deps.materializeAttachmentDocument).toHaveBeenCalledTimes(1);
+  expect(readMainAttachmentProjection(authority.token,"session-a",entry)!.message.content).toEqual(fallback.at(-1)?.content);
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+});

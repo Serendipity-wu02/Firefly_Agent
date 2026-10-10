@@ -16,12 +16,13 @@ vi.mock("antd", () => ({
   Segmented: () => null,
 }));
 
-vi.mock("./ReasoningControl", () => ({ ReasoningControl: () => null }));
+vi.mock("./ModelEffortControl", () => ({ ModelEffortControl: () => null }));
+vi.mock("./DesktopAsrButton", () => ({ DesktopAsrButton: () => null }));
 vi.mock("./StyleControl", () => ({ StyleControl: () => null }));
 vi.mock("./PermissionControl", () => ({ PermissionControl: () => null }));
 vi.mock("../../../../../shared/renderer-base", () => ({ resolveAsset: (path: string) => path }));
 
-import { ChatComposer, parseComposerMessage } from "./ChatComposer";
+import { ChatComposer, composerAddMenuEntries, parseComposerMessage, splitStickerMarkers } from "./ChatComposer";
 
 describe("ChatComposer cancellation", () => {
   beforeEach(() => {
@@ -75,6 +76,36 @@ describe("ChatComposer cancellation", () => {
 
 });
 
+describe("sticker markers in the text box", () => {
+  const known = new Set(["firefly-happy", "hug"]);
+  it("hides recognised markers from the typed text and restores them after it", () => {
+    const { visible, markers } = splitStickerMarkers("你好 [sticker:firefly-happy]", known);
+    expect(visible).toBe("你好 ");
+    expect(markers).toEqual(["[sticker:firefly-happy]"]);
+    expect(`${visible}${markers.join("")}`).toBe("你好 [sticker:firefly-happy]");
+  });
+  it("keeps a sticker-only draft sendable and every duplicate", () => {
+    const { visible, markers } = splitStickerMarkers("[sticker:hug][sticker:hug]", known);
+    expect(visible).toBe(""); expect(markers).toEqual(["[sticker:hug]", "[sticker:hug]"]);
+  });
+  it("round-trips typing, including a trailing space, without moving or losing a marker", () => {
+    const original = "a[sticker:hug]";
+    const { markers } = splitStickerMarkers(original, known);
+    for (const typed of ["a ", "a b", "", "a\n"]) {
+      const next = `${typed}${markers.join("")}`;
+      expect(splitStickerMarkers(next, known).visible).toBe(typed);
+      expect(splitStickerMarkers(next, known).markers).toEqual(markers);
+    }
+  });
+  it("leaves unrecognised markers visible so they can never become hidden text", () => {
+    const { visible, markers } = splitStickerMarkers("x [sticker:retired] y", known);
+    expect(visible).toBe("x [sticker:retired] y"); expect(markers).toEqual([]);
+  });
+  it("leaves text without markers untouched", () => {
+    expect(splitStickerMarkers("plain [text]", known)).toEqual({ visible: "plain [text]", markers: [] });
+  });
+});
+
 describe("ChatComposer Code sticker policy", () => {
   const baseProps = {
     value: "",
@@ -90,14 +121,12 @@ describe("ChatComposer Code sticker policy", () => {
     onChooseSticker: vi.fn(),
   };
 
-  it("hides the sticker picker in Code mode but keeps it in Work mode", () => {
+  it("offers stickers in the add menu for Work but not for Code", () => {
+    expect(composerAddMenuEntries(false)).toEqual(["upload", "screenshot"]);
+    expect(composerAddMenuEntries(true)).toEqual(["upload", "screenshot", "sticker"]);
+    // The composer decides per mode; the one "+" entry is always present.
     renderToStaticMarkup(createElement(ChatComposer, { ...baseProps, mode: "code" }));
-    const codeHtml = renderToStaticMarkup(senderProps?.prefix as React.ReactElement);
-    renderToStaticMarkup(createElement(ChatComposer, { ...baseProps, mode: "work" }));
-    const workHtml = renderToStaticMarkup(senderProps?.prefix as React.ReactElement);
-
-    expect(codeHtml).not.toContain('aria-label="表情包"');
-    expect(workHtml).toContain('aria-label="表情包"');
+    expect(renderToStaticMarkup(senderProps?.prefix as React.ReactElement)).toContain('aria-label="添加"');
   });
 
   it("strips sticker markers without turning them into a Code message sticker", () => {
@@ -114,11 +143,12 @@ describe("ChatComposer Code sticker policy", () => {
   });
 
   it("keeps the plan mode toggle in the Code composer footer", () => {
-    const html = renderToStaticMarkup(createElement(ChatComposer, {
+    renderToStaticMarkup(createElement(ChatComposer, {
       ...baseProps,
       mode: "code",
       conversationId: "session-1",
     }));
+    const html = renderToStaticMarkup(senderProps?.prefix as React.ReactElement);
 
     expect(html).toContain("计划模式 · off");
     expect(html).toContain("cy-plan-control");

@@ -1,7 +1,7 @@
 import { ProviderProtocolError, type UnifiedStreamDelta } from "./types";
 
 // ── OpenAI Responses API 流式事件 → UnifiedStreamDelta ──
-// 事件映射清单（docs/responses-transport-construction-plan.md「responses-normalizer」小节）：
+// 事件映射清单：
 //   response.output_text.delta              → text_delta
 //   response.output_text.done               → 忽略（全量快照，delta 已流过）
 //   response.reasoning_summary_text.delta   → reasoning_delta

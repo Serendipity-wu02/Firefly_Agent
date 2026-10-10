@@ -1,3 +1,4 @@
+import type { BackgroundMemoryHost } from "../memory-context/background-memory-ingress";
 // FireflyAgent —— 把两条 Agent 循环包进 AG-UI 的 AbstractAgent。
 //
 // - 持有 runWithEvents 入口：Chat 使用 chat-loop，其余模式使用 FireflyHarness。
@@ -23,6 +24,7 @@ import { contextRefRegistry, extractLastUserQuery, type ToolContext } from "./to
 import { runChatLoop } from "./chat-loop";
 import type { RunCapabilities } from "./run-capabilities";
 import { runHarnessWithAdapter } from "./harness-adapter";
+import type { MainMemoryRun } from "../memory-context/main-memory-runtime";
 
 /** Skill 路由条目（类型本地定义，不再依赖 task-router 模块） */
 export interface SkillRouteInfo {
@@ -83,7 +85,7 @@ export interface AgentLoopSettings {
   baseUrl: string;
   model: string;
   apiKey: string;
-  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+  explicitTransport?: "openai" | "anthropic" | "responses";
   reasoning?: import("../../shared/reasoning").ReasoningPreference;
   /** 用户设置的模型上下文窗口（Token）。用于非 code 模式的对话压缩触发阈值。 */
   contextWindowTokens: number;
@@ -93,6 +95,15 @@ export type AgentExecutionMode = "work" | "chat";
 
 /** FireflyAgent.run() 需要的输入——桥层构造好后塞进 input.state 或 forwardedProps。 */
 export interface FireflyRunOptions {
+  /** Main-owned S/M/H boundary shared by every model round and canonical commit. */
+  memoryRun?: MainMemoryRun;
+  /** Main-only host used to prepare scoped child instructions. */
+  backgroundMemory?: BackgroundMemoryHost;
+  /** Main-only late factory: receives the canonical run/sink and the linked abort signal. */
+  openMemoryRun?: (input: FireflyRunOptions) => Promise<MainMemoryRun>;
+  /** Main-only default-absent S stream injection; never rebuilds through legacy loops. */
+  controlledResponses?:import("./controlled-responses").ControlledResponsesRun;
+  isControlledRunCurrent?:()=>boolean;
   settings: AgentLoopSettings;
   /** 本 Run 快照的 Harness 安全工具并发上限。 */
   maxParallelToolCalls?: number;
@@ -119,7 +130,7 @@ export interface FireflyRunOptions {
   trustedRefs?: string[];
   /** Chat 跳过 CITA/Native FC；默认 Work。 */
   executionMode?: AgentExecutionMode;
-  /** 原始 UI 模式（work / learn / chat / code），供工具做模式隔离。 */
+  /** 原始 UI 模式（work / chat / code），供工具做模式隔离。 */
   conversationMode?: ConversationMode;
   workReadScopes?: import("../../shared/chat-types").WorkReadScope[];
   timeoutMs: number;
@@ -142,7 +153,7 @@ export interface FireflyRunOptions {
   soulSystemBaseContent: string;
   /** 每次请求才附加给 Soul 的可变运行时上下文；不参与稳定缓存前缀。 */
   soulRuntimeContext?: string;
-  /** Plan Mode 时注入的 firefly-plan-mode skill 正文；可变，不参与稳定缓存前缀，
+  /** Plan Mode 时注入的计划协议正文；可变，不参与稳定缓存前缀，
    *  在 harness runtimeParts 里拼，避免进/出 plan mode 打断 stablePrefix 缓存。 */
   planSkillContext?: string;
   /** 只应用到 Soul 最终自然语言回复，禁止影响 CITA 与 Native FC。 */
@@ -172,8 +183,7 @@ export interface FireflyRunOptions {
   /** 可用 Skill 列表（feature flag 开启时使用）。Skill 路由层不依赖该字段是否存在。 */
   availableSkills?: SkillRouteInfo[];
   /**
-   * ExecutionLedger：同进程工具去重缓存（设计稿 v3 §5.5.1.1，
-   * 历史设计索引见 docs/archive/README.md）。
+   * ExecutionLedger：同进程工具去重缓存（设计稿 v3 §5.5.1.1）。
    * FireflyAgent 内部默认从 ExecutionLedgerStore 取，调用方一般不用传。
    */
   executionLedger?: ExecutionLedger;
@@ -257,8 +267,7 @@ function terminalFromCompletionReason(
 }
 
 export function resolveExecutionMode(mode: unknown): AgentExecutionMode {
-  // 兼容尚未重启的旧 renderer 与历史内部调用。
-  return mode === "chat" || mode === "soul-only" ? "chat" : "work";
+  return mode === "chat" ? "chat" : "work";
 }
 
 /**
@@ -432,7 +441,19 @@ export class FireflyAgent extends AbstractAgent {
       }
 
       (async () => {
+        let ownedMemoryRun: MainMemoryRun | undefined;
+        let terminalEvent: BaseEvent | undefined;
+        let terminalError: Error | undefined;
         try {
+          if (!runOptions.memoryRun && runOptions.openMemoryRun) {
+            ownedMemoryRun = await runOptions.openMemoryRun({ ...runOptions, signal: abortController.signal });
+            if (!ownedMemoryRun) throw new Error("MEMORY_CONTEXT_RUN_UNAVAILABLE");
+            runOptions.memoryRun = ownedMemoryRun;
+            if (abortController.signal.aborted) throw new Error("MEMORY_CONTEXT_CANCELLED");
+          }
+          if (runOptions.memoryRun && runOptions.transcriptSink) {
+            runOptions.transcriptSink = runOptions.memoryRun.bindSink(runOptions.transcriptSink);
+          }
           subscriber.next({ type: EventType.RUN_STARTED, threadId, runId });
 
           const adapterTimer = perf.begin("get_adapter");
@@ -459,7 +480,9 @@ export class FireflyAgent extends AbstractAgent {
           flowLog(`2. 理解用户请求：${executionMode === "chat" ? "Chat 模式无需工具上下文" : `完成，可信引用 ${(options.trustedRefs ?? []).length} 个`}`);
 
           let result: AgentLoopResult;
-          if (executionMode === "chat" && !chatWithTools) {
+          if(runOptions.controlledResponses){
+            result=await runOptions.controlledResponses(runOptions,abortController.signal,onEvent);
+          }else if (executionMode === "chat" && !chatWithTools) {
             flowLog("3. Chat 模式：生成回复");
             result = await perf.track("chat_loop", () => runChatLoop({
               settings: options.settings,
@@ -473,7 +496,8 @@ export class FireflyAgent extends AbstractAgent {
               onEvent,
               signal: abortController.signal,
               mode: options.conversationMode,
-              transcriptSink: options.transcriptSink,
+              transcriptSink: runOptions.transcriptSink,
+              memoryRun: runOptions.memoryRun,
             }));
           } else {
             const executeTool = (tc: Parameters<typeof executeToolCall>[0], runnableToolIds: Set<string>) => executeToolCall(tc, runnableToolIds, {
@@ -514,15 +538,12 @@ export class FireflyAgent extends AbstractAgent {
           if (cancelled) return;
           // success / timeout 都通过 RUN_FINISHED.result 上报 canonical 终态。
           // Bridge 据此决定是否跑 sticker / memory 等成功收尾副作用。
-          subscriber.next({
+          terminalEvent = {
             type: EventType.RUN_FINISHED,
             threadId,
             runId,
             result: this.lastResult.terminal,
-          });
-          finished = true;
-          detachExternalAbort();
-          subscriber.complete();
+          };
         } catch (err) {
           if (cancelled) return;
           // 从 AgentExecutionError 提取真实执行状态
@@ -538,11 +559,11 @@ export class FireflyAgent extends AbstractAgent {
             // ChatLoop 无工具调用，runSession 传空只写 interruption 边界；
             // Harness 路径已在 adapter 内按 runStore 状态闭合，这里幂等不重复。
             try {
-              await options.transcriptSink?.closeInterruption({ reason: "user_cancel", runSession: null });
+              await runOptions.transcriptSink?.closeInterruption({ reason: "user_cancel", runSession: null });
             } catch (closureError) {
               // 闭合失败不得伪装成取消成功：按运行时错误上报
               console.error(LOG_PREFIX, "transcript interruption closure failed:", closureError);
-              subscriber.next({
+              terminalEvent = {
                 type: EventType.RUN_FINISHED,
                 threadId,
                 runId,
@@ -551,15 +572,12 @@ export class FireflyAgent extends AbstractAgent {
                   reason: "transcript_interruption_closure_failed",
                   externalEffectsMayContinue: true,
                 },
-              });
-              finished = true;
-              detachExternalAbort();
-              subscriber.complete();
+              };
               return;
             }
             // 取消走 RUN_FINISHED + result.status="cancelled"，
             // 不伪装成 AG-UI interrupt，也不写 outcome。
-            subscriber.next({
+            terminalEvent = {
               type: EventType.RUN_FINISHED,
               threadId,
               runId,
@@ -568,16 +586,31 @@ export class FireflyAgent extends AbstractAgent {
                 reason: "user_cancelled",
                 externalEffectsMayContinue: true,
               },
-            });
-            finished = true;
-            detachExternalAbort();
-            subscriber.complete();
+            };
             return;
           }
-          const safeErr = new Error(classification.userMessage);
+          terminalError = new Error(classification.userMessage);
+        } finally {
+          // The factory's owner must finish real provider/canonical operations
+          // before the bridge sees any terminal event or releases this run.
+          // A run injected by the caller remains that caller's responsibility.
+          try {
+            await ownedMemoryRun?.close();
+          } catch (closeError) {
+            const classification = classifyRunError(closeError, undefined, runId, conversationId, "unknown", false);
+            console.error(LOG_PREFIX, "memory run closure failed:", classification.diagnostics);
+            terminalEvent = undefined;
+            terminalError = new Error(classification.userMessage);
+          }
           finished = true;
           detachExternalAbort();
-          subscriber.error(safeErr);
+          if (!cancelled) {
+            if (terminalError) subscriber.error(terminalError);
+            else {
+              if (terminalEvent) subscriber.next(terminalEvent);
+              subscriber.complete();
+            }
+          }
         }
       })();
 

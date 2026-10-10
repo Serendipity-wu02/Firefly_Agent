@@ -1,0 +1,37 @@
+.cy-sidebar-search-modal .ant-modal-content {
+  padding: 12px;
+  border: 1px solid var(--cy-border);
+  background: var(--cy-popover);
+  box-shadow: var(--cy-shadow-popover);
+}
+
+.cy-sidebar-search { display: flex; flex-direction: column; gap: 8px; color: var(--cy-text); font-family: var(--rb-font-sans, sans-serif); }
+
+.cy-sidebar-search__heading { padding: 6px 8px 0; color: var(--cy-text-muted); font: 500 12px/1.2 var(--rb-font-sans, sans-serif); }
+
+.cy-sidebar-search__list { display: flex; max-height: 320px; flex-direction: column; gap: 2px; overflow-y: auto; }
+
+.cy-sidebar-search__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cy-text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+.cy-sidebar-search__item svg { flex: none; color: var(--cy-text-muted); }
+.cy-sidebar-search__item.is-highlighted { background: var(--cy-bg-hover); color: var(--cy-text); }
+.cy-sidebar-search__item.is-current .cy-sidebar-search__title { color: var(--cy-accent); }
+
+.cy-sidebar-search__copy { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.cy-sidebar-search__title,
+.cy-sidebar-search__project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cy-sidebar-search__title { font: 500 13px/1.3 var(--rb-font-sans, sans-serif); }
+.cy-sidebar-search__project { color: var(--cy-text-muted); font: 400 12px/1.3 var(--rb-font-sans, sans-serif); }
+
+.cy-sidebar-search__empty { padding: 22px 8px; color: var(--cy-text-muted); font: 400 13px/1.5 var(--rb-font-sans, sans-serif); text-align: center; }

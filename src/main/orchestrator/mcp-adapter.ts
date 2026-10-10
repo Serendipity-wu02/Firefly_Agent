@@ -1,11 +1,24 @@
 // MCP Adapter — 将 MCP server 的工具发现和调用适配到 ToolRegistry
+import { isDeepStrictEqual } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ToolDefinition, toolRegistry, type ToolEffectKind } from "./tools/registry/tool-registry";
+import type { ToolRiskLevel } from "../permission-policy";
+import { ToolExecutionError } from "./tools/registry/tool-execution-error";
+import type { ToolContext } from "./tools/registry/tool-context";
+import { createAbortError, isCancellationError, raceWithSignal } from "../abort-utils";
 
 const LOG_PREFIX = "[MCP Adapter]";
+
+const MCP_EFFECT_RISK: Record<ToolEffectKind, ToolRiskLevel> = {
+  read: "network",
+  verification: "network",
+  mutation: "fs-write",
+  external_side_effect: "input-control",
+  unknown: "input-control",
+};
 
 export interface McpServerConfig {
   id: string;              // 唯一标识
@@ -36,40 +49,118 @@ interface McpServerState {
 }
 
 /**
- * 从 MCP Tool annotations 推导 effectKind。
+ * 从本地 override 或 MCP Tool annotations 推导 effectKind。
+ * 当前配置没有可信 server 标记，server 的 readOnlyHint 不可降低工具风险。
  *
  * 优先级（保守策略）：
- * 1. 本地显式 override（最高优先级）
+ * 1. 本地有效 override（最高优先级）
  * 2. destructiveHint=true → external_side_effect（第三方 annotations 矛盾时采用保守策略）
- * 3. readOnlyHint=true → read
- * 4. 无匹配 → unknown（会被 ExecutionPolicyGuard 拒绝）
+ * 3. 其余 server annotations → unknown（按 input-control 风险检查权限）
  *
  * 注意：destructiveHint=false 不等于 readOnlyHint=true。
- * 第三方 annotations 同时设置 readOnlyHint + destructiveHint 时，destructive 优先（不放行）。
+ * 第三方 annotations 同时设置 readOnlyHint + destructiveHint 时，destructive 优先（按外部副作用风险检查权限）。
  */
 function resolveMcpEffectKind(
   annotations: McpToolAnnotations | undefined,
   overrides: Record<string, ToolEffectKind> | undefined,
   toolName: string,
 ): ToolEffectKind {
-  // 优先级 1：本地显式 override
-  if (overrides && overrides[toolName]) {
-    return overrides[toolName];
+  // 优先级 1：本地有效 override
+  const override = overrides && Object.prototype.hasOwnProperty.call(overrides, toolName)
+    ? overrides[toolName]
+    : undefined;
+  if (typeof override === "string" && Object.prototype.hasOwnProperty.call(MCP_EFFECT_RISK, override)) {
+    return override as ToolEffectKind;
   }
   if (!annotations) return "unknown";
-  // 优先级 2：destructiveHint=true（保守策略，不放行）
+  // 优先级 2：destructiveHint=true（保守策略，按外部副作用风险检查权限）
   if (annotations.destructiveHint === true) return "external_side_effect";
-  // 优先级 3：readOnlyHint=true
-  if (annotations.readOnlyHint === true) return "read";
-  // 优先级 4：无匹配 → unknown
+  // 优先级 3：无可信 server 标记时，其余 annotations 不能降级风险
   return "unknown";
+}
+
+function sameConnectionConfig(a: McpServerConfig, b: McpServerConfig): boolean {
+  const comparable = (config: McpServerConfig) => ({
+    id: config.id, name: config.name, transport: config.transport,
+    command: config.command, args: config.args ?? [], env: config.env ?? {},
+    cwd: config.cwd, url: config.url, effectKindOverrides: config.effectKindOverrides ?? {},
+  });
+  return isDeepStrictEqual(comparable(a), comparable(b));
+}
+
+// Adapter 是每个 ID 的唯一连接所有者。相同请求合并；变更/断开按调用顺序执行。
+const mcpOperations = new Map<string, { config?: McpServerConfig; promise: Promise<unknown> }>();
+
+function queueMcpOperation<T>(serverId: string, config: McpServerConfig | undefined, run: () => Promise<T>): Promise<T> {
+  const previous = mcpOperations.get(serverId);
+  const promise = (previous ? previous.promise.catch(() => undefined) : Promise.resolve()).then(run);
+  const operation = { config, promise };
+  mcpOperations.set(serverId, operation);
+  const clear = () => {
+    if (mcpOperations.get(serverId) === operation) mcpOperations.delete(serverId);
+  };
+  void promise.then(clear, clear);
+  return promise;
 }
 
 /**
  * 连接一个 MCP server，发现其工具并注册到 ToolRegistry。
  * 返回注册的工具 ID 列表。
  */
-export async function connectMcpServer(config: McpServerConfig): Promise<string[]> {
+export function connectMcpServer(config: McpServerConfig): Promise<string[]> {
+  // 固定调用时的配置，避免等待中的 caller 修改导致沿用错误 client/工具风险。
+  const snapshot: McpServerConfig = {
+    ...config,
+    args: config.args === undefined ? undefined : [...config.args],
+    env: config.env === undefined ? undefined : { ...config.env },
+    effectKindOverrides: config.effectKindOverrides === undefined ? undefined : { ...config.effectKindOverrides },
+  };
+  const pending = mcpOperations.get(snapshot.id);
+  if (pending?.config && sameConnectionConfig(pending.config, snapshot)) {
+    return (pending.promise as Promise<string[]>).then(ids => [...ids]);
+  }
+  return queueMcpOperation(snapshot.id, snapshot, async () => {
+    const existing = mcpServerStates.get(snapshot.id);
+    if (existing?.connected && sameConnectionConfig(existing.config, snapshot)) return [...existing.toolIds];
+    if (existing) await disconnectMcpServerNow(snapshot.id);
+    return connectMcpServerNow(snapshot);
+  }).then(ids => [...ids]);
+}
+
+function forgetMcpState(state: McpServerState): void {
+  state.connected = false;
+  if (mcpServerStates.get(state.config.id) !== state) return;
+  mcpServerStates.delete(state.config.id);
+  for (const toolId of state.toolIds) toolRegistry.unregister(toolId);
+}
+
+async function closeMcpResources(client: Client, transport: Transport): Promise<void> {
+  // SDK 1.29.0 Protocol.close() 关闭其 transport；失败时直接释放 transport。
+  // https://github.com/modelcontextprotocol/typescript-sdk/blob/v1.29.0/src/shared/protocol.ts
+  try { await client.close(); }
+  catch (err) {
+    console.error(LOG_PREFIX, "client.close 失败:", err instanceof Error ? err.message : String(err));
+    try { await transport.close(); }
+    catch (closeErr) {
+      console.error(LOG_PREFIX, "transport.close 失败:", closeErr instanceof Error ? closeErr.message : String(closeErr));
+      throw closeErr;
+    }
+  }
+}
+
+async function releaseMcpState(state: McpServerState): Promise<void> {
+  await closeMcpResources(state.client, state.transport);
+  forgetMcpState(state);
+}
+
+async function cleanupFailedMcpState(state: McpServerState): Promise<void> {
+  try { await releaseMcpState(state); }
+  catch {
+    console.error(LOG_PREFIX, "资源清理未完成，将在下次连接/断开时重试:", state.config.id);
+  }
+}
+
+async function connectMcpServerNow(config: McpServerConfig): Promise<string[]> {
   console.log(LOG_PREFIX, "连接 MCP server:", config.name, "(" + config.id + ")");
 
   let transport: Transport;
@@ -100,6 +191,18 @@ export async function connectMcpServer(config: McpServerConfig): Promise<string[
     { capabilities: {} },
   );
 
+  // 在连接完成前也持有资源；清理失败时保留 disconnected 状态供重试。
+  const state: McpServerState = {
+    config, client, transport, connected: false, toolIds: [],
+  };
+  mcpServerStates.set(config.id, state);
+  let closed = false;
+  client.onclose = () => {
+    closed = true;
+    const owned = mcpServerStates.get(config.id);
+    if (owned?.client === client) forgetMcpState(owned);
+  };
+
   try {
     await client.connect(transport);
     console.log(LOG_PREFIX, "已连接到", config.name);
@@ -107,7 +210,13 @@ export async function connectMcpServer(config: McpServerConfig): Promise<string[
     const msg = err instanceof Error ? err.message : String(err);
     console.error(LOG_PREFIX, "连接失败 [" + config.name + "]:", msg);
     // 连接失败时清理 transport
-    try { await transport.close(); } catch (_) { /* ignore */ }
+    try {
+      await transport.close();
+      forgetMcpState(state);
+    } catch (closeErr) {
+      console.error(LOG_PREFIX, "连接失败后的 transport 清理未完成:", config.id,
+        closeErr instanceof Error ? closeErr.message : String(closeErr));
+    }
     throw err;
   }
 
@@ -139,96 +248,117 @@ export async function connectMcpServer(config: McpServerConfig): Promise<string[
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(LOG_PREFIX, "listTools 失败 [" + config.name + "]:", msg);
-    await client.close();
+    await cleanupFailedMcpState(state);
     throw err;
   }
 
   // 注册到 ToolRegistry
-  const registeredIds: string[] = [];
-  for (const mt of mcpTools) {
-    // 用短横线拼接，不用冒号——Kimi 等厂商 function.name 正则不允许冒号
-    // （Kimi: ^[a-zA-Z_][a-zA-Z0-9-_]$）。短横线所有厂商都接受。
-    const toolId = config.id + "-" + mt.name;
+  const registeredIds = state.toolIds;
+  try {
+    if (closed) throw new Error("MCP connection closed during discovery");
+    for (const mt of mcpTools) {
+      // 用短横线拼接，不用冒号——Kimi 等厂商 function.name 正则不允许冒号
+      // （Kimi: ^[a-zA-Z_][a-zA-Z0-9-_]$）。短横线所有厂商都接受。
+      const toolId = config.id + "-" + mt.name;
 
-    // 如果已存在同名工具，跳过
-    if (toolRegistry.getById(toolId)) {
-      console.warn(LOG_PREFIX, "工具已存在，跳过:", toolId);
-      continue;
-    }
+      // 如果已存在同名工具，跳过
+      if (toolRegistry.getById(toolId)) {
+        console.warn(LOG_PREFIX, "工具已存在，跳过:", toolId);
+        continue;
+      }
 
-    // 从 annotations 或 override 解析 effectKind
-    const resolvedEffectKind = resolveMcpEffectKind(mt.annotations, config.effectKindOverrides, mt.name);
-    if (resolvedEffectKind === "unknown") {
-      console.warn(LOG_PREFIX, `工具 ${toolId} 的 effectKind 为 unknown（无 annotations 且无 override），将被 ExecutionPolicyGuard 拒绝`);
-    }
+      // 从 annotations 或 override 解析 effectKind
+      const resolvedEffectKind = resolveMcpEffectKind(mt.annotations, config.effectKindOverrides, mt.name);
+      if (resolvedEffectKind === "unknown") {
+        console.warn(LOG_PREFIX, `工具 ${toolId} 的 effectKind 为 unknown，将按 input-control 风险检查权限`);
+      }
 
-    const toolDef: ToolDefinition = {
-      id: toolId,
-      name: "[" + config.name + "] " + mt.name,
-      description: mt.description || mt.name,
-      enabled: true,
-      effectKind: resolvedEffectKind,
-      inputSchema: {
-        type: "object",
-        properties: mt.inputSchema?.properties as Record<string, { type: string; description: string }> || {},
-        required: mt.inputSchema?.required,
-      },
-      // TODO: 未来若 MCP 工具需要 ToolContext，在此将 ctx 映射为 MCP 协议 arguments 的隐藏字段。
-      // 当前 MCP 工具 execute 签名不带 ctx，按需接入时改签名为 (args, ctx?) 并在这里处理。
-      execute: async (args: Record<string, unknown>) => {
-        console.log(LOG_PREFIX, "调用工具:", toolId, JSON.stringify(args));
-        try {
-          const result = await client.callTool({
-            name: mt.name,
-            arguments: args,
-          });
-          // 提取文本内容
-          const texts: string[] = [];
-          if (result.content && Array.isArray(result.content)) {
-            for (const block of result.content) {
-              if (block && typeof block === "object" && (block as { type: string }).type === "text") {
-                texts.push(String((block as { text: string }).text));
+      const toolDef: ToolDefinition = {
+        id: toolId,
+        name: "[" + config.name + "] " + mt.name,
+        description: mt.description || mt.name,
+        enabled: true,
+        effectKind: resolvedEffectKind,
+        risk: MCP_EFFECT_RISK[resolvedEffectKind],
+        inputSchema: {
+          type: "object",
+          properties: mt.inputSchema?.properties as Record<string, { type: string; description: string }> || {},
+          required: mt.inputSchema?.required,
+        },
+        needsContext: true,
+        // Cancellation belongs to SDK request options, never to server-visible tool arguments.
+        execute: async (args: Record<string, unknown>, ctx?: ToolContext) => {
+          if (ctx?.signal?.aborted) throw createAbortError();
+          console.log(LOG_PREFIX, "调用工具:", toolId, JSON.stringify(args));
+          try {
+            const owned = mcpServerStates.get(config.id);
+            if (!owned?.connected || owned.client !== client || closed) {
+              throw new Error("MCP connection is no longer owned");
+            }
+            const request = { name: mt.name, arguments: args };
+            const result = await raceWithSignal(ctx?.signal
+              ? client.callTool(request, undefined, { signal: ctx.signal })
+              : client.callTool(request), ctx?.signal);
+            const currentOwner = mcpServerStates.get(config.id);
+            if (!currentOwner?.connected || currentOwner.client !== client || closed) {
+              throw new Error("MCP connection is no longer owned");
+            }
+            // 提取文本内容
+            const texts: string[] = [];
+            if (result.content && Array.isArray(result.content)) {
+              for (const block of result.content) {
+                if (block && typeof block === "object" && (block as { type: string }).type === "text") {
+                  texts.push(String((block as { text: string }).text));
+                }
               }
             }
+            const output = texts.join("\n") || JSON.stringify(result.content);
+            if (result.isError === true) {
+              throw new Error(`E_MCP_TOOL_FAILED${output ? `: ${output}` : ""}`);
+            }
+            console.log(LOG_PREFIX, "工具返回 [" + toolId + "]:", output.slice(0, 200));
+            return output;
+          } catch (err) {
+            if (isCancellationError(err, ctx?.signal)) throw createAbortError();
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(LOG_PREFIX, "工具调用失败 [" + toolId + "]:", msg);
+            throw new ToolExecutionError(
+              "E_MCP_TOOL_FAILED",
+              msg.startsWith("E_MCP_TOOL_FAILED") ? msg : `E_MCP_TOOL_FAILED: ${msg}`,
+              "semantic_failure",
+              false,
+              "unknown",
+            );
           }
-          const output = texts.join("\n") || JSON.stringify(result.content);
-          if (result.isError === true) {
-            throw new Error(`E_MCP_TOOL_FAILED${output ? `: ${output}` : ""}`);
-          }
-          console.log(LOG_PREFIX, "工具返回 [" + toolId + "]:", output.slice(0, 200));
-          return output;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(LOG_PREFIX, "工具调用失败 [" + toolId + "]:", msg);
-          if (msg.startsWith("E_MCP_TOOL_FAILED")) throw err;
-          throw new Error(`E_MCP_TOOL_FAILED: ${msg}`);
-        }
-      },
-    };
+        },
+      };
 
-    toolRegistry.register(toolDef);
-    registeredIds.push(toolId);
-    console.log(LOG_PREFIX, "已注册工具:", toolId);
+      toolRegistry.register(toolDef);
+      registeredIds.push(toolId);
+      console.log(LOG_PREFIX, "已注册工具:", toolId);
+    }
+
+    // 保存状态
+    state.connected = true;
+
+    console.log(LOG_PREFIX, "MCP server 就绪:", config.name, "(" + registeredIds.length + " 个工具)");
+    return [...registeredIds];
+  } catch (err) {
+    for (const toolId of registeredIds) toolRegistry.unregister(toolId);
+    state.toolIds = [];
+    await cleanupFailedMcpState(state);
+    throw err;
   }
-
-  // 保存状态
-  const state: McpServerState = {
-    config,
-    client,
-    transport,
-    connected: true,
-    toolIds: registeredIds,
-  };
-  mcpServerStates.set(config.id, state);
-
-  console.log(LOG_PREFIX, "MCP server 就绪:", config.name, "(" + registeredIds.length + " 个工具)");
-  return registeredIds;
 }
 
 /**
  * 断开并清理一个 MCP server 及其注册的工具。
  */
-export async function disconnectMcpServer(serverId: string): Promise<boolean> {
+export function disconnectMcpServer(serverId: string): Promise<boolean> {
+  return queueMcpOperation(serverId, undefined, () => disconnectMcpServerNow(serverId));
+}
+
+async function disconnectMcpServerNow(serverId: string): Promise<boolean> {
   console.log(LOG_PREFIX, "断开 MCP server:", serverId);
   const state = mcpServerStates.get(serverId);
   if (!state) {
@@ -236,29 +366,17 @@ export async function disconnectMcpServer(serverId: string): Promise<boolean> {
     return false;
   }
 
-  // 从 ToolRegistry 移除工具
-  for (const toolId of state.toolIds) {
-    toolRegistry.unregister(toolId);
-    console.log(LOG_PREFIX, "已移除工具:", toolId);
-  }
-
-  try {
-    await state.client.close();
-    console.log(LOG_PREFIX, "已断开:", serverId);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(LOG_PREFIX, "client.close 失败 [" + serverId + "]:", msg);
-    // 即使 client.close 失败，也尝试关闭 transport
-    try { await state.transport.close(); } catch (_) { /* ignore */ }
-  }
-
+  // 先撤销所有权和工具，关闭期间旧 execute 闭包也不能继续使用 client。
   state.connected = false;
-  mcpServerStates.delete(serverId);
+  for (const toolId of state.toolIds) toolRegistry.unregister(toolId);
+  state.toolIds = [];
+  await releaseMcpState(state);
+  console.log(LOG_PREFIX, "已断开:", serverId);
   return true;
 }
 
 /**
- * 获取所有已连接的 MCP server 状态。
+ * 获取有运行时所有权的 MCP server 状态（包括清理失败、等待重试的资源）。
  */
 export function getMcpServerStates(): Array<{
   id: string;

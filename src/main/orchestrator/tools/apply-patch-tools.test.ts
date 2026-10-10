@@ -2,7 +2,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { createHash } from "crypto";
+import { getWorkspaceExecutionCoordinator } from "../harness/execution-coordinator";
 import { parsePatch, applyPatchHunks } from "./apply-patch-tools";
+
+const failures = vi.hoisted(() => ({ partialPath: "" }));
+vi.mock("fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("fs")>();
+  return {
+    ...actual,
+    writeFileSync: (...args: Parameters<typeof actual.writeFileSync>) => {
+      if (String(args[0]) === failures.partialPath) {
+        failures.partialPath = "";
+        actual.writeFileSync(args[0], "partial bytes");
+        throw new Error("simulated partial write");
+      }
+      return actual.writeFileSync(...args);
+    },
+  };
+});
 
 let tmpDir: string;
 
@@ -11,6 +29,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  failures.partialPath = "";
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -305,5 +324,75 @@ describe("applyPatchHunks", () => {
     const result = applyPatchHunks(hunks, tmpDir);
     expect(result.success).toBe(true);
     expect(readFile("src/foo.ts")).toBe("const a = 1;\nconst b = 20;\nconst c = 3;\nconst d = 40;\n");
+  });
+});
+
+
+describe("patch ownership and actual partial write facts", () => {
+  it("prevalidates every hunk before claiming and writes no file for invalid patches", async () => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: "invalid" };
+    const { hunks } = parsePatch("*** Begin Patch\n*** Add File: valid.txt\n+new\n*** Delete File: missing.txt\n*** End Patch");
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      expect(applyPatchHunks(hunks, tmpDir, { userQuery: "", execution: { coordinator, scope, permit } }).success).toBe(false);
+    });
+    expect(coordinator.getWriteEvidence()).toEqual([]);
+    expect(fs.existsSync(path.join(tmpDir, "valid.txt"))).toBe(false);
+    await coordinator.closeGroup("g");
+  });
+
+  it("sequential chunk preflight rejects a later chunk deleted by an earlier chunk before any claims", async () => {
+    writeFile("b.txt", "a\nb\nc\nd\n");
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: "invalid-chunks" };
+    const { hunks } = parsePatch("*** Begin Patch\n*** Add File: a.txt\n+created\n*** Update File: b.txt\n@@\n-b\n-c\n@@\n-c\n+C\n*** End Patch");
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      const result = applyPatchHunks(hunks, tmpDir, { userQuery: "", execution: { coordinator, scope, permit } });
+      expect(result.success).toBe(false);
+      expect(result.applied).toEqual([]);
+    });
+    expect(coordinator.getWriteEvidence()).toEqual([]);
+    expect(fs.existsSync(path.join(tmpDir, "a.txt"))).toBe(false);
+    expect(readFile("b.txt")).toBe("a\nb\nc\nd\n");
+    await coordinator.closeGroup("g");
+  });
+
+  it.runIf(process.platform !== "win32")("deleting a symlink then updating its target preserves both actual operation paths", async () => {
+    const real = writeFile("real.txt", "old\n");
+    const alias = path.join(tmpDir, "alias.txt");
+    fs.symlinkSync(real, alias);
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: "alias-delete" };
+    const { hunks } = parsePatch("*** Begin Patch\n*** Delete File: alias.txt\n*** Update File: real.txt\n@@\n-old\n+new\n*** End Patch");
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      expect(applyPatchHunks(hunks, tmpDir, { userQuery: "", execution: { coordinator, scope, permit } }).success).toBe(true);
+    });
+    expect(fs.existsSync(alias)).toBe(false);
+    expect(fs.readFileSync(real, "utf8")).toBe("new\n");
+    const writes = coordinator.getWriteEvidence();
+    expect(writes).toHaveLength(2);
+    expect(writes.find(item => item.path === alias)).toMatchObject({ state: "applied", after: { version: "absent" } });
+    expect(writes.find(item => item.path === real)).toMatchObject({ state: "applied", after: { version: "present", sha256: createHash("sha256").update("new\n").digest("hex") } });
+    expect(writes.every(item => item.canonicalPath === real)).toBe(true);
+    await coordinator.closeGroup("g");
+  });
+
+  it("partial_patch_failure_preserves_applied_paths_and_real_after_bytes", async () => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: "partial" };
+    const { hunks } = parsePatch("*** Begin Patch\n*** Add File: a.txt\n+complete\n*** Add File: b.txt\n+intended\n*** End Patch");
+    failures.partialPath = path.join(tmpDir, "b.txt");
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      const result = applyPatchHunks(hunks, tmpDir, { userQuery: "", execution: { coordinator, scope, permit } });
+      expect(result.success).toBe(false);
+      expect(result.applied).toEqual(["新增文件: a.txt"]);
+    });
+    const writes = coordinator.getWriteEvidence();
+    expect(writes.map((item) => item.state)).toEqual(["applied", "partially_applied"]);
+    expect(fs.readFileSync(path.join(tmpDir, "a.txt"), "utf8")).toBe("complete");
+    expect(fs.readFileSync(path.join(tmpDir, "b.txt"), "utf8")).toBe("partial bytes");
+    expect(writes[1].before).toEqual({ version: "absent" });
+    expect(writes[1].after?.sha256).toBeDefined();
+    await coordinator.closeGroup("g");
   });
 });

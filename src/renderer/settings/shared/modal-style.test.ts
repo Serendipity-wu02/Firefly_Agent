@@ -8,7 +8,7 @@ const modal = fs.readFileSync(fileURLToPath(new URL("./modal.ts", import.meta.ur
 
 describe("settings feedback visual contract", () => {
   it("defines shared feedback tokens and semantic states", () => {
-    expect(theme).toContain("--rb-feedback-radius: 18px");
+    expect(theme).toContain("--rb-feedback-radius: 12px");
     expect(theme).toContain("--rb-feedback-danger:");
     expect(css).toContain(".cy-modal--danger");
     expect(css).toContain(".cy-notice--success");

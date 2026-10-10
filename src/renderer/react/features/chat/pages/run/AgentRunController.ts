@@ -1,4 +1,3 @@
-import { normalizeFireflyEvent } from "../../../../../../shared/legacy-firefly-contracts";
 import type {
   AgentRoundRecord,
   ChatMessage,
@@ -12,6 +11,7 @@ import type {
   WorkReadReport,
 } from "../../../../../../shared/chat-types";
 import { isContextUsageSnapshot, type ContextUsageSnapshot } from "../../../../../../shared/context-usage";
+import { normalizeToolTaskResult } from "../../../../../../shared/task-result-evidence";
 import type { TodoItem } from "../../../../../../shared/todo-types";
 import type { ChatMessageItem } from "../../components/ChatMessageList";
 import type { ComposerAttachment } from "../../components/ChatComposer";
@@ -28,7 +28,7 @@ import { applyAgentRoundBoundary, createRoundProcessMessage } from "../../compon
 import { applyTaskDelegationEvent, normalizeTaskDelegationEvent } from "../../components/task-delegations";
 import { t } from "../../../../i18n";
 import type { AguiApi, AguiEvent, CandidateTextEventValue, ChatStoreApi } from "../chat-page-bridge";
-import { normalizeWeatherData, parseSessionRunActiveError, stageForStep } from "../chat-page-normalizers";
+import { normalizeWeatherData, parseSessionRunActiveError, stageForStep, toUiMessages } from "../chat-page-normalizers";
 import { RunEventGate } from "../run-event-gate";
 import {
   SMOOTH_REVEAL_TICK_MS,
@@ -41,11 +41,6 @@ import {
   startSessionTodos,
   type TodoStateBySession,
 } from "../session-runtime-state";
-import {
-  resolveEarlyTtsSplitMode,
-  type EarlyTtsPlaybackQueue,
-  type EarlyTtsSplitMode,
-} from "../../tts/early-tts-queue";
 
 /** 一次模型运行的全部输入：目标会话、消息占位与恢复/接管信息。 */
 export interface AgentRunInput {
@@ -75,6 +70,11 @@ export interface AgentRunInput {
  * 新增成员前优先考虑合并语义相近的通知。
  */
 export interface AgentRunHost {
+  /** Completion is delivered only by the matching successful plan run. */
+  completePlan?(sessionId: string, planPath: string, runId: string): void;
+  bindPlanAttempt?(sessionId: string, assistantId: string): void;
+  bindPlanRun?(sessionId: string, runId: string): void;
+  failPlan?(sessionId: string, runId: string | undefined, phase: "failed" | "cancelled"): void;
   /** 消息视图补丁：流式内容、推理块、工具执行记录等全部经此写入。 */
   patchMessage(sessionId: string, messageId: string, patch: Partial<ChatMessageItem>): void;
   /** 展示 composer 交互卡（审批请求 / ask 选择卡）。 */
@@ -95,17 +95,7 @@ export interface AgentRunHost {
   requestTakeover(sessionId: string, activeRunId: string, retry: () => Promise<void>): void;
   /** 新 run 已被主进程接受：同会话旧的接管操作卡（若有）不再有效。 */
   clearTakeover(sessionId: string): void;
-  earlyTts: {
-    /** 创建本轮的早播 TTS 队列（同一时间只保留一个活跃队列）。 */
-    start(
-      mode: ConversationMode,
-      sessionId: string,
-      messageId: string,
-      splitMode?: EarlyTtsSplitMode,
-    ): EarlyTtsPlaybackQueue;
-    /** run 成功结束后用完整正文收尾播放。 */
-    finish(queue: EarlyTtsPlaybackQueue, fullText: string): void;
-  };
+
   /**
    * run 结束（含成功、失败、取消、接管冲突等所有路径）。
    * 宿主据此刷新会话列表并消费该会话的待发消息队列。
@@ -138,7 +128,7 @@ export interface AgentRunDeps {
 }
 /**
  * 单次 Agent 运行的生命周期控制器：事件归约、检查点落盘、
- * 正文渐显、早播 TTS 接线与终态结算全部内聚于此。
+ * 正文渐显与终态结算全部内聚于此。
  * 不依赖 React，可注入假桥与记录型宿主做全流程单测。
  */
 export class AgentRunController {
@@ -210,7 +200,8 @@ export class AgentRunController {
   private checkpointChain: Promise<ChatSession | null> = Promise.resolve<ChatSession | null>(null);
   private readonly activeReasoningStarts = new Map<string, number>();
   private currentReasoningId: string | undefined;
-  private earlyTtsQueue: EarlyTtsPlaybackQueue | undefined;
+
+  private controlledSResponse=false;
   private resolveTerminal!: (error?: Error) => void;
   private readonly terminal: Promise<Error | undefined>;
 
@@ -224,8 +215,10 @@ export class AgentRunController {
 
   /** 启动并完整跑完一轮 run（从派发请求到终态落盘）。 */
   async start(): Promise<void> {
+    this.deps.host.bindPlanAttempt?.(this.input.sessionId, this.input.assistantId);
     const { api, store } = this.deps;
     if (!api || !store) {
+      this.failPlan("failed");
       const visibleError = t("chatPage.errorModelServiceNotReady");
       this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, {
         content: visibleError,
@@ -277,16 +270,7 @@ export class AgentRunController {
 
     try {
       const general = await window.chat?.getGeneralSettings?.();
-      const splitMode = resolveEarlyTtsSplitMode(
-        general?.ttsEarlyReadSplitEnabled,
-        general?.ttsEarlyReadSplitMode,
-      );
-      this.earlyTtsQueue = this.deps.host.earlyTts.start(
-        this.input.targetMode,
-        this.input.sessionId,
-        this.input.assistantId,
-        splitMode,
-      );
+
       const ack = await api.run({
         // 权威模型上下文已由主进程轨迹构建；此数组仅一个版本周期的渲染端回退用，发送完整历史
         messages: this.input.session.messages.map((item) => ({
@@ -325,6 +309,7 @@ export class AgentRunController {
         [this.input.sessionId]: checkpointTrigger,
       };
       if (ack.runId) {
+        this.deps.host.bindPlanRun?.(this.input.sessionId, ack.runId);
         for (const accepted of eventGate.bind(ack.runId)) this.handleEvent(accepted);
       }
       // run 已被主进程接受：认领派发的消息确认派发完成，清除 pendingDispatch。
@@ -393,13 +378,13 @@ export class AgentRunController {
         toolExecutions: this.toolExecutions,
       });
       const savedAssistant = await this.checkpointRun("terminal", true);
+      const canonical=await this.refreshCanonicalSettlement();
       this.reportRunPersisted();
-      if (savedAssistant && formalAnswerCommitted && this.earlyTtsQueue) {
-        this.deps.host.earlyTts.finish(this.earlyTtsQueue, finalContent);
-      } else this.earlyTtsQueue?.cancel();
+
     } catch (error) {
-      this.earlyTtsQueue?.cancel();
+
       this.terminalStatus = this.terminalStatus ?? "runtime_error";
+      if (!this.terminalReceived) this.failPlan("failed");
       this.completeRunActivity(true);
       const errorMessage = error instanceof Error ? error.message : String(error);
       // 会话守卫冲突：主进程拒绝了并发 run（典型场景：F5 后立即发消息）。
@@ -463,6 +448,7 @@ export class AgentRunController {
       });
       this.persistedFinalContent = "";
       await this.checkpointRun("terminal", true);
+      await this.refreshCanonicalSettlement();
       // 错误终态的快照也已落盘：上报落盘确认（runId 未知时静默跳过）
       this.reportRunPersisted();
     } finally {
@@ -498,6 +484,17 @@ export class AgentRunController {
   private reportRunPersisted(): void {
     const runId = this.deps.registries.activeRuns.current[this.input.sessionId]?.runId;
     if (runId) this.deps.api?.reportRunPersisted?.({ runId, finalMessageId: this.input.assistantId });
+  }
+
+  /** Fetch read-only Main authority after the cache checkpoint; never persist the projection back. */
+  private async refreshCanonicalSettlement():Promise<ChatMessage["sSettlement"]> {
+    const store=this.deps.store;if(typeof store?.get!=="function")return;
+    try{
+      const session=await store.get(this.input.sessionId),message=session?.messages.find(m=>m.id===this.input.assistantId),projection=message?.sSettlement;
+      const active=this.deps.registries.activeRuns.current[this.input.sessionId];
+      if(!session||!projection||active?.assistantId!==this.input.assistantId||projection.runId!==active.runId)return;
+      this.deps.host.patchMessage(this.input.sessionId,this.input.assistantId,toUiMessages({...session,messages:[message!]})[0]);return projection;
+    }catch{}
   }
 
   /** 构建落盘检查点消息（含 runSnapshot 状态与累积的过程数据）。 */
@@ -817,9 +814,31 @@ export class AgentRunController {
   }
 
   /** AG-UI 事件归约：流式内容、推理、工具、交互卡与终态全部在此处理。 */
+  private failPlan(phase: "failed" | "cancelled") {
+    const activeRun = this.deps.registries.activeRuns.current[this.input.sessionId];
+    if (this.runAccepted && activeRun && activeRun.assistantId !== this.input.assistantId) return;
+    const runId = activeRun?.assistantId === this.input.assistantId ? activeRun.runId : undefined;
+    this.deps.host.failPlan?.(this.input.sessionId, runId, phase);
+  }
+
   private handleEvent(event: AguiEvent) {
-    event = normalizeFireflyEvent(event);
     if (this.terminalReceived) return;
+    if (event.type === "CUSTOM" && event.name === "firefly.plan.completed") {
+      const value = event.value as { runStatus?: unknown; planPath?: unknown } | null | undefined;
+      const activeRun = this.deps.registries.activeRuns.current[this.input.sessionId];
+      if ((this.input.targetMode === "code" || this.input.targetMode === "chat")
+        && event.threadId === this.input.sessionId
+        && event.runId === activeRun?.runId
+        && activeRun?.assistantId === this.input.assistantId
+        && value?.runStatus === "completed"
+        && typeof value.planPath === "string" && value.planPath) {
+        this.deps.host.completePlan?.(this.input.sessionId, value.planPath, event.runId!);
+      }
+      return;
+    }
+    if(event.type==="CUSTOM"&&event.name==="firefly.sResponse"){
+      this.controlledSResponse=true;return;
+    }
     if (event.type === "CUSTOM" && event.name === "firefly.round") {
       const value = event.value as { action?: unknown; roundId?: unknown } | null | undefined;
       if ((value?.action === "start" || value?.action === "end") && typeof value.roundId === "string") {
@@ -965,6 +984,8 @@ export class AgentRunController {
         status: event.status === "failed" ? "error" : "success",
         result: (event.content ?? "").slice(0, 4000),
         changes: event.changes,
+        taskResult: this.toolExecutions.find(tool => tool.id === event.toolCallId)?.name === "delegate_agent"
+          ? normalizeToolTaskResult(event.taskResult, event.runId) : undefined,
       });
       void this.checkpointRun("running", true);
     } else if (event.type === "TOOL_CALL_END" && event.toolCallId) {
@@ -983,7 +1004,6 @@ export class AgentRunController {
       } else {
         this.enqueuePublicTextReveal(event.delta, (chunk) => {
           this.streamContent += chunk;
-          this.earlyTtsQueue?.append(chunk);
           this.deps.host.patchMessage(this.input.sessionId, this.input.assistantId, {
             content: this.streamContent,
             loading: false,
@@ -1058,7 +1078,7 @@ export class AgentRunController {
         });
       }
     } else if (event.type === "CUSTOM" && event.name === "firefly.todo") {
-      // Harness 的 Todo 复用右侧现有 TodoPanel，不再复制成消息内 TaskPlanCard。
+      // Harness 的 Todo 显示在侧栏底部的任务卡里，不再复制成消息内 TaskPlanCard。
       const items = (event.value as { items?: Array<{ id: string; content: string; status: string }> } | null | undefined)?.items;
       if (Array.isArray(items)) {
         const ownerRunId = event.runId ?? this.deps.registries.activeRuns.current[this.input.sessionId]?.runId;
@@ -1111,6 +1131,7 @@ export class AgentRunController {
       // 读取 result.status 区分终态（success / cancelled / timeout / runtime_error）
       const result = (event as { result?: { status?: string } }).result;
       this.terminalStatus = result?.status;
+      if (this.terminalStatus !== "success") this.failPlan(this.terminalStatus === "cancelled" ? "cancelled" : "failed");
       if (this.terminalStatus !== "success") {
         this.revealCancelled = true;
         this.abortCandidateReveal();
@@ -1123,6 +1144,7 @@ export class AgentRunController {
       }
       this.resolveTerminal();
     } else if (event.type === "RUN_ERROR") {
+      this.failPlan("failed");
       this.ensureWorkReadReport();
       this.terminalReceived = true;
       this.revealCancelled = true;

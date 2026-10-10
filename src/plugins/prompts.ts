@@ -77,7 +77,7 @@ export function createPluginPromptRegistry(): PluginPromptRegistry {
       }
       if (provider.modes && (
         !Array.isArray(provider.modes)
-        || provider.modes.some((mode) => !["chat", "work", "learn", "code"].includes(mode))
+        || provider.modes.some((mode) => !["chat", "work", "code"].includes(mode))
       )) {
         throw new Error("插件提示词 Provider modes 含未知模式");
       }
@@ -88,7 +88,7 @@ export function createPluginPromptRegistry(): PluginPromptRegistry {
       if (provider.sources !== undefined && (
         !Array.isArray(provider.sources)
         || provider.sources.length === 0
-        || provider.sources.some((source) => !["conversation", "scheduler", "moments-post", "plugin-agent"].includes(source))
+        || provider.sources.some((source) => !["conversation", "scheduler", "plugin-agent"].includes(source))
       )) {
         throw new Error(`插件提示词 Provider sources 非法: ${JSON.stringify(provider.sources)}`);
       }
@@ -109,8 +109,6 @@ export function createPluginPromptRegistry(): PluginPromptRegistry {
         if (entry.signal.aborted) return false;
         // 场景匹配：未声明 sources 的 Provider 只参与既有场景（向后兼容）。
         if (!(entry.provider.sources ?? LEGACY_PROMPT_SOURCES).includes(input.source)) return false;
-        // moments-post 没有会话模式：是否生效仅由 sources 决定，绕过 modes 过滤（评审 ①）。
-        if (input.source === "moments-post") return true;
         // 会话场景（conversation/scheduler）按 modes 匹配；判别联合保证此时 mode 必填。
         return !entry.provider.modes || entry.provider.modes.includes(input.mode);
       });

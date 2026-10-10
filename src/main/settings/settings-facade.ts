@@ -1,6 +1,4 @@
-import { resolveSkillSettings } from "../skills/skill-id-aliases";
-import { normalizeFireflyFields } from "../../shared/legacy-firefly-contracts";
-import { writeMigratedJson } from "../migration/firefly-data";
+import { DEFAULT_UI_COLORS, normalizeUiColors } from "../../shared/ui-colors";
 import * as fs from "fs";
 import * as path from "path";
 import { logger, LogTag } from "../logger";
@@ -29,7 +27,7 @@ import { normalizeWindowVisibilitySettings } from "../window-visibility-settings
 import { normalizeCitaSettings } from "../cita/settings";
 import { getGeneralSettingsPath } from "../settings-store";
 import type { GeneralSettings } from "./general-settings";
-import { DEFAULT_MOSSLAND_TTS_MODEL } from "../../shared/tts-types";
+
 import type { ToolModeOverrides } from "../orchestrator/tools/registry/tool-registry";
 import type { ConversationMode } from "../../shared/chat-types";
 import type { SkillModeOverrides } from "../skills/types";
@@ -45,21 +43,15 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   citaEnabled: false,
   citaSemanticEngine: "remote",
   chatSocialContextEnabled: false,
-  momentsEnabled: false,
-  chatMomentsContextEnabled: false,
-  fireflyMomentsPostingEnabled: false,
-  fireflyMomentsReactionsEnabled: true,
-  momentsCharacterReactionsEnabled: true,
-  momentsLiveliness: "quiet",
   petAlwaysOnTop: true,
   petVisible: true,
   petZoom: 1,
   sidebarVisible: true,
-  tasksVisible: true,
   toastSoundEnabled: true,
   launchAtLogin: false,
   language: "zh-CN",
   uiTheme: "pearl-white",
+  uiColors: { ...DEFAULT_UI_COLORS },
   windowCornerRadius: DEFAULT_WINDOW_CORNER_RADIUS,
   uiThemeRadius: false,
   uiFont: DEFAULT_UI_FONT,
@@ -71,35 +63,7 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   mobileMessageSegmentation: "off",
   proactiveChatMode: "off",
   proactiveDeliveryTarget: "local",
-  ttsEngine: "off",
-  ttsAutoRead: true,
-  ttsSpeed: 1,
-  ttsVolume: 1,
-  ttsEarlyReadSplitEnabled: true,
-  ttsEarlyReadSplitMode: "sentence",
-  ttsMinimaxKey: "",
-  ttsMinimaxVoiceId: "",
-  ttsMinimaxModel: "speech-2.8-turbo",
-  ttsStreaming: true,
-  ttsMinimaxVocalEnhance: true,
-  ttsGptsovitsBaseUrl: "",
-  ttsGptsovitsRefAudioPath: "",
-  ttsGptsovitsPromptText: "",
-  ttsGptsovitsFormat: "wav",
-  ttsGptsovitsTimeoutMs: 180_000,
-  ttsCustomCloudEndpointUrl: "",
-  ttsCustomCloudApiKey: "",
-  ttsCustomCloudVoiceId: "",
-  ttsCustomCloudFormat: "mp3",
-  ttsCustomCloudTimeoutMs: 30000,
-  ttsMimoKey: "",
-  ttsMimoVoiceAudioPath: "",
-  ttsMimoStylePrompt: "温柔、自然、略带亲近感，像在轻声陪用户聊天。",
-  ttsMosslandKey: "",
-  ttsMosslandVoiceId: "",
-  ttsMosslandModel: DEFAULT_MOSSLAND_TTS_MODEL,
-  ttsMosslandTestText: "你好，我是流萤。今天也请多多关照。",
-  ttsMosslandFormat: "mp3",
+
   weatherSource: "open-meteo",
   weatherEnabled: false,
   amapKey: "",
@@ -117,14 +81,12 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   emailSmtpUser: "",
   emailSmtpPass: "",
   emailFromName: "",
+  asrMosslandKey: "",
   asrEngine: "off",
   asrAliyunAppKey: "",
   asrAliyunAccessKeyId: "",
   asrAliyunAccessKeySecret: "",
   asrLanguage: "zh",
-  asrVadSilenceMs: 1000,
-  asrVadThreshold: 0.01,
-  asrShowTranscript: false,
   screenshotHotkey: "Alt+Shift+S",
   chatLineHeight: 1.75,
   toolModeOverrides: {},
@@ -132,11 +94,6 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   skillModeOverrides: {},
   lspServerOverrides: [],
 };
-
-function normalizeMosslandTtsModel(value: unknown): string {
-  const model = typeof value === "string" ? value.trim() : "";
-  return model && model !== "moss-tts" ? model : DEFAULT_MOSSLAND_TTS_MODEL;
-}
 
 const listeners = new Set<(before: GeneralSettings, after: GeneralSettings) => void>();
 
@@ -164,7 +121,6 @@ function notifyGeneralSettingsChanged(before: GeneralSettings, after: GeneralSet
 export function normalizeGeneralSettings(
   input: Partial<GeneralSettings> | null | undefined,
 ): GeneralSettings {
-  input = input ? normalizeFireflyFields(input) : input;
   const windowVisibility = normalizeWindowVisibilitySettings(input);
   const cita = normalizeCitaSettings({
     enabled: input?.citaEnabled,
@@ -198,25 +154,6 @@ export function normalizeGeneralSettings(
     citaEnabled: cita.enabled,
     citaSemanticEngine: cita.semanticEngine,
     chatSocialContextEnabled: normalizeChatSocialContextEnabled(input?.chatSocialContextEnabled),
-    momentsEnabled: input?.momentsEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.momentsEnabled
-      : Boolean(input.momentsEnabled),
-    chatMomentsContextEnabled: input?.chatMomentsContextEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.chatMomentsContextEnabled
-      : Boolean(input.chatMomentsContextEnabled),
-    fireflyMomentsPostingEnabled: input?.fireflyMomentsPostingEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.fireflyMomentsPostingEnabled
-      : Boolean(input.fireflyMomentsPostingEnabled),
-    fireflyMomentsReactionsEnabled: input?.fireflyMomentsReactionsEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.fireflyMomentsReactionsEnabled
-      : Boolean(input.fireflyMomentsReactionsEnabled),
-    momentsCharacterReactionsEnabled: input?.momentsCharacterReactionsEnabled === undefined
-      ? DEFAULT_GENERAL_SETTINGS.momentsCharacterReactionsEnabled
-      : Boolean(input.momentsCharacterReactionsEnabled),
-    // 热闹程度只认三个合法档位，非法值回落默认档（旧配置无此字段也走默认）
-    momentsLiveliness: ["quiet", "natural", "lively"].includes(input?.momentsLiveliness as string)
-      ? (input?.momentsLiveliness as GeneralSettings["momentsLiveliness"])
-      : DEFAULT_GENERAL_SETTINGS.momentsLiveliness,
     petAlwaysOnTop: input?.petAlwaysOnTop === undefined
       ? DEFAULT_GENERAL_SETTINGS.petAlwaysOnTop
       : Boolean(input.petAlwaysOnTop),
@@ -234,13 +171,13 @@ export function normalizeGeneralSettings(
       : undefined,
     disableGpuElectron: input?.disableGpuElectron,
     sidebarVisible: windowVisibility.sidebarVisible,
-    tasksVisible: windowVisibility.tasksVisible,
     toastSoundEnabled: input?.toastSoundEnabled === undefined
       ? DEFAULT_GENERAL_SETTINGS.toastSoundEnabled
       : Boolean(input.toastSoundEnabled),
     launchAtLogin: Boolean(input?.launchAtLogin),
     language: "zh-CN",
     uiTheme: normalizeUiTheme(input?.uiTheme),
+    uiColors: normalizeUiColors(input?.uiColors),
     windowCornerRadius: normalizeWindowCornerRadius(input?.windowCornerRadius),
     uiThemeRadius: input?.uiThemeRadius ?? true,
     uiFont: normalizeUiFont(input?.uiFont),
@@ -252,31 +189,7 @@ export function normalizeGeneralSettings(
     mobileMessageSegmentation: normalizeMobileMessageSegmentationMode(input?.mobileMessageSegmentation),
     proactiveChatMode: normalizeProactiveChatMode(input?.proactiveChatMode),
     proactiveDeliveryTarget: normalizeProactiveDeliveryTarget(input?.proactiveDeliveryTarget),
-    ttsEngine: (["off", "minimax", "gptsovits", "custom-cloud", "mimo", "mossland"].includes(input?.ttsEngine as string)
-      ? input?.ttsEngine
-      : "off") as GeneralSettings["ttsEngine"],
-    ttsAutoRead: input?.ttsAutoRead === undefined
-      ? DEFAULT_GENERAL_SETTINGS.ttsAutoRead
-      : Boolean(input.ttsAutoRead),
-    ttsSpeed: typeof input?.ttsSpeed === "number"
-      ? Math.max(0.5, Math.min(2, input.ttsSpeed))
-      : DEFAULT_GENERAL_SETTINGS.ttsSpeed,
-    ttsVolume: typeof input?.ttsVolume === "number"
-      ? Math.max(0, Math.min(1, input.ttsVolume))
-      : DEFAULT_GENERAL_SETTINGS.ttsVolume,
-    ttsEarlyReadSplitEnabled: typeof input?.ttsEarlyReadSplitEnabled === "boolean"
-      ? input.ttsEarlyReadSplitEnabled
-      : DEFAULT_GENERAL_SETTINGS.ttsEarlyReadSplitEnabled,
-    ttsEarlyReadSplitMode: ["sentence", "paragraph"].includes(String(input?.ttsEarlyReadSplitMode))
-      ? (input!.ttsEarlyReadSplitMode as "sentence" | "paragraph")
-      : DEFAULT_GENERAL_SETTINGS.ttsEarlyReadSplitMode,
-    ttsMinimaxKey: typeof input?.ttsMinimaxKey === "string" ? input.ttsMinimaxKey : "",
-    ttsMinimaxVoiceId: typeof input?.ttsMinimaxVoiceId === "string" ? input.ttsMinimaxVoiceId : "",
-    ttsMinimaxModel: input?.ttsMinimaxModel === "speech-2.8-hd" ? "speech-2.8-hd" : "speech-2.8-turbo",
-    ttsStreaming: input?.ttsStreaming === undefined ? true : Boolean(input.ttsStreaming),
-    ttsMinimaxVocalEnhance: input?.ttsMinimaxVocalEnhance === undefined
-      ? DEFAULT_GENERAL_SETTINGS.ttsMinimaxVocalEnhance
-      : Boolean(input.ttsMinimaxVocalEnhance),
+
     weatherSource: ["open-meteo", "amap"].includes(String(input?.weatherSource))
       ? (input!.weatherSource as "open-meteo" | "amap")
       : "open-meteo",
@@ -300,6 +213,7 @@ export function normalizeGeneralSettings(
     emailSmtpUser: typeof input?.emailSmtpUser === "string" ? input.emailSmtpUser : "",
     emailSmtpPass: typeof input?.emailSmtpPass === "string" ? input.emailSmtpPass : "",
     emailFromName: typeof input?.emailFromName === "string" ? input.emailFromName : "",
+    asrMosslandKey: typeof input?.asrMosslandKey === "string" ? input.asrMosslandKey : typeof (input as {ttsMosslandKey?: unknown})?.ttsMosslandKey === "string" ? (input as {ttsMosslandKey: string}).ttsMosslandKey : "",
     asrEngine: ["off", "aliyun", "mossland", "local"].includes(String(input?.asrEngine))
       ? (input!.asrEngine as "off" | "aliyun" | "mossland" | "local")
       : "off",
@@ -309,42 +223,10 @@ export function normalizeGeneralSettings(
     asrLanguage: ["zh", "en", "auto"].includes(String(input?.asrLanguage))
       ? (input!.asrLanguage as "zh" | "en" | "auto")
       : "zh",
-    asrVadSilenceMs: typeof input?.asrVadSilenceMs === "number"
-      ? Math.max(300, Math.min(30000, Math.round(input.asrVadSilenceMs)))
-      : DEFAULT_GENERAL_SETTINGS.asrVadSilenceMs,
-    asrVadThreshold: typeof input?.asrVadThreshold === "number"
-      ? Math.max(0.001, Math.min(0.5, Number(input.asrVadThreshold)))
-      : DEFAULT_GENERAL_SETTINGS.asrVadThreshold,
-    asrShowTranscript: Boolean(input?.asrShowTranscript),
     screenshotHotkey: typeof input?.screenshotHotkey === "string" && input.screenshotHotkey.trim()
       ? input.screenshotHotkey.trim()
       : DEFAULT_GENERAL_SETTINGS.screenshotHotkey,
-    ttsGptsovitsBaseUrl: typeof input?.ttsGptsovitsBaseUrl === "string"
-      ? input.ttsGptsovitsBaseUrl
-      : DEFAULT_GENERAL_SETTINGS.ttsGptsovitsBaseUrl,
-    ttsGptsovitsRefAudioPath: typeof input?.ttsGptsovitsRefAudioPath === "string" ? input.ttsGptsovitsRefAudioPath : "",
-    ttsGptsovitsPromptText: typeof input?.ttsGptsovitsPromptText === "string"
-      ? input.ttsGptsovitsPromptText
-      : DEFAULT_GENERAL_SETTINGS.ttsGptsovitsPromptText,
-    ttsGptsovitsFormat: input?.ttsGptsovitsFormat === "mp3" ? "mp3" : "wav",
-    ttsGptsovitsTimeoutMs: typeof input?.ttsGptsovitsTimeoutMs === "number" && Number.isFinite(input.ttsGptsovitsTimeoutMs)
-      ? Math.max(10_000, Math.min(3_600_000, Math.round(input.ttsGptsovitsTimeoutMs)))
-      : DEFAULT_GENERAL_SETTINGS.ttsGptsovitsTimeoutMs,
-    ttsCustomCloudEndpointUrl: typeof input?.ttsCustomCloudEndpointUrl === "string" ? input.ttsCustomCloudEndpointUrl : "",
-    ttsCustomCloudApiKey: typeof input?.ttsCustomCloudApiKey === "string" ? input.ttsCustomCloudApiKey : "",
-    ttsCustomCloudVoiceId: typeof input?.ttsCustomCloudVoiceId === "string" ? input.ttsCustomCloudVoiceId : "",
-    ttsCustomCloudFormat: input?.ttsCustomCloudFormat === "wav" ? "wav" : "mp3",
-    ttsCustomCloudTimeoutMs: clampMs(input?.ttsCustomCloudTimeoutMs, DEFAULT_GENERAL_SETTINGS.ttsCustomCloudTimeoutMs),
-    ttsMimoKey: typeof input?.ttsMimoKey === "string" ? input.ttsMimoKey : "",
-    ttsMimoVoiceAudioPath: typeof input?.ttsMimoVoiceAudioPath === "string" ? input.ttsMimoVoiceAudioPath : "",
-    ttsMimoStylePrompt: typeof input?.ttsMimoStylePrompt === "string"
-      ? input.ttsMimoStylePrompt
-      : DEFAULT_GENERAL_SETTINGS.ttsMimoStylePrompt,
-    ttsMosslandKey: typeof input?.ttsMosslandKey === "string" ? input.ttsMosslandKey : "",
-    ttsMosslandVoiceId: typeof input?.ttsMosslandVoiceId === "string" ? input.ttsMosslandVoiceId : "",
-    ttsMosslandModel: normalizeMosslandTtsModel(input?.ttsMosslandModel),
-    ttsMosslandTestText: typeof input?.ttsMosslandTestText === "string" ? input.ttsMosslandTestText : DEFAULT_GENERAL_SETTINGS.ttsMosslandTestText,
-    ttsMosslandFormat: input?.ttsMosslandFormat === "wav" ? "wav" : "mp3",
+
     ...normalizeChatAppearance(input),
     toolModeOverrides: normalizeToolModeOverrides(input?.toolModeOverrides),
     chatToolsEnabled: Boolean(input?.chatToolsEnabled),
@@ -365,7 +247,7 @@ function normalizeToolModeOverrides(
     if (!modeMap || typeof modeMap !== "object") continue;
     const filtered: Partial<Record<ConversationMode, boolean>> = {};
     for (const [mode, value] of Object.entries(modeMap as Record<string, unknown>)) {
-      if (mode !== "chat" && mode !== "work" && mode !== "code" && mode !== "learn") continue;
+      if (mode !== "chat" && mode !== "work" && mode !== "code") continue;
       if (typeof value === "boolean") {
         filtered[mode as ConversationMode] = value;
       }
@@ -377,23 +259,23 @@ function normalizeToolModeOverrides(
   return result;
 }
 
-const SKILL_MODES = new Set(["work", "code", "learn"] as const);
+const SKILL_MODES = new Set(["work", "code"] as const);
 
-/** 规范化 Skill-模式覆盖层：仅保留合法的 { skillId: { work|code|learn: boolean } } 结构。
+/** 规范化 Skill-模式覆盖层：仅保留合法的 { skillId: { work|code: boolean } } 结构。
  *  非法值被丢弃，空对象兜底。 */
 function normalizeSkillModeOverrides(
   input: unknown,
 ): SkillModeOverrides {
   if (!input || typeof input !== "object") return {};
   const result: SkillModeOverrides = {};
-  const raw = resolveSkillSettings(input as Record<string, unknown>);
+  const raw = input as Record<string, unknown>;
   for (const [skillId, modeMap] of Object.entries(raw)) {
     if (!modeMap || typeof modeMap !== "object") continue;
-    const filtered: Partial<Record<"work" | "code" | "learn", boolean>> = {};
+    const filtered: Partial<Record<"work" | "code", boolean>> = {};
     for (const [mode, value] of Object.entries(modeMap as Record<string, unknown>)) {
-      if (!SKILL_MODES.has(mode as "work" | "code" | "learn")) continue;
+      if (!SKILL_MODES.has(mode as "work" | "code")) continue;
       if (typeof value === "boolean") {
-        filtered[mode as "work" | "code" | "learn"] = value;
+        filtered[mode as "work" | "code"] = value;
       }
     }
     if (Object.keys(filtered).length > 0) {
@@ -419,15 +301,11 @@ function loadGeneralSettings0(): GeneralSettings {
       path.join(path.dirname(filePath), "installer-options.json"),
       fs,
     );
-    const canonical = normalizeFireflyFields(existing);
-    if (canonical.skillModeOverrides && typeof canonical.skillModeOverrides === "object") {
-      canonical.skillModeOverrides = resolveSkillSettings(canonical.skillModeOverrides);
-    }
-    if (present) writeMigratedJson(filePath, existing, canonical);
-    const withInstallerSelection = applyInstallerLaunchAtLoginSelection(canonical, installerSelection);
+    const withInstallerSelection = applyInstallerLaunchAtLoginSelection(existing, installerSelection);
     if (installerSelection !== null) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify(normalizeGeneralSettings(withInstallerSelection), null, 2));
+      // Persist only the installer's explicit choice; retirement must not rewrite saved keys.
+      fs.writeFileSync(filePath, JSON.stringify(withInstallerSelection, null, 2));
     }
     return normalizeGeneralSettings(withInstallerSelection);
   } catch {

@@ -1,8 +1,10 @@
+import ArchiveReporter from "./scripts/testing/archive-reporter.mjs";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     environment: "node",
+    reporters: ["default", new ArchiveReporter()],
     include: [
       "src/plugins/**/*.test.ts",
       "src/main/**/*.test.ts",

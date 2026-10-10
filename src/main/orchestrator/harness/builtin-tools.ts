@@ -17,59 +17,60 @@ import type {
 import { parseToolCallArgs } from "./types";
 import { isAbortError } from "../../abort-utils";
 import { resolveUncertainEffect } from "./uncertain-effect-guard";
-import type { TaskExecuteRequest, TaskExecuteResult } from "../task-runtime";
-import { buildTaskCompanionPrompt, getTaskCompanionNames } from "../../tasks/task-character-pool";
+import type { DelegationScope } from "../child-session-types";
+import type { AgentExecuteRequest, AgentExecuteResult } from "../persistent-agent-runtime";
 import { READ_TOOL_RESULT_TOOL_ID, readToolResultToolSpec } from "./tool-output/read-tool-result";
 import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, enterPlanModeToolSpec, writePlanToolSpec } from "./plan-tools";
 
 // ── update_todo ──────────────────────────────────────────
 
 export const UPDATE_TODO_TOOL_ID = "update_todo";
-export const TASK_TOOL_ID = "task";
+export const DELEGATE_AGENT_TOOL_ID = "delegate_agent";
 
-const taskCompanionNames = getTaskCompanionNames();
-const hasTaskCompanions = taskCompanionNames.length > 0;
+export const delegateAgentToolSpec = {
+  name: DELEGATE_AGENT_TOOL_ID,
+  description: "委托已配置的持久专业 Agent。仅传 agent_id 与完整 prompt；运行时自动恢复当前会话和工作区下的该 Agent 上下文，不需要 task_id。父运行等待结果，子 Agent 不能再次委托；工具、Skills 与审批权限由运行时约束。",
+  parameters: {
+    type: "object",
+    properties: {
+      agent_id: { type: "string", description: "当前 Agent 目录中的准确 ID" },
+      prompt: { type: "string", description: "本次完整委托指令" },
+    },
+    required: ["agent_id", "prompt"],
+    additionalProperties: false,
+  },
+} satisfies ToolSpec;
 
-export const taskToolSpec: ToolSpec = {
-  name: TASK_TOOL_ID,
-  description: [
-    "委托一个需要独立上下文、多步执行的前台子任务。",
-    "何时用：多个互不依赖的调查方向可以并行；较大目录或多个模块的独立审查；有明确交付物的专项任务。",
-    "何时不用：一句话能回答的；只需一次工具调用的。",
-    buildTaskCompanionPrompt(),
-    "父任务会等待结果；description 只用于向用户显示委托标签，prompt 是子任务完整指令。可传 task_id 继续同一子任务。子任务不能询问用户或再次委托。",
-  ].filter(Boolean).join(""),
-  parameters: { type: "object", properties: {
-    description: { type: "string", description: "给用户显示的 3-40 字任务标签" },
-    prompt: { type: "string", description: "子任务完整执行指令" },
-    subagent_type: { type: "string", enum: ["general", "document", "search"] },
-    ...(hasTaskCompanions ? {
-      companion_id: { type: "string", enum: [...taskCompanionNames], description: "可选的子任务展示角色；不改变职责或权限" },
-    } : {}),
-    task_id: { type: "string", description: "可选：恢复此前同一子任务" },
-  }, required: ["description", "prompt", "subagent_type"] },
-};
-
-export async function executeTask(
+export async function executeDelegateAgent(
   call: ToolCall,
-  executor: ((request: TaskExecuteRequest) => Promise<TaskExecuteResult>) | undefined,
+  executor: ((request: AgentExecuteRequest, scope?: DelegationScope) => Promise<AgentExecuteResult>) | undefined,
+  scope?: DelegationScope,
+  onExecutionStarted?: () => void,
 ): Promise<ToolObservation> {
-  if (!executor) return { outcome: "failure", category: "runtime_safety", tool: TASK_TOOL_ID, message: "TaskRuntime 未注入，当前运行不能委托子任务" };
+  if (!executor) return { outcome: "failure", category: "runtime_safety", tool: DELEGATE_AGENT_TOOL_ID, message: "当前运行未配置持久 Agent 委托" };
   const args = parseToolCallArgs(call);
-  const description = typeof args.description === "string" ? args.description.trim() : "";
-  const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
-  const subagentType = args.subagent_type;
-  const companionId = typeof args.companion_id === "string" ? args.companion_id.trim() : "";
-  const taskId = typeof args.task_id === "string" ? args.task_id.trim() || undefined : undefined;
-  if (description.length < 3 || description.length > 40 || !prompt
-    || (companionId && !taskCompanionNames.includes(companionId))
-    || (subagentType !== "general" && subagentType !== "document" && subagentType !== "search")) {
-    return { outcome: "failure", category: "invalid_arguments", tool: TASK_TOOL_ID, message: "task 需要 3-40 字 description、非空 prompt 与合法 subagent_type" };
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    return { outcome: "failure", category: "invalid_arguments", tool: DELEGATE_AGENT_TOOL_ID, message: "delegate_agent 参数必须是对象" };
   }
-  const result = await executor({ description, prompt, subagentType, companionId, taskId });
-  return { outcome: result.status === "completed" ? "success" : "failure", tool: TASK_TOOL_ID,
-    message: `子任务"${description}"已${result.status === "completed" ? "完成" : result.status}。`,
-    output: JSON.stringify({ taskId: result.taskId, status: result.status, text: result.text }) };
+  const agentId = typeof args.agent_id === "string" ? args.agent_id.trim() : "";
+  const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+  if (!agentId || !prompt || Object.keys(args).some(key => key !== "agent_id" && key !== "prompt")) {
+    return { outcome: "failure", category: "invalid_arguments", tool: DELEGATE_AGENT_TOOL_ID, message: "delegate_agent 仅接受非空 agent_id 与 prompt" };
+  }
+  let result: AgentExecuteResult;
+  try {
+    onExecutionStarted?.();
+    result = scope ? await executor({ agentId, prompt }, scope) : await executor({ agentId, prompt });
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    // Role lease/model configuration failures are local delegation observations.
+    const message = error instanceof Error ? error.message : String(error);
+    return { outcome: "failure", category: "runtime_safety", tool: DELEGATE_AGENT_TOOL_ID, message };
+  }
+  return {
+    outcome: result.status === "completed" ? "success" : "failure", tool: DELEGATE_AGENT_TOOL_ID,
+    message: `Agent ${result.agentId}: ${result.status}`, output: JSON.stringify(result),
+  };
 }
 
 export const updateTodoToolSpec: ToolSpec = {
@@ -608,7 +609,7 @@ export async function executeConfirmUncertainEffect(
 // ── 内置工具注册 ─────────────────────────────────────────
 
 export const HARNESS_BUILTIN_TOOL_IDS = new Set([
-  TASK_TOOL_ID,
+  DELEGATE_AGENT_TOOL_ID,
   UPDATE_TODO_TOOL_ID,
   ASK_USER_TOOL_ID,
   CONFIRM_UNCERTAIN_EFFECT_TOOL_ID,
@@ -647,13 +648,21 @@ function planToolSpecsFor(planState: import("../plan-mode").PlanStateName | unde
 
 export function getHarnessBuiltinToolSpecs(options?: {
   includeInteractive?: boolean;
-  includeTask?: boolean;
+  includeAgent?: boolean;
+  agentDefinitions?: readonly { id: string; nickname: string; description: string }[];
   planState?: import("../plan-mode").PlanStateName;
 }): ToolSpec[] {
   const interactive = options?.includeInteractive !== false
     ? [askUserToolSpec, confirmUncertainEffectToolSpec]
     : [];
-  const task = options?.includeTask === false ? [] : [taskToolSpec];
+  const definitions = options?.agentDefinitions;
+  const agent = options?.includeAgent === true ? [{ ...delegateAgentToolSpec,
+    description: delegateAgentToolSpec.description + (definitions?.length
+      ? `\n可用角色：${definitions.map(entry => `${entry.id}（${entry.nickname}）：${entry.description}`).join("；")}` : ""),
+    parameters: definitions?.length ? { ...delegateAgentToolSpec.parameters,
+      properties: { ...delegateAgentToolSpec.parameters.properties,
+        agent_id: { type: "string", enum: definitions.map(entry => entry.id) } } } : delegateAgentToolSpec.parameters,
+  }] : [];
   const plan = planToolSpecsFor(options?.planState);
-  return [updateTodoToolSpec, ...interactive, ...task, readToolResultToolSpec, ...plan];
+  return [updateTodoToolSpec, ...interactive, ...agent, readToolResultToolSpec, ...plan];
 }

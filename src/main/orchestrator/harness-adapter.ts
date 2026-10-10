@@ -47,6 +47,9 @@ export async function runHarnessWithAdapter(
   signal: AbortSignal,
   sendBaseEvent: (event: BaseEvent) => void,
 ): Promise<AgentLoopResult> {
+  if (options.memoryRun && options.transcriptSink) {
+    options = { ...options, transcriptSink: options.memoryRun.bindSink(options.transcriptSink) };
+  }
   // 准备阶段创建唯一的 runStore 实例；checkpoint、工具生命周期和终态都写入它。
   const prepared = await prepareHarnessRun(options, signal);
   const {
@@ -65,7 +68,7 @@ export async function runHarnessWithAdapter(
   } = prepared;
 
   const toolRuntime = prepareToolRuntime({ options, signal, prepared, sendBaseEvent });
-  const { toolContext, checkPermission, toolOutputStore, taskExecutor } = toolRuntime;
+  const { toolContext, checkPermission, toolOutputStore, agentExecutor, agentDefinitions } = toolRuntime;
 
   // ── 构建 HarnessInput ──
   const harnessInput: HarnessInput = {
@@ -84,7 +87,8 @@ export async function runHarnessWithAdapter(
       totalTimeoutMs: 0,
       contextWindowTokens: options.settings.contextWindowTokens,
     },
-    signal,
+    signal: toolRuntime.signal,
+    quiesceExecution: toolRuntime.quiesceExecution,
     onEvent: (event: HarnessEvent) => {
       if (!signal.aborted) {
         sendHarnessEventAsAgui(event, messageId, threadId, runId, sendBaseEvent);
@@ -110,7 +114,7 @@ export async function runHarnessWithAdapter(
     ...(options.onToolFinished ? { onToolFinished: options.onToolFinished } : {}),
     ...(options.pollRunAdjustments ? { pollRunAdjustments: options.pollRunAdjustments } : {}),
     requestUserClarification: options.requestUserClarification
-      ? (card) => options.requestUserClarification!(card as never, signal)
+      ? (card) => options.requestUserClarification!(card as never, toolRuntime.signal)
       : undefined,
     includeInteractiveTools: options.harnessInteractiveTools,
     planState,
@@ -118,8 +122,10 @@ export async function runHarnessWithAdapter(
     toolOutputStore,
     executionLedger: options.executionLedger,
     checkPermission,
-    taskExecutor,
+    agentExecutor,
+    agentDefinitions,
     ...(options.transcriptSink ? { transcriptSink: options.transcriptSink } : {}),
+    ...(options.memoryRun ? { memoryRun: options.memoryRun } : {}),
   };
 
   // ── 运行 Harness ──
@@ -182,6 +188,7 @@ export async function runHarnessWithAdapter(
     threadId,
     runId,
     runStatus: terminalRunStatus,
+    planState,
     signal,
     send: sendBaseEvent,
   });

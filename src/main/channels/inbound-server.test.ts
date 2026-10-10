@@ -7,8 +7,6 @@ afterEach(stopInboundServer);
 it("accepts only the Firefly secret header without weakening secret checks", async () => {
   const server = await startInboundServer();
   const request = (headers: Record<string, string>) => fetch(`http://127.0.0.1:${server.port}/channels/feishu/inbound`, { method: "POST", headers });
-  expect((await request({ "x-cyrene-channel-secret": "public-test-secret" })).status).toBe(401);
   expect((await request({ "x-firefly-channel-secret": "wrong" })).status).toBe(401);
   expect((await request({ "x-firefly-channel-secret": "public-test-secret" })).status).toBe(404);
-  expect((await request({ "x-firefly-channel-secret": "wrong", "x-cyrene-channel-secret": "public-test-secret" })).status).toBe(401);
 });

@@ -18,4 +18,6 @@ $runner.WaitForExit()
 Write-Output "[vitest-diagnostic] test-exit code=$($runner.ExitCode)"
 Get-Content -LiteralPath $stdoutPath
 Get-Content -LiteralPath $stderrPath
+# Read-only timing summary of the verbose log (slowest files and cases); it never changes the exit code.
+try { & $node (Join-Path $PSScriptRoot 'summarize-vitest-timing.mjs') $stdoutPath } catch { Write-Output "[timing] summary unavailable: $($_.Exception.Message)" }
 exit $runner.ExitCode

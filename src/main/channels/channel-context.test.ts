@@ -207,3 +207,19 @@ describe("渠道上下文", () => {
     );
   });
 });
+
+it.each(["qq", "qqbot", "wechat", "feishu"] as const)("never migrates %s private history into a first group conversation", async channel => {
+  const privateSession = makeSessionId(channel, "private-sender");
+  const groupSession = makeSessionId(channel, "new-group");
+  const history = new Map([[privateSession, [{ role: "user" as const, content: "PRIVATE_SYNTHETIC_MARKER" }]]]);
+  const context = createChannelContext({
+    appendChannelHistory: () => {},
+    loadRecentChannelHistory: async id => history.get(id) ?? [],
+    migrateHistory: (from, to) => { if (!history.has(to) && history.has(from)) history.set(to, history.get(from)!); },
+  });
+  const message = makeIncoming({ channel, chatType: "group", senderId: "private-sender", chatId: "new-group" });
+  const dispatch = context.resolveDispatchContext(groupSession);
+  context.recordIncomingSession(message, dispatch);
+  expect(await context.resolvePriorMessages(dispatch, 10)).toEqual([]);
+  expect(history.get(privateSession)?.[0].content).toBe("PRIVATE_SYNTHETIC_MARKER");
+});

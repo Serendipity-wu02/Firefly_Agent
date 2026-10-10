@@ -1,3 +1,10 @@
+import { bindDesktopAsrSettings } from "./desktop-asr-settings";
+import type {} from "../global";
+import { bindUiColorControls } from "./appearance/colors";
+import { DEFAULT_UI_COLORS } from "../../shared/ui-colors";
+import { renderProviderRows } from "./api/provider-rows";
+import { applyProviderEditorLayout } from "./api/provider-editor";
+import { bindSettingsNavigation, resolveSettingsSection, updateSettingsNavigation } from "./shared/navigation";
 /* 标记！AI写的超大技术债，延期重构*/
 import "../ui/base.css";
 import "./settings.css";
@@ -16,7 +23,7 @@ import {
   type SegmentedOutputMode,
 } from "../../shared/preferences";
 import { isProactiveDeliveryTargetSelectable } from "../../shared/proactive-delivery";
-import type { UiTheme } from "../../shared/ui-theme";
+import { normalizeUiTheme, type UiTheme } from "../../shared/ui-theme";
 import { DEFAULT_UI_FONT, normalizeUiFont, type UiFont } from "../../shared/ui-font";
 import { normalizeUiIcon, type UiIcon } from "../../shared/ui-icon";
 import {
@@ -55,9 +62,8 @@ import type {
 import { musicToggle, musicAccordionCard, musicAccordionBody } from "./music/dom";
 import { channelsState } from "./channels/state";
 import { mountPluginPanels } from "./plugin-panels";
-import { channelsWechatEnabledEl, channelsFeishuEnabledEl, channelsWechatStatusEl, channelsFeishuStatusEl, channelsRateUserEl, channelsRateChannelEl, channelsTtsEl, channelsStickerEl, channelsMirrorEl, channelsToolSandboxOffEl, channelsToolSandboxAllEl, channelsFeishuAppIdEl, channelsFeishuAppSecretEl, channelsFeishuAppSecretRevealBtn, channelsFeishuSaveBtn, channelsWechatLoginBtn, channelsWechatRestartBtn, channelsWechatFeedbackEl, channelsFeishuFeedbackEl, channelsLogListEl, channelsLogRefreshBtn, channelsLogClearBtn } from "./channels/dom";
-import { memoryState } from "./memory/state";
-import { memoryL0NameInput, memoryL0OccupationInput, memoryL0InterestsInput, memoryL0LanguageInput, memoryL0NoteInput, memoryL1GoalsInput, memoryL1PreferencesInput, memoryL1ProjectInput, memoryL2SearchInput, memoryL2List, memoryImportedList, memoryReflectionList, memoryL0EditBtn, memoryL0CancelBtn, memoryL1EditBtn, memoryL1CancelBtn } from "./memory/dom";
+import { channelsWechatEnabledEl, channelsFeishuEnabledEl, channelsWechatStatusEl, channelsFeishuStatusEl, channelsRateUserEl, channelsRateChannelEl, channelsStickerEl, channelsMirrorEl, channelsToolSandboxOffEl, channelsToolSandboxAllEl, channelsFeishuAppIdEl, channelsFeishuAppSecretEl, channelsFeishuAppSecretRevealBtn, channelsFeishuSaveBtn, channelsWechatLoginBtn, channelsWechatRestartBtn, channelsWechatFeedbackEl, channelsFeishuFeedbackEl, channelsLogListEl, channelsLogRefreshBtn, channelsLogClearBtn } from "./channels/dom";
+import { memoryImportedList } from "./memory/dom";
 import { schedulerState } from "./scheduler/state";
 import { schedulerNewBtn, schedulerEmpty, schedulerList, schedulerEditor, schedulerEditorTitle, schedulerEditorClose, schedulerTitleInput, schedulerPromptInput, schedulerEnabledInput, schedulerKindInput, schedulerOnceRunAtInput, schedulerTimeOfDayInput, schedulerDayOfWeekInput, schedulerIntervalEveryInput, schedulerIntervalUnitInput, schedulerToolLimitInput, schedulerToolPicker, schedulerToolEmptyHint, schedulerSaveStatus, schedulerCancelBtn, schedulerSaveBtn } from "./scheduler/dom";
 import { tokensState } from "./tokens/state";
@@ -67,8 +73,8 @@ import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
-import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput, toastSoundEnabledInput } from "./appearance/dom";
-import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, momentsEnabledInput, fireflyMomentsPostingEnabledInput, fireflyMomentsReactionsEnabledInput, momentsCharacterReactionsEnabledInput, momentsLivelinessSelect, momentsPostingRow, momentsReactionsRow, momentsCharacterRow, momentsLivelinessRow, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
+import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, chatLineHeightInput, chatLineHeightVal, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, uiThemeSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, toastSoundEnabledInput } from "./appearance/dom";
+import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, fireflyPanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, fireflySaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
 import { pluginAddBtn, permissionBlocksWrap, permissionNote } from "./plugins/dom";
 import { preferencesState } from "./preferences/state";
@@ -93,13 +99,7 @@ import {
 } from "./shared/save-status";
 import { renderEmptyState, renderInfoList } from "./shared/render";
 import { shallowEqual, safeGet } from "./shared/utils";
-import {
-  loadMemoryPanel,
-  enterL0EditMode, exitL0EditMode, saveL0, cancelL0Edit,
-  enterL1EditMode, exitL1EditMode, saveL1, cancelL1Edit,
-  renderImportedDocs,
-} from "./memory/panel";
-import { initObsidianVaultUI } from "./memory/obsidian-vault-ui";
+import { loadMemoryPanel } from "./memory/panel";
 import {
   setSchedulerStatus, renderSchedulerTools, renderSchedulerList,
   loadSchedulerPanel, openSchedulerEditor, closeSchedulerEditor,
@@ -110,7 +110,6 @@ import {
 import { loadMusicPanel, disposeMusicPanel } from "./music/qqmusic-panel";
 import { loadChannelsPanel } from "./channels/panel";
 import { renderProactiveDeliveryAvailability } from "./channels/panel";
-import "./asr/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./email/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./search/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import { saveTimeoutSettings } from "./timeout/panel";  // saveTimeoutSettings 被 API 表单处理器调用
@@ -118,15 +117,13 @@ import { DEFAULT_TIMEOUT_SETTINGS, type TimeoutSettings } from "../../shared/tim
 import "./user/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./plugins/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./plugins/permission";  // 副作用导入：权限档位 UI + 风险确认弹窗
-import "./tts/panel";  // 副作用导入：TTS 配置加载 + 引擎切换 + 测试发音 + 音色复刻
 import "./rag/panel";  // 副作用导入：RAG 模型切换 + Reranker 模式
 import "./preferences/panel";  // 副作用导入：截图热键捕获 + 表情包列表/添加/删除
 import "./mcp/panel";  // 副作用导入：MCP Server 添加/删除/启停 + 自定义端点接入说明
 import "./tokens/panel";  // 副作用导入：Token 用量图表 + 时间范围切换
-import { t } from "./i18n";
+import { t, subscribeLocaleChanged } from "./i18n";
 
 // Inline modal (to avoid Vite tree-shaking)
-
 
 /**
  * 富文本模态框（基于 cy-modal 样式但使用独立 overlay，避免与 showModal 冲突）。
@@ -134,17 +131,12 @@ import { t } from "./i18n";
  * 调用方负责传入安全的 HTML（项目内固定字符串）；若内容来自用户/网络必须先 escapeHtml。
  */
 
-
 // escapeHtml() 已定义在文件下方（settings.ts:3738），此处复用即可。
 
 // Inline input modal (Electron 禁用了 window.prompt，所以自己实现)
 
-
-
-
 declare global {
   interface Window {
-    settings?: SettingsApi;
     fireflyScheduler?: SchedulerApi;
     user?: UserApi;
     memoryPanel?: MemoryPanelApi;
@@ -156,7 +148,6 @@ declare global {
 // 实施时若图片加载失败，可考虑：1) 锁定 commit hash；2) 下载到本地 assets/icons/mimo.png
 const MIMO_ICON_URL =
   "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/xiaomimimo.png";
-
 
 if (!window.settings) {
   (window as unknown as { settings: SettingsApi }).settings = {
@@ -188,10 +179,11 @@ if (!window.settings) {
       chatLineHeight: 1.75,
       chatParaSpacing: 0.5,
       sidebarVisible: true,
-      tasksVisible: true,
+      toastSoundEnabled: true,
       launchAtLogin: false,
       language: "zh-CN",
       uiTheme: "pearl-white",
+      uiColors: { ...DEFAULT_UI_COLORS },
       uiThemeRadius: false,
       uiFont: DEFAULT_UI_FONT,
       uiIcon: "firefly",
@@ -204,13 +196,24 @@ if (!window.settings) {
       proactiveChatMode: "off",
       proactiveDeliveryTarget: "local",
       chatSocialContextEnabled: false,
-      momentsEnabled: true,
-      chatMomentsContextEnabled: true,
-      fireflyMomentsPostingEnabled: false,
-      fireflyMomentsReactionsEnabled: true,
-      momentsCharacterReactionsEnabled: true,
-      momentsLiveliness: "quiet",
       screenshotHotkey: "Alt+Shift+S",
+      weatherSource: "open-meteo",
+      weatherEnabled: false,
+      amapKey: "",
+      travelEnabled: false,
+      playwrightMcpEnabled: false,
+      searchEngine: "off",
+      searchBochaKey: "",
+      searchTavilyKey: "",
+      searchMinimaxKey: "",
+      searchAnySearchKey: "",
+      emailEnabled: false,
+      emailSmtpHost: "",
+      emailSmtpPort: 465,
+      emailSmtpSecure: true,
+      emailSmtpUser: "",
+      emailSmtpPass: "",
+      emailFromName: "",
     }),
     saveGeneral: (c) => Promise.resolve(c as GeneralSettings),
     openCustomStylePrompt: async () => ({ ok: false, error: "settings api unavailable" }),
@@ -236,8 +239,6 @@ if (!window.settings) {
     endScreenshotHotkeyCapture: () => Promise.resolve(true),
     openSidebar: () => {},
     closeSidebar: () => {},
-    openTasks: () => {},
-    closeTasks: () => {},
     openChromeGpu: () => {},
     setPetAlwaysOnTop: () => {},
     setPetVisible: () => {},
@@ -281,9 +282,6 @@ if (!window.fireflyScheduler) {
   };
 }
 
-
-
-
 // 模式按钮已删除——baseUrl 永远可改、模型名永远可手填（datalist 出预设建议）
 // provider 不再暴露给用户（从预设内部拿，保证 capabilities 匹配不出错）。
 // 用户看到的是"昵称"框——给模型起自定义名字，状态栏"正在喂养"显示它。
@@ -301,9 +299,8 @@ if (!window.fireflyScheduler) {
 
 // 当前激活的厂商：每次 applyPreset 后更新；用于"切到下一家厂商前先把当前那家的输入框值缓存住"
 
-
-
 const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }> = {
+  asr: { emoji: "🎙", title: t("settings.desktopAsr.title"), hint: t("settings.desktopAsr.hint") },
   memory: { emoji: `<img src="../avatars/firefly-avatar.png" width="24" height="24" alt="" aria-hidden="true" style="vertical-align:-3px" />`, title: t("settings.nav.memory"), hint: t("settings.nav.memoryHint") },
   chat: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M33 38H22V30H36V22H44V38H39L36 41L33 38Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6H36V30H17L13 34L9 30H4V6Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 18H20" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M26 18H27" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M12 18H13" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>`, title: t("settings.nav.chat"), hint: t("settings.nav.chatHint") },
   user: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M44 8H4V38H19L24 43L29 38H44V8Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="19" r="5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 32C33 27.5817 28.9706 24 24 24C19.0294 24 15 27.5817 15 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: t("settings.nav.user"), hint: t("settings.nav.userHint") },
@@ -315,8 +312,7 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
   api: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>API 设置</title><g clip-path="url(#api-key-nav-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-nav-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg>`, title: "API 设置", hint: "选择预设后只需要填写 API Key。" },
   "api-advanced": { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>高级设置</title><path d="M34.0003 41L44 24L34.0003 7H14.0002L4 24L14.0002 41H34.0003Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 29C26.7614 29 29 26.7614 29 24C29 21.2386 26.7614 19 24 19C21.2386 19 19 21.2386 19 24C19 26.7614 21.2386 29 24 29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "高级设置", hint: "配置 API 超时时间、调用模式．" },
   firefly: { emoji: "🌸", title: t("settings.nav.firefly"), hint: t("settings.nav.fireflyHint") },
-  tts: { emoji: "🎙️", title: t("settings.nav.tts"), hint: t("settings.nav.ttsHint") },
-  asr: { emoji: "🎧", title: t("settings.nav.asr"), hint: t("settings.nav.asrHint") },
+
 	  tokens: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "Token 用量", hint: "查看 API 调用统计与消耗" },
 	  disclaimer: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>免责声明</title><rect x="13" y="10" width="28" height="34" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M35 10V4H8C7.44772 4 7 4.44772 7 5V38H13" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 22H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 30H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: "免责声明", hint: "使用条款与隐私说明" },
 };
@@ -324,9 +320,7 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
 minBtn.addEventListener("click", () => window.settings?.minimize());
 closeBtn.addEventListener("click", () => window.settings?.close());
 
-
-
-
+const uiColorControls = bindUiColorControls(appearanceForm, colors => window.settings!.saveGeneral({ uiColors: colors }));
 
 async function saveAppearancePatch(patch: Partial<GeneralSettings>, successText = t("settings.status.applied")): Promise<void> {
   try {
@@ -421,16 +415,6 @@ function getProactiveChatValue(): ProactiveChatMode {
   return normalizeProactiveChatMode(getOptionGroupValue(proactiveChatSelect, "off"));
 }
 
-// 朋友圈热闹程度：非法值回落冷清档（与主进程归一化逻辑一致）
-function applyMomentsLivelinessSelection(liveliness: string): void {
-  applyOptionGroupValue(momentsLivelinessSelect, liveliness === "natural" || liveliness === "lively" ? liveliness : "quiet");
-}
-
-function getMomentsLivelinessValue(): "quiet" | "natural" | "lively" {
-  const value = getOptionGroupValue(momentsLivelinessSelect, "quiet");
-  return value === "natural" || value === "lively" ? value : "quiet";
-}
-
 function applyProactiveDeliverySelection(target: ProactiveDeliveryTarget): void {
   applyOptionGroupValue(proactiveDeliverySelect, target);
 }
@@ -438,7 +422,6 @@ function applyProactiveDeliverySelection(target: ProactiveDeliveryTarget): void 
 function getProactiveDeliveryValue(): ProactiveDeliveryTarget {
   return normalizeProactiveDeliveryTarget(getOptionGroupValue(proactiveDeliverySelect, "local"));
 }
-
 
 function buildCustomStyleConfigFromModal(): CustomStyleConfig {
   if (!preferencesState.customStyleOverlay) return preferencesState.currentCustomStyleConfig;
@@ -559,18 +542,18 @@ function renderProactiveDeliveryVisibility(): void {
   proactiveDeliveryRow.hidden = getProactiveChatValue() !== "on";
 }
 
-// 朋友圈动态总开关关闭时隐藏流萤行为子开关（与主动消息投递行的显隐模式一致）
-function renderMomentsSubRowsVisibility(): void {
-  momentsPostingRow.hidden = !momentsEnabledInput.checked;
-  momentsReactionsRow.hidden = !momentsEnabledInput.checked;
-  momentsCharacterRow.hidden = !momentsEnabledInput.checked;
-  momentsLivelinessRow.hidden = !momentsEnabledInput.checked;
-}
-
-
 function renderUiFont(font: UiFont): void {
   uiFontCurrent.textContent = font.kind === "custom" ? font.displayName : t("settings.appearance.font.defaultNotion");
   uiFontResetButton.hidden = font.kind !== "custom";
+}
+
+function renderUiTheme(theme: UiTheme): void {
+  uiThemeSelect.querySelectorAll<HTMLButtonElement>(".appearance-theme-option").forEach((button) => {
+    const active = button.dataset.value === theme;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-checked", String(active));
+    button.setAttribute("aria-pressed", String(active));
+  });
 }
 
 function renderUiIcon(icon: UiIcon): void {
@@ -581,14 +564,11 @@ function renderUiIcon(icon: UiIcon): void {
   });
 }
 
-
-
-
 function fillPresetOptions(): void {
   if (!presetCards) return;
   presetCards.replaceChildren();
   for (const preset of MODEL_PRESETS) {
-    if (preset.hiddenInPresetList) continue;
+    if (preset.hiddenInPresetList || preset.customEndpointMode) continue;
     const card = document.createElement("button");
     card.type = "button";
     card.className = "preset-card";
@@ -662,6 +642,72 @@ function fillModelOptions(preset: ModelPreset, preferredModel?: string): void {
 
 // ── 档案编辑（表单绑定档案，不再绑定"当前厂商"） ────────────────
 
+// Only profile fields are replaced by profile/provider navigation. Global vision,
+// timeout and override controls retain their values when the editor changes.
+// An async response belongs to the form instance that submitted it.
+function isCurrentProfilePanel(): boolean {
+  return document.getElementById("api-form") === apiForm;
+}
+
+let profileDraftBaseline = "";
+let profileTransitionPending = false;
+let profileSavePending = false;
+let profileEditorReturnProfileId: string | undefined;
+const profilePendingButtons = new Map<HTMLButtonElement, boolean>();
+
+function profileDraftSnapshot(): string {
+  return JSON.stringify([
+    apiState.activeProvider, displayNameInput.value, baseUrlInput.value,
+    modelInput.value, apiKeyInput.value, transportSelect.value,
+    contextWindowInput.value, multimodalToggle.checked,
+  ]);
+}
+
+function hasUnsavedProfileDraft(): boolean {
+  return apiState.editorOpen && profileDraftSnapshot() !== profileDraftBaseline;
+}
+
+/** Present the existing draft state without inferring connection health or saving anything. */
+function updateProfileDraftState(): void {
+  const state = document.getElementById("profile-draft-state");
+  const editor = document.getElementById("profile-editor");
+  editor?.setAttribute("aria-busy", String(profileSavePending));
+  if (profileSavePending) {
+    apiForm.querySelectorAll<HTMLButtonElement>('button[type="submit"], #close-profile-editor, #delete-profile-btn, #add-profile-btn, #empty-add-profile-btn, [data-profile-action], [data-provider-tab], .preset-card, [data-custom-endpoint-mode]').forEach(button => {
+      if (!profilePendingButtons.has(button)) profilePendingButtons.set(button, button.disabled);
+      button.disabled = true;
+    });
+  } else {
+    for (const [button, disabled] of profilePendingButtons) button.disabled = disabled;
+    profilePendingButtons.clear();
+  }
+  if (!state) return;
+  const kind = profileSavePending ? "saving" : hasUnsavedProfileDraft() ? "dirty" : apiState.editingProfileId ? "saved" : "new";
+  state.dataset.state = kind;
+  const text = t(`settings.providerUi.draftState.${kind}`);
+  if (state.textContent !== text) state.textContent = text;
+}
+
+/** Keep clean navigation synchronous; a single pending prompt owns its target. */
+function changeProfileEditor(change: () => void): void {
+  if (profileTransitionPending || profileSavePending) return;
+  if (!hasUnsavedProfileDraft()) {
+    change();
+    return;
+  }
+  profileTransitionPending = true;
+  void showConfirm({
+    title: t("settings.providerUi.discardTitle"),
+    message: t("settings.providerUi.discardMessage"),
+    confirmText: t("settings.providerUi.discardConfirm"),
+    cancelText: t("settings.providerUi.discardCancel"),
+    dangerous: true,
+  }).then(confirmed => {
+    profileTransitionPending = false;
+    if (confirmed) change();
+  });
+}
+
 /** 视觉三框是全局配置：切换档案/预设时先快照再恢复，避免被 preset 默认值覆盖。 */
 function snapshotVisionInputs(): { baseUrl: string; apiKey: string; model: string } {
   return {
@@ -677,7 +723,7 @@ function restoreVisionInputs(snapshot: { baseUrl: string; apiKey: string; model:
   visionModelInput.value = snapshot.model;
 }
 
-/** 档案列表渲染：卡片 = 昵称 + 厂商 + 模型 + 徽标（默认/上下文/多模态）。 */
+/** 已配置模型列表：紧凑行与独立编辑/删除操作。 */
 function renderProfileList(): void {
   if (!profileList) return;
   profileList.replaceChildren();
@@ -696,57 +742,30 @@ function renderProfileList(): void {
     return;
   }
 
-  for (const profile of apiState.profiles) {
-    const isDefault = profile.id === apiState.defaultProfileId;
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "profile-card" + (profile.id === apiState.editingProfileId ? " is-active" : "");
-    card.dataset.profileId = profile.id;
-
-    const name = document.createElement("span");
-    name.className = "profile-card__name";
-    name.textContent = profile.displayName || profile.provider;
-    card.appendChild(name);
-
-    const meta = document.createElement("span");
-    meta.className = "profile-card__meta";
-    const metaParts: string[] = [findPreset(profile.provider).shortName, profile.model];
-    if (profile.contextWindowTokens) metaParts.push(`${Math.round(profile.contextWindowTokens / 1000)}k`);
-    meta.textContent = metaParts.join(" · ");
-    card.appendChild(meta);
-
-    const badges = document.createElement("span");
-    badges.className = "profile-card__badges";
-    if (isDefault) {
-      const badge = document.createElement("span");
-      badge.className = "profile-card__badge";
-      badge.textContent = t("settings.profile.badge.default");
-      badges.appendChild(badge);
-    }
-    if (profile.multimodal === true) {
-      const badge = document.createElement("span");
-      badge.className = "profile-card__badge profile-card__badge--vision";
-      badge.textContent = t("settings.profile.badge.vision");
-      badges.appendChild(badge);
-    }
-    card.appendChild(badges);
-
-    profileList.appendChild(card);
-  }
+  renderProviderRows(profileList, apiState.profiles, apiState.defaultProfileId, apiState.editorOpen ? apiState.editingProfileId : undefined);
 }
 
 /** 从 main 拉取档案列表并渲染。 */
 async function reloadProfiles(): Promise<void> {
+  if (!isCurrentProfilePanel()) return;
   apiState.profilesLoadState = "loading";
   renderProfileList();
   try {
     const catalog = await window.settings?.listModelProfiles?.();
+    if (!isCurrentProfilePanel()) return;
     if (!catalog) throw new Error("Model profile bridge unavailable");
     apiState.profiles = catalog.profiles as SavedProfileLite[];
     apiState.defaultProfileId = catalog.defaultModelProfileId;
     apiState.profilesLoadState = "ready";
     renderProfileList();
+    const routingPanel = document.getElementById("agent-routing-panel");
+    if (routingPanel && window.settings) {
+      const { loadAgentRoutingPanel } = await import("./api/agent-routing");
+      if (!isCurrentProfilePanel()) return;
+      await loadAgentRoutingPanel(routingPanel, window.settings);
+    }
   } catch (error) {
+    if (!isCurrentProfilePanel()) return;
     apiState.profilesLoadState = "error";
     renderProfileList();
     throw error;
@@ -757,11 +776,16 @@ async function reloadProfiles(): Promise<void> {
 function applyEditingStateUI(): void {
   profileEditorTitle.textContent = apiState.editingProfileId ? t("settings.profile.editorTitle.edit") : t("settings.profile.editorTitle.new");
   deleteProfileBtn.hidden = !apiState.editingProfileId;
+  document.getElementById("profile-editor")!.hidden = !apiState.editorOpen;
+  document.getElementById("profile-editor-empty")!.hidden = apiState.editorOpen;
+  document.querySelector<HTMLElement>(".provider-tabs")!.hidden = Boolean(apiState.editingProfileId);
+  applyProviderEditorLayout(apiForm, getCustomEndpointMode(apiState.activeProvider) ? "custom" : "preset");
 }
 
 /** 载入档案到编辑表单。 */
-function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void {
+function editProfile(profile: SavedProfileLite, globalMultimodal: boolean, focusEditor = true): void {
   const visionSnapshot = snapshotVisionInputs();
+  apiState.editorOpen = true;
   apiState.editingProfileId = profile.id;
   apiState.editingReasoning = profile.reasoning;
   applyPreset(
@@ -779,12 +803,17 @@ function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void
   applyMultimodalUI();
   applyEditingStateUI();
   renderProfileList();
+  profileDraftBaseline = profileDraftSnapshot();
+  updateProfileDraftState();
   setSaveStatus(t("settings.profile.editing", { name: profile.displayName || profile.model }));
+  if (focusEditor) (getCustomEndpointMode(profile.provider) ? displayNameInput : apiKeyInput).focus();
 }
 
 /** 开始新建草稿：preset 预填 URL/模型/协议，清空 Key 与昵称。 */
 function startNewDraft(providerName: string): void {
+  profileEditorReturnProfileId = undefined;
   const visionSnapshot = snapshotVisionInputs();
+  apiState.editorOpen = true;
   apiState.editingProfileId = undefined;
   apiState.editingReasoning = undefined;
   applyPreset(providerName);
@@ -795,6 +824,9 @@ function startNewDraft(providerName: string): void {
   applyMultimodalUI();
   applyEditingStateUI();
   renderProfileList();
+  profileDraftBaseline = profileDraftSnapshot();
+  updateProfileDraftState();
+  setSaveStatus(t("settings.status.waiting"));
 }
 
 /** 模式按钮已删除——模型名永远从 input 读取。保留函数名供旧调用点用，语义不变。 */
@@ -821,7 +853,6 @@ function fillVisionModelOptions(preset: ModelPreset): void {
 }
 
 const LOCAL_ENDPOINT_AUTH_FALLBACK = "__FIREFLY_LOCAL_NO_AUTH__";
-import { LEGACY_LOCAL_ENDPOINT_AUTH_FALLBACK } from "../../shared/legacy-firefly-contracts";
 
 function getApiKeyForRequest(): string {
   const value = apiKeyInput.value.trim();
@@ -943,7 +974,7 @@ export function applyPreset(
   // apiKey：优先用缓存；否则**显式清空**——避免上一家厂商的 key 残留在输入框里被用户误点保存。
   // 这是 v1 切厂商行为里的关键不变量：apiKey 永远只跟当前厂商绑定。
   const customMode = getCustomEndpointMode(preset.providerName);
-  apiKeyInput.value = customMode === "local" && (preferredApiKey === LOCAL_ENDPOINT_AUTH_FALLBACK || preferredApiKey === LEGACY_LOCAL_ENDPOINT_AUTH_FALLBACK)
+  apiKeyInput.value = customMode === "local" && preferredApiKey === LOCAL_ENDPOINT_AUTH_FALLBACK
     ? ""
     : (preferredApiKey ?? "");
 
@@ -980,6 +1011,7 @@ export function applyPreset(
   }
 
   apiState.activeProvider = preset.providerName;
+  applyProviderEditorLayout(apiForm, customMode ? "custom" : "preset");
   applyMultimodalUI();
 }
 
@@ -987,6 +1019,7 @@ async function loadConfig(): Promise<void> {
   try {
     fillPresetOptions();
     const cfg = await window.settings!.getConfig();
+    if (!isCurrentProfilePanel()) return;
     // 模式按钮已删除——mode 字段不再用 UI 控制，直接忽略 cfg.mode
     const vision = cfg.vision;
     applyPreset(
@@ -1018,20 +1051,22 @@ async function loadConfig(): Promise<void> {
     toggleDisableThinking.checked = cfg.thinkingOverride === -1;
     toggleDisableMaxToken.checked = !!cfg.disableMaxToken;
 
-    // 档案列表加载 + 默认进入默认档案的编辑态；
-    // 无档案时保持上方 applyPreset 的顶层镜像作为"新建草稿"起点。
+    // 在右侧展示默认档案；没有档案时保留新建入口与空态。
     await reloadProfiles();
+    if (!isCurrentProfilePanel()) return;
     const defaultProfile = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
     if (defaultProfile) {
-      editProfile(defaultProfile, cfg.multimodal);
+      editProfile(defaultProfile, cfg.multimodal, false);
     } else {
       contextWindowInput.value = String(cfg.contextWindowTokens ?? 256000);
       applyEditingStateUI();
     }
 
+    applyEditingStateUI();
     setSaveStatus(t("settings.status.waiting"));
     setFireflySaveStatus(t("settings.status.waiting"));
   } catch {
+    if (!isCurrentProfilePanel()) return;
     fillPresetOptions();
     apiState.profilesLoadState = "error";
     renderProfileList();
@@ -1043,15 +1078,10 @@ async function loadConfig(): Promise<void> {
 async function loadGeneralSettings(): Promise<void> {
   try {
     const cfg = await window.settings!.getGeneral();
+    uiColorControls.load(cfg.uiColors);
     const cita = getCitaUiState({ enabled: cfg.citaEnabled, semanticEngine: cfg.citaSemanticEngine });
     citaEnabledInput.checked = cita.enabled;
     chatSocialContextEnabledInput.checked = normalizeChatSocialContextEnabled(cfg.chatSocialContextEnabled);
-    momentsEnabledInput.checked = cfg.momentsEnabled ?? true;
-    fireflyMomentsPostingEnabledInput.checked = cfg.fireflyMomentsPostingEnabled ?? false;
-    fireflyMomentsReactionsEnabledInput.checked = cfg.fireflyMomentsReactionsEnabled ?? true;
-    momentsCharacterReactionsEnabledInput.checked = cfg.momentsCharacterReactionsEnabled ?? true;
-    applyMomentsLivelinessSelection(cfg.momentsLiveliness ?? "quiet");
-    renderMomentsSubRowsVisibility();
     citaEngineSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
       const selected = button.dataset.value === cita.selectedEngine;
       button.classList.toggle("is-active", selected);
@@ -1072,11 +1102,10 @@ async function loadGeneralSettings(): Promise<void> {
     chatParaSpacingVal.textContent = (cfg.chatParaSpacing ?? 0.5).toFixed(2) + "em";
     document.documentElement.style.setProperty("--rb-chat-para-spacing", (cfg.chatParaSpacing ?? 0.5) + "em");
     disableGpuInput.checked = cfg.disableGpuElectron ?? false;
-    sidebarVisibleInput.checked = cfg.sidebarVisible ?? true;
-    tasksVisibleInput.checked = cfg.tasksVisible ?? true;
     launchAtLoginInput.checked = cfg.launchAtLogin;
     renderUiFont(normalizeUiFont(cfg.uiFont));
     renderUiIcon(normalizeUiIcon(cfg.uiIcon));
+    renderUiTheme(normalizeUiTheme(cfg.uiTheme));
     applyDefaultChatModeSelection(normalizeDefaultChatMode(cfg.defaultChatMode));
     preferencesState.currentCustomStyleConfig = normalizeCustomStyleConfig(cfg.customStyle);
     applySegmentedOutputSelection(normalizeSegmentedOutputMode(cfg.segmentedOutputMode));
@@ -1100,7 +1129,6 @@ async function loadGeneralSettings(): Promise<void> {
     setGeneralSaveStatus(t("settings.status.generalReadFailed"), "is-error");
   }
 }
-
 
 toggleEnableThinking.addEventListener("change", () => {
   if (toggleEnableThinking.checked) {
@@ -1145,18 +1173,6 @@ openChromeGpu.addEventListener("click", () => {
 
 disableGpuInput.addEventListener("change", () => {
   void window.settings?.saveGeneral({ disableGpuElectron: disableGpuInput.checked });
-});
-
-sidebarVisibleInput.addEventListener("change", () => {
-  if (sidebarVisibleInput.checked) window.settings?.openSidebar();
-  else window.settings?.closeSidebar();
-  void window.settings?.saveGeneral({ sidebarVisible: sidebarVisibleInput.checked });
-});
-
-tasksVisibleInput.addEventListener("change", () => {
-  if (tasksVisibleInput.checked) window.settings?.openTasks();
-  else window.settings?.closeTasks();
-  void window.settings?.saveGeneral({ tasksVisible: tasksVisibleInput.checked });
 });
 
 windowCornerRadiusInput.addEventListener("input", () => {
@@ -1204,6 +1220,24 @@ uiFontResetButton.addEventListener("click", async () => {
   } finally {
     uiFontResetButton.disabled = false;
   }
+});
+
+uiThemeSelect.querySelectorAll<HTMLButtonElement>(".appearance-theme-option").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const theme = normalizeUiTheme(button.dataset.value);
+    const previous = uiThemeSelect.querySelector<HTMLButtonElement>(".appearance-theme-option.is-active")?.dataset.value;
+    if (previous === theme) return;
+    renderUiTheme(theme);
+    try {
+      // The main process saves the choice and broadcasts it, so every window re-themes together.
+      await window.settings!.saveGeneral({ uiTheme: theme });
+      setAppearanceSaveStatus(t("settings.status.themeApplied"), "is-ok");
+    } catch (error) {
+      console.error("应用主题失败:", error);
+      renderUiTheme(normalizeUiTheme(previous));
+      setAppearanceSaveStatus(t("settings.status.themeFailed"), "is-error");
+    }
+  });
 });
 
 uiIconSelect.querySelectorAll<HTMLButtonElement>(".appearance-icon-option").forEach((button) => {
@@ -1282,13 +1316,6 @@ proactiveChatSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach
   });
 });
 
-momentsLivelinessSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
-  button.addEventListener("click", () => {
-    applyMomentsLivelinessSelection(button.dataset.value ?? "quiet");
-    setPreferencesSaveStatus(t("settings.status.dirty"));
-  });
-});
-
 proactiveDeliverySelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
   button.addEventListener("click", () => {
     if (button.disabled) return;
@@ -1300,7 +1327,6 @@ proactiveDeliverySelect.querySelectorAll<HTMLButtonElement>(".option-block").for
 citaEnabledInput.addEventListener("change", () => {
   setPreferencesSaveStatus(t("settings.status.dirty"));
 });
-
 
 // ── 模型厂商 Work 流程适配说明 ──────────────────────────────
 // 展示各厂商结构化输出档位与实测兼容性；「详细文档」在 app 内本地渲染完整实测报告。
@@ -1417,6 +1443,7 @@ baseUrlResetBtn.addEventListener("click", () => {
       : preset.baseUrl;
     updateEndpointPreview();
     setSaveStatus(t("settings.api.baseUrlResetOk"));
+    updateProfileDraftState();
   }
 });
 
@@ -1440,6 +1467,7 @@ transportSelect.addEventListener("change", () => {
     transportHint.textContent = t("settings.api.anthropicHintMissing");
   }
   setSaveStatus(t("settings.status.dirty"));
+  updateProfileDraftState();
 });
 
 // 测试视觉模型按钮（仅在多模态开关 OFF 时可见）
@@ -1473,9 +1501,6 @@ testVisionBtn.addEventListener("click", async () => {
   }
 });
 
-
-
-
 apiRuntimeForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   setRuntimeSaveStatus(t("settings.status.saving"));
@@ -1497,8 +1522,6 @@ generalForm.addEventListener("submit", async (e) => {
   try {
     await window.settings!.saveGeneral({
       disableGpuElectron: disableGpuInput.checked,
-      sidebarVisible: sidebarVisibleInput.checked,
-      tasksVisible: tasksVisibleInput.checked,
       toastSoundEnabled: toastSoundEnabledInput.checked,
       launchAtLogin: launchAtLoginInput.checked,
       language: "zh-CN",
@@ -1533,16 +1556,27 @@ fireflyPanel.addEventListener("submit", async (e) => {
 
 apiForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (!isCurrentProfilePanel() || profileSavePending || profileTransitionPending || !apiState.editorOpen) return;
+  const settings = window.settings!;
   const customValidationError = validateActiveCustomEndpoint();
   if (customValidationError) {
     setSaveStatus(customValidationError, "is-error");
     return;
   }
+  profileSavePending = true;
+  updateProfileDraftState();
+  const submittedDraft = profileDraftSnapshot();
+  const submittedGlobalOptions = {
+    vision: {
+      baseUrl: visionBaseUrlInput.value.trim(),
+      apiKey: visionApiKeyInput.value.trim(),
+      model: visionModelInput.value.trim(),
+    },
+    thinkingOverride: toggleEnableThinking.checked ? 1 as const : toggleDisableThinking.checked ? -1 as const : 0 as const,
+    disableMaxToken: toggleDisableMaxToken.checked,
+  };
   setSaveStatus(t("settings.status.saving"));
   try {
-    if (!await saveTimeoutSettings(true)) {
-      return;
-    }
     // 档案保存：editingProfileId 存在 = 更新（字段全量覆盖），否则新增。
     // 上下文窗口与多模态跟随档案；留空/非法按 256000 兜底。
     const isEditing = Boolean(apiState.editingProfileId);
@@ -1558,54 +1592,72 @@ apiForm.addEventListener("submit", async (e) => {
       contextWindowTokens: Math.max(4096, parseInt(contextWindowInput.value, 10) || 256000),
       multimodal: multimodalToggle.checked,
     };
-    const result = await window.settings!.saveModelProfile?.(profile);
+    if (!await saveTimeoutSettings(true) || !isCurrentProfilePanel()) return;
+    setSaveStatus(t("settings.status.saving"));
+    const result = await settings.saveModelProfile?.(profile);
+    if (!isCurrentProfilePanel()) return;
     if (!result) throw new Error(t("settings.profile.listUnavailable"));
-    // 全局选项（视觉模型/思考开关/maxToken）不随档案走，单独保存
-    await window.settings!.saveConfig({
-      vision: {
-        baseUrl: visionBaseUrlInput.value.trim(),
-        apiKey: visionApiKeyInput.value.trim(),
-        model: visionModelInput.value.trim(),
-      },
-      thinkingOverride: toggleEnableThinking.checked ? 1 : toggleDisableThinking.checked ? -1 : 0,
-      disableMaxToken: toggleDisableMaxToken.checked,
-    });
-    if (isEditing) {
-      setSaveStatus(t("settings.profile.savedUpdated"), "is-ok");
-    } else if (result.added) {
-      setSaveStatus(t("settings.profile.savedAdded"), "is-ok");
+    // Retain a successful profile write even if the subsequent global save fails.
+    // A retry must update that profile, rather than create a duplicate draft.
+    if (!isEditing && result.added) {
       // 新建成功后切到编辑态，用户可直接再改再存
       const saved = (result.profiles as SavedProfileLite[]).at(-1);
       if (saved && saved.id) {
         apiState.editingProfileId = saved.id;
         apiState.editingReasoning = saved.reasoning;
+        apiState.profiles = result.profiles as SavedProfileLite[];
+        apiState.defaultProfileId = result.defaultModelProfileId;
         applyEditingStateUI();
+        renderProfileList();
+      }
+    }
+    // 全局选项（视觉模型/思考开关/maxToken）不随档案走，单独保存
+    await settings.saveConfig(submittedGlobalOptions);
+    if (!isCurrentProfilePanel()) return;
+    await reloadProfiles();
+    if (!isCurrentProfilePanel()) return;
+    if (isEditing || result.added) {
+      // Follow the refreshed Main values only when no newer profile edit exists.
+      // The key remains the submitted input; catalog credentials are never copied here.
+      if (profileDraftSnapshot() === submittedDraft) {
+        const saved = apiState.profiles.find(profile => profile.id === apiState.editingProfileId);
+        if (saved) {
+          applyPreset(saved.provider, saved.model, apiKeyInput.value, saved.baseUrl, saved.displayName,
+            saved.explicitTransport, snapshotVisionInputs(), saved.multimodal);
+          contextWindowInput.value = saved.contextWindowTokens ? String(saved.contextWindowTokens) : "";
+          apiState.editingReasoning = saved.reasoning;
+        }
+        profileDraftBaseline = profileDraftSnapshot();
+      } else {
+        profileDraftBaseline = submittedDraft;
+      }
+      if (hasUnsavedProfileDraft()) {
+        setSaveStatus(t("settings.providerUi.savedWithChanges"));
+      } else {
+        setSaveStatus(t(isEditing ? "settings.profile.savedUpdated" : "settings.profile.savedAdded"), "is-ok");
       }
     } else {
       setSaveStatus(t("settings.profile.duplicate"), "is-error");
     }
-    await reloadProfiles();
   } catch {
-    setSaveStatus(t("settings.status.saveFailed"), "is-error");
+    if (isCurrentProfilePanel()) setSaveStatus(t("settings.status.saveFailed"), "is-error");
+  } finally {
+    profileSavePending = false;
+    if (isCurrentProfilePanel()) updateProfileDraftState();
   }
 });
 
+const navigationButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".nav-item"));
+const panelSections = Array.from(document.querySelectorAll<HTMLElement>("[data-panel]"), panel => panel.dataset.panel!);
 
-
-
-
-
-
-
-
-
-
-
-function switchSection(section: string): void {
+function switchSection(requestedSection: string): void {
+  const section = resolveSettingsSection(requestedSection, navigationButtons, panelSections);
   const label = NAV_LABELS[section] ?? NAV_LABELS.api;
   sectionTitle.textContent = label.title;
   sectionHint.textContent = label.hint;
 
+  const isAsr = section === "asr";
+  document.getElementById("desktop-asr-form")?.classList.toggle("is-hidden", !isAsr);
   const isApi = section === "api";
   const isApiAdvanced = section === "api-advanced";
   const isAppearance = section === "appearance";
@@ -1619,8 +1671,7 @@ function switchSection(section: string): void {
   const isPlugins = section === "plugins";
   const isTokens = section === "tokens";
   const isChannels = section === "channels";
-  const isTts = section === "tts";
-  const isAsr = section === "asr";
+
   const isMusic = section === "music";
   apiForm.classList.toggle("is-hidden", !isApi);
   apiRuntimeForm.classList.toggle("is-hidden", !isApiAdvanced);
@@ -1642,20 +1693,18 @@ function switchSection(section: string): void {
   const channelsPanel = document.getElementById("channels-panel");
   if (channelsPanel) channelsPanel.classList.toggle("is-hidden", !isChannels);
   if (isChannels) void loadChannelsPanel();
-  const ttsPanel = document.getElementById("tts-panel");
-  if (ttsPanel) ttsPanel.classList.toggle("is-hidden", !isTts);
-  const asrPanel = document.getElementById("asr-panel");
-  if (asrPanel) asrPanel.classList.toggle("is-hidden", !isAsr);
+
   const musicPanel = document.getElementById("music-panel");
   if (musicPanel) musicPanel.classList.toggle("is-hidden", !isMusic);
   if (isMusic) void loadMusicPanel();
   else disposeMusicPanel();
   placeholderPanel.classList.toggle(
     "is-hidden",
-    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isFirefly || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic,
+    isAsr || isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isFirefly || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isMusic,
   );
 
   if (
+    !isAsr &&
     !isApi &&
     !isApiAdvanced &&
     !isAppearance &&
@@ -1669,30 +1718,18 @@ function switchSection(section: string): void {
     !isPlugins &&
     !isTokens &&
     !isChannels &&
-    !isTts &&
-    !isAsr &&
-    !isMusic &&
-    !isFeaturePlugins
+    !isMusic
   ) {
 	    placeholderIcon.innerHTML = label.emoji;
     placeholderTitle.textContent = label.title;
     placeholderCopy.textContent = t("settings.placeholder.copy");
   }
 
-  document.querySelectorAll(".nav-item").forEach((el) => {
-    const isMatch = (el as HTMLElement).dataset.section === section;
-    el.classList.toggle("is-active", isMatch);
-  });
-  const activeNav = document.querySelector(".nav-item.is-active");
-  console.log("[Settings/Trace] switchSection section=", section, "activeNav=", activeNav ? (activeNav as HTMLElement).dataset.section : null);
+  updateSettingsNavigation(navigationButtons, section === "music" ? "plugins" : section);
+  document.querySelector(".settings-content")?.scrollTo?.({ top: 0 });
 }
 
-document.querySelectorAll(".nav-item").forEach((el) => {
-  el.addEventListener("click", () => {
-    const section = (el as HTMLElement).dataset.section;
-    if (section) switchSection(section);
-  });
-});
+bindSettingsNavigation(navigationButtons, switchSection);
 
 schedulerNewBtn?.addEventListener("click", () => void openSchedulerEditor());
 schedulerEditorClose?.addEventListener("click", closeSchedulerEditor);
@@ -1704,6 +1741,7 @@ updateSchedulerConditionalFields();
 
 void loadConfig();
 void loadGeneralSettings();
+void bindDesktopAsrSettings(document, window.settings);
 // 插件设置面板挂载（已启用且声明了 settingsPanel 的插件按分区挂 iframe）
 void mountPluginPanels();
 window.settings?.onChannelsStatusChanged((status) => {
@@ -1714,15 +1752,7 @@ window.settings?.onChannelsStatusChanged((status) => {
 // 飞书配置输入框（长连接版：只需 App ID + App Secret）
 // 微信按钮
 
-
-
-
-
 // ===== 消息日志 =====
-
-
-
-
 
 // 首次进入 channels panel 时拉一次日志
 // （也可以在用户展开 details 时再拉，但保持简单直接拉）
@@ -1732,25 +1762,6 @@ void loadChannelsPanel();
 // 备注：window.music.* 已在 preload 中通过 contextBridge 暴露。
 // 由于 renderer 走 Vite 打包、main/preload 走 esbuild，两端类型不互通，
 // 这里直接用 (window as any).music 做弱类型化调用，避免给 global.d.ts 加一堆 cross-bundle 类型。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // ── QQ Music 状态在音乐面板内展示 ──
 
@@ -1762,36 +1773,6 @@ switchSection(initialSection);
 window.settings?.onSwitchSection?.((section) => {
   switchSection(section);
 });
-// --- L0/L1 editable logic ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Bind edit button events
-memoryL0EditBtn?.addEventListener("click", () => {
-  if (memoryState.l0Editing) { saveL0(); } else { enterL0EditMode(); }
-});
-memoryL0CancelBtn?.addEventListener("click", cancelL0Edit);
-
-memoryL1EditBtn?.addEventListener("click", () => {
-  if (memoryState.l1Editing) { saveL1(); } else { enterL1EditMode(); }
-});
-memoryL1CancelBtn?.addEventListener("click", cancelL1Edit);
-
-// ── Obsidian Vault 绑定 UI（逻辑抽离至 ./memory/obsidian-vault-ui）──
-
-initObsidianVaultUI();
-
 memoryImportedList?.addEventListener("click", async (event) => {
   const target = event.target as HTMLElement | null;
   const deleteBtn = target?.closest(".memory-record__delete") as HTMLElement | null;
@@ -1821,9 +1802,7 @@ memoryImportedList?.addEventListener("click", async (event) => {
   }
 });
 
-
 void loadMemoryPanel();
-
 
 // ── 音乐工具手风琴 ─────────────────────────────────────────
 musicToggle?.addEventListener("click", () => {
@@ -1838,8 +1817,6 @@ document.getElementById("music-platform-qq")?.addEventListener("click", () => {
   switchSection("music");
 });
 
-
-
 // ── 预设卡：选择厂商 = 开始新建档案草稿 ───────────────────────
 presetCards?.addEventListener("click", (e) => {
   const card = (e.target as HTMLElement).closest(".preset-card") as HTMLElement | null;
@@ -1850,8 +1827,11 @@ presetCards?.addEventListener("click", (e) => {
   const providerName = getCustomEndpointMode(cardProviderName)
     ? getCustomEndpointProvider(apiState.customEndpointMode)
     : cardProviderName;
-  startNewDraft(providerName);
-  setSaveStatus(t("settings.preset.appliedDraftHint"));
+  if (apiState.editorOpen && !apiState.editingProfileId && providerName === apiState.activeProvider) return;
+  changeProfileEditor(() => {
+    startNewDraft(providerName);
+    setSaveStatus(t("settings.preset.appliedDraftHint"));
+  });
 });
 
 // ── 自定义端点云端/本地模式切换（切换 = 换草稿厂商） ───────────
@@ -1860,60 +1840,143 @@ customEndpointControls?.addEventListener("click", (e) => {
   const nextMode = button?.dataset.customEndpointMode as CustomEndpointMode | undefined;
   if (!nextMode || nextMode === apiState.customEndpointMode) return;
 
-  apiState.customEndpointMode = nextMode;
-  const providerName = getCustomEndpointProvider(nextMode);
-  startNewDraft(providerName);
-  setSaveStatus(nextMode === "local"
-    ? t("settings.customEndpoint.localDraftHint")
-    : t("settings.customEndpoint.cloudDraftHint"));
+  changeProfileEditor(() => {
+    apiState.customEndpointMode = nextMode;
+    startNewDraft(getCustomEndpointProvider(nextMode));
+    setSaveStatus(nextMode === "local"
+      ? t("settings.customEndpoint.localDraftHint")
+      : t("settings.customEndpoint.cloudDraftHint"));
+  });
 });
 
 // ── 档案列表：点击档案载入编辑 ────────────────────────────────
 profileList?.addEventListener("click", (e) => {
-  const card = (e.target as HTMLElement).closest(".profile-card") as HTMLElement | null;
-  if (!card) return;
-  const profileId = card.dataset.profileId;
-  const profile = apiState.profiles.find((p) => p.id === profileId);
+  const button = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-profile-action]");
+  const row = button?.closest<HTMLElement>(".provider-row");
+  const profile = apiState.profiles.find(p => p.id === row?.dataset.profileId);
   if (!profile) return;
-  editProfile(profile, multimodalToggle.checked);
+  if (button?.dataset.profileAction === "delete") {
+    requestDeleteProfile(profile.id);
+  } else if (apiState.editorOpen && apiState.editingProfileId === profile.id) {
+    profileEditorReturnProfileId = profile.id;
+    (getCustomEndpointMode(profile.provider) ? displayNameInput : apiKeyInput).focus();
+  } else {
+    changeProfileEditor(() => {
+      profileEditorReturnProfileId = profile.id;
+      editProfile(profile, multimodalToggle.checked);
+    });
+  }
 });
 
 // ── 删除当前编辑的档案 ────────────────────────────────────────
-deleteProfileBtn?.addEventListener("click", async () => {
-  if (!apiState.editingProfileId) return;
-  const profile = apiState.profiles.find((p) => p.id === apiState.editingProfileId);
+async function deleteProfile(profileId: string): Promise<void> {
+  const rowIndex = apiState.profiles.findIndex(profile => profile.id === profileId);
+  const profile = apiState.profiles.find((p) => p.id === profileId);
   const name = profile?.displayName || profile?.model || t("settings.profile.fallbackName");
   try {
-    await window.settings?.deleteModelProfile?.(apiState.editingProfileId);
+    await window.settings?.deleteModelProfile?.(profileId);
     setSaveStatus(t("settings.profile.deleted", { name }), "is-ok");
     await reloadProfiles();
-    // 删除后切到剩余的默认档案；没有档案则回到草稿态
-    const next = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
-    if (next) {
-      editProfile(next, multimodalToggle.checked);
-    } else {
-      startNewDraft(apiState.activeProvider || t("settings.default.provider"));
+    // 仅删除当前编辑项时更新编辑表单，其余草稿保留。
+    if (apiState.editingProfileId === profileId) {
+      const next = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
+      if (next && apiState.editorOpen) {
+        editProfile(next, multimodalToggle.checked, false);
+      } else {
+        apiState.editingProfileId = undefined;
+        apiState.editingReasoning = undefined;
+        apiState.editorOpen = false;
+        applyEditingStateUI();
+      }
     }
+    const editButtons = Array.from(profileList.querySelectorAll<HTMLButtonElement>('[data-profile-action="edit"]'));
+    (editButtons[Math.min(Math.max(rowIndex, 0), editButtons.length - 1)] ?? document.getElementById("add-profile-btn"))?.focus();
   } catch {
     setSaveStatus(t("settings.profile.deleteFailed"), "is-error");
   }
+}
+
+function requestDeleteProfile(profileId: string): void {
+  if (profileSavePending || profileTransitionPending) return;
+  if (apiState.editingProfileId === profileId) changeProfileEditor(() => void deleteProfile(profileId));
+  else void deleteProfile(profileId);
+}
+
+deleteProfileBtn?.addEventListener("click", () => {
+  if (apiState.editingProfileId) requestDeleteProfile(apiState.editingProfileId);
+});
+
+function addProfile(): void {
+  if (apiState.editorOpen && !apiState.editingProfileId) {
+    apiKeyInput.focus();
+    return;
+  }
+  changeProfileEditor(() => {
+    startNewDraft(MODEL_PRESETS.find(preset => !preset.disabled && !preset.customEndpointMode)!.providerName);
+    apiKeyInput.focus();
+  });
+}
+document.getElementById("add-profile-btn")?.addEventListener("click", addProfile);
+document.getElementById("empty-add-profile-btn")?.addEventListener("click", addProfile);
+document.getElementById("close-profile-editor")?.addEventListener("click", () => {
+  changeProfileEditor(() => {
+    apiState.editorOpen = false;
+    applyEditingStateUI();
+    renderProfileList();
+    const origin = Array.from(profileList.querySelectorAll<HTMLButtonElement>('[data-profile-action="edit"]'))
+      .find(button => button.closest<HTMLElement>('[data-profile-id]')?.dataset.profileId === profileEditorReturnProfileId);
+    (origin ?? document.getElementById("add-profile-btn"))?.focus();
+  });
+});
+const providerTabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-provider-tab]"));
+function selectProviderTab(button: HTMLButtonElement, focusTab = false): void {
+  const custom = button.dataset.providerTab === "custom";
+  if (custom === Boolean(getCustomEndpointMode(apiState.activeProvider))) {
+    if (focusTab) button.focus();
+    return;
+  }
+  changeProfileEditor(() => {
+    startNewDraft(custom
+      ? getCustomEndpointProvider(apiState.customEndpointMode)
+      : MODEL_PRESETS.find(preset => !preset.disabled && !preset.customEndpointMode)!.providerName);
+    if (focusTab) button.focus();
+  });
+}
+providerTabs.forEach((button, index) => {
+  button.addEventListener("click", () => selectProviderTab(button));
+  button.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? providerTabs[0]
+      : event.key === "End" ? providerTabs.at(-1)!
+      : providerTabs[(index + 1) % providerTabs.length];
+    selectProviderTab(next, true);
+  });
+});
+
+apiForm.addEventListener("input", () => {
+  if (!profileSavePending) setSaveStatus(t("settings.status.dirty"));
+  updateProfileDraftState();
+});
+apiForm.addEventListener("change", updateProfileDraftState);
+
+function translateProviderUi(): void {
+  document.querySelectorAll<HTMLElement>('[data-i18n^="settings.providerUi."]').forEach(element => {
+    element.textContent = t(element.dataset.i18n!);
+  });
+  const tabList = document.querySelector<HTMLElement>(".provider-tabs");
+  tabList?.setAttribute("aria-label", t("settings.providerUi.addTitle"));
+}
+translateProviderUi();
+subscribeLocaleChanged(() => {
+  translateProviderUi();
+  renderProfileList();
+  applyEditingStateUI();
+  updateProfileDraftState();
 });
 
 // ── 偏好设置：聊天社交上下文 / 自定义风格 / 表单提交 ─────────
 chatSocialContextEnabledInput.addEventListener("change", () => {
-  setPreferencesSaveStatus(t("settings.status.dirty"));
-});
-momentsEnabledInput.addEventListener("change", () => {
-  renderMomentsSubRowsVisibility();
-  setPreferencesSaveStatus(t("settings.status.dirty"));
-});
-fireflyMomentsPostingEnabledInput.addEventListener("change", () => {
-  setPreferencesSaveStatus(t("settings.status.dirty"));
-});
-fireflyMomentsReactionsEnabledInput.addEventListener("change", () => {
-  setPreferencesSaveStatus(t("settings.status.dirty"));
-});
-momentsCharacterReactionsEnabledInput.addEventListener("change", () => {
   setPreferencesSaveStatus(t("settings.status.dirty"));
 });
 
@@ -1942,11 +2005,6 @@ preferencesForm.addEventListener("submit", async (e) => {
       citaEnabled: citaEnabledInput.checked,
       citaSemanticEngine: "remote",
       chatSocialContextEnabled: chatSocialContextEnabledInput.checked,
-      momentsEnabled: momentsEnabledInput.checked,
-      fireflyMomentsPostingEnabled: fireflyMomentsPostingEnabledInput.checked,
-      fireflyMomentsReactionsEnabled: fireflyMomentsReactionsEnabledInput.checked,
-      momentsCharacterReactionsEnabled: momentsCharacterReactionsEnabledInput.checked,
-      momentsLiveliness: getMomentsLivelinessValue(),
       defaultChatMode: "chat",
       segmentedOutputMode: "off",
       mobileMessageSegmentation: getMobileMessageSegmentationValue(),

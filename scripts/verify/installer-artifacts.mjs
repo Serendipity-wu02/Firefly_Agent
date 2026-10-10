@@ -3,10 +3,10 @@
 // 的 directories.output，默认 release/）：
 //   1. Firefly_Agent-Setup-<version>.exe 存在且体积合理
 //   2. latest.yml 的 version 与 package.json 一致，path 指向同一安装器，sha512 存在
-//   3. win-unpacked/resources 内截图辅助程序、QQ Music 桥接脚本、MinGit、skills 快照齐全
+//   3. win-unpacked/resources 内截图辅助程序、QQ Music 桥接脚本、MinGit、Skills 目录齐全
 // 用法：node scripts/verify/installer-artifacts.mjs [--expect-version x.y.z]
 //   --expect-version：标签构建时传入标签版本，校验「产物版本与标签一致」
-import { stat } from "node:fs/promises";
+import { stat, readdir, access } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
@@ -70,7 +70,23 @@ export async function verifyInstallerArtifacts(options = {}) {
     windowsHide: true,
     timeout: 10_000,
   });
-  await stat(path.join(resourcesDir, "firefly-skills", "skills-snapshot.zip"));
+  const distributed = path.join(resourcesDir, "firefly-skills");
+  const manifest = JSON.parse(await readFile(path.join(distributed, "skills-manifest.json"), "utf8"));
+  const vendorIds = await readdir(path.join(distributed, "skills"));
+  const maintainedIds = await readdir(path.join(outputDir, "win-unpacked", "skills"));
+  if (manifest.skills.length !== 41 || manifest.selfSkills.length !== 4
+    || JSON.stringify(vendorIds.sort()) !== JSON.stringify([...manifest.skills].sort())
+    || JSON.stringify(maintainedIds.sort()) !== JSON.stringify([...manifest.selfSkills].sort())) {
+    throw new Error("Skills distribution does not contain the expected 41+4 directories");
+  }
+  for (const id of manifest.skills) await stat(path.join(distributed, "skills", id, "SKILL.md"));
+  for (const id of manifest.selfSkills) await stat(path.join(outputDir, "win-unpacked", "skills", id, "SKILL.md"));
+  try {
+    await access(path.join(distributed, "skills-snapshot.zip"));
+    throw new Error("Retired Skills ZIP remains in packaged resources");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
 
   return {
     installerPath,

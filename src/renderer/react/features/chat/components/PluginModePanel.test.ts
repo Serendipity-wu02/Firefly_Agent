@@ -3,13 +3,17 @@
 import React, { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ConfirmOptions } from "../../../../shared/feedback-types";
 import type {
+  MarketInstallResult,
+  MarketListResult,
   MarketPluginEntry,
   PluginListEntry,
   PluginManagementApi,
 } from "../../../../../shared/plugin-management";
 
-vi.mock("../../../i18n", () => {
+vi.mock("../../../i18n", async () => {
+  const { default: messages } = await import("../../../i18n/zh-CN.json");
   const labels: Record<string, string> = {
         "common.loading": "加载中…",
         "common.retry": "重试",
@@ -31,7 +35,6 @@ vi.mock("../../../i18n", () => {
         "pluginPanel.status.failed": "启动失败",
         "pluginPanel.builtinCannotDelete": "内置插件不可删除",
         "pluginPanel.market.title": "插件市场",
-        "pluginPanel.market.subtitle": "从官方收录仓库在线安装插件",
         "pluginPanel.market.toggle": "插件市场",
         "pluginPanel.market.back": "返回插件管理",
         "pluginPanel.market.install": "安装",
@@ -48,7 +51,6 @@ vi.mock("../../../i18n", () => {
         "pluginPanel.market.installSuccess": "{{name}} 安装成功",
         "pluginPanel.market.sourceUsed": "数据源",
         "pluginPanel.market.sourceStandby": "可用",
-        "pluginPanel.market.sourceDead": "已死",
         "pluginPanel.market.sourceSection": "数据源",
         "pluginPanel.market.sourceGitee": "Gitee",
         "pluginPanel.market.sourceGithub": "GitHub",
@@ -56,7 +58,8 @@ vi.mock("../../../i18n", () => {
   const t = (key: string, values?: Record<string, string>) => {
       if (key === "pluginPanel.developer") return `开发者：${values?.author}`;
       if (key === "pluginPanel.deleteConfirm") return `删除 ${values?.name}`;
-      const template = labels[key] ?? key;
+      const localized = key.split(".").reduce<unknown>((value, part) => (value as Record<string, unknown> | undefined)?.[part], messages);
+      const template = labels[key] ?? (typeof localized === "string" ? localized : key);
       if (!values) return template;
       return template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(values[name] ?? ""));
   };
@@ -67,7 +70,7 @@ vi.mock("../../../i18n", () => {
 const feedbackSpies = vi.hoisted(() => ({
   notice: vi.fn(),
   alert: vi.fn(() => Promise.resolve()),
-  confirm: vi.fn(() => Promise.resolve(true)),
+  confirm: vi.fn<(options: ConfirmOptions) => Promise<boolean>>(() => Promise.resolve(true)),
 }));
 
 vi.mock("../../../components/feedback/FeedbackProvider", () => ({
@@ -82,7 +85,7 @@ function plugin(overrides: Partial<PluginListEntry> = {}): PluginListEntry {
     name: "系统状态",
     version: "0.1.0",
     description: "查询本机系统状态",
-    author: "Playa",
+    author: "Test Author",
     entry: "index.cjs",
     apiVersion: 1,
     source: "user",
@@ -104,10 +107,17 @@ function marketEntry(overrides: Partial<MarketPluginEntry> = {}): MarketPluginEn
     name: "市场演示",
     version: "1.2.0",
     description: "市场里的演示插件",
-    author: "Playa",
+    author: "Test Author",
     downloads: 12,
     ...overrides,
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
 }
 
 function apiFor(items: PluginListEntry[]): PluginManagementApi {
@@ -163,7 +173,7 @@ describe("PluginModePanel", () => {
 
     expect(container.textContent).toContain("系统状态");
     expect(container.textContent).toContain("查询本机系统状态");
-    expect(container.textContent).toContain("开发者：Playa");
+    expect(container.textContent).toContain("开发者：Test Author");
     expect(container.querySelector<HTMLImageElement>(".plugin-card-ui__icon img")?.src).toContain("data:image/png");
     const cardButtons = [...container.querySelectorAll<HTMLButtonElement>(".plugin-card-ui__actions button")];
     expect(cardButtons.map((button) => button.textContent)).toEqual(["打开", "停用", "删除"]);
@@ -338,6 +348,270 @@ describe("PluginModePanel", () => {
 
     expect(api.marketList).toHaveBeenLastCalledWith(gitee);
     expect(api.marketList).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { installed: undefined, action: "安装" },
+    { installed: plugin({ id: "market-demo", origin: "market", version: "1.0.0" }), action: "更新" },
+    { installed: plugin({ id: "market-demo" }), action: "替换安装" },
+  ])("requires explicit $action confirmation with version, declarations, and execution warning", async ({ installed, action }) => {
+    const api = apiFor(installed ? [installed] : []);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry({ capabilities: ["network", "filesystem"], compatible: true })] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.click());
+
+    expect(feedbackSpies.confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: action,
+      confirmText: action,
+      dangerous: true,
+      message: expect.stringContaining("市场演示 v1.2.0"),
+    }));
+    const confirmation = feedbackSpies.confirm.mock.calls[0]?.[0] as { message: string };
+    expect(confirmation.message).toContain("network, filesystem");
+    expect(confirmation.message).toContain("Node.js");
+    expect(confirmation.message).toContain("应用权限");
+    expect(confirmation.message).toContain("不代表沙箱隔离");
+    expect(api.marketInstall).toHaveBeenCalledWith("market-demo");
+  });
+
+  it.each([
+    { origin: "market" as const, enabled: true, action: "更新", confirmation: "保留启用设置，新代码可能立即运行", success: "保留启用设置" },
+    { origin: "local" as const, enabled: false, action: "替换安装", confirmation: "保留停用设置", success: "保留停用设置" },
+  ])("describes preserved state for $action (enabled=$enabled)", async ({ origin, enabled, action, confirmation, success }) => {
+    const installed = plugin({ id: "market-demo", version: "1.0.0", origin, configuredEnabled: enabled, enabled, status: enabled ? "running" : "disabled" });
+    const api = apiFor([installed]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry()] });
+    vi.mocked(api.marketInstall).mockResolvedValue({ ok: true, plugin: { id: "market-demo", name: "市场演示", version: "1.2.0" } });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.click());
+    const options = feedbackSpies.confirm.mock.calls[0]?.[0];
+    expect(options?.title).toBe(action);
+    expect(options?.message).toContain(confirmation);
+    expect(options?.message).not.toContain("安装完成后插件处于停用状态");
+    const notice = container.querySelector(".plugin-panel__notices");
+    expect(notice?.textContent).toContain(success);
+    expect(notice?.textContent).toContain("市场演示");
+    expect(notice?.textContent).not.toContain("默认停用");
+  });
+
+  it("states that only a fresh install starts disabled", async () => {
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry()] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.click());
+    expect(feedbackSpies.confirm.mock.calls[0]?.[0]?.message).toContain("首次安装后默认停用");
+    expect(container.querySelector(".plugin-panel__subtitle")?.textContent).toContain("首次安装后默认停用");
+  });
+
+  it("canceling market confirmation never starts an installation", async () => {
+    feedbackSpies.confirm.mockResolvedValue(false);
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry()] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.click());
+    expect(feedbackSpies.confirm).toHaveBeenCalledTimes(1);
+    expect(api.marketInstall).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.disabled).toBe(false);
+  });
+
+  it("blocks repeated same-tick installs while confirmation is pending", async () => {
+    const confirmation = deferred<boolean>();
+    feedbackSpies.confirm.mockReturnValue(confirmation.promise);
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry()] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    const button = container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button");
+    await act(async () => { button?.click(); button?.click(); });
+    expect(feedbackSpies.confirm).toHaveBeenCalledTimes(1);
+    expect(api.marketInstall).not.toHaveBeenCalled();
+    await act(async () => confirmation.resolve(true));
+    expect(api.marketInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaving and reopening the market invalidates a pending confirmation", async () => {
+    const confirmation = deferred<boolean>();
+    feedbackSpies.confirm.mockReturnValue(confirmation.promise);
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry()] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.click());
+    await clickMarketToggle();
+    await clickMarketToggle();
+    await act(async () => confirmation.resolve(true));
+    expect(api.marketInstall).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.disabled).toBe(false);
+  });
+
+  it("displays incompatible API and disables installation", async () => {
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry({ compatible: false, pluginApiVersion: 99 })] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    expect(container.textContent).toContain("不兼容");
+    expect(container.textContent).toContain("插件 API：99");
+    const button = container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button");
+    expect(button?.disabled).toBe(true);
+    await act(async () => button?.click());
+    expect(feedbackSpies.confirm).not.toHaveBeenCalled();
+    expect(api.marketInstall).not.toHaveBeenCalled();
+  });
+
+  it("exposes native plugin details with compatibility and capability declarations", async () => {
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry({ compatible: true, pluginApiVersion: 1, capabilities: ["network"], source: "remote" })] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    const details = container.querySelector<HTMLDetailsElement>(".plugin-card-ui details");
+    expect(details).not.toBeNull();
+    expect(details?.querySelector("summary")?.textContent).toBe("插件详情");
+    expect(details?.textContent).toContain("market-demo");
+    expect(details?.textContent).toContain("插件 API：1");
+    expect(details?.textContent).toContain("声明的能力：network");
+    expect(details?.textContent).toContain("不代表沙箱隔离");
+    expect(container.textContent).toContain("兼容当前应用");
+  });
+
+  it("labels the bundled offline catalog as unpublished online and omits fabricated downloads", async () => {
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({
+      ok: true, mode: "bundled", plugins: [marketEntry({ source: "bundled", downloads: 0 })],
+      sources: [{ url: "bundled:registry", ok: true, used: true }],
+    });
+    await renderPanel(api);
+    await clickMarketToggle();
+    expect(container.textContent).toContain("随应用提供的离线目录");
+    expect(container.textContent).toContain("尚未发布在线市场");
+    expect(container.textContent).not.toContain("0 次下载");
+    const source = container.querySelector<HTMLButtonElement>(".plugin-panel__source-chip");
+    expect(source?.textContent).toBe("随附离线目录");
+    expect(source?.disabled).toBe(true);
+  });
+
+  it("explains remote failure while showing bundled fallback", async () => {
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({
+      ok: true, mode: "offline-fallback", plugins: [marketEntry({ source: "bundled", downloads: 0 })],
+      sources: [{ url: "https://example.test/registry.json", ok: false, used: false }, { url: "bundled:registry", ok: true, used: true }],
+    });
+    await renderPanel(api);
+    await clickMarketToggle();
+    expect(container.textContent).toContain("在线目录不可用，正在显示随附离线目录");
+    expect(container.textContent).not.toContain("0 次下载");
+    expect(container.querySelector<HTMLButtonElement>(".plugin-panel__source-chip.is-dead")?.title).toContain("不可用");
+  });
+
+  it("refreshes market results rather than rescanning installed plugins", async () => {
+    const api = apiFor([]);
+    vi.mocked(api.marketList)
+      .mockResolvedValueOnce({ ok: true, plugins: [marketEntry({ name: "旧列表" })] })
+      .mockResolvedValueOnce({ ok: true, plugins: [marketEntry({ name: "新列表" })] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="刷新插件"]')?.click());
+    expect(container.textContent).toContain("新列表");
+    expect(container.textContent).not.toContain("旧列表");
+    expect(api.rescan).not.toHaveBeenCalled();
+  });
+
+  it("offers a working retry after market failure", async () => {
+    const api = apiFor([]);
+    vi.mocked(api.marketList)
+      .mockRejectedValueOnce(new Error("离线"))
+      .mockResolvedValueOnce({ ok: true, plugins: [marketEntry()] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    const retry = [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "重试");
+    expect(retry).toBeDefined();
+    await act(async () => retry?.click());
+    expect(container.textContent).toContain("市场演示");
+    expect(container.textContent).not.toContain("获取插件列表失败");
+  });
+
+  it.each(["success", "error"])("ignores stale %s after a newer market refresh", async (outcome) => {
+    const old = deferred<MarketListResult>();
+    const api = apiFor([]);
+    vi.mocked(api.marketList)
+      .mockReturnValueOnce(old.promise)
+      .mockResolvedValueOnce({ ok: true, plugins: [marketEntry({ name: "最新目录" })] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="刷新插件"]')?.click());
+    expect(container.textContent).toContain("最新目录");
+    await act(async () => {
+      if (outcome === "success") old.resolve({ ok: true, plugins: [marketEntry({ name: "旧目录" })] });
+      else old.reject(new Error("过期失败"));
+    });
+    expect(container.textContent).toContain("最新目录");
+    expect(container.textContent).not.toContain("旧目录");
+    expect(container.textContent).not.toContain("过期失败");
+  });
+
+  it("ignores a response from a previous market visit after reopening", async () => {
+    const old = deferred<MarketListResult>();
+    const api = apiFor([]);
+    vi.mocked(api.marketList)
+      .mockReturnValueOnce(old.promise)
+      .mockResolvedValueOnce({ ok: true, plugins: [marketEntry({ name: "新访问" })] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await clickMarketToggle();
+    await clickMarketToggle();
+    expect(container.textContent).toContain("新访问");
+    await act(async () => old.resolve({ ok: true, plugins: [marketEntry({ name: "旧访问" })] }));
+    expect(container.textContent).toContain("新访问");
+    expect(container.textContent).not.toContain("旧访问");
+  });
+
+  it.each([true, false])("does not show stale install feedback after reopening (success=%s)", async (success) => {
+    const installation = deferred<MarketInstallResult>();
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry()] });
+    vi.mocked(api.marketInstall).mockReturnValue(installation.promise);
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.click());
+    expect(api.marketInstall).toHaveBeenCalledTimes(1);
+    await clickMarketToggle();
+    await clickMarketToggle();
+    await act(async () => installation.resolve(success
+      ? { ok: true, plugin: { id: "market-demo", name: "上次安装", version: "1.2.0" } }
+      : { ok: false, error: "上次安装失败" }));
+    expect(container.textContent).not.toContain("上次安装");
+    expect(container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.disabled).toBe(false);
+    if (success) expect(api.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("unmounting while confirmation is pending prevents an install", async () => {
+    const confirmation = deferred<boolean>();
+    feedbackSpies.confirm.mockReturnValue(confirmation.promise);
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({ ok: true, plugins: [marketEntry()] });
+    await renderPanel(api);
+    await clickMarketToggle();
+    await act(async () => container.querySelector<HTMLButtonElement>(".plugin-card-ui__actions button")?.click());
+    await act(async () => root.render(null));
+    await act(async () => confirmation.resolve(true));
+    expect(api.marketInstall).not.toHaveBeenCalled();
+  });
+
+  it("uses parsed source hostnames rather than trusted words in URLs", async () => {
+    const api = apiFor([]);
+    vi.mocked(api.marketList).mockResolvedValue({
+      ok: true, plugins: [], sources: [
+        { url: "https://example.test/github/registry.json", ok: true, used: true },
+        { url: "https://gitee.com.example.test/registry.json", ok: true, used: false },
+      ],
+    });
+    await renderPanel(api);
+    await clickMarketToggle();
+    const labels = [...container.querySelectorAll(".plugin-panel__source-chip")].map((chip) => chip.textContent);
+    expect(labels).toEqual(["example.test", "gitee.com.example.test"]);
   });
 
   it("安装成功后显示提示并刷新本地列表", async () => {

@@ -15,6 +15,11 @@ function createSettingsDocument(): JSDOM {
 }
 
 describe("settings i18n regressions", () => {
+  it("describes shared ASR without advertising retired Call or VAD controls", () => {
+    expect(t("settings.panel.asr.subheading")).toBe("语音识别服务配置");
+    expect(t("settings.panel.asr.mosslandHint")).toBe("与 Mossland TTS 共用同一 API Key。上传音频后返回完整转写文本，不提供实时中间字幕。");
+  });
+
   it("does not expose the removed chat-history wipe control", () => {
     const dom = createSettingsDocument();
     const document = dom.window.document;
@@ -51,18 +56,19 @@ describe("settings i18n regressions", () => {
     expect(dom.window.getComputedStyle(restartNotice!).display).toBe("inline");
   });
 
-  it("renders custom-style actions with white text", () => {
+  it("renders custom-style actions with dark, readable text on their light fill", () => {
     const dom = createSettingsDocument();
     const style = dom.window.document.createElement("style");
     style.textContent = css;
     dom.window.document.head.append(style);
 
+    // Both are ghost buttons on a light fill. White text there was unreadable until the pointer hovered it.
     for (const id of ["custom-style-sampling-btn", "custom-style-prompt-btn"]) {
       const button = dom.window.document.getElementById(id);
       expect(button).not.toBeNull();
       const label = button!.querySelector("span");
       expect(label).not.toBeNull();
-      expect(dom.window.getComputedStyle(label!).color).toBe("rgb(255, 255, 255)");
+      expect(dom.window.getComputedStyle(label!).color).toBe("var(--rb-text-strong)");
     }
   });
 

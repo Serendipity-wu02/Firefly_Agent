@@ -1,14 +1,17 @@
 import { dialog } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
+import { isTrustedExternalMainFrame } from "../skills/external-ipc";
+import { isExternalSkillId } from "../skills/skill-scanner";
 import * as fs from "fs";
 import * as path from "path";
 import { IPC } from "../../shared/ipc-channels";
 import { createIpcScope, type IpcScope } from "../application/ipc-scope";
 import { getStickerManagerConfig, setStickerEnabled } from "../orchestrator/sticker-settings";
 import { addUserSticker, deleteUserSticker } from "../sticker-storage";
-import { loadMemoryPanelData } from "./panel";
+import { loadImportedDocumentPanelData, loadMemoryPanelData } from "./panel";
 import { deleteImportedDoc } from "../rag";
 import { loadUserProfile, saveUserProfile, getAvatarPath } from "../settings-store";
-import { addMcpServer, removeMcpServer, listMcpServers } from "../orchestrator/mcp-manager";
+import { registerMcpManagementIpc } from "../orchestrator/mcp-management-ipc";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 import type { ConversationMode } from "../../shared/chat-types";
 import { loadGeneralSettings, saveGeneralSettings } from "../settings/settings-facade";
@@ -18,7 +21,6 @@ import type { WindowManager } from "../windows/window-manager";
 import {
   reactChatWindow,
   sidebarWindow,
-  tasksWindow,
   settingsWindow,
   stickerManagerWindow,
 } from "../windows/window-state";
@@ -31,12 +33,14 @@ import { startVaultWatcher, stopVaultWatcher } from "./obsidian-importer";
 export interface MemoryUserToolIpcDependencies {
   get windowManager(): WindowManager | null;
   embeddingIndexService: EmbeddingIndexService;
+  /** Main 装配决定，Renderer payload 不能启用旧个人记忆。 */
+  personalMemoryMode?: "legacy" | "smh";
   /** 传入共享 scope 以便退出时统一注销；缺省时使用独立 scope。 */
   ipc?: IpcScope;
 }
 
 function broadcastToAuxWindows(channel: string, payload: unknown): void {
-  for (const win of [reactChatWindow, sidebarWindow, tasksWindow, settingsWindow]) {
+  for (const win of [reactChatWindow, sidebarWindow, settingsWindow]) {
     if (win && !win.isDestroyed()) {
       win.webContents.send(channel, payload);
     }
@@ -48,6 +52,8 @@ const L1_EDITABLE_KEYS = ["recentGoals", "recentPreferences", "currentProject"];
 
 export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): void {
   const { embeddingIndexService } = deps;
+  const personalMemoryRetired = deps.personalMemoryMode === "smh";
+  const retired = () => ({ ok: false as const, code: "MEMORY_LEGACY_RETIRED" as const });
   const ipc = deps.ipc ?? createIpcScope();
   // 注意：windowManager 不解构，统一用 deps.windowManager 实时读取 getter。
   // registerMemoryUserToolIpc 在模块加载阶段调用，那时 windowManager 仍为 null，
@@ -137,7 +143,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   });
 
   // Memory panel
-  ipc.handle(IPC.MEMORY_PANEL_GET_DATA, () => loadMemoryPanelData());
+  ipc.handle(IPC.MEMORY_PANEL_GET_DATA, () => personalMemoryRetired ? loadImportedDocumentPanelData() : loadMemoryPanelData());
 
   ipc.handle(IPC.MEMORY_PANEL_DELETE_IMPORTED_DOC, (_event, payload: { importId: string; fileName?: string }) => {
     const deleted = deleteImportedDoc(payload.importId, payload.fileName);
@@ -145,6 +151,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   });
 
   ipc.handle(IPC.MEMORY_PANEL_SAVE_L0, async (_event, raw: Record<string, unknown>) => {
+    if (personalMemoryRetired) return retired();
     const patch: Partial<{
       preferredName: string;
       occupation: string;
@@ -162,6 +169,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   });
 
   ipc.handle(IPC.MEMORY_PANEL_SAVE_L1, async (_event, raw: Record<string, unknown>) => {
+    if (personalMemoryRetired) return retired();
     const patch: Partial<{
       recentGoals: string;
       recentPreferences: string;
@@ -180,6 +188,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
 
   // 一次性导出（不绑定）：弹目录选择框 → 调导出器
   ipc.handle(IPC.MEMORY_EXPORT_OBSIDIAN_VAULT, async () => {
+    if (personalMemoryRetired) return retired();
     const result = await dialog.showOpenDialog({
       title: "选择 Obsidian Vault 导出位置",
       properties: ["openDirectory", "createDirectory"],
@@ -192,6 +201,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
 
   // 绑定 vault：弹目录选择 → 保存路径 → 立即同步一次 → 启动回流监听
   ipc.handle(IPC.OBSIDIAN_VAULT_BIND, async () => {
+    if (personalMemoryRetired) return retired();
     const result = await dialog.showOpenDialog({
       title: "选择要绑定的 Obsidian Vault 文件夹",
       properties: ["openDirectory", "createDirectory"],
@@ -210,6 +220,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
 
   // 解绑：先停监听再清配置
   ipc.handle(IPC.OBSIDIAN_VAULT_UNBIND, () => {
+    if (personalMemoryRetired) return retired();
     stopVaultWatcher();
     unbindVault();
     return { ok: true };
@@ -217,17 +228,20 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
 
   // 读配置
   ipc.handle(IPC.OBSIDIAN_VAULT_GET_CONFIG, () => {
+    if (personalMemoryRetired) return retired();
     return loadObsidianVaultConfig();
   });
 
   // 设置自动同步开关
   ipc.handle(IPC.OBSIDIAN_VAULT_SET_AUTO_SYNC, (_event, autoSync: boolean) => {
+    if (personalMemoryRetired) return retired();
     const updated = saveObsidianVaultConfig({ autoSync: Boolean(autoSync) });
     return { ok: true, config: updated };
   });
 
   // 立即同步
   ipc.handle(IPC.OBSIDIAN_VAULT_SYNC_NOW, async () => {
+    if (personalMemoryRetired) return retired();
     return syncToBoundVault();
   });
 
@@ -254,26 +268,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
     return { avatarPath, profile };
   });
 
-  // MCP servers
-  ipc.handle(IPC.MCP_ADD_SERVER, async (_event, config: unknown) => {
-    console.log("[MCP IPC] add-server:", JSON.stringify(config).slice(0, 200));
-    const result = await addMcpServer(config as Parameters<typeof addMcpServer>[0]);
-    console.log("[MCP IPC] add-server result:", JSON.stringify(result));
-    return result;
-  });
-
-  ipc.handle(IPC.MCP_REMOVE_SERVER, async (_event, serverId: string) => {
-    console.log("[MCP IPC] remove-server:", serverId);
-    const result = await removeMcpServer(serverId);
-    console.log("[MCP IPC] remove-server result:", JSON.stringify(result));
-    return result;
-  });
-
-  ipc.handle(IPC.MCP_LIST_SERVERS, () => {
-    const servers = listMcpServers();
-    console.log("[MCP IPC] list-servers:", servers.length + " servers");
-    return servers;
-  });
+  registerMcpManagementIpc({ ipc, getSettingsWindow: () => settingsWindow });
 
   // Tool toggles
   ipc.handle(IPC.TOOL_SET_ENABLED, (_event, payload: unknown) => {
@@ -315,7 +310,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   ipc.handle(IPC.TOOL_SET_MODE_OVERRIDE, (_event, payload: unknown) => {
     const p = payload as { toolId?: string; mode?: string; enabled?: boolean };
     if (!p.toolId || !p.mode) return { ok: false, error: "missing toolId or mode" };
-    const validModes = ["chat", "work", "code", "learn"];
+    const validModes = ["chat", "work", "code"];
     if (!validModes.includes(p.mode)) return { ok: false, error: "invalid mode" };
     const mode = p.mode as ConversationMode;
     const before = loadGeneralSettings().toolModeOverrides;
@@ -333,7 +328,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
     const next = { ...before };
     if (p.mode) {
       // 清除单个模式：删除该 mode 键，若工具已无任何覆盖则整个删除
-      const validModes = ["chat", "work", "code", "learn"];
+      const validModes = ["chat", "work", "code"];
       if (!validModes.includes(p.mode)) return { ok: false, error: "invalid mode" };
       const mode = p.mode as ConversationMode;
       if (next[p.toolId]) {
@@ -356,12 +351,20 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   // Skill toggles
   ipc.handle(IPC.SKILL_LIST, () => listSkillsForUi());
 
-  ipc.handle(IPC.SKILL_SET_ENABLED, (_event, payload: unknown) => {
-    const p = payload as { id?: string; enabled?: boolean };
-    if (!p.id) return { ok: false, error: "missing skill id" };
-    setSkillEnabled(p.id, p.enabled !== false);
-    console.log("[Skill] " + p.id + " enabled=" + (p.enabled !== false));
-    return { ok: true };
+  ipc.handle(IPC.SKILL_SET_ENABLED, (event: IpcMainInvokeEvent, payload: unknown) => {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return { ok: false, error: "Invalid Skill enable request." };
+    const p = payload as { id?: unknown; enabled?: unknown };
+    if (typeof p.id !== "string" || !p.id || typeof p.enabled !== "boolean" || !skillRegistry.getById(p.id)) return { ok: false, error: "Invalid Skill enable request." };
+    if (isExternalSkillId(p.id) && (Reflect.ownKeys(payload).some(key => key !== "id" && key !== "enabled")
+      || !isTrustedExternalMainFrame(event, reactChatWindow && !reactChatWindow.isDestroyed() ? reactChatWindow.webContents : null))) {
+      return { ok: false, error: "External Skill enable request is not permitted." };
+    }
+    try {
+      setSkillEnabled(p.id, p.enabled);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Skill state could not be saved or verified. Refresh before trying again." };
+    }
   });
 
   // Skill 目录元数据（skill 页展示用；只暴露可序列化字段）
@@ -379,6 +382,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
         modes: s.modes ?? null,
         version: s.version,
         references: s.references,
+        external: s.external,
       }));
   });
 
@@ -397,7 +401,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   ipc.handle(IPC.SKILL_SET_MODE_OVERRIDE, (_event, payload: unknown) => {
     const p = payload as { skillId?: string; mode?: string; enabled?: boolean };
     if (!p.skillId || !p.mode) return { ok: false, error: "missing skillId or mode" };
-    const validModes = ["work", "code", "learn"];
+    const validModes = ["work", "code"];
     if (!validModes.includes(p.mode)) return { ok: false, error: "invalid mode" };
     const mode = p.mode as SkillMode;
     const before = loadGeneralSettings().skillModeOverrides;
@@ -414,7 +418,7 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
     const before = loadGeneralSettings().skillModeOverrides;
     const next = { ...before };
     if (p.mode) {
-      const validModes = ["work", "code", "learn"];
+      const validModes = ["work", "code"];
       if (!validModes.includes(p.mode)) return { ok: false, error: "invalid mode" };
       const mode = p.mode as SkillMode;
       if (next[p.skillId]) {
@@ -434,8 +438,10 @@ export function registerMemoryUserToolIpc(deps: MemoryUserToolIpcDependencies): 
   });
 
   // 启动时：若已绑定 vault，恢复 Obsidian → PMRS 回流监听
-  const existingConfig = loadObsidianVaultConfig();
-  if (existingConfig.vaultPath) {
-    startVaultWatcher(existingConfig.vaultPath);
+  if (!personalMemoryRetired) {
+    const existingConfig = loadObsidianVaultConfig();
+    if (existingConfig.vaultPath) {
+      startVaultWatcher(existingConfig.vaultPath);
+    }
   }
 }

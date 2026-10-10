@@ -13,9 +13,8 @@ function message(role: ChatMessage["role"], content: string): ChatMessage {
 }
 
 describe("Harness context compaction v2", () => {
-  it("writes Firefly checkpoints and recognizes stored Cyrene checkpoints", () => {
+  it("writes and recognizes Firefly checkpoints", () => {
     expect(buildCompactionCheckpoint("摘要").content).toContain("<firefly_compaction_checkpoint>");
-    expect(isCompactionCheckpointMessage(message("system", "<cyrene_compaction_checkpoint>旧摘要</cyrene_compaction_checkpoint>"))).toBe(true);
   });
 
   it("keeps a tool call and its result in the retained token-budgeted tail", () => {

@@ -38,9 +38,9 @@ describe("prepareHarnessRecovery", () => {
     expect(recovered.recoveryContext).toContain("不得自动重放");
   });
 
-  it("repairs an interrupted read call as not executed so the model chooses whether to read again", () => {
+  it("repairs an unstarted planned read call as not executed so the model chooses whether to read again", () => {
     const recovered = prepareHarnessRecovery(session([
-      { toolCallId: "read-1", toolName: "read_file", sideEffect: "read_only", status: "started", updatedAt: 2 },
+      { toolCallId: "read-1", toolName: "read_file", sideEffect: "read_only", status: "planned", updatedAt: 2 },
     ]), { workspaceRoot: "E:\\project" });
 
     expect(recovered.state.uncertainEffects).toEqual([]);
@@ -75,4 +75,33 @@ describe("prepareHarnessRecovery", () => {
     expect(recovered.cache).toEqual({ cacheEpoch: 4, epochReason: "recovery" });
     expect(interrupted.messages).toEqual(originalMessages);
   });
+});
+
+it("cancel_then_resume_pairs_every_declared_call_with_the_canonical_started_boundary", async () => {
+  const { materializeTranscript } = await import("../conversation-transcript-context");
+  const interrupted = session([
+    { toolCallId: "planned-write", toolName: "write_file", sideEffect: "non_idempotent_side_effect", status: "planned", updatedAt: 2 },
+    { toolCallId: "started-write", toolName: "write_file", sideEffect: "non_idempotent_side_effect", status: "started", updatedAt: 2 },
+    { toolCallId: "started-read", toolName: "read_file", sideEffect: "read_only", status: "started", updatedAt: 2 },
+    { toolCallId: "unknown-write", toolName: "write_file", sideEffect: "non_idempotent_side_effect", status: "unknown", updatedAt: 2 },
+    { toolCallId: "committed", toolName: "read_file", sideEffect: "read_only", status: "committed", updatedAt: 2 },
+  ]);
+  interrupted.messages[0].toolCalls!.push({ id: "untracked", name: "write_file", arguments: "{}" });
+  const committed = { role: "tool" as const, toolCallId: "committed", content: JSON.stringify({ outcome: "success" }) };
+  interrupted.messages.push(committed);
+  const recovered = prepareHarnessRecovery(interrupted, { workspaceRoot: "E:\\project" });
+  const outcomes = new Map(recovered.messages.filter(message => message.role === "tool").map(message => [message.toolCallId, JSON.parse(message.content as string).outcome]));
+  expect(outcomes).toEqual(new Map([
+    ["committed", "success"], ["planned-write", "not_executed_after_interruption"], ["started-write", "unknown_after_interruption"],
+    ["started-read", "unknown_after_interruption"], ["unknown-write", "unknown_after_interruption"], ["untracked", "not_executed_after_interruption"],
+  ]));
+  for (const call of interrupted.messages[0].toolCalls!) expect(recovered.messages.filter(message => message.toolCallId === call.id)).toHaveLength(1);
+  expect(recovered.state.uncertainEffects.map(effect => effect.toolCallId)).toEqual(["started-write", "unknown-write"]);
+  const canonical = materializeTranscript([
+    { kind: "assistant", id: "assistant", seq: 1, at: 1, runId: interrupted.runId, payload: interrupted.messages[0] },
+    { kind: "tool_result", id: "committed-result", seq: 2, at: 2, runId: interrupted.runId, payload: { assistantEntryId: "assistant", toolCallId: "committed", outcome: "success", message: committed } },
+  ] as import("../conversation-transcript-types").TranscriptEntry[], { get: () => interrupted });
+  for (const message of canonical.messages.filter(message => message.role === "tool")) {
+    expect(outcomes.get(message.toolCallId)).toContain(JSON.parse(message.content as string).outcome);
+  }
 });

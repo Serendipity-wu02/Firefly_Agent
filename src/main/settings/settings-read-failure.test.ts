@@ -53,6 +53,18 @@ for (const kind of ["model", "general"] as const) {
       expect(fs.readdirSync(state.directory)).toEqual([filename]);
     });
 
+    if (kind === "model") {
+      it("rejects an unsupported settings schema without rewriting the file", async () => {
+        const file = path.join(state.directory, filename);
+        const contents = '{"provider":"DeepSeek","baseUrl":"https://example.test","apiKey":"private-test"}';
+        fs.writeFileSync(file, contents);
+        const store = await storage();
+        expect(store.assert).toThrow(code);
+        expect(store.save).toThrow(code);
+        expect(fs.readFileSync(file, "utf8")).toBe(contents);
+      });
+    }
+
     it("does not treat an unreadable filesystem entry as first use", async () => {
       const file = path.join(state.directory, filename);
       fs.mkdirSync(file);

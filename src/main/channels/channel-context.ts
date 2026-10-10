@@ -133,10 +133,14 @@ export function createChannelContext(
     },
 
     recordIncomingSession(msg, context): void {
-      options.migrateHistory(
-        makeSessionId(msg.channel, msg.senderId),
-        context.sessionId,
-      );
+      // Only the legacy Feishu p2p key changed from senderId to chatId.
+      // A group must never inherit a participant's private conversation history.
+      if (msg.channel === "feishu" && msg.chatType === "private") {
+        options.migrateHistory(
+          makeSessionId(msg.channel, msg.senderId),
+          context.sessionId,
+        );
+      }
       recordSession(msg.channel, msg.senderId, context.sessionId);
     },
 

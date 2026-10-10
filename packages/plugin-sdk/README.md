@@ -22,27 +22,21 @@ SDK 包含公开类型、常量、Manifest 校验及测试工具，不包含 Ele
 
 Mock Context 的 `dispose()` 触发取消与登记的清理回调，不会代替插件调用 `unregister()`，也不模拟真实文件存储、Electron 窗口或渠道注册。
 
-完整开发指南见本仓库 `docs/plugins/plugin-dev-guide.md`。
+接口定义见 `src/`。
 
 ## 当前 0.2.0 源码契约
 
-提示词 Provider 新增 `sources` 场景声明，并支持 `moments-post`：
+提示词 Provider 通过 `sources` 声明参与的活动场景：
 
-- `sources` 可选值为 `conversation`、`scheduler`、`moments-post`、`plugin-agent`。
-- 未声明 `sources` 的现有 Provider 仍只参与会话与定时任务，无需迁移。
-- 参与动态发帖必须显式声明 `sources: ["moments-post"]`。
-- 参与插件无头目标循环必须显式声明 `plugin-agent`；该来源带 `mode`，仍按 `modes` 过滤。
-- `moments-post` 不提供会话 `mode`；Provider 应按 `source` 收窄输入类型后再读取场景专属字段。
-- 动态发帖输入包含可用的 `conversationId`、`channel`，`userText` 为发帖决策所依据的最近对话摘录快照。
+- 可选值为 `conversation`、`scheduler`、`plugin-agent`，所有场景都携带 `mode` 并按 `modes` 过滤。
+- 未声明 `sources` 的既有 Provider 只参与会话与定时任务；插件无头目标循环必须显式声明 `plugin-agent`。
+- 已退役的动态发帖来源不再接受注册；旧插件应移除该声明并重新构建。
 
 ```ts
 ctx.registerPromptProvider({
   id: "memory-context",
-  sources: ["conversation", "moments-post"],
+  sources: ["conversation", "scheduler"],
   provide({ source, mode, userText }) {
-    if (source === "moments-post") {
-      return `动态发帖参考：${userText}`;
-    }
     return `当前会话模式：${mode}`;
   },
 });

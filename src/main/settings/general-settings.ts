@@ -1,3 +1,4 @@
+import type { UiColors } from "../../shared/ui-colors";
 import type { ChatAppearanceSettings } from "../../shared/chat-appearance";
 import type { UiTheme } from "../../shared/ui-theme";
 import type { UiFont } from "../../shared/ui-font";
@@ -27,19 +28,6 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   citaSemanticEngine: "remote";
   /** Chat 模式的轻量社交上下文；默认关闭，开启后每轮最多多一次异步抽取调用。 */
   chatSocialContextEnabled: boolean;
-  /** 朋友圈功能总开关：关闭后 UI 隐藏、Chat 上下文不注入、流萤不反应不发帖。 */
-  momentsEnabled: boolean;
-  /** Chat 模式注入近期朋友圈动态背景；默认开启（只读本地数据，无额外 LLM 调用）。 */
-  chatMomentsContextEnabled: boolean;
-  /** 流萤主动发帖；默认关闭（审慎，与 proactiveChatMode 默认 off 一致）。 */
-  fireflyMomentsPostingEnabled: boolean;
-  /** 流萤对朋友圈动态的点赞/评论反应；默认开启（Feed 内被动行为，不打扰）。 */
-  fireflyMomentsReactionsEnabled: boolean;
-  /** 角色对朋友圈动态的点赞/评论/互聊；默认开启（有独立日调用上限兜底成本）。 */
-  momentsCharacterReactionsEnabled: boolean;
-  /** 朋友圈热闹程度：控制每条动态的抽签人数分布与角色日调用上限。
-   *  quiet=现状（冷场常见），natural=冷场减半，lively=上限 5 人冷场罕见。 */
-  momentsLiveliness: "quiet" | "natural" | "lively";
   petAlwaysOnTop: boolean;
   petVisible: boolean;
   /** 桌宠缩放因子：1.0=默认，0.5~2.0，窗口与模型同步等比缩放。 */
@@ -50,14 +38,14 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   petWindowY?: number;
   disableGpuElectron?: boolean;
   sidebarVisible: boolean;
-  tasksVisible: boolean;
   /** 提醒中心音效总开关：关闭后所有 toast 静音，弹窗行为不受影响。 */
   toastSoundEnabled: boolean;
   launchAtLogin: boolean;
   language: "zh-CN";
   uiTheme: UiTheme;
+  uiColors: UiColors;
   windowCornerRadius: number;
-  /** @deprecated 旧版透明窗口开关，仅保留用于配置兼容。 */
+  /** 当前窗口圆角状态，由主窗口状态同步。 */
   uiThemeRadius: boolean;
   uiFont: UiFont;
   uiIcon: UiIcon;
@@ -75,47 +63,6 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   proactiveChatMode: ProactiveChatMode;
   /** 主动消息最终投递到本地、微信或飞书。 */
   proactiveDeliveryTarget: ProactiveDeliveryTarget;
-  // TTS 配置
-  ttsEngine: "off" | "minimax" | "gptsovits" | "custom-cloud" | "mimo" | "mossland";
-  ttsAutoRead: boolean;
-  ttsSpeed: number;
-  ttsVolume: number;
-  /** 自动语音早播的文本切分是否开启：关闭时不再流式切分，收完整条回复再整段朗读。 */
-  ttsEarlyReadSplitEnabled: boolean;
-  /** 自动语音早播的文本切分方式：sentence=一句一切（默认，现状）；paragraph=一段一切（仅空行段落切分）。 */
-  ttsEarlyReadSplitMode: "sentence" | "paragraph";
-  // MiniMax
-  ttsMinimaxKey: string;
-  ttsMinimaxVoiceId: string;
-  /** MiniMax 合成模型：speech-2.8-hd(高保真¥3.5/万字符) | speech-2.8-turbo(极速¥2.0/万字符) */
-  ttsMinimaxModel: "speech-2.8-hd" | "speech-2.8-turbo";
-  /** MiniMax 流式播放（边合成边播，首字延迟低）；false=完整合成收完再播 */
-  ttsStreaming: boolean;
-  /** MiniMax 语音增强：自动插入 (laughs)、(breath) 等语气词标签 */
-  ttsMinimaxVocalEnhance: boolean;
-  // GPT-SoVITS（本地）
-  ttsGptsovitsBaseUrl: string;
-  ttsGptsovitsRefAudioPath: string;
-  ttsGptsovitsPromptText: string;
-  ttsGptsovitsFormat: "wav" | "mp3";
-  /** GPT-SoVITS 单次合成超时（毫秒）。本地推理长文本可能较慢，默认 3 分钟。 */
-  ttsGptsovitsTimeoutMs: number;
-  // 自定义云端 TTS
-  ttsCustomCloudEndpointUrl: string;
-  ttsCustomCloudApiKey: string;
-  ttsCustomCloudVoiceId: string;
-  ttsCustomCloudFormat: "wav" | "mp3";
-  ttsCustomCloudTimeoutMs: number;
-  // 小米 MiMo TTS
-  ttsMimoKey: string;
-  ttsMimoVoiceAudioPath: string;
-  ttsMimoStylePrompt: string;
-  // Mossland TTS
-  ttsMosslandKey: string;
-  ttsMosslandVoiceId: string;
-  ttsMosslandModel: string;
-  ttsMosslandTestText: string;
-  ttsMosslandFormat: "mp3" | "wav";
   /** 天气源：open-meteo(免配置默认) | amap(高德,需填key) */
   weatherSource: "open-meteo" | "amap";
   /** 天气插件是否启用（开关） */
@@ -147,6 +94,8 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   /** 发件人显示名（可选） */
   emailFromName: string;
   /** 🎧ASR 服务商：off(关闭) | aliyun(阿里云) | mossland(MOSI) | local(本地,占位) */
+  /** Shared ASR credential for explicit desktop dictation and channel audio transcription. */
+  asrMosslandKey: string;
   asrEngine: "off" | "aliyun" | "mossland" | "local";
   /** 阿里云智能语音交互 AppKey */
   asrAliyunAppKey: string;
@@ -156,12 +105,6 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   asrAliyunAccessKeySecret: string;
   /** ASR 识别语言：zh(中文) | en(英文) | auto(自动) */
   asrLanguage: "zh" | "en" | "auto";
-  /** VAD 静默检测阈值（毫秒），500~2000，默认 1000 */
-  asrVadSilenceMs: number;
-  /** VAD 音量阈值（0~1），默认 0.01。环境吵或麦克风音量低时可调 */
-  asrVadThreshold: number;
-  /** 通话中显示文字转写 */
-  asrShowTranscript: boolean;
   /** 截图全局热键（Electron Accelerator 格式，如 "Alt+Shift+S"） */
   screenshotHotkey: string;
   /** 工具-模式覆盖层：用户自定义每个工具在 learn/code/work 模式下的可见性。

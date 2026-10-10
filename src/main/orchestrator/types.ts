@@ -1,5 +1,6 @@
 // Orchestrator types
 
+import type { TaskWriteEvidence } from "../../shared/agent-execution-evidence";
 import type { ToolEffectState, ToolErrorCategory } from "./tools/registry/tool-execution-error";
 
 // ToolCallResult: 单次工具调用的结果
@@ -11,6 +12,8 @@ export interface ToolCallResult {
   errorCode?: string;
   category?: ToolErrorCategory;
   effectState?: ToolEffectState;
+  /** Main-owned independent write facts, including writes preceding a failure. */
+  writes?: TaskWriteEvidence[];
   // 完成语义：该工具步骤是否已经结束（默认 true，由 normalizer 推导）
   terminal?: boolean;
   // 完成语义：失败后是否值得重试（默认 false，由 normalizer 推导）
@@ -37,6 +40,8 @@ export interface ToolExecutionOutcome {
   errorCode?: string;
   category?: ToolErrorCategory;
   effectState?: ToolEffectState;
+  /** Main-owned independent write facts, including writes preceding a failure. */
+  writes?: TaskWriteEvidence[];
   // 完成语义：该工具步骤是否已经结束（默认 true，由 normalizer 推导）
   terminal?: boolean;
   // 完成语义：失败后是否值得重试（默认 false，由 normalizer 推导）

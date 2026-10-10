@@ -1,11 +1,24 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { userDataRoot, cleanupUserData } = await vi.hoisted(async () => {
+  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-user-choice-"));
+  return {
+    userDataRoot: root,
+    cleanupUserData: () => fs.rmSync(root, { recursive: true, force: true }),
+  };
+});
+
+afterAll(cleanupUserData);
 
 const { handle } = vi.hoisted(() => ({
   handle: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn(() => "C:/tmp/firefly-test") },
+  app: { getPath: vi.fn(() => userDataRoot) },
   ipcMain: { handle },
 }));
 

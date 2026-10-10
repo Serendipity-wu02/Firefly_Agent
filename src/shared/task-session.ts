@@ -1,8 +1,8 @@
+import type { TaskWriteEvidence, ModelExecutionEvent } from "./agent-execution-evidence";
+
 /** 私有子任务会话的跨进程可序列化契约。 */
 
 export type TaskSessionStatus = "running" | "completed" | "failed" | "cancelled" | "interrupted";
-
-export type TaskSubagentType = "general" | "document" | "search";
 
 export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
@@ -35,35 +35,46 @@ export interface TaskTraceRecord {
   status?: string;
 }
 
+export interface TaskUncertainEffect {
+  id: string;
+  toolCallId: string;
+  fingerprint: string;
+  toolName: string;
+  message: string;
+  repeatAuthorization?: { source: "user"; grantedAt: number };
+}
+
+export interface AgentSessionIdentity {
+  id: string;
+  modelProfile: string;
+  savedModelProfileId: string;
+}
+
 export interface TaskSession {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   parentConversationId: string;
   parentRunId: string;
   childRunId: string;
+  /** Exact unfinished prior-run closure, set and cleared only by Main recovery. */
+  recoveryRunId?: string;
   description: string;
-  subagentType: TaskSubagentType;
+  agent: AgentSessionIdentity;
   mode: "work" | "code";
   resolvedWorkspaceRoot?: string;
   status: TaskSessionStatus;
   messages: TaskTranscriptMessage[];
   trace: TaskTraceRecord[];
   todoItems: TodoItem[];
+  uncertainEffects?: TaskUncertainEffect[];
+  /** Optional: old sessions have no historical evidence to infer. */
+  writes?: TaskWriteEvidence[];
+  executionEvents?: ModelExecutionEvent[];
   resultText?: string;
   error?: { code: string; message: string };
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
-}
-
-/** 存在于父助手消息中的最小公开记录；不包含子任务提示词或轨迹。 */
-export interface TaskDelegationRecord {
-  taskId: string;
-  description: string;
-  subagentType: TaskSubagentType;
-  status: TaskSessionStatus;
-  delegatedAt: number;
-  updatedAt: number;
 }
 
 export type TaskDelegationPresentationStatus = "running" | "completed" | "failed" | "cancelled";

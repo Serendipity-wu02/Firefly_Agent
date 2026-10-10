@@ -6,8 +6,8 @@
   height: 32px;
   border: none;
   background: transparent;
-  border-radius: 8px;
-  color: #8e8e93;
+  border-radius: 12px;
+  color: var(--cy-text-muted);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }

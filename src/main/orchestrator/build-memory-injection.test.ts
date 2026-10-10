@@ -119,4 +119,57 @@ describe("buildAlwaysOnContext", () => {
 
     expect(ragMock.updateWorldbookActivation).toHaveBeenCalledWith("请总结这个文档", "")
   })
+
+  it("keeps legacy profile injection available to callers that explicitly use the legacy builder", async () => {
+    ragMock.getPermanentWorldbookEntries.mockReturnValue(["常驻世界书"])
+    memoryStoreMock.getL0.mockResolvedValue({ preferredName: "旧画像称呼" })
+    memoryStoreMock.getL1.mockResolvedValue({ currentProject: "旧项目" })
+    const { buildAlwaysOnContext } = await import("./index")
+
+    const context = await buildAlwaysOnContext("你好", [])
+
+    expect(context).toBe("【常驻背景】\n常驻世界书\n\n[用户画像]\n称呼：旧画像称呼\n\n[近期状态]\n当前项目：旧项目")
+    expect(memoryStoreMock.getL0).toHaveBeenCalledTimes(1)
+    expect(memoryStoreMock.getL1).toHaveBeenCalledTimes(1)
+  })
+
+  it("builds worldbook background without reading legacy personal profiles", async () => {
+    ragMock.getPermanentWorldbookEntries.mockReturnValue(["常驻世界书"])
+    ragMock.getActiveWorldbookEntries.mockReturnValue(["当轮激活世界书"])
+    ragMock.getCascadeWorldbookEntries.mockReturnValue(["级联世界书"])
+    memoryStoreMock.getL0.mockResolvedValue({ preferredName: "不得读取的旧画像" })
+    memoryStoreMock.getL1.mockResolvedValue({ currentProject: "不得读取的旧项目" })
+    memoryStoreMock.getAllL2.mockClear()
+    entityGraphMock.search.mockClear()
+    l2DmaeManagerMock.getActiveL2ForPrompt.mockClear()
+    const { buildWorldbookContext } = await import("./index")
+
+    const context = await buildWorldbookContext(
+      "世界书主题\n\n【文档内容】\n不应触发的附件内容",
+      [{ role: "assistant", content: "上轮回复" }, { role: "user", content: "世界书主题" }],
+    )
+
+    expect(context).toBe("【常驻背景】\n常驻世界书\n\nHEADER\nPREAMBLE\n\n当轮激活世界书\n\n级联世界书")
+    expect(ragMock.updateWorldbookActivation).toHaveBeenCalledWith("世界书主题", "上轮回复")
+    expect(memoryStoreMock.getL0).not.toHaveBeenCalled()
+    expect(memoryStoreMock.getL1).not.toHaveBeenCalled()
+    expect(memoryStoreMock.getAllL2).not.toHaveBeenCalled()
+    expect(entityGraphMock.search).not.toHaveBeenCalled()
+    expect(l2DmaeManagerMock.getActiveL2ForPrompt).not.toHaveBeenCalled()
+  })
+
+  it("does not fall back to personal profiles when worldbook loading fails", async () => {
+    ragMock.getPermanentWorldbookEntries.mockImplementation(() => { throw new Error("worldbook fixture failure") })
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const { buildWorldbookContext } = await import("./index")
+
+      expect(await buildWorldbookContext("你好", [])).toBe("")
+      expect(memoryStoreMock.getL0).not.toHaveBeenCalled()
+      expect(memoryStoreMock.getL1).not.toHaveBeenCalled()
+      expect(warn).toHaveBeenCalledWith("[Orchestrator] worldbook dmae failed:", expect.any(Error))
+    } finally {
+      warn.mockRestore()
+    }
+  })
 })

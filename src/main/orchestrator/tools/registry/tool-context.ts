@@ -6,6 +6,8 @@ import type { ChatMessage } from "../../vendors";
 import { ContextRefRegistry } from "../../context-ref-registry";
 import type { ConversationMode } from "../../../../shared/chat-types";
 import type { WorkReadScope } from "../../../../shared/chat-types";
+import type { AgentFileAccessLevel } from "../../../permission-policy";
+import type { ExecutionScope, LeafPermit, RunExecutionCoordinator } from "../../harness/execution-coordinator";
 
 export const contextRefRegistry = new ContextRefRegistry();
 
@@ -15,6 +17,7 @@ export interface ToolContext {
   userQuery: string;
   /** 当前聊天会话 ID；需要跨轮隔离状态的工具必须使用该字段。 */
   conversationId?: string;
+  ownerSessionId?: string;
   /** One Agent execution; resolved-only candidates must not cross this boundary. */
   runId?: string;
   /** Tool Runtime-owned opaque reference registry. */
@@ -41,8 +44,34 @@ export interface ToolContext {
   allowedSkillIds?: ReadonlySet<string>;
   /** 本轮工具执行权限策略；allow_all 仅用于用户显式开启的无审批渠道。 */
   permissionMode?: "normal" | "allow_all";
+  /** Main-owned session permission snapshot, inherited by child runs. */
+  fileAccessLevel?: AgentFileAccessLevel;
+  /** Main dispatcher-owned permission decision, bound to this exact parsed call. */
+  authorizedToolCall?: { toolId: string; args: Record<string, unknown>; approvalRequired: boolean };
+  /** Main-owned synchronous policy check after queueing; cannot request or widen approval. */
+  revalidateToolPermission?: (toolId: string, args: Record<string, unknown>, approvalRequired: boolean) => boolean;
+  /** Main-only workspace coordination. Opaque permits are never serialized or model-supplied. */
+  execution?: { coordinator: RunExecutionCoordinator; scope: ExecutionScope; permit?: LeafPermit };
   /** 未来扩展兜底；当前为空对象，不预设字段。遵循"地基通用，上层克制"。 */
   metadata?: Record<string, unknown>;
+}
+
+// Main and child runtimes create a fresh ToolContext for each run. Dispatcher
+// invocation copies share only this private bookkeeping identity, never a string
+// supplied in tool arguments. The identity confers no execution/read authority.
+const toolRunScopes = new WeakMap<ToolContext, object>();
+export function getToolRunScope(context: ToolContext): object {
+  let scope = toolRunScopes.get(context);
+  if (!scope) { scope = Object.freeze({}); toolRunScopes.set(context, scope); }
+  return scope;
+}
+export function createToolInvocationContext(
+  context: ToolContext,
+  invocation: Pick<ToolContext, "execution" | "authorizedToolCall">,
+): ToolContext {
+  const result = { ...context, ...invocation };
+  toolRunScopes.set(result, getToolRunScope(context));
+  return result;
 }
 
 /**

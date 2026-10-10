@@ -62,6 +62,38 @@ function sentOp(socket: FakeWebSocket, op: number): Record<string, unknown> | un
 }
 
 describe("QqBotWsClient protocol", () => {
+  it.each([7, 9])("revokes authentication immediately on opcode %s before any socket close", async (op) => {
+    vi.useFakeTimers();
+    const socket = new FakeWebSocket();
+    // Real close is asynchronous; keep it pending so the protocol transition is tested.
+    socket.close = () => { socket.closed = true; };
+    const readiness: boolean[] = [];
+    const client = new QqBotWsClient({
+      gatewayUrl: "wss://synthetic.invalid",
+      getAccessToken: async () => "synthetic-token",
+      onDispatch: () => undefined,
+      onReadyChange: (ready) => readiness.push(ready),
+      onError: () => undefined,
+      websocketFactory: () => socket,
+    });
+    clients.push(client);
+    await client.start();
+    socket.receive({ op: 0, t: "READY", s: 1, d: { session_id: "synthetic-session" } });
+    expect(client.isReady).toBe(true);
+    socket.receive({ op, d: false });
+    expect(client.isReady).toBe(false);
+    expect(readiness).toEqual([true, false]);
+    if (op === 9) {
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(sentOp(socket, 2)).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sentOp(socket, 2)).toBeDefined();
+      expect(client.isReady).toBe(false);
+      socket.receive({ op: 0, t: "READY", s: 2, d: { session_id: "new-session" } });
+      expect(readiness).toEqual([true, false, true]);
+    }
+  });
+
   it("sends Identify with QQBot token and C2C/group intents after Hello", async () => {
     const { client, socket } = createClient();
     await client.start();
@@ -146,5 +178,109 @@ describe("QqBotWsClient protocol", () => {
       op: 6,
       d: { token: "QQBot fake-token", session_id: "sess-9", seq: 7 },
     });
+  });
+});
+
+
+describe("QqBotWsClient lifecycle", () => {
+  it("does not open a socket when token retrieval finishes after stop", async () => {
+    let resolveToken!: (token: string) => void;
+    const token = new Promise<string>((resolve) => { resolveToken = resolve; });
+    const opened: FakeWebSocket[] = [];
+    const client = new QqBotWsClient({
+      gatewayUrl: "wss://synthetic.invalid",
+      getAccessToken: () => token,
+      onDispatch: () => undefined,
+      onReadyChange: () => undefined,
+      onError: () => undefined,
+      websocketFactory: () => { const socket = new FakeWebSocket(); opened.push(socket); return socket; },
+    });
+    clients.push(client);
+    const starting = client.start();
+    await client.stop();
+    resolveToken("old-token");
+    await starting;
+    expect(opened).toHaveLength(0);
+    expect(client.isReady).toBe(false);
+  });
+
+  it("ignores a rejected token request from a stopped run", async () => {
+    vi.useFakeTimers();
+    let rejectToken!: (reason: Error) => void;
+    const errors: Error[] = [];
+    const client = new QqBotWsClient({
+      gatewayUrl: "wss://synthetic.invalid",
+      getAccessToken: () => new Promise((_, reject) => { rejectToken = reject; }),
+      onDispatch: () => undefined,
+      onReadyChange: () => undefined,
+      onError: (error) => { errors.push(error); },
+      websocketFactory: () => new FakeWebSocket(),
+    });
+    clients.push(client);
+    const starting = client.start();
+    await client.stop();
+    rejectToken(new Error("late token failure"));
+    await starting;
+    expect(errors).toEqual([]);
+    expect(client.getLastError()).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("clears pending invalid-session identification when stopped", async () => {
+    vi.useFakeTimers();
+    const { client, socket } = createClient();
+    await client.start();
+    socket.receive({ op: 9, d: false });
+    expect(vi.getTimerCount()).toBe(1);
+    await client.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not send a stale invalid-session token through a replacement socket", async () => {
+    vi.useFakeTimers();
+    const opened: FakeWebSocket[] = [];
+    let tokenRequests = 0;
+    const client = new QqBotWsClient({
+      gatewayUrl: "wss://synthetic.invalid",
+      getAccessToken: async () => `token-${++tokenRequests}`,
+      onDispatch: () => undefined,
+      onReadyChange: () => undefined,
+      onError: () => undefined,
+      websocketFactory: () => { const socket = new FakeWebSocket(); opened.push(socket); return socket; },
+    });
+    clients.push(client);
+    await client.start();
+    opened[0].receive({ op: 9, d: false });
+    opened[0].close();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(opened).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(opened[1].sent).toEqual([]);
+    opened[1].receive({ op: 10, d: { heartbeat_interval: 30_000 } });
+    expect(sentOp(opened[1], 2)).toMatchObject({ d: { token: "QQBot token-2" } });
+  });
+
+  it("does not let an earlier token request replace the socket after restart", async () => {
+    let resolveOldToken!: (token: string) => void;
+    const oldToken = new Promise<string>((resolve) => { resolveOldToken = resolve; });
+    let tokenRequests = 0;
+    const opened: FakeWebSocket[] = [];
+    const client = new QqBotWsClient({
+      gatewayUrl: "wss://synthetic.invalid",
+      getAccessToken: () => ++tokenRequests === 1 ? oldToken : Promise.resolve("new-token"),
+      onDispatch: () => undefined,
+      onReadyChange: () => undefined,
+      onError: () => undefined,
+      websocketFactory: () => { const socket = new FakeWebSocket(); opened.push(socket); return socket; },
+    });
+    clients.push(client);
+    const oldStart = client.start();
+    await client.stop();
+    await client.start();
+    resolveOldToken("old-token");
+    await oldStart;
+    expect(opened).toHaveLength(1);
+    opened[0].receive({ op: 10, d: { heartbeat_interval: 30_000 } });
+    expect(sentOp(opened[0], 2)).toMatchObject({ d: { token: "QQBot new-token" } });
   });
 });

@@ -6,6 +6,7 @@ import { IPC } from "../../shared/ipc-channels";
 
 const mocks = vi.hoisted(() => ({
   userDataDir: "",
+  userDataLookupDenied: false,
   handlers: new Map<string, (...args: any[]) => unknown>(),
   openPath: vi.fn(async () => ""),
   saveDialog: vi.fn(),
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("electron", () => ({
   app: {
-    getPath: () => mocks.userDataDir,
+    getPath: () => {if(mocks.userDataLookupDenied)throw Error("DIRECT_USERDATA_FORBIDDEN");return mocks.userDataDir},
   },
   shell: {
     openPath: mocks.openPath,
@@ -36,6 +37,33 @@ vi.mock("electron", () => ({
 }));
 
 describe("chats IPC mode filtering", () => {
+  it("GET and paged recovery use canonical settlement without rewriting either cache or transcript",async()=>{
+    const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store"),{getConversationTranscriptStore}=await import("../orchestrator/conversation-transcript-store"),{createTranscriptSink}=await import("../orchestrator/transcript-sink");
+    registerChatsIpc();const session=cache.createSession({mode:"chat"}),store=getConversationTranscriptStore(mocks.userDataDir);
+    cache.appendMessage(session.id,{id:"u",role:"user",content:"synthetic",at:1});
+    cache.appendMessage(session.id,{id:"a",role:"model",content:"CACHE",answersUserMessageId:"u",at:2,ttsCacheKey:"old",runSnapshot:{runId:"stale-cache-run",status:"terminal",terminalStatus:"success",updatedAt:2}});
+    await store.append(session.id,{kind:"user",id:"u",turnId:"u",revision:1,at:1,payload:{text:"synthetic"}});
+    const sink=createTranscriptSink({store,conversationId:session.id,runId:"r",assistantTurnId:"a"}),binding={runId:"r",assistantTurnId:"a",userTurnId:"u",userRevision:1};
+    const assistantEntryId=await sink.appendSAssistant({message:{role:"assistant",content:"RAW"},binding});
+    const before=JSON.stringify((await store.read(session.id)).entries),cacheBefore=JSON.stringify(cache.getSession(session.id));
+    mocks.userDataLookupDenied=true;
+    const get=mocks.handlers.get(IPC.CHATS_GET)!,page=mocks.handlers.get(IPC.CHATS_GET_PAGE)!;
+    const pending=await get({},session.id) as any,paged=await page({},{id:session.id,limit:1}) as any;
+    expect(pending.messages.find((m:any)=>m.id==="a")).toMatchObject({content:"",sSettlement:{state:"pending",originalText:"RAW"}});
+    expect(paged.messages[0]).toMatchObject({id:"a",content:"",sSettlement:{state:"pending",originalText:"RAW"}});
+    expect(JSON.stringify((await store.read(session.id)).entries)).toBe(before);expect(JSON.stringify(cache.getSession(session.id))).toBe(cacheBefore);
+    await sink.settleSAssistant({binding:{...binding,assistantEntryId},result:"success",safeReason:"synthetic"});
+    const success=await get({},session.id) as any;expect(success.messages.find((m:any)=>m.id==="a")).toMatchObject({content:"RAW",sSettlement:{state:"success"},runSnapshot:{status:"terminal",terminalStatus:"success"}});
+    expect(JSON.stringify(cache.getSession(session.id))).toBe(cacheBefore);
+    expect((await page({},{id:session.id,limit:1}) as any).messages[0]).toMatchObject({id:"a",content:"RAW",sSettlement:{state:"success",runId:"r"},runSnapshot:{runId:"r",terminalStatus:"success"}});
+    // A fresh disk-backed cache read and repeated opening must recover the canonical run.
+    expect(cache.getSession(session.id)!.messages.find(m=>m.id==="a")!.runSnapshot!.runId).toBe("stale-cache-run");
+    expect((await get({},session.id) as any).messages.find((m:any)=>m.id==="a")).toMatchObject({content:"RAW",sSettlement:{state:"success"},runSnapshot:{runId:"r"}});
+    const copy={...success.messages.find((m:any)=>m.id==="a"),content:"still cache"};
+    await mocks.handlers.get(IPC.CHATS_UPSERT)!({sender:{}},{id:session.id,message:copy});
+    expect(cache.getSession(session.id)!.messages.find(m=>m.id==="a")!.sSettlement).toBeUndefined();
+    expect((await get({},session.id) as any).messages.find((m:any)=>m.id==="a").content).toBe("RAW");
+  });
   it("propagates history read failures instead of reporting empty Chat and Work lists", async () => {
     const directory = path.join(mocks.userDataDir, "firefly-chats");
     fs.mkdirSync(directory, { recursive: true });
@@ -50,13 +78,18 @@ describe("chats IPC mode filtering", () => {
     expect(fs.readFileSync(file, "utf8")).toBe("{broken");
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     mocks.handlers.clear();
     mocks.openPath.mockClear();
     mocks.saveDialog.mockReset();
     mocks.messageBox.mockReset();
-    mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-chats-ipc-"));
+    mocks.userDataLookupDenied=false;
+    const root=fs.mkdtempSync(path.join(os.tmpdir(), "firefly-chats-ipc-")),isolation=path.join(root,"isolation"),production=path.join(root,"synthetic-production");
+    fs.mkdirSync(isolation);fs.mkdirSync(production);
+    const {resolveRuntimeProfile}=await import("../runtime-profile"),{initializeStorageContext}=await import("../storage-context");
+    const profile=resolveRuntimeProfile({argv:["--firefly-profile=test","--firefly-isolation-root="+isolation],env:{},isPackaged:false,productionAppData:production});
+    mocks.userDataDir=initializeStorageContext(profile).dataRoot;
   });
 
   it("returns only Code sessions for CHATS_LIST({ mode: \"code\" })", async () => {
@@ -188,7 +221,7 @@ describe("chats IPC mode filtering", () => {
     if (!create || !enqueue || !claim) throw new Error("title generation IPC handlers were not registered");
     const event = { sender: {} };
 
-    for (const mode of ["chat", "work", "code", "learn"] as const) {
+    for (const mode of ["chat", "work", "code"] as const) {
       const created = await create(event, { mode }) as { id: string };
       await enqueue(event, {
         sessionId: created.id,
@@ -207,7 +240,6 @@ describe("chats IPC mode filtering", () => {
       expect.objectContaining({ userMessageId: "first-chat", text: "处理chat问题" }),
       expect.objectContaining({ userMessageId: "first-work", text: "处理work问题" }),
       expect.objectContaining({ userMessageId: "first-code", text: "处理code问题" }),
-      expect.objectContaining({ userMessageId: "first-learn", text: "处理learn问题" }),
     ]);
   });
 
@@ -338,4 +370,73 @@ describe("chats IPC mode filtering", () => {
     expect(mocks.openPath).toHaveBeenCalledOnce();
     expect(mocks.openPath).toHaveBeenCalledWith(fs.realpathSync(workspaceRoot));
   });
+
+ it("controlled fresh-user authorization completes before cache writes; denial leaves messages untouched",async()=>{
+  const {registerChatsIpc}=await import('./chats-ipc'),cache=await import('./chats-store'),appendUser=vi.fn(async()=>{throw Error('MEMORY_DESKTOP_SESSION_DENIED')});
+  registerChatsIpc(undefined,{memory:{appendUser,mutate:vi.fn()} as any});const session=cache.createSession({mode:'chat'});
+  await expect(mocks.handlers.get(IPC.CHATS_APPEND)!({sender:{}},{id:session.id,message:{id:'u',role:'user',content:'synthetic',at:1}})).rejects.toThrow('MEMORY_DESKTOP_SESSION_DENIED');expect(cache.getSession(session.id)?.messages).toEqual([]);expect(appendUser).toHaveBeenCalledTimes(1);
+ });
+
+ it("controlled bulk user removal is rejected before cache writes because it has no canonical rewind",async()=>{
+  const {registerChatsIpc}=await import('./chats-ipc'),cache=await import('./chats-store'),mutate=vi.fn(async(_event,_id,_ids,commit)=>commit());
+  registerChatsIpc(undefined,{memory:{ownsSession:()=>true,appendUser:vi.fn(),mutate} as any});const session=cache.createSession({mode:'chat'});cache.appendMessage(session.id,{id:'u',role:'user',content:'synthetic',at:1});
+  await expect(mocks.handlers.get(IPC.CHATS_REPLACE_MESSAGES)!({sender:{}},{id:session.id,messages:[]})).rejects.toThrow('MEMORY_CONTEXT_TRANSCRIPT_EDIT_UNSUPPORTED');expect(cache.getSession(session.id)?.messages.map(m=>m.id)).toEqual(['u']);expect(mutate).not.toHaveBeenCalled();
+ });
+ it("admits a queued user through Main before changing metadata and preserves document readScope",async()=>{
+  const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");
+  const event={sender:{}},seen:any[]=[];
+  const appendUser=vi.fn(async(e,id,message,commit)=>{expect(e).toBe(event);expect(cache.getSession(id)?.messages).toEqual([]);seen.push(message);return commit()});
+  registerChatsIpc(undefined,{memory:{appendUser,mutate:vi.fn()} as any});const session=cache.createSession({mode:"work"});
+  const scope={name:"synthetic.txt",path:"/synthetic/no-read.txt",sha256:"a".repeat(64),totalLines:4,endLine:2,partialAccepted:true};
+  cache.enqueuePendingMessage(session.id,{id:"queued",rawContent:"human original",visibleContent:"human visible",attachments:[{kind:"document",name:"synthetic.txt",filePath:scope.path,readScope:scope}]});
+  const claimed=await mocks.handlers.get(IPC.CHATS_PENDING_CLAIM)!(event,session.id) as any;
+  expect(claimed).toMatchObject({ok:true,claimed:true,userMessage:{id:"queued",content:"human original",attachments:[{readScope:scope}]}});
+  expect(seen).toHaveLength(1);expect(seen[0]).toMatchObject({id:"queued",role:"user",content:"human original",attachments:[{readScope:scope}]});
+ });
+ it("does not consume a queued user when authenticated Main denies the append",async()=>{
+  const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");
+  const appendUser=vi.fn(async()=>{throw Error("MEMORY_DESKTOP_SESSION_DENIED")});registerChatsIpc(undefined,{memory:{appendUser,mutate:vi.fn()} as any});
+  const session=cache.createSession({mode:"chat"});cache.enqueuePendingMessage(session.id,{id:"queued",rawContent:"human original",visibleContent:"human visible"});
+  await expect(mocks.handlers.get(IPC.CHATS_PENDING_CLAIM)!({sender:{}},session.id)).rejects.toThrow("MEMORY_DESKTOP_SESSION_DENIED");
+  expect(cache.getSession(session.id)?.messages).toEqual([]);expect(cache.getPendingMessages(session.id)?.map(item=>item.id)).toEqual(["queued"]);
+ });
+ it("does not promote a different pending head if the queue changes while Main authorizes",async()=>{
+  const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");
+  let release!:()=>void,entered!:()=>void;const waiting=new Promise<void>(resolve=>{release=resolve}),started=new Promise<void>(resolve=>{entered=resolve});
+  const outcomes:any[]=[];const appendUser=vi.fn(async(_event,_id,_message,commit)=>{entered();await waiting;const result=commit();outcomes.push(result);return result});
+  registerChatsIpc(undefined,{memory:{appendUser,mutate:vi.fn()} as any});const session=cache.createSession({mode:"chat"});
+  cache.enqueuePendingMessage(session.id,{id:"first",rawContent:"first human",visibleContent:"first human"});cache.enqueuePendingMessage(session.id,{id:"second",rawContent:"second human",visibleContent:"second human"});
+  const pending=Promise.resolve(mocks.handlers.get(IPC.CHATS_PENDING_CLAIM)!({sender:{}},session.id));const rejected=expect(pending).rejects.toThrow("MEMORY_SOURCE_STALE");await started;
+  cache.removePendingMessage(session.id,"first");release();await rejected;expect(outcomes).toEqual([false]);expect(cache.getSession(session.id)?.messages).toEqual([]);expect(cache.getPendingMessages(session.id)?.map(item=>item.id)).toEqual(["second"]);
+ });
+
+ it("publishes the actual queued human text as a genuine direct-user source receipt",async()=>{
+  const {EventEmitter}=await import("node:events"),{registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");
+  const {createMainDesktopSessionAuthority}=await import("../memory-context/main-desktop-session-authority"),{createActiveChatTargetRegistry}=await import("../plugin-host/active-chat-target");
+  const {createDesktopUserSourceProvider}=await import("../memory-sources/desktop-user-source-provider"),{requireMainSourceProvider}=await import("../memory-sources/main-source-provider");
+  const sender=Object.assign(new EventEmitter(),{id:73,mainFrame:{},isDestroyed:()=>false}),targets=createActiveChatTargetRegistry(),event={sender,senderFrame:sender.mainFrame};
+  cache.initialize();const session=cache.createSession({mode:"chat"});targets.setActive({sender:sender as any,sessionId:session.id,mode:"chat",rendererTargetId:"synthetic-target"});
+  const authority=createMainDesktopSessionAuthority({enabled:true,scopeKey:"scope-a",actorKey:"actor-a",getChatWindow:()=>({webContents:sender,isDestroyed:()=>false}) as any,targets,getSession:id=>cache.getSession(id),isControlledSession:()=>true})!;
+  const source=createDesktopUserSourceProvider({authority,providerId:"synthetic",scopeKey:"scope-a",clock:()=>1000,readUser:id=>{const user=cache.getSession(id.sessionId)?.messages.find(item=>item.id===id.messageId);return user?.role==="user"?{role:user.role,text:user.content}:null}});
+  const memory={ownsSession:()=>true,mutate:async(_event:any,_id:string,_users:string[],commit:()=>unknown)=>commit(),appendUser:async(received:any,id:string,message:any,commit:()=>unknown)=>{
+   const grant=authority.bind(received,id);return source.mutate(()=>{const ticket=source.prepareUserCommit(grant,id,message.id),result=commit();if(result===false)source.cancelUserCommit(ticket);else source.finishUserCommit(ticket);return result});
+  }};
+  registerChatsIpc(undefined,{memory:memory as any});
+  try{
+   cache.enqueuePendingMessage(session.id,{id:"genuine",rawContent:"I prefer PowerShell",visibleContent:"I prefer PowerShell",attachments:[{kind:"document",name:"not-read.txt",filePath:"/synthetic/not-read.txt"}]});
+   await mocks.handlers.get(IPC.CHATS_PENDING_CLAIM)!(event,session.id);
+   const identity={providerId:"synthetic",sessionId:session.id,messageId:"genuine"},provider=requireMainSourceProvider(source.token,"scope-a",identity);
+   const receipt=await provider.withLease(identity,read=>read());expect(receipt).toMatchObject({text:"I prefer PowerShell",role:"user",trust:"direct-user-event",contentRevision:1});
+   expect(JSON.stringify(receipt)).not.toContain("not-read.txt");
+  }finally{authority.dispose()}
+ });
+ it("allows a default-owner text edit retaining authorized attachment references and scopes",async()=>{
+  const {registerChatsIpc}=await import("./chats-ipc"),cache=await import("./chats-store");let mutations=0;
+  registerChatsIpc(undefined,{memory:{usesCanonicalUserContent:true,ownsSession:()=>true,appendUser:vi.fn(),mutate:async(_e:any,_id:string,ids:string[],commit:()=>unknown)=>{expect(ids).toEqual(["u"]);mutations++;return commit()}} as any});
+  const session=cache.createSession({mode:"work"}),attachment={kind:"document" as const,name:"same.txt",filePath:"/synthetic/same.txt",status:"pending" as const,readScope:{name:"same.txt",path:"/synthetic/same.txt",sha256:"a".repeat(64),endLine:2,totalLines:4,partialAccepted:true}};
+  const user={id:"u",role:"user" as const,content:"before",at:1,attachments:[attachment]};cache.appendMessage(session.id,user);
+  await expect(mocks.handlers.get(IPC.CHATS_REPLACE_TAIL)!({sender:{}},{id:session.id,startIndex:0,messages:[{...user,content:"after"}]})).resolves.toMatchObject({messages:[{content:"after",attachments:[{readScope:attachment.readScope}]}]});expect(mutations).toBe(1);
+  await expect(mocks.handlers.get(IPC.CHATS_REPLACE_TAIL)!({sender:{}},{id:session.id,startIndex:0,messages:[{...user,content:"other",attachments:[{...attachment,filePath:"/synthetic/new.txt"}]}]})).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");expect(mutations).toBe(1);
+ });
+
 });

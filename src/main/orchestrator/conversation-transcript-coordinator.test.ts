@@ -152,3 +152,83 @@ describe("prepareTranscriptDispatch", () => {
     })).rejects.toThrow("TRANSCRIPT_USER_TURN_NOT_FOUND");
   });
 });
+
+
+describe("bound current assistant placeholder", () => {
+  const boundSession = (): ChatSession => makeSession({
+    messages: [
+      { id: "s-user", role: "user", content: "synthetic first user", at: 100 },
+      { id: "s-assistant", role: "model", content: "", answersUserMessageId: "s-user", at: 101 },
+    ]
+  });
+  it("first real UI-shaped turn excludes the current model without a preseeded boundary", async () => {
+    const { store } = createStore(), session = boundSession();
+    await prepareTranscriptDispatch({ store, session, userTurnId: "s-user", assistantTurnId: "s-assistant", runId: "s-run" } as any);
+    const entries = (await store.read(session.id)).entries;
+    expect(entries.filter(e => e.kind === "assistant")).toEqual([]);
+    expect(entries.filter(e => e.kind === "user")).toMatchObject([{ turnId: "s-user", revision: 1, at: 100, payload: { text: "synthetic first user" } }]);
+    expect(entries.filter(e => e.kind === "backfill_boundary")).toHaveLength(1);
+  });
+  it.each(["wrong-id", "wrong-parent", "wrong-role", "not-tail", "duplicate-user"])("rejects %s before read repair or any write", async (kind) => {
+    const { store } = createStore(), session = boundSession();
+    if (kind === "wrong-parent")
+      session.messages[1].answersUserMessageId = "another-user";
+    if (kind === "wrong-role")
+      session.messages[1].role = "user";
+    if (kind === "not-tail")
+      session.messages.push({ id: "late-user", role: "user", content: "late", at: 102 });
+    if (kind === "duplicate-user")
+      session.messages.unshift({ ...session.messages[0] });
+    const before = await store.read(session.id);
+    await expect(prepareTranscriptDispatch({ store, session, userTurnId: "s-user", assistantTurnId: kind === "wrong-id" ? "other" : "s-assistant", runId: "s-run" } as any)).rejects.toThrow("TRANSCRIPT_DISPATCH_BINDING_INVALID");
+    expect(await store.read(session.id)).toEqual(before);
+  });
+  it("preserves the historical prefix and retries without duplicating the current user", async () => {
+    const { store } = createStore(), session = boundSession();
+    session.messages.unshift({ id: "old-u", role: "user", content: "old user", at: 1 }, { id: "old-a", role: "model", content: "old complete reply", at: 2 });
+    const input = { store, session, userTurnId: "s-user", assistantTurnId: "s-assistant", runId: "s-run" } as any;
+    await prepareTranscriptDispatch(input);
+    await prepareTranscriptDispatch(input);
+    expect((await store.read(session.id)).entries.filter(e => e.kind === "user" || e.kind === "assistant").map(e => [e.kind, e.at])).toEqual([["user", 1], ["assistant", 2], ["user", 100]]);
+  });
+  it.each(["keep_user", "replace_user"] as const)("bound %s rewind preserves its real user anchor", async (disposition) => {
+    const { store } = createStore(), session = boundSession();
+    await store.append(session.id, { id: "original-u", kind: "user", turnId: "s-user", revision: 1, at: 90, payload: { text: "before edit" } });
+    await store.append(session.id, { id: `backfill:v1:${session.id}`, kind: "backfill_boundary", payload: { note: "synthetic existing history" } });
+    await prepareTranscriptDispatch({ store, session, userTurnId: "s-user", assistantTurnId: "s-assistant", runId: "s-rewind", rewind: { anchorUserTurnId: "s-user", disposition } } as any);
+    const rows = (await store.read(session.id)).entries;
+    expect(rows.filter(e => e.kind === "assistant")).toEqual([]);
+    expect(rows.filter(e => e.kind === "user")).toHaveLength(1);
+    expect(rows.at(-1)).toMatchObject({ kind: "turn_rewind", turnId: "s-user", ...(disposition === "replace_user" ? { revision: 2 } : {}), payload: { anchorUserTurnId: "s-user", disposition } });
+  });
+
+  it.each(["keep_user", "replace_user"] as const)("resumes bound %s without replacing an existing canonical anchor during backfill", async disposition => {
+    const {store}=createStore(),session=boundSession();
+    const original=await store.append(session.id,{id:"canonical-original",kind:"user",turnId:"s-user",revision:3,at:90,payload:{text:"original canonical user"}});
+    await prepareTranscriptDispatch({store,session,userTurnId:"s-user",assistantTurnId:"s-assistant",runId:"s-recovery",rewind:{anchorUserTurnId:"s-user",disposition}});
+    const entries=(await store.read(session.id)).entries;
+    expect(entries.filter(e=>e.kind==="user")).toEqual([original]);
+    expect(entries.filter(e=>e.kind==="assistant")).toEqual([]);
+    expect(entries.at(-1)).toMatchObject({kind:"turn_rewind",turnId:"s-user",...(disposition==="replace_user"?{revision:4}:{}),payload:{disposition}});
+  });
+  it("does not duplicate historical turns already canonically committed before a missing boundary",async()=>{
+    const {store}=createStore(),session=boundSession();
+    session.messages.unshift({id:"old-u",role:"user",content:"display user",at:1},{id:"old-a",role:"model",content:"display reply",at:2});
+    const user=await store.append(session.id,{id:"canonical-old-user",kind:"user",turnId:"old-u",revision:2,at:10,payload:{text:"canonical user"}});
+    const assistant=await store.append(session.id,{id:"canonical-old-assistant",kind:"assistant",turnId:"old-a",at:11,payload:{role:"assistant",content:"canonical reply"}});
+    await prepareTranscriptDispatch({store,session,userTurnId:"s-user",assistantTurnId:"s-assistant",runId:"s-recovery"});
+    const entries=(await store.read(session.id)).entries;
+    expect(entries.filter(e=>e.turnId==="old-u"||e.turnId==="old-a")).toEqual([user,assistant]);
+    expect(entries.filter(e=>e.kind==="assistant")).toEqual([assistant]);
+  });
+});
+
+it("keeps default memory canonical users original across backfill, append, and attachment edits", async () => {
+ const {store}=createStore(),attachment={kind:"document" as const,name:"synthetic.txt",filePath:"/synthetic/not-read.txt",status:"pending" as const};
+ const session=makeSession({messages:[{id:"old",role:"user",content:"old human",modelContext:"OLD INJECTED BODY",at:1,attachments:[attachment]},{id:"u-current",role:"user",content:"current human",modelContext:"CURRENT INJECTED BODY",at:2,attachments:[attachment]}]});
+ await prepareTranscriptDispatch({store,session,userTurnId:"u-current",runId:"run-1",forceUserContent:true});
+ const first=await store.read(session.id);expect(first.entries.filter(entry=>entry.kind==="user").map(entry=>entry.payload.text)).toEqual(["old human","current human"]);
+ session.messages[1]={...session.messages[1],content:"edited human",modelContext:"EDIT INJECTED BODY"};
+ await prepareTranscriptDispatch({store,session,userTurnId:"u-current",runId:"run-2",forceUserContent:true,rewind:{anchorUserTurnId:"u-current",disposition:"replace_user",reason:"edit"}});
+ const edited=(await store.read(session.id)).entries.at(-1)!;expect(edited.kind).toBe("turn_rewind");expect(edited.payload).toMatchObject({replacementUser:{text:"edited human",attachments:[{kind:"document",name:"synthetic.txt",filePath:"/synthetic/not-read.txt"}]}});
+});

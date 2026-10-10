@@ -1,3 +1,6 @@
+import type { ExternalSkillsApi } from "../../../shared/external-skills";
+import type { MemoryPolicyPanelApi } from "../../../shared/memory-panel-contracts";
+import type { UiColors } from "../../../shared/ui-colors";
 // Settings 公共类型定义
 // 从 settings.ts 抽离的跨面板共享类型。
 // 注意路径深度：本文件位于 src/renderer/settings/shared/，
@@ -20,6 +23,7 @@ import type { QqListenAuthRequirement } from "../../../shared/qq-listen";
 import type { CustomStyleConfig } from "../../../shared/style-sampling";
 import type { CustomEndpointMode } from "../custom-endpoint-state";
 import type { TimeoutSettings } from "../../../shared/timeout-types";
+import type { AgentRoutingView, AgentRoutingUpdate } from "../../../shared/specialist-agents";
 
 export interface ProviderProfile {
   baseUrl: string;
@@ -34,6 +38,8 @@ export interface ProviderProfile {
 }
 
 export interface ModelSettings {
+  agentModelProfiles?: Record<string, string>;
+  specialistModelProfiles?: Record<string, string>;
   mode: "auto" | "manual";
   provider: string;
   // 用户给模型起的自定义昵称，留空时用厂商 shortName。状态栏"正在喂养"显示它。
@@ -102,28 +108,27 @@ export interface ModelPreset {
 }
 
 export interface GeneralSettings extends ChatAppearanceSettings {
+  asrEngine?: "off" | "mossland" | "aliyun" | "local";
+  asrMosslandKey?: string;
+  asrAliyunAppKey?: string;
+  asrAliyunAccessKeyId?: string;
+  asrAliyunAccessKeySecret?: string;
+  asrLanguage?: "zh" | "en" | "auto";
   maxParallelToolCalls: number;
   citaEnabled: boolean;
   citaSemanticEngine: "remote" | "local";
   chatSocialContextEnabled: boolean;
-  momentsEnabled: boolean;
-  chatMomentsContextEnabled: boolean;
-  fireflyMomentsPostingEnabled: boolean;
-  fireflyMomentsReactionsEnabled: boolean;
-  momentsCharacterReactionsEnabled: boolean;
-  /** 朋友圈热闹程度：抽签人数分布与角色日调用上限联动档位 */
-  momentsLiveliness: "quiet" | "natural" | "lively";
   petAlwaysOnTop: boolean;
   petVisible: boolean;
   petZoom: number;
   disableGpuElectron?: boolean;
   sidebarVisible: boolean;
-  tasksVisible: boolean;
   /** 提醒中心音效总开关：关闭后所有 toast 静音 */
   toastSoundEnabled: boolean;
   launchAtLogin: boolean;
   language: "zh-CN";
   uiTheme: UiTheme;
+  uiColors: UiColors;
   windowCornerRadius: number;
   uiThemeRadius: boolean;
   uiFont: UiFont;
@@ -138,6 +143,24 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   /** 聊天段落间距（em）。目前仅设置窗口 UI 使用，主进程归一化尚未持久化该字段。 */
   chatParaSpacing?: number;
   screenshotHotkey?: string;
+  // 与 Main 的 getGeneral/saveGeneral 配置字段保持一致。
+  weatherSource: "open-meteo" | "amap";
+  weatherEnabled: boolean;
+  amapKey: string;
+  travelEnabled: boolean;
+  playwrightMcpEnabled: boolean;
+  searchEngine: "off" | "bocha" | "tavily" | "minimax" | "anySearch";
+  searchBochaKey: string;
+  searchTavilyKey: string;
+  searchMinimaxKey: string;
+  searchAnySearchKey: string;
+  emailEnabled: boolean;
+  emailSmtpHost: string;
+  emailSmtpPort: number;
+  emailSmtpSecure: boolean;
+  emailSmtpUser: string;
+  emailSmtpPass: string;
+  emailFromName: string;
 }
 
 export interface UserApi {
@@ -189,7 +212,7 @@ export interface ObsidianVaultConfig {
   lastSyncAt: number;
 }
 
-export interface MemoryPanelApi {
+export interface MemoryPanelApi extends MemoryPolicyPanelApi {
   getData: () => Promise<MemoryPanelPayload>;
   deleteImportedDoc: (importId: string, fileName?: string) => Promise<{ ok: boolean; deleted: number }>;
   saveL0: (patch: Record<string, unknown>) => Promise<{ ok: boolean }>;
@@ -215,9 +238,13 @@ export interface MemoryPanelApi {
 }
 
 export interface SettingsApi {
+  externalSkills?: ExternalSkillsApi;
+  setSkillEnabled?: (id: string, enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
   minimize: () => void;
   close: () => void;
   getConfig: () => Promise<ModelSettings>;
+  getAgentRouting?: () => Promise<AgentRoutingView>;
+  updateAgentRouting?: (input: AgentRoutingUpdate) => Promise<AgentRoutingView>;
   saveConfig: (config: Partial<ModelSettings>) => Promise<ModelSettings>;
   listModelProfiles?: () => Promise<{ profiles: Array<{ id: string; provider: string; displayName?: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: ApiTransport; reasoning?: ReasoningPreference; contextWindowTokens?: number; multimodal?: boolean }>; defaultModelProfileId?: string }>;
   saveModelProfile?: (profile: { id?: string; provider: string; displayName?: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: ApiTransport; reasoning?: ReasoningPreference; contextWindowTokens?: number; multimodal?: boolean }) => Promise<{ added: boolean; profiles: unknown[]; defaultModelProfileId?: string }>;
@@ -233,8 +260,6 @@ export interface SettingsApi {
   resetUiFont: () => Promise<UiFont>;
   openSidebar: () => void;
   closeSidebar: () => void;
-  openTasks: () => void;
-  closeTasks: () => void;
   openChromeGpu: () => void;
   setPetAlwaysOnTop: (value: boolean) => void;
   setPetVisible: (value: boolean) => void;
@@ -253,12 +278,12 @@ export interface SettingsApi {
     name: string;
     description: string;
     enabled: boolean;
-    modes: Array<"chat" | "work" | "code" | "learn"> | null;
+    modes: Array<"chat" | "work" | "code"> | null;
     deprecated: string | null;
   }>>;
-  getToolModeOverrides?: () => Promise<Record<string, Partial<Record<"chat" | "work" | "code" | "learn", boolean>>>>;
-  setToolModeOverride?: (toolId: string, mode: "chat" | "work" | "code" | "learn", enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
-  clearToolModeOverride?: (toolId: string, mode?: "chat" | "work" | "code" | "learn") => Promise<{ ok: boolean; error?: string }>;
+  getToolModeOverrides?: () => Promise<Record<string, Partial<Record<"chat" | "work" | "code", boolean>>>>;
+  setToolModeOverride?: (toolId: string, mode: "chat" | "work" | "code", enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
+  clearToolModeOverride?: (toolId: string, mode?: "chat" | "work" | "code") => Promise<{ ok: boolean; error?: string }>;
   // 三模适配层：Skill-模式覆盖层（聊天窗口用）。
   getSkillCatalog?: () => Promise<Array<{
     id: string;
@@ -266,14 +291,14 @@ export interface SettingsApi {
     description: string;
     enabled: boolean;
     source: string;
-    modes: ("work" | "code" | "learn")[] | null;
+    modes: ("work" | "code")[] | null;
     version?: string;
     references: string[];
   }>>;
   rescanSkills?: () => Promise<{ ok: boolean; count: number; error?: string }>;
-  getSkillModeOverrides?: () => Promise<Record<string, Partial<Record<"work" | "code" | "learn", boolean>>>>;
-  setSkillModeOverride?: (skillId: string, mode: "work" | "code" | "learn", enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
-  clearSkillModeOverride?: (skillId: string, mode?: "work" | "code" | "learn") => Promise<{ ok: boolean; error?: string }>;
+  getSkillModeOverrides?: () => Promise<Record<string, Partial<Record<"work" | "code", boolean>>>>;
+  setSkillModeOverride?: (skillId: string, mode: "work" | "code", enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
+  clearSkillModeOverride?: (skillId: string, mode?: "work" | "code") => Promise<{ ok: boolean; error?: string }>;
   addMcpServer?: (config: unknown) => Promise<{ ok: boolean; toolIds?: string[]; error?: string }>;
   removeMcpServer?: (serverId: string) => Promise<{ ok: boolean; error?: string }>;
   listMcpServers?: () => Promise<Array<{ id: string; name: string; connected: boolean; toolCount: number; toolIds: string[] }>>;

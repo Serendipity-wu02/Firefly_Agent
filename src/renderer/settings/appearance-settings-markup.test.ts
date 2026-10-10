@@ -22,22 +22,31 @@ describe("appearance settings markup", () => {
 	    expect(html).toContain('通用设置</span>');
 	  });
 
-	  it("contains the white-theme appearance groups and disabled future options", () => {
+	  it("contains the appearance groups and no placeholder options", () => {
     const panel = form("appearance-form");
-    for (const heading of ["布局", "个性化", "流萤桌宠"]) {
+    for (const heading of ["界面颜色", "个性化", "流萤桌宠"]) {
       expect(panel).toContain(heading);
     }
-    for (const label of ["单窗口", "聊天背景"]) {
-      expect(panel).toMatch(new RegExp(`<button[^>]+disabled[^>]*>[\\s\\S]*?${label}[\\s\\S]*?SOON`));
-    }
+    // Options that cannot be used are removed rather than shown disabled.
+    expect(panel).not.toContain("SOON");
+    expect(panel).not.toContain('class="appearance-placeholder"');
+    expect(panel).not.toContain("单窗口");
+    expect(panel).not.toContain("白调");
+  });
+
+  it("offers exactly the light and the dark Firefly theme, light selected by default", () => {
+    const panel = form("appearance-form");
+    expect(panel).toContain('id="ui-theme-select"');
+    expect(panel).toContain('data-value="pearl-white"');
+    expect(panel).toContain('data-value="firefly-dark"');
+    expect(panel).toMatch(/class="appearance-theme-option is-active" data-value="pearl-white"/);
+    expect(panel.match(/class="appearance-theme-option(?: is-active)?"/g)).toHaveLength(2);
   });
 
   it("offers only the Firefly desktop icon", () => {
     const panel = form("appearance-form");
     expect(panel).toContain('id="ui-icon-select"');
     expect(panel).toContain('data-icon="firefly"');
-    expect(panel).not.toContain('data-icon="cyrene-pink"');
-    expect(panel).not.toContain('data-icon="cyrene-sun"');
     expect(panel).not.toContain('data-icon="classic"');
   });
 
@@ -64,7 +73,6 @@ describe("appearance settings markup", () => {
   it("no longer offers an assistant bubble switch (borderless is the only mode)", () => {
     const panel = form("appearance-form");
     expect(panel).not.toContain('id="assistant-bubble-enabled"');
-    expect(panel).not.toContain("昔涟回复气泡");
   });
 
   it("applies appearance changes without a save button", () => {
@@ -89,4 +97,9 @@ describe("appearance settings markup", () => {
       expect(general).not.toContain(`id="${id}"`);
     }
   });
+});
+
+it("includes real auto-applied custom color controls and reset in appearance", () => {
+  const panel = form("appearance-form");
+  for (const id of ["ui-colors-enabled", "ui-colors-reset", "ui-colors-status", "ui-color-accent", "ui-color-background", "ui-color-foreground"]) expect(panel).toContain(`id="${id}"`);
 });

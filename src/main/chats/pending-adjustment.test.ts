@@ -13,7 +13,7 @@ vi.mock("electron", () => ({
   shell: { openPath: vi.fn() },
 }));
 
-import { createRunAdjustmentPoller, type PendingAdjustmentStore, type TranscriptUserWritePort } from "./pending-adjustment";
+import { createRunAdjustmentPoller, bindRunAdjustmentPoller, requireRunAdjustmentPermit, type PendingAdjustmentStore, type TranscriptUserWritePort } from "./pending-adjustment";
 
 interface FakeStore {
   queue: Map<string, PendingChatMessage[]>;
@@ -231,4 +231,78 @@ describe("createRunAdjustmentPoller", () => {
     expect(fake.commits).toHaveLength(1);
     expect(transcript.calls).toHaveLength(1);
   });
+});
+
+
+describe("Main-bound adjustment permits", () => {
+  it("rejects a forged poller and forged permit", () => {
+    const handler = vi.fn();
+    expect(() => bindRunAdjustmentPoller(() => undefined, { sessionId: "s1", runId: "run-1" }, handler)).toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
+    expect(() => requireRunAdjustmentPermit({}, { sessionId: "s1", runId: "run-1" })).toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
+  });
+  it("binds genuine marked queue bytes and only commits after the Main handler approves", async () => {
+    const fake = createFakeStore(), transcript = createFakeTranscript();
+    fake.queue.set("s1", [makeItem("q-1", "run-1")]);
+    const poll = createRunAdjustmentPoller("s1", "run-1", fake.store, transcript.port);
+    let permit: object | undefined;
+    bindRunAdjustmentPoller(poll, { sessionId: "s1", runId: "run-1" }, async (ticket, commit) => {
+      permit = ticket;
+      expect(requireRunAdjustmentPermit(ticket, { sessionId: "s1", runId: "run-1" })).toEqual({ turnId: "q-1", revision: 1, text: "内容-q-1" });
+      expect(() => requireRunAdjustmentPermit(ticket, { sessionId: "s2", runId: "run-1" })).toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
+      expect(() => requireRunAdjustmentPermit(ticket, { sessionId: "s1", runId: "run-other" })).toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
+      expect(fake.commits).toEqual([]);
+      const result = commit();
+      expect(() => commit()).toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
+      return result;
+    });
+    expect(await poll()).toEqual([{ id: "q-1", rawContent: "内容-q-1" }]);
+    expect(transcript.calls).toEqual([]);
+    expect(fake.queue.get("s1")).toEqual([]);
+    expect(() => requireRunAdjustmentPermit(permit!, { sessionId: "s1", runId: "run-1" })).toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
+  });
+  it("keeps pending intact when boundary validation or chat commit fails", async () => {
+    const fake = createFakeStore(); fake.queue.set("s1", [makeItem("q-1", "run-1")]);
+    const poll = createRunAdjustmentPoller("s1", "run-1", fake.store);
+    let failBoundary = true;
+    bindRunAdjustmentPoller(poll, { sessionId: "s1", runId: "run-1" }, async (_ticket, commit) => {
+      if (failBoundary) throw new Error("MEMORY_CONTEXT_TRANSCRIPT_STALE");
+      return commit();
+    });
+    await expect(poll()).rejects.toThrow("MEMORY_CONTEXT_TRANSCRIPT_STALE");
+    expect(fake.queue.get("s1")).toHaveLength(1); expect(fake.commits).toEqual([]);
+    failBoundary = false; fake.failIds.add("q-1");
+    await expect(poll()).rejects.toThrow("PENDING_ADJUST_COMMIT_FAILED");
+    expect(fake.queue.get("s1")).toHaveLength(1);
+    fake.failIds.delete("q-1");
+    expect(await poll()).toHaveLength(1); expect(fake.queue.get("s1")).toEqual([]);
+  });
+  it("rejects changes to marked queue content before consuming it", async () => {
+    const fake = createFakeStore(); fake.queue.set("s1", [makeItem("q-1", "run-1")]);
+    const poll = createRunAdjustmentPoller("s1", "run-1", fake.store);
+    bindRunAdjustmentPoller(poll, { sessionId: "s1", runId: "run-1" }, async (_ticket, commit) => {
+      fake.queue.get("s1")![0].rawContent = "changed after admission";
+      return commit();
+    });
+    await expect(poll()).rejects.toThrow("MEMORY_CONTEXT_ADJUSTMENT_STALE");
+    expect(fake.queue.get("s1")).toHaveLength(1); expect(fake.commits).toEqual([]);
+  });
+  it("serializes repeated polls while the same queue item is being admitted", async () => {
+    const fake = createFakeStore(); fake.queue.set("s1", [makeItem("q-1", "run-1")]);
+    const poll = createRunAdjustmentPoller("s1", "run-1", fake.store);
+    let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
+    const handler = vi.fn(async (_ticket, commit) => { await gate; return commit(); });
+    bindRunAdjustmentPoller(poll, { sessionId: "s1", runId: "run-1" }, handler);
+    const first = poll(), concurrent = poll(); release();
+    expect(await first).toHaveLength(1); expect(await concurrent).toEqual([]);
+    expect(handler).toHaveBeenCalledOnce(); expect(fake.commits).toHaveLength(1);
+  });
+});
+
+it("a released Main-bound poller cannot fall back to unguarded legacy commits",async()=>{
+ const fake=createFakeStore(),transcript=createFakeTranscript();fake.queue.set("s1",[makeItem("q-1","run-1")]);
+ const poll=createRunAdjustmentPoller("s1","run-1",fake.store,transcript.port);
+ const release=bindRunAdjustmentPoller(poll,{sessionId:"s1",runId:"run-1"},async(_permit,commit)=>commit());
+ release();await expect(poll()).rejects.toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
+ expect(fake.queue.get("s1")).toHaveLength(1);expect(fake.commits).toEqual([]);expect(transcript.calls).toEqual([]);
+ expect(()=>bindRunAdjustmentPoller(poll,{sessionId:"s1",runId:"run-1"},async(_permit,commit)=>commit())).toThrow("MEMORY_CONTEXT_ADJUSTMENT_DENIED");
 });

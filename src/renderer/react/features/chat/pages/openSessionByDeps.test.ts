@@ -6,8 +6,11 @@ import {
 } from "./openSessionByDeps";
 
 describe("bootstrapReactSession", () => {
+  it("opens persisted Learn sessions as Work", () => {
+    expect(normalizeSessionMode("learn")).toBe("work");
+  });
   it("opens the URL session and refreshes its list without selecting again", async () => {
-    const openSession = vi.fn(async () => true);
+    const openSession = vi.fn(async () => ({ status: "opened", mode: "work" } as const));
     const refreshSessions = vi.fn(async () => {});
 
     await bootstrapReactSession({
@@ -27,7 +30,7 @@ describe("bootstrapReactSession", () => {
     await bootstrapReactSession({
       urlSessionId: "missing",
       currentMode: "work",
-      openSession: async () => false,
+      openSession: async () => ({ status: "unavailable" }),
       refreshSessions,
     });
 
@@ -35,7 +38,7 @@ describe("bootstrapReactSession", () => {
   });
 
   it("refreshes and selects immediately when there is no URL session", async () => {
-    const openSession = vi.fn(async () => true);
+    const openSession = vi.fn(async () => ({ status: "opened", mode: "work" } as const));
     const refreshSessions = vi.fn(async () => {});
 
     await bootstrapReactSession({
@@ -73,8 +76,8 @@ describe("normalizeSessionMode", () => {
     expect(normalizeSessionMode("daily")).toBe("work");
   });
 
-  it("'learn' 返回 'learn'", () => {
-    expect(normalizeSessionMode("learn")).toBe("learn");
+  it("'learn' 返回 'work'", () => {
+    expect(normalizeSessionMode("learn")).toBe("work");
   });
 
   it("undefined / 未知 / 空串都返回 null", () => {
@@ -85,31 +88,34 @@ describe("normalizeSessionMode", () => {
 });
 
 describe("openSessionByIdWithDeps", () => {
-  it("code 会话：selectSession(id, 'code') 被调用，返回 true", async () => {
-    const selectSession = vi.fn(async () => {});
+  it("code 会话：selectSession(id, 'code') 被调用，返回 opened", async () => {
+    const selectSession = vi.fn(async () => "selected" as const);
     const result = await openSessionByIdWithDeps({
+      isCurrent: () => true,
       sessionId: "code-1",
       getSession: async () => ({ mode: "code" }),
       selectSession,
     });
-    expect(result).toBe(true);
+    expect(result).toEqual({ status: "opened", mode: "code" });
     expect(selectSession).toHaveBeenCalledWith("code-1", "code");
   });
 
   it("work 会话：selectSession(id, 'work') 被调用", async () => {
-    const selectSession = vi.fn(async () => {});
+    const selectSession = vi.fn(async () => "selected" as const);
     const result = await openSessionByIdWithDeps({
+      isCurrent: () => true,
       sessionId: "work-1",
       getSession: async () => ({ mode: "work" }),
       selectSession,
     });
-    expect(result).toBe(true);
+    expect(result).toEqual({ status: "opened", mode: "work" });
     expect(selectSession).toHaveBeenCalledWith("work-1", "work");
   });
 
   it("历史 daily 会话：按 Work 打开", async () => {
-    const selectSession = vi.fn(async () => {});
+    const selectSession = vi.fn(async () => "selected" as const);
     await openSessionByIdWithDeps({
+      isCurrent: () => true,
       sessionId: "daily-1",
       getSession: async () => ({ mode: "daily" }),
       selectSession,
@@ -117,43 +123,47 @@ describe("openSessionByIdWithDeps", () => {
     expect(selectSession).toHaveBeenCalledWith("daily-1", "work");
   });
 
-  it("learn 会话：selectSession(id, 'learn') 被调用，返回 true", async () => {
-    const selectSession = vi.fn(async () => {});
+  it("旧 learn 会话：selectSession(id, 'work') 被调用，返回 opened", async () => {
+    const selectSession = vi.fn(async () => "selected" as const);
     const result = await openSessionByIdWithDeps({
+      isCurrent: () => true,
       sessionId: "learn-1",
       getSession: async () => ({ mode: "learn" }),
       selectSession,
     });
-    expect(result).toBe(true);
-    expect(selectSession).toHaveBeenCalledWith("learn-1", "learn");
+    expect(result).toEqual({ status: "opened", mode: "work" });
+    expect(selectSession).toHaveBeenCalledWith("learn-1", "work");
   });
 
-  it("unknown / missing mode：selectSession 不被调用，返回 false", async () => {
-    const selectSession = vi.fn(async () => {});
+  it("unknown / missing mode：selectSession 不被调用，返回 unavailable", async () => {
+    const selectSession = vi.fn(async () => "selected" as const);
     const result = await openSessionByIdWithDeps({
+      isCurrent: () => true,
       sessionId: "x-1",
       getSession: async () => ({}), // mode 缺失
       selectSession,
     });
-    expect(result).toBe(false);
+    expect(result).toEqual({ status: "unavailable" });
     expect(selectSession).not.toHaveBeenCalled();
   });
 
-  it("会话不存在：selectSession 不被调用，返回 false", async () => {
-    const selectSession = vi.fn(async () => {});
+  it("会话不存在：selectSession 不被调用，返回 unavailable", async () => {
+    const selectSession = vi.fn(async () => "selected" as const);
     const result = await openSessionByIdWithDeps({
+      isCurrent: () => true,
       sessionId: "ghost",
       getSession: async () => null,
       selectSession,
     });
-    expect(result).toBe(false);
+    expect(result).toEqual({ status: "unavailable" });
     expect(selectSession).not.toHaveBeenCalled();
   });
 
   it("getSession reject：异常向上抛", async () => {
-    const selectSession = vi.fn(async () => {});
+    const selectSession = vi.fn(async () => "selected" as const);
     await expect(
       openSessionByIdWithDeps({
+        isCurrent: () => true,
         sessionId: "x",
         getSession: async () => {
           throw new Error("disk full");

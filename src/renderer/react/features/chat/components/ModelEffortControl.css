@@ -1,0 +1,55 @@
+/* Model + thinking-effort control: one trigger, one panel (slider over the supported levels, model list one step away). */
+.cy-model-effort { margin-left: auto; gap: 6px; max-width: 260px; }
+.cy-model-effort__model { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cy-model-effort__effort { color: var(--cy-text-muted); font-weight: 400; white-space: nowrap; }
+
+.cy-model-popover .ant-popover-inner {
+  padding: 8px;
+  border: 1px solid var(--cy-border);
+  border-radius: 14px;
+  background: var(--cy-popover);
+  box-shadow: var(--cy-shadow-popover);
+}
+
+.cy-model-panel { width: 260px; }
+
+/* Effort panel: current level on top, model name under it, slider with one stop per level. */
+.cy-effort { display: grid; gap: 14px; padding: 6px 8px 8px; }
+.cy-effort__head { display: grid; justify-items: center; gap: 2px; }
+.cy-effort__value { color: var(--cy-accent); font: 600 15px/1.3 var(--rb-font-sans, sans-serif); }
+.cy-effort__model {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--cy-text-muted); font: 500 12px/1.4 var(--rb-font-sans, sans-serif); cursor: pointer;
+}
+.cy-effort__model:hover { background: var(--cy-bg-hover); color: var(--cy-text); }
+.cy-effort__model svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cy-effort__note { margin: 0; color: var(--cy-text-muted); font: 400 12px/1.5 var(--rb-font-sans, sans-serif); text-align: center; }
+
+.cy-effort__slider.ant-slider { margin: 4px 10px 10px; }
+.cy-effort__slider .ant-slider-rail { height: 10px; border-radius: 999px; background: var(--cy-bg-active); }
+.cy-effort__slider .ant-slider-track { height: 10px; border-radius: 999px; background: var(--cy-accent); }
+.cy-effort__slider .ant-slider-step { height: 10px; }
+.cy-effort__slider .ant-slider-dot { width: 4px; height: 4px; top: 3px; border: 0; background: var(--cy-text-muted); opacity: .55; }
+.cy-effort__slider .ant-slider-dot-active { background: var(--cy-bg-page); opacity: .8; }
+.cy-effort__slider .ant-slider-handle::before { display: none; }
+.cy-effort__slider .ant-slider-handle::after {
+  width: 18px; height: 18px; inset-inline-start: -2px; inset-block-start: -2px;
+  border: 1px solid rgba(0, 0, 0, 0.12); background: #f4f7f5; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.cy-effort__slider:hover .ant-slider-track { background: var(--cy-accent); }
+
+/* Model list. */
+.cy-model-list { display: grid; gap: 2px; max-height: 320px; overflow-y: auto; }
+.cy-model-list__back, .cy-model-list__item {
+  display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 10px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--cy-text); font: 500 13px/1.3 var(--rb-font-sans, sans-serif); text-align: left; cursor: pointer;
+}
+.cy-model-list__back { color: var(--cy-text-muted); font-size: 12px; }
+.cy-model-list__back:hover, .cy-model-list__item:hover { background: var(--cy-bg-hover); color: var(--cy-text); }
+.cy-model-list__item.is-active { background: var(--cy-bg-active); }
+.cy-model-list__back svg, .cy-model-list__item svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cy-model-list__item > svg { margin-left: auto; color: var(--cy-accent); }
+.cy-model-list__name { display: grid; min-width: 0; gap: 1px; }
+.cy-model-list__name strong { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.cy-model-list__name small { overflow: hidden; color: var(--cy-text-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.cy-model-list__note { padding: 10px; color: var(--cy-text-muted); font-size: 12.5px; }

@@ -15,6 +15,9 @@ import { createChannelRateLimiter } from "./rate-limiter";
 import { createChannelDeliveryService } from "./delivery-service";
 import type { ChannelsSettings } from "./settings-store";
 import type { IncomingMessage } from "./types";
+import { ChannelManager } from "./manager";
+import { createChannelMemoryAccountIdentity, type ChannelAdapter } from "./adapters/base";
+import { requireChannelMemoryIngress } from "../memory-context/channel-memory-ingress";
 
 vi.mock("electron", () => ({
   app: {
@@ -387,21 +390,16 @@ describe("channels/dispatcher", () => {
   it.each([
     ["发送成功", { ok: true } as const, false],
     ["发送失败", { ok: false, error: "offline" } as const, true],
-  ])("%s后清理本轮生成的临时音频", async (_name, deliveryResult, expectsNull) => {
+  ])("%s后清理普通临时音频附件", async (_name, deliveryResult, expectsNull) => {
     const files = new Map<string, Buffer>();
     let filePresentDuringSend = false;
-    const composer = createOutgoingComposer({
-      audioDirectory: "C:/virtual/channels/audio",
-      createId: () => "reply-audio",
-      writeFile: async (filePath, data) => {
-        files.set(filePath, data);
-      },
-      removeFile: async (filePath) => {
-        files.delete(filePath);
-      },
-      synthesizeTts: async () => Buffer.from("audio"),
-      resolveStickerImagePath: () => null,
-    });
+    const audioPath = "C:/virtual/attachment.mp3";
+    files.set(audioPath, Buffer.from("ordinary audio attachment"));
+    const cleanup = createOutgoingComposer({ removeFile: async (filePath) => { files.delete(filePath); } });
+    const composer = {
+      ...cleanup,
+      compose: async (input) => ({ ...(await cleanup.compose(input)), message: { channel: input.incoming.channel, targetId: input.incoming.chatId, parts: [{ kind: "audio" as const, filePath: audioPath }] }, transientFiles: [audioPath] }),
+    };
     const manager = {
       getAdapter: () => ({
         capability: {
@@ -429,7 +427,7 @@ describe("channels/dispatcher", () => {
           return deliveryResult;
         },
       },
-      buildAndRunAgent: vi.fn(async () => ({ text: "语音回复", sticker: null })),
+      buildAndRunAgent: vi.fn(async () => ({ text: "附件回复", sticker: null })),
     });
 
     const result = await dispatcher.handleIncoming(makeIncoming({ channel: "feishu" }));
@@ -574,4 +572,40 @@ describe("channels/dispatcher", () => {
       await Promise.all([first, second]);
     }
   });
+});
+
+
+it("passes the exact manager ingress through dispatch and never reads bound desktop history for memory runs", async () => {
+  const identity = createChannelMemoryAccountIdentity(); identity.authenticate("qq:synthetic");
+  const adapter: ChannelAdapter = { id: "qq", displayName: "synthetic", onMessage: null, capability: {} as never,
+    start: async () => {}, stop: async () => {}, send: async () => ({ ok: true }), getMemoryAccountIdentity: identity.read,
+    getStatus: () => ({ enabled: true, phase: "running" }) };
+  const manager = new ChannelManager(); manager.register(adapter);
+  const buildAndRunAgent = vi.fn(async () => ({ text: "reply", sticker: null }));
+  const context = {
+    resolveDispatchContext: vi.fn((sessionId: string) => ({ sessionId, boundConversationId: "desktop-binding" })),
+    recordIncomingSession: vi.fn(), resolvePriorMessages: vi.fn(async () => [{ role: "user", content: "desktop secret" }]),
+    appendIncomingContext: vi.fn(), appendAssistantContext: vi.fn(),
+  } as unknown as ChannelContext;
+  const dispatcher = new ChannelDispatcher({ memoryEnabled: true, context, buildAndRunAgent,
+    queue: createKeyedQueue({ maxPendingPerKey: 20 }), limiter: createChannelRateLimiter({ limits: { perUser: 10, perChannel: 100 } }),
+    composer: { compose: async () => ({ message: { channel: "qq", targetId: "chat", parts: [{ kind: "text", text: "reply" }] }, assistantText: "reply", transientFiles: [] }), cleanupTransientFiles: async () => {} },
+    delivery: { send: async () => ({ ok: true }) } as unknown as DispatcherDeps["delivery"],
+    loadSettings: () => ({ rateLimitPerUser: 10, rateLimitPerChannel: 100, mirrorToDesktop: false }) as ChannelsSettings,
+    loadGeneralSettings: () => ({}),
+  });
+  manager.setDispatcher((message, ingress) => dispatcher.handleIncoming(message, ingress)); await manager.startOne("qq");
+  const message: IncomingMessage = { channel: "qq", chatId: "chat", senderId: "sender", text: "hello", at: new Date() };
+  await adapter.onMessage!(message);
+  expect(buildAndRunAgent).toHaveBeenCalledTimes(1);
+  const args = (buildAndRunAgent.mock.calls as unknown as unknown[][])[0], binding = requireChannelMemoryIngress(args[3], message);
+  expect(args[0]).toBe(message); expect(args[1]).toBe(binding.sessionId); expect(args[2]).toEqual([]);
+  expect(context.resolvePriorMessages).not.toHaveBeenCalled();
+  expect(context.appendIncomingContext).toHaveBeenCalledTimes(1);
+  await expect(dispatcher.handleIncoming(message, {} as never)).rejects.toThrow("MEMORY_CHANNEL_INGRESS_DENIED");
+  expect(buildAndRunAgent).toHaveBeenCalledTimes(1);
+  buildAndRunAgent.mockImplementationOnce(async () => { identity.revoke(); return { text: "late reply", sticker: null }; });
+  const late = await adapter.onMessage!({ ...message, text: "second event" });
+  expect(late).toBeNull();
+  expect(context.appendAssistantContext).toHaveBeenCalledTimes(1);
 });

@@ -78,11 +78,11 @@ describe("readManifest", () => {
     expect(readManifest(dir)).toBeNull();
   });
 
-  it("接受五项新能力作为 deps", () => {
+  it("接受四项可用能力作为 deps", () => {
     const dir = fixture("new-deps", {
       "manifest.json": JSON.stringify({
         ...validManifest,
-        deps: ["secrets", "workspace", "conversations", "scheduler", "speech-input"],
+        deps: ["secrets", "workspace", "conversations", "scheduler"],
       }),
       "index.cjs": `module.exports = { register() {} };`,
     });
@@ -90,9 +90,7 @@ describe("readManifest", () => {
       "secrets",
       "workspace",
       "conversations",
-      "scheduler",
-      "speech-input",
-    ]);
+      "scheduler",    ]);
   });
 
   it("拒绝未知顶层字段（Schema 字段白名单）", () => {

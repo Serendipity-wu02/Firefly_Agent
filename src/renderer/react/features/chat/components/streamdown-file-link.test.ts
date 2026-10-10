@@ -12,7 +12,7 @@ describe("Streamdown workspace file-link placeholder", () => {
 
     expect(encoded).toMatch(/^https:\/\/firefly\.invalid\/__file-link__\//);
     expect(decodeStreamdownFileHref(encoded)).toBe(href);
-    expect(decodeStreamdownFileHref(encoded.replace("firefly.invalid", "cyrene.invalid"))).toBe(href);
+    expect(decodeStreamdownFileHref(encoded.replace("firefly.invalid", "attacker.invalid"))).toBeNull();
   });
 
   it("leaves non-file URLs unchanged", () => {
@@ -20,7 +20,7 @@ describe("Streamdown workspace file-link placeholder", () => {
   });
 
   it("rejects malformed and foreign placeholders", () => {
-    expect(decodeStreamdownFileHref("https://cyrene.invalid/__file-link__/not-base64!")).toBeNull();
+    expect(decodeStreamdownFileHref("https://firefly.invalid/__file-link__/not-base64!")).toBeNull();
     expect(decodeStreamdownFileHref("https://attacker.invalid/__file-link__/ZmlsZTovLy9FL3g")).toBeNull();
   });
 

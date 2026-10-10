@@ -50,6 +50,7 @@ export async function executeReadToolResult(
     if (query !== undefined) {
       const found = await store.find({
         conversationId: toolContext!.conversationId!,
+        ownerSessionId: toolContext?.ownerSessionId,
         resultRef: resultRef.value,
         query,
       });
@@ -71,6 +72,7 @@ export async function executeReadToolResult(
     }
     const read = await store.read({
       conversationId: toolContext!.conversationId!,
+      ownerSessionId: toolContext?.ownerSessionId,
       resultRef: resultRef.value,
       offset,
       length,

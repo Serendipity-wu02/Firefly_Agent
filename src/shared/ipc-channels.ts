@@ -8,27 +8,13 @@ export interface ScreenshotInsertPayload {
   hasAnnotations: boolean;
 }
 
-/** 语音输入提交请求（main → 聊天窗口渲染页）：把外部识别文本提交到冻结的会话。 */
-export interface SpeechInputCommitRequest {
-  /** 本次提交的关联标识；结果必须原样回显。 */
-  requestId: string;
-  /** 租约冻结的渲染目标标识；页面据此识别过期请求。 */
-  rendererTargetId: string;
-  sessionId: string;
-  mode: "chat" | "work" | "learn" | "code";
-  text: string;
-}
 
-/** 语音输入提交结果（渲染页 → main）：必须回显 requestId 与 rendererTargetId。 */
-export interface SpeechInputCommitResult {
-  requestId: string;
-  rendererTargetId: string;
-  ok: boolean;
-  /** ok 为 false 时的稳定错误码（PluginHostErrorCode 之一）与说明。 */
-  error?: { code: string; message: string };
-}
 
 export const IPC = {
+  BROWSER_AVAILABILITY: "browser:availability",
+  BROWSER_PERMISSION: "browser:permission",
+  BROWSER_COMMAND: "browser:command",
+  BROWSER_CHANGED: "browser:changed",
   // pet window
   WINDOW_MINIMIZE: "window:minimize",
   WINDOW_CLOSE: "window:close",
@@ -48,6 +34,12 @@ export const IPC = {
   APP_UPDATE_DOWNLOAD: "app-update:download",
   APP_UPDATE_INSTALL: "app-update:install",
   APP_UPDATE_STATE: "app-update:state",
+
+  // Explicit, standalone desktop dictation
+  DESKTOP_ASR_START: "desktop-asr:start",
+  DESKTOP_ASR_FRAME: "desktop-asr:frame",
+  DESKTOP_ASR_STOP: "desktop-asr:stop",
+  DESKTOP_ASR_CANCEL: "desktop-asr:cancel",
 
   // chat window
   CHAT_MINIMIZE: "chat:minimize",
@@ -99,23 +91,8 @@ export const IPC = {
   SIDEBAR_CLOSE: "sidebar:close",
   SIDEBAR_TOGGLE_ALWAYS_ON_TOP: "sidebar:toggle-always-on-top",
   SIDEBAR_OPEN_SETTINGS: "sidebar:open-settings",
-  SIDEBAR_OPEN_TASKS: "sidebar:open-tasks",
-  SIDEBAR_OPEN_CALL: "sidebar:open-call",
 
   // tasks window (read-only display, no per-element interactions)
-  TASKS_CLOSE: "tasks:close",
-  TASKS_MINIMIZE: "tasks:minimize",
-
-  // Moments（动态 / 朋友圈）
-  MOMENTS_LIST: "moments:list",
-  MOMENTS_GET_POST: "moments:get-post",
-  MOMENTS_CREATE_POST: "moments:create-post",
-  MOMENTS_DELETE_POST: "moments:delete-post",
-  MOMENTS_CREATE_COMMENT: "moments:create-comment",
-  MOMENTS_TOGGLE_LIKE: "moments:toggle-like",
-  MOMENTS_CHANGED: "moments:changed",
-  // 点名名单：@ 选择框数据源（流萤 + 全部入驻角色）
-  MOMENTS_LIST_CHARACTERS: "moments:list-characters",
 
   // settings window
   SETTINGS_MINIMIZE: "settings:minimize",
@@ -128,12 +105,16 @@ export const IPC = {
   SETTINGS_MODEL_PROFILE_SAVE: "settings:model-profiles:save",
   SETTINGS_MODEL_PROFILE_DELETE: "settings:model-profiles:delete",
   SETTINGS_MODEL_PROFILE_SET_DEFAULT: "settings:model-profiles:set-default",
+  SETTINGS_AGENT_ROUTING_GET: "settings:agent-routing:get",
+  SETTINGS_AGENT_ROUTING_UPDATE: "settings:agent-routing:update",
   SETTINGS_TEST_CONNECTION: "settings:test-connection",
   SETTINGS_TEST_VISION: "settings:test-vision",
   SETTINGS_GET_GENERAL: "settings:get-general",
   SETTINGS_SAVE_GENERAL: "settings:save-general",
   SETTINGS_GET_TIMEOUT_SETTINGS: "settings:get-timeout-settings",
   SETTINGS_SAVE_TIMEOUT_SETTINGS: "settings:save-timeout-settings",
+  UI_COLORS_GET: "ui-colors:get",
+  UI_COLORS_CHANGED: "ui-colors:changed",
   UI_THEME_GET: "ui-theme:get",
   UI_THEME_CHANGED: "ui-theme:changed",
   UI_THEME_RADIUS_GET: "ui-theme-radius:get",
@@ -148,8 +129,6 @@ export const IPC = {
   SETTINGS_RESET_UI_FONT: "settings:reset-ui-font",
   SETTINGS_OPEN_SIDEBAR: "settings:open-sidebar",
   SETTINGS_CLOSE_SIDEBAR: "settings:close-sidebar",
-  SETTINGS_OPEN_TASKS: "settings:open-tasks",
-  SETTINGS_CLOSE_TASKS: "settings:close-tasks",
   SETTINGS_SET_PET_ALWAYS_ON_TOP: "settings:set-pet-always-on-top",
   SETTINGS_SET_PET_VISIBLE: "settings:set-pet-visible",
   SETTINGS_SET_PET_ZOOM: "settings:set-pet-zoom",
@@ -169,7 +148,7 @@ export const IPC = {
   CHATS_CREATE: "chats:create",
   CHATS_APPEND: "chats:append",
   CHATS_UPSERT: "chats:upsert",
-  CHATS_SET_MESSAGE_TTS_CACHE: "chats:set-message-tts-cache",
+
   CHATS_REPLACE_MESSAGES: "chats:replace-messages",
   CHATS_REPLACE_TAIL: "chats:replace-tail",
   // renderer → main：主动压缩会话上下文（模型窗口内旧消息摘要成一条记忆）
@@ -191,7 +170,6 @@ export const IPC = {
   CHATS_SET_MODEL_PROFILE: "chats:set-model-profile",
   CHATS_OPEN_FOLDER: "chats:open-folder",
   CHATS_OPEN_WORKSPACE: "chats:open-workspace",
-  CHATS_MIGRATE_LEGACY: "chats:migrate-legacy",
   // 任意会话变动后 main → 所有渲染窗口 broadcast，触发列表/标题刷新
   CHATS_CHANGED: "chats:changed",
   // 状态栏 → main：要求打开/复用 reactChatWindow 并加载指定 sessionId
@@ -206,13 +184,6 @@ export const IPC = {
   CHATS_GET_ACTIVE_SESSION: "chats:get-active-session",
   // main → 所有窗口：活跃 sessionId 变化时广播
   CHATS_ACTIVE_SESSION_CHANGED: "chats:active-session-changed",
-
-  // 语音输入提交桥（主进程 ↔ 聊天窗口渲染页，仅供宿主内部使用，插件不直接接触）
-  // main → reactChatWindow：要求把外部语音识别文本提交到租约冻结的会话
-  SPEECH_INPUT_COMMIT_REQUEST: "speech-input:commit-request",
-  // reactChatWindow → main：提交结果（必须回显 requestId 与 rendererTargetId）
-  SPEECH_INPUT_COMMIT_RESULT: "speech-input:commit-result",
-
   // 对话工作区绑定
   // renderer → main：设置当前对话的工作区目录
   CHATS_SET_WORKSPACE: "chats:set-workspace",
@@ -222,8 +193,7 @@ export const IPC = {
   CHATS_CLEAR_WORKSPACE: "chats:clear-workspace",
   // renderer → main：打开文件夹选择器
   CHATS_PICK_WORKSPACE_FOLDER: "chats:pick-workspace-folder",
-  // renderer → main：为 Learn 模式初始化工作区结构（只创建缺失文件）
-  CHATS_INIT_LEARN_WORKSPACE: "chats:init-learn-workspace",
+  // renderer → main：显式初始化知识工作区结构（只创建缺失文件）
   // main → 所有窗口：工作区绑定变更广播
   CHATS_WORKSPACE_CHANGED: "chats:workspace-changed",
 
@@ -238,6 +208,8 @@ export const IPC = {
   WORKSPACE_FILES_LIST: "workspace-files:list",
   // renderer → main：读取工作区内某文件的内容（预览用，带大小/二进制限制）
   WORKSPACE_FILES_READ: "workspace-files:read",
+  /** Native-confirmed, exact-file text save. */
+  WORKSPACE_FILES_SAVE: "workspace-files:save",
 
   // 工作区右上角"打开"菜单（用本机应用打开工作区根目录）
   // renderer → main：探测本机可打开工作区的应用（VSCode / Cursor 等，进程内缓存）
@@ -257,16 +229,14 @@ export const IPC = {
 
   // public model config updates (no API key)
   MODEL_CONFIG_GET: "model-config:get",
+  MODEL_CONNECTION_GET: "model-connection:get",
+  MODEL_CONNECTION_CHANGED: "model-connection:changed",
   MODEL_CONFIG_CHANGED: "model-config:changed",
 
   // runtime state updates (status / feeling / expression)
   RUNTIME_STATE_GET: "runtime-state:get",
   RUNTIME_STATE_CHANGED: "runtime-state:changed",
 
-  // Live2D speech / mouth sync
-  LIVE2D_SPEECH_PREPARE: "live2d:speech-prepare",
-  LIVE2D_MOUTH_START: "live2d:mouth-start",
-  LIVE2D_MOUTH_STOP: "live2d:mouth-stop",
   LIVE2D_PLAY_ACTION: "live2d:play-action",        // 主进程 → 桌宠窗口：执行动作（motion 或 expression）
   LIVE2D_ACTION_RECEIPT: "live2d:action-receipt",
   LIVE2D_GET_MAIN_DIAGNOSTICS: "live2d:get-main-diagnostics",
@@ -287,6 +257,9 @@ export const IPC = {
   USER_AVATAR_CHANGED: "user:avatar-changed",
 
   // memory panel
+  MEMORY_PANEL_GET_STATE: "memory-panel:get-state",
+  MEMORY_PANEL_APPLY_ACTION: "memory-panel:apply-action",
+  MEMORY_PANEL_AUDIT_SOURCE: "memory-panel:audit-source",
   MEMORY_PANEL_GET_DATA: "memory-panel:get-data",
   MEMORY_PANEL_DELETE_IMPORTED_DOC: "memory-panel:delete-imported-doc",
   MEMORY_PANEL_SAVE_L0: "memory-panel:save-l0",
@@ -306,7 +279,7 @@ export const IPC = {
   // tool (plugin) toggle
   TOOL_SET_ENABLED: "tool:set-enabled",
   TOOL_GET_ENABLED: "tool:get-enabled",
-  // tool-mode override (三模适配层：用户自定义工具在 learn/code/work 模式下的可见性)
+  // tool-mode override (三模适配层：用户自定义工具在 chat/work/code 模式下的可见性)
   TOOL_GET_MODE_OVERRIDES: "tool:get-mode-overrides",
   TOOL_SET_MODE_OVERRIDE: "tool:set-mode-override",
   TOOL_CLEAR_MODE_OVERRIDE: "tool:clear-mode-override",
@@ -316,7 +289,12 @@ export const IPC = {
   // skill toggle
   SKILL_LIST: "skill:list",
   SKILL_SET_ENABLED: "skill:set-enabled",
-  // skill-mode override（三模适配层：用户自定义 skill 在 work/code/learn 模式下的可见性）
+  EXTERNAL_SKILLS_LIST: "external-skills:list",
+  EXTERNAL_SKILLS_DETAIL: "external-skills:detail",
+  EXTERNAL_SKILLS_PREPARE: "external-skills:prepare",
+  EXTERNAL_SKILLS_COMMIT: "external-skills:commit",
+  EXTERNAL_SKILLS_CANCEL: "external-skills:cancel",
+  // skill-mode override（用户自定义 skill 在 work/code 模式下的可见性）
   SKILL_GET_MODE_OVERRIDES: "skill:get-mode-overrides",
   SKILL_SET_MODE_OVERRIDE: "skill:set-mode-override",
   SKILL_CLEAR_MODE_OVERRIDE: "skill:clear-mode-override",
@@ -334,38 +312,14 @@ export const IPC = {
   SCHEDULER_FIRE_NOW: "scheduler:fire-now",
   SCHEDULER_GET_HISTORY: "scheduler:get-history",
   SCHEDULER_GET_TOOLS: "scheduler:get-tools",
-  SCHEDULER_CHANGED: "scheduler:changed",  // main → renderer：任务列表变更通知
 
   // token usage statistics
   TOKEN_USAGE_GET: "token-usage:get",
   TOKEN_USAGE_CLEAR: "token-usage:clear",
-
-  // TTS 语音合成
-  TTS_UPLOAD: "tts:upload",          // 上传音频文件 → file_id
-  TTS_CLONE: "tts:clone",           // 音色快速复刻 → voice_id
-  TTS_SYNTHESIZE: "tts:synthesize", // 语音合成 → audio buffer(base64)
-  TTS_SYNTHESIZE_CACHED: "tts:synthesize-cached", // 语音合成 + 本地音频缓存
-  // 流式语音合成（边合成边播，首字延迟低）
-  TTS_STREAM_START: "tts:stream-start",           // 渲染端 → main：启动流式合成
-  TTS_AUDIO_CHUNK: "tts:audio-chunk",             // main → 渲染端：推一段音频 base64
-  TTS_STREAM_END: "tts:stream-end",               // main → 渲染端：流式结束（含 cacheKey）
-  TTS_STREAM_ERROR: "tts:stream-error",           // main → 渲染端：流式错误
-  TTS_SESSION_START: "tts:session-start",
-  TTS_SESSION_CANCEL: "tts:session-cancel",
-  TTS_SESSION_EVENT: "tts:session-event",
-  TTS_SAVE_SETTINGS: "tts:save-settings",   // 保存 TTS 配置
-  TTS_LOAD_SETTINGS: "tts:load-settings",   // 加载 TTS 配置
-  TTS_PICK_AUDIO: "tts:pick-audio",         // 选择音频文件（dialog）
-  TTS_SYNTHESIZE_GPTSOVITS: "tts:synthesize-gptsovits",             // GPT-SoVITS 合成 → base64
-  TTS_SYNTHESIZE_CACHED_GPTSOVITS: "tts:synthesize-cached-gptsovits", // GPT-SoVITS 合成 + 本地缓存
-  TTS_SYNTHESIZE_CUSTOM_CLOUD: "tts:synthesize-custom-cloud",             // 自定义云端 TTS 合成 → base64
-  TTS_SYNTHESIZE_CACHED_CUSTOM_CLOUD: "tts:synthesize-cached-custom-cloud", // 自定义云端 TTS 合成 + 本地缓存
-  TTS_SYNTHESIZE_MIMO: "tts:synthesize-mimo",             // 小米 MiMo TTS 合成 → base64
-  TTS_SYNTHESIZE_CACHED_MIMO: "tts:synthesize-cached-mimo", // 小米 MiMo TTS 合成 + 本地缓存
-  TTS_SYNTHESIZE_MOSSLAND: "tts:synthesize-mossland",       // Mossland (api.mosi.cn) 合成 → base64
-  TTS_SYNTHESIZE_CACHED_MOSSLAND: "tts:synthesize-cached-mossland", // Mossland 合成 + 本地缓存
-  TTS_CLONE_MOSSLAND: "tts:clone-mossland",           // Mossland 克隆音色（multipart 上传）
-  TTS_LIST_MOSSLAND_VOICES: "tts:list-mossland-voices", // Mossland 拉取账号下音色列表
+               // main → 渲染端：推一段音频 base64
+                 // main → 渲染端：流式结束（含 cacheKey）
+             // main → 渲染端：流式错误
+           // 选择音频文件（dialog）
 
   // agent permission level (file/shell access)
   PERMISSION_GET_LEVEL: "permission:get-level",
@@ -388,7 +342,7 @@ export const IPC = {
   // renderer → main：回传用户选择
   CHOICE_RESOLVE: "choice:resolve",
 
-  // pop_quiz 抽查测试（learn 模式）
+  // pop_quiz 抽查测试（Work 模式）
   // 与审批流同构：不设超时、10s 幂等重播、结算统一广播
   // main → renderer：推送抽查卡片（重复推送同 id 覆盖，用于渲染端恢复）
   POP_QUIZ_REQUEST: "pop-quiz:request",
@@ -398,18 +352,6 @@ export const IPC = {
   POP_QUIZ_SKIP: "pop-quiz:skip",
   // main → renderer：结算广播（提交/跳过/run 取消），渲染端据此清卡
   POP_QUIZ_SETTLED: "pop-quiz:settled",
-
-  // call window (voice call)
-  CALL_OPEN: "call:open",                 // sidebar → main：打开通话窗口
-  CALL_START: "call:start",               // renderer → main：开始通话（初始化 ASR）
-  CALL_AUDIO_FRAME: "call:audio-frame",    // renderer → main：PCM 音频帧
-  CALL_ASR_RESULT: "call:asr-result",     // main → renderer：ASR 识别结果
-  CALL_TURN_END: "call:turn-end",         // renderer → main：VAD 静默，结束本轮
-  CALL_TTS_AUDIO: "call:tts-audio",       // main → renderer：TTS 音频
-  CALL_TTS_DONE: "call:tts-done",         // renderer → main：TTS 播放完毕
-  CALL_STATE: "call:state",               // main → renderer：状态变更
-  CALL_ERROR: "call:error",               // main → renderer：错误
-  CALL_STOP: "call:stop",                 // renderer → main：挂断
 
   // 多渠道（微信/飞书/QQ/QQ 机器人）
   CHANNELS_GET_CONFIG: "channels:get-config",

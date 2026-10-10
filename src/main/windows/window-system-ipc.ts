@@ -4,7 +4,6 @@ import { createIpcScope, type IpcScope } from "../application/ipc-scope";
 import { clearUsage, getUsageReport } from "../token-usage-store";
 import {
   sidebarWindow,
-  tasksWindow,
   settingsWindow,
 } from "./window-state";
 import type { WindowManager } from "./window-manager";
@@ -75,25 +74,10 @@ export function registerWindowSystemIpc(deps: WindowSystemIpcDependencies): void
     return next;
   });
 
-  ipc.on(IPC.SIDEBAR_OPEN_TASKS, () => {
-    deps.windowManager?.createTasksWindow();
-  });
-
   ipc.on(IPC.SIDEBAR_OPEN_SETTINGS, (_event, section?: string) => {
     deps.windowManager?.createSettingsWindow(section);
   });
 
-  ipc.on(IPC.SIDEBAR_OPEN_CALL, () => {
-    deps.windowManager?.createCallWindow();
-  });
-
-  ipc.on(IPC.TASKS_MINIMIZE, () => {
-    tasksWindow?.minimize();
-  });
-
-  ipc.on(IPC.TASKS_CLOSE, () => {
-    tasksWindow?.close();
-  });
   ipc.on(IPC.SETTINGS_MINIMIZE, () => {
     settingsWindow?.minimize();
   });
@@ -125,15 +109,6 @@ export function registerWindowSystemIpc(deps: WindowSystemIpcDependencies): void
     clearUsage();
   });
 
-  ipc.on(IPC.LIVE2D_SPEECH_PREPARE, () => {
-    deps.windowManager?.sendToPetWindow(IPC.LIVE2D_SPEECH_PREPARE);
-  });
-  ipc.on(IPC.LIVE2D_MOUTH_START, (_event, payload: { durationMs?: number }) => {
-    deps.windowManager?.sendToPetWindow(IPC.LIVE2D_MOUTH_START, { durationMs: Number(payload?.durationMs ?? 0) });
-  });
-  ipc.on(IPC.LIVE2D_MOUTH_STOP, () => {
-    deps.windowManager?.sendToPetWindow(IPC.LIVE2D_MOUTH_STOP);
-  });
   ipc.on(IPC.LIVE2D_ACTION_RECEIPT, (event, receipt: Live2DActionReceipt) => {
     if (!deps.windowManager?.isPetWindowSender(event.sender.id)) return;
     if (!receipt || typeof receipt.requestId !== "string") return;

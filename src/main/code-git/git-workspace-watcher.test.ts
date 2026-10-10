@@ -1,10 +1,56 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFailed, vi } from "vitest";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
-import { createCodeGitIgnoredPredicate, createGitWorkspaceWatcher, type WorkspaceFsWatcher } from "./git-workspace-watcher";
+import { createCodeGitIgnoredPredicate, createGitWorkspaceWatcher, type NativeEventEvidence, type WorkspaceFsWatcher } from "./git-workspace-watcher";
+
+function nativeEvidenceHarness(debounceMs: number) {
+  const events: NativeEventEvidence[] = [];
+  const callbacks: { fireId: number | undefined; sequences: number[]; sessions: readonly string[] }[] = [];
+  let phase = "setup";
+  const changed = vi.fn((sessions: readonly string[]) => {
+    const fireId = events.at(-1)?.fireId;
+    callbacks.push({ fireId, sequences: events.filter((event) => event.stage === "fire" && event.fireId === fireId).map((event) => event.sequence), sessions });
+  });
+  const errors = vi.fn();
+  const watcher = createGitWorkspaceWatcher({
+    onWorkspaceChanged: changed, onError: errors, debounceMs,
+    diagnostics: { phase: () => phase, record: (event) => events.push(event) },
+  });
+  onTestFailed(() => console.error("[watcher-failure-provenance]", JSON.stringify({ phase, events, callbacks, errors: errors.mock.calls.map(([error]) => String(error)) }, null, 2)));
+  return {
+    watcher, changed, errors, events,
+    phase: (value: string) => { phase = value; },
+    async firedFor(filename: string) {
+      await vi.waitFor(() => expect(events.some((event) => event.stage === "fire" && event.phase === phase && (event.candidate === filename || event.classification === "UNCLASSIFIED"))).toBe(true));
+    },
+    assertFiltered(directory: string) {
+      const known = events.filter((event) => event.stage === "native" && event.candidate !== null && (event.candidate === directory || event.candidate.startsWith(`${directory}${path.sep}`)));
+      expect(known.length > 0 || events.some((event) => event.stage === "native" && event.phase === phase && event.classification === "UNCLASSIFIED")).toBe(true);
+      for (const event of known) {
+        expect(event).toMatchObject({ classification: "IGNORED", ignored: true });
+        expect(events.filter((entry) => entry.sequence === event.sequence)).toEqual([event]);
+      }
+    },
+    assertChains() {
+      expect(errors).not.toHaveBeenCalled();
+      const fires = events.filter((event) => event.stage === "fire");
+      expect(new Set(fires.map((event) => event.fireId)).size).toBe(changed.mock.calls.length);
+      for (const event of fires) {
+        const chain = events.filter((entry) => entry.sequence === event.sequence);
+        expect(chain.map((entry) => entry.stage)).toEqual(["native", "schedule", "fire"]);
+        expect(event.classification).not.toBe("IGNORED");
+        expect(chain[1].scheduleId).toBe(event.scheduleId);
+      }
+      for (const callback of callbacks) {
+        expect(callback.fireId).toBeDefined();
+        expect(callback.sequences.length).toBeGreaterThan(0);
+      }
+    },
+  };
+}
 
 function createWatcherHarness() {
   const listeners = new Map<string, (value?: unknown) => void>();
@@ -84,6 +130,26 @@ describe("GitWorkspaceWatcher", () => {
   });
 });
 
+it("native assertions accept an attributed unknown fire but reject a misclassified known object", async () => {
+  const evidence = nativeEvidenceHarness(80);
+  const root = path.resolve("synthetic-workspace");
+  evidence.phase("unknown-only");
+  const event: NativeEventEvidence = {
+    sequence: 1, timestamp: 1, recordedAt: 1, phase: "unknown-only", eventType: "change",
+    filename: null, filenameType: "null", classification: "UNCLASSIFIED", candidate: null,
+    ignored: null, watchRoot: root, stage: "native",
+  };
+  expect(() => evidence.assertFiltered(path.join(root, ".git", "objects"))).toThrow();
+  evidence.events.push(event, { ...event, stage: "schedule", scheduleId: 1 }, { ...event, stage: "fire", scheduleId: 1, fireId: 1 });
+  evidence.changed(["s1"]);
+  await evidence.firedFor(path.join(root, "a.ts"));
+  evidence.assertFiltered(path.join(root, ".git", "objects"));
+  evidence.assertChains();
+  evidence.events.push({ ...event, sequence: 2, filename: "hash", filenameType: "string", candidate: path.join(root, ".git", "objects", "hash"), ignored: false, classification: "MEANINGFUL" });
+  expect(() => evidence.assertFiltered(path.join(root, ".git", "objects"))).toThrow();
+  await evidence.watcher.dispose();
+});
+
 // 原生递归监视只在支持内核递归的平台上有效，其余平台跳过实盘验证
 const itNative = process.platform === "win32" || process.platform === "darwin" ? it : it.skip;
 
@@ -92,9 +158,8 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
 
   it.runIf(process.platform === "win32")("8.3 路径监视工作区与外部 gitDir，保留忽略规则并关闭句柄", async (context) => {
     const base = mkdtempSync(path.join(tmpdir(), "firefly watcher long directory "));
-    const changed = vi.fn();
-    const errors = vi.fn();
-    const activeWatcher = createGitWorkspaceWatcher({ onWorkspaceChanged: changed, onError: errors, debounceMs: 20 });
+    const evidence = nativeEvidenceHarness(20);
+    const { changed, errors, watcher: activeWatcher } = evidence;
     let phase = "short-path-initialization";
     const started = performance.now();
     try {
@@ -117,21 +182,26 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
       mkdirSync(gitDir);
       await activeWatcher.subscribe({ sessionId: "short-path", workspaceRoot: root, gitDir });
       phase = "workspace-event";
+      evidence.phase(phase);
       writeFileSync(path.join(root, "file.txt"), "public fixture");
-      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+      await evidence.firedFor(path.join(root, "file.txt"));
       phase = "metadata-event";
+      evidence.phase(phase);
       writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
-      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+      await evidence.firedFor(path.join(gitDir, "HEAD"));
       phase = "ignored-event";
+      evidence.phase(phase);
       mkdirSync(path.join(root, "node_modules"));
       writeFileSync(path.join(root, "node_modules", "ignored.txt"), "ignored");
       await sleep(150);
-      expect(changed).toHaveBeenCalledTimes(2);
+      evidence.assertFiltered(path.join(root, "node_modules"));
       phase = "close";
       await activeWatcher.dispose();
+      const callsAtClose = changed.mock.calls.length;
       writeFileSync(path.join(root, "after-close.txt"), "closed");
       await sleep(150);
-      expect(changed).toHaveBeenCalledTimes(2);
+      expect(changed).toHaveBeenCalledTimes(callsAtClose);
+      evidence.assertChains();
       expect(errors).not.toHaveBeenCalled();
       phase = "complete";
     } finally {
@@ -141,39 +211,53 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
     }
   }, 15000);
 
-  itNative("工作区文件变化触发一次防抖通知，忽略目录内的变化不触发", async () => {
+  itNative("原生事件按路径分类并关联通知，未知事件保留保守通知", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "firefly-watch-"));
+    const evidence = nativeEvidenceHarness(80);
+    const tracePhase = evidence.phase;
+    tracePhase("setup");
     const gitDir = path.join(root, ".git");
     mkdirSync(path.join(gitDir, "refs", "heads"), { recursive: true });
     writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
-    const changed = vi.fn();
-    const watcher = createGitWorkspaceWatcher({ onWorkspaceChanged: changed, onError: vi.fn(), debounceMs: 80 });
+    const { watcher, changed } = evidence;
 
     try {
       await watcher.subscribe({ sessionId: "s1", workspaceRoot: root, gitDir });
       await sleep(200); // 等内核监视句柄完成注册
 
+      tracePhase("source-write");
       writeFileSync(path.join(root, "a.ts"), "1");
       await sleep(400);
-      expect(changed).toHaveBeenCalledTimes(1);
+      await evidence.firedFor(path.join(root, "a.ts"));
       expect(changed).toHaveBeenCalledWith(["s1"]);
 
       // node_modules 里的写入经过忽略谓词过滤，不应触发刷新
+      tracePhase("node_modules-write");
       mkdirSync(path.join(root, "node_modules", "x"), { recursive: true });
       writeFileSync(path.join(root, "node_modules", "x", "y.js"), "1");
       await sleep(400);
-      expect(changed).toHaveBeenCalledTimes(1);
+      evidence.assertFiltered(path.join(root, "node_modules"));
 
       // git objects 噪音同样不应触发
+      tracePhase("git-object-mkdir");
       mkdirSync(path.join(gitDir, "objects", "aa"), { recursive: true });
+      tracePhase("git-object-write");
       writeFileSync(path.join(gitDir, "objects", "aa", "hash"), "blob");
       await sleep(400);
-      expect(changed).toHaveBeenCalledTimes(1);
+      evidence.assertFiltered(path.join(gitDir, "objects"));
 
       // HEAD 变化属于元数据变更，应当触发
+      tracePhase("head-write");
       writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/dev\n");
       await sleep(400);
-      expect(changed).toHaveBeenCalledTimes(2);
+      await evidence.firedFor(path.join(gitDir, "HEAD"));
+      evidence.assertChains();
+      tracePhase("dispose");
+      await watcher.dispose();
+      const callsAtClose = changed.mock.calls.length;
+      writeFileSync(path.join(root, "after-close.txt"), "closed");
+      await sleep(100);
+      expect(changed).toHaveBeenCalledTimes(callsAtClose);
     } finally {
       await watcher.dispose();
       await sleep(100);
@@ -188,21 +272,24 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
     mkdirSync(root, { recursive: true });
     mkdirSync(path.join(gitDir, "refs", "heads"), { recursive: true });
     writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
-    const changed = vi.fn();
-    const watcher = createGitWorkspaceWatcher({ onWorkspaceChanged: changed, onError: vi.fn(), debounceMs: 80 });
+    const evidence = nativeEvidenceHarness(80);
+    const { watcher } = evidence;
 
     try {
       await watcher.subscribe({ sessionId: "s1", workspaceRoot: root, gitDir });
       await sleep(200);
 
+      evidence.phase("head-write");
       writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/dev\n");
       await sleep(400);
-      expect(changed).toHaveBeenCalledTimes(1);
+      await evidence.firedFor(path.join(gitDir, "HEAD"));
 
       // worktree 内的文件变化也要触发
+      evidence.phase("source-write");
       writeFileSync(path.join(root, "b.ts"), "1");
       await sleep(400);
-      expect(changed).toHaveBeenCalledTimes(2);
+      await evidence.firedFor(path.join(root, "b.ts"));
+      evidence.assertChains();
     } finally {
       await watcher.dispose();
       await sleep(100);
@@ -214,8 +301,8 @@ describe("GitWorkspaceWatcher 原生递归监视（真实文件系统）", () =>
     const root = mkdtempSync(path.join(tmpdir(), "firefly-watch-"));
     const gitDir = path.join(root, ".git");
     mkdirSync(gitDir, { recursive: true });
-    const changed = vi.fn();
-    const watcher = createGitWorkspaceWatcher({ onWorkspaceChanged: changed, onError: vi.fn(), debounceMs: 80 });
+    const evidence = nativeEvidenceHarness(80);
+    const { watcher, changed } = evidence;
 
     await watcher.subscribe({ sessionId: "s1", workspaceRoot: root, gitDir });
     await watcher.dispose();

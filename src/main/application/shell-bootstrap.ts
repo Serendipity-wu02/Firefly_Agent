@@ -29,6 +29,7 @@ export interface ShellDependencies {
   activation: WindowActivationBroker;
   shutdown: ShutdownCoordinator;
   createIpcScope(): IpcScope;
+  onWillQuit(callback: () => void): void;
   /** 创建 Loading 窗口；失败返回 null，跳过最短展示等待。 */
   createSplashWindow(options: { onShown(at: number): void }): BrowserWindow | null;
   createWindowManager(): WindowManager;
@@ -72,6 +73,7 @@ export async function startShell(deps: ShellDependencies): Promise<ShellResult> 
 
   // 3-5. IPC Scope / WindowManager / 未加载页面的聊天窗口壳
   const ipc = deps.createIpcScope();
+  deps.onWillQuit(() => ipc.dispose());
   const windowManager = deps.createWindowManager();
   const chat = deps.createChatShell(windowManager);
 
@@ -93,7 +95,7 @@ export async function startShell(deps: ShellDependencies): Promise<ShellResult> 
           await windowManager.openReactChatWindow(request.sessionId);
           break;
         case "sidebar":
-          windowManager.createSidebarWindow();
+          // Retired status-window activation.
           break;
         case "settings":
           windowManager.createSettingsWindow(request.section);
@@ -132,11 +134,6 @@ export async function startShell(deps: ShellDependencies): Promise<ShellResult> 
     dispose: async () => {
       if (!tray.isDestroyed()) tray.destroy();
     },
-  });
-  shutdown.register({
-    id: "shell-ipc",
-    phase: "stopLocalResources",
-    dispose: async () => { ipc.dispose(); },
   });
   shutdown.register({
     id: "token-usage",

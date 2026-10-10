@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 import type { ChatSession } from "../../shared/chat-types";
 import {
   emptyCodeGitStatus,
@@ -302,8 +302,12 @@ function createSimpleGitClient(input: { workspaceRoot: string; executable: Resol
     baseDir: input.workspaceRoot,
     binary: input.executable.command,
     maxConcurrentProcesses: 1,
+    allowEnvironment: input.executable.env ? ["GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL"] : [],
   });
-  if (input.executable.env) git.env(input.executable.env);
+  if (input.executable.env) git.env({
+    GIT_CONFIG_NOSYSTEM: input.executable.env.GIT_CONFIG_NOSYSTEM,
+    GIT_CONFIG_GLOBAL: input.executable.env.GIT_CONFIG_GLOBAL,
+  });
 
   return {
     isRepository: () => git.checkIsRepo(),

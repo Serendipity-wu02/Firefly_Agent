@@ -2,23 +2,35 @@
 // 启动时由 initSkills 灌入扫描结果；getBody/getReference 懒加载 + 缓存。
 
 import * as fs from "fs";
-import { resolveSkillId, resolveSkillSettings } from "./skill-id-aliases";
 import * as path from "path";
 import type { SkillEntry, SkillMode, SkillModeOverrides } from "./types";
-import { parseSkillFrontmatter } from "./skill-scanner";
+import { isExternalSkillId, parseSkillFrontmatter } from "./skill-scanner";
 
 export class SkillRegistry {
   private skills = new Map<string, SkillEntry>();
   private bodyCache = new Map<string, string>();
   private availability = new Map<string, () => boolean>();
+  private externalAccessGate: (skill: SkillEntry) => boolean = () => false;
+
+  /** Main-only host probe. Default denies every reserved external-prefix entry. */
+  setExternalAccessGate(probe: (skill: SkillEntry) => boolean): void {
+    this.externalAccessGate = probe;
+    this.bodyCache.clear();
+  }
+
+  private canAccess(skill: SkillEntry): boolean {
+    if (!isExternalSkillId(skill.id)) return true;
+    if (!skill.enabled || skill.external?.status !== "ready") return false;
+    try { return this.externalAccessGate(skill) === true; } catch { return false; }
+  }
 
   register(skill: SkillEntry): void {
-    this.bodyCache.delete(resolveSkillId(skill.id));
-    this.skills.set(resolveSkillId(skill.id), { ...skill, id: resolveSkillId(skill.id) });
+    this.bodyCache.delete(skill.id);
+    this.skills.set(skill.id, { ...skill });
   }
 
   getEnabled(): SkillEntry[] {
-    return Array.from(this.skills.values()).filter(s => s.enabled && (this.availability.get(s.id)?.() ?? true));
+    return Array.from(this.skills.values()).filter(s => s.enabled && this.canAccess(s) && (this.availability.get(s.id)?.() ?? true));
   }
 
   /** 按会话模式过滤的启用 skill 列表。
@@ -28,9 +40,10 @@ export class SkillRegistry {
    *    3. 否则按 modes 字段：!modes || modes.includes(mode)
    *  未声明 modes 且无覆盖的 skill 默认全模式可见。 */
   getEnabledForMode(mode: SkillMode, overrides?: SkillModeOverrides): SkillEntry[] {
+    if (mode !== "work" && mode !== "code") throw new Error("INVALID_SKILL_MODE");
     return Array.from(this.skills.values()).filter((s) => {
-      if (!s.enabled || !(this.availability.get(s.id)?.() ?? true)) return false;
-      const override = overrides ? resolveSkillSettings(overrides)[s.id]?.[mode] : undefined;
+      if (!s.enabled || !this.canAccess(s) || !(this.availability.get(s.id)?.() ?? true)) return false;
+      const override = overrides ? overrides[s.id]?.[mode] : undefined;
       if (override !== undefined) return override;
       return !s.modes || s.modes.includes(mode);
     });
@@ -41,44 +54,49 @@ export class SkillRegistry {
   }
 
   getById(id: string): SkillEntry | undefined {
-    return this.skills.get(resolveSkillId(id));
+    return this.skills.get(id);
   }
 
   setEnabled(id: string, enabled: boolean): void {
-    const s = this.skills.get(resolveSkillId(id));
+    const s = this.skills.get(id);
     if (s) s.enabled = enabled;
   }
 
   unregister(id: string): boolean {
-    this.bodyCache.delete(resolveSkillId(id));
-    this.availability.delete(resolveSkillId(id));
-    return this.skills.delete(resolveSkillId(id));
+    this.bodyCache.delete(id);
+    this.availability.delete(id);
+    return this.skills.delete(id);
   }
 
   setAvailability(id: string, probe: () => boolean): void {
-    this.availability.set(resolveSkillId(id), probe);
+    this.availability.set(id, probe);
   }
 
   isAvailable(id: string): boolean {
-    return this.availability.get(resolveSkillId(id))?.() ?? true;
+    const skill = this.skills.get(id);
+    if (isExternalSkillId(id) && (!skill || !this.canAccess(skill))) return false;
+    return this.availability.get(id)?.() ?? true;
   }
 
   /**
    * 懒加载 SKILL.md 正文（去掉 frontmatter）+ 缓存。
-   * 运行时只读不改，缓存安全（见 spec 5.4：编辑已加载 skill 正文需重启）。
+   * 普通 Skill 保留原懒加载缓存语义；外部 Skill 在缓存命中前也重新验证宿主与来源。
    * 返回 null 表示 skill 不存在或读取失败。
    */
   getBody(id: string): string | null {
-    id = resolveSkillId(id);
+    const s = this.skills.get(id);
+    if (!s || !this.canAccess(s)) return null;
     const cached = this.bodyCache.get(id);
     if (cached !== undefined) return cached;
-    const s = this.skills.get(resolveSkillId(id));
-    if (!s) return null;
     try {
       const raw = fs.readFileSync(s.bodyPath, "utf8");
-      // 复用 scanner 的 gray-matter 解析剥离 frontmatter，避免与 scanner 正则分叉（BOM/多行 ---）
-      const parsed = parseSkillFrontmatter(raw);
+      // Reuse the scanner's data-only parser. A changed/unsafe header must not
+      // become raw instructions; legacy plain-body fallback remains supported.
+      let parseFailed = false;
+      const parsed = parseSkillFrontmatter(raw, () => { parseFailed = true; });
+      if (parseFailed) return null;
       const body = parsed ? parsed.body : raw.trim();
+      if (!this.canAccess(s)) return null;
       this.bodyCache.set(id, body);
       return body;
     } catch {
@@ -92,13 +110,14 @@ export class SkillRegistry {
    * 否则拒绝（返回 null）。不直接拿 ref 拼路径。
    */
   getReference(id: string, ref: string): string | null {
-    const s = this.skills.get(resolveSkillId(id));
-    if (!s) return null;
+    const s = this.skills.get(id);
+    if (!s || !this.canAccess(s)) return null;
     if (!s.references.includes(ref)) return null;
     if (ref.includes("/") || ref.includes("\\") || ref.includes("..")) return null;
     const refPath = path.join(s.dirPath, "references", ref);
     try {
-      return fs.readFileSync(refPath, "utf8");
+      const content = fs.readFileSync(refPath, "utf8");
+      return this.canAccess(s) ? content : null;
     } catch {
       return null;
     }

@@ -10,7 +10,7 @@
  * 这些测试在实现前应当全部失败：
  * 1. loop-top 取消当前返回 "最终回复被取消。" 而非空 finalAnswer。
  * 2. LLM fetch 中断当前被 catch 块分类为 "error" 而非 "cancelled"。
- * 3. 工具执行中没有 signal 检查，取消后仍跑完。
+ * 3. 已开始工具的真实 Promise 未结算前不能释放工作区许可或完成终态。
  * 4. retry backoff sleepWithJitter 不可中断。
  * 5. permission wait 没有 signal race。
  * 6. ask_user wait 没有 signal race。
@@ -154,6 +154,14 @@ function mutationToolCall(id = "call-1"): ToolCall {
     id,
     name: "write_file",
     arguments: JSON.stringify({ path: "/tmp/x", content: "hello" }),
+  };
+}
+
+function readToolCall(id = "call-1"): ToolCall {
+  return {
+    id,
+    name: "read_file",
+    arguments: JSON.stringify({ path: "/tmp/x" }),
   };
 }
 
@@ -323,41 +331,47 @@ describe("FireflyHarness cancellation propagation", () => {
   });
 
   // ── 3. 工具执行中取消 ──
-  it("cancels during tool execution: aborts tool wait, terminal=cancelled, no final_answer", async () => {
+  it("cancels during tool execution: drains its actual promise before terminal and keeps the workspace locked", async () => {
+    const { RunExecutionCoordinator } = await import("./execution-coordinator");
+    const coordinator = new RunExecutionCoordinator("synthetic-active-cancel");
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "main-cancel", groupId: "main-cancel",
+      agentId: "main", childRunId: "main-cancel", toolCallId: "call-1" };
     const fetchMock = deferredFetch();
     vi.stubGlobal("fetch", fetchMock.fn);
-
     const { events, fn: onEvent } = eventCollector();
     const controller = new AbortController();
-
-    // 工具执行返回一个永不 resolve 的 Promise（模拟长时间工具）
-    let resolveTool: (r: ToolDispatchResult) => void = () => {};
-    const toolPromise = new Promise<ToolDispatchResult>((resolve) => { resolveTool = resolve; });
-    mockedDispatch.mockReturnValue(toolPromise);
-
+    let resolveTool!: (result: ToolDispatchResult) => void;
+    const actualTool = new Promise<ToolDispatchResult>(resolve => { resolveTool = resolve; });
+    mockedDispatch.mockImplementation(async (call, context) => coordinator.runLeaf(
+      { ...scope, toolCallId: call.id }, "exclusive", controller.signal, async () => {
+        context.onExecutionStarted?.();
+        return actualTool;
+      },
+    ));
+    let returned = false;
+    const checkpoint = vi.fn();
     const promise = runFireflyHarness({
-      systemPrompt: "test",
-      messages: [{ role: "user", content: "do work" }],
-      tools: [readTool()],
-      vendorConfig,
-      onEvent,
-      signal: controller.signal,
-    });
-
-    // 第一轮：模型调用工具
+      systemPrompt: "test", messages: [{ role: "user", content: "do work" }], tools: [readTool()], vendorConfig,
+      onEvent, signal: controller.signal, onCheckpoint: checkpoint,
+      toolContext: { userQuery: "synthetic", signal: controller.signal, execution: { coordinator, scope } },
+    }).then(result => { returned = true; return result; });
     fetchMock.nextResolve(assistantResponse({ toolCalls: [mutationToolCall("call-1")] }));
     await vi.waitFor(() => expect(mockedDispatch).toHaveBeenCalled());
-
-    // 工具正在执行中 —— abort
     controller.abort();
-    // 让 microtask 跑，让 raceWithSignal 检测到 abort
-    await new Promise((r) => setTimeout(r, 10));
-
-    // 工具 Promise 仍未 resolve（模拟真实场景：工具被放弃）
-    // harness 应该通过 signal race 返回 cancelled，不等工具完成
+    const read = vi.fn(async () => undefined);
+    const waitingRead = coordinator.runLeaf({ ...scope, parentRunId: "other", childRunId: "other", groupId: "other" },
+      "shared", undefined, read);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(returned).toBe(false);
+    // Predispatch call arguments are durable; terminal has not checkpointed.
+    expect(checkpoint).toHaveBeenCalledOnce();
+    expect(read).not.toHaveBeenCalled();
+    resolveTool(successDispatchResult("call-1"));
     const result = await promise;
-
+    await waitingRead;
+    expect(read).toHaveBeenCalledOnce();
     assertCancelledTerminal(result, events);
+    await coordinator.closeGroup("other");
   });
 
   // ── 4. retry backoff 中取消 ──
@@ -383,7 +397,7 @@ describe("FireflyHarness cancellation propagation", () => {
     });
 
     // 第一轮：模型调用工具
-    fetchMock.nextResolve(assistantResponse({ toolCalls: [mutationToolCall("call-1")] }));
+    fetchMock.nextResolve(assistantResponse({ toolCalls: [readToolCall("call-1")] }));
     await vi.waitFor(() => expect(mockedDispatch).toHaveBeenCalled());
 
     // 工具失败（transient → 决定 retry，进入 backoff sleep）
@@ -401,44 +415,37 @@ describe("FireflyHarness cancellation propagation", () => {
   });
 
   // ── 5. permission wait 中取消 ──
-  it("cancels during permission wait: terminal=cancelled, clears pending, no final_answer", async () => {
+  it("cancels during permission wait: terminal=cancelled, zero execution, late approval cannot restart", async () => {
     const fetchMock = deferredFetch();
     vi.stubGlobal("fetch", fetchMock.fn);
-
     const { events, fn: onEvent } = eventCollector();
     const controller = new AbortController();
-
-    // checkPermission 返回永不 resolve 的 Promise（模拟用户未响应）
-    let resolvePermission: (allowed: boolean) => void = () => {};
-    const permissionPromise = new Promise<boolean>((resolve) => { resolvePermission = resolve; });
+    let resolvePermission!: (allowed: boolean) => void;
+    const permissionPromise = new Promise<boolean>(resolve => { resolvePermission = resolve; });
+    const permissionEntered = vi.fn();
+    const actualExecute = vi.fn(async () => successDispatchResult("call-1"));
     mockedDispatch.mockImplementation(async (_call, context) => {
       const allowed = await context.checkPermission?.("read_file", { path: "/tmp/x" });
-      return allowed ? successDispatchResult("call-1") : failureDispatchResult("call-1");
+      if (!allowed) return failureDispatchResult("call-1");
+      context.onExecutionStarted?.();
+      return actualExecute();
     });
-
     const promise = runFireflyHarness({
-      systemPrompt: "test",
-      messages: [{ role: "user", content: "do work" }],
-      tools: [readTool()],
-      vendorConfig,
-      onEvent,
-      signal: controller.signal,
-      checkPermission: async () => permissionPromise,
+      systemPrompt: "test", messages: [{ role: "user", content: "do work" }], tools: [readTool()], vendorConfig,
+      onEvent, signal: controller.signal,
+      checkPermission: async () => { permissionEntered(); return permissionPromise; },
     });
-
-    // 第一轮：模型调用工具 → 触发权限检查
-    fetchMock.nextResolve(assistantResponse({ toolCalls: [mutationToolCall("call-1")] }));
-    await vi.waitFor(() => expect(fetchMock.calls).toHaveLength(1));
-
-    // 等待 harness 进入 permission wait
-    await new Promise((r) => setTimeout(r, 50));
-
-    // 在 permission wait 中 abort
+    fetchMock.nextResolve(assistantResponse({ toolCalls: [readToolCall("call-1")] }));
+    await vi.waitFor(() => expect(permissionEntered).toHaveBeenCalledOnce());
     controller.abort();
-
     const result = await promise;
-
     assertCancelledTerminal(result, events);
+    expect(actualExecute).not.toHaveBeenCalled();
+    resolvePermission(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(actualExecute).not.toHaveBeenCalled();
+    expect(fetchMock.calls).toHaveLength(1);
   });
 
   // ── 6. ask_user wait 中取消 ──
@@ -574,4 +581,57 @@ describe("FireflyHarness cancellation propagation", () => {
     expect(result.finalAnswer).not.toContain("最终回复被取消");
     expect(result.finalAnswer).toBe("");
   });
+});
+
+it("failed child Harness quiesces its owned retained process before drain without cancelling its parent", async () => {
+  const { RunExecutionCoordinator } = await import("./execution-coordinator");
+  const { startShellJob, stopShellJob, waitForShellJob } = await import("../tools/builtin-tools/shell-job-manager");
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = mkdtempSync(join(tmpdir(), "firefly-failed-child-drain-"));
+  const coordinator = new RunExecutionCoordinator(root);
+  const parent = new AbortController();
+  const child = new AbortController();
+  const signal = AbortSignal.any([parent.signal, child.signal]);
+  const scope = { workspaceId: root, parentRunId: "parent", groupId: "siblings", agentId: "role-a", childRunId: "child-a", toolCallId: "launch" };
+  const fetchMock = deferredFetch();
+  vi.stubGlobal("fetch", fetchMock.fn);
+  mockedDispatch.mockReset();
+  let job: ReturnType<typeof startShellJob> | undefined;
+  const quiesce = vi.fn(() => child.abort());
+  mockedDispatch.mockImplementation(async (call, context) => coordinator.runLeaf({ ...scope, toolCallId: call.id }, "exclusive", signal, async permit => {
+    context.onExecutionStarted?.();
+    job = startShellJob({
+      spec: { command: process.execPath, args: ["-e", "setInterval(()=>{},1000)"], env: process.env, cwd: root,
+        windowsVerbatimArguments: false, ranViaSandbox: false },
+      command: "synthetic failed child background", shell: "node", logDir: root, executionScope: scope, signal,
+    });
+    coordinator.retainUntil(permit, job.completion);
+    return successDispatchResult(call.id);
+  }));
+  const pending = runFireflyHarness({
+    systemPrompt: "synthetic", messages: [], tools: [readTool()], vendorConfig, signal,
+    quiesceExecution: quiesce,
+    toolContext: { userQuery: "synthetic", signal, execution: { coordinator, scope } },
+  });
+  try {
+    fetchMock.nextResolve(assistantResponse({ toolCalls: [readToolCall("launch")] }));
+    await vi.waitFor(() => expect(fetchMock.calls).toHaveLength(2));
+    expect((await waitForShellJob(job!.jobId, 0))?.status).toBe("running");
+    fetchMock.nextReject(new Error("synthetic next-model failure"));
+    const result = await pending;
+    expect(result.terminateReason).toBe("error");
+    expect(quiesce).toHaveBeenCalledOnce();
+    expect(child.signal.aborted).toBe(true);
+    expect(parent.signal.aborted).toBe(false);
+    expect((await waitForShellJob(job!.jobId, 0))?.status).toBe("stopped");
+    await job!.completion;
+  } finally {
+    child.abort();
+    if (job) { stopShellJob(job.jobId); await job.completion; }
+    await coordinator.closeGroup("siblings");
+    rmSync(root, { recursive: true, force: true });
+    vi.unstubAllGlobals();
+  }
 });

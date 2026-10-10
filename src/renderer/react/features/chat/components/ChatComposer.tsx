@@ -1,3 +1,4 @@
+import { DesktopAsrButton } from "./DesktopAsrButton";
 import { Sender } from "@ant-design/x";
 import { Popover } from "antd";
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
@@ -5,11 +6,11 @@ import { useTranslation } from "../../../i18n";
 import { resolveAsset } from "../../../../../shared/renderer-base";
 import type { ContextUsageSnapshot } from "../../../../../shared/context-usage";
 import { ContextUsageRing } from "./ContextUsageRing";
-import { ReasoningControl } from "./ReasoningControl";
+import "./ModelEffortControl.css";
 import { StyleControl } from "./StyleControl";
 import { PermissionControl } from "./PermissionControl";
 import { PlanModeToggle } from "./PlanModeToggle";
-import { ModelSelector } from "./ModelSelector";
+import { ModelEffortControl } from "./ModelEffortControl";
 import { PendingQueueDock, type PendingQueueDockItem } from "./PendingQueueDock";
 
 interface ChatComposerProps {
@@ -67,18 +68,6 @@ function PlusIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>;
 }
 
-function ScreenshotIcon() {
-  return (
-    <svg className="cy-composer__screenshot-icon" width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M16 6H8C6.89543 6 6 6.89543 6 8V16" />
-      <path d="M16 42H8C6.89543 42 6 41.1046 6 40V32" />
-      <path d="M32 42H40C41.1046 42 42 41.1046 42 40V32" />
-      <path d="M32 6H40C41.1046 6 42 6.89543 42 8V16" />
-      <rect x="14" y="14" width="20" height="20" rx="2" />
-    </svg>
-  );
-}
-
 interface EnabledSticker {
   id: string;
   src: string;
@@ -103,17 +92,27 @@ export function parseComposerMessage(mode: string, content: string): {
   };
 }
 
+/** Separates what the user typed from recognised `[sticker:id]` markers. Re-appending the markers after the typed
+ * text restores the original message content, and typed text round-trips exactly, trailing spaces included. */
+export function splitStickerMarkers(value: string, knownIds: ReadonlySet<string>): { visible: string; markers: string[] } {
+  const markers: string[] = [];
+  const visible = value.replace(/\[sticker:([^\]]+)\]/gi, (marker, rawId: string) => {
+    if (!knownIds.has(rawId.trim())) return marker;
+    markers.push(marker);
+    return "";
+  });
+  return { visible, markers };
+}
+
 function stickerUrl(src: string): string {
   return src.startsWith("/stickers/") ? resolveAsset(src) : src;
 }
 
-function StickerPicker({ onChoose }: { onChoose: (id: string) => void }) {
+function StickerGrid({ onChoose }: { onChoose: (id: string) => void }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
   const [stickers, setStickers] = useState<EnabledSticker[]>([]);
 
   useEffect(() => {
-    if (!open) return;
     let active = true;
     void window.chat?.getEnabledStickers?.().then((items) => {
       if (active) setStickers(items);
@@ -123,36 +122,88 @@ function StickerPicker({ onChoose }: { onChoose: (id: string) => void }) {
     return () => {
       active = false;
     };
-  }, [open]);
+  }, []);
+
+  return (
+    <div className="cy-sticker-picker" aria-label={t("composer.stickerList")}>
+      {stickers.length === 0 && <span className="cy-sticker-picker__empty">{t("composer.stickerEmpty")}</span>}
+      {stickers.map((sticker) => (
+        <button type="button" key={sticker.id} title={sticker.description ?? sticker.id} onClick={() => onChoose(sticker.id)}>
+          <img src={stickerUrl(sticker.src)} alt={sticker.description ?? sticker.id} draggable={false} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** What the "+" menu offers; stickers are left out where the mode does not send them. */
+export function composerAddMenuEntries(supportsStickers: boolean): Array<"upload" | "screenshot" | "sticker"> {
+  return supportsStickers ? ["upload", "screenshot", "sticker"] : ["upload", "screenshot"];
+}
+
+function PaperclipIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 11.5-8.6 8.6a5.2 5.2 0 0 1-7.4-7.4l8.6-8.6a3.5 3.5 0 0 1 5 5l-8.7 8.7a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9" /></svg>;
+}
+
+function CameraFrameIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" /><rect x="8" y="8" width="8" height="8" rx="1.5" /></svg>;
+}
+
+function SmileIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8.5 14.2a4.2 4.2 0 0 0 7 0M9 9.6h.01M15 9.6h.01" /></svg>;
+}
+
+/** The single "+" entry: attach a file, take a screenshot, or pick a sticker. */
+function ComposerAddMenu({ supportsStickers, attachmentBusy, onUpload, onScreenshot, onChooseSticker }: {
+  supportsStickers: boolean;
+  attachmentBusy: boolean;
+  onUpload: () => void;
+  onScreenshot: () => void;
+  onChooseSticker: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<"menu" | "stickers">("menu");
+  const close = () => { setOpen(false); setView("menu"); };
+  const entries = composerAddMenuEntries(supportsStickers);
+
+  const menu = (
+    <div className="cy-add-menu">
+      <span className="cy-add-menu__title">{t("composer.addMenuTitle")}</span>
+      {entries.includes("upload") && (
+        <button type="button" className="cy-add-menu__item" aria-label={t("composer.uploadFile")} disabled={attachmentBusy} onClick={() => { close(); onUpload(); }}>
+          <PaperclipIcon /><span>{t("composer.uploadFile")}</span>
+        </button>
+      )}
+      {entries.includes("screenshot") && (
+        <button type="button" className="cy-add-menu__item" aria-label={t("composer.screenshot")} onClick={() => { close(); onScreenshot(); }}>
+          <CameraFrameIcon /><span>{t("composer.screenshot")}</span><small>Alt+Shift+S</small>
+        </button>
+      )}
+      {entries.includes("sticker") && (
+        <button type="button" className="cy-add-menu__item" aria-label={t("composer.stickerPicker")} onClick={() => setView("stickers")}>
+          <SmileIcon /><span>{t("composer.stickerPicker")}</span>
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <Popover
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => { setOpen(next); if (!next) setView("menu"); }}
       trigger="click"
       placement="topLeft"
-      rootClassName="cy-sticker-popover"
-      content={(
-        <div className="cy-sticker-picker" aria-label={t("composer.stickerList")}>
-          {stickers.length === 0 && <span className="cy-sticker-picker__empty">{t("composer.stickerEmpty")}</span>}
-          {stickers.map((sticker) => (
-            <button
-              type="button"
-              key={sticker.id}
-              title={sticker.description ?? sticker.id}
-              onClick={() => {
-                onChoose(sticker.id);
-                setOpen(false);
-              }}
-            >
-              <img src={stickerUrl(sticker.src)} alt={sticker.description ?? sticker.id} draggable={false} />
-            </button>
-          ))}
+      rootClassName="cy-add-popover"
+      content={view === "stickers" ? (
+        <div className="cy-add-menu">
+          <button type="button" className="cy-add-menu__back" onClick={() => setView("menu")}><span aria-hidden="true">‹</span><span>{t("composer.stickerPicker")}</span></button>
+          <StickerGrid onChoose={(id) => { onChooseSticker(id); close(); }} />
         </div>
-      )}
+      ) : menu}
     >
-      <button type="button" className="cy-composer__icon-button cy-composer__sticker-button" aria-label={t("composer.stickerPicker")} title={t("composer.stickerPicker")}>
-        <span aria-hidden="true">☺</span>
+      <button type="button" className="cy-composer__icon-button cy-composer__add-button" aria-label={t("composer.addMenuTitle")} title={t("composer.addMenuTitle")}>
+        <PlusIcon />
       </button>
     </Popover>
   );
@@ -180,17 +231,6 @@ function CodeFolderIcon() {
 
 function ChevronIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>;
-}
-
-function ObsidianVaultIcon() {
-  return (
-    <svg className="cy-composer__obsidian-icon" height="1em" style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <title>Obsidian</title>
-      <path d="M9.643 14.012c.615-.183 1.605-.465 2.745-.534-.684-1.725-.849-3.235-.716-4.579.153-1.552.7-2.847 1.234-3.95.114-.235.223-.454.328-.664.149-.297.289-.577.42-.86.217-.47.378-.885.46-1.27.08-.38.08-.719-.014-1.044-.095-.325-.297-.675-.681-1.06a1.6 1.6 0 00-1.475.36l-4.95 4.453a1.602 1.602 0 00-.512.952l-.427 2.83c.67.592 2.327 2.317 3.335 4.71.09.213.174.432.253.656zM5.855 9.937c-.024.1-.057.197-.099.29L3.14 16.058a1.602 1.602 0 00.313 1.772l4.117 4.24c2.102-3.102 1.795-6.02.835-8.3-.728-1.73-1.832-3.083-2.55-3.833z" fill="#A88BFA" />
-      <path d="M8.52 22.57c.073.01.146.018.22.02.781.023 2.095.091 3.16.288.87.16 2.593.642 4.011 1.056 1.082.316 2.197-.548 2.354-1.664.115-.814.33-1.735.725-2.58l-.009.004c-.67-1.87-1.523-3.077-2.417-3.847a5.294 5.294 0 00-2.777-1.258c-1.541-.216-2.952.189-3.841.45.532 2.218.368 4.828-1.425 7.53z" fill="#A88BFA" />
-      <path d="M19.676 18.538a69.072 69.072 0 001.858-2.952.811.811 0 00-.061-.901c-.516-.684-1.504-2.075-2.042-3.362-.554-1.323-.636-3.378-.64-4.378a1.708 1.708 0 00-.359-1.051L15.235 1.83a3.757 3.757 0 01-.076.545c-.107.503-.307 1.004-.536 1.498-.135.29-.29.601-.446.915-.105.21-.21.42-.31.626-.517 1.068-.998 2.227-1.132 3.59-.125 1.262.046 2.73.814 4.484.128.01.257.025.386.043a6.364 6.364 0 013.327 1.506c.916.79 1.743 1.921 2.414 3.5z" fill="#A88BFA" />
-    </svg>
-  );
 }
 
 export function ChatComposer({
@@ -228,10 +268,9 @@ export function ChatComposer({
   const compositionActiveRef = useRef(false);
   const [enabledStickers, setEnabledStickers] = useState<EnabledSticker[]>([]);
   const supportsWorkFiles = ["work", "code"].includes(mode);
-  const supportsObsidianLibrary = mode === "learn";
-  const supportsPermission = supportsWorkFiles || supportsObsidianLibrary;
+  const supportsPermission = supportsWorkFiles;
   const supportsPlanToggle = mode === "code";
-  const supportsStyle = mode === "chat" || mode === "learn";
+  const supportsStyle = mode === "chat";
   const supportsStickers = mode !== "code";
   const requiresWorkspace = supportsWorkFiles;
   const placeholder = mode === "chat"
@@ -252,6 +291,14 @@ export function ChatComposer({
       sticker: enabledStickers.find((item) => item.id === id),
     };
   }).filter((item): item is { id: string; occurrence: number; sticker: EnabledSticker } => Boolean(item.sticker));
+
+  // The draft string stays the message content, so it keeps its `[sticker:id]` markers. The text box shows only
+  // what the user typed; recognised stickers appear once, as removable thumbnails above it. Unrecognised markers
+  // stay visible so they can never become hidden text.
+  const { visible: visibleValue, markers: hiddenMarkers } = supportsStickers
+    ? splitStickerMarkers(value, new Set(enabledStickers.map((item) => item.id)))
+    : { visible: value, markers: [] as string[] };
+  const withStickerMarkers = (typed: string) => `${typed}${hiddenMarkers.join("")}`;
 
   useEffect(() => {
     let active = true;
@@ -317,6 +364,15 @@ export function ChatComposer({
         onAdjust={onAdjustQueuedMessage}
         onRemove={onRemoveQueuedMessage}
       />
+      {supportsWorkFiles && (
+        <div className="cy-composer__project-strip">
+          <button type="button" className="cy-composer__footer-button" aria-label={t("composer.workspaceChoose")} onClick={onChooseWorkspace}>
+            {mode === "code" ? <CodeFolderIcon /> : <FolderIcon />}
+            <span>{workspaceName ?? (docked ? t("composer.workspaceFolder") : t("composer.workspaceEnter"))}</span>
+            <ChevronIcon />
+          </button>
+        </div>
+      )}
       <div className="cy-composer-shell">
         <input
           ref={fileInputRef}
@@ -332,26 +388,42 @@ export function ChatComposer({
         />
         <Sender
         rootClassName="cy-composer"
-        value={value}
+        value={visibleValue}
         placeholder={modelBusy ? t("composer.placeholderBusy") : placeholder}
         // 忙态使用 Sender 自带的停止按钮；Enter 入队由 onKeyDown 在内建提交前处理。
         loading={modelBusy}
         disabled={!modelBusy && requiresWorkspace && !workspaceName}
         autoSize={{ minRows: 3, maxRows: 7 }}
-        onChange={onChange}
+        onChange={(next) => onChange(withStickerMarkers(next))}
         onCancel={onCancel}
         onPaste={handlePaste}
         onKeyDown={handleSenderKeyDown}
         onSubmit={(submitValue) => {
-          if (!submitValue.trim()) return;
-          onSubmit(submitValue);
+          const full = withStickerMarkers(submitValue);
+          if (!full.trim()) return;
+          onSubmit(full);
         }}
-        suffix={(actionNode, { components }) => modelBusy ? (
-          <components.LoadingButton
-            title={t("composer.stopRun")}
-            aria-label={t("composer.stopRun")}
-          />
-        ) : actionNode}
+        suffix={(actionNode, { components }) => {
+          const send = modelBusy ? (
+            <components.LoadingButton
+              title={t("composer.stopRun")}
+              aria-label={t("composer.stopRun")}
+            />
+          ) : hiddenMarkers.length > 0 && !visibleValue.trim() ? (
+            // A sticker alone is a complete message even though the text box is empty.
+            <span className="cy-composer__send-sticker"><components.SendButton disabled={false} /></span>
+          ) : actionNode;
+          return (
+            <div className="cy-composer__suffix">
+              <ContextUsageRing usage={contextUsage} sessionId={conversationId} busy={modelBusy} />
+              {onSelectModelProfile && (
+                <ModelEffortControl sessionId={conversationId} activeProfileId={activeModelProfileId} onSelectModelProfile={onSelectModelProfile} />
+              )}
+              <DesktopAsrButton key={`${mode}:${conversationId ?? "new"}:${workspaceRoot ?? ""}`} onText={text => onChange(`${value}${value && !/\s$/.test(value) ? " " : ""}${text}`)} />
+              {send}
+            </div>
+          );
+        }}
         header={hasComposerHeader ? (
           <div className="cy-composer__attachments" aria-label={t("composer.attachmentsLabel")}>
             {attachments.map((attachment, index) => (
@@ -374,63 +446,29 @@ export function ChatComposer({
         ) : undefined}
         prefix={
           <div className="cy-composer__prefix-actions">
-            <button
-              type="button"
-              className="cy-composer__icon-button"
-              aria-label={t("composer.uploadFile")}
-              title={t("composer.uploadFile")}
-              disabled={attachmentBusy}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <PlusIcon />
-            </button>
-            <button
-              type="button"
-              className="cy-composer__icon-button"
-              aria-label={t("composer.screenshot")}
-              title={t("composer.screenshotShortcut")}
-              onClick={onScreenshot}
-            >
-              <ScreenshotIcon />
-            </button>
-            {supportsStickers && <StickerPicker onChoose={onChooseSticker} />}
+            <ComposerAddMenu
+              supportsStickers={supportsStickers}
+              attachmentBusy={attachmentBusy}
+              onUpload={() => fileInputRef.current?.click()}
+              onScreenshot={onScreenshot}
+              onChooseSticker={onChooseSticker}
+            />
+            {supportsPermission && <PermissionControl />}
+            {supportsPlanToggle && conversationId && (
+              <PlanModeToggle conversationId={conversationId} workspaceRoot={workspaceRoot} />
+            )}
+            {supportsStyle && <StyleControl />}
           </div>
         }
         />
-        <div className="cy-composer__footer">
         {mode === "work" && attachments.some((attachment) => attachment.kind === "document") && (
-          <label className="cy-composer__read-requirement">
-            <input type="checkbox" checked={requireDocumentRead} onChange={(event) => onRequireDocumentReadChange?.(event.target.checked)} />
-            {t("composer.requireDocumentRead")}
-          </label>
+          <div className="cy-composer__footer">
+            <label className="cy-composer__read-requirement">
+              <input type="checkbox" checked={requireDocumentRead} onChange={(event) => onRequireDocumentReadChange?.(event.target.checked)} />
+              {t("composer.requireDocumentRead")}
+            </label>
+          </div>
         )}
-        {supportsWorkFiles && (
-          <button type="button" className="cy-composer__footer-button" aria-label={t("composer.workspaceChoose")} onClick={onChooseWorkspace}>
-            {mode === "code" ? <CodeFolderIcon /> : <FolderIcon />}
-            <span>{workspaceName ?? (docked ? t("composer.workspaceFolder") : t("composer.workspaceEnter"))}</span>
-            <ChevronIcon />
-          </button>
-        )}
-        {supportsObsidianLibrary && (
-          <button type="button" className="cy-composer__footer-button" aria-label={t("composer.obsidianChoose")} onClick={onChooseWorkspace}>
-            <ObsidianVaultIcon />
-            <span>{workspaceName ?? t("composer.obsidianLibrary")}</span>
-            <ChevronIcon />
-          </button>
-        )}
-        {supportsPlanToggle && conversationId && (
-          <PlanModeToggle conversationId={conversationId} workspaceRoot={workspaceRoot} />
-        )}
-        {supportsPlanToggle && conversationId && <span className="cy-composer__footer-separator" />}
-        {supportsPermission && (
-          <PermissionControl />
-        )}
-        {supportsStyle && <StyleControl />}
-        {onSelectModelProfile && <ModelSelector activeProfileId={activeModelProfileId} onSelect={onSelectModelProfile} />}
-        <span className="cy-composer__footer-spacer" />
-        <ContextUsageRing usage={contextUsage} sessionId={conversationId} busy={modelBusy} />
-        <ReasoningControl sessionId={conversationId} modelProfileId={activeModelProfileId} />
-        </div>
       </div>
     </div>
   );

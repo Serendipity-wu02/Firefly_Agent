@@ -23,8 +23,8 @@ export interface TranscriptRewindRequest {
 }
 
 /** UI 消息的模型侧文本：优先 modelContext（拼入模型上下文的版本），兜底气泡文本。 */
-function modelText(message: UiChatMessage): string {
-  return message.modelContext?.trim() || message.content;
+function modelText(message: UiChatMessage, forceUserContent = false): string {
+  return forceUserContent ? message.content : message.modelContext?.trim() || message.content;
 }
 
 /** UI 附件只保留稳定元数据；previewUrl / status 等瞬态字段不落轨迹。 */
@@ -45,14 +45,30 @@ export async function prepareTranscriptDispatch(input: {
   store: ConversationTranscriptStore;
   session: ChatSession;
   userTurnId: string;
+  assistantTurnId?: string;
   runId: string;
   rewind?: TranscriptRewindRequest;
+  /** Main default S: renderer modelContext is never a direct user event. */
+  forceUserContent?: boolean;
 }): Promise<void> {
   const { store, session, userTurnId, runId, rewind } = input;
   const currentUser = session.messages.find(
     (message) => message.id === userTurnId && message.role === "user",
   );
   if (!currentUser) throw new Error("TRANSCRIPT_USER_TURN_NOT_FOUND");
+  const userIndex = session.messages.indexOf(currentUser);
+  if (input.assistantTurnId !== undefined) {
+    const assistant = session.messages[userIndex + 1];
+    if (!input.assistantTurnId || input.assistantTurnId === userTurnId
+      || userIndex !== session.messages.length - 2
+      || session.messages.filter(message => message.id === userTurnId).length !== 1
+      || session.messages.filter(message => message.id === input.assistantTurnId).length !== 1
+      || assistant?.id !== input.assistantTurnId || assistant.role !== "model"
+      || assistant.answersUserMessageId !== userTurnId || assistant.content !== ""
+      || assistant.modelContext?.trim() || rewind && rewind.anchorUserTurnId !== userTurnId) {
+      throw Error("TRANSCRIPT_DISPATCH_BINDING_INVALID");
+    }
+  }
 
   const snapshot = await store.read(session.id);
   // 本地条目视图：快照之后新写入的行（回填 / rewind）也计入，供 revision 求最大值
@@ -63,8 +79,17 @@ export async function prepareTranscriptDispatch(input: {
   // ── 首次回填：boundary 不存在时确定性续传（崩溃后按行幂等恢复）──
   if (!seenIds.has(boundaryId)) {
     // 无 rewind 时跳过当前 user（由 dispatch 路径写入）；有 rewind 时保留它作锚点基准
-    for (const message of session.messages) {
+    const history = input.assistantTurnId === undefined
+      ? session.messages
+      : session.messages.slice(0, userIndex + (rewind ? 1 : 0));
+    for (const message of history) {
       if (!rewind && message.id === userTurnId) continue;
+      // An interrupted backfill must keep existing canonical identities/revisions;
+      // display content (including an edited current user) cannot replace that anchor.
+      if (input.assistantTurnId !== undefined && localEntries.some(entry =>
+        entry.turnId === message.id && (message.role === "user"
+          ? entry.kind === "user" || entry.kind === "turn_rewind" && entry.payload.disposition === "replace_user"
+          : entry.kind === "assistant"))) continue;
       const entryId = `backfill:v1:${message.id}`;
       if (seenIds.has(entryId)) continue;
       const draft: TranscriptAppendInput = message.role === "user"
@@ -74,13 +99,13 @@ export async function prepareTranscriptDispatch(input: {
             kind: "user",
             turnId: message.id,
             revision: 1,
-            payload: { text: modelText(message), attachments: stableAttachments(message) },
+            payload: { text: modelText(message, input.forceUserContent), attachments: stableAttachments(message) },
           }
         : {
             id: entryId,
             at: message.at,
             kind: "assistant",
-            payload: { role: "assistant", content: modelText(message) },
+            payload: { role: "assistant", content: modelText(message, input.forceUserContent) },
           };
       const appended = await store.append(session.id, draft);
       seenIds.add(appended.id);
@@ -103,7 +128,9 @@ export async function prepareTranscriptDispatch(input: {
       if (rewind.disposition === "replace_user") {
         // 替换条目修订号 = 轨迹中该 turnId 的最大 revision + 1（回填保证 ≥ 1）
         const maxRevision = localEntries
-          .filter((entry) => entry.turnId === rewind.anchorUserTurnId && typeof entry.revision === "number")
+          .filter((entry) => entry.turnId === rewind.anchorUserTurnId && typeof entry.revision === "number"
+            && (input.assistantTurnId === undefined || entry.kind === "user"
+              || entry.kind === "turn_rewind" && entry.payload.disposition === "replace_user"))
           .reduce((max, entry) => Math.max(max, entry.revision ?? 0), 0);
         await store.append(session.id, {
           id: rewindId,
@@ -117,7 +144,7 @@ export async function prepareTranscriptDispatch(input: {
             disposition: "replace_user",
             reason: "edit",
             replacementUser: {
-              text: modelText(currentUser),
+              text: modelText(currentUser, input.forceUserContent),
               attachments: stableAttachments(currentUser),
             },
           },
@@ -150,6 +177,6 @@ export async function prepareTranscriptDispatch(input: {
     kind: "user",
     turnId: userTurnId,
     revision: 1,
-    payload: { text: modelText(currentUser), attachments: stableAttachments(currentUser) },
+    payload: { text: modelText(currentUser, input.forceUserContent), attachments: stableAttachments(currentUser) },
   });
 }

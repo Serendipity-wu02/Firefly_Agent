@@ -31,13 +31,18 @@ vi.mock("electron", () => ({
 // 生活工具其余依赖：纯函数直接放行，翻译工具的 fetch 打桩
 vi.mock("./built-in-tools", () => ({ currentUserTimezone: () => "Asia/Shanghai" }));
 
+import type { ToolContext } from "./registry/tool-context";
+import { getWorkspaceExecutionCoordinator } from "../harness/execution-coordinator";
+import { executeToolDefinition } from "./registry/tool-executor";
+import type { ToolDefinition } from "./registry/tool-registry";
+import { createHash } from "crypto";
 import { clearExchangeRateCache, registerLifeTools } from "./life-tools";
 
 registerLifeTools();
 
 function getTool(id: string) {
   const tool = registry.get(id) as
-    | { execute: (args: Record<string, unknown>, ctx?: { runId?: string }) => Promise<string> }
+    | { execute: (args: Record<string, unknown>, ctx?: ToolContext) => Promise<string> }
     | undefined;
   if (!tool) throw new Error(`工具未注册：${id}`);
   return tool;
@@ -268,5 +273,25 @@ describe("exchange_rate 结果缓存", () => {
     const second = await getTool("exchange_rate").execute({ from: "USD", to: "CNY" });
     expect(second).toContain("7.12");
     expect(second.startsWith("[缓存]")).toBe(false);
+  });
+});
+
+
+describe("str_replace trusted write facts", () => {
+  it("claims only a validated actual replacement and returns byte-hash evidence", async () => {
+    const file = path.join(tmpDir, "replace.txt");
+    fs.writeFileSync(file, "old bytes");
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = (agentId: string) => ({ workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId, childRunId: `c-${agentId}`, toolCallId: agentId });
+    await coordinator.runLeaf(scope("invalid"), "exclusive", undefined, async (permit) => {
+      const raw = await getTool("str_replace").execute({ file_path: file, old_string: "missing", new_string: "unused" }, { userQuery: "", execution: { coordinator, scope: scope("invalid"), permit } });
+      expect(JSON.parse(raw).success).toBe(false);
+    });
+    expect(coordinator.getWriteEvidence()).toEqual([]);
+    await coordinator.runLeaf(scope("valid"), "exclusive", undefined, async (permit) => {
+      const outcome = await executeToolDefinition(registry.get("str_replace") as unknown as ToolDefinition, { file_path: file, old_string: "old", new_string: "new" }, { userQuery: "", execution: { coordinator, scope: scope("valid"), permit } });
+      expect(outcome.writes?.[0]).toMatchObject({ path: file, state: "applied", after: { sha256: createHash("sha256").update("new bytes").digest("hex") } });
+    });
+    await coordinator.closeGroup("g");
   });
 });

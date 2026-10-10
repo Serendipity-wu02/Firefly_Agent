@@ -1,3 +1,4 @@
+import { beginWriteBatch } from "./registry/file-write-evidence";
 // ast-grep 工具 — 基于 AST 的结构化代码搜索与重写
 //
 // 与文本级工具（search_text/apply_patch）和语义级工具（lsp）互补：
@@ -459,6 +460,7 @@ async function executeAstGrepReplace(
     });
   }
 
+  const batch = beginWriteBatch(ctx, [...pendingWrites.keys()]);
   // Review 基线捕获：在批量写入之前保存 pre-mutation baseline
   if (ctx?.runId) {
     const tracker = getRunReviewTracker(app.getPath("userData"));
@@ -472,7 +474,7 @@ async function executeAstGrepReplace(
   const changed: string[] = [];
   for (const [absPath, content] of pendingWrites) {
     try {
-      fs.writeFileSync(absPath, content, "utf8");
+      await batch.run([absPath], () => fs.writeFileSync(absPath, content, "utf8"));
       changed.push(absPath.slice(workspaceRoot.length + 1).replaceAll("\\", "/"));
     } catch (err) {
       errors.push(`${absPath}: ${err instanceof Error ? err.message : String(err)}`);
@@ -490,7 +492,9 @@ async function executeAstGrepReplace(
     changedFiles: changed.length,
     totalMatches,
     changed,
-    changes: evidence,
+    // Only completed writes may expose their intended diff as an applied diff.
+    // Failed/partial paths remain in the independent actual-byte write ledger.
+    changes: finalizeFileChanges(changes.filter((change) => changed.includes(change.file))),
     ...(skipped.length > 0 ? { skipped: skipped.slice(0, 20) } : {}),
     ...(errors.length > 0 ? { errors: errors.slice(0, 10) } : {}),
   });

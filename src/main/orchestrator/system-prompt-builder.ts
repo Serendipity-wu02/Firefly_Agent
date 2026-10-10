@@ -45,9 +45,7 @@ export function resolveSoulSamplingForStyle(input: {
 export function buildSystemPrompt(styleFile: string, includeStyle = true): string {
   const mode: ConversationMode = styleFile.startsWith("chat") || styleFile.startsWith("talk")
     ? "chat"
-    : styleFile.startsWith("learn")
-      ? "learn"
-      : "work";
+    : "work";
   const parts = [buildModePrompt(mode)];
 
   // 风格采样提示词是历史调用方的可选附加项；生产运行链路在 build-options 单独注入。

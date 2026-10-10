@@ -115,6 +115,23 @@ afterAll(() => {
 
 // ── 纯函数：会话级 fs 授权 ──────────────────────────────
 
+describe("trusted session permission snapshot", () => {
+  it("does not replace a read-only snapshot with full settings at any wrapping stage", async () => {
+    const root = makeTempDir();
+    await sb.initSandbox();
+    permState.level = "full";
+    // The fourth argument is the Main-owned permission snapshot, not model args.
+    const wrap = sb.wrapWithSandbox as (...args: unknown[]) => Promise<unknown>;
+    const outcome = await wrap("echo synthetic", root, undefined, "read-only");
+    expect(outcome).toMatchObject({ ok: true });
+    expect(mocks.initialize).toHaveBeenCalledWith(expect.objectContaining({
+      filesystem: { allowWrite: [], denyRead: [], denyWrite: [] },
+    }));
+    expect(mocks.wrapArgv).toHaveBeenCalledWith("echo synthetic", undefined,
+      { filesystem: { denyRead: [], denyWrite: [] } }, undefined, root, undefined);
+  });
+});
+
 describe("resolveSandboxSessionFilesystem", () => {
   it("limits scoped Windows grants to the active workspace instead of the app or home directory", () => {
     expect(resolveSandboxSessionFilesystem("scoped", "E:\\user-workspace")).toEqual({

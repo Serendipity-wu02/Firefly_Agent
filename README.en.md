@@ -6,21 +6,22 @@
 
 **Firefly_Agent 1.1.0** is a Windows Live2D AI desktop companion and multi-mode Agent workspace featuring Firefly from *Honkai: Star Rail*. Built with Electron, TypeScript and React, it brings character interaction, conversations, task execution and development tools into one application.
 
-[Repository](https://github.com/Serendipity-wu02/Firefly_Agent) · [Issues](https://github.com/Serendipity-wu02/Firefly_Agent/issues) · [Documentation](./docs/README.md) · [Architecture](./docs/architecture/firefly-runtime.md)
+[Repository](https://github.com/Serendipity-wu02/Firefly_Agent) · [Issues](https://github.com/Serendipity-wu02/Firefly_Agent/issues)
 
 ## Features
 
 | Area | Current implementation |
 | --- | --- |
-| Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters have separate portraits and identities; Moments is disabled by default. |
+| Desktop character | Firefly Live2D model, click and double-click expressions, dragging, motion playback and reset. Chat actions use the existing tool and event chain. Twelve task characters retain separate portraits and have explicitly configured persistent specialist roles. |
 | Chat | Character conversations, model profiles, streamed replies and history. An explicit preferred form of address takes priority over an existing nickname; the default is “开拓者” (Trailblazer). Canonical story events do not automatically become shared experiences with the current user. |
 | Work | Tools, file and document processing, Skills, Task/Subagent, approvals and cancellation. Explicitly required file reads need evidence from the current run; budget limits require partial-range confirmation. Task completion and complete reading are reported separately. Finished tasks can be exported to Markdown through a native save dialog. |
-| Learn | Learning conversations, materials and notes in an Obsidian workspace, progress tracking and Skills collaboration. Background progress updates depend on the workspace, reply content and service results; not every reply produces an update. |
+| Work knowledge workspace | Learning, quizzes, notes and progress remain available in Work. Bind a workspace; progress is maintained only for a Vault that already has `learn/progress.md`. Ordinary Work does not automatically create a Vault, learning folders or progress files. |
 | Code | Git, LSP, AST, file and command tools, and Code Skills, using the current Agent, tool permissions and approvals. External language servers require their own environment. |
-| Skills | Thirty-nine inherited Skills and eight project-maintained built-in Skills: discovery, registration, mode filtering, on-demand body and attachment reading, user overrides, and managed updates with hash recognition, backups and user-edit protection. |
+| Browser / Files | Existing Main-defined exact HTTPS hosts, actions, native authorization boundaries and bounded Agent browsing remain in place; the handoff's manual-only policy is not adopted. The file workspace edits complete UTF-8 text files (≤1 MiB), with native confirmation for each save, version-hash conflict checks and unsaved-draft guards. Real Windows GUI acceptance remains pending. |
+| Skills | 41 third-party Skills plus four project Skills (`diagram`, `document-reader-validation`, `knowledge-workspace`, and `plugin-development`), for 45 total. Persona and planning/file protocols move to `prompts/persona-support/` and `prompts/workflow-support/`, outside Skill discovery. Existing mechanisms include discovery, registration, mode filtering, on-demand body and attachment reading, user overrides, and managed updates with hash recognition, backups and user-edit protection. |
 | Plugins | Local installation, lifecycle and isolated panels; a locally buildable SDK, manifest/schema contracts and four examples. No project-hosted online marketplace or published SDK package is promised. |
-| Memory / RAG | Original conversations and vector indexes are stored separately, with existing memory and history retrieval paths. Unavailable vector models produce explicit feedback; raw Chat is still saved and failed indexing is not reported as success. |
-| Voice / Channels | Existing integrations for GPT-SoVITS, ASR, QQ Music, Feishu, WeChat and QQ. Users configure services, clients, channel credentials and resources. Integration code does not establish complete testing of external services. |
+| Memory / RAG | S/M/H is the default context, fact-memory and history-retrieval path. When H lacks a trusted history snapshot, it explicitly reports insufficient coverage rather than treating history as absent or falling back to legacy personal vector retrieval. Character and document knowledge RAG remain separate. |
+| Voice / Channels | Desktop ASR offers Off, Mossland and Aliyun. Recording requires an explicit click; stopping fills the input draft without sending it. Desktop Call/TTS product entry points are retired; notification sounds, internal audio and channel speech processing remain. Users configure QQ Music, Feishu, WeChat, QQ and other services; real microphones and external services remain unverified. |
 
 Models, tools, Skills and plugins share the current runtime and permission mechanism. Skill text and portraits do not grant additional tool permissions; existing configuration controls enabled state and allowed modes.
 
@@ -28,13 +29,17 @@ Models, tools, Skills and plugins share the current runtime and permission mecha
 
 The current source tree is Firefly's independently maintained product baseline. Original projects serve as provenance and historical compatibility references; runtime and builds do not need their working directories.
 
-**Verified scope:** independent source builds; Main/Preload/Renderer TypeScript and build checks; isolated Main and Renderer startup; Chat / Work / Learn / Code entry points; registration of 39+8 Skills; malicious and normal ZIP regressions; managed upgrades from a real old Skills archive and user-file protection; targeted automated tests; basic XLSX `find-label` Smoke; and local plugin SDK/example compilation and Mock checks.
+**Historical verified scope (before the vNext changes, not acceptance of the current version):** independent source builds; Main/Preload/Renderer TypeScript and build checks; isolated Main and Renderer startup; Chat / Work / Learn / Code entry points; registration of 39+8 Skills; malicious and normal ZIP regressions; managed upgrades from a real old Skills archive and user-file protection; targeted automated tests; basic XLSX `find-label` Smoke; and local plugin SDK/example compilation and Mock checks.
 
-**Not fully accepted:** real-model end-to-end execution, deep GUI interaction, complete external Office/LibreOffice/.NET workflows, real-user environments, installer upgrades, cross-platform behavior, the complete TTS / QQ Music approval chain, sustained frame rate, and redistribution permission for every asset required for a public release.
+**Historical vNext layout-baseline verification (before removal of two Skills, not acceptance of this edition):** after freezing source changes, the full suite passed 538 files and 4766 tests, with one test skipped because Windows symbolic-link permission was unavailable. Main/Preload/Renderer typechecks, the full build, plugin SDK and four examples passed. An isolated user directory verified Main/Renderer startup, Chat / Work / Code switching, 44 registered Skills and normal exit. Persisted Learn sessions migrate to Work after backup; new Learn requests are rejected. Migration of real user data was not performed.
 
-Recorded maintenance issues include process-wide attachment-page deduplication; reading across sessions needs further validation. The original cause of the first empty-history-list incident remains unknown. Read failures being presented as empty lists and subsequent file overwrites have been fixed; successful restarts do not establish the original cause.
+**Current vNext boundaries:** Main uses twelve persistent specialist Agents with explicit saved-model routing. Chat does not delegate; Work/Code expose their supported specialists. Existing saved profiles can be assigned in settings; missing configuration fails explicitly. The old public task tool is retired; schema1 history remains readable. Offline automation does not replace real-model, complete GUI or external-service acceptance.
 
-Commands, input hashes, results and historical boundaries are recorded in the [consolidated verification record](./docs/refactor/2026-09-26-documentation-dependency-closeout.md). Targeted results do not establish a full test-suite pass or completion of every feature. No public installer or automatic update is promised; automatic updates remain disabled.
+**Not fully accepted:** real-model end-to-end execution, deep GUI interaction, complete external Office/LibreOffice/.NET workflows, real-user environments, installer upgrades, cross-platform behavior, microphone recording, live ASR services, the complete QQ Music approval chain, sustained frame rate, and redistribution permission for every asset required for a public release.
+
+Skill attachment-page deduplication is isolated by trusted run scope; dispatcher calls within a run share its records without leaking them across runs or roles. The original cause of the first empty-history-list incident remains unknown. Read failures being presented as empty lists and subsequent file overwrites have been fixed; successful restarts do not establish the original cause.
+
+Targeted results do not establish a full test-suite pass or completion of every feature. No public installer or automatic update is promised; automatic updates remain disabled.
 
 ## Development environment and startup
 
@@ -42,21 +47,35 @@ Requirements are Windows, Node.js `>=24 <25`, and npm `>=10`; the declared packa
 
 ```powershell
 npm ci
+$isolationRoot = Join-Path (Get-Location).Path "output\development-profile"
+New-Item -ItemType Directory -Force -Path $isolationRoot | Out-Null
+$env:FIREFLY_RUNTIME_PROFILE = "development"
+$env:FIREFLY_ISOLATION_ROOT = (Resolve-Path -LiteralPath $isolationRoot).Path
 npm run dev
 ```
 
-To start built output:
+`npm run dev` explicitly selects `development`. The isolation root must be an existing absolute directory and must not equal, contain, or be inside production appData. Startup rejects a missing or invalid root. This example creates the root only inside the current workspace.
+
+To start this checkout’s built output in the same PowerShell session with the environment variables above already set:
 
 ```powershell
 npm run build
 npm start
 ```
 
-`npm start` loads this repository's `dist`; rebuild after source changes. Development and built instances share the production data identity, so quit the current instance normally before opening another.
+`npm start` loads this repository's `dist`; rebuild after source changes. Running `electron .` from the checkout remains unpackaged; the variables above explicitly select `development` and supply its isolation root. An isolation root without an explicit profile is rejected. Set both variables again in a new PowerShell session. Both launch methods in this example use the `Firefly-development` identity and `$isolationRoot\Firefly-development` data directory; quit the current instance normally before opening another against that same development directory. The packaged application defaults to `production` and does not use this development isolation directory.
 
 Create a model profile in application settings, supply the protocol, address, model and credentials supported by your service, then select the profile. The repository contains no real credentials or ready-to-use model configuration. Conversations, selected materials and tool results sent to a model may leave your computer, depending on the service and operation you choose.
 
 ## Checks and local packaging
+
+Windows batch files follow the same development isolation contract. `setup.bat` prepares the build without persisting a profile root. After creating the directory and building as above, a new PowerShell session can supply the existing root explicitly:
+
+```powershell
+.\start.bat (Resolve-Path -LiteralPath ".\output\development-profile").Path
+```
+
+`start.bat` uses this checkout's built CLI and sets the supplied isolation root for that invocation only. With no argument, it inherits FIREFLY_ISOLATION_ROOT (or the legacy explicit smoke root) while still selecting development. A missing root prints usage and exits 1; Main continues to reject invalid paths and production overlap, and child failure codes are preserved. Double-clicking requires an inherited explicit root: temporary variables set in another terminal are not inherited. The script does not create a directory automatically.
 
 These commands come from the current [package.json](./package.json):
 
@@ -68,12 +87,12 @@ npm run check:plugin-sdk
 npm run test:plugin-examples
 ```
 
-Main and Preload TypeScript checks are included in `build:main` / `build:preload`. `npm test` runs the suite defined by `vitest.config.ts`, not Node script tests, Rust tests, installers or live external-service checks. See [scripts/README.md](./scripts/README.md) for script entry points. Windows Bash integration tests require `FIREFLY_TEST_BASH` to point to an existing Git Bash `bash.exe` using its actual absolute path.
+Main and Preload TypeScript checks are included in `build:main` / `build:preload`. Windows is the current primary acceptance platform. Screenshot path and default `cmd` integration cases run only on Windows; cross-platform process-manager cases remain enabled. Partial Linux passes do not establish Linux product support. `npm test` runs the suite defined by `vitest.config.ts`, not Node script tests, Rust tests, installers or live external-service checks. See [scripts/README.md](./scripts/README.md) for script entry points. Windows Bash integration tests require `FIREFLY_TEST_BASH` to point to an existing Git Bash `bash.exe` using its actual absolute path.
 
-When the distributed Skills snapshot changes, run `npm run prepare:skills` first to synchronize the ZIP, manifest and notices. The screenshot helper needs a Rust/Cargo Windows MSVC toolchain and C++ build prerequisites. Local unpacked preparation is:
+When the distributed Skills directories change, review `vendor/firefly-skills/skills-manifest.json` and the source notices, then run `npm run validate:skills`. Packaging copies the validated directories directly; it does not generate a Skills ZIP. The screenshot helper needs a Rust/Cargo Windows MSVC toolchain and C++ build prerequisites. Local unpacked preparation is:
 
 ```powershell
-npm run prepare:skills
+npm run validate:skills
 npm run package:win:dir
 ```
 
@@ -81,43 +100,41 @@ This script builds the application and screenshot helper, prepares verified MinG
 
 ## External-service prerequisites
 
-- **GPT-SoVITS:** prepare and start your own service, then configure its address, reference audio and matching text in TTS settings. Missing configuration is reported explicitly while text replies remain available. The project includes no local voice environment, weights, audio or cache. Real synthesis, playback and stopping remain unverified.
+- **Desktop ASR:** select Off, Mossland or Aliyun in settings and configure the chosen service credentials. Recording requires an explicit action and microphone permission; audio is sent to the selected service, and the transcript only fills the draft after recording stops. No ready-to-use local ASR environment is included. Real microphones and service transcription remain unverified.
 - **QQ Music:** requires a running, accessible desktop session. Status and controls use the existing tool-permission chain; command submission and observed state changes are reported separately. Controls affect current playback; the full application approval chain remains unverified. There is no automatic NetEase fallback.
-- **BGE-M3:** requires complete vector-model resources configured by the user. Without them, vector retrieval/writes report unavailable and raw history is retained. The application does not automatically download a model or reuse the main Chat profile as vector configuration. Backfilling historical vectors remains pending.
+- **Knowledge RAG / BGE-M3:** vector retrieval requires user-configured model resources and reports unavailable without them. The application does not automatically download a model or reuse the main Chat profile as vector configuration. Character and document knowledge RAG do not provide the default S/M/H personal-memory or history-retrieval path.
 - **Office and channels:** prepare the Python modules, LibreOffice, .NET, language servers, channel services and permissions required by each actual workflow. Static instructions or a basic Smoke check do not prove every external program works.
 
 ## Architecture and directories
 
-The application starts at `src/main/index.ts`, compiled to `dist/main/main/index.js`. Preload provides controlled IPC; React and Live2D render the windows and desktop character. All four modes use the existing Firefly Agent execution chain, with distinct owners for tools, Tasks, approvals and cancellation.
+The application starts at `src/main/index.ts`, compiled to `dist/main/main/index.js`. Preload provides controlled IPC; React and Live2D render the windows and desktop character. The three modes, Chat / Work / Code, use the existing Firefly Agent execution chain, with distinct owners for tools, Tasks, approvals and cancellation.
 
 | Path | Responsibility |
 | --- | --- |
 | `src/main/`, `src/preload/`, `src/renderer/` | Application services, controlled bridge, React interface and Live2D |
 | `src/main/orchestrator/` | Firefly Agent orchestration, tool execution, Task/Subagent and permission integration |
 | `src/main/skills/`, `skills/` | Skill discovery, registration, reading and project built-ins |
-| `vendor/firefly-skills/`, `scripts/packaging/` | Distributed inherited snapshot, provenance/licenses, controlled adaptations and package preparation |
+| `vendor/firefly-skills/`, `scripts/packaging/` | Distributed inherited Skills directories, provenance/licenses, historical adaptation evidence and package validation |
 | `src/plugins/`, `packages/plugin-sdk/`, `examples/` | Plugin host, local SDK, schema and development examples |
 | `src/shared/` | IPC, data/event contracts and ZIP security boundaries |
 | `prompts/`, `assets/` | Layered character prompts, world knowledge and product assets |
 | `native/`, `electron-builder.yml` | Native helper source and application packaging configuration |
-| `docs/architecture/` | Current responsibilities, entry points and maintenance boundaries; historical records are separated in the documentation index |
 
-See the [runtime architecture](./docs/architecture/firefly-runtime.md) and [maintenance boundaries](./docs/architecture/firefly-maintenance.md) for dependency directions.
 
 ## Data and upgrade protection
 
-The default data directory is `%APPDATA%\Firefly`. The technical package name `firefly-agent`, display name `Firefly_Agent`, runtime data identity `Firefly`, and appId `com.serendipitywu02.firefly` have distinct roles; changing the display name does not recreate the data directory.
+The default `production` data directory is `%APPDATA%\Firefly`. The technical package name `firefly-agent`, display name `Firefly_Agent`, runtime data identity `Firefly`, and appId `com.serendipitywu02.firefly` have distinct roles; changing the display name does not recreate the data directory.
 
 Settings, model profiles, Chat / Work history, run records and user Skills do not belong in Git or the application package. Quit normally and back up before manual changes, preserving old directories. Do not overwrite an existing destination or simply combine directories. Central migration handles old formats and credential decryption; current data takes priority, conflicts are retained and diagnosed, and read errors do not trigger empty-data writes. Skills updates only modify recognized managed content and preserve user edits and same-name custom files.
 
 ## Development workflow
 
-Commit and validate development on `firefly-mini-v1.1.x`, then use a PR to merge into `main`. Run checks appropriate to the change and state what remains unverified. Read the [contribution guide](./.github/CONTRIBUTING.md) and [AGENTS.md](./AGENTS.md). Do not include credentials, private conversations or user data in Issues or PRs.
+Commit and validate development on `firefly-mini-v1.1.x`, then use a PR to merge into `main`. Run checks appropriate to the change and state what remains unverified. Read [AGENTS.md](./AGENTS.md). Do not include credentials, private conversations or user data in Issues or PRs.
 
-## Upstream and licensing
+## Maintenance and licensing
 
-Firefly_Agent retains and adapts parts of Cyrene-Agent's source and architecture. The original author's MIT copyright notices remain intact; subsequent Firefly additions and adaptations are maintained by this project. Engineering independence does not mean everything was written from scratch.
+Firefly_Agent is independently maintained by Serendipity-wu02. Source copyright and licensing are documented in [LICENSE](./LICENSE).
 
-Source licensing is documented in the complete [MIT License](./LICENSE). Third-party Skills, dependencies, Live2D models, portraits, character IP and other assets have their own licenses or permissions; the source MIT license does not automatically grant asset redistribution rights. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md), [MODEL_LICENSE.md](./MODEL_LICENSE.md) and the [contributors record](./docs/CONTRIBUTORS.md) for provenance and boundaries. Public asset redistribution review remains pending.
+Source licensing is documented in the complete [MIT License](./LICENSE). Third-party Skills, dependencies, Live2D models, portraits, character IP and other assets have their own licenses or permissions; the source MIT license does not automatically grant asset redistribution rights. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) and [MODEL_LICENSE.md](./MODEL_LICENSE.md) for provenance and boundaries. Public asset redistribution review remains pending.
 
 Firefly and *Honkai: Star Rail* intellectual property belongs to its respective rightsholders. This is an unofficial project.

@@ -13,6 +13,81 @@ import type { PendingChatAttachment } from "../../shared/chat-types";
 import type { ToolCallOutcome } from "./harness/types";
 import type { ChatMessage } from "./vendors/types";
 
+export interface SAssistantBinding {
+  runId: string;
+  assistantTurnId: string;
+  userTurnId: string;
+  userRevision: number;
+}
+export interface SAssistantSettlementBinding extends SAssistantBinding {
+  assistantEntryId: string;
+}
+export type SAssistantSettlementResult = "success" | "interrupted";
+export interface SAssistantSettlementPayload {
+  binding: SAssistantSettlementBinding;
+  result: SAssistantSettlementResult;
+  /** Main-owned reason code, never an exception body or model text. */
+  safeReason: string;
+}
+function invalidSBinding(): never { throw Error("TRANSCRIPT_S_BINDING_INVALID"); }
+function dataObject(value: unknown, fields: readonly string[]): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype
+    || Reflect.ownKeys(value).length !== fields.length)
+    invalidSBinding();
+  const result: Record<string, unknown> = {};
+  for (const field of fields) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, field);
+    if (!descriptor || !("value" in descriptor))
+      invalidSBinding();
+    result[field] = descriptor.value;
+  }
+  return result;
+}
+function sId(value: unknown): string {
+  if (typeof value !== "string" || !value || value.length > 1024 || /[\u0000-\u001f\u007f]/.test(value))
+    invalidSBinding();
+  return value;
+}
+function sRevision(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 1)
+    invalidSBinding();
+  return value as number;
+}
+export function copySAssistantBinding(value: unknown): SAssistantBinding {
+  const b = dataObject(value, ["runId", "assistantTurnId", "userTurnId", "userRevision"]);
+  const result = {
+    runId: sId(b.runId), assistantTurnId: sId(b.assistantTurnId),
+    userTurnId: sId(b.userTurnId), userRevision: sRevision(b.userRevision),
+  };
+  if (result.assistantTurnId === result.userTurnId)
+    invalidSBinding();
+  return result;
+}
+export function copySAssistantSettlementBinding(value: unknown): SAssistantSettlementBinding {
+  const b = dataObject(value, ["runId", "assistantTurnId", "userTurnId", "userRevision", "assistantEntryId"]);
+  return {
+    ...copySAssistantBinding({
+      runId: b.runId, assistantTurnId: b.assistantTurnId,
+      userTurnId: b.userTurnId, userRevision: b.userRevision,
+    }),
+    assistantEntryId: sId(b.assistantEntryId),
+  };
+}
+export function copySAssistantMessage(value: unknown): ChatMessage {
+  const m = dataObject(value, ["role", "content"]);
+  if (m.role !== "assistant" || typeof m.content !== "string" || !m.content.trim() || Buffer.byteLength(m.content) > 8 * 1024 * 1024)
+    invalidSBinding();
+  return { role: "assistant", content: m.content };
+}
+export function copySAssistantSettlementPayload(value: unknown): SAssistantSettlementPayload {
+  const p = dataObject(value, ["binding", "result", "safeReason"]);
+  if (p.result !== "success" && p.result !== "interrupted")
+    invalidSBinding();
+  if (typeof p.safeReason !== "string" || !/^[A-Za-z][A-Za-z0-9_-]{0,95}$/.test(p.safeReason))
+    invalidSBinding();
+  return { binding: copySAssistantSettlementBinding(p.binding), result: p.result, safeReason: p.safeReason };
+}
+
 export interface TranscriptEnvelopeBase {
   /** 会话内单调递增序号，快照/重放协议依据。 */
   seq: number;
@@ -36,7 +111,8 @@ export type TranscriptUserPayload = {
 
 export type TranscriptEntry =
   | (TranscriptEnvelopeBase & { kind: "user"; payload: TranscriptUserPayload })
-  | (TranscriptEnvelopeBase & { kind: "assistant"; payload: ChatMessage })
+  | (TranscriptEnvelopeBase & { kind: "assistant"; payload: ChatMessage; sSettlement?: {version: 1; userTurnId: string; userRevision: number} })
+  | (TranscriptEnvelopeBase & { kind: "assistant_settlement"; payload: SAssistantSettlementPayload })
   | (TranscriptEnvelopeBase & {
       kind: "tool_result";
       payload: {
@@ -84,6 +160,22 @@ export function userRevisionKey(turnId: string, revision: number): string {
 
 /** 追加前协议校验（fail-closed：非法草稿直接拒绝，不入队）。 */
 export function assertValidTranscriptDraft(input: TranscriptAppendInput): void {
+  if (input.kind === "assistant" && Object.hasOwn(input, "sSettlement")) {
+    const mark = dataObject(input.sSettlement, ["version", "userTurnId", "userRevision"]);
+    if (mark.version !== 1) invalidSBinding();
+    copySAssistantBinding({
+      runId: input.runId, assistantTurnId: input.turnId,
+      userTurnId: mark.userTurnId, userRevision: mark.userRevision,
+    });
+    sId(input.id);
+    copySAssistantMessage(input.payload);
+    if (input.roundId !== "s-response") invalidSBinding();
+  }
+  if (input.kind === "assistant_settlement") {
+    const p = copySAssistantSettlementPayload(input.payload);
+    sId(input.id);
+    if (input.runId !== p.binding.runId || input.turnId !== p.binding.assistantTurnId) invalidSBinding();
+  }
   if (!input.id || input.id.includes("\n")) throw new Error("TRANSCRIPT_INVALID_ENTRY_ID");
   if (input.kind === "user" && (!input.turnId || !input.revision || input.revision < 1)) {
     throw new Error("TRANSCRIPT_INVALID_USER_REVISION");

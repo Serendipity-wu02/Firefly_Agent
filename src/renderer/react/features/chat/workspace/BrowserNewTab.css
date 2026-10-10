@@ -1,0 +1,44 @@
+/* New-tab page: quiet grey ground, grouped rows, round letter icons. */
+.cy-browser-newtab {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 28px clamp(16px, 5%, 40px);
+  overflow-y: auto;
+  background: var(--cy-bg-page, #f4f4f6);
+  color: var(--cy-text);
+}
+.cy-browser-newtab[data-disabled] { opacity: .55; pointer-events: none; }
+.cy-browser-newtab section + section { margin-top: 26px; }
+.cy-browser-newtab h3 { margin: 0 0 10px; padding: 0 2px; color: var(--cy-text-muted); font: 600 12px/1.3 var(--rb-font-sans, sans-serif); letter-spacing: .04em; }
+.cy-browser-newtab__row { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.cy-browser-newtab__tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: 500 12.5px/1.3 var(--rb-font-sans, sans-serif);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.cy-browser-newtab__tile:hover { background: var(--cy-bg-workspace, var(--cy-surface)); border-color: var(--cy-border); }
+.cy-browser-newtab__tile:focus-visible { outline: 2px solid var(--cy-accent); outline-offset: 2px; }
+.cy-browser-newtab__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--cy-border);
+  border-radius: 50%;
+  background: var(--cy-bg-workspace, var(--cy-surface));
+  color: var(--cy-text);
+  font: 650 17px/1 var(--rb-font-sans, sans-serif);
+}
+.cy-browser-newtab__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cy-browser-newtab__hint { margin: 28px 2px 0; color: var(--cy-text-muted); font: 400 12px/1.6 var(--rb-font-sans, sans-serif); }

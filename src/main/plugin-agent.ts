@@ -213,7 +213,7 @@ export function createPluginAgentRunner(deps: PluginAgentRunnerDeps): NonNullabl
       onEvent: (event) => projectEvent(options.onEvent, event, toolNames),
       includeInteractiveTools: false,
       planState: undefined,
-      taskExecutor: undefined,
+      agentExecutor: undefined,
       checkPermission: async () => true,
       toolContext: {
         userQuery: goal,

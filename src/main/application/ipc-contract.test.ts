@@ -20,6 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { IPC } from "../../shared/ipc-channels";
 import {
   collectReachableFiles,
   findIpcChannelUses,
@@ -28,6 +29,19 @@ import {
 } from "./ipc-contract-scanner";
 
 const repoRoot = process.cwd();
+
+it("does not expose retired Moments channels or preload bridges", () => {
+  expect(Object.values(IPC).filter(channel => channel.startsWith("moments:"))).toEqual([]);
+  const preload = fs.readFileSync(path.join(repoRoot, "src/preload/index.ts"), "utf8");
+  expect(preload).not.toContain('exposeInMainWorld("moments"');
+});
+
+it("does not expose retired Call channels or preload bridges", () => {
+  expect(Object.values(IPC).filter(channel => channel.startsWith("call:") || channel === "sidebar:open-call")).toEqual([]);
+  const preload = fs.readFileSync(path.join(repoRoot, "src/preload/index.ts"), "utf8");
+  expect(preload).not.toContain('exposeInMainWorld("call"');
+  expect(preload).not.toContain("openCall:");
+});
 
 /** 渲染进程访问主进程的唯一出口。 */
 const RENDERER_DIR = "src/preload";

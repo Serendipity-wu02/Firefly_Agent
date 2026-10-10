@@ -8,6 +8,8 @@ const runnerMocks = vi.hoisted(() => ({
     terminal: undefined as undefined | { status: "success" | "timeout" | "cancelled" | "runtime_error" },
   },
   agentError: undefined as Error | undefined,
+  options: undefined as any,
+  settle: undefined as Promise<void> | undefined,
 }));
 
 vi.mock("../orchestrator/firefly-agent", () => ({
@@ -16,11 +18,13 @@ vi.mock("../orchestrator/firefly-agent", () => ({
       return runnerMocks.agentResult;
     }
 
-    runWithEvents() {
+    runWithEvents(options: unknown) {
+      runnerMocks.options = options;
       // 异步派发终态，避免订阅者解引用尚未完成赋值的 sub（TDZ）
       return {
         subscribe: ({ complete, error }: { complete: () => void; error: (err: Error) => void }) => {
-          queueMicrotask(() => {
+          queueMicrotask(async () => {
+            await runnerMocks.settle;
             if (runnerMocks.agentError) error(runnerMocks.agentError);
             else complete();
           });
@@ -81,6 +85,8 @@ function makeRunnerDeps(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   runnerMocks.agentResult = { reply: "调度回复", terminal: undefined };
   runnerMocks.agentError = undefined;
+  runnerMocks.options = undefined;
+  runnerMocks.settle = undefined;
 });
 
 describe("scheduled Firefly execution policy", () => {
@@ -213,5 +219,45 @@ describe("createSchedulerRunner lifecycle events", () => {
     const runner = createSchedulerRunner(deps as never);
     const result = await runner.runScheduledTask(makeTask(), new Date(), false);
     expect(result.ok).toBe(true);
+  });
+});
+
+
+import { requireBackgroundMemoryIngress } from "../memory-context/background-memory-ingress";
+
+describe("scheduler scoped memory entry", () => {
+  it("binds the real task/run/profile to a system instruction without owner read grants", async () => {
+    const prepareBackgroundRun = vi.fn(async (input: any) => {
+      const identity = requireBackgroundMemoryIngress(input.ingress);
+      expect(identity).toMatchObject({ entry: "scheduler", instructionText: "整理资料", sourceTrust: "system" });
+      expect(input).not.toHaveProperty("readParentGrant");
+      return { sessionId: identity.sessionId, signal: identity.signal, transcriptSink: {}, openMemoryRun: vi.fn(), close: vi.fn(async () => {}) };
+    });
+    const deps = makeRunnerDeps({ memoryHost: { prepareBackgroundRun } });
+    deps.buildOptions.mockResolvedValue({ ...await deps.buildOptions(), modelProfileId: "saved-luna" } as any);
+    expect((await createSchedulerRunner(deps as never).runScheduledTask(makeTask(), new Date(), false)).ok).toBe(true);
+    expect(prepareBackgroundRun).toHaveBeenCalledWith(expect.objectContaining({ modelProfileId: "saved-luna", runId: "hist-1", instructionText: "整理资料" }));
+    expect(runnerMocks.options).toMatchObject({ runId: "hist-1", conversationId: expect.stringMatching(/^scheduler-/), modelProfileId: "saved-luna", openMemoryRun: expect.any(Function) });
+    expect(runnerMocks.options.permissionMode).toBe("allow_all");
+  });
+  it("does not fall back when the saved profile is unavailable", async () => {
+    const prepareBackgroundRun = vi.fn();
+    const runner = createSchedulerRunner(makeRunnerDeps({ memoryHost: { prepareBackgroundRun } }) as never);
+    const result = await runner.runScheduledTask(makeTask(), new Date(), false);
+    expect(result).toMatchObject({ ok: false, error: "MEMORY_RUN_PROFILE_DENIED" });
+    expect(prepareBackgroundRun).not.toHaveBeenCalled();
+    expect(runnerMocks.options).toBeUndefined();
+  });
+  it("aborts shutdown but waits for actual agent settlement", async () => {
+    let settle!: () => void;
+    runnerMocks.settle = new Promise<void>(resolve => { settle = resolve; });
+    const runner = createSchedulerRunner(makeRunnerDeps() as never);
+    const running = runner.runScheduledTask(makeTask(), new Date(), false);
+    await vi.waitFor(() => expect(runnerMocks.options).toBeDefined());
+    let closed = false;
+    const closing = runner.close().then(() => { closed = true; });
+    expect(runnerMocks.options.signal.aborted).toBe(true);
+    await Promise.resolve(); expect(closed).toBe(false);
+    settle(); await running; await closing; expect(closed).toBe(true);
   });
 });

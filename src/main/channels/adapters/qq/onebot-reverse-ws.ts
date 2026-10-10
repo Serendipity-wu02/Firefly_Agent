@@ -36,7 +36,7 @@ export interface OneBotListeningInfo {
 export function resolveOneBotListenHost(
   mode: QqListenMode,
   customHost?: string,
-  interfaces = networkInterfaces(),
+  interfaces?: ReturnType<typeof networkInterfaces>,
 ): { host: string; resolvedMode: QqListenMode } {
   if (mode === "loopback") return { host: "127.0.0.1", resolvedMode: "loopback" };
   if (mode === "custom") {
@@ -45,7 +45,8 @@ export function resolveOneBotListenHost(
     return { host, resolvedMode: "custom" };
   }
 
-  const wslAddress = Object.entries(interfaces)
+  // Explicit hosts do not need OS interface access. Discover only for auto/WSL.
+  const wslAddress = Object.entries(interfaces ?? networkInterfaces())
     .filter(([name]) => /wsl/i.test(name))
     .flatMap(([, addresses]) => addresses ?? [])
     .find((item) => item.family === "IPv4" && !item.internal)?.address;

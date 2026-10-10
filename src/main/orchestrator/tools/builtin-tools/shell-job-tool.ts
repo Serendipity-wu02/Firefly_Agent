@@ -39,7 +39,7 @@ export const shellJobTool: ToolDefinition = {
     "wait_ms（可选，仅 status：阻塞等待毫秒数 0–60000，超范围自动钳制，默认 0 立即返回）。",
   enabled: true,
   risk: "safe",
-  modes: ["learn", "code", "work"],
+  modes: ["code", "work"],
   effectKind: "unknown" as const,
   ledgerPolicy: "bypass" as const,
   needsContext: true,
@@ -94,7 +94,7 @@ export const shellJobTool: ToolDefinition = {
       // 字段顺序契约：tail 是唯一大字段，必须排最后（下游头尾截断时尾窗覆盖最新输出）
       return JSON.stringify({
         action, jobId, pid: snap.pid, stopped: snap.status === "stopped",
-        status: snap.status, exitCode: snap.exitCode, reason: snap.reason,
+        status: snap.status, processSettled: snap.processSettled, exitCode: snap.exitCode, reason: snap.reason,
         totalBytes: snap.totalBytes, logFile: snap.logFile,
         command: snap.command, shell: snap.shell,
         startedAt: snap.startedAt, durationMs: snap.durationMs,
@@ -119,7 +119,7 @@ export const shellJobTool: ToolDefinition = {
     }
     return JSON.stringify({
       action, jobId, pid: snap.pid, waitedMs: waitMs,
-      status: snap.status, exitCode: snap.exitCode, reason: snap.reason,
+      status: snap.status, processSettled: snap.processSettled, exitCode: snap.exitCode, reason: snap.reason,
       totalBytes: snap.totalBytes, logFile: snap.logFile,
       command: snap.command, shell: snap.shell,
       startedAt: snap.startedAt, durationMs: snap.durationMs,

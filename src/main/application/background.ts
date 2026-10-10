@@ -30,13 +30,11 @@ export interface BackgroundDependencies {
   syncBuiltInMcp(signal: AbortSignal): Promise<void>;
   restoreMcp(signal: AbortSignal): Promise<void>;
   reconcileMemory(signal: AbortSignal): Promise<void>;
-  scheduleEmbeddingRefresh(signal: AbortSignal): Promise<{ dispose(): void } | void>;
+  scheduleEmbeddingRefresh(signal: AbortSignal): Promise<{ dispose(): void | Promise<void> } | void>;
   initializeReranker(signal: AbortSignal): Promise<void>;
   prewarmScreenshot(signal: AbortSignal): Promise<void>;
-  scheduleUpdateCheck(signal: AbortSignal): Promise<{ dispose(): void } | void>;
-  startProactiveTrigger(signal: AbortSignal): Promise<{ dispose(): void } | void>;
-  /** 启动动态反应队列周期扫描器（含启动补扫，重启后逾期任务尽快续上） */
-  startMomentsReactionScanner(signal: AbortSignal): Promise<{ dispose(): void } | void>;
+  scheduleUpdateCheck(signal: AbortSignal): Promise<{ dispose(): void | Promise<void> } | void>;
+  startProactiveTrigger(signal: AbortSignal): Promise<{ dispose(): void | Promise<void> } | void>;
 }
 
 export interface BackgroundHandle {
@@ -50,11 +48,11 @@ export interface BackgroundTaskRunner {
   stop(signal?: AbortSignal): Promise<void>;
 }
 
-function disposeLateResult(result: unknown): void {
+async function disposeLateResult(result: unknown): Promise<void> {
   const disposer = result as { dispose?: unknown } | null | undefined;
   if (disposer && typeof disposer.dispose === "function") {
     try {
-      (disposer as { dispose(): void }).dispose();
+      await (disposer as { dispose(): void | Promise<void> }).dispose();
     } catch (error) {
       console.error("[Background] late dispose failed:", error);
     }
@@ -78,10 +76,10 @@ export function createBackgroundTaskRunner(): BackgroundTaskRunner {
         return Promise.reject(new Error(`background runner stopped: task ${id} not started`));
       }
       const promise = task(controller.signal).then(
-        (result) => {
-          entries.delete(id);
+        async (result) => {
           // 停止后才结算的任务：立即清理其返回的资源，避免产生无所有者资源
-          if (stopped) disposeLateResult(result);
+          if (stopped) await disposeLateResult(result);
+          entries.delete(id);
           return result;
         },
         (error) => {
@@ -117,10 +115,10 @@ interface RunnerEntry {
   promise: Promise<unknown>;
 }
 
-type OptionalDisposer = { dispose(): void } | void | undefined;
+type OptionalDisposer = { dispose(): void | Promise<void> } | void | undefined;
 
-function disposeOptional(disposer: OptionalDisposer): void {
-  if (disposer && typeof disposer.dispose === "function") disposer.dispose();
+async function disposeOptional(disposer: OptionalDisposer): Promise<void> {
+  if (disposer && typeof disposer.dispose === "function") await disposer.dispose();
 }
 
 export function startBackground(deps: BackgroundDependencies): BackgroundHandle {
@@ -130,7 +128,6 @@ export function startBackground(deps: BackgroundDependencies): BackgroundHandle 
   let proactiveTriggerDisposer: OptionalDisposer;
   let updateCheckDisposer: OptionalDisposer;
   let embeddingRefreshDisposer: OptionalDisposer;
-  let momentsScannerDisposer: OptionalDisposer;
 
   const isShuttingDown = (): boolean => {
     const phase = readiness.getPhase();
@@ -180,27 +177,22 @@ export function startBackground(deps: BackgroundDependencies): BackgroundHandle 
   shutdown.register({
     id: "proactive-trigger",
     phase: "stopProducers",
-    dispose: async () => { disposeOptional(proactiveTriggerDisposer); },
-  });
-  shutdown.register({
-    id: "moments-reaction-scanner",
-    phase: "stopProducers",
-    dispose: async () => { disposeOptional(momentsScannerDisposer); },
+    dispose: async () => { await disposeOptional(proactiveTriggerDisposer); },
   });
   shutdown.register({
     id: "scheduler",
     phase: "stopProducers",
-    dispose: async () => { scheduler.stop(); },
+    dispose: async () => { await scheduler.stop(); },
   });
   shutdown.register({
     id: "embedding-refresh",
     phase: "stopProducers",
-    dispose: async () => { disposeOptional(embeddingRefreshDisposer); },
+    dispose: async () => { await disposeOptional(embeddingRefreshDisposer); },
   });
   shutdown.register({
     id: "update-check-timer",
     phase: "stopProducers",
-    dispose: async () => { disposeOptional(updateCheckDisposer); },
+    dispose: async () => { await disposeOptional(updateCheckDisposer); },
   });
 
   async function groupA(): Promise<void> {
@@ -240,11 +232,6 @@ export function startBackground(deps: BackgroundDependencies): BackgroundHandle 
     await runTracked("proactive-trigger", "proactive", async (signal) => {
       if (signal.aborted) throw new Error("aborted before proactive trigger start");
       proactiveTriggerDisposer = await deps.startProactiveTrigger(signal);
-    });
-    // 动态反应队列扫描器：纯定时器启动，失败只降级不影响其余生产者
-    await runTracked("moments-reaction-scanner", "moments", async (signal) => {
-      if (signal.aborted) throw new Error("aborted before moments reaction scanner start");
-      momentsScannerDisposer = await deps.startMomentsReactionScanner(signal);
     });
   }
 

@@ -1,3 +1,4 @@
+import { getToolWriteEvidence } from "./file-write-evidence";
 import { isAbortError } from "../../../abort-utils";
 import type { ToolContext } from "./tool-context";
 import type { ToolDefinition } from "./tool-registry";
@@ -44,20 +45,23 @@ function legacyFailure(output: string): ToolExecutionOutcome | undefined {
   try {
     const parsed = JSON.parse(output) as Record<string, unknown> | null;
     if (!parsed || typeof parsed !== "object") return undefined;
+    // Explicit failure facts distinguish cancellation before launch from a started
+    // command timeout. Keep the old timeout defaults for tools without those facts.
     if (parsed.timedOut === true) {
+      const explicitFailure = parsed.success === false;
       return {
         status: "failed",
         output,
-        errorCode: "E_TOOL_TIMEOUT",
-        category: "timeout",
+        errorCode: explicitFailure && typeof parsed.errorCode === "string" ? parsed.errorCode : "E_TOOL_TIMEOUT",
+        category: explicitFailure && isCategory(parsed.category) ? parsed.category : "timeout",
         retryable: false,
-        effectState: "unknown",
+        effectState: explicitFailure && parsed.effectState === "not_applied" ? "not_applied" : "unknown",
       };
     }
     if (parsed.success !== false) return undefined;
     const message = typeof parsed.error === "string"
       ? parsed.error
-      : parsed.error === undefined ? "工具执行失败" : JSON.stringify(parsed.error);
+      : parsed.error === undefined ? output : JSON.stringify(parsed.error);
     return {
       status: "failed",
       output: message,
@@ -82,17 +86,21 @@ export async function executeToolDefinition(
   args: Record<string, unknown>,
   context?: ToolContext,
 ): Promise<ReturnType<typeof normalizeToolExecutionOutcome>> {
+  const normalize = (outcome: ToolExecutionOutcome) => {
+    const writes = getToolWriteEvidence(context);
+    return normalizeToolExecutionOutcome({ ...outcome, ...(writes.length ? { writes } : {}) });
+  };
   try {
     const output = await tool.execute(args, context);
     const legacy = legacyFailure(output);
-    return normalizeToolExecutionOutcome(legacy ?? {
+    return normalize(legacy ?? {
       status: "succeeded",
       output,
     });
   } catch (error) {
     if (isAbortError(error)) throw error;
     if (error instanceof ToolExecutionError) {
-      return normalizeToolExecutionOutcome({
+      return normalize({
         status: "failed",
         output: error.message,
         errorCode: error.code,
@@ -107,7 +115,7 @@ export async function executeToolDefinition(
       && typeof (error as { code?: unknown }).code === "string"
       ? String((error as { code: string }).code)
       : undefined;
-    return normalizeToolExecutionOutcome({
+    return normalize({
       status: "failed",
       output: message,
       errorCode: explicitCode ?? "E_TOOL_EXECUTION_FAILED",

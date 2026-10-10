@@ -7,13 +7,27 @@
  * - 安全：路径逃逸拒绝、无效 pattern / language 报错
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { getWorkspaceExecutionCoordinator } from "../harness/execution-coordinator";
 import { registerAstGrepTools } from "./ast-grep-tools";
 import { toolRegistry } from "./registry/tool-registry";
 import type { ToolContext } from "./registry/tool-context";
+
+const failures = vi.hoisted(() => ({ partialPath: "" }));
+vi.mock("fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("fs")>();
+  return { ...actual, writeFileSync: (...args: Parameters<typeof actual.writeFileSync>) => {
+    if (String(args[0]) === failures.partialPath) {
+      failures.partialPath = "";
+      actual.writeFileSync(args[0], "const partial = true;\n");
+      throw new Error("simulated AST write failure");
+    }
+    return actual.writeFileSync(...args);
+  } };
+});
 
 let tmpDir: string;
 let ctx: ToolContext;
@@ -25,6 +39,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  failures.partialPath = "";
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -269,5 +284,46 @@ describe("ast_grep_replace", () => {
 
     expect(result.success).toBe(true);
     expect(readFile("src/a.ts")).toBe("fetchUser(123, opts);\n");
+  });
+});
+
+
+describe("AST actual write ownership and partial evidence", () => {
+  it("dryRun claims nothing so a different role can perform the actual rewrite", async () => {
+    writeFile("a.ts", "console.log(1);\n");
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = (agentId: string) => ({ workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId, childRunId: `c-${agentId}`, toolCallId: agentId });
+    await coordinator.runLeaf(scope("preview"), "exclusive", undefined, async (permit) => {
+      ctx.execution = { coordinator, scope: scope("preview"), permit };
+      expect((await runReplace({ pattern: "console.log($A)", rewrite: "console.info($A)" })).dryRun).toBe(true);
+    });
+    expect(coordinator.getWriteEvidence()).toEqual([]);
+    await coordinator.runLeaf(scope("writer"), "exclusive", undefined, async (permit) => {
+      ctx.execution = { coordinator, scope: scope("writer"), permit };
+      expect((await runReplace({ pattern: "console.log($A)", rewrite: "console.info($A)", dryRun: false })).success).toBe(true);
+    });
+    expect(coordinator.getWriteEvidence()[0].state).toBe("applied");
+    await coordinator.closeGroup("g");
+  });
+
+  it("partial_ast_failure_preserves_applied_paths", async () => {
+    writeFile("a.ts", "console.log(1);\n");
+    writeFile("b.ts", "console.log(2);\n");
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const scope = { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId: "a", childRunId: "ca", toolCallId: "partial" };
+    failures.partialPath = path.join(tmpDir, "b.ts");
+    await coordinator.runLeaf(scope, "exclusive", undefined, async (permit) => {
+      ctx.execution = { coordinator, scope, permit };
+      const result = await runReplace({ pattern: "console.log($A)", rewrite: "console.info($A)", dryRun: false });
+      expect(result.success).toBe(false);
+      expect(result.changed).toEqual(["a.ts"]);
+      expect(result.changes.map((item: { file: string }) => item.file)).toEqual(["a.ts"]);
+    });
+    const writes = coordinator.getWriteEvidence();
+    expect(writes.map((item) => item.state)).toEqual(["applied", "partially_applied"]);
+    expect(readFile("a.ts")).toBe("console.info(1);\n");
+    expect(readFile("b.ts")).toBe("const partial = true;\n");
+    expect(writes.every((item) => item.before?.sha256 && item.after?.sha256)).toBe(true);
+    await coordinator.closeGroup("g");
   });
 });

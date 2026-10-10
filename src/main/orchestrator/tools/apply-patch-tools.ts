@@ -1,3 +1,4 @@
+import { beginWriteBatch } from "./registry/file-write-evidence";
 // apply_patch 工具 — 结构化文件编辑
 //
 // 支持操作：
@@ -246,7 +247,7 @@ function applyChunkToFile(
 
 // ── Executor ──────────────────────────────────────────────
 
-export function applyPatchHunks(hunks: PatchHunk[], workspaceRoot: string): ApplyResult {
+export function applyPatchHunks(hunks: PatchHunk[], workspaceRoot: string, ctx?: ToolContext): ApplyResult {
   const applied: string[] = [];
   const errors: string[] = [];
   const changes: ToolFileChange[] = [];
@@ -275,20 +276,21 @@ export function applyPatchHunks(hunks: PatchHunk[], workspaceRoot: string): Appl
       }
 
       const content = fs.readFileSync(resolvedPath, "utf8");
-      const eol = detectEOL(content);
       // 按 \r?\n 拆行：混合 EOL 文件里孤立的换行符不会残留在行内容中
-      const fileLines = content.split(/\r?\n/);
+      let fileLines = content.split(/\r?\n/);
       let searchStart = 0;
 
       for (let ci = 0; ci < hunk.chunks.length; ci++) {
         const chunk = hunk.chunks[ci];
-        const match = findChunkMatch(fileLines, searchStart, chunk);
-        if (!match) {
+        // Validate against the actual preceding chunk's post-image, exactly as
+        // phase 2 executes it. A removed context cannot validate a later chunk.
+        const staged = applyChunkToFile(fileLines, chunk, searchStart);
+        if (staged.error) {
           errors.push(`${hunk.path}: 第 ${ci + 1} 个编辑块未找到匹配的上下文`);
           break;
         }
-        // 模拟应用 chunk，更新 searchStart
-        searchStart = match.start + getPostImage(chunk).length;
+        fileLines = staged.lines;
+        searchStart = staged.nextSearch;
       }
 
       // 检查 movePath
@@ -306,6 +308,23 @@ export function applyPatchHunks(hunks: PatchHunk[], workspaceRoot: string): Appl
     return { success: false, applied: [], errors };
   }
 
+  const targets = hunks.flatMap((hunk) => [path.resolve(workspaceRoot, hunk.path), ...(hunk.type === "update" && hunk.movePath ? [path.resolve(workspaceRoot, hunk.movePath)] : [])]);
+  const batch = beginWriteBatch(ctx, targets);
+  // Review 基线捕获：在 applyPatchHunks 写文件之前，对每个涉及的文件保存 pre-mutation baseline。
+  // write-ahead 语义：先持久化 baseline，再执行 mutation，崩溃后 baseline 不丢。
+  if (ctx?.runId) {
+    const tracker = getRunReviewTracker(app.getPath("userData"));
+    for (const hunk of hunks) {
+      const absPath = path.resolve(workspaceRoot, hunk.path);
+      tracker.captureBefore(ctx.runId, absPath, hunk.path);
+      // update + move：记录 rename 关系
+      if (hunk.type === "update" && hunk.movePath) {
+        const toAbs = path.resolve(workspaceRoot, hunk.movePath);
+        tracker.recordRename(ctx.runId, absPath, toAbs, hunk.path, hunk.movePath);
+      }
+    }
+  }
+
   // ── 阶段 2：执行全部 hunk ──
   for (const hunk of hunks) {
     const resolvedPath = path.resolve(workspaceRoot, hunk.path);
@@ -313,8 +332,10 @@ export function applyPatchHunks(hunks: PatchHunk[], workspaceRoot: string): Appl
     try {
       if (hunk.type === "add") {
         const dir = path.dirname(resolvedPath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(resolvedPath, hunk.content, "utf8");
+        batch.runSync([resolvedPath], () => {
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(resolvedPath, hunk.content, "utf8");
+        });
         applied.push(`新增文件: ${hunk.path}`);
         const addLines = hunk.content.split("\n");
         changes.push({
@@ -326,7 +347,7 @@ export function applyPatchHunks(hunks: PatchHunk[], workspaceRoot: string): Appl
         });
       } else if (hunk.type === "delete") {
         const content = fs.existsSync(resolvedPath) ? fs.readFileSync(resolvedPath, "utf8") : "";
-        fs.unlinkSync(resolvedPath);
+        batch.runSync([resolvedPath], () => fs.unlinkSync(resolvedPath));
         applied.push(`删除文件: ${hunk.path}`);
         const delLines = content.split("\n");
         changes.push({
@@ -372,13 +393,15 @@ export function applyPatchHunks(hunks: PatchHunk[], workspaceRoot: string): Appl
 
         if (chunkFailed) continue;
 
-        fs.writeFileSync(resolvedPath, fileLines.join(eol), "utf8");
+        batch.runSync([resolvedPath], () => fs.writeFileSync(resolvedPath, fileLines.join(eol), "utf8"));
 
         if (hunk.movePath) {
           const moveResolved = path.resolve(workspaceRoot, hunk.movePath);
           const moveDir = path.dirname(moveResolved);
-          if (!fs.existsSync(moveDir)) fs.mkdirSync(moveDir, { recursive: true });
-          fs.renameSync(resolvedPath, moveResolved);
+          batch.runSync([resolvedPath, moveResolved], () => {
+            if (!fs.existsSync(moveDir)) fs.mkdirSync(moveDir, { recursive: true });
+            fs.renameSync(resolvedPath, moveResolved);
+          });
           applied.push(`更新并移动: ${hunk.path} → ${hunk.movePath}`);
           changes.push({
             file: hunk.movePath,
@@ -438,23 +461,8 @@ async function executeApplyPatch(
 
   console.log(LOG_PREFIX, `解析到 ${parseResult.hunks.length} 个 hunk`);
 
-  // Review 基线捕获：在 applyPatchHunks 写文件之前，对每个涉及的文件保存 pre-mutation baseline。
-  // write-ahead 语义：先持久化 baseline，再执行 mutation，崩溃后 baseline 不丢。
-  if (ctx?.runId) {
-    const tracker = getRunReviewTracker(app.getPath("userData"));
-    for (const hunk of parseResult.hunks) {
-      const absPath = path.resolve(workspaceRoot, hunk.path);
-      tracker.captureBefore(ctx.runId, absPath, hunk.path);
-      // update + move：记录 rename 关系
-      if (hunk.type === "update" && hunk.movePath) {
-        const toAbs = path.resolve(workspaceRoot, hunk.movePath);
-        tracker.recordRename(ctx.runId, absPath, toAbs, hunk.path, hunk.movePath);
-      }
-    }
-  }
-
   // 执行
-  const result = applyPatchHunks(parseResult.hunks, workspaceRoot);
+  const result = applyPatchHunks(parseResult.hunks, workspaceRoot, ctx);
 
   if (result.success) {
     console.log(LOG_PREFIX, `成功: ${result.applied.length} 个操作`);

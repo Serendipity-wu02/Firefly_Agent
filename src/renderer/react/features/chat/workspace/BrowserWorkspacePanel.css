@@ -1,0 +1,221 @@
+.cy-browser-workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  color: var(--cy-text, #403840);
+}
+
+.cy-browser-workspace__toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--cy-border, var(--cy-border));
+  app-region: no-drag;
+}
+
+.cy-browser-workspace__toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cy-browser-workspace__toolbar button:hover:enabled {
+  background: rgb(255 255 255 / 75%);
+  border-color: var(--cy-border, var(--cy-border));
+}
+
+.cy-browser-workspace__toolbar button:disabled { opacity: 0.4; cursor: default; }
+.cy-browser-workspace__toolbar button:focus-visible,
+.cy-browser-workspace__address input:focus-visible { outline: 2px solid var(--cy-accent); outline-offset: 2px; }
+
+.cy-browser-workspace__address {
+  display: flex;
+  flex: 1 1 180px;
+  min-width: 0;
+  gap: 4px;
+}
+
+.cy-browser-workspace__address input {
+  flex: 1;
+  min-width: 40px;
+  padding: 5px 8px;
+  border: 1px solid var(--cy-border, var(--cy-border));
+  border-radius: 12px;
+  background: rgb(255 255 255 / 85%);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+.cy-browser-workspace__notice { margin: 0; padding: 7px 12px; font-size: 12px; }
+.cy-browser-workspace__notice.is-error { color: #9e3838; background: #fff2f0; }
+.cy-browser-workspace__viewport { flex: 1; min-height: 0; overflow: hidden; }
+.cy-browser-workspace__empty { padding: 20px; text-align: center; color: var(--cy-text-muted, var(--cy-text-muted)); }
+.cy-browser-tab { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+.cy-browser-tab > .cy-browser-workspace { flex: 1; }
+.cy-browser-permission {
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(40%, 240px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--cy-border, var(--cy-border));
+  font-size: 12px;
+}
+.cy-browser-permission p { margin: 6px 0; }
+.cy-browser-permission summary { cursor: pointer; }
+.cy-browser-permission__scope { overflow-wrap: anywhere; color: var(--cy-text-muted); }
+.cy-browser-permission button { padding: 6px 10px; margin-top: 6px; border: 1px solid var(--cy-border); border-radius: 12px; color: inherit; background: var(--cy-bg-page, var(--cy-surface)); cursor: pointer; }
+.cy-browser-permission button:disabled { opacity: .55; cursor: default; }
+.cy-browser-resource-consent { min-width: 0; margin: 8px 0 0; padding: 8px; border: 1px solid var(--cy-border); border-radius: 12px; }
+.cy-browser-resource-consent label { display: flex; align-items: flex-start; gap: 6px; margin: 6px 0; overflow-wrap: anywhere; }
+.cy-browser-resource-consent input { flex: 0 0 auto; }
+.cy-browser-site-consent { overflow-wrap: anywhere; }
+
+/* Custom text colors cannot sit on the light-only address and hover surfaces. */
+:root[data-ui-colors] .cy-browser-workspace__address input {
+  background: var(--cy-bg-workspace);
+}
+:root[data-ui-colors] .cy-browser-workspace__toolbar button:hover:enabled {
+  background: var(--cy-bg-hover);
+}
+
+/* Native-page chrome uses the same neutral surfaces as the file workspace. */
+.cy-browser-workspace__toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, 30px) minmax(0, 1fr) 30px;
+  background: var(--cy-bg-workspace, var(--cy-surface));
+}
+.cy-browser-workspace__toolbar button { border-radius: 8px; }
+.cy-browser-workspace__address { gap: 2px; }
+.cy-browser-workspace__address input {
+  min-width: 0;
+  border-radius: 8px;
+  background: var(--cy-bg-page, var(--cy-bg-subtle));
+  line-height: 20px;
+}
+.cy-browser-workspace__address button { padding-inline: 6px; font-size: 11px; }
+.cy-browser-workspace__location {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--cy-border, var(--cy-border));
+  color: var(--cy-text-muted, var(--cy-text-muted));
+  font-size: 11px;
+}
+.cy-browser-workspace__location [data-browser-committed-url] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cy-browser-workspace__location-dot { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: currentColor; }
+.cy-browser-workspace__state { padding: 12px; color: var(--cy-text); font-size: 12px; }
+.cy-browser-workspace__state p { margin: 0 0 8px; }
+.cy-browser-workspace__state button,
+.cy-browser-permission button { border-radius: 8px; font: inherit; }
+.cy-browser-workspace__state button { padding: 6px 10px; border: 1px solid var(--cy-border); background: var(--cy-bg-page); color: inherit; cursor: pointer; }
+.cy-browser-permission summary { line-height: 1.6; }
+.cy-browser-permission__mode {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 1px 6px;
+  border: 1px solid var(--cy-border);
+  border-radius: 5px;
+  font-size: 10px;
+  color: var(--cy-text-muted);
+  background: var(--cy-bg-page);
+}
+/* Codex-style chrome: address pill, thin load indicator, slim permission bar. */
+.cy-browser-workspace__toolbar { position: relative; gap: 2px; padding: 6px 8px; align-items: center; }
+.cy-browser-workspace__address {
+  align-items: center;
+  height: 30px;
+  padding-inline: 10px 2px;
+  border: 1px solid var(--cy-border, var(--cy-border));
+  border-radius: 15px;
+  background: var(--cy-bg-page, var(--cy-bg-subtle));
+}
+.cy-browser-workspace__address:focus-within { border-color: var(--cy-accent, var(--cy-accent)); outline: 2px solid var(--cy-accent, var(--cy-accent)); outline-offset: 1px; }
+.cy-browser-workspace__address input,
+.cy-browser-workspace__address input:focus-visible { padding-inline: 0; border: 0; border-radius: 0; background: transparent; outline: none; font-size: 13px; }
+.cy-browser-workspace__address button { height: 24px; border-radius: 12px; color: var(--cy-text-muted, var(--cy-text-muted)); }
+.cy-browser-workspace__toolbar[data-browser-busy]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cy-accent, #6b9982), transparent) 0 0 / 40% 100% no-repeat;
+  animation: cy-browser-load 1.1s ease-in-out infinite;
+}
+@keyframes cy-browser-load { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@media (prefers-reduced-motion: reduce) { .cy-browser-workspace__toolbar[data-browser-busy]::after { animation: none; background: var(--cy-accent, #6b9982); opacity: .5; } }
+.cy-browser-workspace__location { padding-block: 3px; border-bottom-color: transparent; }
+.cy-browser-permission { padding: 4px 12px; background: var(--cy-bg-workspace, var(--cy-surface)); }
+.cy-browser-permission details:not([open]) > summary { color: var(--cy-text-muted); }
+.cy-browser-permission__mode { color: var(--cy-accent, #6b9982); border-color: currentColor; }
+/* Codex-style toolbar: a rounded nav group, a tall pill address field, quiet circular close. */
+.cy-browser-workspace { background: var(--cy-bg-page, #f4f4f6); }
+.cy-browser-workspace__toolbar { display: flex; gap: 8px; padding: 4px 10px 8px; background: var(--cy-bg-workspace, var(--cy-surface)); border-bottom: 0; }
+.cy-browser-workspace__nav {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--cy-border);
+  border-radius: 999px;
+  background: var(--cy-bg-workspace, var(--cy-surface));
+}
+.cy-browser-workspace__nav button { min-width: 30px; min-height: 30px; padding: 0; border-radius: 50%; }
+.cy-browser-workspace__nav-divider { width: 1px; height: 16px; margin: 0 2px; background: var(--cy-border); }
+.cy-browser-workspace__address { flex: 1 1 0; height: 36px; padding-inline: 14px 4px; border-radius: 18px; border-color: transparent; background: var(--cy-bg-hover, #eceef2); }
+.cy-browser-workspace__address:hover { border-color: var(--cy-border); }
+.cy-browser-workspace__address:focus-within { background: var(--cy-bg-workspace, var(--cy-surface)); }
+.cy-browser-workspace__address input { text-overflow: ellipsis; }
+.cy-browser-workspace__address input:placeholder-shown { text-align: center; }
+.cy-browser-workspace__address button { width: 28px; height: 28px; padding: 0; border-radius: 50%; opacity: .75; }
+.cy-browser-workspace__address button:disabled { opacity: .25; }
+.cy-browser-workspace__toolbar > button[aria-label] { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; }
+.cy-browser-workspace__empty { color: var(--cy-text-muted); }
+
+/* Window browser: a single slim bar for private-network grants and actionable notices. */
+.cy-browser-permission--compact { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 10px; font-size: 12px; }
+.cy-browser-permission--compact p { margin: 2px 0; }
+.cy-browser-permission--compact button { margin-top: 0; padding: 3px 10px; }
+.cy-browser-chip { display: inline-flex; align-items: center; min-width: 0; gap: 6px; }
+.cy-browser-chip .cy-browser-permission__mode { margin-right: 0; }
+.cy-browser-chip code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; color: var(--cy-text); }
+.cy-browser-chip__extra { color: var(--cy-text-muted); }
+.cy-browser-agent-consent { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--cy-border); }
+.cy-browser-permission button:focus-visible,
+.cy-browser-permission summary:focus-visible,
+.cy-browser-workspace__state button:focus-visible,
+.cy-browser-workspace__toolbar button:focus-visible,
+.cy-browser-workspace__address input:focus-visible { outline: 2px solid var(--cy-accent, var(--cy-accent)); outline-offset: 2px; }
+:root[data-ui-colors] .cy-browser-workspace__notice.is-error { color: var(--cy-text); background: var(--cy-bg-hover); border-left: 3px solid var(--cy-accent); }
+
+/* Same hover contract as the rest of the app: a quiet fill, then one step deeper when pressed. */
+.cy-browser-workspace__toolbar button:hover:enabled { background: var(--cy-bg-hover); border-color: transparent; }
+.cy-browser-workspace__toolbar button:active:enabled { background: var(--cy-bg-active); }
+.cy-browser-workspace__address button:hover:enabled { background: var(--cy-bg-active); }
+.cy-browser-permission button:hover:enabled { background: var(--cy-bg-hover); }

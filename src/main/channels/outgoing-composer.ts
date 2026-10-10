@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { app } from "electron";
@@ -13,29 +12,10 @@ import {
 } from "../../shared/preferences";
 import type {
   ChannelCapability,
-  ChannelId,
   IncomingMessage,
   OutgoingMessage,
   OutgoingPart,
 } from "./types";
-
-type TtsAudioFormat = "mp3" | "wav" | "pcm" | "opus";
-
-export interface OutgoingComposerTtsContext {
-  channel: ChannelId;
-}
-
-export interface OutgoingComposerTtsResult {
-  audio: Buffer;
-  format: TtsAudioFormat;
-  mime: string;
-  extension: ".mp3" | ".wav" | ".pcm" | ".opus";
-}
-
-export type SynthesizeChannelTts = (
-  text: string,
-  context: OutgoingComposerTtsContext,
-) => Promise<Buffer | OutgoingComposerTtsResult | null>;
 
 export interface ComposeOutgoingInput {
   incoming: IncomingMessage;
@@ -43,7 +23,7 @@ export interface ComposeOutgoingInput {
   sticker: string | null;
   capability?: ChannelCapability;
   settings: {
-    ttsEnabled: boolean;
+
     stickerEnabled: boolean;
   };
   mobileMessageSegmentation?: MobileMessageSegmentationMode;
@@ -62,11 +42,9 @@ export interface OutgoingComposer {
 }
 
 export interface CreateOutgoingComposerOptions {
-  audioDirectory?: string;
-  createId?: () => string;
-  writeFile?: (filePath: string, data: Buffer) => Promise<void>;
+
   removeFile?: (filePath: string) => Promise<void>;
-  synthesizeTts?: SynthesizeChannelTts;
+
   resolveStickerImagePath?: (stickerId: string) => string | null;
 }
 
@@ -79,16 +57,6 @@ export function buildTextOutgoingParts(
   const mode = normalizeMobileMessageSegmentationMode(mobileMessageSegmentation);
   const texts = mode === "on" ? splitTextBySentenceBreaks(replyText) : [replyText];
   return texts.map((text) => ({ kind: "text", text }));
-}
-
-export function shouldAppendChannelTtsAudio(
-  channel: ChannelId,
-  ttsEnabled: boolean,
-  hasSynthesizeTts: boolean,
-  adapterSupportsAudio: boolean | undefined,
-): boolean {
-  if (channel === "wechat") return false;
-  return ttsEnabled && hasSynthesizeTts && adapterSupportsAudio === true;
 }
 
 export function downgradeToCapability(
@@ -157,12 +125,9 @@ export function resolveStickerImagePath(stickerId: string): string | null {
 export function createOutgoingComposer(
   options: CreateOutgoingComposerOptions = {},
 ): OutgoingComposer {
-  const createId = options.createId ?? randomUUID;
+
   const resolveSticker = options.resolveStickerImagePath ?? resolveStickerImagePath;
-  const writeFile = options.writeFile ?? (async (filePath: string, data: Buffer) => {
-    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.promises.writeFile(filePath, data);
-  });
+
   const removeFile = options.removeFile ?? (async (filePath: string) => {
     await fs.promises.rm(filePath, { force: true });
   });
@@ -184,40 +149,6 @@ export function createOutgoingComposer(
         input.replyText,
         input.mobileMessageSegmentation,
       );
-
-      if (shouldAppendChannelTtsAudio(
-        input.incoming.channel,
-        input.settings.ttsEnabled,
-        Boolean(options.synthesizeTts),
-        input.capability?.audio,
-      ) && options.synthesizeTts) {
-        let audioPath: string | null = null;
-        try {
-          const audioResult = normalizeTtsResult(
-            await options.synthesizeTts(input.replyText, {
-              channel: input.incoming.channel,
-            }),
-          );
-          if (audioResult && audioResult.audio.length > 0) {
-            const audioDirectory = options.audioDirectory
-              ?? path.join(app.getPath("userData"), "channels", "audio");
-            audioPath = path.join(
-              audioDirectory,
-              `${createId()}${audioResult.extension}`,
-            );
-            await writeFile(audioPath, audioResult.audio);
-            transientFiles.push(audioPath);
-            parts.push({
-              kind: "audio",
-              filePath: audioPath,
-              mime: audioResult.mime,
-            });
-          }
-        } catch (err) {
-          if (audioPath) await cleanupTransientFiles([audioPath]);
-          console.warn(LOG, "语音合成失败，已降级为纯文本:", err);
-        }
-      }
 
       let resolvedStickerId: string | undefined;
       if (input.sticker && input.settings.stickerEnabled) {
@@ -261,19 +192,4 @@ export function createOutgoingComposer(
     },
     cleanupTransientFiles,
   };
-}
-
-function normalizeTtsResult(
-  result: Buffer | OutgoingComposerTtsResult | null,
-): OutgoingComposerTtsResult | null {
-  if (!result) return null;
-  if (Buffer.isBuffer(result)) {
-    return {
-      audio: result,
-      format: "mp3",
-      mime: "audio/mpeg",
-      extension: ".mp3",
-    };
-  }
-  return result;
 }

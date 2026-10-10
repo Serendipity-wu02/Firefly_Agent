@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { probeFileSymlink } from "../../scripts/verify/file-symlink-probe";
 
 vi.mock("electron", () => ({
   protocol: {
@@ -25,15 +26,17 @@ let assetsDir: string;
 let query: PluginPanelAccessQuery;
 
 // Windows 普通用户创建文件符号链接需要开发者模式；不支持时跳过相关用例
-let symlinkSupported = false;
-try {
-  const probe = `${__filename}.link-probe`;
-  symlinkSync(__filename, probe);
-  rmSync(probe);
-  symlinkSupported = true;
-} catch {
-  symlinkSupported = false;
-}
+const { supported: symlinkSupported, reason: symlinkSkipReason } = (() => {
+  // Probe the inherited token in the synthetic temp root, not the source checkout.
+  const probeDir = mkdtempSync(path.join(os.tmpdir(), "firefly-file-symlink-probe-"));
+  try {
+    return probeFileSymlink(__filename, path.join(probeDir, "probe"));
+  } finally {
+    // Nonrecursive cleanup also fails visibly if a broken helper leaves anything behind.
+    rmdirSync(probeDir);
+  }
+})();
+if (!symlinkSupported) console.warn(`[plugin-panel-protocol] ${symlinkSkipReason}`);
 
 beforeAll(() => {
   tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-panel-protocol-test-"));
@@ -47,8 +50,8 @@ beforeAll(() => {
   writeFileSync(path.join(pluginDir, "style.css"), "p{}", "utf8");
   writeFileSync(path.join(pluginDir, "pic.svg"), "<svg/>", "utf8");
   writeFileSync(path.join(pluginDir, "data.bin"), "binary", "utf8");
-  mkdirSync(path.join(pluginDir, ".cyrene"), { recursive: true });
-  writeFileSync(path.join(pluginDir, ".cyrene", "panel-bridge.js"), "PLUGIN-OWNED", "utf8");
+  mkdirSync(path.join(pluginDir, "plugin-assets"), { recursive: true });
+  writeFileSync(path.join(pluginDir, "plugin-assets", "panel-bridge.js"), "PLUGIN-OWNED", "utf8");
   writeFileSync(path.join(tmp, "plugins", "ghost", "ui.html"), "ghost-panel", "utf8");
   writeFileSync(path.join(assetsDir, "panel-bridge.js"), "HOST-ASSET", "utf8");
   query = (id) => (id === "demo" ? pluginDir : undefined);
@@ -67,14 +70,11 @@ function panelUrl(rawUrl: string): Promise<ReturnType<typeof resolvePluginPanelR
 }
 
 describe("resolvePluginPanelRequest：静态资源路由", () => {
-  it("rejects the retired scheme and treats the old directory as ordinary plugin content", async () => {
-    expect((await panelUrl("cyrene-plugin://demo/ui.html")).status).toBe(404);
-    expect((await panelUrl("cyrene-plugin://ghost/ui.html")).status).toBe(404);
-    expect((await panelUrl("cyrene-plugin://demo/..%5csecret")).status).toBe(404);
-    const response = await panelUrl("firefly-plugin://demo/.cyrene/panel-bridge.js");
+  it("serves plugin-owned nested assets without confusing them with host assets", async () => {
+    const response = await panelUrl("firefly-plugin://demo/plugin-assets/panel-bridge.js");
     expect(response.status).toBe(200);
     if (response.status === 200) expect(response.body.toString()).toBe("PLUGIN-OWNED");
-    expect((await panelUrl("firefly-plugin://ghost/.cyrene/panel-bridge.js")).status).toBe(404);
+    expect((await panelUrl("firefly-plugin://ghost/plugin-assets/panel-bridge.js")).status).toBe(404);
   });
   it("合法面板 HTML 与白名单资源正常返回并带正确内容类型", async () => {
     const html = await panelUrl("firefly-plugin://demo/ui.html");
@@ -140,7 +140,8 @@ describe("resolvePluginPanelRequest：静态资源路由", () => {
     expect((await panelUrl("not a url")).status).toBe(404);
   });
 
-  it.skipIf(!symlinkSupported)("符号链接逃逸被 realpath 拦截", async () => {
+  it("符号链接逃逸被 realpath 拦截", async ({skip}) => {
+    if(!symlinkSupported)skip(symlinkSkipReason);
     const outside = path.join(tmp, "outside.html");
     writeFileSync(outside, "outside-secret", "utf8");
     symlinkSync(outside, path.join(pluginDir, "escape.html"));

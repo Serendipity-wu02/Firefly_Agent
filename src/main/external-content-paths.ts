@@ -1,7 +1,6 @@
 import { app } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { resolveSkillId, SKILL_ID_ALIASES } from "./skills/skill-id-aliases";
 
 export interface ExternalContentPathInput {
   isPackaged: boolean;
@@ -14,7 +13,6 @@ export interface ExternalContentPaths {
   installRoot: string;
   promptDirectories: string[];
   builtinSkillDirectory: string;
-  installSkillDirectory?: string;
   userSkillDirectories: string[];
 }
 
@@ -28,8 +26,7 @@ export interface SkillScanSource {
  * Packaged builds put user-editable content under userData (survives upgrades:
  * the NSIS uninstaller wipes the whole install directory on reinstall) and read
  * shipped content from folders beside Firefly_Agent.exe, which the installer refreshes
- * on every update. Old packages placed shipped skills directly in <install>/skills;
- * that directory remains a builtin source for backward compatibility.
+ * on every update.
  */
 export function resolveExternalContentPaths(input: ExternalContentPathInput): ExternalContentPaths {
   if (!input.isPackaged) {
@@ -42,15 +39,13 @@ export function resolveExternalContentPaths(input: ExternalContentPathInput): Ex
   }
 
   const installRoot = path.dirname(input.executablePath);
-  const installSkillDirectory = path.join(installRoot, "skills");
   return {
     installRoot,
     promptDirectories: [
       path.join(input.userDataPath, "prompts"),
       path.join(installRoot, "prompts"),
     ],
-    builtinSkillDirectory: path.join(installRoot, "defaults", "skills"),
-    installSkillDirectory,
+    builtinSkillDirectory: path.join(installRoot, "skills"),
     userSkillDirectories: [path.join(input.userDataPath, "skills")],
   };
 }
@@ -70,9 +65,7 @@ export function getExternalContentPaths(): ExternalContentPaths {
       isPackaged: false,
       appPath: repository,
       executablePath: process.execPath,
-      userDataPath: path.join(repository, fs.existsSync(path.join(repository, LEGACY_USER_DATA_DIRECTORY))
-        ? LEGACY_USER_DATA_DIRECTORY
-        : ".firefly-user-data"),
+      userDataPath: path.join(repository, ".firefly-user-data"),
     });
   }
 }
@@ -85,22 +78,19 @@ function safeRelativePath(relativePath: string): string | null {
 }
 
 /**
- * Resolve the third-party skills snapshot archive path.
- *  - Packaged: extraResources copies vendor/firefly-skills into
- *    resources/firefly-skills/skills-snapshot.zip (outside asar, real disk path).
- *  - Dev: repository vendor/firefly-skills/skills-snapshot.zip.
- * Returns null when the archive is absent (e.g. build-skills-snapshot not run).
+ * Resolve the canonical vendor Skill directory without adding it as a scan root.
+ * Packaged resources and development use the same directory structure.
  */
-export function resolveSkillsSnapshotArchivePath(
+export function resolvePackagedSkillDirectory(
   paths: Pick<ExternalContentPaths, "installRoot"> = getExternalContentPaths(),
   options: { isPackaged?: boolean; resourcesPath?: string; existsSync?: (p: string) => boolean } = {},
 ): string | null {
   const isPackaged = options.isPackaged ?? app.isPackaged;
   const exists = options.existsSync ?? ((p: string) => fs.existsSync(p));
-  const candidate = isPackaged
-    ? path.join(options.resourcesPath ?? process.resourcesPath, "firefly-skills", "skills-snapshot.zip")
-    : path.join(paths.installRoot, "vendor", "firefly-skills", "skills-snapshot.zip");
-  return exists(candidate) ? candidate : null;
+  const source = isPackaged
+    ? path.join(options.resourcesPath ?? process.resourcesPath, "firefly-skills", "skills")
+    : path.join(paths.installRoot, "vendor", "firefly-skills", "skills");
+  return exists(source) ? source : null;
 }
 
 /** Find a prompt or prompt directory using user-first lookup order. */
@@ -113,10 +103,6 @@ export function findPromptPath(
   for (const directory of promptDirectories) {
     const candidate = path.join(directory, safePath);
     if (fs.existsSync(candidate)) return candidate;
-    if (safePath === "firefly_harness.md") {
-      const legacyPath = path.join(directory, LEGACY_HARNESS_PROMPT);
-      if (fs.existsSync(legacyPath)) return legacyPath;
-    }
   }
   return null;
 }
@@ -134,36 +120,22 @@ export function findSkillPath(
   const directories = [...paths.userSkillDirectories].reverse();
   directories.push(paths.builtinSkillDirectory);
   for (const directory of directories) {
-    const currentId = resolveSkillId(safeSkillId);
-    const legacyId = Object.keys(SKILL_ID_ALIASES).find(id => SKILL_ID_ALIASES[id] === currentId);
-    for (const id of legacyId ? [currentId, legacyId] : [currentId]) {
-      const resolvedPath = path.join(directory, id, safePath);
-      if (fs.existsSync(resolvedPath)) return resolvedPath;
-    }
+    const resolvedPath = path.join(directory, safeSkillId, safePath);
+    if (fs.existsSync(resolvedPath)) return resolvedPath;
   }
   return null;
 }
 
 /**
- * Build low-to-high priority scan sources. Old packages placed shipped skills
- * directly in <install>/skills; when defaults/skills is absent that directory
- * remains a builtin source for backward compatibility.
+ * Build low-to-high priority scan sources for current installed and user Skills.
  */
 export function resolveSkillScanSources(
-  paths: Pick<ExternalContentPaths, "builtinSkillDirectory" | "installSkillDirectory" | "userSkillDirectories"> = getExternalContentPaths(),
+  paths: Pick<ExternalContentPaths, "builtinSkillDirectory" | "userSkillDirectories"> = getExternalContentPaths(),
 ): SkillScanSource[] {
   const sources: SkillScanSource[] = [];
   const builtinExists = fs.existsSync(paths.builtinSkillDirectory);
-  const legacyBuiltin = !builtinExists
-    && paths.installSkillDirectory
-    && fs.existsSync(paths.installSkillDirectory)
-    ? paths.installSkillDirectory
-    : undefined;
-
   if (builtinExists) {
     sources.push({ directory: paths.builtinSkillDirectory, source: "builtin" });
-  } else if (legacyBuiltin) {
-    sources.push({ directory: legacyBuiltin, source: "builtin" });
   }
 
   const seen = new Set(sources.map((entry) => path.resolve(entry.directory).toLowerCase()));
@@ -175,4 +147,3 @@ export function resolveSkillScanSources(
   }
   return sources;
 }
-import { LEGACY_USER_DATA_DIRECTORY, LEGACY_HARNESS_PROMPT } from "../shared/legacy-firefly-contracts";

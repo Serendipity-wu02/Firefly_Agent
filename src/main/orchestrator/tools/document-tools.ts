@@ -1,3 +1,4 @@
+import { beginWriteBatch } from "./registry/file-write-evidence";
 // 文档生成工具 —— 让流萤能产出可交付物（Excel/Word/PDF）。
 // Markdown/纯文本笔记统一走 write_file（见 fs-tools.ts）。
 //
@@ -15,6 +16,8 @@ import { toolRegistry } from "./registry/tool-registry";
 import type { ToolContext } from "./registry/tool-context";
 import { findSkillPath } from "../../external-content-paths";
 import { getRunReviewTracker } from "../review/run-review-tracker";
+import { randomUUID } from "node:crypto";
+import { finished, pipeline } from "node:stream/promises";
 
 const LOG_PREFIX = "[DocTools]";
 
@@ -367,13 +370,29 @@ export function registerDocumentTools(): void {
         }
       }
 
-      // 自动创建父目录（支持子目录写入）
-      const dir = path.dirname(outputPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      captureBaseline(context, outputPath);
-      await workbook.xlsx.writeFile(outputPath);
+      const batch = beginWriteBatch(context, [outputPath]);
+      await batch.run([outputPath], async () => {
+        // 自动创建父目录（支持子目录写入）
+        const dir = path.dirname(outputPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        captureBaseline(context, outputPath);
+        // ExcelJS writeFile rejects serialization errors without closing its
+        // hidden output stream. Own the real stream and drain delayed open/close.
+        const stream = fs.createWriteStream(outputPath);
+        const closed = new Promise<void>((resolve) => stream.once("close", resolve));
+        const completion = finished(stream, { cleanup: true });
+        void completion.catch(() => {});
+        try {
+          await workbook.xlsx.write(stream);
+          stream.end();
+          await completion;
+          await closed;
+        } catch (error) {
+          stream.destroy();
+          await closed;
+          throw error;
+        }
+      });
       console.log(LOG_PREFIX, "Excel 已生成（默认美观样式）:", outputPath);
       return `[write_excel] 已生成：${outputPath}`;
     },
@@ -466,10 +485,13 @@ export function registerDocumentTools(): void {
       });
 
       const buffer = await Packer.toBuffer(doc);
-      const dir = path.dirname(outputPath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      captureBaseline(context, outputPath);
-      fs.writeFileSync(outputPath, buffer);
+      const batch = beginWriteBatch(context, [outputPath]);
+      await batch.run([outputPath], () => {
+        const dir = path.dirname(outputPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        captureBaseline(context, outputPath);
+        fs.writeFileSync(outputPath, buffer);
+      });
       console.log(LOG_PREFIX, "Word 已生成:", outputPath);
       return `[write_word] 已生成：${outputPath}`;
     },
@@ -511,35 +533,71 @@ export function registerDocumentTools(): void {
 
       const PDFKit = await import("pdfkit");
       const dir = path.dirname(outputPath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       captureBaseline(context, outputPath);
       const doc = new PDFKit.default();
-      const stream = fs.createWriteStream(outputPath);
-      doc.pipe(stream);
+      let stream: fs.WriteStream | undefined;
+      let completion: Promise<void> | undefined;
+      let temporaryPath: string | undefined;
+      let ownsTemporaryFile = false;
+      // Build and validate the renderer before claiming output paths.
+      try {
+        // Collection fonts require a concrete PostScript face. Validate before
+        // opening output; absent system fonts retain the existing default fallback.
+        const fontCandidates = [
+          { file: "C:\\Windows\\Fonts\\msyh.ttc", family: "MicrosoftYaHei" },
+          { file: "C:\\Windows\\Fonts\\simsun.ttc", family: "SimSun" },
+          { file: "C:\\Windows\\Fonts\\simhei.ttf", family: undefined },
+        ];
+        let fontError: unknown;
+        let fontSelected = false;
+        for (const font of fontCandidates) {
+          if (!fs.existsSync(font.file)) continue;
+          try {
+            if (font.family) doc.font(font.file, font.family);
+            else doc.font(font.file);
+            fontSelected = true;
+            break;
+          } catch (error) { fontError = error; }
+        }
+        if (!fontSelected && fontError) throw new Error("FIREFLY_PDF_FONT_UNAVAILABLE", { cause: fontError });
 
-      // 中文字体：Windows 用微软雅黑，找不到则用默认（中文会乱码但能生成）
-      const fontCandidates = [
-        "C:\\Windows\\Fonts\\msyh.ttc",
-        "C:\\Windows\\Fonts\\simsun.ttc",
-        "C:\\Windows\\Fonts\\simhei.ttf",
-      ];
-      for (const f of fontCandidates) {
-        if (fs.existsSync(f)) { doc.font(f); break; }
+        // Same-directory rename commits only a complete PDF. Never unlink the
+        // previous target, including when Windows refuses replacement.
+        temporaryPath = path.join(dir, `.firefly-pdf-${randomUUID()}.tmp`);
+        const batch = beginWriteBatch(context, [temporaryPath, outputPath]);
+        await batch.run([temporaryPath], async () => {
+          try {
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            stream = fs.createWriteStream(temporaryPath!, { flags: "wx", mode: 0o600 });
+            stream.once("open", () => { ownsTemporaryFile = true; });
+            completion = pipeline(doc, stream);
+            // Rendering can throw synchronously before this promise is awaited.
+            void completion.catch(() => {});
+            doc.fontSize(22).text(String(args.title || ""), { align: "center" });
+            doc.moveDown();
+            doc.fontSize(12);
+            for (const p of (args.paragraphs as string[]) || []) {
+              doc.text(p, { align: "left" });
+              doc.moveDown(0.5);
+            }
+            doc.end();
+            await completion;
+            batch.runSync([temporaryPath!, outputPath], () => fs.renameSync(temporaryPath!, outputPath));
+          } catch (error) {
+            doc.destroy();
+            stream?.destroy();
+            if (completion) await completion.catch(() => {});
+            throw error;
+          } finally {
+            // Cleanup and its actual completion remain inside the write batch.
+            // An exclusive-open collision is not ours to remove.
+            if (temporaryPath && ownsTemporaryFile) fs.rmSync(temporaryPath, { force: true });
+          }
+        });
+      } catch (error) {
+        doc.destroy();
+        throw error;
       }
-
-      doc.fontSize(22).text(String(args.title || ""), { align: "center" });
-      doc.moveDown();
-      doc.fontSize(12);
-      for (const p of (args.paragraphs as string[]) || []) {
-        doc.text(p, { align: "left" });
-        doc.moveDown(0.5);
-      }
-      doc.end();
-
-      await new Promise<void>((resolve, reject) => {
-        stream.on("finish", () => resolve());
-        stream.on("error", reject);
-      });
       console.log(LOG_PREFIX, "PDF 已生成:", outputPath);
       return `[write_pdf] 已生成：${outputPath}`;
     },

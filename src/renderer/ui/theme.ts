@@ -1,11 +1,15 @@
+import { connectUiColors } from "./colors";
+import type { UiColors } from "../../shared/ui-colors";
 import "./window-corner-radius";
-import { normalizeUiTheme, type UiTheme } from "../../shared/ui-theme";
+import { DEFAULT_UI_THEME, normalizeUiTheme, type UiTheme } from "../../shared/ui-theme";
 import { DEFAULT_UI_FONT, normalizeUiFont, type UiFont } from "../../shared/ui-font";
 import type { ChatAppearanceSettings } from "../../shared/chat-appearance";
 
 declare global {
   interface Window {
     fireflyTheme?: {
+      getColors: () => Promise<UiColors>;
+      onColorsChanged: (callback: (colors: UiColors) => void) => () => void;
       get: () => Promise<UiTheme>;
       onChanged: (callback: (theme: UiTheme) => void) => () => void;
       getRadius: () => Promise<boolean>;
@@ -22,8 +26,17 @@ declare global {
   }
 }
 
+const THEME_CACHE_KEY = "firefly.uiTheme";
+
+/** The last theme the main process confirmed. Windows boot from it so a dark choice does not flash light first. */
+function readCachedTheme(): UiTheme {
+  try { return normalizeUiTheme(window.localStorage.getItem(THEME_CACHE_KEY)); } catch { return DEFAULT_UI_THEME; }
+}
+
 function applyTheme(theme: unknown): void {
-  document.documentElement.dataset.uiTheme = normalizeUiTheme(theme);
+  const next = normalizeUiTheme(theme);
+  document.documentElement.dataset.uiTheme = next;
+  try { window.localStorage.setItem(THEME_CACHE_KEY, next); } catch { /* storage may be unavailable; the main process stays authoritative */ }
 }
 
 function applyRadius(radius: boolean): void {
@@ -49,11 +62,11 @@ function applyFont(value: unknown): void {
   document.documentElement.dataset.uiFont = "custom";
 }
 
-applyTheme("pearl-white");
+applyTheme(readCachedTheme());
 
 void window.fireflyTheme?.get()
   .then(applyTheme)
-  .catch(() => applyTheme("pearl-white"));
+  .catch(() => applyTheme(readCachedTheme()));
 
 window.fireflyTheme?.onChanged((theme) => {
   applyTheme(theme);
@@ -70,3 +83,5 @@ window.fireflyTheme?.onRadiusChanged((theme) => {
 applyFont(DEFAULT_UI_FONT);
 void window.fireflyFont?.get().then(applyFont).catch(() => applyFont(DEFAULT_UI_FONT));
 window.fireflyFont?.onChanged((font) => applyFont(font));
+
+if (typeof window.fireflyTheme?.getColors === "function" && typeof window.fireflyTheme.onColorsChanged === "function") connectUiColors(window.fireflyTheme);

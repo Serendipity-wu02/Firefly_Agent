@@ -15,6 +15,8 @@ describe("security dependency compatibility", () => {
   it("preserves HTTPS proxy and NO_PROXY matching without using npm configuration as runtime routing", () => {
     const { getProxyForUrl } = requireDependency("proxy-from-env");
     try {
+      // A host-provided lowercase proxy must not override this isolated fixture.
+      for (const key of ["https_proxy", "http_proxy", "all_proxy", "no_proxy"]) vi.stubEnv(key, "");
       vi.stubEnv("HTTPS_PROXY", "http://proxy.example.test:8080");
       vi.stubEnv("ALL_PROXY", "");
       vi.stubEnv("NO_PROXY", "internal.example.test");

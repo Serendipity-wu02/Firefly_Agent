@@ -87,7 +87,7 @@ export interface ToolDefinition {
   ledgerPolicy?: "success_terminal" | "bypass";
   /** 标记为已废弃：从新运行的模型可用工具列表中隐藏，但保留注册用于旧会话兼容。 */
   deprecated?: boolean;
-  /** 工具效果类型。未配置默认 "unknown"，不静默放行。 */
+  /** 工具效果元数据；未配置为 unknown，准入另由 risk 和运行权限决定。 */
   effectKind?: ToolEffectKind;
   /** 动态效果解析器（覆盖 effectKind）。用于 run_shell 等根据参数判断效果的工具。 */
   effectResolver?: ToolEffectResolver;
@@ -110,11 +110,39 @@ export interface ToolDefinition {
  *  持久化在 general-settings.toolModeOverrides，由 UI 写入。 */
 export type ToolModeOverrides = Record<string, Partial<Record<ConversationMode, boolean>>>;
 
+const LEGACY_PERSONAL_MEMORY_TOOLS = new Set(["user_memory", "read_memory", "write_memory", "recall_history"]);
+
 export class ToolRegistry {
   private tools: Map<string, ToolDefinition> = new Map();
+  private personalMemoryMode: "legacy" | "smh";
+
+  constructor(options: { personalMemoryMode?: "legacy" | "smh" } = {}) {
+    this.personalMemoryMode = options.personalMemoryMode ?? "legacy";
+  }
+
+  /** Main-only 装配开关；不由工具开关或 Renderer 参数控制。 */
+  setPersonalMemoryMode(mode: "legacy" | "smh"): void {
+    this.personalMemoryMode = mode;
+  }
+
+  private isPersonalMemoryRetired(id: string): boolean {
+    return this.personalMemoryMode === "smh" && LEGACY_PERSONAL_MEMORY_TOOLS.has(id);
+  }
 
   register(tool: ToolDefinition): void {
-    this.tools.set(tool.id, tool);
+    if (!LEGACY_PERSONAL_MEMORY_TOOLS.has(tool.id)) {
+      this.tools.set(tool.id, tool);
+      return;
+    }
+    const id = tool.id;
+    // 在注册时包装执行器，旧调用者已捕获的 ToolDefinition 也受当前 Main 策略约束。
+    const execute = tool.execute;
+    this.tools.set(tool.id, {
+      ...tool,
+      execute: async (args, ctx) => this.isPersonalMemoryRetired(id)
+        ? "MEMORY_LEGACY_RETIRED"
+        : execute(args, ctx),
+    });
   }
 
   unregister(id: string): boolean {
@@ -129,7 +157,7 @@ export class ToolRegistry {
   }
 
   getEnabledTools(): ToolDefinition[] {
-    return Array.from(this.tools.values()).filter(t => t.enabled && !t.deprecated);
+    return Array.from(this.tools.values()).filter(t => t.enabled && !t.deprecated && !this.isPersonalMemoryRetired(t.id));
   }
 
   /** 按会话模式过滤的启用工具列表。
@@ -140,7 +168,7 @@ export class ToolRegistry {
    *  未声明 modes 且无覆盖的工具默认全模式可见——保持现有行为不变。 */
   getEnabledToolsForMode(mode: ConversationMode, overrides?: ToolModeOverrides): ToolDefinition[] {
     return Array.from(this.tools.values()).filter((t) => {
-      if (!t.enabled || t.deprecated) return false;
+      if (!t.enabled || t.deprecated || this.isPersonalMemoryRetired(t.id)) return false;
       const override = overrides?.[t.id]?.[mode];
       if (override !== undefined) return override;
       return !t.modes || t.modes.includes(mode);

@@ -42,6 +42,7 @@ describe("registerAppUpdateIpc", () => {
     const requestControlledShutdown: RequestControlledShutdown = vi.fn(async ({ finalAction }) => {
       order.push("cleanup");
       finalAction();
+      return true;
     });
     const service = makeService({
       install: () => { order.push("install"); return true; },
@@ -72,4 +73,10 @@ describe("registerAppUpdateIpc", () => {
     expect(await handlers.get(IPC.APP_UPDATE_INSTALL)?.({})).toBe(false);
     expect(service.install).not.toHaveBeenCalled();
   });
+});
+
+it("reports cancelled installation when the shutdown draft preflight is denied", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>(); const service = makeService();
+  registerAppUpdateIpc({ service, ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) }, requestControlledShutdown: async () => false });
+  expect(await handlers.get(IPC.APP_UPDATE_INSTALL)?.({})).toBe(false); expect(service.install).not.toHaveBeenCalled();
 });

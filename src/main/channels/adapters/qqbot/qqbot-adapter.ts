@@ -12,7 +12,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { app } from "electron";
-import type { ChannelAdapter } from "../base";
+import { createChannelMemoryAccountIdentity, type ChannelAdapter, type ChannelMemoryAccountIdentity } from "../base";
 import type {
   ChannelAttachment,
   ChannelCapability,
@@ -135,8 +135,11 @@ export class QqBotAdapter implements ChannelAdapter {
   readonly displayName = "QQ 机器人（官方）";
   readonly capability = CAPABILITY;
   onMessage: MessageHandler | null = null;
+  private readonly memoryAccount = createChannelMemoryAccountIdentity();
 
   private api: QqBotApiClient | null = null;
+  private generation = 0;
+  private memoryAppId = "";
   private ws: QqBotWsClient | null = null;
   private status: ChannelStatus = { enabled: false, phase: "offline", message: "未启用" };
   private botNickname = "";
@@ -149,6 +152,10 @@ export class QqBotAdapter implements ChannelAdapter {
   constructor(private readonly onStatusChanged?: () => void) {}
 
   async start(): Promise<void> {
+    const generation = ++this.generation;
+    this.memoryAccount.revoke();
+    this.memoryAppId = "";
+    this.wsReady = false;
     const config = loadChannelsSettings().qqbot;
     if (!config.enabled) {
       this.setStatus({ enabled: false, phase: "offline", message: "未启用" });
@@ -163,15 +170,24 @@ export class QqBotAdapter implements ChannelAdapter {
       return;
     }
     this.setStatus({ enabled: true, phase: "starting", message: "正在连接 QQ 开放平台网关" });
-    this.api = new QqBotApiClient({ appId: config.appId, clientSecret: config.appSecret });
+    const appId = config.appId;
+    this.memoryAppId = appId;
+    const api = new QqBotApiClient({ appId, clientSecret: config.appSecret });
+    this.api = api;
     try {
-      const gatewayUrl = await this.api.getGatewayUrl();
+      const gatewayUrl = await api.getGatewayUrl();
+      if (generation !== this.generation) return;
       this.ws = new QqBotWsClient({
         gatewayUrl,
-        getAccessToken: () => this.api!.getAccessToken(),
-        onDispatch: (type, data) => this.handleDispatch(type, data),
+        getAccessToken: () => api.getAccessToken(),
+        onDispatch: (type, data) => {
+          if (generation === this.generation) this.handleDispatch(type, data);
+        },
         onReadyChange: (ready) => {
+          if (generation !== this.generation) return;
           this.wsReady = ready;
+          if (ready) this.memoryAccount.authenticate(`qqbot:${appId}`);
+          else this.memoryAccount.revoke();
           this.setStatus({
             enabled: true,
             phase: ready ? "running" : "starting",
@@ -180,6 +196,7 @@ export class QqBotAdapter implements ChannelAdapter {
           });
         },
         onError: (error) => {
+          if (generation !== this.generation) return;
           if (this.status.phase === "running" && !this.wsReady) return; // 重连过程中的已知错误不覆盖状态
           this.setStatus({
             enabled: true,
@@ -191,6 +208,8 @@ export class QqBotAdapter implements ChannelAdapter {
       });
       await this.ws.start();
     } catch (error) {
+      if (generation !== this.generation) return;
+      this.memoryAccount.revoke();
       const message = error instanceof Error ? error.message : String(error);
       this.setStatus({ enabled: true, phase: "error", message });
       throw error;
@@ -198,7 +217,10 @@ export class QqBotAdapter implements ChannelAdapter {
   }
 
   async stop(): Promise<void> {
-    await this.ws?.stop();
+    this.generation++;
+    this.memoryAccount.revoke();
+    this.memoryAppId = "";
+    const ws = this.ws;
     this.ws = null;
     this.api = null;
     this.wsReady = false;
@@ -207,6 +229,15 @@ export class QqBotAdapter implements ChannelAdapter {
     this.dedupe.clear();
     this.lastInbound.clear();
     this.setStatus({ enabled: false, phase: "offline", message: "已停止" });
+    await ws?.stop();
+  }
+
+  getMemoryAccountIdentity(): ChannelMemoryAccountIdentity | null {
+    const config = loadChannelsSettings().qqbot;
+    if (!config.enabled || config.appId !== this.memoryAppId || !config.appSecret || !this.wsReady) {
+      this.memoryAccount.revoke();
+    }
+    return this.memoryAccount.read();
   }
 
   getStatus(): ChannelStatus {
@@ -328,8 +359,10 @@ export class QqBotAdapter implements ChannelAdapter {
   }
 
   private async deliverIncoming(incoming: IncomingMessage): Promise<void> {
+    const generation = this.generation;
     try {
       await this.downloadAttachments(incoming);
+      if (generation !== this.generation) return;
       await this.onMessage?.(incoming);
     } catch (error) {
       console.warn("[QqBotAdapter] QQ Bot 消息处理失败:", error instanceof Error ? error.message : String(error));

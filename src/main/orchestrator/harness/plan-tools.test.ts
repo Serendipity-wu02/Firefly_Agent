@@ -202,15 +202,15 @@ describe("plan-tools", () => {
       expect(await readActivePlan("conv-1")).toContain("补充一节。");
     });
 
-    it(".gitignore 已包含旧 .cyrene/ 时仍添加 .firefly/", async () => {
-      fs.writeFileSync(path.join(workspaceRoot, ".gitignore"), "node_modules\n.cyrene/\n", "utf8");
+    it(".gitignore 已含其他目录时仍添加 .firefly/", async () => {
+      fs.writeFileSync(path.join(workspaceRoot, ".gitignore"), "node_modules\n.cache/\n", "utf8");
       enterPlanDiscussing("conv-1", workspaceRoot);
 
       const observation = await executeWritePlan(makeCall({ content: PLAN_CONTENT }), makeCtx());
 
       expect(observation.outcome).toBe("success");
       const gitignore = fs.readFileSync(path.join(workspaceRoot, ".gitignore"), "utf8");
-      expect(gitignore.match(/\.cyrene\//g)).toHaveLength(1);
+      expect(gitignore.match(/\.cache\//g)).toHaveLength(1);
       expect(gitignore.match(/\.firefly\//g)).toHaveLength(1);
       expect(gitignore).toContain("# Firefly agent");
     });
@@ -267,10 +267,10 @@ describe("plan-tools", () => {
 
   describe("buildPlanReviewCard", () => {
     it("生成两选项审批卡片并携带 planPath", () => {
-      const card = buildPlanReviewCard("E:/ws/.cyrene/docs/plan-20260915-120000.md");
+      const card = buildPlanReviewCard("E:/ws/.firefly/docs/plan-20260915-120000.md");
 
       expect(card.mode).toBe("semantic_clarification");
-      expect(card.planPath).toBe("E:/ws/.cyrene/docs/plan-20260915-120000.md");
+      expect(card.planPath).toBe("E:/ws/.firefly/docs/plan-20260915-120000.md");
       expect(card.questions).toHaveLength(1);
       const question = card.questions[0]!;
       expect(question.field).toBe("plan_decision");

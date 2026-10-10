@@ -9,15 +9,16 @@ import type { MusicCardData } from "./music-card";
 import type { TodoItem } from "./todo-types";
 import type { TaskDelegationPresentation } from "./task-session";
 import type { ContextUsageSnapshot } from "./context-usage";
+import type { ModelExecutionEvent, TaskWriteEvidence } from "./agent-execution-evidence";
 
-// - schemaVersion 用于以后改 schema 时的迁移判断；当前固定 1。
+// - schemaVersion 标记当前会话结构；当前固定 1。
 
 export type ChatRole = "user" | "model";
 
 export type ChatSessionPurpose = "proactive-chat";
 
 /** 会话模式：创建时绑定，整个会话生命周期不变 */
-export type ConversationMode = "chat" | "work" | "code" | "learn";
+export type ConversationMode = "chat" | "work" | "code";
 
 export type ChatStickerId =
   | "playful"
@@ -32,6 +33,19 @@ export type ChatStickerId =
 /** 任意表情包 ID（内置 + 用户自定义） */
 export type AnyStickerId = string;
 
+/** Main-projected child result. This is output data, never the child prompt or private trace. */
+export interface ToolTaskResult {
+  agentId: string;
+  sessionId: string;
+  status: import("./task-session").TaskSessionStatus;
+  text: string;
+  truncated?: boolean;
+  /** Actual write effects survive failures, cancellation and display text truncation. */
+  writes?: TaskWriteEvidence[];
+  error?: { code: string; message: string };
+  executionEvents?: ModelExecutionEvent[];
+}
+
 /** 一次模型回复中已展示的工具执行记录，供 React Harness 会话恢复执行过程。 */
 export interface ToolExecutionRecord {
   id: string;
@@ -44,6 +58,8 @@ export interface ToolExecutionRecord {
   roundId?: string;
   /** 结构化文件变更证据（Diff Review 卡片）；由 tool_end 事件独立携带，不依赖被截断的 result 文本。 */
   changes?: ToolFileChange[];
+  /** Structured child output, carried independently of the short tool preview. */
+  taskResult?: ToolTaskResult;
   /** run 内单调递增的时间线序号：保证推理/正文/工具跨类别按实际发生顺序排列。 */
   seq?: number;
 }
@@ -126,6 +142,8 @@ export interface ChatMessageChannelSource {
 }
 
 export interface ChatMessage {
+  /** Read-only Main projection from canonical audit; never write authority. */
+  sSettlement?: {state:"pending"|"unknown"|"success"|"interrupted";runId:string;assistantEntryId:string;originalText:string};
   id: string;
   role: ChatRole;
   content: string;
@@ -291,8 +309,8 @@ export interface ChatSession {
   titleIsCustom?: boolean;
   /** 对话工作区绑定（Coding Agent 使用的可信目录） */
   workspaceBinding?: ConversationWorkspaceBinding;
-  /** 会话模式：创建时绑定，整个会话生命周期不变。旧会话无此字段时默认 "work"。 */
-  mode?: ConversationMode;
+  /** 会话模式：创建时绑定，整个会话生命周期不变。 */
+  mode: ConversationMode;
   /** 用户是否置顶该会话；置顶项在列表中优先展示。 */
   pinned?: boolean;
   /** 当前会话选择的已保存模型；缺失时使用默认模型。 */
@@ -303,7 +321,7 @@ export interface ChatSession {
    * 避免 UI 显示过期数据（known-issues 问题 3）。
    */
   currentContextUsage?: ContextUsageSnapshot;
-  /** 会话级待发队列：旧会话无此字段视为空队列（向后兼容）。 */
+  /** 会话级待发队列；未入队时可省略。 */
   pendingMessages?: PendingChatMessage[];
   /** 待发派发状态：认领后 run 确认接受前存在；残留即恢复入口（向后兼容缺省为无）。 */
   pendingDispatch?: PendingDispatchState;

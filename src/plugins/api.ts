@@ -18,8 +18,7 @@ export type PluginCapability =
   | "secrets"
   | "workspace"
   | "conversations"
-  | "scheduler"
-  | "speech-input";
+  | "scheduler";
 
 /** 全部宿主能力的运行时清单；与 PluginCapability 类型一一对应，SDK 直接再导出。 */
 export const PLUGIN_CAPABILITIES: readonly PluginCapability[] = [
@@ -28,9 +27,7 @@ export const PLUGIN_CAPABILITIES: readonly PluginCapability[] = [
   "secrets",
   "workspace",
   "conversations",
-  "scheduler",
-  "speech-input",
-];
+  "scheduler",];
 
 /**
  * 插件设置面板的挂载分区。每开放一个枚举值，设置页必须有对应的
@@ -99,7 +96,7 @@ export interface PluginToolContext {
   runId?: string;
   signal?: AbortSignal;
   resolvedWorkspaceRoot?: string;
-  mode?: "chat" | "learn" | "code" | "work";
+  mode?: "chat" | "code" | "work";
   permissionMode?: "normal" | "allow_all";
   metadata?: Record<string, unknown>;
 }
@@ -113,7 +110,7 @@ export interface PluginTool {
   capability?: string;
   enabled: boolean;
   risk?: "safe" | "fs-read" | "fs-write" | "shell" | "network" | "input-control";
-  modes?: Array<"learn" | "code" | "work">;
+  modes?: Array<"code" | "work">;
   inputSchema: {
     type: "object";
     properties: Record<string, PluginJsonSchema>;
@@ -520,32 +517,6 @@ export interface PluginScheduledTaskHistory {
   summary?: string;
 }
 
-/** 语音输入目标：普通聊天窗口或活动通话，二选一。 */
-export type PluginSpeechInputTarget = "active-chat" | "active-call";
-
-export interface PluginSpeechInputAcquireOptions {
-  target: PluginSpeechInputTarget;
-}
-
-/**
- * 语音输入租约。取得时目标即被冻结：切换会话不会迁移租约，
- * 原渲染目标失效时租约自动中止（signal 触发）。
- * commit() 复用宿主正常用户输入路径，不等待模型完整回答。
- */
-export interface PluginSpeechInputLease {
-  /** 提交最终识别文本；用户消息被接受并落盘后即返回。 */
-  commit(text: string): Promise<void>;
-  /** 幂等释放；释放后不得再 commit。 */
-  release(): Promise<void>;
-  /** 租约中止信号（目标失效、插件停止、应用退出等）。 */
-  signal: AbortSignal;
-}
-
-/** 独占语音输入服务：全局同一时刻只允许一个插件持有租约。 */
-export interface PluginSpeechInputService {
-  acquire(options: PluginSpeechInputAcquireOptions): Promise<PluginSpeechInputLease>;
-}
-
 export interface PluginDeps {
   /** Read-only channel discovery. Registration must use PluginContext methods. */
   channels?: { has(id: string): boolean };
@@ -554,18 +525,18 @@ export interface PluginDeps {
   secrets?: PluginSecretsService;
   workspace?: PluginWorkspaceService;
   scheduler?: PluginSchedulerService;
-  speechInput?: PluginSpeechInputService;
+
 }
 
 export type PluginCleanup = () => void | Promise<void>;
 
-export type PluginPromptMode = "chat" | "work" | "learn" | "code";
+export type PluginPromptMode = "chat" | "work" | "code";
 
 /**
  * 提示词 Provider 的场景来源。新增场景默认不收录既有 Provider，
  * 插件必须显式声明 sources 才会参与，防止升级后不知情地被扩大调用。
  */
-export type PluginPromptSource = "conversation" | "scheduler" | "moments-post" | "plugin-agent";
+export type PluginPromptSource = "conversation" | "scheduler" | "plugin-agent";
 
 /** 各场景共有的构建输入：本轮用户文本与可选的会话归属。 */
 interface PluginPromptBuildInputCommon {
@@ -592,27 +563,11 @@ export interface PluginAgentPromptBuildInput extends PluginPromptBuildInputCommo
   mode: PluginPromptMode;
 }
 
-/** 动态发帖决策；无会话模式，是否生效仅由 Provider 的 sources 声明决定。 */
-export interface MomentsPostPromptBuildInput extends PluginPromptBuildInputCommon {
-  source: "moments-post";
-  /**
-   * 恒为 undefined：moments-post 不存在会话模式。声明为 never 而非省略字段，
-   * 是为了兼容既有插件 `provide({ source, mode, userText })` 的参数解构写法——
-   * 升级 SDK 后旧代码仍可编译，运行时该值不存在。
-   */
-  mode?: never;
-}
-
-/**
- * 提示词 Provider 的构建输入，以 source 为判别字段：插件按 source 分支后，
- * TypeScript 自动收窄出各场景的必填字段（conversation/scheduler 必带 mode，
- * moments-post 没有会话模式），不需要猜测可选字段是否合法。
- */
+/** 提示词 Provider 的构建输入；所有保留场景都携带会话模式。 */
 export type PluginPromptBuildInput =
   | ConversationPromptBuildInput
   | SchedulerPromptBuildInput
-  | PluginAgentPromptBuildInput
-  | MomentsPostPromptBuildInput;
+  | PluginAgentPromptBuildInput;
 
 /**
  * PluginPromptBuildInput 是联合，接口不能 extends 联合类型；
@@ -630,7 +585,7 @@ export interface PluginPromptProvider {
   modes?: PluginPromptMode[];
   /**
    * 声明后仅在列出的场景生效；缺省 = 仅 conversation + scheduler
-   * （与旧版行为一致），参与 moments-post 必须显式声明，防止升级后插件不知情地被扩大调用。
+   * （与旧版行为一致），参与 plugin-agent 必须显式声明。
    */
   sources?: PluginPromptSource[];
   provide(input: PluginPromptProviderInput): string | Promise<string>;
@@ -674,7 +629,6 @@ export type PluginHostErrorCode =
   | "E_NOT_FOUND"
   | "E_NOT_OWNER"
   | "E_STORAGE_UNAVAILABLE"
-  | "E_SPEECH_INPUT_BUSY"
   | "E_NO_ACTIVE_INPUT_TARGET"
   | "E_PLUGIN_STOPPING"
   | "E_INTERNAL";
@@ -690,7 +644,6 @@ export const PLUGIN_HOST_ERROR_CODES: ReadonlySet<string> = new Set([
   "E_NOT_FOUND",
   "E_NOT_OWNER",
   "E_STORAGE_UNAVAILABLE",
-  "E_SPEECH_INPUT_BUSY",
   "E_NO_ACTIVE_INPUT_TARGET",
   "E_PLUGIN_STOPPING",
   "E_INTERNAL",

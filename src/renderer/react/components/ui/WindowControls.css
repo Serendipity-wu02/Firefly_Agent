@@ -1,17 +1,17 @@
 .cy-window-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
 }
 
 .cy-winbtn {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid var(--cy-border);
-  background: var(--cy-bg-workspace);
+  width: 46px;
+  height: 32px;
+  border-radius: 12px;
+  border: 0;
+  background: transparent;
   color: var(--cy-text-muted);
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
@@ -23,8 +23,9 @@
   color: var(--cy-text);
 }
 
+/* The close button turns the standard window red, never the soft pink of the danger text colour. */
 .cy-winbtn--close:hover {
-  background: #ff5f57;
-  border-color: #ff5f57;
+  background: #c42b1c;
+  border-color: #c42b1c;
   color: #fff;
 }

@@ -23,8 +23,6 @@ function keepRecentCount(mode: string): number {
     case "work":
     case "code":
       return 6;
-    case "learn":
-      return 10;
     case "chat":
       return 20;
     default:
@@ -55,7 +53,7 @@ export const DEFAULT_IMAGE_TOKEN_ESTIMATE = 4096;
 /**
  * 图片块不计 base64 字符串（按 DEFAULT_IMAGE_TOKEN_ESTIMATE 估算），text 块照常估算。
  * estimateMessageTokens 与 buildContextUsageSnapshot 共用此函数，防止计量与
- * 压缩判定口径分裂（见 docs/architecture/firefly-reliability-boundaries.md）。
+ * 压缩判定口径分裂。
  */
 export function estimateMessageContentTokens(
   content: string | OpenAIContentBlock[],

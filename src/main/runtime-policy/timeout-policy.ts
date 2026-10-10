@@ -17,15 +17,9 @@
 
 export type RuntimeTimeoutStage =
   | "memory-llm"
-  | "tool-execution"
-  | "tts-minimax"
-  | "tts-gptsovits"
-  | "tts-custom-cloud"
-  | "tts-mossland"
-  | "asr-mossland"
+  | "tool-execution"  | "asr-mossland"
   | "external-http"
-  | "vision-caption"
-  | "call-management";
+  | "vision-caption";
 
 export interface TimeoutPolicy {
   /** 总超时（毫秒）。非流式调用主要使用此字段。 */
@@ -54,22 +48,6 @@ const STAGE_DEFAULTS: Record<RuntimeTimeoutStage, TimeoutPolicy> = {
     // built-in-tools.ts SHELL_TIMEOUT_MS：5min
     totalMs: 5 * 60_000,
   },
-  "tts-minimax": {
-    // minimax-engine.ts WebSocket 超时：30s
-    totalMs: 30_000,
-  },
-  "tts-gptsovits": {
-    // gptsovits-engine.ts DEFAULT_TIMEOUT_MS：3 分钟（本地推理可能较慢，长文本需要更久）
-    totalMs: 180_000,
-  },
-  "tts-custom-cloud": {
-    // custom-cloud-engine.ts DEFAULT_TIMEOUT_MS：30s
-    totalMs: 30_000,
-  },
-  "tts-mossland": {
-    // mossland-engine.ts DEFAULT_TIMEOUT_MS：30s
-    totalMs: 30_000,
-  },
   "asr-mossland": {
     // mossland-asr-engine.ts 同步上传一轮语音并等待完整转写：30s
     totalMs: 30_000,
@@ -80,10 +58,6 @@ const STAGE_DEFAULTS: Record<RuntimeTimeoutStage, TimeoutPolicy> = {
   },
   "vision-caption": {
     // vision-captioner.ts VISION_TIMEOUT_MS：30s
-    totalMs: 30_000,
-  },
-  "call-management": {
-    // call-manager.ts 通话 LLM 请求：30s
     totalMs: 30_000,
   },
 };

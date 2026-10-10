@@ -19,8 +19,7 @@ import { RunStageIndicator } from "./RunStageIndicator";
 import { TaskPlanCard } from "./TaskPlanCard";
 import type { AgentRunStage, TaskPlanPresentation } from "./run-presentation";
 import { CopyButton } from "./CopyButton";
-import { TtsButton } from "./TtsButton";
-import { stopTtsPlayback } from "./tts-playback";
+
 import { LastTurnActionButton } from "./LastTurnActionButton";
 import { resolveRevisableLastTurn } from "./last-turn-actions";
 import { extractMessageStickerId, stripMessageStickerMarkers } from "./message-sticker";
@@ -34,6 +33,7 @@ import { reportChatPerfRender } from "./chat-perf-probe";
 import { StreamdownMessageContent } from "./StreamdownMessageContent";
 
 export interface ChatMessageItem {
+  sSettlement?: import("../../../../../shared/chat-types").ChatMessage["sSettlement"];
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
@@ -87,7 +87,6 @@ interface ChatMessageListProps {
   mode: ConversationMode;
   preferredAddress: string;
   stickerSize?: "small" | "standard" | "large";
-  onTtsCacheKey?: (messageId: string, cacheKey: string, converterVersion: string) => void;
   revisionBusy?: boolean;
   onEditLastUserMessage?: (messageId: string, content: string) => Promise<boolean>;
   onRegenerateLastResponse?: (userMessageId: string, assistantMessageId: string) => Promise<boolean>;
@@ -138,8 +137,8 @@ export function LastTurnEditAction({ messageId, content, disabled, onBeginEdit }
   return <LastTurnActionButton kind="edit" disabled={disabled} onClick={() => onBeginEdit(messageId, content)} />;
 }
 
-/** 助手消息 footer：重生成目标经 context 匹配（点击时读最新值），TTS/复制与本轮无关 */
-export function AssistantMessageFooter({ content, messageId, streaming, conversationId, mode, preferredAddress, revisionBusy, onTtsCacheKey, onRegenerateLastResponse }: {
+/** 助手消息 footer：重生成目标经 context 匹配（点击时读最新值），复制与本轮无关 */
+export function AssistantMessageFooter({ content, messageId, streaming, conversationId, mode, preferredAddress, revisionBusy, onRegenerateLastResponse }: {
   content: string;
   messageId?: string;
   streaming: boolean;
@@ -147,7 +146,6 @@ export function AssistantMessageFooter({ content, messageId, streaming, conversa
   mode: ConversationMode;
   preferredAddress: string;
   revisionBusy: boolean;
-  onTtsCacheKey?: (messageId: string, cacheKey: string, converterVersion: string) => void;
   onRegenerateLastResponse?: (userMessageId: string, assistantMessageId: string) => Promise<boolean>;
 }) {
   const lastTurnIds = useContext(LastTurnIdsContext);
@@ -156,16 +154,7 @@ export function AssistantMessageFooter({ content, messageId, streaming, conversa
   if (streaming || (!cleanText && !canRegenerate)) return null;
   return (
     <div className="cy-message-actions">
-      {cleanText && messageId && conversationId && (
-        <TtsButton
-          conversationId={conversationId}
-          messageId={messageId}
-          text={cleanText}
-          speechMode={mode === "learn" ? "learn" : "default"}
-          preferredAddress={preferredAddress}
-          onCacheKey={(cacheKey, converterVersion) => onTtsCacheKey?.(messageId, cacheKey, converterVersion)}
-        />
-      )}
+
       {cleanText && <CopyButton text={cleanText} />}
       {canRegenerate && (
         <LastTurnActionButton
@@ -865,7 +854,6 @@ function createRoles(
   onRegenerateLastResponse: ((userMessageId: string, assistantMessageId: string) => Promise<boolean>) | undefined,
   reasoningExpanded: Readonly<Record<string, boolean>>,
   onReasoningExpand: (id: string, expanded: boolean) => void,
-  onTtsCacheKey?: (messageId: string, cacheKey: string, converterVersion: string) => void,
   onOpenReviewInspector?: (runId: string, fileIndex: number, filePath: string) => void,
 ) {
   return {
@@ -926,7 +914,7 @@ function createRoles(
         mode={mode}
         preferredAddress={preferredAddress}
         revisionBusy={revisionBusy}
-        onTtsCacheKey={onTtsCacheKey}
+
         onRegenerateLastResponse={onRegenerateLastResponse}
       />
     ),
@@ -946,6 +934,12 @@ function createRoles(
           if (info.extraInfo?.reasoningId) onReasoningExpand(info.extraInfo.reasoningId, expanded);
         }}
       />
+    ),
+  },
+  sAudit: {
+    placement:"start" as const,variant:"borderless" as const,
+    contentRender:(content:string,info:{extraInfo?:{state?:string}})=>(
+      <details open><summary>{t(`messageList.sSettlement${info.extraInfo?.state??"unknown"}`)}</summary><MarkdownContent content={content}/></details>
     ),
   },
   activity: {
@@ -1127,7 +1121,8 @@ function convertMessage(message: ChatMessageItem, enabledStickers: readonly Enab
       extraInfo: { weather: message.weather },
     });
   }
-  if (stages.includes("assistant")) {
+  if(message.sSettlement&&message.sSettlement.state!=="success")assistantItems.push({key:`${message.id}-s-audit`,role:"sAudit",content:message.sSettlement.originalText,extraInfo:{state:message.sSettlement.state}});
+  if (stages.includes("assistant")&&(!message.sSettlement||message.sSettlement.state==="success")) {
     // 运行块内的正文不重复头像（头像已钉在活动卡头部）：
     // 保留头像占位只做视觉隐藏，正文左边缘与活动卡时间线内容精确对齐。
     // 活动卡未渲染时（如首轮直接回答的纯文本运行）正文保留自己的头像。
@@ -1215,7 +1210,6 @@ export function ChatMessageList({
   mode,
   preferredAddress,
   stickerSize = "standard",
-  onTtsCacheKey,
   revisionBusy = false,
   onEditLastUserMessage,
   onRegenerateLastResponse,
@@ -1312,10 +1306,9 @@ export function ChatMessageList({
       onRegenerateLastResponse,
       reasoningExpanded,
       onReasoningExpand,
-      onTtsCacheKey,
       onOpenReviewInspector,
     ),
-    [beginEdit, cancelEdit, conversationId, editDraft, editingMessageId, mode, onOpenReviewInspector, onReasoningExpand, onRegenerateLastResponse, onTtsCacheKey, preferredAddress, reasoningExpanded, revisionBusy, submitEdit, userAvatarUrl],
+    [beginEdit, cancelEdit, conversationId, editDraft, editingMessageId, mode, onOpenReviewInspector, onReasoningExpand, onRegenerateLastResponse, preferredAddress, reasoningExpanded, revisionBusy, submitEdit, userAvatarUrl],
   );
 
   useEffect(() => {
@@ -1324,8 +1317,6 @@ export function ChatMessageList({
       setEditDraft("");
     }
   }, [editingMessageId, lastTurn?.userMessageId]);
-
-  useEffect(() => stopTtsPlayback, [conversationId]);
 
   useEffect(() => {
     let active = true;

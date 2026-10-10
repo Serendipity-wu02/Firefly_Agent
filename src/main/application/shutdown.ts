@@ -36,7 +36,7 @@ export interface ShutdownCoordinator {
   requestControlledShutdown(input: {
     reason: string;
     finalAction(): void;
-  }): Promise<void>;
+  }): Promise<boolean>;
   emergencyFlush(): void;
   isStopping(): boolean;
   isFinalizing(): boolean;
@@ -50,6 +50,8 @@ interface Registration {
 
 export interface CreateShutdownCoordinatorOptions {
   readiness: StartupReadiness;
+  /** Veto before readiness changes or any resource is stopped. False leaves the app usable. */
+  beforeShutdown?: () => Promise<boolean>;
   /** 受控退出总超时；超时后中止信号并停止等待未完成的清理函数。 */
   timeoutMs?: number;
   setTimeout?: typeof globalThis.setTimeout;
@@ -71,7 +73,8 @@ export function createShutdownCoordinator(options: CreateShutdownCoordinatorOpti
   let stopping = false;
   let finalizing = false;
   let emergencyFlushDone = false;
-  let shutdownPromise: Promise<void> | null = null;
+  let shutdownPromise: Promise<boolean> | null = null;
+  let preflightPromise: Promise<boolean> | null = null;
   let firstRequest: { reason: string; finalAction(): void } | null = null;
 
   // 依次执行各阶段；同一阶段内并行，单项失败记录后继续，不跳过后续阶段。
@@ -111,6 +114,34 @@ export function createShutdownCoordinator(options: CreateShutdownCoordinatorOpti
     }
   }
 
+  function startShutdown(input: { reason: string; finalAction(): void }): Promise<boolean> {
+    firstRequest = input;
+    stopping = true;
+    try {
+      if (readiness.getPhase() !== "stopped") readiness.transition("stopping");
+    } catch (error) {
+      log("shutdown: readiness transition to stopping failed", error);
+    }
+
+    const controller = new AbortController();
+    const pendingIds = new Set<string>();
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<void>((resolve) => {
+      timeoutHandle = setTimeoutFn(() => {
+        controller.abort();
+        log(`shutdown: total timeout (${timeoutMs}ms) reached, incomplete resources: ${[...pendingIds].join(", ") || "(none)"}`);
+        resolve();
+      }, timeoutMs);
+    });
+
+    shutdownPromise = Promise.race([runPhases(controller.signal, pendingIds), deadline]).then(() => {
+      if (timeoutHandle !== undefined) clearTimeoutFn(timeoutHandle);
+      finalize();
+      return true;
+    });
+    return shutdownPromise;
+  }
+
   return {
     register(input) {
       registrations.set(input.id, { id: input.id, phase: input.phase, dispose: input.dispose });
@@ -129,30 +160,15 @@ export function createShutdownCoordinator(options: CreateShutdownCoordinatorOpti
     requestControlledShutdown(input) {
       // 后续请求复用同一个 Promise；finalAction 只执行第一次请求传入的那个。
       if (shutdownPromise) return shutdownPromise;
-      firstRequest = input;
-      stopping = true;
-      try {
-        if (readiness.getPhase() !== "stopped") readiness.transition("stopping");
-      } catch (error) {
-        log("shutdown: readiness transition to stopping failed", error);
-      }
-
-      const controller = new AbortController();
-      const pendingIds = new Set<string>();
-      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-      const deadline = new Promise<void>((resolve) => {
-        timeoutHandle = setTimeoutFn(() => {
-          controller.abort();
-          log(`shutdown: total timeout (${timeoutMs}ms) reached, incomplete resources: ${[...pendingIds].join(", ") || "(none)"}`);
-          resolve();
-        }, timeoutMs);
-      });
-
-      shutdownPromise = Promise.race([runPhases(controller.signal, pendingIds), deadline]).then(() => {
-        if (timeoutHandle !== undefined) clearTimeoutFn(timeoutHandle);
-        finalize();
-      });
-      return shutdownPromise;
+      if (!options.beforeShutdown) return startShutdown(input);
+      if (preflightPromise) return preflightPromise;
+      // Keep isStopping false and retain every IPC/resource while the user decides.
+      // Assignment precedes invocation, so repeated quit/update requests share one prompt.
+      preflightPromise = Promise.resolve().then(() => options.beforeShutdown!())
+        .then(approved => approved ? startShutdown(input) : false)
+        .catch(error => { log("shutdown: preflight failed; shutdown cancelled", error); return false; })
+        .finally(() => { preflightPromise = null; });
+      return preflightPromise;
     },
 
     // 紧急落盘：同步、幂等，不等待网络、不执行完整受控退出。

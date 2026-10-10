@@ -43,7 +43,7 @@ describe("main: hello", () => {
   it("prints the banner and exits 0", async () => {
     const code = await main(["hello"], VERSION);
     expect(code).toBe(0);
-    expect(stdoutBuf).toContain("Chat · Work · Learn · Code");
+    expect(stdoutBuf).toContain("Chat · Work · Code");
     // hello does NOT print the "bringing me home" line (that's default only)
     expect(stdoutBuf).not.toContain("Let's start from here.");
   });
@@ -89,7 +89,7 @@ describe("main: default (first meeting)", () => {
   it("prints the banner and the greeting line", async () => {
     const code = await main([], VERSION);
     expect(code).toBe(0);
-    expect(stdoutBuf).toContain("Chat · Work · Learn · Code");
+    expect(stdoutBuf).toContain("Chat · Work · Code");
     expect(stdoutBuf).toContain("Let's start from here.");
   });
 
@@ -114,7 +114,7 @@ describe("main: default (subsequent)", () => {
     expect(code).toBe(0);
     expect(stdoutBuf).toContain(`Firefly_Agent v${VERSION}`);
     expect(stdoutBuf).toContain("Ready.");
-    expect(stdoutBuf).not.toContain("Chat · Work · Learn · Code");
+    expect(stdoutBuf).not.toContain("Chat · Work · Code");
   });
 });
 

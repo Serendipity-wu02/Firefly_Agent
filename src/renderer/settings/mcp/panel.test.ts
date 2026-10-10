@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 const mcpSource = fs.readFileSync(
   fileURLToPath(new URL("./panel.ts", import.meta.url)),
   "utf8",
-);
+) + fs.readFileSync(fileURLToPath(new URL("./management.ts", import.meta.url)), "utf8")
+  + fs.readFileSync(fileURLToPath(new URL("../i18n/zh-CN.json", import.meta.url)), "utf8");
 const settingsSource = fs.readFileSync(
   fileURLToPath(new URL("../settings.ts", import.meta.url)),
   "utf8",
@@ -55,7 +56,7 @@ describe("MCP Server 管理 UI - 添加流程", () => {
   });
 
   it("空命令时提前返回不调用 IPC", () => {
-    expect(mcpSource).toContain('用户取消或命令为空');
+    expect(mcpSource).toContain('!command?.trim()');
   });
 
   it("调用 window.settings.addMcpServer IPC 传入 stdio transport", () => {
@@ -64,7 +65,7 @@ describe("MCP Server 管理 UI - 添加流程", () => {
   });
 
   it("成功时显示工具数量，失败时显示错误信息", () => {
-    expect(mcpSource).toContain('添加成功');
+    expect(mcpSource).toContain('showNotice({ tone: "success"');
     expect(mcpSource).toContain('已连接，发现');
     expect(mcpSource).toContain('个工具');
     expect(mcpSource).toContain('添加失败');

@@ -8,6 +8,8 @@ export interface CreateTrayDependencies {
   /** 桌宠开关保持立即执行：桌宠不接收通用主窗口激活请求。 */
   togglePetWindow(): void;
   quit(): void;
+  /** Native-only diagnostic, absent from renderer/tool interfaces. */
+  memoryOnlineOnce?: { run(): void; cancel(): void };
 }
 
 export function buildTrayMenuTemplate(deps: CreateTrayDependencies): MenuItemConstructorOptions[] {
@@ -17,14 +19,6 @@ export function buildTrayMenuTemplate(deps: CreateTrayDependencies): MenuItemCon
       click: () => { deps.requestActivation({ kind: "chat" }); },
     },
     {
-      label: "打开状态面板",
-      click: () => { deps.requestActivation({ kind: "sidebar" }); },
-    },
-    {
-      label: "QQ Music 状态",
-      click: () => { deps.requestActivation({ kind: "music" }); },
-    },
-    {
       label: "设置",
       click: () => { deps.requestActivation({ kind: "settings" }); },
     },
@@ -32,6 +26,10 @@ export function buildTrayMenuTemplate(deps: CreateTrayDependencies): MenuItemCon
       label: "显示/隐藏桌宠",
       click: () => { deps.togglePetWindow(); },
     },
+    ...(deps.memoryOnlineOnce ? [
+      { label: "记忆 H：一次性在线测试（≤¥5）", click: () => { deps.memoryOnlineOnce!.run(); } },
+      { label: "取消记忆 H 在线测试", click: () => { deps.memoryOnlineOnce!.cancel(); } },
+    ] : []),
     { type: "separator" },
     {
       label: "退出",

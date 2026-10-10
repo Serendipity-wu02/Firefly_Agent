@@ -143,3 +143,24 @@ describe("createShutdownCoordinator", () => {
     expect(log).toHaveBeenCalled();
   });
 });
+
+describe("shutdown draft preflight", () => {
+  it("deduplicates preflight, cancels without stopping services, and allows one later approved shutdown", async () => {
+    const readiness = createStartupReadiness(); let decide!: (approved: boolean) => void;
+    const beforeShutdown = vi.fn(() => new Promise<boolean>(resolve => { decide = resolve; }));
+    const coordinator = createShutdownCoordinator({ readiness, beforeShutdown }); const dispose = vi.fn(); const finalAction = vi.fn();
+    coordinator.register({ id: "live-ipc-and-runtime", phase: "quiesce", dispose });
+    const initial = readiness.getPhase(); const first = coordinator.requestControlledShutdown({ reason: "quit", finalAction });
+    const repeated = coordinator.requestControlledShutdown({ reason: "quit-again", finalAction });
+    await Promise.resolve(); expect(beforeShutdown).toHaveBeenCalledOnce(); expect(coordinator.isStopping()).toBe(false); expect(readiness.getPhase()).toBe(initial); expect(dispose).not.toHaveBeenCalled();
+    decide(false); expect(await first).toBe(false); expect(await repeated).toBe(false); expect(coordinator.isStopping()).toBe(false); expect(readiness.getPhase()).toBe(initial); expect(dispose).not.toHaveBeenCalled(); expect(finalAction).not.toHaveBeenCalled();
+    const approved = coordinator.requestControlledShutdown({ reason: "retry", finalAction }); await Promise.resolve(); decide(true); expect(await approved).toBe(true); expect(dispose).toHaveBeenCalledOnce(); expect(finalAction).toHaveBeenCalledOnce();
+  });
+  it("fails closed on preflight errors without poisoning a later retry", async () => {
+    const beforeShutdown = vi.fn().mockRejectedValueOnce(new Error("fixture preflight failure")).mockResolvedValueOnce(true);
+    const readiness = createStartupReadiness(); const initial = readiness.getPhase(); const log = vi.fn();
+    const coordinator = createShutdownCoordinator({ readiness, beforeShutdown, log }); const finalAction = vi.fn();
+    expect(await coordinator.requestControlledShutdown({ reason: "quit", finalAction })).toBe(false); expect(readiness.getPhase()).toBe(initial); expect(coordinator.isStopping()).toBe(false); expect(finalAction).not.toHaveBeenCalled();
+    expect(await coordinator.requestControlledShutdown({ reason: "retry", finalAction })).toBe(true); expect(finalAction).toHaveBeenCalledOnce();
+  });
+});

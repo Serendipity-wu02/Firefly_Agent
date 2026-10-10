@@ -20,6 +20,7 @@ export interface SavedProfileLite {
 }
 
 export const apiState = {
+  editorOpen: false,
   activeProvider: "" as string,
   customEndpointMode: "cloud" as CustomEndpointMode,
   /** 当前编辑的档案 id；undefined = 新建草稿。 */

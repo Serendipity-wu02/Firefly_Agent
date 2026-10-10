@@ -122,12 +122,12 @@ function showTokenTooltip(e: MouseEvent, d: TokenDayData): void {
   if (!tip) return;
   tip.innerHTML = `
     <div class="token-tooltip__date">${d.date} ${d.weekday}</div>
-    <div class="token-tooltip__row"><span>📥 输入</span><span>${d.input.toLocaleString()}</span></div>
-    <div class="token-tooltip__row"><span>📤 输出</span><span>${d.output.toLocaleString()}</span></div>
-    <div class="token-tooltip__row"><span>🎯 缓存命中</span><span>${formatCacheMetric(d.hit, d)}</span></div>
-    <div class="token-tooltip__row"><span>❌ 缓存未命中</span><span>${formatCacheMetric(d.miss, d)}</span></div>
-    <div class="token-tooltip__row"><span>📝 缓存创建</span><span>${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}</span></div>
-    <div class="token-tooltip__row"><span>🔢 请求</span><span>${d.requests.toLocaleString()} / ${d.attemptedRequests.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>输入</span><span>${d.input.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>输出</span><span>${d.output.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>缓存命中</span><span>${formatCacheMetric(d.hit, d)}</span></div>
+    <div class="token-tooltip__row"><span>缓存未命中</span><span>${formatCacheMetric(d.miss, d)}</span></div>
+    <div class="token-tooltip__row"><span>缓存创建</span><span>${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}</span></div>
+    <div class="token-tooltip__row"><span>请求</span><span>${d.requests.toLocaleString()} / ${d.attemptedRequests.toLocaleString()}</span></div>
   `;
   tip.hidden = false;
   moveTokenTooltip(e);
@@ -164,34 +164,35 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
   const inputData = data.map((d) => d.input);
   const outputData = data.map((d) => d.output);
 
+  const ink = chartInk();
   const config: ChartConfiguration = {
     type: "line",
     data: {
       labels,
       datasets: [
         {
-          label: "📥 输入",
+          label: "输入",
           data: inputData,
-          borderColor: "#3b82f6",
-          backgroundColor: "rgba(59, 130, 246, 0.15)",
+          borderColor: ink.input,
+          backgroundColor: ink.inputFill,
           fill: true,
           tension: 0.4,
           borderWidth: 2,
           pointRadius: 0,
           pointHoverRadius: 5,
-          pointHoverBackgroundColor: "#3b82f6",
+          pointHoverBackgroundColor: ink.input,
         },
         {
-          label: "📤 输出",
+          label: "输出",
           data: outputData,
-          borderColor: "#2d7a5f",
-          backgroundColor: "rgba(45, 122, 95, 0.15)",
+          borderColor: ink.output,
+          backgroundColor: ink.outputFill,
           fill: true,
           tension: 0.4,
           borderWidth: 2,
           pointRadius: 0,
           pointHoverRadius: 5,
-          pointHoverBackgroundColor: "#2d7a5f",
+          pointHoverBackgroundColor: ink.output,
         },
       ],
     },
@@ -203,15 +204,15 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
         legend: {
           display: true,
           position: "top",
-          labels: { color: "rgba(235, 229, 245, 0.7)", font: { size: 11 }, boxWidth: 12, boxHeight: 12 },
+          labels: { color: ink.label, font: { size: 11 }, boxWidth: 12, boxHeight: 12 },
         },
         tooltip: {
           // 用 Chart.js 自带 tooltip，显示输入/输出/命中/未命中
-          backgroundColor: "rgba(30, 20, 45, 0.95)",
-          borderColor: "rgba(45, 122, 95, 0.3)",
+          backgroundColor: ink.tipBg,
+          borderColor: ink.tipBorder,
           borderWidth: 1,
-          titleColor: "rgba(254, 247, 255, 0.95)",
-          bodyColor: "rgba(235, 229, 245, 0.85)",
+          titleColor: ink.tipTitle,
+          bodyColor: ink.tipBody,
           padding: 10,
           cornerRadius: 10,
           displayColors: true,
@@ -226,16 +227,16 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
               const d = data[idx];
               const which = item.datasetIndex === 0 ? "input" : "output";
               const val = which === "input" ? d.input : d.output;
-              return `${which === "input" ? "📥 输入" : "📤 输出"}: ${val.toLocaleString()}`;
+              return `${which === "input" ? "输入" : "输出"}: ${val.toLocaleString()}`;
             },
             afterBody: (items) => {
               const idx = items[0].dataIndex;
               const d = data[idx];
               return [
-                `🎯 缓存命中: ${formatCacheMetric(d.hit, d)}`,
-                `❌ 缓存未命中: ${formatCacheMetric(d.miss, d)}`,
-                `📝 缓存创建: ${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}`,
-                `🔢 请求: ${d.requests} / ${d.attemptedRequests}`,
+                `缓存命中: ${formatCacheMetric(d.hit, d)}`,
+                `缓存未命中: ${formatCacheMetric(d.miss, d)}`,
+                `缓存创建: ${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}`,
+                `请求: ${d.requests} / ${d.attemptedRequests}`,
               ];
             },
           },
@@ -244,12 +245,12 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: "rgba(235, 229, 245, 0.45)", font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
+          ticks: { color: ink.tick, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
         },
         y: {
-          grid: { color: "rgba(45, 122, 95, 0.08)" },
+          grid: { color: ink.grid },
           ticks: {
-            color: "rgba(235, 229, 245, 0.45)",
+            color: ink.tick,
             font: { size: 10 },
             callback: (v) => formatTokenShort(Number(v)),
           },
@@ -262,7 +263,15 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
   tokensState.trendChart = new Chart(canvas, config);
 }
 
-const modelColors = ["#ff7eb7", "#8b7cf6", "#4db6ac", "#f4a261", "#5b8def", "#94a3b8"];
+const isDarkTheme = () => document.documentElement.dataset.uiTheme === "firefly-dark";
+const modelPalette = () => isDarkTheme()
+  ? ["#7bd8ae", "#3b9a76", "#a9ead0", "#e8c36a", "#8ec7f0", "#86998f"]
+  : ["#ef8f6b", "#6a6b86", "#4db6ac", "#f4a261", "#5b8def", "#94a3b8"];
+const chartInk = () => isDarkTheme()
+  ? { input: "#a9ead0", output: "#3b9a76", inputFill: "rgba(169, 234, 208, 0.14)", outputFill: "rgba(59, 154, 118, 0.18)", label: "rgba(183, 201, 192, 0.8)", tick: "rgba(183, 201, 192, 0.6)", grid: "rgba(123, 216, 174, 0.10)",
+      tipBg: "rgba(15, 21, 19, 0.96)", tipBorder: "rgba(123, 216, 174, 0.35)", tipTitle: "#e4eee9", tipBody: "#b7c9c0", ring: "#141c19" }
+  : { input: "#3b82f6", output: "#2d7a5f", inputFill: "rgba(59, 130, 246, 0.15)", outputFill: "rgba(45, 122, 95, 0.15)", label: "rgba(61, 62, 85, 0.75)", tick: "rgba(61, 62, 85, 0.55)", grid: "rgba(77, 78, 105, 0.08)",
+      tipBg: "rgba(30, 34, 42, 0.95)", tipBorder: "rgba(77, 78, 105, 0.3)", tipTitle: "#ffffff", tipBody: "rgba(232, 236, 240, 0.85)", ring: "rgba(255,255,255,.76)" };
 
 function renderModelUsage(models: TokenModelData[]): void {
   const canvas = document.getElementById("token-model-chart") as HTMLCanvasElement | null;
@@ -271,6 +280,7 @@ function renderModelUsage(models: TokenModelData[]): void {
   tokensState.modelChart?.destroy();
   tokensState.modelChart = null;
   list.innerHTML = "";
+  const palette = modelPalette();
   const visible = models.slice(0, 6);
   const total = visible.reduce((sum, item) => sum + item.input + item.output, 0);
   if (total <= 0) {
@@ -281,7 +291,7 @@ function renderModelUsage(models: TokenModelData[]): void {
     type: "doughnut",
     data: {
       labels: visible.map((item) => item.model),
-      datasets: [{ data: visible.map((item) => item.input + item.output), backgroundColor: modelColors, borderWidth: 2, borderColor: "rgba(255,255,255,.76)" }],
+      datasets: [{ data: visible.map((item) => item.input + item.output), backgroundColor: palette, borderWidth: 2, borderColor: chartInk().ring }],
     },
     options: { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: { legend: { display: false }, tooltip: { callbacks: { label: (item) => `${item.label}: ${(item.raw as number).toLocaleString()} Token` } } } },
   });
@@ -289,7 +299,7 @@ function renderModelUsage(models: TokenModelData[]): void {
     const used = item.input + item.output;
     const row = document.createElement("div");
     row.className = "token-model-row";
-    row.innerHTML = `<span class="token-model-row__dot" style="background:${modelColors[index]}"></span><span class="token-model-row__name"></span><span class="token-model-row__value">${used.toLocaleString()} · ${(used / total * 100).toFixed(1)}%</span>`;
+    row.innerHTML = `<span class="token-model-row__dot" style="background:${palette[index]}"></span><span class="token-model-row__name"></span><span class="token-model-row__value">${used.toLocaleString()} · ${(used / total * 100).toFixed(1)}%</span>`;
     row.querySelector(".token-model-row__name")!.textContent = item.model;
     list.appendChild(row);
   }

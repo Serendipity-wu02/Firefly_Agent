@@ -10,17 +10,34 @@ import type { ChannelAdapter } from "./adapters/base";
 import type { ChannelId, ChannelStatus, IncomingMessage, OutgoingMessage } from "./types";
 import { setAdapterHandler } from "./adapters/base";
 import { logger, LogTag } from "../logger";
+import { createChannelMemoryIngressIssuer, type ChannelMemoryIngress } from "../memory-context/channel-memory-ingress";
 
 const LOG = "[ChannelManager]";
 
 /** dispatcher 给 manager 的回调 —— 拿到入站消息后返回一个 outgoing 消息 */
-export type DispatchFn = (msg: IncomingMessage) => Promise<OutgoingMessage | null>;
+export type DispatchFn = (msg: IncomingMessage, ingress?: ChannelMemoryIngress) => Promise<OutgoingMessage | null>;
 
 export class ChannelManager {
   private adapters = new Map<ChannelId, ChannelAdapter>();
   private dispatchFn: DispatchFn | null = null;
   /** 启动后已开启的 adapter（start 成功的才会调 stop） */
   private startedAdapters = new Set<ChannelId>();
+  #memoryLifetimes = new Map<ChannelId, AbortController>();
+  #memoryIngress = createChannelMemoryIngressIssuer({
+    isCurrent: (adapter, signal) => this.adapters.get(adapter.id) === adapter
+      && this.#memoryLifetimes.get(adapter.id)?.signal === signal && !signal.aborted,
+  });
+
+  private revokeMemory(id: ChannelId): void {
+    const previous = this.#memoryLifetimes.get(id);
+    this.#memoryLifetimes.delete(id);
+    previous?.abort(Error("MEMORY_CHANNEL_INGRESS_DENIED"));
+  }
+
+  private beginMemory(id: ChannelId): void {
+    this.revokeMemory(id);
+    this.#memoryLifetimes.set(id, new AbortController());
+  }
 
   has(id: ChannelId): boolean {
     return this.adapters.has(id);
@@ -39,7 +56,7 @@ export class ChannelManager {
     this.dispatchFn = fn;
     // 给所有已注册的 adapter 注入 handler
     for (const adapter of this.adapters.values()) {
-      setAdapterHandler(adapter, this.makeAdapterHandler(adapter.id));
+      setAdapterHandler(adapter, this.#makeAdapterHandler(adapter.id));
     }
   }
 
@@ -49,14 +66,16 @@ export class ChannelManager {
       // 跳过已启动的 adapter（插件注册渠道场景：registerChannelAdapter 已 startOne）
       if (this.startedAdapters.has(adapter.id)) continue;
       try {
+        this.beginMemory(adapter.id);
         // 每次 start 前重新注入 handler（防止 setDispatcher 之前 adapter 已经被外部注入 null）
         if (this.dispatchFn) {
-          setAdapterHandler(adapter, this.makeAdapterHandler(adapter.id));
+          setAdapterHandler(adapter, this.#makeAdapterHandler(adapter.id));
         }
         await adapter.start();
         this.startedAdapters.add(adapter.id);
         logger.info(LogTag.Channels, `started: ${adapter.id} (${adapter.displayName})`);
       } catch (err) {
+        this.revokeMemory(adapter.id);
         console.error(LOG, `渠道启动失败 [${adapter.id}]:`, err instanceof Error ? err.message : err);
       }
     }
@@ -66,6 +85,7 @@ export class ChannelManager {
   async unregister(id: ChannelId): Promise<boolean> {
     const adapter = this.adapters.get(id);
     if (!adapter) return false;
+    this.revokeMemory(id);
     if (this.startedAdapters.has(id)) {
       try {
         await adapter.stop();
@@ -84,16 +104,19 @@ export class ChannelManager {
     const adapter = this.adapters.get(id);
     if (!adapter) return;
     if (this.startedAdapters.has(id)) return;
+    this.beginMemory(id);
     if (this.dispatchFn) {
-      setAdapterHandler(adapter, this.makeAdapterHandler(id));
+      setAdapterHandler(adapter, this.#makeAdapterHandler(id));
     }
-    await adapter.start();
+    try { await adapter.start(); }
+    catch (error) { this.revokeMemory(id); throw error; }
     this.startedAdapters.add(id);
     logger.info(LogTag.Channels, `started: ${id} (${adapter.displayName})`);
   }
 
   /** 关闭所有已启动的 adapter */
   async stopAll(): Promise<void> {
+    for (const id of this.#memoryLifetimes.keys()) this.revokeMemory(id);
     for (const id of this.startedAdapters) {
       const adapter = this.adapters.get(id);
       if (!adapter) continue;
@@ -123,14 +146,16 @@ export class ChannelManager {
     return out as Record<ChannelId, ChannelStatus>;
   }
 
-  private makeAdapterHandler(channel: ChannelId) {
+  #makeAdapterHandler(channel: ChannelId) {
+    const adapter = this.adapters.get(channel), lifetime = this.#memoryLifetimes.get(channel)?.signal;
     return async (msg: IncomingMessage): Promise<OutgoingMessage | null> => {
       if (!this.dispatchFn) {
         console.warn(LOG, `收到入站消息但 dispatcher 未注册 [${channel}]`);
         return null;
       }
       try {
-        return await this.dispatchFn(msg);
+        const ingress = adapter && lifetime ? this.#memoryIngress.capture(adapter, msg, lifetime) : undefined;
+        return await this.dispatchFn(msg, ingress);
       } catch (err) {
         console.error(LOG, `dispatcher 处理失败 [${channel}]:`, err);
         return null;

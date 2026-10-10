@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConversationTranscriptStore } from "./conversation-transcript-store";
 import type { TranscriptAppendInput } from "./conversation-transcript-types";
 
@@ -84,4 +84,138 @@ describe("ConversationTranscriptStore", () => {
     expect(fs.existsSync(path.join(root, "transcripts", "c1"))).toBe(false);
     expect((await store.read("c2")).entries).toHaveLength(1);
   });
+});
+
+it("keeps a read lease stable until release and rejects an escaped reader",async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-transcript-"));roots.push(root);
+ const store=new ConversationTranscriptStore(root);
+ await store.append("c1",userDraft("e1","u1",1,"first"));
+ let release!:()=>void,ready!:()=>void,escaped!:()=>Promise<import("./conversation-transcript-types").TranscriptSnapshot>;
+ const gate=new Promise<void>(r=>release=r),started=new Promise<void>(r=>ready=r);
+ const lease=store.withReadLease("c1",async read=>{
+  escaped=read;const first=await read();first.entries[0].id="changed-copy";
+  ready();await gate;expect((await read()).entries[0].id).toBe("e1");
+ });
+ await started;let appended=false;
+ const append=store.append("c1",userDraft("e2","u2",1,"second")).then(()=>{appended=true});
+ await Promise.resolve();expect(appended).toBe(false);release();await lease;await append;
+ await expect(escaped()).rejects.toThrow("TRANSCRIPT_LEASE_EXPIRED");
+ expect((await store.read("c1")).entries).toHaveLength(2);
+});
+it("refuses a mutation before changing transcript bytes when its observer fails",async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-transcript-"));roots.push(root);
+ const store=new ConversationTranscriptStore(root);
+ await store.append("c1",userDraft("e1","u1",1,"first"));
+ const file=path.join(root,"transcripts","c1","transcript.jsonl"),before=fs.readFileSync(file);
+ const release=store.observeMutations("c1",async()=>{throw new Error("S_INVALIDATION_REFUSED")});
+ await expect(store.append("c1",userDraft("e2","u2",1,"second"))).rejects.toThrow("S_INVALIDATION_REFUSED");
+ expect(fs.readFileSync(file)).toEqual(before);
+ await expect(store.deleteConversation("c1")).rejects.toThrow("S_INVALIDATION_REFUSED");
+ expect(fs.readFileSync(file)).toEqual(before);release();
+ await store.append("c1",userDraft("e2","u2",1,"second"));
+ expect((await store.read("c1")).entries).toHaveLength(2);
+});
+
+
+describe("S transcript envelope validation", () => {
+  it.each([0, 2, NaN])("rejects unsupported S settlement version %s without creating a file", async (version) => {
+    const { store } = createStore();
+    expect(() => store.append("c1", { id: "s-a", kind: "assistant", runId: "s-run", turnId: "s-at", sSettlement: { version, userTurnId: "s-u", userRevision: 1 }, payload: { role: "assistant", content: "synthetic complete" } } as any)).toThrow("TRANSCRIPT_S_BINDING_INVALID");
+    expect((await store.read("c1")).entries).toEqual([]);
+  });
+  it("does not accept a forged completed marker with no matching assistant", async () => {
+    const { store } = createStore();
+    await expect(store.append("c1", { id: "s-marker", kind: "assistant_settlement", runId: "s-run", turnId: "s-at", payload: { binding: { runId: "s-run", assistantTurnId: "s-at", userTurnId: "s-u", userRevision: 1, assistantEntryId: "missing" }, result: "success", safeReason: "completed" } } as any)).rejects.toThrow("TRANSCRIPT_S_BINDING_INVALID");
+    expect((await store.read("c1")).entries).toEqual([]);
+  });
+});
+
+
+it("readonly barrier never loads, reads or repairs missing and broken sources", async () => {
+ const {store,root,jsonlPath}=createStore();
+ await store.append("broken",userDraft("e1","u1",1,"one"));
+ await fs.promises.appendFile(jsonlPath("broken"),'{"broken"');
+ const before=fs.readFileSync(jsonlPath("broken"));
+ const spies=["mkdir","readFile","writeFile","appendFile","truncate","rename","rm","open"].map(name=>vi.spyOn(fs.promises,name as "readFile"));
+ try {
+  await store.withReadonlyBarrier("missing",async()=>undefined);
+  await store.withReadonlyBarrier("broken",async()=>undefined);
+  for(const spy of spies)expect(spy).not.toHaveBeenCalled();
+ }finally{for(const spy of spies)spy.mockRestore()}
+ expect(fs.existsSync(path.join(root,"transcripts","missing"))).toBe(false);
+ expect(fs.readFileSync(jsonlPath("broken"))).toEqual(before);
+});
+it("readonly barrier queues mutations and survives rejection",async()=>{
+ const {store}=createStore();let entered!:()=>void,release!:()=>void;
+ const start=new Promise<void>(r=>entered=r),hold=new Promise<void>(r=>release=r);
+ const barrier=store.withReadonlyBarrier("c1",async()=>{entered();await hold;throw Error("barrier failure")});
+ const failed=expect(barrier).rejects.toThrow("barrier failure");await start;
+ let appended=false,deleted=false;
+ const append=store.append("c1",userDraft("e1","u1",1,"one")).then(()=>{appended=true});
+ const remove=store.deleteConversation("c1").then(()=>{deleted=true});
+ await Promise.resolve();expect(appended).toBe(false);expect(deleted).toBe(false);
+ release();await failed;await append;await remove;
+ expect(await store.withReadonlyBarrier("c1",async()=>42)).toBe(42);
+ expect(()=>store.withReadonlyBarrier("../escape",async()=>42)).toThrow("TRANSCRIPT_INVALID_CONVERSATION_ID");
+});
+it("can validate canonical sources under the same real guarded append without reentering its queue",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));let ticket:object|undefined;
+ await store.append("c",{kind:"assistant",id:"a",at:1001,payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:async value=>{ticket=value;expect((await store.withReadLease("c",read=>read())).throughSeq).toBe(1)},
+  commit:async write=>{expect((await store.withReadLease("c",read=>read())).entries).toHaveLength(1);return write()},
+ });
+ expect((await store.read("c")).throughSeq).toBe(2);
+ await expect(store.withHeldReadLease(ticket!,"c",read=>read())).rejects.toThrow("TRANSCRIPT_HELD_TICKET_DENIED");
+});
+it("does not lend a guard's read scope to a concurrent outside async chain",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));let release!:()=>void,started!:()=>void;
+ const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ const append=store.append("c",{kind:"assistant",id:"a",at:1001,payload:{role:"assistant",content:"answer"}},{throughSeq:1,validate:async ticket=>{
+  await expect(store.withHeldReadLease({},"c",read=>read())).rejects.toThrow("TRANSCRIPT_HELD_TICKET_DENIED");
+  await expect(store.withHeldReadLease(ticket,"other",read=>read())).rejects.toThrow("TRANSCRIPT_HELD_TICKET_DENIED");
+  started();await gate;expect((await store.withReadLease("c",read=>read())).throughSeq).toBe(1);
+ },commit:write=>write()});
+ await ready;let outside=false;const reading=store.withReadLease("c",async read=>{const value=await read();outside=true;return value});await new Promise<void>(r=>setImmediate(r));expect(outside).toBe(false);release();await append;expect((await reading).throughSeq).toBe(2);
+});
+it("drains unawaited guarded reads before releasing the mutation queue",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));
+ let release!:()=>void,started!:()=>void;
+ const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ let readFinished=false,committed=false,outside=false;
+ const append=store.append("c",{kind:"assistant",id:"a",payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:()=>{void store.withReadLease("c",async read=>{await read();started();await gate;readFinished=true});},
+  commit:write=>{expect(readFinished).toBe(true);committed=true;return write()},
+ });
+ await ready;const reading=store.withReadLease("c",async read=>{outside=true;return read()});
+ await new Promise<void>(r=>setImmediate(r));expect(committed).toBe(false);expect(outside).toBe(false);
+ release();await append;expect((await reading).throughSeq).toBe(2);
+});
+it("rejects a commit with an unawaited read and drains it before permitting later work",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>started=r);
+ let finished=false;
+ const append=store.append("c",{kind:"assistant",id:"a",payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:()=>{},commit:async write=>{void store.withReadLease("c",async()=>{started();await gate});await ready;return write()},
+ });
+ const rejected=expect(append).rejects.toThrow("TRANSCRIPT_HELD_READ_PENDING").then(()=>{finished=true});
+ await ready;let outside=false;const reading=store.withReadLease("c",async read=>{outside=true;return read()});
+ await new Promise<void>(r=>setImmediate(r));expect(finished).toBe(false);expect(outside).toBe(false);
+ release();await rejected;expect((await reading).entries.map(e=>e.id)).toEqual(["u"]);
+});
+it("rejects reads from an inherited async guard scope after its append has settled",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));
+ let release!:()=>void;const gate=new Promise<void>(r=>release=r);let late:Promise<unknown>|undefined;
+ await store.append("c",{kind:"assistant",id:"a",payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:()=>{late=gate.then(()=>store.withReadLease("c",read=>read()));},commit:write=>write(),
+ });
+ const denied=expect(late).rejects.toThrow("TRANSCRIPT_HELD_TICKET_DENIED");release();await denied;
+ expect((await store.read("c")).throughSeq).toBe(2);
+});
+it("does not persist when a commit swallows a failed held source validation",async()=>{
+ const {store}=createStore();await store.append("c",userDraft("u","u",1,"original"));
+ const append=store.append("c",{kind:"assistant",id:"a",payload:{role:"assistant",content:"answer"}},{throughSeq:1,
+  validate:()=>{},commit:async write=>{await store.withReadLease("c",async()=>{throw Error("source validation failed")}).catch(()=>{});return write()},
+ });
+ await expect(append).rejects.toThrow("source validation failed");
+ expect((await store.read("c")).entries.map(e=>e.id)).toEqual(["u"]);
 });

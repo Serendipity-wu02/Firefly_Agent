@@ -4,8 +4,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import matter from "gray-matter";
-import { resolveSkillId } from "./skill-id-aliases";
+import { parseSkillMatter, SkillFrontmatterError, type SkillFrontmatterErrorCode } from "./skill-frontmatter";
 import type { ParsedSkill, SkillEntry, SkillManifest, SkillMode } from "./types";
 import { logger } from "../../shared/logger";
 import { LogTag } from "../../shared/logger-tags";
@@ -23,53 +22,58 @@ function readManifest(skillDir: string, id: string): SkillManifest | undefined {
   }
 }
 
-/** gray-matter 解析结果的最小结构（不依赖其类型导出，规避 export = 的类型访问问题）。 */
-interface MatterResult {
-  data: Record<string, unknown>;
-  content: string;
+/** The external namespace is reserved, including case aliases and malformed IDs. */
+export function isExternalSkillId(id: string): boolean { return id.toLowerCase().startsWith("external-"); }
+
+/** Never parse unowned external content as an ordinary Skill, even for metadata. */
+export function externalSkillPlaceholder(id: string, directory: string, source: "builtin" | "user" = "user"): SkillEntry {
+  return { id, name: id, description: "External Skill requires reimport.", tools: [], dirPath: directory,
+    bodyPath: path.join(directory, "SKILL.md"), references: [], enabled: false, source, hiddenFromUi: false,
+    external: { status: "reimport-required", reason: "External Skill provenance or content is unavailable. Reimport is required." } };
 }
 
-const VALID_SKILL_MODES = new Set<SkillMode>(["work", "code", "learn"]);
+const VALID_SKILL_MODES = new Set<SkillMode>(["work", "code"]);
 
 function normalizeSkillModes(raw: unknown): SkillMode[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const modes = raw
-    .map((m) => (typeof m === "string" ? m.trim().toLowerCase() : undefined))
+    .map((mode) => typeof mode === "string" ? mode.trim().toLowerCase() : undefined)
     .filter((m): m is SkillMode => !!m && VALID_SKILL_MODES.has(m as SkillMode));
-  return modes.length > 0 ? modes : undefined;
+  return [...new Set(modes)];
 }
 
 /**
  * 解析 SKILL.md 文本：frontmatter（name/description/tools?/version?/effectKind?/modes?）+ 正文。
  * 纯函数，不碰 fs/electron。
  * 返回 null 表示不合规（缺 name/description、tools 非 array、或无 frontmatter）。
+ * onError 仅报告解析/语言错误码，不泄漏不可信 frontmatter 内容；普通旧格式无此错误。
  */
-export function parseSkillFrontmatter(content: string): ParsedSkill | null {
-  let parsed: MatterResult;
+export function parseSkillFrontmatter(content: string, onError?: (code: SkillFrontmatterErrorCode) => void): ParsedSkill | null {
   try {
-    parsed = matter(content) as unknown as MatterResult;
-  } catch {
+    const parsed = parseSkillMatter(content);
+    const d = parsed.data ?? {};
+    if (typeof d.name !== "string" || !d.name) return null;
+    if (typeof d.description !== "string" || !d.description) return null;
+    if (d.tools !== undefined && !Array.isArray(d.tools)) return null;
+    const VALID_EFFECT_KINDS = new Set(["read", "mutation", "verification", "external_side_effect"]);
+    const effectKind = typeof d.effectKind === "string" && VALID_EFFECT_KINDS.has(d.effectKind)
+      ? d.effectKind as import("../orchestrator/tools/registry/tool-registry").ToolEffectKind
+      : undefined;
+    const hiddenFromUi = d.hiddenFromUi === true || d.hiddenFromUi === "true";
+    return {
+      name: d.name,
+      description: d.description,
+      tools: Array.isArray(d.tools) ? d.tools.map(String) : undefined,
+      version: d.version !== undefined ? String(d.version) : undefined,
+      effectKind,
+      modes: normalizeSkillModes(d.modes),
+      hiddenFromUi,
+      body: parsed.content.trim(),
+    };
+  } catch (error) {
+    onError?.(error instanceof SkillFrontmatterError ? error.code : "SKILL_FRONTMATTER_PARSE_ERROR");
     return null;
   }
-  const d = parsed.data ?? {};
-  if (typeof d.name !== "string" || !d.name) return null;
-  if (typeof d.description !== "string" || !d.description) return null;
-  if (d.tools !== undefined && !Array.isArray(d.tools)) return null;
-  const VALID_EFFECT_KINDS = new Set(["read", "mutation", "verification", "external_side_effect"]);
-  const effectKind = typeof d.effectKind === "string" && VALID_EFFECT_KINDS.has(d.effectKind)
-    ? d.effectKind as import("../orchestrator/tools/registry/tool-registry").ToolEffectKind
-    : undefined;
-  const hiddenFromUi = d.hiddenFromUi === true || d.hiddenFromUi === "true";
-  return {
-    name: d.name,
-    description: d.description,
-    tools: Array.isArray(d.tools) ? d.tools.map(String) : undefined,
-    version: d.version !== undefined ? String(d.version) : undefined,
-    effectKind,
-    modes: normalizeSkillModes(d.modes),
-    hiddenFromUi,
-    body: parsed.content.trim(),
-  };
 }
 
 /**
@@ -80,14 +84,14 @@ export function parseSkillFrontmatter(content: string): ParsedSkill | null {
  * @param source 这批 skill 的来源标记（builtin/user）
  *
  * 不合规的 skill（无 SKILL.md、frontmatter 解析失败）跳过并 warn，不抛错。
- * enabled 统一默认 true，由 initSkills 合并 settings.json 覆盖。
+ * 普通 enabled 默认 true，由 initSkills 合并持久化设置；external- 命名空间只产出停用诊断元数据。
  * 跨源覆盖（user 覆盖 builtin）由 initSkills 合并时处理，不在本函数。
  */
 export function scanSkills(dir: string, source: "builtin" | "user"): SkillEntry[] {
   let entries: string[] = [];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true })
-      .filter(e => e.isDirectory())
+      .filter(e => e.isDirectory() || isExternalSkillId(e.name))
       .map(e => e.name);
   } catch {
     return [];  // 目录不存在或无权限
@@ -95,6 +99,7 @@ export function scanSkills(dir: string, source: "builtin" | "user"): SkillEntry[
   const result: SkillEntry[] = [];
   for (const id of entries) {
     const skillDir = path.join(dir, id);
+    if (isExternalSkillId(id)) { result.push(externalSkillPlaceholder(id, skillDir, source)); continue; }
     const mdPath = path.join(skillDir, "SKILL.md");
     if (!fs.existsSync(mdPath)) {
       console.warn("[Skills] 跳过无 SKILL.md 的目录:", skillDir);
@@ -106,9 +111,10 @@ export function scanSkills(dir: string, source: "builtin" | "user"): SkillEntry[
     } catch {
       continue;
     }
-    const parsed = parseSkillFrontmatter(content);
+    let parseError: SkillFrontmatterErrorCode | undefined;
+    const parsed = parseSkillFrontmatter(content, code => { parseError = code; });
     if (!parsed) {
-      console.warn("[Skills] 跳过不合规 SKILL.md（缺 name/description 或 frontmatter 解析失败）:", mdPath);
+      console.warn("[Skills] 跳过不合规 SKILL.md（缺 name/description 或 frontmatter 解析失败）:", mdPath, parseError ?? "SKILL_METADATA_INVALID");
       continue;
     }
     if (parsed.name !== id) {
@@ -126,8 +132,8 @@ export function scanSkills(dir: string, source: "builtin" | "user"): SkillEntry[
     }
     const manifest = readManifest(skillDir, id);
     result.push({
-      id: resolveSkillId(id),
-      name: resolveSkillId(parsed.name),
+      id,
+      name: parsed.name,
       description: parsed.description,
       tools: parsed.tools ?? manifest?.dependencies,
       version: parsed.version ?? manifest?.version,

@@ -119,7 +119,6 @@ describe("Live2DManager.playAction", () => {
       const manager = new Live2DManager({ canvas: fakeCanvas, width: 100, height: 100, modelPath: "/models/firefly/Firefly.model3.json" });
       await manager.init();
       expect(manager.getHitAreaDefs()).toEqual([
-        { name: "Body", id: "ArtMesh154", target: { kind: "expression", name: "expression3" } },
         { name: "Head", id: "ArtMesh23", target: { kind: "expression", name: "expression4" } },
       ]);
       expect(await manager.playAction({ kind: "motion", group: "Tap", motionName: "1" })).toBe(true);
@@ -219,5 +218,52 @@ describe("Live2DManager.playAction", () => {
     expect(await mgr.playAction({ kind: "expression", name: "expression4" })).toBe(false);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+
+describe("Firefly table drawable visibility", () => {
+  async function load(ids: string[], opacities: number[]) {
+    vi.stubGlobal("window", {devicePixelRatio: 1, innerWidth: 400, innerHeight: 500});
+    vi.stubGlobal("fetch", vi.fn(async () => ({ok: true, json: async () => ({
+      HitAreas: [{Name: "Body", Id: "ArtMesh154"}, {Name: "Head", Id: "ArtMesh23"}],
+      FileReferences: {Expressions: [{Name: "expression3"}, {Name: "expression4"}]},
+    })})));
+    const coreModel = {
+      getDrawableIndex: (id: string) => ids.indexOf(id),
+      getDrawableOpacity(index: number) { return opacities[index]; },
+    };
+    const original = coreModel.getDrawableOpacity;
+    const model = {anchor: {set: vi.fn()}, scale: {set: vi.fn()}, width: 400, height: 500,
+      destroy: vi.fn(), motion: vi.fn(), expression: vi.fn(),
+      internalModel: {coreModel, motionManager: {definitions: {}}}};
+    const {Live2DModel} = await import("pixi-live2d-display/cubism4");
+    vi.mocked(Live2DModel.from).mockReset().mockResolvedValue(model as never);
+    const {Live2DManager} = await import("./manager");
+    const manager = new Live2DManager({canvas: fakeCanvas, width: 400, height: 500, modelPath: "/x"});
+    await manager.init();
+    return {manager, coreModel, original, opacities};
+  }
+
+  it("hides exactly the three IDs independent of their indices and changing animation opacity", async () => {
+    const f = await load(["ArtMesh156", "ArtMesh154", "ArtMesh23", "ArtMesh153", "ArtMesh155"], [.7, .8, .6, .9, 1]);
+    try {
+      expect([0, 1, 2, 3, 4].map(i => f.coreModel.getDrawableOpacity(i))).toEqual([.7, 0, .6, 0, 0]);
+      f.opacities.fill(.4);
+      expect([0, 1, 2, 3, 4].map(i => f.coreModel.getDrawableOpacity(i))).toEqual([.4, 0, .4, 0, 0]);
+      expect(f.manager.getHitAreaDefs().map(a => a.id)).toEqual(["ArtMesh23"]);
+    } finally { f.manager.dispose(); vi.unstubAllGlobals(); }
+  });
+
+  it("restores the instance method on disposal and installs independently on a new model", async () => {
+    const first = await load(["ArtMesh153", "ArtMesh156"], [.8, .6]);
+    first.manager.dispose();
+    expect(first.coreModel.getDrawableOpacity).toBe(first.original);
+    expect(first.coreModel.getDrawableOpacity(0)).toBe(.8);
+    const second = await load(["ArtMesh156", "ArtMesh153"], [.3, .9]);
+    try {
+      expect(second.coreModel.getDrawableOpacity(0)).toBe(.3);
+      expect(second.coreModel.getDrawableOpacity(1)).toBe(0);
+    } finally { second.manager.dispose(); vi.unstubAllGlobals(); }
   });
 });

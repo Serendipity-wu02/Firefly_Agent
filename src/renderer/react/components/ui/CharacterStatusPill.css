@@ -6,7 +6,7 @@
   padding: 0 10px;
   background: var(--cy-pill-bg);
   border: 1px solid var(--cy-pill-border);
-  border-radius: 999px;
+  border-radius: 12px;
   gap: 6px;
   cursor: default;
 }

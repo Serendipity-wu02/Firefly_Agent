@@ -1,3 +1,6 @@
+import { syncLaunchAtLogin } from "../settings/launch-at-login";
+const runtimeProfile = vi.hoisted(() => ({ kind: "production" as "production" | "development" | "test" | "smoke" }));
+vi.mock("../storage-context", () => ({ getStorageContext: () => ({ profile: { kind: runtimeProfile.kind } }) }));
 import { describe, expect, it, vi } from "vitest";
 import { createShutdownCoordinator } from "./shutdown";
 import { createStartupReadiness } from "./readiness";
@@ -9,10 +12,7 @@ function makeServices(): CoreServices {
     runtimeState: {} as never,
     llm: {} as never,
     cita: {} as never,
-    social: {} as never,
-    tts: {} as never,
-    ttsSession: {} as never,
-    embedding: { scheduleStartupRefreshes: vi.fn() } as never,
+    social: {} as never,    embedding: { scheduleStartupRefreshes: vi.fn() } as never,
     proactive: {} as never,
     git: { dispose: vi.fn() } as never,
     lsp: { disposeAll: vi.fn() } as never,
@@ -50,7 +50,6 @@ function makeCoreDeps(calls: string[], overrides: Partial<CoreDependencies> = {}
         onPetWindowReady: vi.fn(),
         onPetWindowClosed: vi.fn(),
         createSidebarWindow: vi.fn(),
-        createTasksWindow: vi.fn(),
         setPetWindowAlwaysOnTop: vi.fn(),
         applyPetWindowZoom: vi.fn(),
       },
@@ -82,7 +81,7 @@ function makeCoreDeps(calls: string[], overrides: Partial<CoreDependencies> = {}
     createScheduler: () => ({ initialize: () => { calls.push("scheduler-initialize"); }, start: vi.fn(() => { calls.push("scheduler-start"); }), stop: vi.fn() } as never),
     registerCoreIpc: () => { calls.push("register-core-ipc"); },
     wireToastCenter: () => { calls.push("wire-toast-center"); },
-    loadGeneralSettings: () => ({ petVisible: true, sidebarVisible: false, tasksVisible: false }) as never,
+    loadGeneralSettings: () => ({ petVisible: true, sidebarVisible: false }) as never,
     applyGeneralSettings: () => { calls.push("apply-settings"); },
     revealStartupWindows: async () => { calls.push("reveal"); },
     minimumSplashMs: 2500,
@@ -189,7 +188,7 @@ describe("startCore", () => {
     expect(deps.shell.windowManager.createPetWindow).toHaveBeenCalledWith(true);
 
     const hidden = makeCoreDeps([], {
-      loadGeneralSettings: () => ({ petVisible: false, sidebarVisible: false, tasksVisible: false }) as never,
+      loadGeneralSettings: () => ({ petVisible: false, sidebarVisible: false }) as never,
     });
     await startCore(hidden);
     // 隐藏时窗口仍创建（不显示），托盘"显示桌宠"与设置开关随时能救回；
@@ -200,7 +199,6 @@ describe("startCore", () => {
     expect(hidden.shell.windowManager.applyPetWindowZoom).toHaveBeenCalled();
     expect(hidden.shell.windowManager.onPetWindowReady).toHaveBeenCalled();
     expect(hidden.shell.windowManager.createSidebarWindow).not.toHaveBeenCalled();
-    expect(hidden.shell.windowManager.createTasksWindow).not.toHaveBeenCalled();
   });
 
   it("runs reveal after core-ready and drains activation last", async () => {
@@ -221,4 +219,27 @@ describe("startCore", () => {
     expect(calls.indexOf("plugins-stop")).toBeGreaterThan(-1);
     expect(calls.indexOf("plugins-stop")).toBeLessThan(calls.indexOf("channels-stop"));
   });
+});
+
+it("ignores a retired sidebar preference while retaining the schedule window", async () => {
+  const deps = makeCoreDeps([], { loadGeneralSettings: () => ({ petVisible: true, sidebarVisible: true }) as never });
+  await startCore(deps);
+  expect(deps.shell.windowManager.createSidebarWindow).not.toHaveBeenCalled();
+});
+it.each([
+  ["development", true], ["development", false], ["test", true], ["test", false],
+  ["smoke", true], ["smoke", false], ["production", true], ["production", false],
+] as const)("core startup respects %s system-login ownership enabled=%s", async (kind, enabled) => {
+  runtimeProfile.kind = kind;
+  const setLoginItemSettings = vi.fn();
+  const deps = makeCoreDeps([], {
+    loadGeneralSettings: () => ({ petVisible: true, launchAtLogin: enabled }) as never,
+    applyGeneralSettings: settings => syncLaunchAtLogin(settings.launchAtLogin, { setLoginItemSettings }),
+  });
+  await startCore(deps);
+  if (kind === "production") {
+    expect(setLoginItemSettings).toHaveBeenCalledExactlyOnceWith({ openAtLogin: enabled });
+  } else {
+    expect(setLoginItemSettings).not.toHaveBeenCalled();
+  }
 });

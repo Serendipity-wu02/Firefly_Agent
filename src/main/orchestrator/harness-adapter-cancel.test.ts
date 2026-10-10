@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll,beforeAll,beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const paths=vi.hoisted(()=>({userData:""}));
+beforeAll(()=>{paths.userData=fs.mkdtempSync(path.join(os.tmpdir(),"firefly-harness-cancel-"))});
+afterAll(()=>{fs.rmSync(paths.userData,{recursive:true,force:true})});
 
 const { runHarness, permissionCheck, getById } = vi.hoisted(() => ({
   runHarness: vi.fn(),
@@ -20,6 +27,7 @@ vi.mock("./tools/registry/tool-registry", () => ({
 
 vi.mock("../permission", () => ({
   checkPermission: permissionCheck,
+  getCurrentLevel: () => "read-only",
 }));
 
 vi.mock("../prompts/prompt-loader", () => ({
@@ -27,7 +35,7 @@ vi.mock("../prompts/prompt-loader", () => ({
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn(() => "C:\\firefly-test-user-data") },
+  app: { getPath: vi.fn(() => {if(!paths.userData)throw new Error("test userData not ready");return paths.userData}) },
 }));
 
 import { runHarnessWithAdapter } from "./harness-adapter";
@@ -75,17 +83,21 @@ describe("runHarnessWithAdapter cancellation context", () => {
     } as never, signal, vi.fn());
 
     const input = runHarness.mock.calls[0]?.[0] as HarnessInput;
-    expect(input.signal).toBe(signal);
-    expect(input.toolContext?.signal).toBe(signal);
+    expect(input.signal).not.toBe(signal);
+    expect(input.toolContext?.signal).toBe(input.signal);
+    expect(input.quiesceExecution).toEqual(expect.any(Function));
 
     await input.checkPermission?.("read_file", { path: "x" });
     expect(permissionCheck).toHaveBeenCalledWith(expect.objectContaining({
       runId: "run-signal",
-      signal,
+      signal: input.signal,
     }));
 
     await input.requestUserClarification?.({ question: "continue?" });
-    expect(clarify).toHaveBeenCalledWith({ question: "continue?" }, signal);
+    expect(clarify).toHaveBeenCalledWith({ question: "continue?" }, input.signal);
+    input.quiesceExecution?.();
+    expect(input.signal?.aborted).toBe(true);
+    expect(signal.aborted).toBe(false);
   });
 
   it("passes the mobile non-interactive policy and allows tools without approval", async () => {

@@ -14,10 +14,10 @@ describe("Firefly settings theme and address", () => {
     expect(translations.settings.panel.user.callPrefPlaceholder).toBe("例如：开拓者");
   });
 
-  it("uses one green focus and hover treatment for shared setting fields", () => {
+  it("uses one accent focus and hover treatment for shared setting fields", () => {
     expect(themeStyles).toContain('[data-ui-theme="pearl-white"] .tts-field input:hover:not(:disabled)');
     expect(themeStyles).toContain('[data-ui-theme="pearl-white"] .tts-field input:focus');
-    expect(themeStyles).toContain('border-color: var(--rb-pink-500);\n  box-shadow: 0 0 0 3px rgba(45, 122, 95, 0.18);');
+    expect(themeStyles).toContain('border-color: var(--rb-pink-500);\n  box-shadow: 0 0 0 3px rgba(68, 70, 79, 0.18);');
     expect(settingsStyles).not.toContain("255, 182, 220");
     expect(settingsStyles).not.toContain("255, 192, 230");
   });

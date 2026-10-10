@@ -32,6 +32,25 @@ function call(id: string, args: Record<string, unknown> = { to: "a@example.com" 
 }
 
 describe("dispatchToolCall truthful execution", () => {
+  it("binds successful permission to this invocation without mutating the shared context", async () => {
+    const context = { userQuery: "synthetic" };
+    let observed: unknown;
+    let observedArgs: unknown;
+    const execute = vi.fn(async (args, received) => { observed = received; observedArgs = args; return "ok"; });
+    const permission = vi.fn(async () => true);
+    await dispatchToolCall(call("approved"), { state: state(), tools: [tool(execute)], checkPermission: permission, toolContext: context });
+    expect(permission).toHaveBeenCalledTimes(1);
+    expect(observed).toMatchObject({ authorizedToolCall: { toolId: "send_email", args: observedArgs } });
+    expect(observed).not.toBe(context);
+    expect(context).not.toHaveProperty("authorizedToolCall");
+  });
+
+  it("does not mint an approval when no permission gate ran", async () => {
+    const execute = vi.fn(async (_args, received) => { expect(received?.authorizedToolCall).toBeUndefined(); return "ok"; });
+    await dispatchToolCall(call("ungated"), { state: state(), tools: [tool(execute)], toolContext: { userQuery: "synthetic" } });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves both the head and tail when pruning output above 30000 characters", () => {
     const output = [
       "HEAD_MARKER",
@@ -219,23 +238,196 @@ describe("dispatchToolCall truthful execution", () => {
   });
 
   it("persists a task final observation but not ordinary Harness control builtins", async () => {
-    const output = JSON.stringify({ taskId: "task-1", status: "completed", text: "子代理完整报告" });
+    const output = JSON.stringify({ agentId: "review", sessionId: "session-1", status: "completed", text: "子代理完整报告" });
     const put = vi.fn(async () => ({
       recordId: "d".repeat(64), resultRef: `tool-result://v1/${"d".repeat(64)}`,
-      runId: "run-1", toolCallId: "task-call", toolName: "task",
+      runId: "run-1", toolCallId: "delegate-call", toolName: "delegate_agent",
       bytes: Buffer.byteLength(output), codePoints: Array.from(output).length, truncatedForModel: false, createdAt: 1,
     }));
     const store: ToolOutputStore = { put, read: vi.fn(), find: vi.fn(), deleteConversation: vi.fn() };
 
-    const result = await dispatchToolCall({ id: "task-call", name: "task", arguments: JSON.stringify({
-      description: "检查子任务", prompt: "给出完整报告", subagent_type: "general", companion_id: "丹恒",
+    const result = await dispatchToolCall({ id: "delegate-call", name: "delegate_agent", arguments: JSON.stringify({
+      agent_id: "review", prompt: "给出完整报告",
     }) }, {
       state: state(), tools: [], toolOutputStore: store,
       toolContext: { userQuery: "", conversationId: "conversation-1", runId: "run-1" },
-      taskExecutor: async () => ({ taskId: "task-1", status: "completed", text: "子代理完整报告" }),
+      agentExecutor: async () => ({ agentId: "review", sessionId: "session-1", status: "completed", text: "子代理完整报告" }),
     });
 
-    expect(put).toHaveBeenCalledWith(expect.objectContaining({ toolName: "task", output }));
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ toolName: "delegate_agent", output }));
     expect(result.fullOutputRef).toBe(`tool-result://v1/${"d".repeat(64)}`);
   });
+});
+
+describe("Main-owned leaf dispatch", () => {
+  it("approval_cancel_and_scope_inheritance: late approval never starts a cancelled operation", async () => {
+    const controller = new AbortController();
+    let approve!: (allowed: boolean) => void;
+    const permission = new Promise<boolean>(resolve => { approve = resolve; });
+    const execute = vi.fn(async () => "changed");
+    const started = vi.fn();
+    const pending = dispatchToolCall(call("late-approval"), {
+      state: state(), tools: [tool(execute, "mutation")],
+      checkPermission: async () => permission,
+      toolContext: { userQuery: "synthetic", signal: controller.signal },
+      onExecutionStarted: started,
+    });
+    controller.abort();
+    approve(true);
+    expect(await pending).toMatchObject({ outcome: "not_executed" });
+    expect(execute).not.toHaveBeenCalled();
+    expect(started).not.toHaveBeenCalled();
+  });
+
+  it("marks execution started only inside the acquired leaf permit and forwards invocation scope", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const permit = {};
+    const scope = { workspaceId: "synthetic-workspace", parentRunId: "parent", groupId: "group", agentId: "role", childRunId: "child", toolCallId: "old-call" };
+    const runLeaf = vi.fn(async (_scope, _mode, _signal, execute) => { await gate; return execute(permit); });
+    const started = vi.fn();
+    const execute = vi.fn(async (_args, context) => {
+      expect(started).toHaveBeenCalledTimes(1);
+      expect(context.execution).toEqual({ coordinator: expect.any(Object), scope: { ...scope, toolCallId: "actual-call" }, permit });
+      return "done";
+    });
+    const pending = dispatchToolCall(call("actual-call"), {
+      state: state(), tools: [tool(execute)],
+      toolContext: { userQuery: "synthetic", execution: { coordinator: { runLeaf, getWriteEvidence: () => [] } as never, scope } },
+      onExecutionStarted: started,
+    });
+    await Promise.resolve();
+    expect(execute).not.toHaveBeenCalled();
+    expect(started).not.toHaveBeenCalled();
+    release();
+    expect(await pending).toMatchObject({ outcome: "success" });
+    expect(runLeaf).toHaveBeenCalledWith({ ...scope, toolCallId: "actual-call" }, "exclusive", undefined, expect.any(Function));
+  });
+});
+
+it("parent mutation blocks a child safe read until the original mutation promise settles after cancellation", async () => {
+  const { RunExecutionCoordinator } = await import("./execution-coordinator");
+  const coordinator = new RunExecutionCoordinator("synthetic-dispatch-workspace");
+  const parentScope = { workspaceId: coordinator.workspaceId, parentRunId: "parent", groupId: "group", agentId: "main", childRunId: "parent", toolCallId: "parent-call" };
+  const childScope = { ...parentScope, agentId: "role-a", childRunId: "child-a" };
+  const controller = new AbortController();
+  let release!: () => void;
+  const operation = new Promise<string>(resolve => { release = resolve; });
+  const mutate = vi.fn(async () => operation);
+  const read = vi.fn(async () => "safe read");
+  const started = vi.fn();
+  const writer = tool(mutate, "mutation");
+  const reader = { ...tool(read), id: "safe_read", isConcurrencySafe: () => true };
+  const writing = dispatchToolCall(call("parent-write"), {
+    state: state(), tools: [writer], onExecutionStarted: started,
+    toolContext: { userQuery: "synthetic", signal: controller.signal, execution: { coordinator, scope: parentScope } },
+  });
+  expect(mutate).toHaveBeenCalledOnce();
+  controller.abort();
+  const reading = dispatchToolCall({ id: "child-read", name: "safe_read", arguments: "{}" }, {
+    state: state(), tools: [reader], toolContext: { userQuery: "synthetic", execution: { coordinator, scope: childScope } },
+  });
+  await Promise.resolve();
+  expect(read).not.toHaveBeenCalled();
+  expect(started).toHaveBeenCalledOnce();
+  release("actually applied");
+  expect(await writing).toMatchObject({ outcome: "success" });
+  expect(await reading).toMatchObject({ outcome: "success" });
+  expect(read).toHaveBeenCalledOnce();
+  await coordinator.closeGroup("group");
+});
+
+it("queue-time policy changes fail closed before started or an actual operation", async () => {
+  const { RunExecutionCoordinator } = await import("./execution-coordinator");
+  const coordinator = new RunExecutionCoordinator("synthetic-policy-workspace");
+  const scope = { workspaceId: coordinator.workspaceId, parentRunId: "parent", groupId: "policy-group", agentId: "main", childRunId: "parent", toolCallId: "blocking" };
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const blocker = coordinator.runLeaf(scope, "exclusive", undefined, async () => gate);
+  let allowed = true;
+  const execute = vi.fn(async () => "changed");
+  const started = vi.fn();
+  const permission = vi.fn(async () => true);
+  const pending = dispatchToolCall(call("queued"), {
+    state: state(), tools: [tool(execute, "mutation")], onExecutionStarted: started, checkPermission: permission,
+    toolContext: { userQuery: "synthetic", execution: { coordinator, scope }, revalidateToolPermission: () => allowed },
+  });
+  await expect.poll(() => permission.mock.calls.length).toBe(1);
+  allowed = false;
+  release();
+  await blocker;
+  expect(await pending).toMatchObject({ outcome: "failure", category: "permission_denied" });
+  expect(permission).toHaveBeenCalledOnce();
+  expect(execute).not.toHaveBeenCalled();
+  expect(started).not.toHaveBeenCalled();
+  await coordinator.closeGroup("policy-group");
+});
+
+it("allows only exact Main-owned and scope-bound Shell lifecycle control past its retained permit", async () => {
+  const { RunExecutionCoordinator } = await import("./execution-coordinator");
+  const { shellJobTool } = await import("../tools/builtin-tools/shell-job-tool");
+  const { startShellJob, stopShellJob } = await import("../tools/builtin-tools/shell-job-manager");
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = mkdtempSync(join(tmpdir(), "firefly-dispatch-shell-control-"));
+  const coordinator = new RunExecutionCoordinator(root);
+  const scope = { workspaceId: root, parentRunId: "parent", groupId: "shell-group", agentId: "main", childRunId: "parent", toolCallId: "launch" };
+  let job: ReturnType<typeof startShellJob> | undefined;
+  try {
+    await coordinator.runLeaf(scope, "exclusive", undefined, async permit => {
+      job = startShellJob({
+        spec: { command: process.execPath, args: ["-e", "setInterval(()=>{}, 1000)"], env: process.env, cwd: root,
+          windowsVerbatimArguments: false, ranViaSandbox: false },
+        command: "synthetic node lifetime", shell: "node", logDir: root, executionScope: scope,
+      });
+      coordinator.retainUntil(permit, job.completion);
+    });
+    const context = { state: state(), tools: [shellJobTool], toolContext: { userQuery: "synthetic", execution: { coordinator, scope } } };
+    const controlCall = { id: "status", name: "shell_job", arguments: JSON.stringify({ job_id: job!.jobId, action: "status" }) };
+    const status = await dispatchToolCall(controlCall, context);
+    expect(status.outcome).toBe("success");
+    expect(JSON.parse(status.output!).status).toBe("running");
+
+    const spoofExecute = vi.fn(async () => "spoof");
+    const spoof = dispatchToolCall(controlCall, { ...context, tools: [{ ...shellJobTool, execute: spoofExecute }] });
+    const foreignStarted = vi.fn();
+    const foreign = dispatchToolCall(controlCall, { ...context, onExecutionStarted: foreignStarted,
+      toolContext: { userQuery: "synthetic", execution: { coordinator, scope: { ...scope, parentRunId: "foreign", groupId: "foreign", childRunId: "foreign" } } },
+    });
+    await Promise.resolve();
+    expect(spoofExecute).not.toHaveBeenCalled();
+    expect(foreignStarted).not.toHaveBeenCalled();
+    const stopped = await dispatchToolCall({ ...controlCall, id: "stop", arguments: JSON.stringify({ job_id: job!.jobId, action: "stop" }) }, context);
+    expect(JSON.parse(stopped.output!).stopped).toBe(true);
+    await job!.completion;
+    await spoof;
+    await foreign;
+    expect(spoofExecute).toHaveBeenCalledOnce();
+    expect(foreignStarted).toHaveBeenCalledOnce();
+    await coordinator.closeGroup("shell-group");
+    await coordinator.closeGroup("foreign");
+  } finally {
+    if (job) { stopShellJob(job.jobId); await job.completion; }
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("cancelled pure approval does not wait for a user reply or enter an actual tool", async () => {
+  const controller = new AbortController();
+  let approve!: (allowed: boolean) => void;
+  const approval = new Promise<boolean>(resolve => { approve = resolve; });
+  const execute = vi.fn(async () => "changed");
+  let settled = false;
+  const pending = dispatchToolCall(call("cancel-pending-approval"), {
+    state: state(), tools: [tool(execute, "mutation")],
+    checkPermission: async () => approval, toolContext: { userQuery: "synthetic", signal: controller.signal },
+  }).then(result => { settled = true; return result; });
+  controller.abort();
+  try {
+    await expect.poll(() => settled).toBe(true);
+    expect(await pending).toMatchObject({ outcome: "not_executed" });
+    expect(execute).not.toHaveBeenCalled();
+  } finally { approve(true); await pending; }
+  expect(execute).not.toHaveBeenCalled();
 });

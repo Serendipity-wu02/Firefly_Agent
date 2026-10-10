@@ -1,6 +1,7 @@
 import { EventType, type BaseEvent } from "@ag-ui/core";
 import type { HarnessEvent } from "../types";
 import type { TaskDelegationPresentation } from "../../../../shared/task-session";
+import { normalizeToolTaskResult } from "../../../../shared/task-result-evidence";
 
 const LOG_PREFIX = "[HarnessAdapter]";
 
@@ -98,6 +99,7 @@ export function sendHarnessEventAsAgui(
         toolCallId: event.toolCallId,
         content: event.preview,
         changes: event.changes,
+        taskResult: normalizeToolTaskResult(event.taskResult, runId),
         role: "tool",
         status: event.outcome === "success" ? "success" : "failed",
         threadId,

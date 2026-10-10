@@ -24,6 +24,11 @@ export function SidebarToggle({ collapsed: controlledCollapsed, onToggle }: Side
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       aria-label={t("ui.toggleSidebar")}
+      title={`${t("ui.toggleSidebar")} Ctrl+Shift+S`}
+      aria-keyshortcuts="Control+Shift+S"
+      aria-expanded={!collapsed}
+      aria-controls="firefly-context-sidebar"
+      type="button"
     >
       <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
         {/* 框 - 不变 */}

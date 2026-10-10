@@ -21,14 +21,14 @@ body {
   height: 100vh;
   width: 100vw;
   margin: 0;
-  border-radius: var(--cy-window-radius, 24px);
+  border-radius: 12px;
   overflow: hidden;
   background:
     radial-gradient(circle at 18% 8%, var(--rb-bg-elevated) 0%, transparent 38%),
     radial-gradient(circle at 88% 22%, var(--rb-bg-3) 0%, transparent 38%),
     radial-gradient(circle at 50% 110%, var(--rb-bg-3) 0%, transparent 38%),
     linear-gradient(155deg, var(--rb-bg-3) 0%, var(--rb-bg-1) 60%, var(--rb-bg-2) 100%);
-  border: 1px solid rgba(255, 190, 226, 0.36);
+  border: 1px solid var(--rb-border-soft);
   transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
 }
 
@@ -87,7 +87,7 @@ body {
   color: rgba(235, 229, 245, 0.62);
   padding: 3px 9px;
   border: 1px solid var(--rb-border-soft);
-  border-radius: var(--rb-radius-full);
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.06);
   white-space: nowrap;
 }
@@ -132,14 +132,16 @@ body {
 .sidebar__winbtn:active { transform: translateY(0); }
 
 .sidebar__winbtn--close {
-  background: rgba(219, 39, 119, 0.16);
-  color: #ffb6dc;
+  background: transparent;
+  color: var(--rb-text-muted);
 }
 
 .sidebar__winbtn--close:hover {
-  background: linear-gradient(135deg, var(--rb-pink-glow), var(--rb-pink-600));
-  color: var(--rb-text-on-pink);
-  box-shadow: 0 0 18px rgba(45, 122, 95, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  background: var(--rb-danger);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: none;
+  transform: none;
 }
 
 .sidebar__body {
@@ -200,7 +202,7 @@ body {
   font: var(--rb-text-small);
   color: rgba(220, 252, 231, 0.92);
   padding: 3px 10px;
-  border-radius: var(--rb-radius-full);
+  border-radius: 12px;
   background: rgba(34, 197, 94, 0.12);
   border: 1px solid rgba(34, 197, 94, 0.32);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -227,7 +229,7 @@ body {
 .panel-card {
   position: relative;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 12px;
   border: 1px solid rgba(45, 122, 95, 0.16);
   background: rgba(255, 255, 255, 0.055);
   box-shadow:
@@ -265,7 +267,7 @@ body {
   place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: 16px;
+  border-radius: 12px;
   font-size: 28px;
   line-height: 1;
   background: rgba(255, 255, 255, 0.07);
@@ -324,7 +326,7 @@ body {
   color: var(--rb-text-default);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--rb-border-soft);
-  border-radius: var(--rb-radius-md);
+  border-radius: 12px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition: background 120ms ease, color 120ms ease, transform 120ms ease, border-color 120ms ease, box-shadow 200ms ease;
 }

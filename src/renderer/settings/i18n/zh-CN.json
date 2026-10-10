@@ -1,5 +1,99 @@
 {
   "settings": {
+    "mcpUi": {
+      "title": "MCP 服务器",
+      "hint": "管理已保存的服务器与当前连接状态。添加会运行本机命令，请仅接入你信任的服务。",
+      "add": "添加 MCP Server",
+      "refresh": "刷新状态",
+      "loading": "正在读取…",
+      "readFailed": "读取失败，当前列表可能不是最新状态。请重试；若仍失败，请检查本地 MCP 配置。",
+      "connected": "已连接 · {{count}} 个工具",
+      "disconnected": "未连接 · {{count}} 个工具",
+      "builtin": "内置服务，请使用下方“浏览器自动化（Playwright）”开关管理。",
+      "remove": "删除",
+      "removeNamed": "删除 {{name}}",
+      "empty": "尚未添加 MCP 服务器，点击右上角 ＋ 添加。",
+      "commandPrompt": "输入启动命令，例如：node path/to/server.js。不支持管道、重定向等 shell 语法。",
+      "invalidCommand": "请输入有效的启动命令",
+      "nameTitle": "MCP Server 名称",
+      "namePrompt": "给这个 MCP server 起个名字（仅用于展示）",
+      "namePlaceholder": "例如：天气工具",
+      "unnamed": "未命名 MCP",
+      "runTitle": "确认运行 MCP 服务",
+      "runMessage": "将运行以下本机命令。服务可能访问本机文件与网络，请确认来源可信。连接成功后会保存，并在以后启动应用时自动连接。\n\n{{command}}",
+      "run": "运行并添加",
+      "cancel": "取消",
+      "added": "“{{name}}” 已连接，发现 {{count}} 个工具",
+      "addFailed": "添加失败",
+      "addFailedMessage": "未能完成连接或保存。请检查命令、MCP 服务及本地配置后重试。错误详情可能含凭据，此处不回显。",
+      "removeTitle": "删除 MCP 服务器",
+      "removeMessage": "删除“{{name}}”会断开连接、移除其工具并删除已保存配置。以后需要重新添加。确定继续？",
+      "removed": "已删除“{{name}}”",
+      "removeFailed": "删除失败",
+      "removeFailedMessage": "未能完成断开或保存，请刷新状态后重试。已保存配置可能仍然存在，连接也可能已经断开。"
+    },
+    "desktopAsr": {
+      "projectLanguage": "识别语言以阿里云项目配置为准。",
+      "title": "ASR 设置",
+      "hint": "在输入框点击语音转文字后才使用麦克风。音频发往所选服务商，识别结果仅填入草稿，不自动发送。每次最长约 110 秒。",
+      "provider": "识别服务商",
+      "off": "关闭",
+      "aliyun": "阿里云",
+      "localUnavailable": "本地识别尚未实现，请选择其他服务商。",
+      "mosslandHint": "停止录音后上传音频并返回完整文字；停止前取消不会上传。",
+      "aliyunHint": "录音期间持续向阿里云发送音频；取消后停止发送，但无法撤回已发送部分。",
+      "language": "识别语言",
+      "zh": "中文",
+      "en": "英文",
+      "auto": "自动",
+      "shared": "此配置也用于已启用渠道的语音消息识别；关闭不删除已保存凭据。",
+      "save": "保存 ASR 设置",
+      "saving": "正在保存…",
+      "saved": "ASR 设置已保存",
+      "saveFailed": "保存失败，请重试。",
+      "loadFailed": "读取失败，请重新打开设置后重试。"
+    },
+    "layout": { "common": "常用设置", "assistant": "助手与工具", "about": "关于" },
+    "agentRouting": {
+      "loading": "正在读取角色配置…",
+      "notice": "继承角色默认路由不会使用主聊天模型，路由未配置时拒绝执行。改变绑定的模型档案 ID 不会迁移已有 Agent 会话；编辑同一档案的模型会影响使用它的会话。",
+      "saved": "角色配置已保存",
+      "saving": "正在保存…",
+      "independent": "独立绑定",
+      "inherited": "继承",
+      "roleDefault": "角色默认配置",
+      "missingProfile": "已不存在的档案：{{id}}",
+      "source": "配置来源",
+      "sourceDescription": "默认路由：{{route}}；角色选择：{{selected}}；实际档案：{{effective}}",
+      "unconfigured": "未配置",
+      "saveUnavailable": "角色配置保存接口不可用",
+      "loadUnavailable": "角色配置读取接口不可用",
+      "saveFailed": "保存失败：{{error}}",
+      "loadFailed": "角色配置加载失败：{{error}}"
+    },
+    "providerUi": {
+      "draftState": { "saved": "已保存的档案", "dirty": "未保存的更改", "new": "新建草稿 · 尚未保存", "saving": "保存中…" },
+      "savedWithChanges": "提交的版本已保存，仍有未保存的更改",
+      "emptyTitle": "选择或添加模型配置",
+      "emptyHint": "从左侧选择已保存的配置，或添加一个模型提供商开始设置。",
+      "discardTitle": "放弃未保存的更改？",
+      "discardMessage": "切换会丢弃当前模型档案的未保存更改。全局视觉设置会保留。",
+      "discardConfirm": "放弃更改",
+      "discardCancel": "继续编辑",
+      "listTitle": "已配置模型提供商",
+      "listSubtitle": "每条配置使用一个模型；状态仅反映已保存的配置。",
+      "addTitle": "添加模型提供商",
+      "presetTab": "预设提供商",
+      "customTab": "自定义 API",
+      "close": "收起",
+      "advanced": "高级设置",
+      "routingTitle": "角色模型覆盖",
+      "edit": "编辑",
+      "delete": "删除",
+      "incomplete": "配置不完整",
+      "missingKey": "缺少 API Key",
+      "configured": "已配置 · 未验证连接"
+    },
     "nav": {
       "ariaLabel": "设置导航",
       "brand": "流萤",
@@ -26,7 +120,7 @@
       "pluginsHint": "管理流萤可调用的工具能力",
       "fireflyHint": "管理 Agent 行为、记忆、RAG 与权限",
       "ttsHint": "语音合成与朗读偏好",
-      "asrHint": "语音识别与通话配置",
+      "asrHint": "语音识别服务配置",
       "preferencesHint": "设置聊天窗口和输出行为的默认偏好",
       "appearanceHint": "调整窗口布局、界面主题与流萤桌宠",
       "generalHint": "管理窗口、音频和系统行为",
@@ -43,8 +137,8 @@
         "heading": "API 设置",
         "subheading": "先配置一个模型服务，后面流萤会用它进行聊天和状态判断。",
         "profileList": {
-          "title": "已保存档案",
-          "subtitle": "点击档案载入编辑；在聊天窗口的模型面板里切换使用。"
+          "title": "已配置模型提供商",
+          "subtitle": "每项保存一个模型。配置状态仅反映已保存字段；在聊天窗口切换使用。"
         },
         "presetRow": {
           "label": "新建档案 · 选择厂商预设"
@@ -92,8 +186,8 @@
           },
           "transport": {
             "label": "API 协议",
-            "openai": "chat/completion",
-            "anthropic": "anthropic",
+            "openai": "Chat Completions",
+            "anthropic": "Anthropic Messages",
             "responses": "Responses",
             "hint": "请按服务商实际提供的接口类型选择（chat/completion / anthropic / Responses）；程序不会自动识别协议。"
           },
@@ -183,31 +277,6 @@
             }
           }
         },
-        "moments": {
-          "title": "朋友圈动态",
-          "desc": "开启动态功能；关闭后流萤停止发帖与点赞评论，对话也不再参考动态内容。",
-          "posting": {
-            "title": "流萤主动发动态",
-            "desc": "对话结束后，流萤会把值得记录的时刻发成动态；每天最多 2 条，间隔至少 6 小时。"
-          },
-          "reactions": {
-            "title": "流萤互动动态",
-            "desc": "流萤会为你的动态点赞、评论，并回复评论区中对她的留言。"
-          },
-          "character": {
-            "title": "角色互动动态",
-            "desc": "长夜月、万敌等入驻角色会刷到朋友圈，按各自性格点赞、评论和互聊；每日模型调用上限随热闹程度联动。"
-          },
-          "liveliness": {
-            "title": "朋友圈热闹程度",
-            "desc": "控制每条动态被多少角色刷到：冷清偶尔无人回应，热闹几乎每条都有人冒头。",
-            "option": {
-              "quiet": "冷清",
-              "natural": "自然",
-              "lively": "热闹"
-            }
-          }
-        },
         "chatSocial": {
           "title": "聊天上下文增强",
           "desc": "仅在 Chat 模式下使用相关的过去信息和未接话题，让连续交流更自然；每轮最多增加一次异步模型调用。"
@@ -229,20 +298,12 @@
       },
       "appearance": {
         "heading": "外观设置",
-        "subheading": "调整白调界面的窗口布局与流萤桌宠显示方式。",
-        "layout": {
-          "title": "布局",
-          "desc": "选择流萤与聊天、状态和日程窗口的组织方式。",
-          "option": {
-            "multiWindow": {
-              "title": "多窗口",
-              "desc": "各功能使用独立窗口"
-            },
-            "singleWindow": {
-              "title": "单窗口",
-              "desc": "集中在一个主窗口中"
-            }
-          }
+        "subheading": "调整界面颜色、字体和窗口外观。",
+        "theme": {
+          "title": "主题",
+          "desc": "浅色是冷灰蓝，深色取流萤的墨绿与萤光青绿；切换后所有窗口同步应用。",
+          "light": { "title": "浅色", "desc": "冷灰蓝，明亮清爽" },
+          "dark": { "title": "深色 · 流萤", "desc": "墨绿底色，萤光青绿点缀" }
         },
         "personalize": {
           "title": "个性化",
@@ -268,9 +329,6 @@
           "uiIcon": {
             "title": "桌面图标",
             "desc": "切换系统托盘与应用窗口图标。"
-          },
-          "chatBg": {
-            "soon": "聊天背景"
           }
         },
         "pet": {
@@ -293,14 +351,11 @@
       },
       "general": {
         "heading": "通用设置",
-        "subheading": "控制状态栏、日程栏、基础音频和系统行为。",
+        "groups": { "desktop": "桌面与提醒", "system": "系统" },
+        "subheading": "控制状态栏、基础音频和系统行为。",
         "statusBar": {
           "title": "状态栏窗口",
           "desc": "不小心关闭后可以从这里重新打开。"
-        },
-        "tasksBar": {
-          "title": "日程栏窗口",
-          "desc": "控制右侧日程/任务展示窗口。"
         },
         "toastSound": {
           "title": "提醒音效",
@@ -681,11 +736,11 @@
         },
         "section8": {
           "title": "8. 源码与素材来源",
-          "p1": "本应用保留上游源码及其 MIT 版权声明。流萤模型、头像和其他第三方素材不适用源码的 MIT 许可；具体来源与发布限制见项目仓库的 LICENSE、MODEL_LICENSE.md 和 THIRD_PARTY_NOTICES.md。"
+          "p1": "Firefly 源码版权与许可见项目仓库的 LICENSE。流萤模型、头像和其他第三方素材不适用源码的 MIT 许可；具体来源与发布限制见 MODEL_LICENSE.md 和 THIRD_PARTY_NOTICES.md。"
         },
         "section9": {
           "title": "9. 贡献者致谢",
-          "p1": "感谢上游及 Firefly 项目的贡献者。上游贡献者记录保留在 docs/CONTRIBUTORS.md。",
+          "p1": "Firefly 由 Serendipity-wu02 独立维护。",
           "p2": "同时也感谢所有在 Issues 中提交反馈、建议以及 Star 支持本项目的朋友。"
         },
         "section10": {
@@ -697,7 +752,7 @@
         "heading": "Token 用量",
         "subheading": "查看 API 调用统计与消耗",
         "realUsage": "真实消耗",
-        "requestCount": "🔢 请求数",
+        "requestCount": "请求数",
         "inputLabel": "输入",
         "outputLabel": "输出",
         "cacheHitLabel": "缓存命中",
@@ -714,102 +769,9 @@
         "chartTrend": "使用趋势",
         "chartModelShare": "模型用量占比"
       },
-      "tts": {
-        "heading": "TTS 设置",
-        "subheading": "语音合成与朗读偏好",
-        "playbackTitle": "播放交互",
-        "autoReadTitle": "自动朗读回复",
-        "autoReadDesc": "流萤每次回复后自动语音朗读",
-        "splitEnabledTitle": "自动朗读文本切分",
-        "splitEnabledDesc": "回复生成时按片段提前朗读；关闭则收完整条回复再朗读",
-        "splitModeTitle": "切分模式",
-        "splitModeDesc": "逐句朗读，或按空行段落整段朗读",
-        "splitModeSentence": "一句一切",
-        "splitModeParagraph": "一段一切",
-        "speedTitle": "语速",
-        "speedDesc": "控制语音朗读速度",
-        "volumeTitle": "音量",
-        "volumeDesc": "控制语音朗读音量",
-        "engineTitle": "引擎选择",
-        "engineOff": "关闭",
-        "engineMiniMax": "MiniMax",
-        "tagCloud": "云端",
-        "engineMimo": "小米 MiMo",
-        "engineMossland": "Mossland",
-        "engineGptSovits": "GPT-SoVITS",
-        "tagLocal": "本地",
-        "engineCustomCloud": "自定义云端",
-        "tagInterface": "接口",
-        "minimaxConfig": "MiniMax 配置",
-        "minimaxApiKey": "API Key",
-        "minimaxVoiceId": "音色 ID",
-        "minimaxModel": "合成模型",
-        "minimaxModelTurbo": "speech-2.8-turbo（极速 ¥2.0/万字符）",
-        "minimaxModelHd": "speech-2.8-hd（高保真 ¥3.5/万字符）",
-        "streamingTitle": "流式播放",
-        "streamingDesc": "边合成边播，首字延迟低（默认开）。关掉=收完再播。",
-        "vocalEnhanceTitle": "语音增强",
-        "vocalEnhanceDesc": "自动插入笑声、换气、叹息等 MiniMax 语气词标签，让语音更自然。",
-        "testPronunciation": "测试发音",
-        "saveConfig": "保存配置",
-        "minimaxCloneTitle": "音色快速复刻",
-        "minimaxCloneHint": "上传流萤配音（mp3/m4a/wav，10秒~5分钟，≤20MB），训练专属音色",
-        "minimaxCloneWarning": "⚠️ 每次复刻收费",
-        "minimaxCloneSpecLink": "查看完整规格说明 →",
-        "cloneFileLabel": "配音文件",
-        "clonePickButton": "选择",
-        "clonePromptFileLabel": "示例音频",
-        "clonePromptTextLabel": "示例文本",
-        "cloneTextLabel": "复刻文本",
-        "cloneVoiceIdLabel": "音色命名",
-        "cloneStartButton": "🚀 开始复刻",
-        "gptsovitsConfig": "🗣️ GPT-SoVITS 配置",
-        "gptsovitsApiUrl": "API 地址 (baseUrl)",
-        "gptsovitsRefAudio": "参考音频路径",
-        "gptsovitsPromptText": "参考音频对应的文本",
-        "gptsovitsFormat": "输出格式",
-        "gptsovitsFormatWav": "wav（推荐，gptsovits 默认）",
-        "gptsovitsFormatMp3": "mp3（需服务端支持）",
-        "gptsovitsTimeout": "合成超时（毫秒）",
-        "customCloudConfig": "☁️ 自定义云端配置",
-        "customCloudEndpoint": "Endpoint URL",
-        "customCloudApiKey": "API Key",
-        "customCloudVoiceId": "音色 ID",
-        "customCloudFormat": "输出格式",
-        "customCloudFormatMp3": "mp3",
-        "customCloudFormatWav": "wav",
-        "customCloudTimeout": "超时（毫秒）",
-        "mimoConfig": "小米 MiMo 配置",
-        "mimoApiKey": "API Key",
-        "mimoVoiceAudio": "流萤克隆音频",
-        "mimoStyle": "风格提示",
-        "mosslandLogoText": "Mossland 配置",
-        "mosslandHint": "基于 Mossland 云端 TTS（api.mosi.cn）。Bearer 鉴权；POST /v1/audio/speech 合成；POST /v1/audio/voices 克隆；GET /v1/audio/voices 拉取列表。",
-        "mosslandApiKey": "API Key",
-        "mosslandModel": "合成模型",
-        "mosslandModelFlash": "MOSS-TTS 1.5 Flash",
-        "mosslandModelPro": "MOSS-TTS 1.0 Pro",
-        "mosslandVoiceId": "音色 ID",
-        "mosslandText": "试听文本",
-        "mosslandFormat": "试听格式",
-        "mosslandFormatMp3": "mp3",
-        "mosslandFormatWav": "wav",
-        "cloneTitle": "音色克隆",
-        "mosslandCloneInfoButton": "克隆须知",
-        "mosslandCloneHint": "上传一段清晰的单人参考音频，Mossland 会通过 multipart/form-data 创建 voice_id。",
-        "mosslandCloneWarning": "voice_id 由 Mossland 后端返回，填写到上方「音色 ID」即可复用。有效期和账号配额请以 Mossland 控制台为准。",
-        "mosslandCloneFile": "参考音频",
-        "mosslandCloneName": "音色名称",
-        "mosslandCloneDesc": "音色描述",
-        "mosslandCloneUploadButton": "上传克隆",
-        "mosslandVoiceListTitle": "我的 Mossland 音色",
-        "mosslandVoiceListHint": "从 Mossland 服务端拉取你账号下已创建的 voice 列表，可一键填入上方「音色 ID」。",
-        "mosslandVoiceListButton": "拉取音色列表",
-        "ttsHint": "💡 MiniMax 需在控制台训练音色并填写音色 ID。GPT-SoVITS 需自行启动本地服务并提供参考音频。自定义云端会 POST 固定 JSON 到你的 Endpoint。小米 MiMo 当前使用流萤参考音频走 voiceclone 非流式 wav 合成。Mossland 通过 multipart 上传克隆音频到 POST /v1/audio/voices，并返回 voice_id。"
-      },
       "asr": {
         "heading": "ASR 设置",
-        "subheading": "语音识别与通话配置",
+        "subheading": "语音识别服务配置",
         "engineTitle": "语音识别引擎",
         "engineLabel": "ASR 服务商",
         "engineOff": "关闭",
@@ -827,7 +789,7 @@
         "aliyunHint": "阿里云 → 智能语音交互控制台 → 创建项目获取 AppKey。AccessKey 在 RAM 访问控制台获取（ram.console.aliyun.com/manage/ak）。Token 会自动获取，无需手动填写。",
         "mosslandConfig": "Mossland 配置",
         "mosslandKey": "API Key",
-        "mosslandHint": "与 Mossland TTS 共用同一 API Key。音频在 VAD 判定本轮结束后上传到 moss-transcribe，不提供实时中间字幕。",
+        "mosslandHint": "与 Mossland TTS 共用同一 API Key。上传音频后返回完整转写文本，不提供实时中间字幕。",
         "callTitle": "通话设置",
         "vadSilence": "VAD 静默阈值（毫秒）",
         "vadSilenceHint": "用户说话后停顿多久判定为说完。有人想词慢就填大一点（如 3000），反应快就填小一点（如 800）。默认 1000ms。",
@@ -873,6 +835,8 @@
       "fontResetFailed": "恢复默认字体失败",
       "iconApplied": "图标已应用",
       "iconFailed": "应用图标失败",
+      "themeApplied": "主题已应用",
+      "themeFailed": "应用主题失败，请重试",
       "saving": "保存中…",
       "saved": "已保存",
       "saveFailed": "保存失败"

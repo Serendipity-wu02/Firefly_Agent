@@ -37,7 +37,7 @@ describe("Harness Todo working notebook policy", () => {
       toolSystemContent: "tools",
     };
     const workPrompt = buildHarnessSystemPrompt({ ...base, conversationMode: "work" } as never);
-    const learnPrompt = buildHarnessSystemPrompt({ ...base, conversationMode: "learn" } as never);
+    const codePrompt = buildHarnessSystemPrompt({ ...base, conversationMode: "code" } as never);
     const chatPrompt = buildHarnessSystemPrompt({ ...base, conversationMode: "chat" } as never);
 
     // 工具使用：主动调用规则（修复"不催就不调工具"）
@@ -47,8 +47,9 @@ describe("Harness Todo working notebook policy", () => {
     expect(workPrompt).toContain("invoke_skill");
     // Task 委托规范
     expect(workPrompt).toContain("多个互不依赖的调查或执行方向");
-    // learn 同样注入统一规范（Task 一节按工具可用性自行生效）
-    expect(learnPrompt).toContain("## 工具使用");
+    expect(codePrompt).toContain("## 工具使用");
+    expect(workPrompt).not.toContain("Work / Learn / Code");
+    expect(codePrompt).not.toContain("Work / Learn / Code");
     // chat 模式没有工具能力，不注入
     expect(chatPrompt).not.toContain("## 工具使用");
   });

@@ -13,9 +13,9 @@ export function clampFloatingCardPosition(
   };
 }
 
-export function useFloatingCard(options: { width: number; top?: number; right?: number }) {
+export function useFloatingCard(options: { width: number; top?: number; right?: number; defaultCollapsed?: boolean }) {
   const { width, top = 80, right = 24 } = options;
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(options.defaultCollapsed ?? false);
   const [position, setPosition] = useState<FloatingCardPosition>({
     x: typeof window !== "undefined" ? window.innerWidth - width - right : 0,
     y: top,

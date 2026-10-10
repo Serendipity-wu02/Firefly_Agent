@@ -2,12 +2,10 @@ import { BrowserWindow, screen, type NativeImage } from "electron";
 import { IPC } from "../../shared/ipc-channels";
 import { createPetWindow, PET_WINDOW_BASE_HEIGHT, PET_WINDOW_BASE_WIDTH, type PetWindowSettingsSlice } from "../startup/create-pet-window";
 import {
-  createCallWindow,
   createReactChatWindowShell,
   createSettingsWindow,
   createSidebarWindow,
   createStickerManagerWindow,
-  createTasksWindow,
   loadReactChatWindowPage,
   type ReactChatWindowHandle,
   showReactChatWindow,
@@ -19,6 +17,8 @@ import { PetWindowMoveController } from "../pet-window-movement";
 export interface WindowManagerOptions {
   getCurrentAppIconPath: () => string;
   isDev: boolean;
+  /** Runs once for each newly created chat shell, before renderer loading. */
+  onChatWindowCreated?: (window: BrowserWindow) => void;
   loadPetWindowSettingsSlice: () => PetWindowSettingsSlice;
   persistPetWindowPosition: (position: { x: number; y: number }) => void;
 }
@@ -31,9 +31,7 @@ export interface WindowManager {
   openReactChatWindow(sessionId?: string): Promise<BrowserWindow>;
   createSidebarWindow(): void;
   createSettingsWindow(section?: string): void;
-  createTasksWindow(): void;
   createStickerManagerWindow(): void;
-  createCallWindow(): void;
 
   showPetWindow(): void;
   hidePetWindow(): void;
@@ -152,6 +150,7 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
       };
       chatShell = handle;
       chatLoadPromise = null;
+      options.onChatWindowCreated?.(window);
       return handle;
     },
 
@@ -164,9 +163,7 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
 
     createSidebarWindow,
     createSettingsWindow,
-    createTasksWindow,
     createStickerManagerWindow,
-    createCallWindow,
 
     showPetWindow(): void {
       const win = getUsablePetWindow();

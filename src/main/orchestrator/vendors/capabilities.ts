@@ -1,5 +1,5 @@
 // 厂商能力表 —— vendor adapter 的唯一事实来源。
-// 每条字段以 docs/vendors/tool-calling-matrix.md 为准；matrix 没核实的留保守默认值。
+// 每条字段以厂商官方文档核实为准；没核实的留保守默认值。
 // displayName 必须与 renderer settings.ts 的 MODEL_PRESETS.providerName 完全一致。
 import { ProviderCapability } from "./types";
 

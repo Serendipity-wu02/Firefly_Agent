@@ -13,7 +13,7 @@ import type { FireflyRunTerminalResult } from "../../../shared/run-terminal";
 import type { TodoItem } from "../../../shared/task-session";
 import type { ToolErrorCategory } from "../tools/registry/tool-execution-error";
 import type { ToolRiskLevel } from "../../permission-policy";
-import type { ToolFileChange } from "../../../shared/chat-types";
+import type { ToolFileChange, ToolTaskResult } from "../../../shared/chat-types";
 import type { ContextUsageSnapshot } from "../../../shared/context-usage";
 import type { ToolOutputRef, ToolOutputStore } from "./tool-output/tool-output-store";
 export type { ToolErrorCategory } from "../tools/registry/tool-execution-error";
@@ -62,14 +62,7 @@ export interface ToolObservation {
 
 // ── Uncertain Effect（结果不确定的副作用追踪）────────────
 
-export interface UncertainEffect {
-  id: string;
-  toolCallId: string;
-  fingerprint: string;
-  toolName: string;
-  message: string;
-  repeatAuthorization?: { source: "user"; grantedAt: number };
-}
+export type UncertainEffect = import("../../../shared/task-session").TaskUncertainEffect;
 
 // ── Agent State（Agent 运行期可恢复状态）────────────────
 
@@ -164,7 +157,7 @@ export type HarnessEvent =
   | { type: "reasoning_delta"; messageId: string; delta: string }
   | { type: "reasoning_end"; messageId: string }
   | { type: "tool_start"; toolCallId: string; toolName: string; args: Record<string, unknown>; displayName?: string }
-  | { type: "tool_end"; toolCallId: string; outcome: ToolCallOutcome; preview: string; changes?: ToolFileChange[] }
+  | { type: "tool_end"; toolCallId: string; outcome: ToolCallOutcome; preview: string; changes?: ToolFileChange[]; taskResult?: ToolTaskResult }
   | { type: "todo_update"; items: TodoItem[] }
   | { type: "context_usage"; snapshot: ContextUsageSnapshot }
   | { type: "ask_user"; card: unknown }
@@ -178,7 +171,7 @@ export interface HarnessToolLifecycleEvent {
   toolCallId: string;
   toolName: string;
   toolSideEffect: SideEffectKind;
-  status: "started" | "committed" | "unknown" | "not_executed";
+  status: "planned" | "started" | "committed" | "unknown" | "not_executed";
 }
 
 /**
@@ -231,6 +224,8 @@ export interface HarnessToolSpec extends ToolSpec {
 }
 
 export interface HarnessInput {
+  /** Main-owned source, budget and single-use dispatch authority. */
+  memoryRun?: import("../../memory-context/main-memory-runtime").MainMemoryRun;
   /**
    * 兼容旧调用方的扁平系统提示词。新调用方应使用 promptLayers，
    * 让稳定前缀与每轮运行时上下文分离。
@@ -269,6 +264,8 @@ export interface HarnessInput {
   config?: Partial<HarnessConfig>;
   /** 取消信号 */
   signal?: AbortSignal;
+  /** Main-owned quiescence. Stops only this execution's owned signal before failure drain. */
+  quiesceExecution?: () => void;
   /** 事件回调 */
   onEvent?: (event: HarnessEvent) => void;
   /** 每轮和终态时发送的可持久化 transcript 快照。
@@ -301,7 +298,7 @@ export interface HarnessInput {
   /** 工具上下文（权限检查等） */
   toolContext?: import("../tools/registry/tool-context").ToolContext;
   /** 权限检查函数 */
-  checkPermission?: (toolId: string, args: Record<string, unknown>) => Promise<boolean>;
+  checkPermission?: (toolId: string, args: Record<string, unknown>, signal?: AbortSignal) => Promise<boolean>;
   /** ExecutionLedger：可选的同进程工具去重缓存（用于副作用重复执行防护） */
   executionLedger?: import("../execution-ledger").ExecutionLedger;
   /** ToolOutputStore：生产 Harness 注入的完整工具结果存储。 */
@@ -313,7 +310,9 @@ export interface HarnessInput {
    */
   transcriptSink?: import("../transcript-sink").TranscriptSink;
   /** 父会话注入的前台子任务执行器；子 Harness 不会继续注入它。 */
-  taskExecutor?: (request: import("../task-runtime").TaskExecuteRequest) => Promise<import("../task-runtime").TaskExecuteResult>;
+  agentExecutor?: (request: import("../persistent-agent-runtime").AgentExecuteRequest, scope?: import("../child-session-types").DelegationScope) => Promise<import("../persistent-agent-runtime").AgentExecuteResult>;
+  agentDefinitions?: readonly { id: string; nickname: string; description: string }[];
+  allowedBuiltinToolIds?: ReadonlySet<string>;
 }
 
 export interface HarnessResult {

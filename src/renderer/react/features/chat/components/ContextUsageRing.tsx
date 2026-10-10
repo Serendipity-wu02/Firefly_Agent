@@ -1,7 +1,7 @@
 // 上下文容量观看器：composer footer 右侧的环形进度控件 + 占比菜单。
 //
 // 数据来源：assistant 消息的 contextUsage 快照（主进程每轮 preRequest 实时推送、
-// run 终态持久化，见 docs/context-usage-viewer-construction-plan.md）。
+// run 终态持久化）。
 // - 无快照 → 不渲染（不占位）。
 // - 占用比 = totalTokens / contextWindowTokens；SVG 弧长只吃 clamp 后的
 //   visualRatio（ratio>1 时文本诚实显示如 118%，圆环 clamp 到整圈）。

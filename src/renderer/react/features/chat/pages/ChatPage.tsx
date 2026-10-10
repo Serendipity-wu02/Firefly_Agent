@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../../i18n";
-import { DownOutlined } from "@ant-design/icons";
-import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
+import { DownOutlined, GlobalOutlined, FolderOpenOutlined, UnorderedListOutlined } from "@ant-design/icons";
+import { Group, Panel, Separator, useDefaultLayout, type GroupImperativeHandle } from "react-resizable-panels";
+import { useCompactDock } from "./useCompactDock";
+import { useInspectorPanelVisibility } from "./useInspectorPanelVisibility";
+import { collectWorkspaceOutputs, createWorkspaceResultRevealer, workspaceFileRevision, type WorkspaceChangedFile, type WorkspaceRunOutput } from "../workspace/workspace-artifacts";
+import { WorkspaceResultsIndex } from "../workspace/WorkspaceRunResults";
+import { useBrowserWorkspaceActivation } from "../workspace/useBrowserWorkspaceActivation";
 import { ChatComposer, parseComposerMessage } from "../components/ChatComposer";
 import { ComposerSlot } from "../components/ComposerSlot";
-import { TodoPanel } from "../components/TodoPanel";
 import { CodeGitPanel } from "../components/CodeGitPanel";
 import type { PlanReviewPhase } from "../components/PlanReviewPanel";
-import { ChatPageInspector } from "../components/ChatPageInspector";
+import { ChatPageInspector, type ChatPageInspectorDiffTab } from "../components/ChatPageInspector";
+import { ChatInspectorActionsContext, type ChatInspectorActions } from "../components/inspector-actions";
 import {
   normalizeDeferredPlanChoice,
   normalizePopQuizCard,
@@ -21,8 +26,6 @@ import {
   FileDropOverlay,
   RunRecoveryNotices,
 } from "../components/ChatWorkspaceNotices";
-import { getTtsPlaybackSnapshot, playTtsToCompletion, stopTtsPlayback } from "../components/tts-playback";
-import { EarlyTtsPlaybackQueue, type EarlyTtsSplitMode } from "../tts/early-tts-queue";
 
 import type {
   ChatMessage,
@@ -58,6 +61,8 @@ import {
   normalizeSessionMode,
   openSessionByIdWithDeps,
   type OpenSessionArgs,
+  type OpenSessionResult,
+  type SessionSelectionResult,
   type ReactSessionMode,
 } from "./openSessionByDeps";
 import { useComposerAttachments } from "../hooks/useComposerAttachments";
@@ -86,14 +91,12 @@ import {
 import "../../../components/ui/SidebarToggle.css";
 import { InspectorToggle } from "../../../components/ui/InspectorToggle";
 import { OpenWorkspaceMenu } from "../components/OpenWorkspaceMenu";
-import "../../../components/ui/ModeSwitch.css";
 import "../../../components/ui/WindowControls.css";
 import "../../../components/ui/SettingsButton.css";
 import "../../../components/ui/UserAvatar.css";
 import "../../../components/ui/NewTaskButton.css";
 import "../../../components/ui/ToolModeButton.css";
 import "../components/ChatComposer.css";
-import "../components/ReasoningControl.css";
 import "../components/StyleControl.css";
 import "../components/PermissionControl.css";
 import "../components/ChatMessageList.css";
@@ -140,7 +143,7 @@ function sessionMetaListEqual(a: ChatSessionMeta[], b: ChatSessionMeta[]): boole
 /** 导航动作函数的最小签名（供 navActionsRef 转发，见组件内注释） */
 interface NavActions {
   createNewTask: () => Promise<void>;
-  selectSession: (sessionId: string, targetMode?: ConversationMode) => Promise<void>;
+  selectSession: (sessionId: string, targetMode?: ConversationMode) => Promise<SessionSelectionResult>;
   handleRenameSession: (sessionId: string, newTitle: string) => Promise<void>;
   handleDeleteSession: (sessionId: string) => Promise<void>;
   handleTogglePinSession: (sessionId: string, pinned: boolean) => Promise<void>;
@@ -153,15 +156,22 @@ export function ChatPage() {
   const feedback = useFeedback();
   const preferredAddress = useUserCallPreference();
   const [collapsed, setCollapsed] = useState(false);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const compactDock = useCompactDock(dockRef);
   const [activePanel, setActivePanel] = useState<ChatPagePanel | null>(null);
   /** 右侧面板已打开的 diff 标签，ID 规范 diff:<runId>:<文件路径>，同 ID 只激活不重开 */
-  const [diffTabs, setDiffTabs] = useState<
-    { id: string; runId: string; fileIndex: number; filePath: string }[]
-  >([]);
+  const [diffTabs, setDiffTabs] = useState<ChatPageInspectorDiffTab[]>([]);
   /** 右侧面板已打开的文件预览标签，ID 规范 file:<相对路径> */
   const [fileTabs, setFileTabs] = useState<{ id: string; relPath: string; line?: number; lineSeq?: number }[]>([]);
   /** 工作区文件树标签是否打开（ID 固定为 files） */
   const [filesTabOpen, setFilesTabOpen] = useState(false);
+  const [browserTabOpen, setBrowserTabOpen] = useState(false);
+  const [tasksTabOpen, setTasksTabOpen] = useState(false);
+  const [inspectorHidden, setInspectorHidden] = useState(false);
+  const dockGroupRef = useRef<GroupImperativeHandle | null>(null);
+  const [resultTabIds, setResultTabIds] = useState<string[]>([]);
+  const [workspaceRevisionBySession, setWorkspaceRevisionBySession] = useState<Record<string, number>>({});
+  const revealWorkspaceResult = useRef(createWorkspaceResultRevealer());
   /** 右侧面板当前激活的标签 ID（files / file:... / diff:... / plan:...），null 时面板取第一个标签 */
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   // 右栏拖宽布局：聊天区 + 右侧面板套 Group/Panel，宽度持久化到 localStorage。
@@ -197,7 +207,7 @@ export function ChatPage() {
   const [todoStateBySession, setTodoStateBySession] = useState<TodoStateBySession>({});
   // 计划模式（Plan Mode 二期）：会话级计划面板内容与阶段（review → executing → completed）。
   const [planReviewBySession, setPlanReviewBySession] = useState<
-    Record<string, { content: string; planPath: string; phase: PlanReviewPhase }>
+    Record<string, { content: string; planPath: string; phase: PlanReviewPhase; executionRunId?: string; executionAssistantId?: string; dispatchAttemptId?: string }>
   >({});
   const [planDrawerOpen, setPlanDrawerOpen] = useState(false);
   const [interruptedRun, setInterruptedRun] = useState<{ runId: string; rounds: number; todoCount: number } | null>(null);
@@ -220,7 +230,7 @@ export function ChatPage() {
   const observedModeRef = useRef(mode);
   // 长期持有的刷新操作 ref：供 IPC 回调读取当前实现
   const refreshSessionsRef = useRef<
-    (targetMode: ConversationMode, selectCurrent: boolean) => Promise<void>
+    (targetMode: ConversationMode, selectCurrent: boolean, expectedGeneration?: number) => Promise<void>
   >(async () => {});
   // IPC 切换串行链：保证 Ready 后连续切换按顺序完成
   const reactSessionSwitchChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -232,7 +242,7 @@ export function ChatPage() {
     scrollToBottomRef.current = scroll;
   }, []);
 
-  // 消息域：渲染态消息按会话存储；补丁通道供 run 事件流、TTS、取消与附件预处理共用
+  // 消息域：渲染态消息按会话存储；补丁通道供 run 事件流、取消与附件预处理共用
   const {
     messagesBySession,
     patchMessage: updateMessage,
@@ -364,12 +374,6 @@ export function ChatPage() {
   useEffect(() => {
     pendingQueueBySessionRef.current = pendingQueueBySession;
   }, [pendingQueueBySession]);
-  const activeEarlyTtsRef = useRef<{
-    queue: EarlyTtsPlaybackQueue;
-    mode: ConversationMode;
-    sessionId: string;
-    messageId: string;
-  } | null>(null);
 
   const activeSessionId = activeSessionIds[mode];
   const scopeKey = activeSessionId ?? `mode:${mode}`;
@@ -457,8 +461,7 @@ export function ChatPage() {
   useEffect(() => () => {
     for (const off of activeAguiOffsRef.current) off();
     activeAguiOffsRef.current.clear();
-    activeEarlyTtsRef.current?.queue.cancel();
-    activeEarlyTtsRef.current = null;
+
   }, []);
 
   useEffect(() => {
@@ -507,17 +510,19 @@ export function ChatPage() {
 
     const unsubscribe = store.onReactSwitchSession((sessionId) => {
       if (!sessionId) return;
+      const generation = ++sessionSelectionGeneration.current;
       reactSessionSwitchChainRef.current = reactSessionSwitchChainRef.current
         .then(async () => {
-          const opened = await openSessionById(sessionId);
-          if (!opened) {
-            await refreshSessionsRef.current(activeModeRef.current, true);
+          const opened = await openSessionById(sessionId, generation);
+          if (opened.status === "unavailable" && generation === sessionSelectionGeneration.current) {
+            await refreshSessionsRef.current(activeModeRef.current, true, generation);
           }
         })
         .catch(async (error) => {
+          if (generation !== sessionSelectionGeneration.current) return;
           console.error("[ChatPage] Failed to switch React session:", error);
           try {
-            await refreshSessionsRef.current(activeModeRef.current, true);
+            await refreshSessionsRef.current(activeModeRef.current, true, generation);
           } catch (fallbackError) {
             console.error("[ChatPage] Switch fallback failed:", fallbackError);
           }
@@ -548,45 +553,6 @@ export function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 外部语音文本提交：主进程经 IPC 要求把文本提交到租约冻结的会话。
-  // 页面重新加载后 rendererTargetId 变化，旧目标的迟到请求直接回绝。
-  useEffect(() => {
-    const store = chatStore();
-    if (!store?.onSpeechInputCommitRequest) return;
-    const unsubscribe = store.onSpeechInputCommitRequest((request) => {
-      void (async () => {
-        let result: { ok: true } | { ok: false; error: { code: string; message: string } };
-        if (request.rendererTargetId !== store.getRendererTargetId()) {
-          result = {
-            ok: false,
-            error: { code: "E_NO_ACTIVE_INPUT_TARGET", message: "渲染目标已过期" },
-          };
-        } else {
-          result = await submitTextToSession({
-            sessionId: request.sessionId,
-            mode: request.mode,
-            text: request.text,
-          });
-        }
-        store.sendSpeechInputCommitResult({
-          requestId: request.requestId,
-          rendererTargetId: request.rendererTargetId,
-          ...(result.ok ? { ok: true } : { ok: false, error: result.error }),
-        });
-      })();
-    });
-    return unsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const active = activeEarlyTtsRef.current;
-    if (active && (active.mode !== mode || active.sessionId !== activeSessionId)) {
-      active.queue.cancel();
-      activeEarlyTtsRef.current = null;
-    }
-  }, [activeSessionId, mode]);
-
   useEffect(() => {
     const sessionId = activeSessionId;
     const api = aguiApi();
@@ -601,9 +567,9 @@ export function ChatPage() {
     return () => { active = false; };
   }, [activeSessionId, mode]);
 
-  // 计划模式事件（Plan Mode）：review/approved/exited 在 run 结束后由主进程发出
-  // （run 订阅已解除），必须持久监听；completed 在 run 内发出，run 订阅无此分支，
-  // 也统一在这里处理。批准后自动发送执行消息（sendMessage 自带 busy 排队机制）。
+  // 计划审阅与批准在 run 结束后发出，必须持久监听。
+  // 完成事件由所属 run 控制器校验并处理，不依赖当前会话。
+  // 批准后自动发送执行消息（sendMessage 自带 busy 排队机制）。
   useEffect(() => {
     const api = aguiApi();
     if (!api?.onEvent || !shouldListenForDeferredPlanEvents(mode) || !activeSessionId) return;
@@ -644,10 +610,18 @@ export function ChatPage() {
           break;
         case "firefly.plan.approved":
           if (value?.sessionId) {
-            setPlanReviewBySession((current) => current[value.sessionId!]
-              ? { ...current, [value.sessionId!]: { ...current[value.sessionId!], phase: "executing" } }
+            const sessionId = value.sessionId, attemptId = crypto.randomUUID();
+            setPlanReviewBySession((current) => current[sessionId]
+              ? { ...current, [sessionId]: { ...current[sessionId], phase: "executing", dispatchAttemptId: attemptId } }
               : current);
-            void sendMessage(t("chatPage.planApprovedAutoMessage"));
+            const dispatchFailed = () => setPlanReviewBySession(current => {
+              const plan = current[sessionId];
+              // An earlier approval's failed enqueue must not overwrite a newly
+              // reviewed plan or a controller that has already taken execution.
+              if (!plan || plan.phase !== "executing" || plan.dispatchAttemptId !== attemptId || plan.executionAssistantId || plan.executionRunId) return current;
+              return { ...current, [sessionId]: { ...plan, phase: "failed" } };
+            });
+            void sendMessage(t("chatPage.planApprovedAutoMessage"), undefined, dispatchFailed).catch(dispatchFailed);
           }
           break;
         case "firefly.plan.supplement":
@@ -655,12 +629,6 @@ export function ChatPage() {
           if (value?.sessionId && typeof value.text === "string" && value.text.trim()) {
             void sendMessage(value.text);
           }
-          break;
-        case "firefly.plan.completed":
-          // adapter 发出时不带 sessionId；按当前计划会话处理
-          setPlanReviewBySession((current) => current[activeSessionId]
-            ? { ...current, [activeSessionId]: { ...current[activeSessionId], phase: "completed" } }
-            : current);
           break;
       }
     });
@@ -680,73 +648,14 @@ export function ChatPage() {
     setInteractionsBySession((current) => setSessionInteractionBusy(current, sessionId, busy));
   }
 
-
-  function handleTtsCacheKey(
-    sessionId: string,
-    messageId: string,
-    cacheKey: string,
-    converterVersion: string,
-  ) {
-    updateMessage(sessionId, messageId, { ttsCacheKey: cacheKey, ttsCacheVersion: converterVersion });
-    void chatStore()?.setMessageTtsCacheKey(sessionId, messageId, cacheKey, converterVersion);
-  }
-
-  // 阶段 1B：TTS 缓存回调稳定化——roles 依赖该引用，仅会话切换时换新；
-  // 内部 updateMessage 走函数式 setState，捕获旧闭包安全
-  const handleTtsCacheKeyForActiveSession = useCallback(
-    (messageId: string, cacheKey: string, converterVersion: string) => {
-      if (!activeSessionId) return;
-      handleTtsCacheKey(activeSessionId, messageId, cacheKey, converterVersion);
-    },
-    [activeSessionId],
-  );
-
-  function createEarlyTtsQueue(
-    targetMode: ConversationMode,
-    sessionId: string,
-    messageId: string,
-    splitMode: EarlyTtsSplitMode = "sentence",
-  ): EarlyTtsPlaybackQueue {
-    activeEarlyTtsRef.current?.queue.cancel();
-    const queue = new EarlyTtsPlaybackQueue(
-      async (segment) => {
-        if (
-          activeModeRef.current !== targetMode
-          || activeSessionIdsRef.current[targetMode] !== sessionId
-          || activeEarlyTtsRef.current?.queue !== queue
-        ) return "interrupted";
-        return await playTtsToCompletion({
-          conversationId: sessionId,
-          messageId,
-          text: segment,
-          speechMode: targetMode === "learn" ? "learn" : "default",
-          preferredAddress,
-          automatic: true,
-        });
-      },
-      stopTtsPlayback,
-      splitMode,
-    );
-    activeEarlyTtsRef.current = { queue, mode: targetMode, sessionId, messageId };
-    return queue;
-  }
-
-  function finishEarlyTtsQueue(queue: EarlyTtsPlaybackQueue, fullText: string): void {
-    void queue.finish(fullText).finally(() => {
-      const active = activeEarlyTtsRef.current;
-      if (active?.queue !== queue) return;
-      const playback = getTtsPlaybackSnapshot();
-      if (playback.messageId === active.messageId && playback.status === "completed") stopTtsPlayback();
-      activeEarlyTtsRef.current = null;
-    });
-  }
-
-  async function selectSession(sessionId: string, targetMode: ConversationMode = mode) {
+  async function selectSession(sessionId: string, targetMode: ConversationMode = mode, expectedGeneration?: number): Promise<SessionSelectionResult> {
+    const generation = expectedGeneration ?? ++sessionSelectionGeneration.current;
+    if (generation !== sessionSelectionGeneration.current) return "stale";
     const store = chatStore();
-    if (!store) return;
-    const generation = ++sessionSelectionGeneration.current;
+    if (!store) return "unavailable";
     const session = await store.get(sessionId);
-    if (!session || generation !== sessionSelectionGeneration.current) return;
+    if (generation !== sessionSelectionGeneration.current) return "stale";
+    if (!session) return "unavailable";
     setActiveSession(session);
     // 环形图快照初始化：session 级（压缩后写入）与消息级（最近 run 留下）取最新。
     setSessionContextUsageBySession((current) => {
@@ -788,26 +697,29 @@ export function ChatPage() {
     // （页面刷新、进程重启后队列消费的恢复入口；会话忙或队列空时内部直接返回）
     void queueFlow.syncProjection(sessionId);
     void queueFlow.consume(targetMode, sessionId);
+    return "selected";
   }
 
   /**
    * 通过 ref 暴露给 IPC 切换链和初始化 effect；成功切换后同步写回 URL，
    * 不触发页面重新加载。
    */
-  async function openSessionById(sessionId: string): Promise<boolean> {
+  async function openSessionById(sessionId: string, generation = ++sessionSelectionGeneration.current): Promise<OpenSessionResult> {
+    const isCurrent = () => generation === sessionSelectionGeneration.current;
     const opened = await openSessionByIdWithDeps({
       sessionId,
+      isCurrent,
       getSession: async (id) => {
         const store = chatStore();
         if (!store) return null;
         const result = await store.get(id);
         return (result ?? null) as { mode?: string } | null;
       },
-      selectSession: async (id, targetMode) => {
-        await selectSession(id, targetMode as ConversationMode);
-      },
+      selectSession: (id, targetMode) => selectSession(id, targetMode, generation),
     });
-    if (opened && typeof window !== "undefined") {
+    if (!isCurrent()) return { status: "stale" };
+    if (opened.status === "opened") setMode(opened.mode);
+    if (opened.status === "opened" && typeof window !== "undefined") {
       try {
         const url = new URL(window.location.href);
         url.searchParams.set("sessionId", sessionId);
@@ -823,10 +735,11 @@ export function ChatPage() {
     return opened;
   }
 
-  async function refreshSessions(targetMode: ConversationMode, selectCurrent: boolean) {
+  async function refreshSessions(targetMode: ConversationMode, selectCurrent: boolean, expectedGeneration?: number) {
     const store = chatStore();
     if (!store) throw new Error("Chat store bridge unavailable");
     const listed = await store.list({ mode: targetMode });
+    if (expectedGeneration !== undefined && expectedGeneration !== sessionSelectionGeneration.current) return;
     setSessionListErrors((current) => current[targetMode] ? { ...current, [targetMode]: false } : current);
     // 内容未变时返回原引用：React 对同引用 state 会 bailout，导航/侧栏 memo 不再被重复刷新穿透
     setSessionsByMode((current) => {
@@ -838,7 +751,7 @@ export function ChatPage() {
     const currentId = activeSessionIdsRef.current[targetMode];
     const nextId = listed.some((session) => session.id === currentId) ? currentId : listed[0]?.id;
     if (nextId) {
-      await selectSession(nextId, targetMode);
+      await selectSession(nextId, targetMode, expectedGeneration);
       return;
     }
     setActiveSessionIds((current) => {
@@ -863,9 +776,46 @@ export function ChatPage() {
       api: aguiApi(),
       store: chatStore(),
       host: {
-        patchMessage: updateMessage,
+        patchMessage: (sessionId, messageId, patch) => {
+          updateMessage(sessionId, messageId, patch);
+          if (!patch.toolExecutions) return;
+          const id = revealWorkspaceResult.current(sessionId, activeRunsBySession.current[sessionId]?.runId,
+            patch.toolExecutions, activeSessionIdsRef.current[activeModeRef.current]);
+          if (!id) return;
+          setResultTabIds(ids => ids.includes(id) ? ids : [...ids, id]);
+          setActiveTabId(id); setTasksTabOpen(true); setInspectorHidden(false);
+        },
         setInteraction: setInteractionForSession,
         clearInteraction: clearInteractionForSession,
+        bindPlanAttempt: (sessionId, assistantId) => {
+          setPlanReviewBySession(current => {
+            const plan = current[sessionId];
+            if (!plan || (plan.phase !== "executing" && !(plan.phase === "failed" && !plan.executionRunId))) return current;
+            if (plan.phase === "executing" && plan.executionAssistantId && plan.executionAssistantId !== assistantId) return current;
+            return { ...current, [sessionId]: { ...plan, phase: "executing", executionAssistantId: assistantId } };
+          });
+        },
+        bindPlanRun: (sessionId, runId) => {
+          setPlanReviewBySession(current => {
+            const plan = current[sessionId];
+            if (!plan || plan.phase !== "executing" || plan.executionRunId || plan.executionAssistantId !== input.assistantId) return current;
+            return { ...current, [sessionId]: { ...plan, executionRunId: runId } };
+          });
+        },
+        failPlan: (sessionId, runId, phase) => {
+          setPlanReviewBySession(current => {
+            const plan = current[sessionId];
+            if (!plan || plan.executionRunId !== runId || plan.executionAssistantId !== input.assistantId) return current;
+            return { ...current, [sessionId]: { ...plan, phase } };
+          });
+        },
+        completePlan: (sessionId, planPath, runId) => {
+          setPlanReviewBySession((current) => {
+            const plan = current[sessionId];
+            if (!plan || plan.phase !== "executing" || plan.planPath !== planPath || plan.executionRunId !== runId) return current;
+            return { ...current, [sessionId]: { ...plan, phase: "completed" } };
+          });
+        },
         dismissAskIfMatched: (sessionId, value) => {
           setInteractionsBySession((current) => {
             const interaction = sessionInteraction(current, sessionId)?.interaction;
@@ -896,11 +846,9 @@ export function ChatPage() {
         },
         requestTakeover: (sessionId, activeRunId, retry) => setSessionTakeover({ sessionId, activeRunId, retry }),
         clearTakeover: (sessionId) => setSessionTakeover((current) => (current && current.sessionId === sessionId ? null : current)),
-        earlyTts: {
-          start: createEarlyTtsQueue,
-          finish: finishEarlyTtsQueue,
-        },
+
         onRunFinished: ({ mode, sessionId, queuePaused }) => {
+          setWorkspaceRevisionBySession(current => ({ ...current, [sessionId]: (current[sessionId] ?? 0) + 1 }));
           setRunRegistryVersion((version) => version + 1);
           // 刷新列表与队列投影；queuePaused 时暂停消费（先恢复认领再说），否则消费下一条
           queueFlow.handleRunFinished({ mode, sessionId, queuePaused });
@@ -961,9 +909,6 @@ export function ChatPage() {
       const truncatedSession = await store.replaceTail(sessionId, userIndex, [nextUserMessage]);
       if (!truncatedSession) return false;
 
-      activeEarlyTtsRef.current?.queue.cancel();
-      activeEarlyTtsRef.current = null;
-      stopTtsPlayback();
       const assistantId = crypto.randomUUID();
       replaceSessionMessages(sessionId, [
         ...toUiMessages(truncatedSession),
@@ -1061,39 +1006,6 @@ export function ChatPage() {
     return session.id;
   }
 
-
-
-  async function initVaultStructure(sessionId: string, options?: { confirm?: boolean }) {
-    const store = chatStore();
-    if (!store) return;
-    // 结构学习会在工作区写入文件：覆盖性选择，需确认后执行
-    const confirmed = options?.confirm === false || await feedback.confirm({
-      title: t("chatPage.learnStructureConfirmTitle"),
-      message: t("chatPage.learnStructureConfirm"),
-      confirmText: t("common.confirm"),
-    });
-    if (!confirmed) return;
-    const result = await store.initLearnWorkspace(sessionId);
-    if (!result.ok) {
-      // 长操作失败：错误详情需阅读，用单按钮错误弹窗
-      await feedback.alert({
-        tone: "error",
-        title: t("chatPage.learnStructureFailedTitle"),
-        message: t("chatPage.learnStructureFailed", { error: result.error ?? t("chatPage.unknownError") }),
-      });
-    } else {
-      const created = result.created?.length ?? 0;
-      const skipped = result.skipped?.length ?? 0;
-      // 普通成功反馈：非阻塞轻提示
-      feedback.notice({
-        tone: "success",
-        message: skipped > 0
-          ? t("chatPage.learnStructureCreatedWithSkipped", { created, skipped })
-          : t("chatPage.learnStructureCreated", { created }),
-      });
-    }
-  }
-
   async function chooseWorkspace() {
     const targetMode = mode;
     if (targetMode === "chat") return;
@@ -1116,17 +1028,6 @@ export function ChatPage() {
           message: t("chatPage.setWorkspaceFailed", { error: result.error ?? t("chatPage.unknownError") }),
         });
         return;
-      }
-      // Learn 模式：空目录询问是否初始化通用学习结构
-      if (targetMode === "learn" && result.isEmpty) {
-        const confirmed = await feedback.confirm({
-          title: t("chatPage.learnStructureConfirmTitle"),
-          message: t("chatPage.emptyDirLearnStructureConfirm"),
-          confirmText: t("common.confirm"),
-        });
-        if (confirmed) {
-          await initVaultStructure(activeId, { confirm: false });
-        }
       }
       await refreshSessions(targetMode, false);
     } else {
@@ -1207,13 +1108,11 @@ export function ChatPage() {
     await refreshSessionsRef.current(mode, false);
   }
 
-
-  async function sendMessage(content: string, resumeFromRunId?: string) {
+  async function sendMessage(content: string, resumeFromRunId?: string, onEnqueueFailed?: () => void) {
     const parsedMessage = parseComposerMessage(mode, content);
     const message = parsedMessage.rawContent;
     if (!message) return;
-    activeEarlyTtsRef.current?.queue.cancel();
-    activeEarlyTtsRef.current = null;
+
     const userSticker = parsedMessage.userSticker;
     const visibleMessage = parsedMessage.visibleContent;
     const userMessageId = crypto.randomUUID();
@@ -1231,16 +1130,6 @@ export function ChatPage() {
           targetMode,
           pendingWorkspace.displayName ?? t("chatPage.defaultWorkspaceName"),
         ));
-      }
-      if (workspaceResult?.ok && targetMode === "learn" && workspaceResult.isEmpty) {
-        const confirmed = await feedback.confirm({
-          title: t("chatPage.learnStructureConfirmTitle"),
-          message: t("chatPage.emptyDirLearnStructureConfirm"),
-          confirmText: t("common.confirm"),
-        });
-        if (confirmed) {
-          await initVaultStructure(sessionId, { confirm: false });
-        }
       }
       setPendingWorkspaceByMode((current) => {
         const next = { ...current };
@@ -1262,7 +1151,7 @@ export function ChatPage() {
       userSticker,
       ...(resumeFromRunId ? { resumeFromRunId } : {}),
     });
-    if (!enqueued) return;
+    if (!enqueued) { onEnqueueFailed?.(); return; }
     // 请求期间用户继续输入时不清掉新内容：仅当草稿仍是发送时的文本才清空；
     // 附件同样只清随消息发送的那些（空快照不清任何附件），期间新加的保留
     setDrafts((current) => (current[scopeKey] === content ? { ...current, [scopeKey]: "" } : current));
@@ -1278,46 +1167,6 @@ export function ChatPage() {
    * - 与手动发送走同一持久队列：入队确认成功（消息已落盘）才返回成功，
    *   绝不能只进页面内存就回执；空闲时随即认领派发，模型运行后台继续。
    */
-  async function submitTextToSession(input: {
-    sessionId: string;
-    mode: ConversationMode;
-    text: string;
-  }): Promise<{ ok: true } | { ok: false; error: { code: string; message: string } }> {
-    const text = input.text.trim();
-    if (!text) {
-      return { ok: false, error: { code: "E_INVALID_ARGUMENT", message: "提交文本不能为空" } };
-    }
-    const store = chatStore();
-    if (!store) {
-      return { ok: false, error: { code: "E_INTERNAL", message: "会话存储不可用" } };
-    }
-    const session = await store.get(input.sessionId);
-    if (!session) {
-      return { ok: false, error: { code: "E_NOT_FOUND", message: "会话已删除" } };
-    }
-    if (session.mode !== input.mode) {
-      return { ok: false, error: { code: "E_INVALID_ARGUMENT", message: "会话模式不匹配" } };
-    }
-    // 入队失败不弹窗（外部提交场景）：错误码回传给语音调用方；
-    // 同样走流程的失败标识缓存——外部重试同文本也复用原稳定标识
-    const enqueued = await queueFlow.enqueue(
-      input.sessionId,
-      input.mode,
-      {
-        id: crypto.randomUUID(),
-        rawContent: text,
-        visibleContent: text,
-        attachments: [],
-      },
-      false,
-    );
-    if (!enqueued) {
-      return { ok: false, error: { code: "E_INTERNAL", message: "消息入队失败" } };
-    }
-    // 空闲时立即消费派发（忙时等 run 结束的 onRunFinished）；不等待模型回答
-    void queueFlow.consume(input.mode, input.sessionId);
-    return { ok: true };
-  }
 
   async function cancelCurrentRun() {
     const sessionId = activeSessionId;
@@ -1418,13 +1267,47 @@ export function ChatPage() {
   useEffect(() => {
     setDiffTabs([]);
     setFileTabs([]);
+    setResultTabIds([]);
     setFilesTabOpen(false);
-    setActiveTabId(null);
-  }, [activeSessionId]);
+    setTasksTabOpen(mode !== "chat");
+    setInspectorHidden(false);
+    setActiveTabId(current => current === "browser" ? "browser" : mode !== "chat" ? "tasks" : null);
+  }, [activeSessionId, mode]);
+
+  useBrowserWorkspaceActivation(activeSessionId, () => {
+    setBrowserTabOpen(true); setActiveTabId("browser"); setInspectorHidden(false);
+  });
+  const workspaceOutputs = useMemo(() => collectWorkspaceOutputs(activeSessionId ?? "", messages), [activeSessionId, messages]);
+  const refreshRevision = `${workspaceRevisionBySession[activeSessionId ?? ""] ?? 0}:${workspaceFileRevision(activeSessionId ?? "", messages)}`;
+  const resultTabs = workspaceOutputs.filter(output => resultTabIds.includes(output.id));
+  const openResultTab = (id: string) => {
+    if (!workspaceOutputs.some(output => output.id === id && output.sessionId === activeSessionId)) return;
+    setResultTabIds(ids => ids.includes(id) ? ids : [...ids, id]);
+    setActiveTabId(id); setInspectorHidden(false);
+  };
+  const [focusTask, setFocusTask] = useState<{ taskId: string; seq: number }>();
+  // A stable object, so the message list does not re-render when the outputs change; the handler always reads the latest outputs.
+  const openDelegationRef = useRef<(taskId: string) => void>(() => undefined);
+  openDelegationRef.current = (taskId: string) => {
+    const output = workspaceOutputs.find(item => item.sessionId === activeSessionId
+      && (item.tasks.some(task => task.taskId === taskId) || item.tools.some(tool => tool.taskResult?.sessionId === taskId)));
+    if (!output) return;
+    openResultTab(output.id);
+    setFocusTask(current => ({ taskId, seq: (current?.seq ?? 0) + 1 }));
+  };
+  const inspectorActions = useMemo<ChatInspectorActions>(() => ({ openDelegation: (taskId: string) => openDelegationRef.current(taskId) }), []);
+  const openResultDiff = (output: WorkspaceRunOutput, file: WorkspaceChangedFile) => {
+    if (output.sessionId !== activeSessionId) return;
+    const id = `diff:${output.runId}:${file.toolId}:${file.change.file}`;
+    const tab = { id, runId: output.runId, fileIndex: 0, filePath: file.change.file, change: file.change };
+    setDiffTabs(tabs => tabs.some(item => item.id === id) ? tabs.map(item => item.id === id ? tab : item) : [...tabs, tab]);
+    setActiveTabId(id); setInspectorHidden(false);
+  };
 
   /** 打开/激活一个 diff 标签：同 runId + 文件路径已存在则仅激活，不重复开 */
   // 阶段 1B：useCallback 稳定引用——作为 onOpenReviewInspector 进 roles 依赖，每次渲染新建会连锁重建 roles
   const openDiffTab = useCallback((runId: string, fileIndex: number, filePath: string) => {
+    setInspectorHidden(false);
     const id = `diff:${runId}:${filePath || `#${fileIndex}`}`;
     setDiffTabs((tabs) =>
       tabs.some((tab) => tab.id === id) ? tabs : [...tabs, { id, runId, fileIndex, filePath }],
@@ -1436,23 +1319,19 @@ export function ChatPage() {
 
   /** 打开/激活文件树标签 */
   const openFilesTab = () => {
+    setInspectorHidden(false);
     setFilesTabOpen(true);
     setActiveTabId("files");
   };
 
-  /** 收起右侧面板：关闭全部标签（再次点击开关可重新展开文件树） */
-  const collapseInspector = () => {
-    setFilesTabOpen(false);
-    setFileTabs([]);
-    setDiffTabs([]);
-    setPlanDrawerOpen(false);
-    setActiveTabId(null);
-  };
+  /** 收起右侧面板并保留标签；再次点击恢复原标签 */
+  const collapseInspector = () => setInspectorHidden(true);
 
   /** 打开/激活一个文件预览标签：同路径只激活不重开；带行号时更新定位并触发滚动 */
   const fileLineSeqRef = useRef(0);
   // 阶段 1B：useCallback 稳定引用——进 fileLinkEnv 依赖，防止 FileLink 消费者全量更新
   const openFileTab = useCallback((relPath: string, line?: number) => {
+    setInspectorHidden(false);
     const id = `file:${relPath}`;
     setFileTabs((tabs) => {
       const existing = tabs.some((tab) => tab.id === id);
@@ -1478,10 +1357,13 @@ export function ChatPage() {
 
   /** 右侧面板标签的固定顺序：文件树 → 文件预览 → Diff → 计划 */
   const inspectorTabIds = [
+    ...(tasksTabOpen ? ["tasks"] : []),
     ...(filesTabOpen ? ["files"] : []),
     ...fileTabs.map((tab) => tab.id),
     ...diffTabs.map((tab) => tab.id),
+    ...resultTabs.map((tab) => tab.id),
     ...((activePlan !== null && planDrawerOpen) ? [planTabId] : []),
+    ...(browserTabOpen ? ["browser"] : []),
   ];
 
   /**
@@ -1490,7 +1372,7 @@ export function ChatPage() {
    * 只剩它一个时恢复可关——关掉即收起整个面板。
    */
   const filesTabPinned = filesTabOpen
-    && (fileTabs.length > 0 || diffTabs.length > 0 || (activePlan !== null && planDrawerOpen));
+    && (resultTabs.length > 0 || browserTabOpen || fileTabs.length > 0 || diffTabs.length > 0 || (activePlan !== null && planDrawerOpen));
 
   /** 关闭右侧面板标签：活动标签关闭后回退到相邻标签（优先左侧） */
   const closeInspectorTab = (id: string) => {
@@ -1502,10 +1384,16 @@ export function ChatPage() {
       return;
     }
     const remaining = inspectorTabIds.filter((tabId) => tabId !== id);
-    if (id === "files") {
+    if (id === "browser") {
+      setBrowserTabOpen(false);
+    } else if (id === "tasks") {
+      setTasksTabOpen(false);
+    } else if (id === "files") {
       setFilesTabOpen(false);
     } else if (id.startsWith("file:")) {
       setFileTabs((tabs) => tabs.filter((tab) => tab.id !== id));
+    } else if (id.startsWith("results:")) {
+      setResultTabIds(ids => ids.filter(item => item !== id));
     } else if (id.startsWith("plan:")) {
       setPlanDrawerOpen(false);
     } else {
@@ -1516,13 +1404,16 @@ export function ChatPage() {
     }
   };
 
+  const inspectorVisible = !activePanel && !inspectorHidden;
+  const { panelRef: inspectorPanelRef, onLayoutChange: onInspectorLayoutChange } = useInspectorPanelVisibility(inspectorVisible, dockGroupRef, `${inspectorTabIds.length}:${compactDock}`);
+
   // ── 阶段 1A：导航 props 引用稳定化 ──
   // 下方 6 个动作函数读取大量页面状态、内部调用链每次渲染都产生新引用，
   // 属"需读最新状态且引用不能变"的场景：用 ref 转发当次渲染的最新实现，
   // 外层回调引用恒定，配合 React.memo 让导航/侧栏子树在流式期间保持命中。
   const navActionsRef = useRef<NavActions>({
     createNewTask: () => Promise.resolve(),
-    selectSession: () => Promise.resolve(),
+    selectSession: () => Promise.resolve("unavailable"),
     handleRenameSession: () => Promise.resolve(),
     handleDeleteSession: () => Promise.resolve(),
     handleTogglePinSession: () => Promise.resolve(),
@@ -1545,7 +1436,10 @@ export function ChatPage() {
 
   const navToggleCollapsed = useCallback(() => setCollapsed((value) => !value), []);
   const navModeChange = useCallback((nextMode: string) => {
-    if (isConversationMode(nextMode)) setMode(nextMode);
+    if (isConversationMode(nextMode)) {
+      sessionSelectionGeneration.current++;
+      setMode(nextMode);
+    }
   }, []);
   const navNewTask = useCallback(() => {
     void navActionsRef.current.createNewTask();
@@ -1579,7 +1473,13 @@ export function ChatPage() {
   const navMinimize = useCallback(() => window.chat?.minimize(), []);
   const navMaximize = useCallback(() => window.chat?.toggleMaximize(), []);
   const navCloseWindow = useCallback(() => window.chat?.close(), []);
-  const navOpenSettings = useCallback(() => sidebarApi()?.openSettings("appearance"), []);
+  const navOpenSettings = useCallback(() => sidebarApi()?.openSettings("general"), []);
+  const navOpenApiSettings = useCallback(() => sidebarApi()?.openSettings("api"), []);
+  const activeSessionTitle = sessions.find(session => session.id === activeSessionId)?.title
+    || (activeSession && activeSession.id === activeSessionId ? activeSession.title : "")
+    || t("chatPage.newTaskTitle");
+  const selectedModelProfileId = activeSession?.id === activeSessionId && activeSession
+    ? activeSession.modelProfileId : pendingModelProfileByMode[mode];
 
   return (
     <div className={`cy-page ${collapsed ? "is-collapsed" : ""}`}>
@@ -1590,6 +1490,8 @@ export function ChatPage() {
         sessions={sessions}
         sessionListStatus={sessionListErrors[mode] ? "error" : sessionsByMode[mode] === undefined ? "loading" : "ready"}
         activeSessionId={activeSessionId}
+        activeModelProfileId={selectedModelProfileId}
+        todoState={activeSessionId ? todoStateBySession[activeSessionId] : null}
         onToggleCollapsed={navToggleCollapsed}
         onModeChange={navModeChange}
         onNewTask={navNewTask}
@@ -1604,17 +1506,21 @@ export function ChatPage() {
         onMaximize={navMaximize}
         onCloseWindow={navCloseWindow}
         onOpenSettings={navOpenSettings}
+        onOpenApiSettings={navOpenApiSettings}
       />
       {/* 右栏可拖宽布局：聊天区 Panel 常驻（保证内容不重挂载），右侧面板按需挂载 */}
       <Group
-        orientation="horizontal"
-        className="cy-page-dock"
-        defaultLayout={defaultLayout}
-        onLayoutChanged={onLayoutChanged}
+        elementRef={dockRef}
+        groupRef={dockGroupRef}
+        orientation={compactDock ? "vertical" : "horizontal"}
+        className={`cy-page-dock ${compactDock ? "is-compact" : ""}`}
+        defaultLayout={compactDock ? undefined : defaultLayout}
+        onLayoutChange={onInspectorLayoutChange}
+        onLayoutChanged={compactDock ? undefined : onLayoutChanged}
         // 拖动条命中区外溢到两侧（视觉条只有 12px，命中区鼠标 24px / 触屏 33px）
         resizeTargetMinimumSize={{ coarse: 33, fine: 24 }}
       >
-        <Panel id="chat" minSize={480} className="cy-dock-body">
+        <Panel id="chat" minSize={compactDock ? "60%" : 300} className="cy-dock-body">
       <main
         className={`cy-page-main cy-workspace ${hasMessages ? "has-messages" : "is-empty"} ${isDraggingFiles ? "is-dragging-files" : ""}`}
         onDragEnter={dragHandlers.onDragEnter}
@@ -1623,44 +1529,45 @@ export function ChatPage() {
         onDrop={dragHandlers.onDrop}
       >
         <FileDropOverlay visible={isDraggingFiles} />
-        {/* 白色工作区右上角：打开菜单 + 分割线 + 右侧面板展开/收起开关（左上角 SidebarToggle 的镜像同款动画）。
-            仅在会话对话视图显示：产生过消息、且当前不在插件/工具/技能/模型/动态等面板页时才挂载 */}
-        {(hasMessages && !activePanel && (activeSession?.workspaceBinding || inspectorTabIds.length > 0)) && (
-          <span className="cy-inspector-toggle-float">
-            {activeSession?.workspaceBinding && activeSessionId && (
-              <>
-                <OpenWorkspaceMenu sessionId={activeSessionId} />
-                <span className="cy-inspector-toggle-divider" aria-hidden="true" />
-              </>
-            )}
-            <InspectorToggle
-              open={inspectorTabIds.length > 0}
-              onToggle={() => (inspectorTabIds.length > 0 ? collapseInspector() : openFilesTab())}
-            />
-          </span>
+        {/* 标题与工具独立占一行，正文和输入区不再用空白避让浮动按钮。 */}
+        {!activePanel && (
+          <header className="cy-workspace-header">
+            <h1 className="cy-workspace-header__title" title={activeSessionTitle}>{activeSessionTitle}</h1>
+            <div className="cy-workspace-header__actions">
+              {activeSession?.workspaceBinding && activeSessionId && (
+                <>
+                  <OpenWorkspaceMenu sessionId={activeSessionId} />
+                  <span className="cy-inspector-toggle-divider" aria-hidden="true" />
+                </>
+              )}
+              <button type="button" className="cy-inspector-toggle" aria-label={t("browserWorkspace.open")}
+                title={t("browserWorkspace.open")} aria-expanded={browserTabOpen && !inspectorHidden}
+                onClick={() => { setBrowserTabOpen(true); setInspectorHidden(false); setActiveTabId("browser"); }}>
+                <GlobalOutlined aria-hidden="true" />
+              </button>
+              <button type="button" className="cy-inspector-toggle" aria-label={t("fileTree.title")}
+                title={t("fileTree.title")} aria-expanded={filesTabOpen && !inspectorHidden}
+                onClick={openFilesTab}><FolderOpenOutlined aria-hidden="true" /></button>
+              {(mode !== "chat" || workspaceOutputs.length > 0) && <button type="button" className="cy-inspector-toggle"
+                aria-label={t("workspace.tasks")} title={t("workspace.tasks")}
+                aria-expanded={tasksTabOpen && !inspectorHidden}
+                onClick={() => { setTasksTabOpen(true); setInspectorHidden(false); setActiveTabId("tasks"); }}>
+                <UnorderedListOutlined aria-hidden="true" /></button>}
+              <InspectorToggle
+                open={inspectorTabIds.length > 0 && !inspectorHidden}
+                onToggle={() => {
+                  if (inspectorTabIds.length > 0 && !inspectorHidden) collapseInspector();
+                  else if (inspectorTabIds.length > 0) setInspectorHidden(false);
+                  else openFilesTab();
+                }}
+              />
+            </div>
+          </header>
         )}
         {activePanel ? (
           <ChatPagePanelHost panel={activePanel} />
         ) : (
         <>
-        {(mode === "work" || mode === "learn") && (
-          <TodoPanel
-            state={activeSessionId ? todoStateBySession[activeSessionId] : null}
-            mode={mode}
-          />
-        )}
-        {mode === "code" && activeSessionId && (
-          <CodeGitPanel
-            sessionId={activeSessionId}
-            projectName={workspaceNames.code}
-            todoState={todoStateBySession[activeSessionId] ?? null}
-            planPhase={planReviewBySession[activeSessionId]?.phase}
-            onOpenPlan={() => {
-              setPlanDrawerOpen(true);
-              setActiveTabId(planTabId);
-            }}
-          />
-        )}
         <RunRecoveryNotices
           interruptedRun={interruptedRun}
           sessionTakeover={sessionTakeover}
@@ -1675,6 +1582,7 @@ export function ChatPage() {
           }}
         />
         {hasMessages && (
+          <ChatInspectorActionsContext.Provider value={inspectorActions}>
           <ChatMessageList
             messages={messages}
             conversationId={activeSessionId}
@@ -1684,15 +1592,20 @@ export function ChatPage() {
             revisionBusy={Boolean(modelBusyByMode[mode]) || lastTurnRevisionStarting}
             onEditLastUserMessage={mode === "chat" ? editLastChatUserMessage : undefined}
             onRegenerateLastResponse={mode === "chat" ? regenerateLastChatResponse : undefined}
-            onTtsCacheKey={activeSessionId ? handleTtsCacheKeyForActiveSession : undefined}
+
             onScrollToBottomVisibilityChange={setScrollToBottomVisible}
             onRegisterScrollToBottom={registerScrollToBottom}
             onOpenReviewInspector={openDiffTab}
             workspaceRoot={activeSession?.workspaceBinding?.workspaceRoot}
             onOpenFileLink={openFileTab}
           />
+          </ChatInspectorActionsContext.Provider>
         )}
         <ContextCompressionNotice visible={isCompressingContext} />
+        {!hasMessages && <div className="cy-workspace-greeting">
+          <h2 className="cy-workspace-greeting__title">{t(mode === "chat" ? "chatPage.emptyGreeting" : "chatPage.emptyGreetingTask")}</h2>
+          <p className="cy-workspace-greeting__hint">{t(`chatPage.emptyHint.${mode}`)}</p>
+        </div>}
         <div className="cy-workspace-composer">
           {scrollToBottomVisible && (
             <button
@@ -1739,11 +1652,7 @@ export function ChatPage() {
               const separator = draft && !draft.endsWith(" ") ? " " : "";
               setDrafts((current) => ({ ...current, [scopeKey]: `${draft}${separator}[sticker:${id}]` }));
             }}
-            activeModelProfileId={
-              activeSession?.id === activeSessionId && activeSession
-                ? activeSession.modelProfileId
-                : pendingModelProfileByMode[mode]
-            }
+            activeModelProfileId={selectedModelProfileId}
             contextUsage={latestContextUsage}
             onSelectModelProfile={(modelProfileId) => {
               // 欢迎页（无会话）：暂存选择，ensureSession 建会话后落地；不再静默丢弃。
@@ -1819,16 +1728,45 @@ export function ChatPage() {
         )}
       </main>
         </Panel>
-        {/* 右侧面板打开时才挂载 Panel + 拖动条；默认 45% 宽，范围 320px ～ 窗口 70% */}
+        {/* 右侧面板打开时才挂载 Panel + 拖动条；默认 40% 宽，最小 280px，最大 70% */}
         {inspectorTabIds.length > 0 && (
           <>
-            <Separator className="cy-dock-separator" />
-            <Panel id="inspector" defaultSize="45" minSize={320} maxSize="70%" className="cy-dock-body">
+            {inspectorVisible && <Separator className="cy-dock-separator" onKeyDown={event => {
+              if (compactDock || !event.defaultPrevented
+                || !["ArrowLeft", "ArrowRight", "Home", "End", "Enter"].includes(event.key)) return;
+              // v4 defers onLayoutChanged while a document pointer is active, even
+              // after a cancelled sidebar drag. Its native separator key handler
+              // has already committed the layout before this React bubble handler.
+              // Persist only that explicit keyboard action, never mount/expand.
+              const layout = dockGroupRef.current?.getLayout();
+              if (layout && Object.hasOwn(layout, "inspector")) onLayoutChanged(layout, { isUserInteraction: true });
+            }} />}
+            <Panel id="inspector" panelRef={inspectorPanelRef} collapsible collapsedSize={0} defaultSize={compactDock ? "30%" : "40%"} minSize={compactDock ? "15%" : 280} maxSize={compactDock ? "40%" : "70%"} className="cy-dock-body">
               <ChatPageInspector
                 sessionId={activeSessionId}
+                visible={inspectorVisible}
+                refreshRevision={refreshRevision}
+                resultTabs={resultTabs}
+                focusTask={focusTask}
+                onOpenResultDiff={openResultDiff}
                 workspaceRoot={activeSession?.workspaceBinding?.workspaceRoot}
                 filesTabOpen={filesTabOpen}
                 filesTabPinned={filesTabPinned}
+                browserTabOpen={browserTabOpen}
+                tasksTabOpen={tasksTabOpen}
+                pendingWorkspaceName={pendingWorkspaceByMode[mode]?.displayName}
+                onChooseWorkspace={mode !== "chat" ? () => void chooseWorkspace() : undefined}
+                taskPanel={<div className="cy-workspace-task-panel">{mode === "work"
+                  ? null
+                  : mode === "code" && activeSessionId
+                    ? <CodeGitPanel docked expanded sessionId={activeSessionId} projectName={workspaceNames.code}
+                        todoState={todoStateBySession[activeSessionId] ?? null}
+                        planPhase={planReviewBySession[activeSessionId]?.phase}
+                        onOpenPlan={() => { setPlanDrawerOpen(true); setActiveTabId(planTabId); }} />
+                    : <div className="cy-workspace-empty"><p>{t("workspace.chooseProject")}</p>
+                        {mode !== "chat" && <button type="button" onClick={() => void chooseWorkspace()}>{t("workspace.chooseFolder")}</button>}</div>}
+                  <WorkspaceResultsIndex outputs={workspaceOutputs} onOpenResult={openResultTab} />
+                </div>}
                 fileTabs={fileTabs}
                 diffTabs={diffTabs}
                 activePlan={activePlan}

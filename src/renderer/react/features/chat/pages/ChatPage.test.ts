@@ -15,12 +15,14 @@ describe("React Code conversation run policy", () => {
 });
 
 describe("ChatPage feedback", () => {
+  it("opens the rail settings entry on General", () => {
+    expect(chatPageSource).toContain('sidebarApi()?.openSettings("general")');
+  });
   it("统一反馈入口承接错误上报与确认流程，不残留浏览器默认弹窗", () => {
     expect(chatPageSource).toContain("useFeedback");
     // 错误上报与失败提示走轻提示 / 模态框
     expect(chatPageSource).toMatch(/feedback\.notice\(\{\s*tone:\s*"error"/);
     expect(chatPageSource).toMatch(/feedback\.alert\(\{/);
-    expect(chatPageSource).toMatch(/feedback\.confirm\(\{/);
     // 破坏性选择走确认弹窗
     expect(chatPageSource).not.toContain("window.alert");
     expect(chatPageSource).not.toContain("window.confirm");

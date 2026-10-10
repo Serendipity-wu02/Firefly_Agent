@@ -153,5 +153,5 @@ export async function mountPluginPanels(): Promise<void> {
     for (const [contentWindow, pluginId] of panelRegistry) {
       postToPanel(contentWindow, pluginId, { kind: "theme-changed", theme });
     }
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui-theme"] });
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui-theme", "data-ui-colors"] });
 }

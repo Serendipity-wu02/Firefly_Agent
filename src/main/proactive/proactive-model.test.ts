@@ -97,3 +97,20 @@ describe("runProactiveModel", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 });
+
+it("routes scoped proactive generation and canonical commits only through Main memory", async () => {
+  const call = vi.fn(async (input: any) => {
+    expect(input.request).toMatchObject({ stream: false, maxTokens: 600 });
+    expect(input.request).not.toHaveProperty("tools");
+    return { text: '{"decision":"send","text":"Synthetic hello"}', assistantMessage: { role: "assistant", content: '{"decision":"send","text":"Synthetic hello"}' } };
+  });
+  const appendAssistant = vi.fn(async () => "assistant-entry"), checkpoint = vi.fn(async () => {});
+  const memoryRun = { call, bindSink: (sink: any) => sink, close: vi.fn() };
+  const fetchFn = vi.fn(() => { throw Error("legacy forbidden"); });
+  const result = await runProactiveModel({ settings: { provider: "test", baseUrl: "https://example.test", model: "model", apiKey: "key" },
+    messages: [{ role: "user", content: "system task" }], timeoutMs: 45000, memoryRun,
+    transcriptSink: { appendAssistant, checkpoint } as any, fetchFn });
+  expect(result).toEqual({ kind: "send", text: "Synthetic hello" });
+  expect(call).toHaveBeenCalledOnce(); expect(appendAssistant).toHaveBeenCalledOnce(); expect(checkpoint).toHaveBeenCalledOnce();
+  expect(fetchFn).not.toHaveBeenCalled();
+});

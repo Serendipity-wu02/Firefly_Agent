@@ -26,7 +26,7 @@ const DEP_TO_FIELD: Record<string, keyof PluginDeps> = {
   workspace: "workspace",
   conversations: "conversations",
   scheduler: "scheduler",
-  "speech-input": "speechInput",
+
 };
 
 /**
@@ -175,6 +175,9 @@ export function createContext(
       },
     },
     registerTool(tool) {
+      if (tool.modes !== undefined && (!Array.isArray(tool.modes) || tool.modes.some((mode) => mode !== "work" && mode !== "code"))) {
+        throw new Error("INVALID_TOOL_MODES");
+      }
       const expectedPrefix = `${id}_`;
       if (!tool.id.startsWith(expectedPrefix)) {
         throw new Error(`插件工具 id 必须以 "${expectedPrefix}" 开头: ${tool.id}`);

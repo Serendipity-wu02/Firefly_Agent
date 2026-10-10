@@ -14,11 +14,11 @@ import { createRoot, type Root } from "react-dom/client";
 import type { ComposerAttachment } from "./ChatComposer";
 
 // 只 mock 与 IPC/资产耦合的子控件，保留 Sender / antd 真实渲染与键盘逻辑
-vi.mock("./ReasoningControl", () => ({ ReasoningControl: () => null }));
+vi.mock("./ModelEffortControl", () => ({ ModelEffortControl: () => null }));
+vi.mock("./DesktopAsrButton", () => ({ DesktopAsrButton: () => null }));
 vi.mock("./StyleControl", () => ({ StyleControl: () => null }));
 vi.mock("./PermissionControl", () => ({ PermissionControl: () => null }));
 vi.mock("./PlanModeToggle", () => ({ PlanModeToggle: () => null }));
-vi.mock("./ModelSelector", () => ({ ModelSelector: () => null }));
 vi.mock("./ContextUsageRing", () => ({ ContextUsageRing: () => null }));
 vi.mock("../../../../../shared/renderer-base", () => ({ resolveAsset: (path: string) => path }));
 
@@ -350,7 +350,31 @@ describe("ChatComposer 队列与附件展示", () => {
       attachments: [{ name: "report.txt", kind: "document" }],
     });
     expect(host!.querySelector(".cy-composer__attachment")?.textContent).toContain("report.txt");
-    const uploadButton = buttonByLabel(t("composer.uploadFile"));
-    expect(uploadButton.disabled).toBe(false);
+    // Attaching lives in the "+" menu; it opens while a run is going and offers the upload entry.
+    const addButton = buttonByLabel(t("composer.addMenuTitle"));
+    expect(addButton.disabled).toBe(false);
+    await act(async () => { addButton.click(); });
+    const uploadButton = [...document.body.querySelectorAll("button")].find((item) => item.getAttribute("aria-label") === t("composer.uploadFile"));
+    expect(uploadButton).toBeTruthy();
+    expect((uploadButton as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe("layout stream transition", () => {
+  it("preserves the long draft and keyboard access to Stop when a Work run starts", async () => {
+    const setBusy = await mountComposer({ mode: "work", workspaceName: "legacy-project" });
+    const originalInput = textarea();
+    const draft = "next message\n".repeat(12);
+    input(draft);
+    await setBusy(true);
+    expect(textarea()).toBe(originalInput);
+    expect(textarea().value).toBe(draft);
+    const stop = buttonByLabel(t("composer.stopRun"));
+    expect(stop.disabled).toBe(false);
+    stop.focus();
+    expect(document.activeElement).toBe(stop);
+    act(() => stop.click());
+    expect(handlers.onCancel).toHaveBeenCalledTimes(1);
+    expect(handlers.onSubmit).not.toHaveBeenCalled();
   });
 });

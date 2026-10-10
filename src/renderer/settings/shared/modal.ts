@@ -187,11 +187,11 @@ function renderSemanticDialog(
   const confirmBtn = overlay.querySelector("#cy-modal-confirm") as HTMLButtonElement;
 
   const options = request.options;
-  const dangerous = request.kind === "confirm" && options.dangerous === true;
+  const dangerous = request.kind === "confirm" && request.options.dangerous === true;
   const tone: FeedbackTone =
     request.kind === "alert"
-      ? options.tone
-      : (options.tone ?? (dangerous ? "error" : "warning"));
+      ? request.options.tone
+      : (request.options.tone ?? (dangerous ? "error" : "warning"));
 
   // 语义图标与色调 class；用户文本一律 textContent，防止注入
   iconEl.className = `cy-modal__icon cy-modal__icon--${tone}`;
@@ -199,9 +199,9 @@ function renderSemanticDialog(
   dialog.className = `cy-modal cy-modal--${tone}${dangerous ? " cy-modal--danger" : ""}`;
   titleEl.textContent = options.title;
   msgEl.textContent = options.message;
-  if (request.kind === "alert" && options.details) {
+  if (request.kind === "alert" && request.options.details) {
     detailsWrap.hidden = false;
-    detailsEl.textContent = options.details;
+    detailsEl.textContent = request.options.details;
   } else {
     detailsWrap.hidden = true;
     detailsEl.textContent = "";
@@ -220,7 +220,7 @@ function renderSemanticDialog(
     cancelBtn?.remove();
     confirmBtn.textContent = options.confirmText ?? "知道了";
   } else {
-    cancelBtn!.textContent = options.cancelText ?? "取消";
+    cancelBtn!.textContent = request.options.cancelText ?? "取消";
     confirmBtn.textContent = options.confirmText ?? "确定";
   }
   confirmBtn.className = `btn-primary${dangerous ? " btn-danger" : ""}`;

@@ -20,6 +20,8 @@ interface CodeGitApi {
 }
 
 export interface CodeGitPanelProps {
+  docked?: boolean;
+  expanded?: boolean;
   sessionId: string;
   projectName?: string;
   todoState: TodoState | null;
@@ -35,7 +37,7 @@ function ToggleIcon() {
   return <svg width="16" height="16" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M27 9V21H39M21 39V27H9M27 21L42 6M21 27L6 42" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-export function CodeGitPanel({ sessionId, projectName, todoState, planPhase, onOpenPlan }: CodeGitPanelProps) {
+export function CodeGitPanel({ sessionId, projectName, todoState, planPhase, onOpenPlan, docked = false, expanded = false }: CodeGitPanelProps) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<CodeGitStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,7 +48,7 @@ export function CodeGitPanel({ sessionId, projectName, todoState, planPhase, onO
   const [operating, setOperating] = useState(false);
   const refreshControllerRef = useRef<CodeGitRefreshController | null>(null);
   const api = codeGitApi();
-  const floating = useFloatingCard({ width: 260 });
+  const floating = useFloatingCard({ width: 260, defaultCollapsed: docked && !expanded });
 
   useEffect(() => {
     if (!api) return undefined;
@@ -90,16 +92,16 @@ export function CodeGitPanel({ sessionId, projectName, todoState, planPhase, onO
 
   return (
     <aside
-      className={`cy-code-git ${floating.collapsed ? "cy-code-git--collapsed" : ""}`}
-      style={{ left: floating.position.x, top: floating.position.y }}
+      className={`cy-code-git ${docked ? "cy-code-git--docked" : ""} ${floating.collapsed ? "cy-code-git--collapsed" : ""}`}
+      style={docked ? undefined : { left: floating.position.x, top: floating.position.y }}
       aria-label={t("codeGit.panelAria")}
     >
-      <button type="button" className="cy-code-git__dragbar" onMouseDown={floating.onHeaderMouseDown} onClick={floating.onHeaderClick} aria-expanded={!floating.collapsed} title={t("codeGit.drag")}>
-        <span className="cy-code-git__dragline" />
+      <button type="button" className="cy-code-git__dragbar" onMouseDown={docked ? undefined : floating.onHeaderMouseDown} onClick={floating.onHeaderClick} aria-expanded={!floating.collapsed} title={t(docked ? "codeGit.panelAria" : "codeGit.drag")}>
+        {docked ? <span className="cy-code-git__dock-label">{t("codeGit.panelAria")}</span> : <span className="cy-code-git__dragline" />}
         <span className="cy-code-git__toggle" data-floating-toggle onClick={(event) => { event.stopPropagation(); floating.toggle(); }}><ToggleIcon /></span>
       </button>
 
-      <div className="cy-code-git__body">
+      <div className="cy-code-git__body" inert={floating.collapsed} aria-hidden={floating.collapsed}>
         <div className="cy-code-git__mode"><i aria-hidden="true" />Coding</div>
         <div className="cy-code-git__hero">
           <div className="cy-code-git__project">

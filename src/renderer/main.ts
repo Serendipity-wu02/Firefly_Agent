@@ -5,8 +5,7 @@ import { MouseFocusController } from "./live2d/focus";
 import { FireflyExpressionState } from "./live2d/expression-state";
 import { FireflyActionController } from "./live2d/action-controller";
 import { moodExpression } from "./live2d/mood-expression";
-import { MouthSyncController } from "./live2d/mouth-sync";
-import { SpeakingMotionController } from "./live2d/speaking-motion";
+
 import { BlinkController } from "./live2d/blink";
 // OpenerBubbleController 已被移除（主动开口子系统整体删除）。
 import { ClickThroughController } from "./live2d/click-through";
@@ -35,11 +34,7 @@ if (!window.firefly) {
 
 declare global {
   interface Window {
-    live2dSpeech?: {
-      onPrepare: (callback: () => void) => () => void;
-      onMouthStart: (callback: (payload: { durationMs: number }) => void) => () => void;
-      onMouthStop: (callback: () => void) => () => void;
-    };
+
     live2dAction?: {
       onPlayAction: (callback: (request: Live2DActionRequest) => void) => () => void;
       reportReceipt: (receipt: Live2DActionReceipt) => void;
@@ -55,14 +50,13 @@ let interaction: InteractionController | null = null;
 let focus: MouseFocusController | null = null;
 let expressionReset: FireflyExpressionState | null = null;
 let actions: FireflyActionController | null = null;
-let mouthSync: MouthSyncController | null = null;
-let speakingMotion: SpeakingMotionController | null = null;
+
 let blink: BlinkController | null = null;
 let clickThrough: ClickThroughController | null = null;
 let petZoomOff: (() => void) | null = null;
 let petVisibilityOff: (() => void) | null = null;
 let petVisible = true;
-let live2dSpeechOffs: Array<() => void> = [];
+
 let actionOff: (() => void) | null = null;
 let moodOff: (() => void) | null = null;
 const live2dLifecycle = new Live2DRendererLifecycleTracker();
@@ -99,31 +93,9 @@ const manager = new Live2DManager({
     };
     moodOff = trackSubscription("runtimeState:onChanged", window.runtimeState?.onChanged(applyMood) ?? (() => {}));
     void window.runtimeState?.get().then(applyMood).catch((error) => console.warn("[Firefly] mood read failed", error));
-    mouthSync = new MouthSyncController(model);
-    speakingMotion = new SpeakingMotionController(model, {
-      group: "Idle",
-      motionName: "0",
-      fallbackIndex: 0,
-      restoreParameterIds: [],
-    });
+
     blink = new BlinkController(model);
-    const speechOffs: Array<() => void> = [];
-    speechOffs.push(
-      trackSubscription("live2dSpeech:onPrepare", window.live2dSpeech?.onPrepare(() => {
-        void expressionReset?.resetNow();
-        mouthSync?.stop();
-        speakingMotion?.stop();
-      }) ?? (() => {})),
-      trackSubscription("live2dSpeech:onMouthStart", window.live2dSpeech?.onMouthStart((payload) => {
-        mouthSync?.start(Number(payload.durationMs ?? 0));
-        speakingMotion?.start();
-      }) ?? (() => {})),
-      trackSubscription("live2dSpeech:onMouthStop", window.live2dSpeech?.onMouthStop(() => {
-        mouthSync?.stop();
-        speakingMotion?.stop();
-      }) ?? (() => {})),
-    );
-    live2dSpeechOffs = speechOffs;
+
     interaction = new InteractionController(canvas, model, manager.getHitAreaDefs(), {
       doubleClickTarget: manager.hasAction(FIREFLY_DOUBLE_CLICK_TARGET) ? FIREFLY_DOUBLE_CLICK_TARGET : undefined,
       playAction: (target) => actions?.play(target, 5000, (receipt) => {
@@ -225,12 +197,7 @@ window.addEventListener("beforeunload", () => {
   actionOff = null;
   moodOff?.();
   moodOff = null;
-  for (const off of live2dSpeechOffs) off();
-  live2dSpeechOffs = [];
-  mouthSync?.dispose();
-  mouthSync = null;
-  speakingMotion?.dispose();
-  speakingMotion = null;
+
   blink?.dispose();
   blink = null;
   focus?.dispose();

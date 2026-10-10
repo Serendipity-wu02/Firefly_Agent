@@ -73,7 +73,7 @@ describe("resolveImageRoute 统一路由", () => {
   });
 
   it("纯文本主模型 + 无视觉模型 → reject，提示里带修复指引", () => {
-    const route = resolveImageRoute("moments", makeSettings({ multimodal: false }));
+    const route = resolveImageRoute("attachment", makeSettings({ multimodal: false }));
     expect(route.mode).toBe("reject");
     if (route.mode === "reject") {
       expect(route.reason).toContain("设置");

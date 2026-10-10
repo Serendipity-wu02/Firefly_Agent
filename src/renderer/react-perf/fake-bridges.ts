@@ -109,7 +109,6 @@ export function installFakeBridges(options: FakeBridgeOptions): FakeBridgeRuntim
 
   // ── 内存版 chatStore：完整实现 ChatStoreApi，所有变更只发生在内存 session 上 ──
   const pendingQueue: PendingChatMessage[] = [];
-  let ttsSeq = 0;
 
   const fakeStore: ChatStoreApi = {
     list: async () => [perfSessionMeta(session)],
@@ -133,15 +132,7 @@ export function installFakeBridges(options: FakeBridgeOptions): FakeBridgeRuntim
       session.messages.splice(startIndex, session.messages.length - startIndex, ...messages);
       return cloneSession(session);
     },
-    setMessageTtsCacheKey: async (id, messageId, cacheKey, converterVersion) => {
-      if (id !== session.id) return null;
-      const target = session.messages.find((item) => item.id === messageId);
-      if (target) {
-        target.ttsCacheKey = cacheKey;
-        target.ttsCacheVersion = converterVersion;
-      }
-      return cloneSession(session);
-    },
+
     rename: async () => cloneSession(session),
     delete: async () => true,
     pendingEnqueue: async (id, entry) => {
@@ -193,15 +184,13 @@ export function installFakeBridges(options: FakeBridgeOptions): FakeBridgeRuntim
     setModelProfile: async () => cloneSession(session),
     pickWorkspaceFolder: async () => ({ ok: false }),
     setWorkspace: async () => ({ ok: true }),
-    initLearnWorkspace: async () => ({ ok: true }),
     openWorkspace: async () => ({ ok: true }),
     setActiveSession: async () => null,
     onChanged: () => () => {},
     onReactSwitchSession: () => () => {},
     notifyReactReady: () => {},
     getRendererTargetId: () => "perf-harness",
-    onSpeechInputCommitRequest: () => () => {},
-    sendSpeechInputCommitResult: () => {},
+
   };
 
   const noopUnsubscribe = () => () => {};
@@ -209,8 +198,7 @@ export function installFakeBridges(options: FakeBridgeOptions): FakeBridgeRuntim
   // ── 其余桥：最小可用桩（harness 不触发这些交互路径，挂载期调用需安全返回） ──
   const fakeChat = {
     getGeneralSettings: async () => ({
-      ttsEarlyReadSplitEnabled: false,
-      ttsEarlyReadSplitMode: "sentence",
+
       currentStyleId: undefined,
     }),
     getEnabledStickers: async () => [],

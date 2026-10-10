@@ -1,6 +1,6 @@
 // 厂商工具调用适配层 —— 统一类型
 // 调度层（FireflyHarness）只依赖这里的统一结构，绝不出现 if (provider === "xxx")。
-// 协议事实来源：docs/vendors/tool-calling-matrix.md
+// 协议事实来源：各厂商官方 API 文档
 
 import type { ReasoningPreference } from "../../../shared/reasoning";
 import type { PromptLayerMetadata } from "../prompt-layers";
@@ -17,10 +17,8 @@ export interface VendorConfig {
   baseUrl: string;
   model: string;
   apiKey: string;
-  /**
-   * 用户在 settings UI 显式选择的协议。"auto" 仅作为旧配置兼容输入，运行时不按 URL 推断。
-   */
-  explicitTransport?: Transport | "auto";
+  /** 用户在 settings UI 显式选择的协议。 */
+  explicitTransport?: Transport;
   /**
    * 用户保存的推理偏好。adapter buildRequest 必须透传此字段；
    * 不传时 applyReasoningPreference 缺省按 auto 处理。
@@ -217,7 +215,7 @@ export interface ProviderCapability {
   /** Supported must-call wire policies; Adapter maps required to OpenAI required / Anthropic any. */
   toolChoiceModes?: ReadonlyArray<"named" | "required" | "auto" | "omit">;
   /**
-   * 该厂商支持的协议清单（来自 docs/vendors 协议矩阵）。
+   * 该厂商支持的协议清单。
    * 仅用于新建档案时预填默认值 + UI 提示文案，**不拦截**用户在下拉框的选择——
    * 用户填什么协议就走什么协议（自定义端点/中转站自行负责兼容性）。
    * 不标 = 未核实，UI 按"仅 capability.transport"提示。

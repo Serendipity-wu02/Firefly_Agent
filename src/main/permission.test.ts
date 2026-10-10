@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { userDataRoot, cleanupUserData } = await vi.hoisted(async () => {
+  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "firefly-permission-"));
+  return {
+    userDataRoot: root,
+    cleanupUserData: () => fs.rmSync(root, { recursive: true, force: true }),
+  };
+});
+
+afterAll(cleanupUserData);
 
 const { getAllWindows, handle } = vi.hoisted(() => ({
   getAllWindows: vi.fn(),
@@ -6,7 +19,7 @@ const { getAllWindows, handle } = vi.hoisted(() => ({
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn(() => "C:/tmp/firefly-test") },
+  app: { getPath: vi.fn(() => userDataRoot) },
   BrowserWindow: { getAllWindows },
   ipcMain: { handle },
 }));
@@ -96,4 +109,29 @@ describe("permission cancellation", () => {
 
     cancelPendingApprovalsForRun("run-patient");
   });
+});
+
+it("a child-owned call signal clears only its exact approval card and ignores late approval", async () => {
+  const { registerPermissionIpc } = await import("./permission");
+  handle.mockClear();
+  registerPermissionIpc();
+  const resolveApproval = handle.mock.calls.find(call => call[0] === IPC.PERMISSION_APPROVAL_RESOLVE)?.[1];
+  const send = vi.fn();
+  getAllWindows.mockReturnValue([{ webContents: { send } }]);
+  const child = new AbortController();
+  const first = requestApproval(approval("shared-parent"), child.signal).catch(error => error.name);
+  let secondSettled = false;
+  const second = requestApproval(approval("shared-parent")).then(value => { secondSettled = true; return value; });
+  const ids = send.mock.calls.filter(call => call[0] === IPC.PERMISSION_APPROVAL_REQUEST).map(call => call[1].id);
+  child.abort();
+  try {
+    await expect.poll(() => send.mock.calls.filter(call => call[0] === IPC.PERMISSION_APPROVAL_SETTLED).length).toBe(1);
+    expect(await first).toBe("AbortError");
+    expect(secondSettled).toBe(false);
+    expect(resolveApproval({}, { id: ids[0], allowed: true })).toEqual({ ok: false });
+    expect(resolveApproval({}, { id: ids[1], allowed: true })).toEqual({ ok: true });
+    expect(await second).toBe(true);
+    expect(send.mock.calls.filter(call => call[0] === IPC.PERMISSION_APPROVAL_SETTLED).map(call => call[1]))
+      .toEqual([{ id: ids[0], runId: "shared-parent", reason: "cancelled" }, { id: ids[1], runId: "shared-parent", reason: "answered" }]);
+  } finally { cancelPendingApprovalsForRun("shared-parent"); await Promise.allSettled([first, second]); }
 });

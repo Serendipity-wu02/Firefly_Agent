@@ -49,7 +49,7 @@ describe("harness plan lifecycle", () => {
     });
     const sent: unknown[] = [];
 
-    completePlanRun({
+    completePlanRun({ planState: "EXECUTING",
       mode: "code",
       threadId: "thread-1",
       runId: "run-1",
@@ -66,4 +66,29 @@ describe("harness plan lifecycle", () => {
       value: { planPath: "C:\\plans\\plan.md", runStatus: "completed" },
     })]);
   });
+});
+
+describe("plan completion terminal truth", () => {
+  beforeEach(() => { completeExecution.mockReset(); completeExecution.mockReturnValue("C:\\plans\\plan.md"); });
+  it.each(["failed", "cancelled", "halted"] as const)("does not publish completion for %s while releasing execution state", runStatus => {
+    const sent: unknown[] = [];
+    completePlanRun({ planState: "EXECUTING", mode: "code", threadId: "thread-1", runId: "run-1", runStatus, signal: new AbortController().signal, send: event => sent.push(event) });
+    expect(completeExecution).toHaveBeenCalledWith("thread-1");
+    expect(sent).toEqual([]);
+  });
+  it("releases aborted execution without publishing completion", () => {
+    const controller = new AbortController(); controller.abort();
+    const sent: unknown[] = [];
+    completePlanRun({ planState: "EXECUTING", mode: "code", threadId: "thread-1", runId: "run-1", runStatus: "completed", signal: controller.signal, send: event => sent.push(event) });
+    expect(completeExecution).toHaveBeenCalledWith("thread-1");
+    expect(sent).toEqual([]);
+  });
+});
+
+it.each(["NORMAL", "PLAN_REVIEW", "PLAN_DISCUSSING", undefined] as const)("never consumes a newly approved plan from a run prepared with %s", planState => {
+  vi.clearAllMocks();
+  const sent: unknown[] = [];
+  completePlanRun({ mode: "code", threadId: "thread-1", runId: "approval-run", planState, runStatus: "completed", signal: new AbortController().signal, send: event => sent.push(event) });
+  expect(completeExecution).not.toHaveBeenCalled();
+  expect(sent).toEqual([]);
 });

@@ -137,6 +137,9 @@ export function handleGeneralSettingsChanged(
       asrLanguage: after.asrLanguage,
     });
   }
+  if (JSON.stringify(before.uiColors) !== JSON.stringify(after.uiColors)) {
+    deps.windowManager?.broadcast(IPC.UI_COLORS_CHANGED, after.uiColors);
+  }
   if (before.uiTheme !== after.uiTheme) {
     deps.windowManager?.broadcast(IPC.UI_THEME_CHANGED, after.uiTheme);
   }

@@ -14,6 +14,8 @@ const channelMocks = vi.hoisted(() => ({
   appendBoundConversationMessage: undefined as ((conversationId: string, role: "user" | "assistant", content: string, metadata: { channel: "wechat" | "feishu" | "qq" | "qqbot"; chatType: "private" | "group"; senderName?: string; modelContext?: string; sticker?: string }) => void) | undefined,
   buildAndRunAgent: undefined as ((...args: unknown[]) => Promise<unknown>) | undefined,
   dispatcherDeps: [] as Array<Record<string, any>>,
+  runOptions: [] as Array<Record<string, any>>,
+  attachmentInputs: vi.fn(async () => ({ attachments: [], imageAttachments: [] })),
   agentError: undefined as Error | undefined,
   agentResult: { reply: "渠道回复", toolResults: [] } as {
     reply: string;
@@ -97,7 +99,8 @@ vi.mock("../orchestrator/firefly-agent", () => ({
       return channelMocks.agentResult;
     }
 
-    runWithEvents() {
+    runWithEvents(options: Record<string, any>) {
+      channelMocks.runOptions.push(options);
       return { subscribe: ({ complete, error }: { complete: () => void; error: (err: Error) => void }) => {
         if (channelMocks.agentError) error(channelMocks.agentError);
         else complete();
@@ -112,11 +115,11 @@ vi.mock("../settings/settings-facade", () => ({
   loadGeneralSettings: () => ({}),
 }));
 vi.mock("../settings/model-settings", () => ({
-  loadModelSettings: () => ({}),
+  loadModelSettings: () => ({ defaultModelProfileId: "profile-channel", modelProfiles: [{ id: "profile-channel", provider: "openai" }] }),
   resolveModelSettingsProfile: () => ({ multimodal: false }),
 }));
 vi.mock("./agent-input", () => ({
-  buildChannelAttachmentInputs: async () => ({ attachments: [], imageAttachments: [] }),
+  buildChannelAttachmentInputs: channelMocks.attachmentInputs,
 }));
 vi.mock("./agent-policy", () => ({
   resolveChannelAgentPolicy: () => ({ exposeTools: false, executionMode: "chat" }),
@@ -130,9 +133,7 @@ import { initializeChannels, startChannels, shutdownChannels } from "./init";
 
 function makeChannelsDeps(): ChannelsSubsystemDeps {
   return {
-    agentRuntime: {} as ChannelsSubsystemDeps["agentRuntime"],
-    ttsSynthesisService: {} as ChannelsSubsystemDeps["ttsSynthesisService"],
-    getReactChatWindow: () => null,
+    agentRuntime: {} as ChannelsSubsystemDeps["agentRuntime"],    getReactChatWindow: () => null,
   };
 }
 
@@ -162,6 +163,7 @@ beforeEach(() => {
   channelMocks.loadBoundConversationHistory = undefined;
   channelMocks.appendBoundConversationMessage = undefined;
   channelMocks.dispatcherDeps.length = 0;
+  channelMocks.runOptions.length = 0;
 });
 
 describe("createChannelsSubsystem lifecycle", () => {
@@ -486,4 +488,115 @@ describe("createChannelsSubsystem lifecycle", () => {
       conversationId: "channel-session",
     });
   });
+});
+
+
+describe("trusted channel memory composition", () => {
+  async function incoming(patch: Partial<import("./types").IncomingMessage> = {}) {
+    const { ChannelManager } = await import("./manager");
+    const { createChannelMemoryAccountIdentity } = await import("./adapters/base");
+    const account = createChannelMemoryAccountIdentity(); account.authenticate("qq:trusted-account");
+    const adapter: import("./adapters/base").ChannelAdapter = { id: "qq", displayName: "synthetic", capability: {} as never,
+      onMessage: null, start: async () => {}, stop: async () => {}, send: async () => ({ ok: true }), getMemoryAccountIdentity: account.read,
+      getStatus: () => ({ enabled: true, phase: "running" }) };
+    const manager = new ChannelManager(); manager.register(adapter);
+    let ingress: import("../memory-context/channel-memory-ingress").ChannelMemoryIngress;
+    manager.setDispatcher(async (_message, cap) => { ingress = cap!; return null; }); await manager.startOne("qq");
+    const message: import("./types").IncomingMessage = { channel: "qq", senderId: "sender", chatId: "chat", text: "hello", at: new Date(), ...patch };
+    await adapter.onMessage!(message);
+    return { message, ingress: ingress!, manager };
+  }
+  it("uses the Main host canonical sink/run/signal while preserving model and tool policy", async () => {
+    const { requireChannelMemoryIngress } = await import("../memory-context/channel-memory-ingress"), input = await incoming();
+    const binding = requireChannelMemoryIngress(input.ingress, input.message), close = vi.fn(async () => {});
+    const openMemoryRun = vi.fn(), transcriptSink = {} as import("../orchestrator/transcript-sink").TranscriptSink;
+    const prepareRun = vi.fn(async () => ({ sessionId: binding.sessionId, signal: binding.signal, transcriptSink, openMemoryRun, close }));
+    const agentRuntime = makeAgentRuntime();
+    createChannelsSubsystem({ ...makeChannelsDeps(), agentRuntime, memory: { prepareRun } });
+    const result = await channelMocks.buildAndRunAgent!(input.message, binding.sessionId, [{ role: "user", content: "old desktop secret" }], input.ingress);
+    expect(result).toMatchObject({ text: "渠道回复" });
+    expect(prepareRun).toHaveBeenCalledTimes(1);
+    expect(prepareRun.mock.calls[0]?.[0]).toMatchObject({ ingress: input.ingress, message: input.message, modelProfileId: "profile-channel", userText: "渠道问题" });
+    const options = channelMocks.runOptions[0], prepared = (prepareRun.mock.calls as unknown as Record<string, any>[][])[0][0];
+    expect(options).toMatchObject({ runId: prepared.runId, conversationId: binding.sessionId, transcriptSink, signal: binding.signal,
+      userTurnId: prepared.userTurnId, assistantTurnId: prepared.assistantTurnId, tools: [], openMemoryRun });
+    expect(agentRuntime.buildOptions).toHaveBeenCalledWith(expect.objectContaining({ modelProfileId: "profile-channel", workspaceBindingSessionId: null,
+      messages: [{ role: "user", content: "渠道问题" }] }), { attachmentGrant: undefined });
+    expect(close).toHaveBeenCalledTimes(1);
+    const { indexConversationTurn } = await import("../orchestrator/tools/history-tools");
+    expect(indexConversationTurn).not.toHaveBeenCalled();
+    expect(channelMocks.dispatcherDeps.at(-1)?.memoryEnabled).toBe(true);
+  });
+  it("reports missing account authority before model, source or legacy history work", async () => {
+    const prepareRun = vi.fn(), agentRuntime = makeAgentRuntime();
+    createChannelsSubsystem({ ...makeChannelsDeps(), agentRuntime, memory: { prepareRun } });
+    await expect(channelMocks.buildAndRunAgent!({ channel: "qq", senderId: "sender", chatId: "chat", text: "hello", at: new Date() }, "legacy-session", []))
+      .rejects.toThrow("MEMORY_CHANNEL_ACCOUNT_UNAVAILABLE");
+    expect(prepareRun).not.toHaveBeenCalled(); expect(agentRuntime.buildOptions).not.toHaveBeenCalled();
+    const { indexConversationTurn } = await import("../orchestrator/tools/history-tools"); expect(indexConversationTurn).not.toHaveBeenCalled();
+  });
+  it("closes Main channel preparation even when the model run fails", async () => {
+    const { requireChannelMemoryIngress } = await import("../memory-context/channel-memory-ingress"), input = await incoming();
+    const binding = requireChannelMemoryIngress(input.ingress), close = vi.fn(async () => {});
+    const prepareRun = vi.fn(async () => ({ sessionId: binding.sessionId, signal: binding.signal, transcriptSink: {} as never, openMemoryRun: vi.fn(), close }));
+    createChannelsSubsystem({ ...makeChannelsDeps(), agentRuntime: makeAgentRuntime(), memory: { prepareRun } });
+    channelMocks.agentError = Error("synthetic failure");
+    await expect(channelMocks.buildAndRunAgent!(input.message, binding.sessionId, [], input.ingress)).rejects.toThrow("synthetic failure");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+  it("publishes the finished lifecycle event even if Main memory cleanup fails", async () => {
+    const { requireChannelMemoryIngress } = await import("../memory-context/channel-memory-ingress"), input = await incoming();
+    const binding = requireChannelMemoryIngress(input.ingress), close = vi.fn(async () => { throw Error("MEMORY_CLOSE_FAILED"); });
+    const prepareRun = vi.fn(async () => ({ sessionId: binding.sessionId, signal: binding.signal, transcriptSink: {} as never, openMemoryRun: vi.fn(), close }));
+    const publishLifecycle = makePublishLifecycle();
+    createChannelsSubsystem({ ...makeChannelsDeps(), agentRuntime: makeAgentRuntime(), memory: { prepareRun }, publishLifecycle });
+    await expect(channelMocks.buildAndRunAgent!(input.message, binding.sessionId, [], input.ingress)).rejects.toThrow("MEMORY_CLOSE_FAILED");
+    expect(publishLifecycle.publishTurnFinished).toHaveBeenCalledTimes(1);
+  });
+
+  it("authorizes media before processing and passes only the host attachment grant in Main context", async () => {
+    const { requireChannelMemoryIngress } = await import("../memory-context/channel-memory-ingress");
+    const { createMainAttachmentProjectionAuthority } = await import("../memory-context/main-attachment-projection");
+    const input = await incoming({ attachments: [{ kind: "image", filePath: "/authorized/test.png", mime: "image/png" }] });
+    const binding = requireChannelMemoryIngress(input.ingress), close = vi.fn(async () => {}), authority = createMainAttachmentProjectionAuthority();
+    let expectedGrant: unknown;
+    const prepareRun = vi.fn(async (request: Parameters<import("../memory-context/channel-memory-ingress").ChannelsMemoryHost["prepareRun"]>[0]) => {
+      const attachmentGrant = authority.issue({ sessionId: binding.sessionId, userTurnId: request.userTurnId, userRevision: 1,
+        userText: request.userText, attachments: [{ kind: "image", name: "test.png", filePath: "/authorized/test.png", mime: "image/png" }],
+        assertCurrent: binding.assertCurrent, signal: binding.signal });
+      expectedGrant = attachmentGrant;
+      return { sessionId: binding.sessionId, signal: binding.signal, transcriptSink: {} as never, openMemoryRun: vi.fn(), close, attachmentGrant };
+    });
+    Object.assign(input.message, { attachmentGrant: {}, memoryGrant: {} });
+    const agentRuntime = makeAgentRuntime();
+    createChannelsSubsystem({ ...makeChannelsDeps(), agentRuntime, memory: { prepareRun } });
+    await channelMocks.buildAndRunAgent!(input.message, binding.sessionId, [], input.ingress);
+    expect(prepareRun.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(agentRuntime.buildOptions).mock.invocationCallOrder[0]);
+    const [request, context] = vi.mocked(agentRuntime.buildOptions).mock.calls[0];
+    expect(context?.attachmentGrant).toBe(expectedGrant);
+    expect(request.attachments).toBeUndefined(); expect(request.imageAttachments).toBeUndefined();
+    expect(channelMocks.attachmentInputs).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledTimes(1); authority.close();
+  });
+  it("refuses an unauthorized media event without legacy media IO or option preparation", async () => {
+    const { requireChannelMemoryIngress } = await import("../memory-context/channel-memory-ingress");
+    const input = await incoming({ attachments: [{ kind: "file", filePath: "/not-authorized.txt" }] });
+    const binding = requireChannelMemoryIngress(input.ingress), prepareRun = vi.fn(async () => { throw Error("MEMORY_ATTACHMENT_DENIED"); });
+    const agentRuntime = makeAgentRuntime();
+    createChannelsSubsystem({ ...makeChannelsDeps(), agentRuntime, memory: { prepareRun } });
+    await expect(channelMocks.buildAndRunAgent!(input.message, binding.sessionId, [], input.ingress)).rejects.toThrow("MEMORY_ATTACHMENT_DENIED");
+    expect(channelMocks.attachmentInputs).not.toHaveBeenCalled(); expect(agentRuntime.buildOptions).not.toHaveBeenCalled();
+    expect(channelMocks.runOptions).toEqual([]);
+  });
+  it("closes an admitted run if authenticated media preparation fails before model execution", async () => {
+    const { requireChannelMemoryIngress } = await import("../memory-context/channel-memory-ingress"), input = await incoming();
+    const binding = requireChannelMemoryIngress(input.ingress), close = vi.fn(async () => {});
+    const prepareRun = vi.fn(async () => ({ sessionId: binding.sessionId, signal: binding.signal, transcriptSink: {} as never, openMemoryRun: vi.fn(), close }));
+    const agentRuntime = makeAgentRuntime(); vi.mocked(agentRuntime.buildOptions).mockRejectedValueOnce(Error("MEDIA_PREPARATION_FAILED"));
+    createChannelsSubsystem({ ...makeChannelsDeps(), agentRuntime, memory: { prepareRun } });
+    await expect(channelMocks.buildAndRunAgent!(input.message, binding.sessionId, [], input.ingress)).rejects.toThrow("MEDIA_PREPARATION_FAILED");
+    expect(prepareRun).toHaveBeenCalledTimes(1); expect(close).toHaveBeenCalledTimes(1);
+    expect(channelMocks.runOptions).toEqual([]);
+  });
+
 });

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const stylesheet = readFileSync(resolve(__dirname, "react-root.css"), "utf8");
 
 describe("chat workspace surface", () => {
-  it("uses the installer motif on the Firefly reading surface", () => {
+  it("uses the Codex-reference neutral light reading surface", () => {
     const dom = new JSDOM(`
       <style>${stylesheet}</style>
       <main class="cy-page">
@@ -19,12 +19,20 @@ describe("chat workspace surface", () => {
     const emptyPattern = rules.find((rule) => rule.selectorText === ".cy-workspace::before");
     const filledPattern = rules.find((rule) => rule.selectorText === ".cy-workspace.has-messages::before");
 
-    expect(rootStyle.getPropertyValue("--cy-bg-page").trim()).toBe("#f2f8f5");
-    expect(rootStyle.getPropertyValue("--cy-bg-workspace").trim()).toBe("#ffffff");
-    expect(emptyPattern).toBeDefined();
-    expect(emptyPattern?.style.backgroundImage).toContain("firefly-surface-pattern.svg");
-    expect(emptyPattern?.style.opacity).toBe("0.9");
-    expect(emptyPattern?.style.pointerEvents).toBe("none");
-    expect(filledPattern?.style.opacity).toBe("0.55");
+    expect(rootStyle.getPropertyValue("--cy-bg-page").trim()).toBe("#eff1f5");
+    expect(rootStyle.getPropertyValue("--cy-bg-workspace").trim()).toBe("#f5f6f9");
+    expect(emptyPattern).toBeUndefined();
+    expect(filledPattern).toBeUndefined();
   });
 });
+
+ it("overlaps both edges of the eight-pixel sidebar gap with its owned pointer corridor", () => {
+  const dom = new JSDOM(`<style>${stylesheet}</style>`);
+  const rules = Array.from(dom.window.document.styleSheets[0].cssRules) as CSSStyleRule[];
+  const corridor = rules.find(rule => rule.selectorText === ".cy-sidebar-hover-corridor");
+  expect(corridor?.style.position).toBe("absolute");
+  expect(corridor?.style.left).toBe("-10px");
+  expect(corridor?.style.width).toBe("10px");
+  expect(corridor?.style.top).toBe("0px");
+  expect(corridor?.style.bottom).toBe("0px");
+ });

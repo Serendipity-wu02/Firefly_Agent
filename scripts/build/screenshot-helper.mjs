@@ -9,13 +9,11 @@ const repoRoot = path.resolve(scriptDirectory, "..", "..");
 const manifestPath = path.join(
   repoRoot,
   "native",
-  "firefly-screenshot",
   "Cargo.toml",
 );
 const builtHelperPath = path.join(
   repoRoot,
   "native",
-  "firefly-screenshot",
   "target",
   "release",
   "firefly-screenshot.exe",

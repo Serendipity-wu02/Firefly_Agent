@@ -50,7 +50,7 @@
 .cy-context-usage-popover .ant-popover-inner {
   padding: 14px 16px;
   border: 1px solid var(--cy-border);
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .cy-context-usage-menu {
@@ -126,11 +126,11 @@
 }
 
 .cy-context-usage-menu__mood.is-warm span {
-  color: #b45309;
+  color: var(--cy-warning);
 }
 
 .cy-context-usage-menu__mood.is-alert span {
-  color: #dc2626;
+  color: var(--cy-danger);
 }
 
 .cy-context-usage-menu__header {

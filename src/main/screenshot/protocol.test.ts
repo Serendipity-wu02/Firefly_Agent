@@ -39,7 +39,8 @@ describe("screenshot helper protocol", () => {
     expect(() => resolveCompletedFile("C:\\shots", "..\\evil.png")).toThrow("INVALID_SCREENSHOT_FILE_NAME");
   });
 
-  it("accepts only UUID v4 png names", () => {
+  // This fixture uses Windows paths from the Windows native screenshot helper.
+  it.runIf(process.platform === "win32")("accepts only UUID v4 png names", () => {
     expect(resolveCompletedFile(
       "C:\\shots",
       "00000000-0000-4000-8000-000000000001.png",

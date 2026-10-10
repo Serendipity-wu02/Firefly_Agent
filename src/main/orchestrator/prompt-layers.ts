@@ -1,6 +1,19 @@
 import { createHash } from "crypto";
 import type { ChatMessage, ChatRequest, ToolSpec } from "./vendors/types";
-import { toModelVisibleMessage } from "./harness/internal-transcript";
+import { toModelVisibleMessage, isTrustedInternalTranscriptMessage } from "./harness/internal-transcript";
+
+const trustedPromptContext = new WeakMap<object,string>();
+function trustPromptContext(message:ChatMessage):ChatMessage {
+ trustedPromptContext.set(message,JSON.stringify(message));return message;
+}
+/** Main-generated ephemeral context only; never grants user fact or history authority. */
+export function readTrustedPromptContext(messages:readonly ChatMessage[]):ChatMessage[] {
+ return messages.flatMap(message=>{
+  const serialized=trustedPromptContext.get(message);if(serialized===undefined)return [];
+  if(serialized!==JSON.stringify(message))throw new Error("MEMORY_CONTEXT_PROMPT_CHANGED");
+  return [JSON.parse(serialized) as ChatMessage];
+ });
+}
 
 export interface PromptLayers {
   stablePrefix: string;
@@ -50,13 +63,16 @@ export function composePromptLayers(
   const stableSystem = buildStableSystemPrefix(layers);
   const messages: ChatMessage[] = [
     ...(stableSystem ? [{ role: "system" as const, content: stableSystem }] : []),
-    ...persistedMessages.map((message) => toModelVisibleMessage(message)),
+    ...persistedMessages.map((message) => {
+      const visible=toModelVisibleMessage(message);
+      return isTrustedInternalTranscriptMessage(message)?trustPromptContext(visible):visible;
+    }),
   ];
   if (layers.runtimeContext?.trim()) {
-    messages.push({
+    messages.push(trustPromptContext({
       role: "user",
       content: `<runtime_context>\n${layers.runtimeContext.trim()}\n</runtime_context>`,
-    });
+    }));
   }
   return {
     messages,

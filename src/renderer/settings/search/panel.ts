@@ -41,21 +41,29 @@ export function syncSearchEngineRows(): void {
   }
 }
 
-export async function saveSearchField(field: string, value: unknown): Promise<void> {
-  if (!window.tts) return;
+export async function saveSearchField(field: string, value: unknown): Promise<boolean> {
+  if (!window.settings) return false;
   try {
-    await window.tts.saveSettings({ [field]: value });
+    await window.settings?.saveGeneral({ [field]: value });
+    return true;
   } catch (err) {
     console.warn("[plugins] 保存搜索配置失败:", field, err);
+    return false;
   }
 }
 
+let savedSearchEngine = "off";
+let savedSelectedEngine = "bocha";
+let savingSearchEngine = false;
+
 export async function loadSearchConfig(): Promise<void> {
   try {
-    const cfg = await window.tts?.loadSettings();
+    const cfg = await window.settings?.getGeneral();
     if (!cfg) return;
     const engine = String(cfg.searchEngine ?? "off");
-    if (searchEngineSelect) searchEngineSelect.value = engine;
+    savedSearchEngine = engine;
+    savedSelectedEngine = engine === "off" ? savedSelectedEngine : engine;
+    if (searchEngineSelect) searchEngineSelect.value = savedSelectedEngine;
     if (searchBochaKeyInput) searchBochaKeyInput.value = String(cfg.searchBochaKey ?? "");
     if (searchTavilyKeyInput) searchTavilyKeyInput.value = String(cfg.searchTavilyKey ?? "");
     if (searchMinimaxKeyInput) searchMinimaxKeyInput.value = String(cfg.searchMinimaxKey ?? "");
@@ -68,22 +76,39 @@ export async function loadSearchConfig(): Promise<void> {
   }
 }
 
+// 保存期间锁定开关/引擎，失败时恢复已持久化状态；关闭不清空 provider 或 key。
+async function saveSearchEngineSelection(): Promise<void> {
+  if (savingSearchEngine) return;
+  savingSearchEngine = true;
+  if (searchEnabledCheckbox) searchEnabledCheckbox.disabled = true;
+  if (searchEngineSelect) searchEngineSelect.disabled = true;
+  const selectedEngine = searchEngineSelect?.value || savedSelectedEngine;
+  const nextEngine = searchEnabledCheckbox?.checked ? selectedEngine : "off";
+  try {
+    if (await saveSearchField("searchEngine", nextEngine)) {
+      savedSearchEngine = nextEngine;
+      savedSelectedEngine = selectedEngine;
+    } else {
+      if (searchEnabledCheckbox) searchEnabledCheckbox.checked = savedSearchEngine !== "off";
+      if (searchEngineSelect) searchEngineSelect.value = savedSelectedEngine;
+    }
+  } finally {
+    savingSearchEngine = false;
+    if (searchEnabledCheckbox) searchEnabledCheckbox.disabled = false;
+    if (searchEngineSelect) searchEngineSelect.disabled = false;
+    syncSearchConfigVisibility();
+  }
+}
+
 // ===== 事件绑定（模块加载时执行） =====
 searchEnabledCheckbox?.addEventListener("change", () => {
   syncSearchConfigVisibility();
-  // 开关变化时，若开启则把 searchEngine 从 off 改成第一个有 key 的源（或 bocha）
-  if (searchEnabledCheckbox.checked && searchEngineSelect?.value === "off") {
-    searchEngineSelect.value = "bocha";
-    syncSearchEngineRows();
-    void saveSearchField("searchEngine", "bocha");
-  } else {
-    void saveSearchField("searchEngine", searchEngineSelect?.value ?? "off");
-  }
+  void saveSearchEngineSelection();
 });
 
 searchEngineSelect?.addEventListener("change", () => {
   syncSearchEngineRows();
-  void saveSearchField("searchEngine", searchEngineSelect.value);
+  void saveSearchEngineSelection();
 });
 
 // 各源 key 输入：失焦保存 + 输入时防抖保存（防粘贴后未失焦就丢失）

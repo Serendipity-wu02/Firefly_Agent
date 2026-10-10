@@ -1,3 +1,15 @@
+import { createSidebarLayoutStore } from "../chats/sidebar-layout-store";
+import { registerSidebarLayoutIpc } from "../chats/sidebar-layout-ipc";
+import { SIDEBAR_LAYOUT_IPC } from "../../shared/sidebar-layout";
+import { registerDesktopAsrIpc } from "../asr/desktop-asr-ipc";
+import {createMainDefaultMemory} from "../memory-context/main-default-memory";
+import {registerMemorySettingsIpc} from "../memory-policy/memory-settings-ipc";
+import { createBrowserWorkspaceExecutor } from "../browser/browser-workspace-executor";
+import {createMainDesktopMemory} from "../memory-context/main-desktop-memory";
+import {openDesktopMemoryBackend,desktopMemoryAdmissionMode} from "../memory-context/desktop-memory-backend";
+import {getConversationTranscriptStore} from "../orchestrator/conversation-transcript-store";
+import {getHarnessRunStore} from "../orchestrator/harness/run-store";
+import { getStorageContext } from "../storage-context";
 /**
  * 默认应用依赖装配（真正的组合根胶水层）：
  * 持有全部业务子系统的导入与工厂闭包，把它们按窄依赖喂给各启动阶段。
@@ -8,6 +20,7 @@
 
 import { app, BrowserWindow, dialog, screen } from "electron";
 import * as path from "path";
+import { randomBytes, randomUUID } from "node:crypto";
 import { autoUpdater } from "electron-updater";
 
 import { ensureGpuSandboxAcl } from "../gpu-sandbox-acl";
@@ -29,9 +42,8 @@ import {
   setGetCurrentAppIconPath,
   sidebarWindow,
   settingsWindow,
-  tasksWindow,
 } from "../windows/window-state";
-import { loadModelSettings, saveModelSettings } from "../settings/model-settings";
+import { getDefaultModelProfile, getCachedSavedModelProfile, listCachedSavedModelProfileIds, loadModelSettings, saveModelSettings, onModelConnectionChanged } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
 import {
   applyGeneralSettings,
@@ -42,9 +54,8 @@ import { registerMemoryUserToolIpc } from "../memory/memory-user-ipc";
 import { configureDocumentIndexQueue } from "../rag/document-index-queue";
 import { runDocumentIndexJob } from "../rag/document-index-worker";
 import { createLlmClient } from "../services/llm/llm-client";
-import { createTtsSynthesisService } from "../services/tts/tts-synthesis-service";
+
 import { createEmbeddingIndexService } from "../services/embedding/embedding-index-service";
-import { momentsService, registerMomentsMediaMatcher } from "../moments/moments-service";
 import {
   addL2MemoryVector,
   deleteUserMemoryVectors,
@@ -83,8 +94,14 @@ import { memoryStore } from "../memory/memory-store";
 import { backupMemoryRagFiles, reconcileMemoryRag } from "../memory/memory-rag-reconciliation";
 import { registerChatsIpc } from "../chats/chats-ipc";
 import { registerWorkspaceFilesIpc } from "../chats/workspace-files-ipc";
+import { createElectronBrowserService } from "../browser/electron-browser-service";
+import { createManualBrowserWorkspace } from "../browser/manual-browser-workspace";
+import { MANUAL_BROWSER_WORKSPACE_IPC } from "../../shared/manual-browser";
+import { createStartupBrowserService } from "../browser/browser-startup-config";
+import { registerBrowserHostOwner, registerManualBrowserHostOwner } from "../browser/browser-host-owner";
+import { registerBrowserServiceIpc, registerManualBrowserWorkspaceIpc, installBrowserServiceLifecycle } from "../browser/browser-service-ipc";
+import { activeChatTargetRegistry } from "../plugin-host/active-chat-target";
 import { registerOpenInAppIpc } from "../chats/open-in-app";
-import { registerMomentsIpc } from "../moments/moments-ipc";
 import { registerChatUiIpc, getActiveChatSessionId } from "../chats/chat-ui-ipc";
 import { createToastWindowController } from "../toast/toast-window";
 import { createToastService } from "../toast/toast-service";
@@ -92,14 +109,18 @@ import { toastEvents } from "../toast/toast-events";
 import { createToastWindowShell } from "../windows/create-toast-window";
 import * as chatsStore from "../chats/chats-store";
 import { flush as flushTokenUsage } from "../token-usage-store";
-import { TtsSessionService } from "../tts/tts-session-service";
-import { registerTtsIpc } from "../tts/tts-ipc";
+
 import { loadUserProfile } from "../settings-store";
 import { getAppIconPath } from "../app-icon";
-import { hasActiveConversationRun, registerAgUiIpc } from "../agui-bridge";
+import { hasActiveConversationRun, isActiveConversationRun, registerAgUiIpc } from "../agui-bridge";
 import { updateLocaleContext } from "../locale-context";
-import { registerCallIpc } from "../call/call-manager";
-import { initSkills, skillRegistry } from "../skills";
+import { initSkills, rescanSkills, skillRegistry } from "../skills";
+import { createExternalSkillService } from "../skills/external-service";
+import { registerExternalSkillsIpc } from "../skills/external-ipc";
+import { recoverExternalSkills } from "../skills/external-install";
+import { ExternalSkillStateStore } from "../skills/external-state";
+import { EXTERNAL_SKILL_REVIEWS } from "../skills/external-reviews";
+import type { ExternalHostSession } from "../skills/external-types";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
 import { createChannelsSubsystem } from "../channels/bootstrap";
 import { createLifecyclePublisher } from "../plugin-host/lifecycle-publisher";
@@ -116,6 +137,8 @@ import { registerCodeGitIpc } from "../code-git/code-git-ipc";
 import { installSingleInstanceGuard } from "../single-instance";
 import { createWindowManager } from "../windows/window-manager";
 import { createTray } from "../tray";
+import { ADMISSION_ROOT } from "../memory-online-once/runner";
+import { createMainProbeEntry } from "../memory-online-once/main-entry";
 import { createSplashWindow } from "../startup/create-splash-window";
 import { revealStartupWindows } from "../startup/startup-window-reveal";
 import { bootstrapMusicService } from "../music/bootstrap";
@@ -141,7 +164,7 @@ const SPLASH_MIN_MS = 2500;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 function broadcastToAuxWindows(channel: string, payload: unknown): void {
-  for (const win of [reactChatWindow, sidebarWindow, tasksWindow, settingsWindow]) {
+  for (const win of [reactChatWindow, sidebarWindow, settingsWindow]) {
     if (win && !win.isDestroyed()) {
       win.webContents.send(channel, payload);
     }
@@ -167,6 +190,17 @@ async function reconcileUserMemoryIndex(): Promise<void> {
 }
 
 export function createDefaultApplicationDependencies(): ApplicationDependencies {
+  // Proof is captured only after the actual single-instance acquisition succeeds.
+  let primaryProcess = false;
+  const externalHost: ExternalHostSession = { runId: randomUUID(), isPrimaryProcess: () => primaryProcess };
+  let externalSkillsIpc: ReturnType<typeof registerExternalSkillsIpc> | undefined;
+  // Explicit diagnostic launch only. Switch enables UI, never creates/rearms a budget.
+  // Boot binding touches only fixed E: non-secret admission; profile lookup stays cache-only.
+  const memoryOnlineEntry = createMainProbeEntry(app.commandLine?.hasSwitch("firefly-memory-online-once")===true, {
+    root:ADMISSION_ROOT,resolveProfile:getCachedSavedModelProfile,listProfileIds:listCachedSavedModelProfileIds,
+    fetch:(...args)=>globalThis.fetch(...args),now:Date.now,show:options=>dialog.showMessageBox(options),
+  });
+  app.once("will-quit",()=>memoryOnlineEntry?.cancel());
   // Agent Runtime 早于插件管理器构造；通过窄闭包在运行期转发宿主事件，避免反转启动顺序。
   let pluginManager: PluginManager | undefined;
   // 生命周期事件发布器：插件系统就绪前发布的事件没有监听器，直接丢弃
@@ -188,7 +222,81 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
   });
   const readiness = createStartupReadiness();
   const activation = createWindowActivationBroker();
-  const shutdown = createShutdownCoordinator({ readiness, timeoutMs: SHUTDOWN_TIMEOUT_MS });
+  let workspaceFiles: ReturnType<typeof registerWorkspaceFilesIpc> | undefined;
+  const shutdown = createShutdownCoordinator({ readiness, timeoutMs: SHUTDOWN_TIMEOUT_MS,
+    beforeShutdown: () => workspaceFiles?.confirmBeforeShutdown() ?? Promise.resolve(true),
+  });
+  // Explicit Main startup opt-in; no Renderer flag, credentials, roots or actor tokens.
+  const memoryAdmissionMode=desktopMemoryAdmissionMode(name=>app.commandLine?.hasSwitch(name)===true,getStorageContext().profile.kind);
+  const memoryEnabled=app.commandLine?.hasSwitch("firefly-memory-controlled")===true;
+  const memoryProfileId=()=>getDefaultModelProfile(loadModelSettings())?.id;
+  const controlledMemory=memoryEnabled?createMainDesktopMemory({enabled:true,getChatWindow:()=>reactChatWindow,targets:activeChatTargetRegistry,
+    getSession:chatsStore.getSession,listSessionIds:()=>chatsStore.listSessions({mode:"chat"}).map(session=>session.id),
+    isControlledSession:session=>session.modelProfileId===memoryProfileId(),
+    store:getConversationTranscriptStore(getStorageContext().dataRoot),openBackend:()=>openDesktopMemoryBackend({profileId:memoryProfileId,...(memoryAdmissionMode?{admissionMode:memoryAdmissionMode}:{})}),
+  }):null;
+  const defaultMemory=memoryEnabled?null:createMainDefaultMemory({getChatWindow:()=>reactChatWindow,getSettingsWindow:()=>settingsWindow,
+    targets:activeChatTargetRegistry,getSession:chatsStore.getSession,listSessionIds:()=>chatsStore.listSessions().map(session=>session.id),
+    store:getConversationTranscriptStore(getStorageContext().dataRoot),settings:loadModelSettings,
+    runReader:{get:runId=>getHarnessRunStore(getStorageContext().dataRoot).get(runId)},
+  });
+  const desktopMemory=defaultMemory??controlledMemory;
+  const releaseMemoryModelRefresh=onModelConnectionChanged(()=>defaultMemory?.refreshModels());
+  shutdown.register({id:"memory-model-refresh",phase:"quiesce",dispose:releaseMemoryModelRefresh});
+  if(desktopMemory){
+    shutdown.register({id:"desktop-memory-admission",phase:"quiesce",dispose:()=>desktopMemory.quiesce()});
+    shutdown.register({id:"desktop-memory-resources",phase:"stopLocalResources",dispose:()=>desktopMemory.close()});
+  }
+  let browserService: ReturnType<typeof createElectronBrowserService> | undefined;
+  let manualBrowserService: ReturnType<typeof createManualBrowserWorkspace> | undefined;
+  let desktopAsr: ReturnType<typeof registerDesktopAsrIpc> | undefined;
+  let browserHost: { window: BrowserWindow; binding: ReturnType<typeof registerBrowserHostOwner>; manualBinding: ReturnType<typeof registerManualBrowserHostOwner> } | undefined;
+  function getBrowserService() {
+    const existing = browserService;
+    if (existing) return existing;
+    const service = createStartupBrowserService({
+        profile: getStorageContext().profile,
+        onChanged: (owner, page) => {
+          const host = browserHost;
+          if (host && host.window === owner.host && !host.window.isDestroyed() && !host.window.webContents.isDestroyed()) {
+            host.window.webContents.send(IPC.BROWSER_CHANGED, page);
+          }
+        },
+      });
+      browserService = service;
+      const offLifecycle = installBrowserServiceLifecycle(app, service, shutdown, "browser-service");
+      app.once("will-quit", offLifecycle);
+    return service;
+  }
+  function getManualBrowserWorkspace() {
+    if (manualBrowserService) return manualBrowserService;
+    const service = createManualBrowserWorkspace({
+      createService: onChanged => createStartupBrowserService({ profile: getStorageContext().profile, onChanged }),
+      onChanged: (owner, page) => {
+        const host = browserHost;
+        if (host && host.window === owner.host && !host.window.isDestroyed() && !host.window.webContents.isDestroyed()) {
+          host.window.webContents.send(MANUAL_BROWSER_WORKSPACE_IPC.changed, page);
+        }
+      },
+    });
+    manualBrowserService = service;
+    const offLifecycle = installBrowserServiceLifecycle(app, service, shutdown, "manual-browser-service");
+    app.once("will-quit", offLifecycle);
+    return service;
+  }
+  function bindBrowserHost(window: BrowserWindow) {
+    externalSkillsIpc?.refreshHost();
+    browserHost?.binding.dispose();
+    browserHost?.manualBinding.dispose();
+    const binding = registerBrowserHostOwner({ host: window, profile: getStorageContext().profile,
+      targets: activeChatTargetRegistry, service: getBrowserService(), readSession: chatsStore.getSession });
+    const manualBinding = registerManualBrowserHostOwner({ host: window, profile: getStorageContext().profile, service: getManualBrowserWorkspace() });
+    const host = { window, binding, manualBinding }; browserHost = host;
+    window.once("closed", () => {
+      externalSkillsIpc?.refreshHost();
+      binding.dispose(); manualBinding.dispose(); if (browserHost === host) browserHost = undefined;
+    });
+  }
 
   // 注入应用图标路径 getter（窗口工厂统一读取，避免循环依赖）。
   // 必须在 shell 阶段之前注入：聊天窗口壳与托盘在 shell 阶段创建时就会读取，
@@ -205,7 +313,10 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
     prepare: () => prepareBeforeReady({
       configureDocumentIndex: () => configureDocumentIndexQueue(runDocumentIndexJob),
-      installSingleInstance: (onSecondInstance) => installSingleInstanceGuard(app, onSecondInstance),
+      installSingleInstance: (onSecondInstance) => {
+        primaryProcess = installSingleInstanceGuard(app, onSecondInstance);
+        return primaryProcess;
+      },
       registerPrivilegedSchemes,
       configureGpuSwitches: () => {
         if (loadGeneralSettings().disableGpuElectron) {
@@ -231,8 +342,10 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         logger.info(LogTag.Runtime, "starting Firefly_Agent");
       },
       createIpcScope: () => createIpcScope(),
+      onWillQuit: (callback) => { app.once("will-quit", callback); },
       createSplashWindow: (options) => createSplashWindow({ isDev, onShown: options.onShown }),
       createWindowManager: () => createWindowManager({
+        onChatWindowCreated: bindBrowserHost,
         getCurrentAppIconPath,
         isDev,
         loadPetWindowSettingsSlice: loadGeneralSettings,
@@ -243,12 +356,13 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       registerShellIpc: ({ ipc, windowManager, live2dWindowLifecycle }) => {
         // quit 由组合根注入：窗口系统 IPC 不直接依赖 electron app，且退出仍走受控链路。
         registerWindowSystemIpc({ ipc, windowManager, quit: () => app.quit() });
-        registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager });
+        registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager, onActiveTargetChanged: () => {desktopAsr?.cancelAll();browserHost?.binding.refresh();desktopMemory?.refresh()} });
       },
       createTray: (input) => createTray({
         togglePetWindow: input.togglePetWindow,
         requestActivation: input.requestActivation,
         quit: () => app.quit(),
+        memoryOnlineOnce: memoryOnlineEntry ? {run:()=>{void memoryOnlineEntry.run();},cancel:()=>memoryOnlineEntry.cancel()} : undefined,
       }),
       flushTokenUsage,
     }),
@@ -264,11 +378,18 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       // 升级迁移：NSIS 暂存的安装目录用户内容合并进 userData，
       // 必须在任何 prompts/skills 读取（initSkills、prompt 加载）之前执行
       migrateStagedExternalContent: () => migrateStagedExternalContent({
+        manifestFile: getStorageContext().files.contentManifest,
+        allowStagedMigration: getStorageContext().profile.kind === "production",
         isPackaged: app.isPackaged,
         ...getExternalContentPaths(),
       }),
       // Skill 系统：扫描双源 skills + 注册 meta-tool
-      initSkills,
+      initSkills: async () => {
+        if (!externalHost.isPrimaryProcess()) throw new Error("STATE_INVALID");
+        const storage = getStorageContext();
+        recoverExternalSkills(storage, new ExternalSkillStateStore(storage, externalHost));
+        await initSkills(storage, externalHost);
+      },
 
       createLowCostServices: () => {
         const runtimeStateService = createRuntimeStateService();
@@ -278,21 +399,13 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         });
 
         const llmClient = createLlmClient();
-        const ttsSynthesisService = createTtsSynthesisService();
+
         const embeddingIndexService = createEmbeddingIndexService();
-        // Moments 配图：贴图 embedding 索引 getter 晚绑定给 moments-service 模块单例（索引未就绪时纯文字降级）
-        registerMomentsMediaMatcher({
-          getStickerIndex: () => embeddingIndexService.getStickerEmbeddingIndex(),
-        });
         const citaService = createCitaService({ llmClient });
         const socialContextService = createSocialContextService({ llmClient, enqueueLLMTask });
-        const proactiveLifecycle = createProactiveLifecycle({ loadGeneralSettings });
+        const proactiveLifecycle = createProactiveLifecycle({ loadGeneralSettings, memoryHost:defaultMemory?.backgroundHost });
         // 主动聊天服务初始化是纯装配；触发器由 background 阶段启动
         proactiveLifecycle.initializeProactiveChatService();
-
-        const ttsSessionService = new TtsSessionService((request, signal, emit) =>
-          ttsSynthesisService.synthesizeSession(request, signal, emit),
-        );
 
         // 应用图标 getter 已在工厂体开头注入（早于 shell 阶段的窗口壳/托盘创建）。
 
@@ -356,8 +469,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           llm: llmClient,
           cita: citaService,
           social: socialContextService,
-          tts: ttsSynthesisService,
-          ttsSession: ttsSessionService,
+
           embedding: embeddingIndexService,
           proactive: proactiveLifecycle,
           git,
@@ -385,11 +497,14 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
 
       // 工具注册：集中到一个显式入口（依赖沙箱/Git/LSP 就绪）
-      registerAllTools: (services) => registerAllTools({ codeGitService: services.git, lspManager: services.lsp }),
+      registerAllTools: (services) => registerAllTools({ personalMemoryMode:defaultMemory?"smh":"legacy", codeGitService: services.git, lspManager: services.lsp,
+        browserWorkspace: createBrowserWorkspaceExecutor({ currentOwner: () => browserHost?.binding.getCurrentOwner() ?? null,
+          service: getBrowserService, isRunCurrent: isActiveConversationRun }),
+      }),
 
       initRag: async () => {
         const modelSettings = loadModelSettings();
-        await initRAG("auto", undefined, undefined, modelSettings.embeddingModel, modelSettings.embeddingDimensions);
+        await initRAG("auto", undefined, undefined, modelSettings.embeddingModel, modelSettings.embeddingDimensions,{personalMemoryMode:defaultMemory?"smh":"legacy"});
         // 注册 RAG 落盘：受控退出在 flushPersistence 阶段刷盘；
         // Windows 会话结束（断电/强制关机）走同步紧急落盘兜底
         shutdown.register({
@@ -402,6 +517,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
 
       createRuntime: (services) => createAgentRuntime({
+        ...(controlledMemory?{sContext:controlledMemory.sContext}:{}),
+        ...(defaultMemory?{defaultMemory:defaultMemory}:{}),
         runtimeStateService: services.runtimeState,
         llmClient: services.llm,
         enqueueLLMTask,
@@ -428,7 +545,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
       createChannels: (runtime, services) => createChannelsSubsystem({
         agentRuntime: runtime,
-        ttsSynthesisService: services.tts,
+        memory:defaultMemory?.channelHost,
+
         getReactChatWindow: () => reactChatWindow,
         ipc: shell.ipc,
         publishLifecycle: lifecyclePublisher,
@@ -445,12 +563,14 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           // 面板宿主窗口（首版=设置窗口）：settingsWindow 为 CJS live-binding，
           // 必须在请求时刻读取
           getPanelHostWebContents: () => settingsWindow?.webContents ?? null,
+          getMarketplaceHostWebContents: () => reactChatWindow?.webContents ?? null,
         });
         return pluginManager;
       },
 
       createScheduler: (runtime) => createSchedulerSubsystem({
         agentRuntime: runtime,
+        memoryHost:defaultMemory?.backgroundHost,
         getReactChatWindow: () => reactChatWindow,
         ipc: shell.ipc,
         publishLifecycle: lifecyclePublisher,
@@ -460,6 +580,18 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       }),
 
       registerCoreIpc: ({ ipc, runtime, services }) => {
+        const externalService = createExternalSkillService({
+          storage: getStorageContext(), host: externalHost,
+          fetch: (...args) => globalThis.fetch(...args), now: Date.now,
+          diagnose: diagnostic => logger.warn(LogTag.Skills, "external-marketplace", diagnostic),
+          randomToken: () => randomBytes(32).toString("hex"), reviews: EXTERNAL_SKILL_REVIEWS, rescan: rescanSkills,
+        });
+        externalSkillsIpc = registerExternalSkillsIpc({ ipc, getHostWebContents: () => reactChatWindow && !reactChatWindow.isDestroyed() ? reactChatWindow.webContents : null, service: externalService });
+        shutdown.register({ id: "external-skills", phase: "quiesce", dispose: () => externalSkillsIpc!.dispose() });
+        desktopAsr = registerDesktopAsrIpc({ ipc, getChatContents: () => reactChatWindow?.webContents });
+        shutdown.register({ id: "desktop-asr", phase: "quiesce", dispose: () => desktopAsr?.dispose() });
+        registerBrowserServiceIpc(ipc, getBrowserService());
+        registerManualBrowserWorkspaceIpc(ipc, getManualBrowserWorkspace());
         // 设置变更反应：窗口/托盘/截图热键/主动服务联动
         onGeneralSettingsChanged((before, after) =>
           handleGeneralSettingsChanged(before, after, {
@@ -471,50 +603,58 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           }),
         );
 
-        registerSettingsIpc({
+        const disposeSettingsConnections = registerSettingsIpc({
           ipc,
           windowManager: shell.windowManager,
           getGeneralSettings: loadGeneralSettings,
           saveGeneralSettings,
           getModelSettings: loadModelSettings,
-          saveModelSettings,
+          saveModelSettings:input=>{const saved=saveModelSettings(input);defaultMemory?.refreshModels();return saved},
           runtimeStateService: services.runtimeState,
           proactiveLifecycle: services.proactive,
-          reconcileUserMemoryIndex,
+          reconcileUserMemoryIndex:defaultMemory?async()=>{}:reconcileUserMemoryIndex,
           embeddingIndexService: services.embedding,
           syncVolcanoSearchMcp,
           syncPlaywrightMcp,
         });
+        shutdown.register({ id: "model-connection-listener", phase: "quiesce", dispose: disposeSettingsConnections });
 
+        registerMemorySettingsIpc({ipc,getSettingsWindow:()=>settingsWindow,host:defaultMemory?.settingsHost??null});
         registerMemoryUserToolIpc({
+          personalMemoryMode:defaultMemory?"smh":"legacy",
           ipc,
           windowManager: shell.windowManager,
           embeddingIndexService: services.embedding,
         });
 
-        // ── TTS IPC ──
-        registerTtsIpc({ ipc, ttsSessionService: services.ttsSession });
-
         // 聊天会话存储 IPC（chats-store.initialize 建好 firefly-chats 目录并加载 index）
         registerChatsIpc(ipc, {
+          ...(desktopMemory?{memory:desktopMemory}:{}),
           llmClient: services.llm,
           isPrimaryModelBusy: hasActiveConversationRun,
         });
-        registerMomentsIpc(ipc);
+        registerSidebarLayoutIpc(ipc, {
+          store: createSidebarLayoutStore(getStorageContext(), () => chatsStore.listSessions()),
+          getChatContents: () => reactChatWindow?.webContents,
+          onChanged: () => {
+            if (reactChatWindow && !reactChatWindow.isDestroyed()) reactChatWindow.webContents.send(SIDEBAR_LAYOUT_IPC.changed);
+          },
+        });
         registerCodeGitIpc({ ipc, service: services.git });
         // 会话工作区只读文件（右侧面板文件树 / 预览）
-        registerWorkspaceFilesIpc(ipc);
+        workspaceFiles = registerWorkspaceFilesIpc(ipc, { getChatContents: () => reactChatWindow?.webContents });
         // 工作区右上角"打开"菜单：本机应用探测 + 打开执行
         registerOpenInAppIpc(ipc);
 
         // AG-UI 事件流桥：渲染进程 invoke(AGUI_RUN) → FireflyAgent 跑 Agent 循环 → 事件透传
         registerAgUiIpc(
-          (input) => runtime.buildOptions(input),
+          runtime.buildOptions,
           (result, latestUserText, context) => runtime.onRunFinished(result, latestUserText, context),
           () => reactChatWindow,
           services.proactive.proactiveConversationLifecycle,
           ipc,
           pendingTurnLifecycle,
+          desktopMemory??undefined,
         );
 
         // 应用更新 IPC：安装走受控退出；autoUpdater 兜底路径进入同一协调器
@@ -558,10 +698,9 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
         // 权限模块：磁盘加载 + 权限/选择卡片 IPC（必须在 createWindow 之后、任意工具调用之前）
         bootstrapPermission(ipc);
-        // pop_quiz 抽查工具：IPC（提交/跳过）与工具注册（learn 模式可见）
+        // pop_quiz 抽查工具：IPC（提交/跳过）与工具注册（Work 模式可见）
         registerPopQuizIpc(ipc);
         registerPopQuizTool();
-        registerCallIpc(ipc);
       },
 
       loadGeneralSettings,
@@ -584,7 +723,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           bus: toastEvents,
           window: toastWindowController,
           activate: (request) => { activation.request(request); },
-          openTasksWindow: () => { windowManager.createTasksWindow(); },
           // 音效总开关：设置页可关；每次弹窗时读取，改动即时生效
           isSoundEnabled: () => loadGeneralSettings().toastSoundEnabled,
           shouldSuppressNotify: (event) => {
@@ -630,7 +768,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
       restoreMcp: (signal) => initMcpManager({ signal }),
       reconcileMemory: async (signal) => {
-        if (signal.aborted) return;
+        if (signal.aborted || defaultMemory) return;
         try {
           await reconcileUserMemoryIndex();
         } catch (err) {
@@ -661,12 +799,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
       startProactiveTrigger: async () => {
         core.services.proactive.initializeProactiveTrigger();
-        return { dispose: () => core.services.proactive.stopProactiveTrigger() };
-      },
-      startMomentsReactionScanner: async () => {
-        // 启动即补扫一轮：重启前已逾期的反应任务尽快续上，不等第一个扫描周期
-        momentsService.startReactionScanner();
-        return { dispose: () => momentsService.stopReactionScanner() };
+        return { dispose: () => core.services.proactive.close() };
       },
     }),
 

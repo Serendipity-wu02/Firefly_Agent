@@ -77,3 +77,12 @@ describe("RunSettlementGate", () => {
     expect(gate.isSettled()).toBe(true);
   });
 });
+
+
+describe("S completion reservation", () => {
+  async function gate() { const api = await import("./run-settlement") as any; expect(api.SRunSettlementGate).toBeTypeOf("function"); return new api.SRunSettlementGate(); }
+  it("cancel before success reservation wins without reporting a settled success", async () => { const g = await gate(); expect(g.requestCancel()).toBe(true); expect(g.reserve("success")).toBe(false); expect(g.get()).toBe("cancel_requested"); expect(g.reserve("interrupted")).toBe(true); expect(g.confirm("interrupted")).toBe(true); expect(g.get()).toBe("interrupted"); });
+  it("late cancel cannot downgrade a reserved success; reserve alone is not confirmation", async () => { const g = await gate(); expect(g.reserve("success")).toBe(true); expect(g.get()).toBe("success_reserved"); expect(g.requestCancel()).toBe(false); expect(g.confirm("interrupted")).toBe(false); expect(g.confirm("success")).toBe(true); expect(g.get()).toBe("success"); expect(g.requestCancel()).toBe(false); });
+  it("an unknown I/O remains unknown until the same reserved result is durably recovered", async () => { const g = await gate(); expect(g.reserve("success")).toBe(true); expect(g.markUnknown()).toBe(true); expect(g.get()).toBe("unknown"); expect(g.confirm("interrupted")).toBe(false); expect(g.confirm("success")).toBe(true); expect(g.get()).toBe("success"); });
+  it("cannot confirm without a reservation or reserve conflicting terminal results", async () => { const g = await gate(); expect(g.confirm("success")).toBe(false); expect(g.reserve("interrupted")).toBe(true); expect(g.reserve("success")).toBe(false); expect(g.requestCancel()).toBe(false); expect(g.confirm("success")).toBe(false); expect(g.confirm("interrupted")).toBe(true); expect(g.confirm("interrupted")).toBe(false); });
+});

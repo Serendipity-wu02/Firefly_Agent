@@ -1,0 +1,38 @@
+/* Segmented mode switch in the middle of the title bar. Colours come from --cy-* tokens only. */
+.cy-mode-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--cy-border);
+  border-radius: 12px;
+  background: var(--cy-bg-subtle, var(--cy-bg-hover));
+  app-region: no-drag;
+}
+
+.cy-mode-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--cy-text-muted);
+  cursor: pointer;
+  font: 500 13px/1 var(--rb-font-sans, sans-serif);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.cy-mode-tabs__tab:hover { color: var(--cy-text); }
+
+.cy-mode-tabs__tab.is-active {
+  background: var(--cy-accent);
+  color: var(--cy-on-accent, #fff);
+}
+
+.cy-mode-tabs__tab:focus-visible {
+  outline: 2px solid rgba(var(--cy-accent-rgb), 0.45);
+  outline-offset: 1px;
+}

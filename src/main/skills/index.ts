@@ -1,139 +1,125 @@
-// Skill 系统启动入口 + 对外 API。
-// 唯一碰 electron 的模块（app.getPath）；scanSkills/registry/tools 都是纯逻辑或单例。
-
+// Skill startup and Main-only API. All profile-owned locations use the injected StorageContext.
 import * as fs from "fs";
 import * as path from "path";
-import { app } from "electron";
-import { scanSkills } from "./skill-scanner";
+import { scanSkills, isExternalSkillId, externalSkillPlaceholder } from "./skill-scanner";
 import { skillRegistry } from "./skill-registry";
 import { registerSkillTools } from "./skill-tools";
 import type { SkillEntry } from "./types";
 import { logger, LogTag } from "../logger";
-import { getExternalContentPaths, resolveSkillScanSources, resolveSkillsSnapshotArchivePath } from "../external-content-paths";
-import { installSkillsSnapshot } from "./snapshot-install";
-import { resolveSkillId, resolveSkillSettings } from "./skill-id-aliases";
-import { writeMigratedJson } from "../migration/firefly-data";
-import { migrateInstalledSkillSnapshot } from "../migration/skill-snapshot";
+import { getExternalContentPaths, resolveSkillScanSources, resolvePackagedSkillDirectory } from "../external-content-paths";
+import { synchronizeManagedSkillDirectories, validateManagedSourceDirectory } from "./directory-install";
+import { getStorageContext, type StorageContext } from "../storage-context";
+import { AtomicJsonStore } from "../atomic-json-store";
+import { ExternalSkillStateStore, assertExternalIdentity, verifyExternalInstallation } from "./external-state";
+import { scanExternalSkills } from "./external-scan";
+import type { ExternalHostSession, ExternalSkillRecord } from "./external-types";
 
-const LOG_PREFIX = "[Skills]";
+interface SkillsContext {
+  storage: StorageContext;
+  state: ExternalSkillStateStore;
+  expected: Map<string, string>;
+}
+let context: SkillsContext | undefined;
 
-/** skill enabled 状态持久化文件（userData/skills-enabled.json）。 */
-function enabledStatePath(): string {
-  return path.join(app.getPath("userData"), "skills-enabled.json");
+// Before injection this was app.getPath("userData")/skills-enabled.json. StorageContext.configRoot
+// is exactly profile.userData, and Main preflight applies that profile to Electron: no migration.
+function enabledStore(storage: StorageContext): AtomicJsonStore<Record<string, boolean>> {
+  return new AtomicJsonStore(path.join(storage.configRoot, "skills-enabled.json"), value => !!value && typeof value === "object"
+    && !Array.isArray(value) && Object.values(value).every(entry => typeof entry === "boolean"));
+}
+function currentContext(): SkillsContext {
+  if (!context) throw new Error("SKILL_STORAGE_NOT_INITIALIZED");
+  return context;
+}
+function recordFingerprint(record: ExternalSkillRecord): string { return JSON.stringify({ ...record, enabled: false }); }
+
+/** Recheck the current actual Main guard, complete provenance and every installed content digest. */
+function verifiedExternalRecord(current: SkillsContext, skill: SkillEntry, requireEnabled: boolean): ExternalSkillRecord {
+  current.state.assertWritable(current.storage);
+  const record = current.state.read(skill.id);
+  if (skill.external?.status !== "ready" || !record || record.status !== "committed"
+    || current.expected.get(skill.id) !== recordFingerprint(record) || (requireEnabled && (!skill.enabled || !record.enabled))) throw new Error("SKILL_EXTERNAL_UNAVAILABLE");
+  const directory = path.join(current.storage.dataRoot, "skills", skill.id, "content");
+  if (skill.dirPath !== directory || skill.bodyPath !== path.join(directory, "SKILL.md")) throw new Error("SKILL_EXTERNAL_UNAVAILABLE");
+  const proofs = verifyExternalInstallation(current.storage, record);
+  for (const proof of proofs) assertExternalIdentity(proof, current.storage.dataRoot);
+  // Detect a changed provenance record during verification, too.
+  const after = current.state.read(skill.id);
+  if (!after || JSON.stringify(after) !== JSON.stringify(record)) throw new Error("SKILL_EXTERNAL_UNAVAILABLE");
+  return record;
 }
 
-/** 读取持久化的 enabled 状态（id → bool）。 */
-function loadEnabledState(): Record<string, boolean> {
-  try {
-    const p = enabledStatePath();
-    if (!fs.existsSync(p)) return {};
-    const raw = JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, boolean>;
-    if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.values(raw).some((value) => typeof value !== "boolean")) throw new Error("SKILL_SETTINGS_READ_FAILED");
-    const normalized = resolveSkillSettings(raw);
-    writeMigratedJson(p, raw, normalized);
-    return normalized;
-  } catch {
-    throw new Error("SKILL_SETTINGS_READ_FAILED");
+function scanAndRegister(current: SkillsContext): number {
+  const paths = { ...getExternalContentPaths(), userSkillDirectories: [path.join(current.storage.dataRoot, "skills")] };
+  const sources = resolveSkillScanSources(paths), map = new Map<string, SkillEntry>();
+  for (const source of sources) for (const skill of scanSkills(source.directory, source.source)) map.set(skill.id, skill);
+  for (const skill of scanExternalSkills(current.storage, current.state)) map.set(skill.id, skill);
+  const saved = enabledStore(current.storage).read({});
+  for (const skill of map.values()) {
+    if (isExternalSkillId(skill.id)) {
+      const record = current.state.read(skill.id);
+      if (skill.external?.status === "ready" && record?.status === "committed") {
+        const fingerprint = recordFingerprint(record), previous = current.expected.get(skill.id);
+        if (previous !== undefined && previous !== fingerprint) map.set(skill.id, externalSkillPlaceholder(skill.id, path.join(current.storage.dataRoot, "skills", skill.id)));
+        else current.expected.set(skill.id, fingerprint);
+      }
+    } else if (Object.hasOwn(saved, skill.id)) skill.enabled = saved[skill.id];
   }
-}
-
-/**
- * 启动入口：首启把第三方 skills 快照解压到 user 区（哨兵保证只装一次），
- * 再扫描双源 skills → 灌入 registry（user 目录级覆盖 builtin + 合并 enabled 状态）→ 注册 meta-tool。
- * 必须在 app.whenReady 之后调用（依赖 app.getPath）。
- */
-export async function initSkills(): Promise<void> {
-  const paths = getExternalContentPaths();
-
-  // 快照安装必须在扫描之前完成，否则首启扫不到归档里的第三方 skill。
-  const archivePath = resolveSkillsSnapshotArchivePath(paths);
-  const userSkillsDir = paths.userSkillDirectories[0];
-  await installSkillsSnapshot({ archivePath, userSkillsDir });
-  try {
-    await migrateInstalledSkillSnapshot(userSkillsDir, archivePath);
-  } catch (error) {
-    const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_MIGRATION_FAILED";
-    logger.warn(LogTag.Skills, "managed migration failed; scanning existing files without replacing them", { reason });
-  }
-
-  const sources = resolveSkillScanSources(paths);
-
-  // 合并：扫描源按低到高优先级排列，user 覆盖 builtin。
-  const map = new Map<string, SkillEntry>();
-  for (const source of sources) {
-    for (const skill of scanSkills(source.directory, source.source)) map.set(skill.id, skill);
-  }
-
-  // 合并 enabled 状态（settings.json 持久化的覆盖默认 true）
-  const saved = loadEnabledState();
-  for (const s of map.values()) {
-    if (s.id in saved) s.enabled = saved[s.id];
-    skillRegistry.register(s);
-  }
-
-  registerSkillTools();
-  logger.info(LogTag.Skills, "scan roots:", sources.map((source) => `${source.source}:${source.directory}`).join(" | "));
+  for (const id of skillRegistry.getAll().map(skill => skill.id)) if (!map.has(id)) skillRegistry.unregister(id);
+  skillRegistry.setExternalAccessGate(skill => {
+    try { verifiedExternalRecord(current, skill, true); return true; } catch { return false; }
+  });
+  for (const skill of map.values()) skillRegistry.register(skill);
   logger.info(LogTag.Skills, `loaded ${map.size} skills:`, Array.from(map.keys()).join(", ") || "(none)");
-}
-
-/** 持久化某 skill 的 enabled 状态。 */
-export function setSkillEnabled(id: string, enabled: boolean): void {
-  id = resolveSkillId(id);
-  try {
-    const saved = loadEnabledState();
-    saved[id] = enabled;
-    fs.mkdirSync(path.dirname(enabledStatePath()), { recursive: true });
-    fs.writeFileSync(enabledStatePath(), JSON.stringify(saved, null, 2), "utf8");
-    skillRegistry.setEnabled(id, enabled);
-  } catch (err) {
-    console.warn(LOG_PREFIX, "持久化 enabled 失败:", err);
-  }
-}
-
-/** 返回所有 skill 的元数据（给 UI 用）。hiddenFromUi 的技能不暴露。 */
-export function listSkillsForUi() {
-  return skillRegistry
-    .getAll()
-    .filter((s) => !s.hiddenFromUi)
-    .map(s => ({
-      id: s.id,
-      name: s.name,
-      description: s.description,
-      tools: s.tools ?? [],
-      enabled: s.enabled,
-      source: s.source,
-      version: s.version,
-      references: s.references,
-    }));
-}
-
-/**
- * 重新扫描 user skills 目录并更新 registry。
- * 用于用户安装/删除 skill 后，无需重启应用即可刷新 UI。
- * 返回扫描后 registry 中 skill 总数。
- */
-export function rescanSkills(): number {
-  const sources = resolveSkillScanSources(getExternalContentPaths());
-
-  const map = new Map<string, SkillEntry>();
-  for (const source of sources) {
-    for (const skill of scanSkills(source.directory, source.source)) map.set(skill.id, skill);
-  }
-
-  const saved = loadEnabledState();
-  // 清理 registry 中已不存在的 skill，避免删除后仍残留
-  for (const id of skillRegistry.getAll().map((s) => s.id)) {
-    if (!map.has(id)) skillRegistry.unregister?.(id);
-  }
-  for (const s of map.values()) {
-    if (s.id in saved) s.enabled = saved[s.id];
-    skillRegistry.register(s);
-  }
-
-  logger.info(LogTag.Skills, `rescanned ${map.size} skills:`, Array.from(map.keys()).join(", ") || "(none)");
   return map.size;
 }
 
+/** Main must pass the same host object used by all external stores/services. No-host is read-only. */
+export async function initSkills(storage: StorageContext = getStorageContext(), host?: ExternalHostSession): Promise<void> {
+  // Reset before reading the new profile, including a failed initialization.
+  skillRegistry.setExternalAccessGate(() => false);
+  for (const skill of skillRegistry.getAll()) skillRegistry.unregister(skill.id);
+  context = { storage, state: new ExternalSkillStateStore(storage, host), expected: new Map() };
+  const paths = { ...getExternalContentPaths(), userSkillDirectories: [path.join(storage.dataRoot, "skills")] };
+  const sourceDirectory = resolvePackagedSkillDirectory(paths), userSkillsDir = paths.userSkillDirectories[0];
+  try {
+    if (sourceDirectory) {
+      const manifestPath = path.join(path.dirname(sourceDirectory), "skills-manifest.json");
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { skills: string[]; files: Record<string, string> };
+      if (!Array.isArray(manifest.skills) || !manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) throw new Error("SKILL_DIRECTORY_MANIFEST_INVALID");
+      validateManagedSourceDirectory(sourceDirectory, manifest.skills, manifest.files);
+      synchronizeManagedSkillDirectories({ sourceDirectory, userSkillsDir, expectedIds: manifest.skills, expectedFileHashes: manifest.files });
+    }
+  } catch (error) {
+    const reason = error instanceof Error && /^SKILL_[A-Z_]+$/.test(error.message) ? error.message : "SKILL_DIRECTORY_SYNC_FAILED";
+    logger.warn(LogTag.Skills, "managed directory sync failed; scanning existing files without replacing them", { reason });
+  }
+  scanAndRegister(context);
+  registerSkillTools();
+}
+
+/** Persist first. Registry state never advertises a write which failed. */
+export function setSkillEnabled(id: string, enabled: boolean): void {
+  const current = currentContext(), skill = skillRegistry.getById(id);
+  if (typeof id !== "string" || typeof enabled !== "boolean" || !skill) throw new Error("SKILL_ENABLE_ARGUMENT_INVALID");
+  if (isExternalSkillId(id)) {
+    const record = verifiedExternalRecord(current, skill, false);
+    current.state.setEnabledOwned(id, record.transactionId, enabled);
+  } else {
+    const store = enabledStore(current.storage), saved = store.read({});
+    store.write({ ...saved, [id]: enabled });
+  }
+  skillRegistry.setEnabled(id, enabled);
+}
+
+/** UI metadata is deliberately separate from runtime instruction authorization. */
+export function listSkillsForUi() {
+  return skillRegistry.getAll().filter(skill => !skill.hiddenFromUi).map(skill => ({
+    id: skill.id, name: skill.name, description: skill.description, tools: skill.tools ?? [], enabled: skill.enabled,
+    source: skill.source, version: skill.version, references: skill.references, external: skill.external,
+  }));
+}
+export function rescanSkills(): number { return scanAndRegister(currentContext()); }
 export { skillRegistry } from "./skill-registry";
 export { buildAutoInjectedSkillContext, buildAutoInjectedSoulContext, buildSkillCatalog } from "./skill-catalog";
 export { parseSlashCommand } from "./skill-commands";

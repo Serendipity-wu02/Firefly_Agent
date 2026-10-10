@@ -5,18 +5,15 @@ import {
   CURRENT_MEMORY_SCHEMA_VERSION,
   boundMemorySnippet,
   createDefaultMemoryStore,
+  isCurrentMemoryStore,
   extractMemoryKeywords,
 } from "./memory-store-defaults"
-import { repairMigrations } from "./memory-store-migrations"
 import {
-  backupMemoryFile,
   memoryFileExists,
   readMemoryFile,
   resolveMemoryPath,
   writeMemoryFile,
 } from "./memory-store-io"
-
-export { repairMigrations }
 
 const QUOTE_SNIPPET_MAX = 300
 const RESOLVER_PRIORITY_RANK: Record<string, number> = {
@@ -26,69 +23,53 @@ const RESOLVER_PRIORITY_RANK: Record<string, number> = {
   none: 0,
 }
 
+
 export type L0WritableField = Exclude<keyof L0Profile, "updatedAt">
 export type L1WritableField = keyof L1Profile
 export type L2Input = Omit<L2Memory, "id" | "createdAt" | "lastAccessedAt" | "accessCount" | "weight" | "status" | "keywords">
 
 class MemoryStoreManager {
   private cache: MemoryStore | null = null
+  private readFailed = false
 
   async load(): Promise<MemoryStore> {
+    if (this.readFailed) throw new Error("MEMORY_STORE_READ_FAILED: 记忆读取失败，原文件已保留")
     if (this.cache) return this.cache
     const filePath = resolveMemoryPath()
     if (!filePath) {
       this.cache = createDefaultMemoryStore()
       return this.cache
     }
-    try {
-      if (memoryFileExists(filePath)) {
-        const parsed = readMemoryFile(filePath)
-        const needsMigration = parsed.schemaVersion !== CURRENT_MEMORY_SCHEMA_VERSION
-        this.cache = repairMigrations(parsed)
-        if (needsMigration) {
-          backupMemoryFile(filePath)
-          await this.save(this.cache)
-          appendMemoryTrace({
-            op: "migration.upgrade",
-            layer: "migration",
-            status: "ok",
-            details: { schemaVersion: CURRENT_MEMORY_SCHEMA_VERSION },
-          })
-        }
-      } else {
-        this.cache = createDefaultMemoryStore()
-        await this.save(this.cache)
-        appendMemoryTrace({
-          op: "store.init",
-          layer: "store",
-          status: "ok",
-          details: { schemaVersion: CURRENT_MEMORY_SCHEMA_VERSION },
-        })
-      }
-    } catch (err) {
-      try {
-        backupMemoryFile(filePath)
-      } catch {
-        // 如果连备份也失败，仍然生成干净默认文件，避免主流程被记忆文件阻塞。
-      }
+    if (!memoryFileExists(filePath)) {
       this.cache = createDefaultMemoryStore()
       await this.save(this.cache)
       appendMemoryTrace({
-        op: "migration.recoverDefault",
-        layer: "migration",
-        status: "error",
-        error: err instanceof Error ? err.message : String(err),
+        op: "store.init",
+        layer: "store",
+        status: "ok",
+        details: { schemaVersion: CURRENT_MEMORY_SCHEMA_VERSION },
       })
+      return this.cache
+    }
+    try {
+      const parsed = readMemoryFile(filePath)
+      if (!isCurrentMemoryStore(parsed)) throw new Error("Unsupported memory format")
+      this.cache = parsed
+    } catch {
+      this.readFailed = true
+      throw new Error("MEMORY_STORE_READ_FAILED: 记忆读取失败，原文件已保留")
     }
     return this.cache
   }
 
   async save(store: MemoryStore): Promise<void> {
+    if (this.readFailed) throw new Error("MEMORY_STORE_READ_FAILED: 记忆读取失败，原文件已保留")
     const filePath = resolveMemoryPath()
     if (!filePath) {
       this.cache = store
       return
     }
+    if (!this.cache && memoryFileExists(filePath)) await this.load()
     writeMemoryFile(filePath, store)
     this.cache = store
     // 通知 Obsidian vault 绑定：记忆已变更，防抖触发自动同步

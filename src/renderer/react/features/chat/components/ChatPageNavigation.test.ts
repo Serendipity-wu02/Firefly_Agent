@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -5,8 +6,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../../../components/ui/SidebarToggle", () => ({
   SidebarToggle: ({ collapsed }: { collapsed: boolean }) => createElement("span", null, `sidebar-toggle:${collapsed}`),
 }));
-vi.mock("../../../components/ui/ModeSwitch", () => ({
-  ModeSwitch: () => createElement("span", null, "mode-switch"),
+vi.mock("../../../components/ui/ModeTabs", () => ({
+  ModeTabs: () => createElement("span", null, "mode-tabs"),
 }));
 vi.mock("../../../components/ui/ToolModeButton", () => ({
   ToolModeButton: ({ active }: { active: boolean }) => createElement("span", null, `tool-button:${active}`),
@@ -23,10 +24,6 @@ vi.mock("../../../components/ui/PluginModeButton", () => ({
 vi.mock("../../../components/ui/WindowControls", () => ({
   WindowControls: () => createElement("span", null, "window-controls"),
 }));
-vi.mock("../../../components/ui/SettingsButton", () => ({
-  SettingsButton: () => createElement("span", null, "settings-button"),
-}));
-vi.mock("../../../components/ui/UserAvatar", () => ({ UserAvatar: () => createElement("span", null, "user-avatar") }));
 vi.mock("../../../components/ui/NewTaskButton", () => ({
   NewTaskButton: () => createElement("span", null, "new-task-button"),
 }));
@@ -38,7 +35,7 @@ vi.mock("./ConversationSidebar", () => ({
 import { ChatPageNavigation } from "./ChatPageNavigation";
 
 describe("ChatPageNavigation", () => {
-  it("hides the mode switch while a tool panel is open", () => {
+  it("keeps context modes while a tool panel is open", () => {
     const html = renderToStaticMarkup(createElement(ChatPageNavigation, {
       collapsed: false,
       activePanel: "tool",
@@ -61,12 +58,12 @@ describe("ChatPageNavigation", () => {
       onOpenSettings: () => undefined,
     }));
 
-    expect(html).not.toContain("mode-switch");
-    expect(html).toContain("tool-button:true");
+    expect(html).toContain("mode-tabs");
+    expect(html).toContain("更多");
     expect(html).toContain("conversation-sidebar:loading");
   });
 
-  it("places the plugin entry after the model entry and marks it active", () => {
+  it("places the plugin entry in the sidebar and marks it active", () => {
     const html = renderToStaticMarkup(createElement(ChatPageNavigation, {
       collapsed: false,
       activePanel: "plugin",
@@ -89,8 +86,9 @@ describe("ChatPageNavigation", () => {
       onOpenSettings: () => undefined,
     }));
 
-    expect(html.indexOf("model-button")).toBeLessThan(html.indexOf("plugin-button:true"));
-    expect(html).not.toContain("mode-switch");
+    expect(html).toContain("plugin-button:true");
+    expect(html).toContain("cy-page-titlebar");
+    expect(html).toContain("mode-tabs");
     expect(html).toContain("conversation-sidebar:error");
   });
 });

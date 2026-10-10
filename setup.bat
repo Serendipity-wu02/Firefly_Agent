@@ -37,5 +37,8 @@ if errorlevel 1 (
 )
 
 echo.
-echo [Firefly] 初始化完成，可以双击 start.bat 启动。
+echo [Firefly] Setup complete. Development requires an absolute existing isolation directory.
+echo Run: start.bat "isolation directory"
+echo Or set FIREFLY_ISOLATION_ROOT in the current terminal before running start.bat.
+echo New terminals and double-click launches do not inherit temporary variables from another terminal.
 pause

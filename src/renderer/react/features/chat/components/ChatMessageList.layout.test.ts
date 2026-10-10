@@ -6,7 +6,8 @@ const stylesheet = readFileSync(resolve(__dirname, "ChatMessageList.css"), "utf8
 
 describe("chat reading width", () => {
   it("uses one responsive reading width for the run activity", () => {
-    expect(stylesheet).toContain("--cy-message-reading-width: min(100%, clamp(640px, calc(100vw - 560px), 1120px))");
+    expect(stylesheet).toContain("--cy-message-reading-width: 100%");
+    expect(stylesheet).toMatch(/\.cy-message-list \.ant-bubble-list \{[^}]*max-width: 770px;[^}]*margin-inline: auto;/);
     expect(stylesheet).toMatch(/\.cy-message--activity \{[\s\S]*width: var\(--cy-message-reading-width\)/);
   });
 

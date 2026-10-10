@@ -1,0 +1,42 @@
+{
+  "id": "financial",
+  "colors": {
+    "primary": "#213A40",
+    "secondary": "#36565E",
+    "accent": "#226551",
+    "background": "#FFFFFF",
+    "surface": "#EEF4F1",
+    "foreground": "#1D2B30",
+    "muted": "#4E6068",
+    "border": "#AEBFC3"
+  },
+  "fonts": {
+    "cjk": [
+      "Microsoft YaHei",
+      "SimSun"
+    ],
+    "latin": [
+      "Arial",
+      "Aptos"
+    ],
+    "fallback": [
+      "Helvetica"
+    ]
+  },
+  "spacing": {
+    "base": 4
+  },
+  "roles": {
+    "table_header": "primary",
+    "input": "#0000FF",
+    "formula": "#000000",
+    "warning": "#97420C",
+    "success": "#216337"
+  },
+  "chart_colors": [
+    "#226551",
+    "#2C5E98",
+    "#73558D",
+    "#8B5C25"
+  ]
+}

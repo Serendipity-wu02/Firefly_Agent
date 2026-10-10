@@ -64,6 +64,10 @@ vi.mock("../vision-captioner", () => ({
 import "./fs-tools";
 import { toolRegistry } from "./registry/tool-registry";
 import { ToolExecutionError } from "./registry/tool-execution-error";
+import { getWorkspaceExecutionCoordinator } from "../harness/execution-coordinator";
+import { beginWriteBatch } from "./registry/file-write-evidence";
+import type { ToolContext } from "./registry/tool-context";
+import { createHash } from "crypto";
 import { inspectWorkReadFile } from "../../chats/work-read-scope";
 
 let tmpDir: string;
@@ -420,5 +424,58 @@ describe("write_file Review 基线捕获（写盘前）", () => {
     const target = path.join(tmpDir, "plain.md");
     await writeTool()!.execute({ path: target, content: "x" });
     expect(fs.existsSync(path.join(tmpDir, "firefly-runs"))).toBe(false);
+  });
+});
+
+
+describe("write/read coordination and trusted byte versions", () => {
+  const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+  function scope(coordinator: ReturnType<typeof getWorkspaceExecutionCoordinator>, agentId: string, toolCallId: string) {
+    return { workspaceId: coordinator.workspaceId, parentRunId: "p", groupId: "g", agentId, childRunId: `c-${agentId}`, toolCallId };
+  }
+  function tool(id: string) { return vi.mocked(toolRegistry.register).mock.calls.find(([definition]) => definition.id === id)![0]; }
+
+  it("read_waits_for_write_settlement_and_hashes_actual_bytes", async () => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    const file = path.join(tmpDir, "versioned.txt");
+    fs.writeFileSync(file, "old");
+    const old = JSON.parse(await tool("read_file").execute({ path: file }));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    const writer = coordinator.runLeaf(scope(coordinator, "a", "write"), "exclusive", undefined, async (permit) => {
+      const context: ToolContext = { userQuery: "", execution: { coordinator, scope: scope(coordinator, "a", "write"), permit } };
+      const batch = beginWriteBatch(context, [file]);
+      await batch.run([file], async () => { fs.writeFileSync(file, "in-flight"); entered(); await gate; fs.writeFileSync(file, "new bytes"); });
+    });
+    await started;
+    let readEntered = false;
+    const reader = coordinator.runLeaf(scope(coordinator, "b", "read"), "shared", undefined, async () => {
+      readEntered = true;
+      return JSON.parse(await tool("read_file").execute({ path: file }));
+    });
+    await Promise.resolve();
+    expect(readEntered).toBe(false);
+    release();
+    await writer;
+    const current = await reader;
+    expect(current.sha256).toBe(hash("new bytes"));
+    expect(old.sha256).toBe(hash("old"));
+    expect(current.canonicalPath).toBe(fs.realpathSync(file));
+    await coordinator.closeGroup("g");
+  });
+
+  it("invalid arguments claim no path and allow the next role to write", async () => {
+    const coordinator = getWorkspaceExecutionCoordinator(tmpDir);
+    await coordinator.runLeaf(scope(coordinator, "a", "invalid"), "exclusive", undefined, async (permit) => {
+      await expect(tool("write_file").execute({ path: "../escape.txt", content: "invalid" }, { userQuery: "", resolvedWorkspaceRoot: tmpDir, execution: { coordinator, scope: scope(coordinator, "a", "invalid"), permit } })).rejects.toMatchObject({ code: "E_PATH_NOT_ABSOLUTE" });
+    });
+    expect(coordinator.getWriteEvidence({ childRunId: "c-a" })).toEqual([]);
+    await coordinator.runLeaf(scope(coordinator, "b", "valid"), "exclusive", undefined, async (permit) => {
+      await tool("write_file").execute({ path: "valid.txt", content: "real" }, { userQuery: "", resolvedWorkspaceRoot: tmpDir, execution: { coordinator, scope: scope(coordinator, "b", "valid"), permit } });
+    });
+    expect(coordinator.getWriteEvidence({ childRunId: "c-b" })[0]).toMatchObject({ state: "applied", after: { sha256: hash("real") } });
+    await coordinator.closeGroup("g");
   });
 });

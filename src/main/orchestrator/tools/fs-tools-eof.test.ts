@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 // read_file 假 EOF 回归测试：旧实现 256KB 砍头后 totalLines 在残件上统计，
-// 模型翻页到低报行数误判 EOF，后半文件静默丢失（见 docs/internal-issue/2026-09-06 文档）。
+// 模型翻页到低报行数误判 EOF，后半文件静默丢失。
 describe("read_file 假 EOF 修复", () => {
   let tmpDir: string;
 

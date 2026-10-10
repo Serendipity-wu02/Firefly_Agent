@@ -1,8 +1,8 @@
 name: package-windows
 
 # Firefly_Agent 手动 Windows 安装包构建工作流：
-# - 复用与本地 package:win:dir 相同的构建链（build / build:screenshot-helper /
-#   prepare:mingit），产出 NSIS 安装器并留存为工作流产物
+# - package:win 与本地 package:win:dir 同样构建并校验截图、history helpers，
+#   准备 MinGit，产出 NSIS 安装器并留存为工作流产物
 # - --publish never：只构建不上传到 Releases；当前应用自动更新已禁用
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: "24"
 
-      # 截图辅助程序用 cargo --locked 构建；win25 运行器镜像自带 Rust 工具链
+      # 原生辅助程序用 cargo --locked 构建；win25 运行器镜像自带 Rust 工具链
       - name: Verify Rust toolchain
         run: cargo --version
 
@@ -46,18 +46,9 @@ jobs:
       - name: Verify Electron installation
         run: npx electron --version
 
-      - name: Build application
-        run: npm run build
-
-      - name: Build screenshot helper (Rust, --locked)
-        run: npm run build:screenshot-helper
-
-      # MinGit 使用清单校验，缓存命中则跳过下载
-      - name: Prepare MinGit
-        run: npm run prepare:mingit
-
+      # 统一入口构建应用、原生 helpers 与 MinGit，并校验随包 helper。
       - name: Build NSIS installer
-        run: npx electron-builder --win nsis --publish never
+        run: npm run package:win
 
       # 验证安装器、latest.yml 更新元数据与 win-unpacked 内随包二进制齐全
       - name: Verify installer artifacts

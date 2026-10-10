@@ -4,7 +4,6 @@ import {
   buildTextOutgoingParts,
   createOutgoingComposer,
   downgradeToCapability,
-  shouldAppendChannelTtsAudio,
 } from "./outgoing-composer";
 import type {
   ChannelCapability,
@@ -62,16 +61,6 @@ describe("channels/outgoing-composer", () => {
         { kind: "text", text: "第二句？" },
         { kind: "text", text: "第三句！" },
       ]);
-    });
-  });
-
-  describe("语音决策", () => {
-    it("微信即使开启语音且支持音频也不追加语音", () => {
-      expect(shouldAppendChannelTtsAudio("wechat", true, true, true)).toBe(false);
-    });
-
-    it("飞书开启语音且支持音频时追加语音", () => {
-      expect(shouldAppendChannelTtsAudio("feishu", true, true, true)).toBe(true);
     });
   });
 
@@ -216,48 +205,6 @@ describe("channels/outgoing-composer", () => {
     });
   });
 
-  it("生成语音时声明临时文件并能在发送后清理", async () => {
-    const files = new Map<string, Buffer>();
-    const composer = createOutgoingComposer({
-      audioDirectory: "C:/virtual/channels/audio",
-      createId: () => "audio-1",
-      writeFile: async (filePath, data) => {
-        files.set(filePath, data);
-      },
-      removeFile: async (filePath) => {
-        files.delete(filePath);
-      },
-      synthesizeTts: async () => Buffer.from("audio"),
-      resolveStickerImagePath: () => null,
-    });
-
-    const prepared = await composer.compose({
-      incoming: makeIncoming(),
-      replyText: "语音回复",
-      sticker: null,
-      capability: makeCapability({ audio: true }),
-      settings: { ttsEnabled: true, stickerEnabled: true },
-      mobileMessageSegmentation: "off",
-    });
-
-    expect(prepared.message.parts).toEqual([
-      { kind: "text", text: "语音回复" },
-      {
-        kind: "audio",
-        filePath: path.join("C:/virtual/channels/audio", "audio-1.mp3"),
-        mime: "audio/mpeg",
-      },
-    ]);
-    expect(prepared.transientFiles).toEqual([
-      path.join("C:/virtual/channels/audio", "audio-1.mp3"),
-    ]);
-    expect(files.has(prepared.transientFiles[0])).toBe(true);
-
-    await composer.cleanupTransientFiles(prepared.transientFiles);
-
-    expect(files.size).toBe(0);
-  });
-
   it("清理一个临时文件失败时继续清理其余文件", async () => {
     const removed: string[] = [];
     const composer = createOutgoingComposer({
@@ -283,7 +230,7 @@ describe("channels/outgoing-composer", () => {
       replyText: "收到",
       sticker: "OK",
       capability: makeCapability({ sticker: true }),
-      settings: { ttsEnabled: false, stickerEnabled: true },
+      settings: { stickerEnabled: true },
       mobileMessageSegmentation: "off",
     });
 
@@ -295,7 +242,7 @@ describe("channels/outgoing-composer", () => {
     expect(prepared.transientFiles).toEqual([]);
   });
 
-  it("表情包解析异常时保留文本和已生成的语音", async () => {
+  it("表情包解析异常时保留文本且不合成语音", async () => {
     const files = new Map<string, Buffer>();
     const composer = createOutgoingComposer({
       audioDirectory: "C:/virtual/channels/audio",
@@ -317,16 +264,15 @@ describe("channels/outgoing-composer", () => {
       replyText: "收到",
       sticker: "OK",
       capability: makeCapability({ audio: true, sticker: true }),
-      settings: { ttsEnabled: true, stickerEnabled: true },
+      settings: { stickerEnabled: true },
       mobileMessageSegmentation: "off",
     });
 
     expect(prepared.message.parts.map((part) => part.kind)).toEqual([
       "text",
-      "audio",
     ]);
     expect(prepared.stickerId).toBeUndefined();
-    expect(files.size).toBe(1);
+    expect(files.size).toBe(0);
 
     await composer.cleanupTransientFiles(prepared.transientFiles);
     expect(files.size).toBe(0);
@@ -342,7 +288,7 @@ describe("channels/outgoing-composer", () => {
       replyText: "收到",
       sticker: "OK",
       capability: makeCapability({ sticker: false }),
-      settings: { ttsEnabled: false, stickerEnabled: true },
+      settings: { stickerEnabled: true },
       mobileMessageSegmentation: "off",
     });
 

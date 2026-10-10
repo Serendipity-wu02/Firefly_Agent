@@ -1,4 +1,7 @@
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, shell, type IpcMainInvokeEvent } from "electron";
+import { pathToFileURL } from "node:url";
+import { isDev } from "../env";
+import { getModelConnectionSnapshot, onModelConnectionChanged, testModelConnection } from "./model-settings";
 import * as fs from "fs";
 import * as path from "path";
 import { randomUUID } from "crypto";
@@ -12,7 +15,6 @@ import type { WindowManager } from "../windows/window-manager";
 import {
   reactChatWindow,
   sidebarWindow,
-  tasksWindow,
   settingsWindow,
 } from "../windows/window-state";
 import type { RuntimeStateService } from "../orchestrator/runtime-state-service";
@@ -22,6 +24,7 @@ import { switchEmbeddingModel } from "../rag";
 import { testVendorConnection } from "../orchestrator/vendors/test-connection";
 import type { VendorConfig } from "../orchestrator/vendors";
 import { normalizeModelSettings, getPublicModelConfig, listSavedModelProfiles, saveModelProfile, setDefaultModelProfile, saveModelSettings } from "./model-settings";
+import { getAgentRoutingView, updateAgentRouting } from "./agent-model-routing";
 import type { ModelSettings } from "./model-settings";
 import { assertModelSettingsReadable } from "./model-settings";
 import { assertGeneralSettingsReadable } from "./settings-facade";
@@ -58,7 +61,7 @@ function getCustomFontDisplayName(filePath: string): string {
 const VISION_TEST_IMAGE_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAJ0lEQVR42u3NsQkAAAjAsP7/tF7hIASyp6lTCQQCgUAgEAgEgi/BAjLD/C5w/SM9AAAAAElFTkSuQmCC";
 
-export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
+export function registerSettingsIpc(deps: SettingsIpcDependencies): () => void {
   const ipc = deps.ipc ?? createIpcScope();
   const {
     getGeneralSettings,
@@ -77,7 +80,7 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
   // 解构会捕获 null 并导致后续 ?. 永远短路（设置里的打开侧边栏/日程等会失效）。
 
   function broadcastToAuxWindows(channel: string, payload: unknown): void {
-    for (const win of [reactChatWindow, sidebarWindow, tasksWindow, settingsWindow]) {
+    for (const win of [reactChatWindow, sidebarWindow, settingsWindow]) {
       if (win && !win.isDestroyed()) {
         win.webContents.send(channel, payload);
       }
@@ -100,6 +103,15 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     assertModelSettingsReadable();
     const settings = getModelSettings();
     return { profiles: listSavedModelProfiles(settings), defaultModelProfileId: settings.defaultModelProfileId };
+  });
+  ipc.handle(IPC.SETTINGS_AGENT_ROUTING_GET, () => {
+    assertModelSettingsReadable();
+    return getAgentRoutingView(getModelSettings());
+  });
+  ipc.handle(IPC.SETTINGS_AGENT_ROUTING_UPDATE, (_event, input: unknown) => {
+    assertModelSettingsReadable();
+    const saved = saveModelSettings(updateAgentRouting(getModelSettings(), input));
+    return getAgentRoutingView(saved);
   });
   ipc.handle(IPC.SETTINGS_MODEL_PROFILE_SAVE, (_event, profile) => {
     const saved = saveModelProfile(profile as Parameters<typeof saveModelProfile>[0]);
@@ -134,6 +146,8 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
   ipc.handle(IPC.SETTINGS_SAVE_TIMEOUT_SETTINGS, (_event, settings: Partial<TimeoutSettings>) =>
     saveTimeoutSettings(settings),
   );
+
+  ipc.handle(IPC.UI_COLORS_GET, () => getGeneralSettings().uiColors);
 
   ipc.handle(IPC.UI_THEME_GET, () => getGeneralSettings().uiTheme);
 
@@ -185,38 +199,13 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     return saved.uiFont;
   });
 
-  ipc.handle(IPC.SETTINGS_SAVE_GENERAL, (_event, settings: Partial<GeneralSettings>) => {
+  ipc.handle(IPC.SETTINGS_SAVE_GENERAL, async (_event, settings: Partial<GeneralSettings>) => {
     const saved = saveGeneralSettings(settings);
+    if ("searchMinimaxKey" in settings || "searchEngine" in settings) await syncVolcanoSearchMcp(saved);
+    if ("playwrightMcpEnabled" in settings) await syncPlaywrightMcp(saved);
     if ("proactiveChatMode" in settings || "proactiveDeliveryTarget" in settings) {
       proactiveLifecycle.getProactiveChatService()?.invalidate();
     }
-    return saved;
-  });
-
-  // TTS 面板调用的通用设置读写入口（历史命名遗留）
-  ipc.handle(IPC.TTS_LOAD_SETTINGS, () => getGeneralSettings());
-
-  ipc.handle(IPC.TTS_SAVE_SETTINGS, async (_event, tts: Partial<GeneralSettings>) => {
-    const before = getGeneralSettings();
-    const saved = saveGeneralSettings({ ...before, ...tts });
-
-    // 搜索 MCP 自动注册/移除：选 MiniMax+有key→注册，否则→移除
-    const searchConfigChanged = "searchMinimaxKey" in tts || "searchEngine" in tts;
-    if (searchConfigChanged) {
-      await syncVolcanoSearchMcp(saved);
-    }
-
-    // Playwright MCP：按 settings 字段自动连接/断开
-    if ("playwrightMcpEnabled" in tts) {
-      await syncPlaywrightMcp(saved);
-    }
-
-    // 主动聊天总开关变化时使现有评估失效（频率档位由 ProactiveChat 内部判定，无需重启）。
-    if ("proactiveChatMode" in tts) {
-      proactiveLifecycle.getProactiveChatService()?.invalidate();
-    }
-
-    // 返回不含密钥明文的副本（前端展示用）
     return saved;
   });
 
@@ -227,19 +216,11 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
   });
 
   ipc.on(IPC.SETTINGS_OPEN_SIDEBAR, () => {
-    deps.windowManager?.createSidebarWindow();
+    // Retired standalone status window: legacy messages are harmless.
   });
 
   ipc.on(IPC.SETTINGS_CLOSE_SIDEBAR, async () => {
     sidebarWindow?.close();
-  });
-
-  ipc.on(IPC.SETTINGS_OPEN_TASKS, () => {
-    deps.windowManager?.createTasksWindow();
-  });
-
-  ipc.on(IPC.SETTINGS_CLOSE_TASKS, async () => {
-    tasksWindow?.close();
   });
 
   ipc.on(IPC.SETTINGS_SET_PET_ALWAYS_ON_TOP, (_event, value: boolean) => {
@@ -269,7 +250,25 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     return saved;
   });
 
-  ipc.handle(IPC.SETTINGS_TEST_CONNECTION, async (_event, cfg: VendorConfig) => testVendorConnection(cfg));
+  const unsubscribeConnections = onModelConnectionChanged((snapshot) => {
+    broadcastToAuxWindows(IPC.MODEL_CONNECTION_CHANGED, snapshot);
+    broadcastModelConfigChanged();
+  });
+  ipc.handle(IPC.MODEL_CONNECTION_GET, () => {
+    assertModelSettingsReadable();
+    return getModelConnectionSnapshot();
+  });
+  ipc.handle(IPC.SETTINGS_TEST_CONNECTION, async (event: IpcMainInvokeEvent, cfg: VendorConfig) => {
+    const win = settingsWindow;
+    if (!win || win.isDestroyed() || win.webContents.isDestroyed() || event.sender !== win.webContents || !event.senderFrame || event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("MODEL_CONNECTION_FORBIDDEN");
+    }
+    const expected = isDev ? "http://localhost:5173/settings/" : pathToFileURL(path.join(app.getAppPath(), "dist", "renderer", "settings", "index.html")).href;
+    let actual: string;
+    try { const url = new URL(event.senderFrame.url); url.hash = ""; actual = url.href; } catch { throw new Error("MODEL_CONNECTION_FORBIDDEN"); }
+    if (actual !== expected) throw new Error("MODEL_CONNECTION_FORBIDDEN");
+    return testModelConnection(cfg, testVendorConnection);
+  });
 
   /**
    * 测试视觉模型连通性。
@@ -355,4 +354,5 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     });
     broadcastModelConfigChanged(preview);
   });
+  return unsubscribeConnections;
 }

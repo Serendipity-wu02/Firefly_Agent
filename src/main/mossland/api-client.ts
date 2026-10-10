@@ -1,4 +1,5 @@
 import { resolveTimeoutPolicy } from "../runtime-policy";
+import { createAbortError, raceWithSignal } from "../abort-utils";
 
 export const MOSSLAND_BASE_URL = "https://api.mosi.cn";
 
@@ -71,15 +72,17 @@ export async function mosslandFetch(
   } = init;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const signal = rest.signal ? AbortSignal.any([controller.signal, rest.signal]) : controller.signal;
   try {
-    return await fetch(url, {
+    if (signal.aborted) throw createAbortError();
+    return await raceWithSignal(fetch(url, {
       ...rest,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         ...(rest.headers ?? {}),
       },
-      signal: controller.signal,
-    });
+      signal,
+    }), signal);
   } finally {
     clearTimeout(timer);
   }

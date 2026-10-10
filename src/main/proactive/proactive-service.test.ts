@@ -155,3 +155,18 @@ describe("proactive chat service", () => {
     expect(ctx.state.lastProactiveAt).toBe(NOW);
   });
 });
+
+it("aborts invalidated generation but close waits for the real model to settle", async () => {
+  const pending = deferred<{ kind: "send"; text: string }>();
+  let signal: AbortSignal | undefined;
+  const ctx = setup({ runModel: vi.fn((_messages: unknown, current: AbortSignal) => { signal = current; return pending.promise; }) });
+  const running = ctx.service.evaluateCandidate(candidate);
+  await vi.waitFor(() => expect(signal).toBeDefined());
+  ctx.service.invalidateForUserMessage();
+  expect(signal?.aborted).toBe(true);
+  let closed = false;
+  const closing = ctx.service.close().then(() => { closed = true; });
+  await Promise.resolve(); expect(closed).toBe(false); expect(ctx.service.isGenerating()).toBe(true);
+  pending.resolve({ kind: "send", text: "late result" }); await running; await closing;
+  expect(ctx.commitMessage).not.toHaveBeenCalled(); expect(closed).toBe(true); expect(ctx.service.isGenerating()).toBe(false);
+});

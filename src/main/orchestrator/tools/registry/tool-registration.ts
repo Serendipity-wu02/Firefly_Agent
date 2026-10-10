@@ -1,12 +1,14 @@
+import { registerBrowserWorkspaceTool } from "../browser-workspace-tool";
+import type { BrowserWorkspaceExecutor } from "../../../browser/browser-workspace-executor";
 import { loadGeneralSettings } from "../../../settings/settings-facade";
 import { loadModelSettings } from "../../../settings/model-settings";
 import type { GeneralSettings } from "../../../settings/general-settings";
 import { registerEmailTools } from "../email-tools";
+import { registerObsidianTools } from "../../../knowledge/obsidian/obsidian-tools";
 import { registerDocumentTools } from "../document-tools";
 // fs-tools / built-in-tools 仍依赖模块加载副作用，先集中在此，后续可继续显式化
 import "../fs-tools";
 import { registerLifeTools, setTranslateConfig } from "../life-tools";
-import { registerMomentsTools } from "../moments-tools";
 import { registerRecallHistoryTool } from "../history-tools";
 import { registerSearchCodeTool, registerSearchTextTool } from "../search-code-tools";
 import { registerApplyPatchTool } from "../apply-patch-tools";
@@ -24,14 +26,17 @@ export function syncBuiltInToolToggles(settings: GeneralSettings): void {
   toolRegistry.setEnabled("plan_trip", settings.travelEnabled);
 }
 
-export function registerAllTools(deps: { codeGitService: GitService; lspManager: LspManager }): void {
+export function registerAllTools(deps: { codeGitService: GitService; lspManager: LspManager; browserWorkspace?: BrowserWorkspaceExecutor; personalMemoryMode?: "legacy" | "smh" }): void {
+  toolRegistry.setPersonalMemoryMode(deps.personalMemoryMode ?? "legacy");
+  registerBrowserWorkspaceTool(deps.browserWorkspace ?? (async () => ({ ok: false, code: "network_unavailable" })), toolRegistry);
+  registerObsidianTools();
   registerCodeGitTools(deps.codeGitService, toolRegistry);
   registerLspTool(deps.lspManager, toolRegistry);
   registerSearchCodeTool();
   registerSearchTextTool();
   registerApplyPatchTool();
   registerAstGrepTools();
-  registerRecallHistoryTool();
+  registerRecallHistoryTool({ personalMemoryMode: deps.personalMemoryMode });
   registerDocumentTools();
 
   setTranslateConfig(() => {
@@ -41,7 +46,6 @@ export function registerAllTools(deps: { codeGitService: GitService; lspManager:
       : null;
   });
   registerLifeTools();
-  registerMomentsTools();
 
   registerTravelTools();
   registerEmailTools();

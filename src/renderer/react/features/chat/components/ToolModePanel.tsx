@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "../../../i18n";
 import "./ToolModePanel.css";
 
-type ToolMode = "work" | "code" | "learn" | "chat";
+type ToolMode = "work" | "code" | "chat";
 
 type TabKey = ToolMode;
 
@@ -11,8 +11,8 @@ interface ToolCatalogItem {
   name: string;
   description: string;
   enabled: boolean;
-  modes: Array<"chat" | "work" | "code" | "learn"> | null;
-  /** chat 模式内置人格工具（如朋友圈三件套）：默认对 chat 可见，不依赖总开关 */
+  modes: Array<"chat" | "work" | "code"> | null;
+  /** chat 模式内置人格工具：默认对 chat 可见，不依赖总开关 */
   chatBuiltin?: boolean;
   deprecated: string | null;
 }
@@ -22,7 +22,6 @@ type Overrides = Record<string, Partial<Record<string, boolean>>>;
 const BASE_TABS: Array<{ key: TabKey; label: string }> = [
   { key: "work", label: "Work" },
   { key: "code", label: "Code" },
-  { key: "learn", label: "Learn" },
 ];
 
 /** Chat 模式首次开启工具增强时预勾选的白名单。 */

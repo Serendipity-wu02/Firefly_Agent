@@ -1,3 +1,8 @@
+import { getCustomEndpointMode, getCustomEndpointPresentation } from "../../shared/custom-endpoint-state";
+import { createBackgroundMemoryIngressIssuer, type BackgroundMemoryHost, type BackgroundMemoryPreparedRun } from "../memory-context/background-memory-ingress";
+import type { MainMemoryRun } from "../memory-context/main-memory-runtime";
+import type { ChatMessage } from "../orchestrator/vendors/types";
+import { searchMemory } from "../rag";
 import { randomUUID } from "crypto";
 import { powerMonitor } from "electron";
 import * as chatsStore from "../chats/chats-store";
@@ -9,10 +14,10 @@ import {
   sendProactiveChannelMessage,
 } from "../channels/proactive-delivery";
 import { resolveChatContextTimezone } from "../chat-time-context";
-import { buildAlwaysOnContext, buildMemoryInjection } from "../orchestrator";
+import { buildAlwaysOnContext, buildMemoryInjection, buildWorldbookContext } from "../orchestrator";
 import { loadPromptFile } from "../prompts/prompt-loader";
 import type { GeneralSettings } from "../settings/general-settings";
-import { loadModelSettings } from "../settings/model-settings";
+import { loadModelSettings, getDefaultModelProfile, resolveModelSettingsProfile } from "../settings/model-settings";
 import { loadUserProfile } from "../settings-store";
 import { createProactiveChatService } from "./proactive-service";
 import type {
@@ -29,6 +34,7 @@ import { runProactiveModel } from "./proactive-model";
 import type { ProactiveCandidate, ProactiveRuntimeSnapshot } from "./proactive-types";
 
 export interface ProactiveLifecycleOptions {
+  memoryHost?: BackgroundMemoryHost;
   loadGeneralSettings: () => GeneralSettings;
 }
 
@@ -36,6 +42,7 @@ export interface ProactiveLifecycle {
   initializeProactiveChatService: () => void;
   initializeProactiveTrigger: () => void;
   stopProactiveTrigger: () => void;
+  close(): Promise<void>;
   getProactiveChatService: () => ProactiveChatService | null;
   proactiveConversationLifecycle: {
     onUserMessage: () => void;
@@ -49,7 +56,10 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
   let proactiveTrigger: ProactiveTriggerController | null = null;
   const proactiveBackoffMap = new Map<string, number>();
   let normalConversationBusyCount = 0;
-  let proactiveScreenLocked = false;
+  let proactiveScreenLocked = false, closed = false;
+  const generations = new WeakMap<ChatMessage[], { candidate: ProactiveCandidate; epoch: number; signal: AbortSignal }>();
+  const sources = new Set<object>();
+  const issuer = createBackgroundMemoryIngressIssuer({ entry: "proactive", isCurrent: source => !closed && sources.has(source) });
 
   function buildProactivePersonaPrompt(): string {
     const parts: string[] = [];
@@ -102,10 +112,13 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
   }
 
   async function buildProactiveAgentMessages(candidate: ProactiveCandidate) {
-    const histories = getProactiveHistories();
+    const histories = options.memoryHost ? { ordinary: [], proactive: [] } : getProactiveHistories();
     const recentTopic = histories.ordinary.slice(-4).map((turn) => turn.content).join("\n");
     const retrievalQuery = `${candidate.sceneId}\n${recentTopic}`.trim();
-    const [profileContext, memoryContext] = await Promise.all([
+    const [profileContext, memoryContext] = options.memoryHost ? await Promise.all([
+      buildWorldbookContext(retrievalQuery, []).catch(() => ""),
+      searchMemory(retrievalQuery, "imported_doc", 2).then(docs => docs.length ? "【相关文档】\n" + docs.join("\n") : "").catch(() => ""),
+    ]) : await Promise.all([
       buildAlwaysOnContext(retrievalQuery, histories.ordinary.map((turn) => ({ role: turn.role, content: turn.content }))).catch(() => ""),
       buildMemoryInjection(retrievalQuery).catch(() => ""),
     ]);
@@ -144,7 +157,8 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
     },
   };
 
-  function getProactiveCommitDecision(candidate: ProactiveCandidate, generationEpoch: number) {
+  function getProactiveCommitDecision(candidate: ProactiveCandidate, generationEpoch: number, signal?: AbortSignal) {
+    if (closed || signal?.aborted) return { allowed: false as const, reason: "generation_cancelled" };
     return canCommitProactiveMessage(
       getProactiveRuntimeSnapshot(),
       loadProactiveState(),
@@ -160,7 +174,7 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
   }
 
   async function commitLocalProactiveMessage(input: ProactiveCommitInput): Promise<ProactiveCommitResult> {
-    const initialDecision = getProactiveCommitDecision(input.candidate, input.generationEpoch);
+    const initialDecision = getProactiveCommitDecision(input.candidate, input.generationEpoch, input.signal);
     if (!initialDecision.allowed) return { kind: "cancelled", reason: initialDecision.reason };
 
     const session = chatsStore.getOrCreateSessionByPurpose("proactive-chat", {
@@ -184,6 +198,8 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
   }
 
   async function commitSelectedProactiveMessage(input: ProactiveCommitInput): Promise<ProactiveCommitResult> {
+    const initialDecision = getProactiveCommitDecision(input.candidate, input.generationEpoch, input.signal);
+    if (!initialDecision.allowed) return { kind: "cancelled", reason: initialDecision.reason };
     const settings = options.loadGeneralSettings();
     const target = settings.proactiveDeliveryTarget;
     const result = await routeProactiveDelivery(target, {
@@ -196,7 +212,7 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
           manager: channelManager,
           canContinue: () => {
             if (options.loadGeneralSettings().proactiveDeliveryTarget !== channel) return false;
-            return getProactiveCommitDecision(input.candidate, input.generationEpoch).allowed;
+            return getProactiveCommitDecision(input.candidate, input.generationEpoch, input.signal).allowed;
           },
         });
         return channelResult.kind === "committed"
@@ -205,6 +221,9 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
       },
     });
 
+    // Already-started sends are awaited and recorded by the channel delivery log.
+    // A cancelled generation must not publish a new successful whole-message commit.
+    if (closed || input.signal.aborted) return { kind: "cancelled", reason: "generation_cancelled", ...(result.kind === "committed" ? { deliveryCommitted: true as const } : {}) };
     if (result.kind === "committed") recordProactiveDeliveryMetadata(input);
     return result;
   }
@@ -216,11 +235,44 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
         saveProactiveState(state);
       },
       getSnapshot: getProactiveRuntimeSnapshot,
-      buildMessages: async (candidate) => buildProactiveAgentMessages(candidate),
-      runModel: async (messages) => {
-        const settings = loadModelSettings();
-        if (!settings.apiKey) return { kind: "error", reason: "missing_api_key" };
+      buildMessages: async (candidate, state, signal) => {
+        const epoch = state.proactiveEpoch;
+        const messages = await buildProactiveAgentMessages(candidate);
+        generations.set(messages, { candidate, epoch, signal });
+        return messages;
+      },
+      runModel: async (messages, signal) => {
+        const savedSettings = loadModelSettings();
+        const profile = getDefaultModelProfile(savedSettings);
+        const settings = resolveModelSettingsProfile(savedSettings);
+        const customMode = getCustomEndpointMode(settings.provider), keyOptional = customMode !== null && getCustomEndpointPresentation(customMode).apiKeyOptional;
+        if (!keyOptional && !settings.apiKey?.trim()) return { kind: "error", reason: "missing_api_key" };
+        const vendorConfig = { provider: settings.provider, baseUrl: settings.baseUrl, model: settings.model,
+          apiKey: settings.apiKey, explicitTransport: settings.explicitTransport, reasoning: settings.reasoning };
+        if (options.memoryHost) {
+          if (!profile) return { kind: "error", reason: "MEMORY_RUN_PROFILE_DENIED" };
+          const generation = generations.get(messages), source = {};
+          if (!generation || generation.signal !== signal || generation.epoch !== loadProactiveState().proactiveEpoch || closed || signal.aborted)
+            return { kind: "error", reason: "MEMORY_CONTEXT_CANCELLED" };
+          const runId = randomUUID(), instructionText = messages.filter(message => message.role === "user").map(message => message.content).join("\n");
+          sources.add(source);
+          let prepared: BackgroundMemoryPreparedRun | undefined, memoryRun: MainMemoryRun | undefined;
+          try {
+            const ingress = issuer.capture({ source, sessionId: "proactive-memory-v1", sourceKey: "proactive-trigger-v1", instructionText, signal });
+            prepared = await options.memoryHost.prepareBackgroundRun({ ingress, modelProfileId: profile.id, runId,
+              userTurnId: `${runId}-instruction`, assistantTurnId: `${runId}-assistant`, instructionText, signal });
+            memoryRun = await prepared.openMemoryRun({ settings: { ...vendorConfig, contextWindowTokens: settings.contextWindowTokens },
+              messages, runId, conversationId: prepared.sessionId, signal: prepared.signal, transcriptSink: prepared.transcriptSink,
+              toolSystemContent: "", soulSystemBaseContent: "", timeoutMs: 45_000 });
+            return await runProactiveModel({ settings: vendorConfig, messages, timeoutMs: 45_000, signal: prepared.signal, memoryRun, transcriptSink: prepared.transcriptSink });
+          } catch (error) {
+            return { kind: "error", reason: error instanceof Error && /^MEMORY_[A-Z0-9_]+$/.test(error.message) ? error.message : "memory_runtime_error" };
+          } finally {
+            try { await memoryRun?.close(); } finally { await prepared?.close(); sources.delete(source); }
+          }
+        }
         return runProactiveModel({
+          signal,
           settings: {
             provider: settings.provider,
             baseUrl: settings.baseUrl,
@@ -288,6 +340,7 @@ export function createProactiveLifecycle(options: ProactiveLifecycleOptions): Pr
     initializeProactiveChatService,
     initializeProactiveTrigger,
     stopProactiveTrigger,
+    async close(): Promise<void> { closed = true; stopProactiveTrigger(); await proactiveChatService?.close(); },
     getProactiveChatService: () => proactiveChatService,
     proactiveConversationLifecycle,
   };

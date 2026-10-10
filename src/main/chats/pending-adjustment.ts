@@ -10,6 +10,32 @@ import * as chatsStore from "./chats-store";
 import type { PendingChatAttachment, PendingChatMessage } from "../../shared/chat-types";
 import type { RunAdjustmentMessage } from "../orchestrator/harness/types";
 
+/** Opaque Main-only authority for one live, unchanged marked queue item. */
+declare const adjustmentPermitBrand: unique symbol;
+export type RunAdjustmentPermit = object & { readonly [adjustmentPermitBrand]: true };
+type AdjustmentBinding = { sessionId: string; runId: string };
+export type RunAdjustmentHandler = (permit: RunAdjustmentPermit, commitHistory: () => RunAdjustmentMessage) => Promise<RunAdjustmentMessage>;
+type PollerState = AdjustmentBinding & { handler?: RunAdjustmentHandler; closed?: boolean };
+const pollers = new WeakMap<object, PollerState>();
+const permits = new WeakMap<object, { binding: PollerState; item: PendingChatMessage; assertPending(): void }>();
+const denied = (): never => { throw new Error("MEMORY_CONTEXT_ADJUSTMENT_DENIED"); };
+
+/** A same-shaped function or DTO cannot bind a trusted adjustment producer. */
+export function bindRunAdjustmentPoller(poller: object, binding: AdjustmentBinding, handler: RunAdjustmentHandler): () => void {
+  const state = pollers.get(poller);
+  if (!state || state.sessionId !== binding.sessionId || state.runId !== binding.runId || state.handler || state.closed) return denied();
+  state.handler = handler;
+  return () => { if (state.handler === handler) { state.closed = true; state.handler = undefined; } };
+}
+
+export function requireRunAdjustmentPermit(permit: object, binding: AdjustmentBinding): Readonly<{ turnId: string; revision: 1; text: string }> {
+  const state = permits.get(permit);
+  if (!state || !state.binding.handler || state.binding.sessionId !== binding.sessionId || state.binding.runId !== binding.runId) return denied();
+  state.assertPending();
+  if (state.item.attachments?.length) throw new Error("MEMORY_ATTACHMENT_UNSUPPORTED");
+  return Object.freeze({ turnId: state.item.id, revision: 1, text: state.item.rawContent });
+}
+
 /** 轮询所需的存储端口（生产用 chats-store，测试可注入替身）。 */
 export interface PendingAdjustmentStore {
   getPendingMessages(sessionId: string): PendingChatMessage[] | null;
@@ -44,14 +70,45 @@ export function createRunAdjustmentPoller(
   store: PendingAdjustmentStore = chatsStore,
   transcript?: TranscriptUserWritePort,
 ): () => Promise<RunAdjustmentMessage[]> | undefined {
-  return () => {
+  const state: PollerState = { sessionId, runId };
+  let active: Promise<RunAdjustmentMessage[]> | undefined;
+  const poller = () => {
+    if (state.closed) return Promise.reject(new Error("MEMORY_CONTEXT_ADJUSTMENT_DENIED"));
+    if (active) return active.then(() => []);
     const queue = store.getPendingMessages(sessionId);
     if (!queue) return undefined;
     const marked = queue.filter((item) => item.adjustRunId === runId);
     if (marked.length === 0) return undefined;
-    return (async () => {
+    const operation = (async () => {
       const injected: RunAdjustmentMessage[] = [];
-      for (const item of marked) {
+      for (const pending of marked) {
+        const item = structuredClone(pending);
+        if (state.handler) {
+          const handler = state.handler, fingerprint = JSON.stringify(item);
+          const assertPending = () => {
+            const current = store.getPendingMessages(sessionId)?.filter(candidate => candidate.id === item.id);
+            if (current?.length !== 1 || current[0].adjustRunId !== runId || JSON.stringify(current[0]) !== fingerprint) {
+              throw new Error("MEMORY_CONTEXT_ADJUSTMENT_STALE");
+            }
+          };
+          assertPending();
+          const permit = Object.freeze({}) as RunAdjustmentPermit;
+          permits.set(permit, { binding: state, item, assertPending });
+          let attempted = false, committed: RunAdjustmentMessage | undefined;
+          try {
+            await handler(permit, () => {
+              if (attempted || state.handler !== handler) return denied();
+              attempted = true; assertPending();
+              const result = store.commitPendingAdjust(sessionId, item.id, runId);
+              if (!result.ok) throw new Error(`PENDING_ADJUST_COMMIT_FAILED:${item.id}:${result.error}`);
+              committed = { id: result.userMessage.id, rawContent: item.rawContent };
+              return committed;
+            });
+            if (!committed) return denied();
+            injected.push(committed);
+          } finally { permits.delete(permit); }
+          continue;
+        }
         // ① 权威轨迹先写（稳定 turnId + 附件元数据，同 entryId 重试幂等吸收）。
         //    写失败上抛：聊天历史不动，pending 保留。兼容调用无端口时跳过。
         if (transcript) {
@@ -71,5 +128,10 @@ export function createRunAdjustmentPoller(
       }
       return injected;
     })();
+    active = operation;
+    void operation.then(() => { active = undefined; }, () => { active = undefined; });
+    return operation;
   };
+  pollers.set(poller, state);
+  return poller;
 }

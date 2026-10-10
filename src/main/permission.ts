@@ -108,6 +108,7 @@ interface PendingApproval {
   rebroadcastTimer: NodeJS.Timeout;
   /** 关联的 canonical runId，用于 cancelPendingApprovalsForRun。 */
   runId?: string;
+  removeAbortListener?: () => void;
 }
 
 const pendingApprovals = new Map<string, PendingApproval>();
@@ -138,6 +139,7 @@ function settlePendingApproval(
   if (!pending) return;
   clearInterval(pending.rebroadcastTimer);
   pendingApprovals.delete(id);
+  pending.removeAbortListener?.();
   broadcastToAllWindows(IPC.PERMISSION_APPROVAL_SETTLED, {
     id,
     runId: pending.runId,
@@ -152,8 +154,9 @@ function settlePendingApproval(
  * 向用户发起一次审批请求，等用户点同意/拒绝。
  * 不设超时，无限等待直到用户回应或所属 run 终态取消。
  */
-export function requestApproval(request: Omit<ApprovalRequest, "id">): Promise<boolean> {
+export function requestApproval(request: Omit<ApprovalRequest, "id">, signal?: AbortSignal): Promise<boolean> {
   return new Promise<boolean>((resolve, reject) => {
+    if (signal?.aborted) { reject(createAbortError()); return; }
     const id = "approve-" + (++approvalCounter) + "-" + Date.now();
     const payload: ApprovalRequest = { id, ...request };
     console.log(LOG_PREFIX, "向渲染端发送审批请求:", id, request.toolId);
@@ -170,7 +173,12 @@ export function requestApproval(request: Omit<ApprovalRequest, "id">): Promise<b
     }, APPROVAL_REBROADCAST_INTERVAL_MS);
     if (typeof rebroadcastTimer.unref === "function") rebroadcastTimer.unref();
 
-    pendingApprovals.set(id, { resolve, reject, rebroadcastTimer, runId: request.runId });
+    const onAbort = () => settlePendingApproval(id, "cancelled", pending => pending.reject(createAbortError()));
+    pendingApprovals.set(id, { resolve, reject, rebroadcastTimer, runId: request.runId,
+      ...(signal ? { removeAbortListener: () => signal.removeEventListener("abort", onAbort) } : {}),
+    });
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) { onAbort(); return; }
 
     // 首次广播给所有窗口（chat 窗口会优先显示卡片）
     broadcastToAllWindows(IPC.PERMISSION_APPROVAL_REQUEST, payload);
@@ -231,13 +239,18 @@ export async function checkPermission(input: {
   toolDescription: string;
   args: Record<string, unknown>;
   risk: ToolRiskLevel;
+  /** Trusted session snapshot; it can narrow current permissions, never widen them. */
+  level?: AgentFileAccessLevel;
   /** 可选 runId，用于 cancel 时按 run 清理 pending 审批。 */
   runId?: string;
   signal?: AbortSignal;
 }): Promise<{ allowed: boolean; reason?: string }> {
   if (input.signal?.aborted) throw createAbortError();
   const level = currentLevel;
-  const policy = policyFor(level, input.risk);
+  const currentPolicy = policyFor(level, input.risk);
+  const sessionPolicy = policyFor(input.level ?? level, input.risk);
+  const policy = currentPolicy === "deny" || sessionPolicy === "deny" ? "deny"
+    : currentPolicy === "ask" || sessionPolicy === "ask" ? "ask" : "allow";
   console.log(LOG_PREFIX, "checkPermission:", input.toolId, "risk=" + input.risk, "level=" + level, "→", policy);
 
   if (policy === "allow") return { allowed: true };
@@ -255,8 +268,16 @@ export async function checkPermission(input: {
     args: input.args,
     risk: input.risk,
     runId: input.runId,
-  });
-  if (approved) return { allowed: true };
+  }, input.signal);
+  if (input.signal?.aborted) throw createAbortError();
+  if (approved) {
+    // A pending approval does not preserve permissions that were revoked while waiting.
+    if (policyFor(currentLevel, input.risk) === "deny"
+      || policyFor(input.level ?? currentLevel, input.risk) === "deny") {
+      return { allowed: false, reason: "等待审批期间权限已收紧，此次操作未执行。" };
+    }
+    return { allowed: true };
+  }
   return { allowed: false, reason: "用户拒绝了此次操作。" };
 }
 

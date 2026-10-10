@@ -47,6 +47,16 @@ function createTestContext(
 }
 
 describe("createContext", () => {
+  it("rejects retired and unknown tool modes without registering a resource", () => {
+    tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
+    const rt = runtime();
+    const ctx = createTestContext(rt);
+    for (const modes of [["learn"], ["unknown"], "work"]) {
+      expect(() => ctx.registerTool({ id: "demo_tool", name: "t", description: "d", enabled: true,
+        modes, inputSchema: { type: "object", properties: {} }, execute: async () => "ok" } as never)).toThrow("INVALID_TOOL_MODES");
+    }
+    expect(rt.tools).toEqual([]);
+  });
   it("registerIpc 自动加 plugin:<id>: 前缀", () => {
     tmp = mkdtempSync(path.join(os.tmpdir(), "firefly-ctx-test-"));
     const rt = runtime();

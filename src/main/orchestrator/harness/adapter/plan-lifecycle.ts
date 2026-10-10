@@ -57,17 +57,18 @@ export function completePlanRun(input: {
   threadId: string;
   runId: string;
   runStatus: ReviewRunStatus;
+  planState?: ReturnType<typeof getPlanState>;
   signal: AbortSignal;
   send: (event: BaseEvent) => void;
 }): void {
-  if (input.mode !== "code" && input.mode !== "chat") return;
+  if ((input.mode !== "code" && input.mode !== "chat") || input.planState !== "EXECUTING") return;
 
   const finishedPlanPath = completeExecution(input.threadId);
   if (!finishedPlanPath) return;
 
   console.log(`${LOG_PREFIX} [Plan] execution finished, back to NORMAL, plan=${finishedPlanPath}`);
   // completeExecution 对成功、失败、取消都要调用；只有真正完成执行态才发送前端通知。
-  if (input.signal.aborted) return;
+  if (input.signal.aborted || input.runStatus !== "completed") return;
 
   input.send({
     type: EventType.CUSTOM,

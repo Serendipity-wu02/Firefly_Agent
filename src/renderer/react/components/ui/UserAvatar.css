@@ -13,16 +13,18 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #ffe8f0;
+  background: var(--cy-bg-hover);
+  border: 1px solid var(--cy-border);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 8px rgba(76, 55, 98, 0.22));
+  
 }
 
 .cy-user-avatar-circle span {
-  color: #c46a8a;
+  color: var(--cy-text-secondary);
   font-size: 14px;
   font-weight: 600;
 }
@@ -41,3 +43,4 @@
   color: var(--cy-text-muted);
   transition: color 0.15s;
 }
+

@@ -18,9 +18,9 @@
 .cy-modal {
   width: min(380px, 88vw);
   padding: 20px 22px 18px;
-  border-radius: 24px;
+  border-radius: 12px;
   background: radial-gradient(circle at 20% 8%, rgba(72, 187, 120, 0.18), transparent 60%), linear-gradient(145deg, rgba(38, 28, 60, 0.96), rgba(22, 18, 40, 0.94));
-  border: 1px solid rgba(45, 122, 95, 0.18);
+  border: 1px solid rgba(var(--rb-accent-rgb), 0.18);
   box-shadow: 0 28px 60px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: scale(1);
   transition: transform 180ms ease;
@@ -63,16 +63,16 @@
 
 .btn-primary {
   padding: 8px 18px;
-  border-radius: 999px;
+  border-radius: 12px;
   border: none;
-  background: linear-gradient(135deg, rgba(72, 187, 120, 0.85), rgba(45, 122, 95, 0.80));
-  color: #fef2f9;
+  background: linear-gradient(135deg, rgba(72, 187, 120, 0.85), rgba(var(--rb-accent-rgb), 0.80));
+  color: var(--rb-text-on-pink);
   font: var(--rb-text-small);
   cursor: pointer;
   transition: background 150ms ease, box-shadow 150ms ease;
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #23654e, #1e5a45);
-  box-shadow: 0 8px 18px rgba(45, 122, 95, 0.28);
+  background: linear-gradient(135deg, var(--rb-accent-hover), var(--rb-accent-deep));
+  box-shadow: 0 8px 18px rgba(var(--rb-accent-rgb), 0.28);
 }
