@@ -72,7 +72,12 @@ jobs:
           FIREFLY_VITEST_DIAGNOSTICS: ${{ runner.temp }}/firefly-vitest-diagnostics
         run: node scripts/ci/probe-runner-io.mjs
 
+      # 测试的临时目录放到 RUNNER_TEMP（D 盘）：探测显示运行器默认 TEMP（C 盘）的 fsync/SQLite 提交慢约 9 倍，
+      # 真实 SQLite 集成测试因此反复超时。这只改变临时文件所在磁盘，不放宽任何断言或门禁。
       - name: Run full test suite
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: ./scripts/ci/run-vitest.ps1
 
       - name: Upload Vitest worker evidence
