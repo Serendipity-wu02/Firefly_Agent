@@ -12,7 +12,11 @@
 .cy-workspace-run-results__file { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--cy-border); }
 .cy-workspace-run-results__file > span { flex: 1 1 100%; }
 .cy-workspace-run-results__tool { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--cy-border); }
-.cy-workspace-run-results__tool header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.cy-workspace-run-results__tool header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cy-workspace-run-results__tool header strong { flex: 1; min-width: 0; }
+.cy-workspace-run-results__avatar { width: 28px; height: 28px; flex: none; border-radius: 50%; object-fit: cover; }
+.cy-workspace-run-results__task { margin: 6px 0 0; }
+.cy-workspace-run-results__text { margin-top: 8px; font-size: 13px; line-height: 1.6; user-select: text; }
 .cy-workspace-run-results__tool p { font-size: 12px; color: var(--cy-text-muted); }
 .cy-workspace-run-results pre, .cy-workspace-change-diff pre { font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .cy-workspace-change-diff header { padding-bottom: 10px; border-bottom: 1px solid var(--cy-border); }
@@ -20,3 +24,5 @@
 .cy-workspace-change-diff .is-remove { background: var(--cy-del-bg); }
 .cy-workspace-change-diff .is-hunk { color: var(--cy-info-fg); background: var(--cy-info-bg); }
 .cy-workspace-change-diff pre span { padding-right: 8px; user-select: none; }
+.cy-workspace-run-results__text :is(h1, h2, h3, h4) { margin: 10px 0 6px; font-size: 14px; line-height: 1.4; }
+.cy-workspace-run-results__text :is(p, ul, ol) { margin: 6px 0; }

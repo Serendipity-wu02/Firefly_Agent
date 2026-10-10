@@ -1,7 +1,11 @@
 import type { ToolFileChange } from "../../../../../shared/chat-types";
 import type { FileVersionEvidence, TaskWriteEvidence } from "../../../../../shared/agent-execution-evidence";
 import { normalizeToolTaskResult } from "../../../../../shared/task-result-evidence";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "../../../i18n";
+import { getCharacterPortraitByAssetFileName } from "../../../character-portraits";
+import { MarkdownContent } from "../components/ChatMessageList";
+import { ChatInspectorActionsContext } from "../components/inspector-actions";
 import { TaskDelegationRow } from "../components/TaskDelegationRow";
 import { workspaceRelativePath, type WorkspaceChangedFile, type WorkspaceRunOutput } from "./workspace-artifacts";
 import "./WorkspaceRunResults.css";
@@ -18,13 +22,24 @@ export function WorkspaceResultsIndex({ outputs, onOpenResult }: { outputs: Work
   </section>;
 }
 
-export function WorkspaceRunResults({ output, workspaceRoot, onOpenFile, onOpenDiff }: {
+export function WorkspaceRunResults({ output, workspaceRoot, focusTask, onOpenFile, onOpenDiff }: {
   output: WorkspaceRunOutput; workspaceRoot?: string;
+  /** Task whose result the chat asked to see; `seq` lets a repeated request scroll again. */
+  focusTask?: { taskId: string; seq: number };
   onOpenFile(path: string): void; onOpenDiff(output: WorkspaceRunOutput, file: WorkspaceChangedFile): void;
 }) {
   const { t } = useTranslation();
-  return <section className="cy-workspace-run-results" aria-label={t("workspace.results")} data-source-session={output.sessionId} data-source-run={output.runId}>
-    {output.tasks.map(task => <TaskDelegationRow key={task.invocationId} delegation={task} />)}
+  const root = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!focusTask) return;
+    const target = [...(root.current?.querySelectorAll<HTMLElement>("[data-task-id]") ?? [])].find(node => node.dataset.taskId === focusTask.taskId);
+    target?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [focusTask?.taskId, focusTask?.seq]);
+  return <section ref={root} className="cy-workspace-run-results" aria-label={t("workspace.results")} data-source-session={output.sessionId} data-source-run={output.runId}>
+    {/* Inside the panel the rows stay informational: they unfold in place instead of reopening this panel. */}
+    <ChatInspectorActionsContext.Provider value={{}}>
+      {output.tasks.map(task => <TaskDelegationRow key={task.invocationId} delegation={task} />)}
+    </ChatInspectorActionsContext.Provider>
     {output.files.length > 0 && <div className="cy-workspace-run-results__files">
       <h3>{t("workspace.changedFiles")}</h3>
       {output.files.map(file => {
@@ -39,12 +54,21 @@ export function WorkspaceRunResults({ output, workspaceRoot, onOpenFile, onOpenD
     </div>}
     {output.tools.map(tool => {
       const taskResult = tool.name === "delegate_agent" ? normalizeToolTaskResult(tool.taskResult, output.runId) : undefined;
-      return <article key={tool.id} className="cy-workspace-run-results__tool">
-        <header><strong>{taskResult?.agentId ?? tool.displayName ?? tool.name}</strong><span data-tool-status={tool.status}>{t(`workspace.toolStatus.${tool.status}`)}</span></header>
+      const task = taskResult && output.tasks.find(item => item.taskId === taskResult.sessionId);
+      const portrait = task ? getCharacterPortraitByAssetFileName(task.assetFileName) : undefined;
+      return <article key={tool.id} className="cy-workspace-run-results__tool" data-task-id={taskResult?.sessionId}>
+        <header>
+          {portrait && <img className="cy-workspace-run-results__avatar" src={portrait} alt="" />}
+          <strong>{task?.nickname ?? taskResult?.agentId ?? tool.displayName ?? tool.name}</strong>
+          <span data-tool-status={tool.status}>{t(`workspace.toolStatus.${tool.status}`)}</span>
+        </header>
         {taskResult ? <>
+          {task && <p className="cy-workspace-run-results__task">{task.description}</p>}
           <p>{t("workspace.childResult")} · {t(`workspace.childStatus.${taskResult.status}`)}</p>
           {taskResult.error && <p role="status" data-child-error={taskResult.error.code}>{taskResult.error.code}: {taskResult.error.message}</p>}
-          <pre>{taskResult.text || t("workspace.emptyResult")}</pre>
+          {taskResult.text
+            ? <div className="cy-workspace-run-results__text"><MarkdownContent content={taskResult.text} /></div>
+            : <pre>{t("workspace.emptyResult")}</pre>}
           {taskResult.truncated && <p role="status">{t("workspace.resultTruncated")}</p>}
           <div className="cy-workspace-run-results__files" aria-label={t("workspace.writeEvidence")}>
             <h3>{t("workspace.writeEvidence")}</h3>

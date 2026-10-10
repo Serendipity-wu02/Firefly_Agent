@@ -12,6 +12,7 @@ import { ComposerSlot } from "../components/ComposerSlot";
 import { CodeGitPanel } from "../components/CodeGitPanel";
 import type { PlanReviewPhase } from "../components/PlanReviewPanel";
 import { ChatPageInspector, type ChatPageInspectorDiffTab } from "../components/ChatPageInspector";
+import { ChatInspectorActionsContext, type ChatInspectorActions } from "../components/inspector-actions";
 import {
   normalizeDeferredPlanChoice,
   normalizePopQuizCard,
@@ -1284,6 +1285,17 @@ export function ChatPage() {
     setResultTabIds(ids => ids.includes(id) ? ids : [...ids, id]);
     setActiveTabId(id); setInspectorHidden(false);
   };
+  const [focusTask, setFocusTask] = useState<{ taskId: string; seq: number }>();
+  // A stable object, so the message list does not re-render when the outputs change; the handler always reads the latest outputs.
+  const openDelegationRef = useRef<(taskId: string) => void>(() => undefined);
+  openDelegationRef.current = (taskId: string) => {
+    const output = workspaceOutputs.find(item => item.sessionId === activeSessionId
+      && (item.tasks.some(task => task.taskId === taskId) || item.tools.some(tool => tool.taskResult?.sessionId === taskId)));
+    if (!output) return;
+    openResultTab(output.id);
+    setFocusTask(current => ({ taskId, seq: (current?.seq ?? 0) + 1 }));
+  };
+  const inspectorActions = useMemo<ChatInspectorActions>(() => ({ openDelegation: (taskId: string) => openDelegationRef.current(taskId) }), []);
   const openResultDiff = (output: WorkspaceRunOutput, file: WorkspaceChangedFile) => {
     if (output.sessionId !== activeSessionId) return;
     const id = `diff:${output.runId}:${file.toolId}:${file.change.file}`;
@@ -1570,6 +1582,7 @@ export function ChatPage() {
           }}
         />
         {hasMessages && (
+          <ChatInspectorActionsContext.Provider value={inspectorActions}>
           <ChatMessageList
             messages={messages}
             conversationId={activeSessionId}
@@ -1586,6 +1599,7 @@ export function ChatPage() {
             workspaceRoot={activeSession?.workspaceBinding?.workspaceRoot}
             onOpenFileLink={openFileTab}
           />
+          </ChatInspectorActionsContext.Provider>
         )}
         <ContextCompressionNotice visible={isCompressingContext} />
         {!hasMessages && <div className="cy-workspace-greeting">
@@ -1733,6 +1747,7 @@ export function ChatPage() {
                 visible={inspectorVisible}
                 refreshRevision={refreshRevision}
                 resultTabs={resultTabs}
+                focusTask={focusTask}
                 onOpenResultDiff={openResultDiff}
                 workspaceRoot={activeSession?.workspaceBinding?.workspaceRoot}
                 filesTabOpen={filesTabOpen}

@@ -491,7 +491,8 @@
     "statusRunning": "Running",
     "statusCompleted": "Done",
     "statusFailed": "Failed",
-    "statusCancelled": "Canceled"
+    "statusCancelled": "Canceled",
+    "openResult": "Open result"
   },
   "interaction": {
     "askingTitle": "I need to ask you something",

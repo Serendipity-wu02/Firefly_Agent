@@ -51,6 +51,8 @@ export interface ChatPageInspectorProps {
   visible?: boolean;
   refreshRevision?: number | string;
   resultTabs?: WorkspaceRunOutput[];
+  /** Delegated task whose result the chat asked to reveal inside its run result tab. */
+  focusTask?: { taskId: string; seq: number };
   onOpenResultDiff?: (output: WorkspaceRunOutput, file: WorkspaceChangedFile) => void;
   /** 工作区根路径（未绑定时为空，文件树显示引导态） */
   workspaceRoot?: string;
@@ -80,6 +82,7 @@ export function ChatPageInspector({
   visible = true,
   refreshRevision,
   resultTabs = [],
+  focusTask,
   onOpenResultDiff,
   workspaceRoot,
   filesTabOpen,
@@ -152,8 +155,11 @@ export function ChatPageInspector({
   }
   for (const [index, output] of resultTabs.entries()) {
     if (output.sessionId !== sessionId) continue;
-    tabs.push({ id: output.id, kind: "result", label: t("workspace.runResult", { index: index + 1 }),
-      content: <WorkspaceRunResults output={output} workspaceRoot={workspaceRoot} onOpenFile={onOpenFile}
+    // A run with a single delegated task is named after that task, like a file tab.
+    const label = output.tasks.length === 1 && output.tasks[0].description.trim()
+      ? output.tasks[0].description.trim().slice(0, 24) : t("workspace.runResult", { index: index + 1 });
+    tabs.push({ id: output.id, kind: "result", label, title: output.tasks.length === 1 ? output.tasks[0].description : undefined,
+      content: <WorkspaceRunResults output={output} workspaceRoot={workspaceRoot} focusTask={focusTask} onOpenFile={onOpenFile}
         onOpenDiff={(result, file) => onOpenResultDiff?.(result, file)} /> });
   }
   if (activePlan && planDrawerOpen) {

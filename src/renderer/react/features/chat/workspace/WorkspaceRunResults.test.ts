@@ -83,3 +83,22 @@ it("restores observed model event identity, monotonic clock and terminal metadat
   expect(host.textContent).toContain("workspace.childStatus.failed");
   expect(host.querySelector('[data-execution-phase="end"]')).not.toBeNull();
 });
+
+it("shows the delegated agent and its task above a rendered conclusion, and scrolls to the requested task", () => {
+  const scroll = vi.fn();
+  Element.prototype.scrollIntoView = scroll;
+  const task = { invocationId: "run-1", taskId: "child", description: "检查取消链路", nickname: "艾利欧", assetFileName: "艾利欧.png", status: "completed" as const };
+  const withTask: WorkspaceRunOutput = { ...output, files: [], tasks: [task], tools: [{ ...output.tools[0], taskResult: { agentId: "strategy-planning", sessionId: "child", status: "completed", text: "## 结论 已核对 **全部** 文件" } }] };
+  const props = { output: withTask, workspaceRoot: "/work", onOpenFile: vi.fn(), onOpenDiff: vi.fn() };
+  act(() => root.render(React.createElement(WorkspaceRunResults, props)));
+  const article = host.querySelector<HTMLElement>('[data-task-id="child"]')!;
+  expect(article.querySelector("header strong")?.textContent).toBe("艾利欧");
+  expect(article.querySelector(".cy-workspace-run-results__task")?.textContent).toBe("检查取消链路");
+  expect(article.querySelector(".cy-workspace-run-results__text")?.textContent).toContain("已核对");
+  expect(article.querySelector(".cy-workspace-run-results__text")?.textContent).not.toContain("**");
+  expect(scroll).not.toHaveBeenCalled();
+  act(() => root.render(React.createElement(WorkspaceRunResults, { ...props, focusTask: { taskId: "child", seq: 1 } })));
+  expect(scroll).toHaveBeenCalledOnce();
+  act(() => root.render(React.createElement(WorkspaceRunResults, { ...props, focusTask: { taskId: "child", seq: 2 } })));
+  expect(scroll).toHaveBeenCalledTimes(2);
+});

@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskDelegationDisplayRecord } from "../../../../../shared/chat-types";
 import { TaskDelegationRow } from "./TaskDelegationRow";
+import { ChatInspectorActionsContext } from "./inspector-actions";
 
 let host: HTMLDivElement;
 let root: Root;
@@ -73,5 +74,16 @@ describe("public delegated-task disclosure", () => {
     const buttons = [...host.querySelectorAll<HTMLButtonElement>("button[aria-controls]")];
     expect(buttons).toHaveLength(2);
     expect(buttons[0].getAttribute("aria-controls")).not.toBe(buttons[1].getAttribute("aria-controls"));
+  });
+
+  it("opens the result in the inspector instead of unfolding when the chat provides an opener", () => {
+    const open = vi.fn();
+    act(() => root.render(createElement(ChatInspectorActionsContext.Provider, { value: { openDelegation: open } },
+      createElement(TaskDelegationRow, { delegation: running }))));
+    const trigger = host.querySelector<HTMLButtonElement>("button.cy-task-delegation__summary")!;
+    expect(trigger.hasAttribute("aria-expanded")).toBe(false);
+    act(() => trigger.click());
+    expect(open).toHaveBeenCalledExactlyOnceWith("task-1");
+    expect(host.querySelector(".cy-task-delegation__details")).toBeNull();
   });
 });

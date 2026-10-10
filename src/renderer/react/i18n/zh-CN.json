@@ -491,7 +491,8 @@
     "statusRunning": "正在运行",
     "statusCompleted": "已完成",
     "statusFailed": "执行失败",
-    "statusCancelled": "已取消"
+    "statusCancelled": "已取消",
+    "openResult": "打开结果"
   },
   "interaction": {
     "askingTitle": "流萤正在询问",
