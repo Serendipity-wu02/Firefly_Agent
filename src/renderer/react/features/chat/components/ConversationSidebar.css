@@ -205,3 +205,17 @@
 .cy-session-context-menu .ant-menu-submenu-title:hover { background: var(--cy-bg-hover); color: var(--cy-text); }
 .cy-session-context-menu .ant-menu-item-danger { color: var(--cy-danger); }
 .cy-session-context-menu .ant-menu-item-danger:hover { background: var(--cy-del-bg); color: var(--cy-danger); }
+
+/* Custom colours: floating surfaces sit on the user's workspace colour. */
+:root[data-ui-colors] .cy-conversation-list .ant-conversations-item-active,
+:root[data-ui-colors] .cy-session-rename-input,
+:root[data-ui-colors] .cy-session-rename-input input,
+:root[data-ui-colors] .cy-project-popover .ant-popover-inner,
+:root[data-ui-colors] .cy-project-card__open,
+:root[data-ui-colors] .cy-session-context-menu,
+:root[data-ui-colors] .cy-session-context-menu .ant-menu {
+  background: var(--cy-bg-workspace);
+  color: var(--cy-text);
+  border-color: var(--cy-border);
+}
+:root[data-ui-colors] .cy-project-card__open:hover:not(:disabled) { background: var(--cy-bg-hover); color: var(--cy-text); }

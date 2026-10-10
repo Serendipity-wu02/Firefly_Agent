@@ -667,8 +667,6 @@ html, body {
 :root[data-ui-colors] .cy-workspace-empty button {
   background: var(--cy-bg-workspace);
 }
-.cy-right-inspector .cy-todo--docked, .cy-right-inspector .cy-code-git--docked { flex: 1; min-height: 0; border-bottom: 0; border-radius: 12px; }
-.cy-right-inspector .cy-todo--docked:not(.cy-todo--collapsed) .cy-todo__body { max-height: none; }
 .ant-popover-inner, .ant-dropdown-menu, .ant-modal-content, .ant-sender, .ant-input, .ant-input-affix-wrapper, .ant-select-selector, .ant-tooltip-inner { border-radius: 12px !important; }
 @media (max-width: 900px) { .cy-sidebar-resizer { display: none; } }
 

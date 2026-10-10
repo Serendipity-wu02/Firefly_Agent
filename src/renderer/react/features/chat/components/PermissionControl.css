@@ -54,15 +54,15 @@
 
 .cy-permission-panel__option:hover { background: var(--cy-bg-subtle); }
 .cy-permission-panel__option.is-project-read-only.is-active,
-.cy-permission-panel__option.is-read-only.is-active { background: #eaf8ef; }
-.cy-permission-panel__option.is-scoped.is-active { background: #eaf2ff; }
+.cy-permission-panel__option.is-read-only.is-active { background: rgba(33, 163, 102, 0.16); }
+.cy-permission-panel__option.is-scoped.is-active { background: rgba(59, 130, 246, 0.16); }
 .cy-permission-panel__option.is-per-action.is-active { background: var(--cy-bg-subtle); }
-.cy-permission-panel__option.is-full.is-active { background: #fff6d7; }
+.cy-permission-panel__option.is-full.is-active { background: rgba(212, 157, 22, 0.18); }
 
 .cy-permission-popover .ant-popover-inner {
   padding: 9px;
-  border: 1px solid rgba(31, 35, 48, 0.08);
+  border: 1px solid var(--cy-border);
   border-radius: 12px;
-  background: #F5F5F7;
-  box-shadow: 0 12px 32px rgba(29, 29, 31, 0.12);
+  background: var(--cy-popover);
+  box-shadow: var(--cy-shadow-popover);
 }

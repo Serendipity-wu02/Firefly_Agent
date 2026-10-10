@@ -1776,7 +1776,7 @@ export function ChatPage() {
                 pendingWorkspaceName={pendingWorkspaceByMode[mode]?.displayName}
                 onChooseWorkspace={mode !== "chat" ? () => void chooseWorkspace() : undefined}
                 taskPanel={<div className="cy-workspace-task-panel">{mode === "work"
-                  ? <TodoPanel docked expanded state={activeSessionId ? todoStateBySession[activeSessionId] : null} mode="work" />
+                  ? <TodoPanel state={activeSessionId ? todoStateBySession[activeSessionId] : null} />
                   : mode === "code" && activeSessionId
                     ? <CodeGitPanel docked expanded sessionId={activeSessionId} projectName={workspaceNames.code}
                         todoState={todoStateBySession[activeSessionId] ?? null}

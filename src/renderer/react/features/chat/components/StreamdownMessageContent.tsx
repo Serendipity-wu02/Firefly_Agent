@@ -9,6 +9,8 @@ import {
 import type { PluggableList } from "unified";
 import React, { isValidElement, useContext, type ReactNode } from "react";
 import { FileLinkContext, MessageStreamingContext } from "./ChatMessageList";
+import { useUiTheme } from "../../../hooks/useUiTheme";
+import { fireflyDarkCodeTheme } from "./code-highlight-theme";
 import { MermaidBlock } from "./MermaidBlock";
 import { SvgCardBlock } from "./SvgCardBlock";
 import { parseFileLinkHref, relativePathInsideWorkspace } from "./file-link";
@@ -44,13 +46,15 @@ function extractCodeBlock(children: ReactNode): { code: string; lang: string } |
 }
 
 function StreamdownPre({ children }: { children?: ReactNode }) {
+  const dark = useUiTheme() === "firefly-dark";
   const streaming = useContext(MessageStreamingContext);
   const info = extractCodeBlock(children);
   if (!info) return <pre>{children}</pre>;
   if (info.lang === "mermaid") return <MermaidBlock code={info.code} streaming={streaming} />;
   if (info.lang === "svg") return <SvgCardBlock code={info.code} streaming={streaming} />;
   return (
-    <CodeHighlighter lang={info.lang || "text"} prismLightMode={false}>
+    <CodeHighlighter lang={info.lang || "text"} prismLightMode={false}
+      highlightProps={dark ? { style: fireflyDarkCodeTheme } : undefined}>
       {info.code}
     </CodeHighlighter>
   );

@@ -587,9 +587,7 @@
     "mascotAlt": "Reminder",
     "currentTasks": "Current tasks",
     "progress": "{{completed}}/{{total}} done",
-    "empty": "No tasks",
-    "projectStatus": "Project status",
-    "gitComingSoon": "Git workspace coming soon"
+    "empty": "No tasks"
   },
   "fileChange": {
     "panelAria": "File changes",

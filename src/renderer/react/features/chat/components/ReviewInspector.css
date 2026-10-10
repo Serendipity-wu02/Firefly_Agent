@@ -66,8 +66,8 @@
   font-size: 11px;
   font-weight: 600;
   background: var(--cy-info-bg);
-  border-top: 1px solid #b6e3ff;
-  border-bottom: 1px solid #b6e3ff;
+  border-top: 1px solid var(--cy-border);
+  border-bottom: 1px solid var(--cy-border);
 }
 
 /* diff 行 */
@@ -121,8 +121,8 @@
 .cy-review-inspector__kind.is-created  { background: var(--cy-add-bg); color: var(--cy-add-fg); }
 .cy-review-inspector__kind.is-deleted  { background: var(--cy-del-bg); color: var(--cy-del-fg); }
 .cy-review-inspector__kind.is-renamed  { background: var(--cy-info-bg); color: var(--cy-info-fg); }
-.cy-review-inspector__kind.is-binary   { background: var(--cy-bg-hover); color: #6e7781; }
-.cy-review-inspector__kind.is-large    { background: var(--cy-bg-hover); color: #6e7781; }
+.cy-review-inspector__kind.is-binary   { background: var(--cy-bg-hover); color: var(--cy-text-muted); }
+.cy-review-inspector__kind.is-large    { background: var(--cy-bg-hover); color: var(--cy-text-muted); }
 
 /* ── 元信息视图 ── */
 .cy-review-inspector__meta {

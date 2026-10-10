@@ -1,10 +1,13 @@
 .cy-workspace-task-panel { height: 100%; overflow: auto; }
-.cy-workspace-task-panel > .cy-todo.cy-todo--docked, .cy-workspace-task-panel > .cy-code-git.cy-code-git--docked { height: auto; }
-.cy-workspace-results-index, .cy-workspace-run-results, .cy-workspace-change-diff { padding: 12px; color: var(--cy-text); overflow: auto; overflow-wrap: anywhere; }
+.cy-workspace-task-panel > .cy-code-git.cy-code-git--docked { height: auto; }
+.cy-workspace-results-index { padding: 12px 16px 16px; color: var(--cy-text); }
+.cy-workspace-run-results, .cy-workspace-change-diff { padding: 12px; color: var(--cy-text); overflow: auto; overflow-wrap: anywhere; }
 .cy-workspace-run-results, .cy-workspace-change-diff { height: 100%; box-sizing: border-box; }
-.cy-workspace-results-index h3, .cy-workspace-run-results h3 { margin: 0 0 8px; font-size: 13px; }
+.cy-workspace-results-index h3, .cy-workspace-run-results h3 { margin: 0 0 8px; font: 600 13px/1.2 var(--rb-font-sans, sans-serif); }
+.cy-workspace-results-index p { margin: 0; color: var(--cy-text-muted); font-size: 13px; line-height: 1.5; }
 .cy-workspace-results-index button, .cy-workspace-run-results button { border: 1px solid var(--cy-border); border-radius: 12px; background: var(--cy-bg-page, var(--cy-surface)); color: inherit; cursor: pointer; padding: 6px 10px; }
-.cy-workspace-results-index > button { display: flex; justify-content: space-between; gap: 8px; width: 100%; margin-top: 6px; text-align: left; }
+.cy-workspace-results-index > button { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; margin: 0 -8px; width: calc(100% + 16px); padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; text-align: left; }
+.cy-workspace-results-index > button:hover { background: var(--cy-bg-hover); }
 .cy-workspace-results-index small, .cy-workspace-run-results small { color: var(--cy-text-muted); }
 .cy-workspace-run-results__file { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--cy-border); }
 .cy-workspace-run-results__file > span { flex: 1 1 100%; }
@@ -13,7 +16,7 @@
 .cy-workspace-run-results__tool p { font-size: 12px; color: var(--cy-text-muted); }
 .cy-workspace-run-results pre, .cy-workspace-change-diff pre { font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .cy-workspace-change-diff header { padding-bottom: 10px; border-bottom: 1px solid var(--cy-border); }
-.cy-workspace-change-diff .is-add { background: #e6f4ea; }
-.cy-workspace-change-diff .is-remove { background: #fce8e6; }
-.cy-workspace-change-diff .is-hunk { color: #456893; background: #eef3f8; }
+.cy-workspace-change-diff .is-add { background: var(--cy-add-bg); }
+.cy-workspace-change-diff .is-remove { background: var(--cy-del-bg); }
+.cy-workspace-change-diff .is-hunk { color: var(--cy-info-fg); background: var(--cy-info-bg); }
 .cy-workspace-change-diff pre span { padding-right: 8px; user-select: none; }

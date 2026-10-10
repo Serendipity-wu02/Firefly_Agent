@@ -3,30 +3,27 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TodoPanel } from "./TodoPanel";
 
-describe("TodoPanel layout structure", () => {
-  it("keeps the progress and project-status extension outside the scrollable task list", () => {
-    (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    const html = renderToStaticMarkup(React.createElement(TodoPanel, {
-      mode: "work",
-      workspaceName: "firefly-project",
-      state: {
-        updatedAt: 1,
-        todos: Array.from({ length: 20 }, (_, index) => ({
-          id: `todo-${index}`,
-          content: `任务 ${index}`,
-          status: index === 0 ? "completed" as const : "pending" as const,
-        })),
-      },
-    }));
+const render = (todos: { id: string; content: string; status: "pending" | "completed" }[]) => {
+  (globalThis as typeof globalThis & { React: typeof React }).React = React;
+  return renderToStaticMarkup(React.createElement(TodoPanel, { state: { updatedAt: 1, todos } }));
+};
 
-    expect(html).toContain('data-testid="todo-list"');
-    expect(html).toContain('data-testid="todo-footer"');
+describe("TodoPanel", () => {
+  it("shows the count in the heading and keeps the progress bar outside the scrollable list", () => {
+    const html = render(Array.from({ length: 20 }, (_, index) => ({ id: `todo-${index}`, content: `任务 ${index}`, status: index === 0 ? "completed" as const : "pending" as const })));
+    expect(html).toContain("1/20");
     const listEnd = html.indexOf("</ul>", html.indexOf('data-testid="todo-list"'));
     const footerStart = html.indexOf('data-testid="todo-footer"');
     expect(footerStart).toBeGreaterThan(listEnd);
-    expect(html.slice(footerStart)).toContain('data-testid="todo-extension-slot"');
-    expect(html.slice(footerStart)).toContain("项目状态");
-    expect(html.slice(footerStart)).not.toContain("当前工作路径");
     expect(html.slice(footerStart)).toContain('role="progressbar"');
+    expect(html.slice(footerStart)).toContain("5%");
+  });
+  it("has no coming-soon placeholder, mode capsule or progress bar when there are no tasks", () => {
+    const html = render([]);
+    expect(html).toContain("0/0");
+    expect(html).toContain("cy-todo__item--empty");
+    expect(html).not.toContain("progressbar");
+    expect(html).not.toContain("即将接入");
+    expect(html).not.toContain("cy-todo__mode");
   });
 });

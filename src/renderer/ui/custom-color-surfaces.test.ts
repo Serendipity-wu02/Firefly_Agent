@@ -77,7 +77,7 @@ describe("custom-color foreground and surface pairs", () => {
   it("keeps the existing light defaults when custom colors are disabled", () => {
     expect(declaration("ChatMessageList", ".cy-message--user .ant-bubble-content", "color")).toBe("var(--cy-text)");
     expect(declaration("ConversationSidebar", ".cy-session-rename-input", "background")).toBe("var(--cy-surface)");
-    expect(declaration("RunExperience", ".cy-interaction-panel", "background")).toBe("rgb(245, 245, 247)");
+    expect(declaration("RunExperience", ".cy-interaction-panel", "background")).toBe("var(--cy-popover)");
     const dom = new JSDOM('<div class="cy-session-rename-input"></div>');
     const input = dom.window.document.querySelector("div")!;
     expect(input.matches(":root[data-ui-colors] .cy-session-rename-input")).toBe(false);

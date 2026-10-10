@@ -6,7 +6,7 @@
   margin: 8px 0 4px;
   border: 1px solid var(--cy-border, var(--cy-border));
   border-radius: 12px;
-  background: rgb(255 255 255 / 88%);
+  background: var(--cy-surface);
   box-shadow: 0 4px 16px rgb(44 31 38 / 5%);
   overflow: hidden;
   app-region: no-drag;
@@ -64,7 +64,7 @@
   font: 600 12px/1.2 var(--rb-font-mono, monospace);
   font-variant-numeric: tabular-nums;
 }
-.cy-review-panel__stats .is-add { color: #1a7f37; }
+.cy-review-panel__stats .is-add { color: var(--cy-add-fg); }
 .cy-review-panel__stats .is-remove { color: var(--cy-del-fg); }
 
 /* 展开/收起 chevron */
@@ -118,8 +118,8 @@
 .cy-review-panel__kind.is-created  { background: var(--cy-add-bg); color: var(--cy-add-fg); }
 .cy-review-panel__kind.is-deleted  { background: var(--cy-del-bg); color: var(--cy-del-fg); }
 .cy-review-panel__kind.is-renamed  { background: var(--cy-info-bg); color: var(--cy-info-fg); }
-.cy-review-panel__kind.is-binary   { background: var(--cy-bg-hover); color: #6e7781; }
-.cy-review-panel__kind.is-large    { background: var(--cy-bg-hover); color: #6e7781; }
+.cy-review-panel__kind.is-binary   { background: var(--cy-bg-hover); color: var(--cy-text-muted); }
+.cy-review-panel__kind.is-large    { background: var(--cy-bg-hover); color: var(--cy-text-muted); }
 
 /* 文件路径 */
 .cy-review-panel__file-path {
@@ -146,7 +146,7 @@
   font: 600 11px/1.2 var(--rb-font-mono, monospace);
   font-variant-numeric: tabular-nums;
 }
-.cy-review-panel__file-stats .is-add { color: #1a7f37; }
+.cy-review-panel__file-stats .is-add { color: var(--cy-add-fg); }
 .cy-review-panel__file-stats .is-remove { color: var(--cy-del-fg); }
 
 /* 右箭头（提示点击会打开侧栏） */
@@ -178,7 +178,7 @@
 }
 /* 第二次点击前的确认态：警示色，提示这是破坏性操作 */
 .cy-review-panel__restore-btn.is-confirming {
-  border-color: #cf222e;
+  border-color: var(--cy-danger);
   color: var(--cy-del-fg);
   font-weight: 600;
 }

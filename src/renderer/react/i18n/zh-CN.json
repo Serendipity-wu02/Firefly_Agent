@@ -587,9 +587,7 @@
     "mascotAlt": "提醒",
     "currentTasks": "当前任务",
     "progress": "{{completed}}/{{total}} 已完成",
-    "empty": "暂无任务",
-    "projectStatus": "项目状态",
-    "gitComingSoon": "Git 工作台即将接入"
+    "empty": "暂无任务"
   },
   "fileChange": {
     "panelAria": "文件变更",
