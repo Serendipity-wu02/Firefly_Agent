@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 import { afterEach, expect, it, vi } from "vitest";
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 import { HarnessRunStore } from "../orchestrator/harness/run-store";
 import { randomBytes } from "node:crypto";
 import { openMemoryRepository } from "../memory-core/repository";

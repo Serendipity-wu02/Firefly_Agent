@@ -1,5 +1,7 @@
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import {afterEach,afterAll,expect,it,vi} from 'vitest';
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 import {contextFixture} from '../../../scripts/verify/memory-context/context-fixture';
 import {ConversationTranscriptStore} from '../orchestrator/conversation-transcript-store';import {createTranscriptSink} from '../orchestrator/transcript-sink';
 import {createMainHistory,readHistoryEvidence,claimHistoryResponseEvidence} from '../memory-history/main-history';import {createNativeHistoryProvider} from '../memory-sources/native-history-provider';

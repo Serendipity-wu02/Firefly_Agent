@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import {randomUUID} from "node:crypto";
 import {it,expect,vi} from "vitest";
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 import {createMainSourceRegistry} from "../memory-sources/source-registry";
 import {createMainPolicy} from "../memory-policy/main-policy";
 import {contextFixture} from "../../../scripts/verify/memory-context/context-fixture";

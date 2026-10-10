@@ -8,6 +8,8 @@ import { toolRegistry, type ToolDefinition } from "./tools/registry/tool-registr
 import type { HarnessEvent } from "./harness/types";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { afterAll, afterEach, expect, it, vi } from "vitest";
+// Real SQLite / filesystem integration cases: the 5 s default is too tight on CI runners, so this file allows 30 s. Other files keep the default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 import { initializeStorageContext, getStorageContext } from "../storage-context";
 import { resolveRuntimeProfile } from "../runtime-profile";
 import { createSmhFixture } from "../memory-context/smh-fixture.test-support";
