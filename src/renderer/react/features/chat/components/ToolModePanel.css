@@ -256,15 +256,6 @@
   transform: translateX(16px);
 }
 
-.tool-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.tool-panel::-webkit-scrollbar-thumb {
-  background: var(--cy-border, var(--cy-bg-hover));
-  border-radius: 3px;
-}
-
 .tool-panel__heading-icon {
   grid-row: span 2;
   width: 38px;

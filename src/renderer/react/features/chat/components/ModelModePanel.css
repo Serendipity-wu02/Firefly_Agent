@@ -221,15 +221,6 @@
   background: rgba(255, 69, 58, 0.08);
 }
 
-.model-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.model-panel::-webkit-scrollbar-thumb {
-  background: var(--cy-border, var(--cy-bg-hover));
-  border-radius: 3px;
-}
-
 .model-panel__heading-icon {
   grid-row: span 2;
   width: 38px;

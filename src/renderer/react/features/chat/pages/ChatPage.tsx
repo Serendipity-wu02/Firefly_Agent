@@ -68,6 +68,7 @@ import {
 import { useComposerAttachments } from "../hooks/useComposerAttachments";
 import { useSessionMessages } from "../hooks/useSessionMessages";
 import { useSchedulerEvents } from "../hooks/useSchedulerEvents";
+import { useMaximizedWindowDrag } from "../hooks/useMaximizedWindowDrag";
 import { useChannelMirrorEvents } from "../hooks/useChannelMirrorEvents";
 import { useFeedback } from "../../../components/feedback/FeedbackProvider";
 import { AgentRunController, type AgentRunInput } from "./run/AgentRunController";
@@ -1471,6 +1472,7 @@ export function ChatPage() {
     });
   }, [feedback, t]);
   const navMinimize = useCallback(() => window.chat?.minimize(), []);
+  useMaximizedWindowDrag();
   const navMaximize = useCallback(() => window.chat?.toggleMaximize(), []);
   const navCloseWindow = useCallback(() => window.chat?.close(), []);
   const navOpenSettings = useCallback(() => sidebarApi()?.openSettings("general"), []);

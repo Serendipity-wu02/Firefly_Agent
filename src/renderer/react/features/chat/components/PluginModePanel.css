@@ -373,15 +373,6 @@
   cursor: not-allowed;
 }
 
-.plugin-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.plugin-panel::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background: var(--cy-border, #e8e8ec);
-}
-
 @media (max-width: 760px) {
   .plugin-panel__grid {
     grid-template-columns: minmax(0, 1fr);

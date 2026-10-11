@@ -33,6 +33,17 @@ function preferenceKey(preference: ReasoningPreference): string {
   return `${preference.mode}:${preference.effort ?? ""}:${preference.proMode ? "pro" : ""}`;
 }
 
+/** 滑块每一档下面的短标签：两个字以内，才能在 260px 的面板里排得下。 */
+export function shortEffortLabel(label: string): string {
+  switch (label) {
+    case "跟随模型": return "自动";
+    case "关闭": return "关";
+    case "开启": return "开";
+    case "始终开启": return "常开";
+    default: return label;
+  }
+}
+
 function ChevronIcon({ direction = "down" }: { direction?: "down" | "right" | "left" }) {
   const path = direction === "down" ? "m7 10 5 5 5-5" : direction === "right" ? "m10 7 5 5-5 5" : "m14 7-5 5 5 5";
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={path} /></svg>;
@@ -134,7 +145,9 @@ export function ModelEffortControl({ sessionId, activeProfileId, onSelectModelPr
           max={items.length - 1}
           step={1}
           dots
-          marks={Object.fromEntries(items.map((_, index) => [index, ""]))}
+          marks={Object.fromEntries(items.map((item, index) => [index, {
+            label: <span className={`cy-effort__mark${index === shownIndex ? " is-current" : ""}${item.disabled ? " is-disabled" : ""}`}>{shortEffortLabel(item.label)}</span>,
+          }]))}
           value={shownIndex}
           tooltip={{ open: false }}
           aria-label={t("modelEffort.sliderLabel")}

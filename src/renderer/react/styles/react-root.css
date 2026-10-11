@@ -52,6 +52,9 @@
   --cy-info-bg: #ddf4ff;
   --cy-info-fg: #0550ae;
   --cy-scrim: rgba(31, 35, 48, 0.32);
+  /* 滚动条滑块：随主题的次要文字色取淡色，悬停加深，拖动时用强调色。 */
+  --cy-scroll-thumb: color-mix(in srgb, var(--cy-text-muted) 34%, transparent);
+  --cy-scroll-thumb-hover: color-mix(in srgb, var(--cy-text-muted) 64%, transparent);
   color-scheme: light;
 }
 
@@ -95,6 +98,30 @@
   --cy-shadow-control-focus: 0 0 0 3px rgba(123, 216, 174, 0.22), 0 6px 18px rgba(0, 0, 0, 0.3);
 }
 
+/* ===== 滚动条：10px 透明轨道里一根 6px 的圆角细滑块，不占视觉位置 ===== */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  min-width: 36px;
+  min-height: 36px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-color: var(--cy-scroll-thumb);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--cy-scroll-thumb-hover);
+}
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--cy-accent);
+}
+
 html, body {
   height: 100%;
   margin: 0;
@@ -122,6 +149,17 @@ html, body {
   overflow: hidden;
   user-select: none;
   app-region: drag;
+}
+
+/* 最大化：贴满工作区，去掉圆角和描边。原生拖动区在此状态下拖不动还原，
+   所以关掉它，由 useMaximizedWindowDrag 接管拖动与双击还原。 */
+:root[data-window-maximized="true"] .cy-page {
+  border-radius: 0;
+  border-color: transparent;
+  app-region: no-drag;
+}
+:root[data-window-maximized="true"] .cy-workspace-header {
+  app-region: no-drag;
 }
 
 .cy-page button,

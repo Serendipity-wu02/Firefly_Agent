@@ -315,15 +315,6 @@
 .skill-card__pill.is-on .skill-card__pill-knob {
   transform: translateX(16px);
 }
-
-.skill-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.skill-panel::-webkit-scrollbar-thumb {
-  background: var(--cy-border, var(--cy-bg-hover));
-  border-radius: 3px;
-}
 /* 头部左侧：图标 + 标题/副标题两行网格 */
 .skill-panel__header-row > div:first-child {
   display: grid;

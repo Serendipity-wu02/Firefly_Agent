@@ -123,9 +123,11 @@
 .cy-session-label__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cy-session-label__pin { flex: none; color: var(--cy-text-muted); font-size: 10px; }
 
-.cy-conversation-list-wrapper::-webkit-scrollbar { width: 6px; }
-.cy-conversation-list-wrapper::-webkit-scrollbar-thumb { border-radius: 999px; background: transparent; }
-.cy-conversation-list-wrapper:hover::-webkit-scrollbar-thumb { background: var(--cy-bg-active); }
+/* 会话列表的滑块平时隐藏，鼠标进入列表才出现；颜色与全局滚动条一致。 */
+.cy-conversation-list-wrapper::-webkit-scrollbar-thumb { background-color: transparent; }
+.cy-conversation-list-wrapper:hover::-webkit-scrollbar-thumb { background-color: var(--cy-scroll-thumb); }
+.cy-conversation-list-wrapper:hover::-webkit-scrollbar-thumb:hover { background-color: var(--cy-scroll-thumb-hover); }
+.cy-conversation-list-wrapper:hover::-webkit-scrollbar-thumb:active { background-color: var(--cy-accent); }
 
 /* Hover card for a project. */
 .cy-project-popover .ant-popover-inner {

@@ -32,6 +32,10 @@ vi.mock("electron", () => ({
     fromWebContents: vi.fn(),
     getAllWindows: () => [],
   },
+  screen: {
+    getCursorScreenPoint: () => ({ x: 0, y: 0 }),
+    getDisplayNearestPoint: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1040 } }),
+  },
   ipcMain: {
     handle: vi.fn((channel: string, handler: (...args: any[]) => unknown) => {
       mocks.handlers.set(channel, handler);

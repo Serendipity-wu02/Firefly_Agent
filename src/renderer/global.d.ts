@@ -43,6 +43,10 @@ interface ChatWindowApi {
   minimize: () => void;
   close: () => void;
   toggleMaximize: () => void;
+  isMaximized: () => Promise<boolean>;
+  /** 最大化后拖标题栏：主进程还原窗口并跟随光标，直到 endWindowDrag。 */
+  startWindowDrag: () => void;
+  endWindowDrag: () => void;
   /** 已启用的贴纸列表（主进程返回 { id, src } 结构） */
   getEnabledStickers: () => Promise<Array<{ id: string; src: string }>>;
   /** 读取本地图片并转为 dataUrl 预览；失败返回 ok=false + error */

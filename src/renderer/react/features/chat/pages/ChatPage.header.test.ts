@@ -77,8 +77,9 @@ describe("chat header structure", () => {
     expect(header?.style.position).toBe("relative");
     // jsdom drops Electron's nonstandard app-region declaration from CSSOM.
     // These are source contracts only; native hit testing still needs Electron QA.
-    expect(root.match(/\.cy-workspace-header \{([^}]+)\}/)?.[1]).toMatch(/app-region:\s*drag/);
-    expect(root.match(/\.cy-workspace-header__actions \{([^}]+)\}/)?.[1]).toMatch(/app-region:\s*no-drag/);
+    expect(root.match(/^\.cy-workspace-header \{([^}]+)\}/m)?.[1]).toMatch(/app-region:\s*drag/);
+    expect(root.match(/^\.cy-workspace-header__actions \{([^}]+)\}/m)?.[1]).toMatch(/app-region:\s*no-drag/);
+    expect(root).toMatch(/:root\[data-window-maximized="true"\] \.cy-workspace-header \{[^}]*app-region:\s*no-drag/);
     expect(header?.style.height).toBe("var(--cy-workspace-header-height)");
     expect(tabs?.style.height).toBe("var(--cy-workspace-header-height)");
     expect(rules.some(rule => rule.selectorText === ".cy-workspace .cy-workspace-composer" && rule.style.paddingTop === "56px")).toBe(false);

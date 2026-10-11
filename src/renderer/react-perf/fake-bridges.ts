@@ -206,6 +206,9 @@ export function installFakeBridges(options: FakeBridgeOptions): FakeBridgeRuntim
     getImagePreview: async () => ({ ok: false }),
     minimize: () => {},
     toggleMaximize: () => {},
+    isMaximized: async () => false,
+    startWindowDrag: () => {},
+    endWindowDrag: () => {},
     close: () => {},
   };
   const fakeSettings = {
